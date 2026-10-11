@@ -15,10 +15,6 @@ import (
 	"github.com/sarv-projects/litespm/internal/domain"
 )
 
-func cryptoRandRead(b []byte) (int, error) {
-	return rand.Read(b)
-}
-
 // hostEntryFingerprint computes the S5 entry fingerprint: sha256 over the
 // current config file bytes when the file is readable, falling back to a
 // digest of host|entryKey|configPath so every registration carries a real
@@ -1164,18 +1160,6 @@ func (db *DB) GetAuthProfile(ctx context.Context, profileID string) (*domain.Aut
 }
 
 // --- Audit Events ---
-
-// newAuditEventID mints a collision-resistant audit event id (S7). The old
-// evt_<unixnano> collided under concurrent writers in the same nanosecond;
-// 128 bits of crypto randomness make a collision computationally infeasible,
-// with a nanosecond fallback only when the RNG itself fails.
-func newAuditEventID() string {
-	var b [16]byte
-	if _, err := cryptoRandRead(b[:]); err == nil {
-		return fmt.Sprintf("evt_%x", b)
-	}
-	return fmt.Sprintf("evt_%d_%x", time.Now().UnixNano(), time.Now().UnixNano())
-}
 
 // RecordAuditEvent writes an immutable audit log entry.
 func (db *DB) RecordAuditEvent(ctx context.Context, actor, action, targetRef, decision, approvalID, opID, outcome, metadataJSON string) error {

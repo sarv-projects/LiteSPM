@@ -229,12 +229,3 @@ func parseSimpleTOML(filePath string, cfg *Config) error {
 	}
 	return scanner.Err()
 }
-
-// RedactConfig returns a copy of config with any potentially sensitive values scrubbed.
-func RedactConfig(cfg *Config) *Config {
-	if cfg == nil {
-		return nil
-	}
-	clone := *cfg
-	return &clone
-}

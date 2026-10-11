@@ -100,9 +100,4 @@ func TestConfigLoadingAndOverrides(t *testing.T) {
 	if cfg.Network.Timeout != 45*time.Second {
 		t.Fatalf("expected network timeout 45s, got %v", cfg.Network.Timeout)
 	}
-
-	redacted := RedactConfig(cfg)
-	if redacted == nil {
-		t.Fatal("redacted config should not be nil")
-	}
 }
