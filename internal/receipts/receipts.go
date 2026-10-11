@@ -4,7 +4,14 @@
 //
 // Chain: ReceiptHash = sha256(canonical JSON of all fields except itself);
 // PrevReceiptHash links each receipt to the previous one for the same
-// provider instance, so deletion/reordering is detectable by VerifyChain.
+// provider instance, so a reordered or interior-deleted receipt is detected by
+// VerifyChain.
+//
+// Limit (by construction): the chain is verified against the store's own
+// recorded order, so truncating the file — dropping the tail of a provider's
+// chain — leaves a self-consistent prefix and is NOT detectable here. Detecting
+// that needs an expected head anchored outside this file; do not read this
+// method as making the store append-only.
 //
 // Durability: the store appends JSON lines to a file (fsync per append) and
 // replays it on open. Outputs are represented by digest, not retained.
@@ -71,16 +78,21 @@ type Invocation struct {
 
 // Store is a durable invocation registry + receipt chain.
 type Store struct {
-	mu       sync.Mutex
-	path     string
-	invocs   map[string]*Invocation
-	lastHash map[string]string // provider instance -> last receipt hash
+	mu     sync.Mutex
+	path   string
+	invocs map[string]*Invocation
+	// order records, per provider instance, the receipt hashes in the order
+	// this store issued (or replayed) them. It is the authoritative link order
+	// VerifyChain checks: a receipt that disappears from the store, or one
+	// whose link no longer matches its recorded predecessor, leaves the
+	// recorded order unsatisfiable.
+	order map[string][]string
 }
 
 // Open creates or replays the store at path. An empty path means
 // memory-only (used by tests).
 func Open(path string) (*Store, error) {
-	s := &Store{path: path, invocs: map[string]*Invocation{}, lastHash: map[string]string{}}
+	s := &Store{path: path, invocs: map[string]*Invocation{}, order: map[string][]string{}}
 	if path == "" {
 		return s, nil
 	}
@@ -103,7 +115,7 @@ func Open(path string) (*Store, error) {
 		cp := inv
 		s.invocs[cp.InvocationID] = &cp
 		if cp.Receipt != nil && cp.Receipt.ReceiptHash != "" {
-			s.lastHash[cp.Receipt.ProviderInstance] = cp.Receipt.ReceiptHash
+			s.order[cp.Receipt.ProviderInstance] = append(s.order[cp.Receipt.ProviderInstance], cp.Receipt.ReceiptHash)
 		}
 	}
 	return s, nil
@@ -129,7 +141,7 @@ func (s *Store) Record(capabilityID, providerInstance, outcome string, started, 
 		EndedAt:          ended.UTC(),
 		InputDigest:      inputDigest,
 		OutputDigest:     outputDigest,
-		PrevReceiptHash:  s.lastHash[providerInstance],
+		PrevReceiptHash:  s.lastHashLocked(providerInstance),
 	}
 	r.ReceiptHash = hashReceipt(r)
 	inv := &Invocation{
@@ -140,7 +152,7 @@ func (s *Store) Record(capabilityID, providerInstance, outcome string, started, 
 		UpdatedAt:    time.Now().UTC(),
 	}
 	s.invocs[id] = inv
-	s.lastHash[providerInstance] = r.ReceiptHash
+	s.order[providerInstance] = append(s.order[providerInstance], r.ReceiptHash)
 	if err := s.appendLocked(inv); err != nil {
 		return nil, err
 	}
@@ -183,14 +195,14 @@ func (s *Store) Cancel(id string) (*Invocation, error) {
 		Outcome:          OutcomeCancelled,
 		StartedAt:        now,
 		EndedAt:          now,
-		PrevReceiptHash:  s.lastHash[instanceOf(inv)],
+		PrevReceiptHash:  s.lastHashLocked(instanceOf(inv)),
 	}
 	r.ReceiptHash = hashReceipt(r)
 	inv.State = StateCancelled
 	inv.Cancelled = true
 	inv.Receipt = r
 	inv.UpdatedAt = now
-	s.lastHash[instanceOf(inv)] = r.ReceiptHash
+	s.order[instanceOf(inv)] = append(s.order[instanceOf(inv)], r.ReceiptHash)
 	if err := s.appendLocked(inv); err != nil {
 		return nil, err
 	}
@@ -213,37 +225,64 @@ func (s *Store) RegisterPending(id, capabilityID string) {
 	}
 }
 
-// VerifyChain re-hashes every receipt and checks the per-provider links.
+// VerifyChain re-hashes every receipt and checks the true per-provider link
+// order: within a provider instance, each receipt's PrevReceiptHash must equal
+// the immediately-preceding receipt's ReceiptHash, and the first receipt must
+// carry no link. The store's recorded issue order is the authority, so a
+// reordered receipt, an interior deletion, or a relink is refused rather than
+// accepted because it references some hash the store once issued. A truncated
+// tail is not detectable from inside the store (see the package doc).
 func (s *Store) VerifyChain() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ids := make([]string, 0, len(s.invocs))
-	for id := range s.invocs {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	seen := map[string]string{}
-	for _, id := range ids {
-		inv := s.invocs[id]
-		if inv.Receipt == nil {
+
+	// Re-hash every receipt and index the live ones by hash so the recorded
+	// order can be resolved to receipts.
+	byHash := make(map[string]*Receipt, len(s.invocs))
+	for id, inv := range s.invocs {
+		r := inv.Receipt
+		if r == nil {
 			continue
 		}
-		r := inv.Receipt
 		if want := hashReceipt(r); want != r.ReceiptHash {
 			return fmt.Errorf("LPSM-RECEIPT-TAMPER: %s hash mismatch", id)
 		}
-		prov := r.ProviderInstance
-		if want, ok := seen[prov]; ok {
-			_ = want
+		byHash[r.ReceiptHash] = r
+	}
+
+	covered := 0
+	for prov, hashes := range s.order {
+		prev := ""
+		for i, h := range hashes {
+			r, ok := byHash[h]
+			if !ok {
+				return fmt.Errorf("LPSM-RECEIPT-CHAIN: provider %q is missing receipt %d (%s)", prov, i+1, h)
+			}
+			if r.ProviderInstance != prov {
+				return fmt.Errorf("LPSM-RECEIPT-CHAIN: receipt %s is ordered under provider %q but names %q", h, prov, r.ProviderInstance)
+			}
+			if r.PrevReceiptHash != prev {
+				return fmt.Errorf("LPSM-RECEIPT-CHAIN: provider %q receipt %d does not link to its predecessor", prov, i+1)
+			}
+			prev = h
+			covered++
 		}
-		// The link must either be empty (first receipt) or reference a hash
-		// this store has issued for the provider.
-		if r.PrevReceiptHash != "" && !s.knownHashLocked(r.PrevReceiptHash) {
-			return fmt.Errorf("LPSM-RECEIPT-CHAIN: %s links to unknown hash", id)
-		}
-		seen[prov] = r.ReceiptHash
+	}
+	if covered != len(byHash) {
+		return fmt.Errorf("LPSM-RECEIPT-CHAIN: %d receipt(s) are outside any provider chain", len(byHash)-covered)
 	}
 	return nil
+}
+
+// lastHashLocked returns the hash of the most recently issued receipt for a
+// provider instance (empty before the first), i.e. the link its next receipt
+// must carry.
+func (s *Store) lastHashLocked(prov string) string {
+	hashes := s.order[prov]
+	if len(hashes) == 0 {
+		return ""
+	}
+	return hashes[len(hashes)-1]
 }
 
 // List returns invocation ids in sorted order (for reconcile/audit passes).
@@ -256,15 +295,6 @@ func (s *Store) List() []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-func (s *Store) knownHashLocked(h string) bool {
-	for _, inv := range s.invocs {
-		if inv.Receipt != nil && inv.Receipt.ReceiptHash == h {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *Store) appendLocked(inv *Invocation) error {
