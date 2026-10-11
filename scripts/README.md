@@ -126,6 +126,16 @@ proves they parse, not that they pass. Run them by hand before touching the prod
   `litespm catalog build` and are preserved on merge). **It no longer writes
   `web/public/v1/current.json`** — the served pointer and release tree have a single owner, the Go
   builder.
+- **Completeness contract.** Every run ends by printing a machine-readable
+  `CATALOG_INGESTION_STATUS {...}` line. `completeness` is `complete` when every source ran and none
+  is incomplete, `partial` when the run was scoped (`--only-source` / `--skip-source`), and
+  `incomplete` when a source could not be taken in full — that verdict is what a release cut gates
+  on. A loc an upstream listed but **our own** crawl policy refuses (skills.sh's sub-sitemaps list
+  `robots.txt`-disallowed `/api/git/…` paths) is counted in `refusedLocs` and shown on that source's
+  summary line, and deliberately does **not** make the source incomplete: the refusal is our choice,
+  not a hole in the upstream. A loc refused for any other reason — a foreign host, a cleartext URL,
+  a path the feed does not define — still marks the source incomplete, because that is an upstream
+  defect and silence would be a lie.
 - **Who runs it.** Manual, by a maintainer, whenever the catalog should be refreshed. **CI never
   runs it** — so a green build says nothing about catalog freshness or correctness.
 - **Truthfulness gaps.** It shares the publication pipeline with `litespm catalog build`: Python

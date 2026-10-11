@@ -222,6 +222,26 @@ SKILLSH_CANNED = {
     SKILLSH_NEW_URL: skills_sh_page("A brand new skill."),
 }
 
+# The real skills.sh sub-sitemaps list their own /api/git/... paths, which
+# robots.txt disallows. Our refusal to fetch them is a choice, not a hole in
+# the source: the run counts and reports it, and the source stays complete.
+SKILLSH_SUBMAP_WITH_REFUSED = (
+    b'<?xml version="1.0" encoding="UTF-8"?>\n'
+    b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    b"<url><loc>https://skills.sh/acme/repo/existing</loc></url>\n"
+    b"<url><loc>https://www.skills.sh/api/git/vip-test-plan</loc></url>\n"
+    b"</urlset>\n"
+)
+# A loc that is neither a listing nor refused by policy: an upstream defect,
+# which must keep the source incomplete (fail closed on the unknown).
+SKILLSH_SUBMAP_WITH_UNKNOWN = (
+    b'<?xml version="1.0" encoding="UTF-8"?>\n'
+    b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    b"<url><loc>https://skills.sh/acme/repo/existing</loc></url>\n"
+    b"<url><loc>https://skills.sh/not-a-listing</loc></url>\n"
+    b"</urlset>\n"
+)
+
 
 def run_producer(root, canned, keep, refresh=False):
     """Run the real builder offline against `canned` bytes.
@@ -555,6 +575,63 @@ GO_TREE_TABLE = [
 ]
 
 
+def ingestion_status(stdout):
+    """Parse the machine-readable completeness line out of a producer run."""
+    for line in stdout.splitlines():
+        if line.startswith("CATALOG_INGESTION_STATUS "):
+            return json.loads(line[len("CATALOG_INGESTION_STATUS "):])
+    raise AssertionError("no CATALOG_INGESTION_STATUS line in producer output")
+
+
+def check_refused_loc_classification(ok):
+    """A loc our crawl policy refuses is reported, never called incompleteness.
+
+    skills.sh's own sub-sitemaps list /api/git/... paths that robots.txt
+    disallows. Refusing them is our policy; counting that refusal as an
+    incomplete source made `completeness` unreachable for the feed, which made
+    the release gate unpassable for a reason that had nothing to do with data.
+    """
+    api_loc = "https://www.skills.sh/api/git/vip-test-plan"
+    ok(producer._is_policy_refused_listing_url(api_loc, SKILLSH) is True,
+       "a robots-disallowed /api/ listing loc was not classified as refused")
+    ok(producer._is_policy_refused_listing_url(SKILLSH_NEW_URL, SKILLSH) is False,
+       "an ordinary skills.sh listing loc was classified as refused")
+    ok(producer._is_policy_refused_listing_url(
+        "https://evil.example/api/git/x", SKILLSH) is False,
+       "a foreign host was excused as refused instead of staying incomplete")
+    ok(producer._is_policy_refused_listing_url(
+        "http://www.skills.sh/api/git/x", SKILLSH) is False,
+       "a cleartext loc was excused as refused instead of staying incomplete")
+    ok(producer._is_policy_refused_listing_url(
+        "https://skills.sh/not-a-listing", SKILLSH) is False,
+       "an unparseable listing loc was excused as refused")
+    try:
+        producer._validate_request_url(api_loc, SKILLSH, check_dns=False)
+        raise AssertionError(
+            "the producer no longer refuses a robots-disallowed listing loc")
+    except ValueError:
+        pass
+
+    # End to end: the refusal is counted and reported, and the two verdicts
+    # differ. Each case gets its own store so the recorded sitemap cannot be
+    # replayed into the next one.
+    for submap, want_incomplete, want_refused, label in (
+            (SKILLSH_SUBMAP_WITH_REFUSED, False, 1, "policy-refused loc"),
+            (SKILLSH_SUBMAP_WITH_UNKNOWN, True, 0, "unparseable loc")):
+        with tempfile.TemporaryDirectory() as root:
+            canned = dict(SKILLSH_CANNED)
+            canned["https://skills.sh/sitemap-skills-1.xml"] = submap
+            out, _requested, unexpected, _out_dir, _sleeps = run_producer(
+                root, canned, keep=[VOLT, SKILLSH])
+            ok(not unexpected,
+               f"{label}: the run fetched URLs outside the fixture: {unexpected}")
+            status = ingestion_status(out)
+            ok((SKILLSH in status["incompleteSources"]) is want_incomplete,
+               f"{label}: incompleteSources = {status['incompleteSources']}")
+            ok(status.get("refusedLocs", {}).get(SKILLSH, 0) == want_refused,
+               f"{label}: refusedLocs = {status.get('refusedLocs')}")
+
+
 def main():
     checks = 0
 
@@ -567,6 +644,7 @@ def main():
     ok(len(ALL_SOURCES) >= 13,
        f"source registry shrank: {sorted(ALL_SOURCES)}")
     check_rate_limit_contract(ok)
+    check_refused_loc_classification(ok)
 
     # --- (iv) Python mirror of internal/skills ----------------------------
     for raw, want in GO_SOURCE_TABLE:

@@ -155,10 +155,57 @@ MCPMARKET_SKILL_PATH = r"/tools/skills/[A-Za-z0-9._~%+-]+"
 _INCOMPLETE_SOURCES = set()
 _STALE_SOURCES = set()
 _RATE_LIMIT_RECOVERED = set()
+# Locations an upstream listed but our own crawl policy refused (a
+# robots-disallowed path, say). Counted and reported, deliberately NOT treated
+# as incompleteness: the source gave us everything we are allowed to take, and
+# a gate that can never read `complete` because of its own refusal is not a
+# gate. Anything we refuse for another reason stays incomplete.
+_REFUSED_LOCS = {}
 
 
 def _mark_incomplete(source_id):
     _INCOMPLETE_SOURCES.add(source_id)
+
+
+def _mark_refused(source_id, count=1):
+    _REFUSED_LOCS[source_id] = _REFUSED_LOCS.get(source_id, 0) + count
+
+
+def _skills_sh_path_refusal(parsed):
+    """Return the crawl-policy reason for a skills.sh path, or "".
+
+    `robots.txt` disallows `/api/`, `/internal/`, `/debug-security/` and the
+    search route, and a traversal segment is refused whatever it points at.
+    Both are refusals we choose, which is why `_is_policy_refused_listing_url`
+    can tell them apart from an upstream that handed us something unusable.
+    """
+    decoded_path = urllib.parse.unquote(parsed.path).replace("\\", "/")
+    path_parts = [part for part in decoded_path.split("/") if part]
+    if any(part in (".", "..") for part in path_parts):
+        return "path traversal"
+    path_lower = decoded_path.lower()
+    if path_lower in {"/api", "/internal", "/debug-security"} or \
+            path_lower.startswith(("/api/", "/internal/", "/debug-security/",
+                                   "/search")):
+        return "robots-disallowed skills.sh path"
+    return ""
+
+
+def _is_policy_refused_listing_url(url, source_id):
+    """True when a sitemap <loc> is refused by our documented crawl policy.
+
+    Only an allowed host on a policy-refused path counts: a foreign host, a
+    wrong scheme or a query is an upstream defect and stays incompleteness.
+    """
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except (TypeError, ValueError):
+        return False
+    if parsed.scheme != "https" or not parsed.hostname:
+        return False
+    if parsed.hostname.lower().rstrip(".") not in SOURCE_ALLOWED_HOSTS.get(source_id, frozenset()):
+        return False
+    return source_id == FEED_SKILLSH[1] and bool(_skills_sh_path_refusal(parsed))
 
 
 def _is_public_ip(value):
@@ -193,15 +240,9 @@ def _validate_request_url(url, source_id, check_dns=True):
     if host not in SOURCE_ALLOWED_HOSTS.get(source_id, frozenset()):
         raise ValueError(f"host {host!r} is not allowed for source {source_id!r}")
     if source_id == FEED_SKILLSH[1]:
-        decoded_path = urllib.parse.unquote(parsed.path).replace("\\", "/")
-        path_parts = [part for part in decoded_path.split("/") if part]
-        if any(part in (".", "..") for part in path_parts):
-            raise ValueError(f"refusing skills.sh path traversal in {url!r}")
-        path_lower = decoded_path.lower()
-        if path_lower in {"/api", "/internal", "/debug-security"} or \
-                path_lower.startswith(("/api/", "/internal/", "/debug-security/",
-                                       "/search")):
-            raise ValueError(f"refusing robots-disallowed skills.sh path in {url!r}")
+        reason = _skills_sh_path_refusal(parsed)
+        if reason:
+            raise ValueError(f"refusing skills.sh {reason} in {url!r}")
     if not check_dns:
         return
     try:
@@ -1040,6 +1081,7 @@ def _reset_run_ledger():
     _INCOMPLETE_SOURCES.clear()
     _STALE_SOURCES.clear()
     _RATE_LIMIT_RECOVERED.clear()
+    _REFUSED_LOCS.clear()
     _PROBE_CACHE.clear()
 
 
@@ -1061,6 +1103,11 @@ def _print_ingestion_status(refresh, skip_sources, only_source):
         "skippedSources": sorted(skip_sources),
         "onlySource": only_source,
     }
+    if _REFUSED_LOCS:
+        # Locations the source listed and our crawl policy refused: reported so
+        # the refusal is visible, excluded from `completeness` so the gate means
+        # "we took everything we were allowed to".
+        report["refusedLocs"] = {k: _REFUSED_LOCS[k] for k in sorted(_REFUSED_LOCS)}
     print("CATALOG_INGESTION_STATUS " + json.dumps(report, sort_keys=True))
 
 
@@ -2628,6 +2675,7 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
     skillsh_source = FEED_SKILLSH[1]
     skillsh_index = FEED_SKILLSH[0]
     skillsh_added = skillsh_seen = skillsh_nodesc = skillsh_failed = 0
+    skillsh_refused = 0
     skillsh_enriched = skillsh_enrich_fail = 0
     skillsh_duplicates = 0
     if not runs(skillsh_source):
@@ -2666,6 +2714,14 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                 for loc in re.findall(r"<loc>([^<]+)</loc>", sm_text):
                     parts = skills_sh_listing_parts(loc)
                     if parts is None:
+                        if _is_policy_refused_listing_url(loc, skillsh_source):
+                            # The sitemap lists a robots-disallowed path (its
+                            # own /api/git/... entries). We are not allowed to
+                            # fetch it: a refusal we chose, counted and
+                            # reported, not a hole in the source.
+                            skillsh_refused += 1
+                            _mark_refused(skillsh_source)
+                            continue
                         _mark_incomplete(skillsh_source)
                         continue
                     owner, repo, sslug = parts
@@ -2744,7 +2800,7 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                   f"sitemap ids skipped, {skillsh_enriched} summaries "
                   f"refreshed from public pages, {skillsh_nodesc} without a "
                   f"page description, {skillsh_failed + skillsh_enrich_fail} "
-                  f"fetch failures)")
+                  f"fetch failures, {skillsh_refused} refused by crawl policy)")
         except snapshot_store.SnapshotIntegrityError:
             raise
         except Exception as e:
