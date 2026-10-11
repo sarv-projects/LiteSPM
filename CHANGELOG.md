@@ -30,6 +30,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The Pi `/marketplace` panel is now built for people who have never opened a config file.** The
+  previous version read like a log line. It now has a framed layout with aligned columns (the cursor
+  renders as spaces on every other row, so nothing shifts as the selection moves), colour taken from the
+  `Theme` instance the host passes into the panel factory — semantic slots, so it follows the user's
+  light or dark theme without the extension importing anything — and states in the vocabulary
+  `claude mcp list` already teaches people: `✔ added`, `add`, `not yet`. It explains itself in the detail
+  band, in the words a non-developer needs: *"It connects your agent to a service or database"*,
+  *"Press Enter to add it to Pi (~/.pi/agent/mcp.json). Nothing else on your computer changes"*,
+  *"Not installable yet: LiteSPM has not verified a build for this one, so it will not run it for you"*,
+  and on success *"Added. Quit and restart Pi to use it."* Installed rows offer removal. Long sentences
+  wrap rather than clip. The source moved out of a Go string literal into
+  `internal/host/pi_extension.ts`, embedded with `go:embed`, so it is type-checked and read like any
+  other TypeScript in the repository.
+
 - **An installed MCP server can be given a credential without the credential ever touching LiteSPM.**
   `litespm install <mcp-id> --env <VARIABLE_NAME>` (repeatable) records that a server needs a variable. It takes **names only, never values**: the host config
   receives a reference the host expands at spawn time, so the secret stays in the environment your agent was started in and never enters a config file, a backup, the

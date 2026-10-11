@@ -143,6 +143,16 @@ func TestPiExtensionGeneratedUsesRealExtensionAPI(t *testing.T) {
 		// Its data path: the CLI, not a tool call a command handler cannot make.
 		"pi.exec",
 		`"--json"`,
+		// Colour comes from the Theme the host passes in, never from an import.
+		"ctx.ui.theme",
+		"theme.fg",
+		// The framing and cursor, which must not shift the columns when the
+		// selection moves.
+		`"╭"`,
+		`"❯ "`,
+		// Language a person who has never opened a config file can act on.
+		"Press Enter to add it to Pi",
+		"Quit and restart Pi to use it.",
 	} {
 		if !strings.Contains(code, want) {
 			t.Errorf("the generated extension is missing %q:\n%s", want, code)
