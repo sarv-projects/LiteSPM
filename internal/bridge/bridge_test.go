@@ -585,3 +585,52 @@ func TestBridge_ProjectRootForwardedToScopeAwareTools(t *testing.T) {
 		}
 	})
 }
+
+// TestInitializeNegotiatesTheClientProtocolVersion pins the interop rule a
+// sandbox run against OpenCode v2 broke: the bridge asserted its own revision
+// ("2026-07-28") no matter what the client asked for, and OpenCode dropped the
+// server outright — `Server's protocol version is not supported` — even though
+// the bridge's whole surface (tools/list and tools/call) is identical across
+// those revisions. A version the client names and the bridge speaks is echoed
+// back; anything else falls back to the bridge's newest, which is what lets the
+// client make the final call, as the MCP negotiation rule intends.
+func TestInitializeNegotiatesTheClientProtocolVersion(t *testing.T) {
+	ctx := context.Background()
+	shim := NewShim("codex", nil, strings.NewReader(""), &bytes.Buffer{})
+	id := json.RawMessage(`1`)
+
+	for _, tc := range []struct {
+		requested string
+		omit      bool
+		want      string
+	}{
+		{requested: "2025-06-18", want: "2025-06-18"},
+		{requested: "2025-11-25", want: "2025-11-25"}, // OpenCode v2 legacy mode's ceiling
+		{requested: "2024-11-05", want: "2024-11-05"},
+		{requested: currentProtocolVersion, want: currentProtocolVersion},
+		{requested: "1999-01-01", want: currentProtocolVersion}, // unknown revision
+		{omit: true, want: currentProtocolVersion},              // no params at all
+	} {
+		var params json.RawMessage
+		if !tc.omit {
+			encoded, err := json.Marshal(map[string]string{"protocolVersion": tc.requested})
+			if err != nil {
+				t.Fatal(err)
+			}
+			params = encoded
+		}
+		resp := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "initialize", Params: params})
+		if resp == nil || resp.Error != nil {
+			t.Fatalf("initialize(%q): %+v", tc.requested, resp)
+		}
+		var got struct {
+			ProtocolVersion string `json:"protocolVersion"`
+		}
+		if err := json.Unmarshal(resp.Result, &got); err != nil {
+			t.Fatal(err)
+		}
+		if got.ProtocolVersion != tc.want {
+			t.Errorf("initialize(%q) answered %q, want %q", tc.requested, got.ProtocolVersion, tc.want)
+		}
+	}
+}

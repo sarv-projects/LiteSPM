@@ -201,12 +201,46 @@ func (s *Shim) Serve(ctx context.Context) error {
 	}
 }
 
+// currentProtocolVersion is the newest MCP revision this bridge is written
+// against.
+const currentProtocolVersion = "2026-07-28"
+
+// supportedProtocolVersions are the MCP revisions a client may ask for. The
+// bridge's whole surface is `tools/list` and `tools/call`, which every one of
+// these defines identically, so it is compatible with all of them.
+//
+// A bridge used to assert currentProtocolVersion regardless of what the client
+// asked for. That is legal JSON-RPC but it broke real clients: OpenCode v2
+// answers `Server's protocol version is not supported: 2026-07-28` and drops a
+// server that would have worked. So the reply echoes a version the client
+// named when we speak it, and falls back to our newest when it named one we do
+// not (the client then decides, per the MCP negotiation rule).
+// 2025-11-25 is not decoration: OpenCode v2's default ("legacy") mode speaks
+// protocol revisions only up to it, and answered with a version it did not
+// know got a real client to drop this bridge outright.
+var supportedProtocolVersions = []string{"2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25", currentProtocolVersion}
+
+func negotiatedProtocolVersion(params json.RawMessage) string {
+	var init struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	if len(params) > 0 {
+		_ = json.Unmarshal(params, &init)
+	}
+	for _, v := range supportedProtocolVersions {
+		if v == init.ProtocolVersion {
+			return v
+		}
+	}
+	return currentProtocolVersion
+}
+
 // HandleRequest processes an incoming MCP request.
 func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Response {
 	switch req.Method {
 	case "initialize":
 		result, _ := json.Marshal(map[string]any{
-			"protocolVersion": "2026-07-28",
+			"protocolVersion": negotiatedProtocolVersion(req.Params),
 			"serverInfo": map[string]any{
 				"name":    "litespm-bridge",
 				"version": buildinfo.Version,
