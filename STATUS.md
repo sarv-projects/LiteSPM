@@ -59,14 +59,19 @@ whose only real origin is broken is `WIRED` with the breakage stated, not
 | `litespm catalog sync` | `SHIPPED` | `internal/catalog/client.go`: verifies pointer→manifest→listings digests (raw bytes), validates `schemaVersion`/release-id path safety, re-verifies the cache on every load; `runCatalogSync`. **Verified against the live origin 2026-10-05** from a clean data root: `catalog sync` → release `rel-2026-10-05-01`, sequence 143, 5,814 indexed; `search postgres` resolved. Automated coverage: `test/catalog_e2e_test.go` (build → serve → sync → search → offline reload) plus tamper/fail-closed cases in `internal/catalog/integrity_test.go` | Release tagging; the legacy `litepsm` Worker still serves the same frozen release and should be retired |
 | Deployed web catalog data | `SHIPPED` | `web/data/catalog.json` + the stats in `web/data/release.json` are built by `scripts/build_full_catalog.py` (Python) and bundled/served by the web app; the pointer/release identity keys in `release.json` are stamped by `litespm catalog build` (single writer per key) | Close `D4`: the split (Python = dataset ingestion, Go = release/pointer publication) is implemented but not yet adjudicated |
 | Catalog release tree `/v1/releases/<id>/` | `SHIPPED` | Built by `litespm catalog build`; served live from `https://litespm.sarveshbh-2022.workers.dev` (probe 2026-10-05: all four files 200, byte-identical to the committed release `rel-2026-10-05-01`, pointer `manifestDigest` matches the served manifest bytes); `scripts/deploy-pages.sh` materializes the released tree byte-for-byte (`ARCH/18` §1–§2 `index.json`/`shards`/`items` remain un-emitted by design) | Release tagging; retire the legacy `litepsm` Worker |
-| Catalog deltas / shards / FTS index | `DESIGNED` | One ~3.4 MB `catalog.json` blob; no shard or FTS output | A measured trigger, then shard + delta output |
+| Catalog deltas / shards / FTS index | `PARTIAL` — transport shards `IMPLEMENTED` (2026-10-11); delta/FTS `DESIGNED` | `internal/catalogbuild` splits listings/versions across ≤20 MiB files when a release needs it, and the client reads them (`ARCH/18` §2.1); this was forced by Cloudflare's 25 MiB per-asset limit, not by the §2 design. The logical shard/index/items/FTS stages are still not emitted | Emit `index.json`/`items/`/`metadata.json` and the FTS index from §2 |
 
-### Current release: `rel-2026-10-11-01` (sequence 146, 69,376 capabilities)
+### Current release: `rel-2026-10-11-02` (sequence 147, 69,376 capabilities)
 
 Cut 2026-10-11 from the full all-source producer run. Pointer `web/public/v1/current.json`, site
 metadata `web/data/release.json`, and the row set `web/data/catalog.json` all describe this release and
 were verified to agree with each other (69,376 rows = 48,418 MCP + 20,320 skills + 638 plugins, and the
 pointer's `manifestDigest` matches the built manifest).
+
+Sequence 147 rather than 146 exists because the release tree is now **sharded**: at 69,376 rows a
+single `listings.json` is 62 MiB, over the 25 MiB per-asset limit Cloudflare Workers enforces at
+upload, which is why the site could not be redeployed. Release ids are immutable, so the sharded tree
+is a new release rather than a rewrite of the old one (`ARCH/18` §2.1).
 
 **Source completeness: six of seven sources are complete.** `feed:mcpmarket-com` is **incomplete by
 budget, accepted deliberately** (decision, 2026-10-11): its crawl is bounded at

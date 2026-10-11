@@ -69,7 +69,32 @@ The catalog builder (`internal/catalogbuild`) compiles raw source snapshots into
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-**`DESIGNED` stages are not emitted.** The compiled `CompileRelease` emits four files: `v1/current.json` and `v1/releases/<id>/{listings,versions,manifest}.json`. The shard/index/items/metadata stages above and the tree in §2 are the target shape, pending the release publisher tracked in [31 §12](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md).
+**`DESIGNED` stages are not emitted.** The compiled `CompileRelease` emits `v1/current.json` plus the
+release tree: `manifest.json` and the listings/versions files, **split across shards when the content
+needs it** (see §2.1). The shard/index/items/metadata stages above and the tree in §2 are the target
+shape, pending the release publisher tracked in [31 §12](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md).
+
+### 2.1 Sharding is a transport split, not that shard design
+
+A release whose listings or versions exceed `catalogbuild.ReleaseShardMaxBytes` (20 MiB) is emitted as
+several files — `listings-0000.json`, `listings-0001.json`, … — each a complete canonical array, each
+recorded in the manifest exactly like any other file. This exists for one reason: **Cloudflare Workers
+rejects any static asset over 25 MiB at upload time** (`wrangler deploy --dry-run` fails the whole
+deploy with *Asset too large*), and the 69,376-row release of 2026-10-11 produced a 62 MiB
+`listings.json`. It is deliberately NOT the logical shard format designed in §2 — no row is split, no
+query is answered from a subset, and a client always fetches every shard of a kind.
+
+Properties a reader may rely on:
+
+- A release that fits in one shard keeps the historical `<base>.json` name and bytes, so a small release
+  is byte-for-byte what it was and its digest does not move.
+- Shard indices are zero-padded to four digits, so sorting shard names orders them numerically.
+- `manifest.contentDigest` is still the digest of the release's **content**: the ordered concatenation
+  of the shard files. Every byte is therefore covered twice — once by its own shard's digest and once
+  by the content digest.
+- The client (`internal/catalog`) reads old and new releases through one path: it gathers a kind's
+  shards from the manifest, verifies each against its recorded digest, and decodes them in order. The
+  cache persists the shards verbatim, so a cached release mirrors the origin file for file.
 
 ---
 
@@ -89,8 +114,9 @@ dist/
   │       └── rel_01J9X8K2M4N5P6Q7R8S9T0U1V2/
   │           ├── metadata.json                         # release info & provenance [DESIGNED]
   │           ├── manifest.json                         # digest of every release file (emitted)
-  │           ├── listings.json                         # emitted
-  │           ├── versions.json                         # emitted
+  │           ├── listings-0000.json                    # emitted; sharded above 20 MiB (§2.1)
+  │           ├── listings-0001.json                    # emitted; one shard more when needed
+  │           ├── versions-0000.json                    # emitted; sharded above 20 MiB (§2.1)
   │           ├── index.json                            # compact search index        [DESIGNED]
   │           ├── shards/                               #                             [DESIGNED]
   │           │   ├── mcp/

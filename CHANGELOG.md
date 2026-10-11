@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The release tree and the site's catalog are sharded, because Cloudflare rejects any static asset
+  over 25 MiB.** The 69,376-row catalog produced a 62 MiB `listings.json`, a 32 MB `versions.json` and
+  a 52 MB `/data/catalog.json`; `wrangler deploy` refused all three with *"Asset too large"* and the
+  site could not be redeployed at all (the previously live site stayed on the 5,825-row release).
+  `internal/catalogbuild` now splits a kind's rows across `listings-0000.json`, `listings-0001.json`, …
+  each under 20 MiB and each a complete canonical array, recorded in the manifest like any other file;
+  the site emits `catalog-NNNN.json` shards plus a small index at the same `/data/catalog.json` URL, so
+  the loader's contract is unchanged. A release that fits in one shard keeps the historical name and
+  bytes, so small releases are unaffected and their digests do not move.
+  `manifest.contentDigest` still covers the release's **content** — the ordered concatenation of the
+  shard files — and every byte is covered twice, by its own shard digest and by that one. The client
+  gathers a kind's shards from the manifest, verifies each, decodes them in order, and persists the
+  cache verbatim so a cached release mirrors the origin file for file. The deploy verifier sorts shard
+  names before accumulating, because a Go map would otherwise order the digest domain differently on
+  every run. Recorded in `ARCH/18` §2.1, including why this is a transport split and not the logical
+  shard format §2 designs.
+
 ## [0.4.0] - 2026-10-11
 
 ### Added
