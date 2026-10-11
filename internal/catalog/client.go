@@ -295,23 +295,31 @@ func (c *Client) LoadFromCache() error {
 		return domain.ErrChecksumMismatch(listingMeta.Digest, actual)
 	}
 
+	versionMeta, ok := manifest.Files["versions.json"]
+	if !ok {
+		return fmt.Errorf("cached manifest for %s has no versions.json entry", current.ReleaseID)
+	}
+	versionsData, err := os.ReadFile(filepath.Join(releaseDir, "versions.json"))
+	if err != nil {
+		return err
+	}
+	if actual := domain.ComputeBytesDigest(versionsData); actual != versionMeta.Digest {
+		return domain.ErrChecksumMismatch(versionMeta.Digest, actual)
+	}
+	// The manifest's contentDigest pins the listings+versions pair as one
+	// unit, so a cache whose files were rewritten while keeping every per-file
+	// digest consistent is still refused.
+	if actual := catalogbuild.ContentDigestOf(listingsData, versionsData); actual != manifest.ContentDigest {
+		return domain.ErrChecksumMismatch(manifest.ContentDigest, actual)
+	}
+
 	var listings []*domain.Listing
 	if err := json.Unmarshal(listingsData, &listings); err != nil {
 		return err
 	}
-
 	var versions []*domain.VersionRecord
-	if versionMeta, ok := manifest.Files["versions.json"]; ok {
-		versionsData, err := os.ReadFile(filepath.Join(releaseDir, "versions.json"))
-		if err != nil {
-			return err
-		}
-		if actual := domain.ComputeBytesDigest(versionsData); actual != versionMeta.Digest {
-			return domain.ErrChecksumMismatch(versionMeta.Digest, actual)
-		}
-		if err := json.Unmarshal(versionsData, &versions); err != nil {
-			return err
-		}
+	if err := json.Unmarshal(versionsData, &versions); err != nil {
+		return err
 	}
 
 	c.index.Replace(listings, versions)
@@ -762,6 +770,14 @@ func (c *Client) Sync(ctx context.Context) (*SyncResult, error) {
 	versions, versionsRaw, err := c.fetchVersions(ctx, current.ReleaseID, manifest)
 	if err != nil {
 		return nil, err
+	}
+
+	// The manifest's contentDigest pins the listings+versions pair as one
+	// unit. Its per-file sizes and digests are checked above, but a rewrite
+	// that fixed those entries would still be caught here, because the digest
+	// is computed over the byte concatenation the compiler emitted.
+	if got := catalogbuild.ContentDigestOf(listingsRaw, versionsRaw); got != manifest.ContentDigest {
+		return nil, domain.ErrChecksumMismatch(manifest.ContentDigest, got)
 	}
 
 	// Persist to local disk cache if cacheDir is set

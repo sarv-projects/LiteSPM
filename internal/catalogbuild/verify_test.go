@@ -1,6 +1,7 @@
 package catalogbuild
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -155,6 +156,73 @@ func TestVerifyMaterializedTreeRejectsUnsafePointer(t *testing.T) {
 	_, _, err := VerifyMaterializedTree(dir)
 	if err == nil || !contains(err.Error(), "safe path segment") {
 		t.Fatalf("a traversing release id must be refused, got %v", err)
+	}
+}
+
+// TestVerifyMaterializedTreeRejectsStaleContentDigest pins the contentDigest
+// re-check: rewrite listings.json and fix every per-file size and digest in the
+// manifest, then re-anchor the pointer, and the tree must still be refused
+// because the manifest's contentDigest no longer names the files it covers.
+func TestVerifyMaterializedTreeRejectsStaleContentDigest(t *testing.T) {
+	dir := t.TempDir()
+	out := compileFixture(t)
+	writeTree(t, dir, out)
+	releaseDir := filepath.Join(dir, "v1", "releases", out.ReleaseID)
+
+	listingsPath := filepath.Join(releaseDir, "listings.json")
+	orig, err := os.ReadFile(listingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := append(append([]byte{}, orig...), ' ')
+	if err := os.WriteFile(listingsPath, tampered, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	manifestPath := filepath.Join(releaseDir, "manifest.json")
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest ReleaseManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest.Files["listings.json"] = ReleaseManifestFile{
+		Size:   int64(len(tampered)),
+		Digest: domain.ComputeBytesDigest(tampered),
+	}
+	newManifest, err := json.Marshal(&manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, newManifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	pointerPath := filepath.Join(dir, "v1", "current.json")
+	praw, err := os.ReadFile(pointerPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pointer CurrentPointer
+	if err := json.Unmarshal(praw, &pointer); err != nil {
+		t.Fatal(err)
+	}
+	pointer.ManifestDigest = digestBytes(newManifest)
+	newPointer, err := json.Marshal(&pointer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pointerPath, newPointer, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Every per-file size and digest now agrees, so only contentDigest can
+	// refuse the tree.
+	_, _, err = VerifyMaterializedTree(dir)
+	if err == nil || !contains(err.Error(), "contentDigest") {
+		t.Fatalf("a stale contentDigest was accepted or refused for the wrong reason: %v", err)
 	}
 }
 

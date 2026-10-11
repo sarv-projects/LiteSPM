@@ -17,6 +17,7 @@ import (
 //	current.json.manifestDigest == sha256(releases/<id>/manifest.json)
 //	manifest.files[name].digest   == sha256(releases/<id>/<name>)
 //	manifest.files[name].size     == bytes on disk
+//	manifest.contentDigest        == sha256(listings.json || versions.json)
 //
 // It exists because the tree we serve is cached immutably at /v1/releases/* and
 // the pointer at /v1/current.json is the only thing that can change. If a
@@ -71,6 +72,7 @@ func VerifyMaterializedTree(dir string) (*CurrentPointer, *ReleaseManifest, erro
 		return nil, nil, fmt.Errorf("manifest lists no files")
 	}
 
+	var listingsBytes, versionsBytes []byte
 	for name, entry := range manifest.Files {
 		if strings.Contains(name, "..") || filepath.IsAbs(name) {
 			return nil, nil, fmt.Errorf("manifest declares an unsafe file path %q", name)
@@ -86,6 +88,19 @@ func VerifyMaterializedTree(dir string) (*CurrentPointer, *ReleaseManifest, erro
 		if got := digestBytes(data); got != entry.Digest {
 			return nil, nil, fmt.Errorf("%s: digest mismatch: manifest says %s, file is %s", name, entry.Digest, got)
 		}
+		switch name {
+		case "listings.json":
+			listingsBytes = data
+		case "versions.json":
+			versionsBytes = data
+		}
+	}
+
+	if listingsBytes == nil || versionsBytes == nil {
+		return nil, nil, fmt.Errorf("manifest does not describe both listings.json and versions.json, so its contentDigest cannot be verified")
+	}
+	if got := ContentDigestOf(listingsBytes, versionsBytes); got != manifest.ContentDigest {
+		return nil, nil, fmt.Errorf("contentDigest mismatch: manifest says %s, listings.json+versions.json are %s", manifest.ContentDigest, got)
 	}
 
 	return &pointer, &manifest, nil

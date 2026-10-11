@@ -13,6 +13,20 @@ import (
 	"github.com/sarv-projects/litespm/internal/domain"
 )
 
+// ContentDigestOf returns the release contentDigest: SHA-256 over the canonical
+// listings.json bytes followed immediately by the canonical versions.json
+// bytes — no separator, listings first — hex-encoded and prefixed "sha256:".
+//
+// CompileRelease emits exactly this digest. The deploy verifier and the catalog
+// client recompute it from the served/on-disk bytes so that a rewrite which
+// fixed every per-file size and digest in the manifest is still refused.
+func ContentDigestOf(listings, versions []byte) string {
+	contentHasher := sha256.New()
+	contentHasher.Write(listings)
+	contentHasher.Write(versions)
+	return fmt.Sprintf("sha256:%s", hex.EncodeToString(contentHasher.Sum(nil)))
+}
+
 // ReleaseManifestFile describes an immutable file entry within a release manifest.
 type ReleaseManifestFile struct {
 	Size   int64  `json:"size"`
@@ -127,10 +141,7 @@ func CompileRelease(
 	}
 
 	// 5. Compute contentDigest over combined files
-	contentHasher := sha256.New()
-	contentHasher.Write(canonicalListings)
-	contentHasher.Write(canonicalVersions)
-	contentDigest := fmt.Sprintf("sha256:%s", hex.EncodeToString(contentHasher.Sum(nil)))
+	contentDigest := ContentDigestOf(canonicalListings, canonicalVersions)
 
 	// 6. Build Manifest
 	manifest := &ReleaseManifest{

@@ -286,3 +286,57 @@ func TestLoadFromCacheRejectsTamperedListings(t *testing.T) {
 		t.Fatalf("tampered cache served %d search results", len(results))
 	}
 }
+
+// TestSyncRejectsStaleContentDigest pins the release contentDigest: even when a
+// rewritten listings.json has its per-file size and digest fixed in the
+// manifest and the pointer's manifestDigest is re-anchored, the manifest's
+// contentDigest still names the original listings+versions pair and sync must
+// refuse the release.
+func TestSyncRejectsStaleContentDigest(t *testing.T) {
+	compiled := compileSampleRelease(t, "rel-2026-10-05-01", 1)
+	files := map[string][]byte{}
+	for path, data := range compiled.Files {
+		files[path] = data
+	}
+
+	manifestPath := "v1/releases/rel-2026-10-05-01/manifest.json"
+	listingsPath := "v1/releases/rel-2026-10-05-01/listings.json"
+
+	tampered := append(append([]byte{}, files[listingsPath]...), ' ')
+	files[listingsPath] = tampered
+
+	var manifest catalogbuild.ReleaseManifest
+	if err := json.Unmarshal(files[manifestPath], &manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	manifest.Files["listings.json"] = catalogbuild.ReleaseManifestFile{
+		Size:   int64(len(tampered)),
+		Digest: domain.ComputeBytesDigest(tampered),
+	}
+	newManifest, err := json.Marshal(&manifest)
+	if err != nil {
+		t.Fatalf("re-encode manifest: %v", err)
+	}
+	files[manifestPath] = newManifest
+
+	files["v1/current.json"] = rewritePointer(t, compiled, func(pointer map[string]any) {
+		pointer["manifestDigest"] = domain.ComputeBytesDigest(newManifest)
+	})
+
+	server := serveFiles(t, files)
+	defer server.Close()
+
+	cacheDir := t.TempDir()
+	client := NewClient(server.URL, cacheDir, server.Client())
+	_, err = client.Sync(context.Background())
+	if err == nil {
+		t.Fatal("expected sync to reject a release whose contentDigest does not match its files")
+	}
+	lpsmErr, ok := err.(*domain.LPSMError)
+	if !ok || lpsmErr.Code != "LPSM-VERIFY-CHECKSUM-MISMATCH" {
+		t.Fatalf("expected LPSM-VERIFY-CHECKSUM-MISMATCH, got %#v", err)
+	}
+	if files := cacheFiles(t, cacheDir); len(files) != 0 {
+		t.Fatalf("rejected sync wrote cache files: %v", files)
+	}
+}
