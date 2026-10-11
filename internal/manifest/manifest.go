@@ -20,6 +20,8 @@
 //	denyEffects = ["external.delete"]
 //	[lock]
 //	required = true
+//	[binding]
+//	mode = "native"
 package manifest
 
 import (
@@ -27,6 +29,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/sarv-projects/litespm/internal/binding"
 )
 
 // SchemaVersion is the only manifest schema version accepted by this package.
@@ -56,6 +60,9 @@ type Manifest struct {
 	Requires      []Require `json:"requires"`
 	Policy        Policy    `json:"policy,omitempty"`
 	LockRequired  bool      `json:"lockRequired"`
+	// BindingModeValue is the validated [binding] mode ("managed" | "native").
+	// Empty when the table is absent, which is the managed default.
+	BindingModeValue string `json:"bindingMode,omitempty"`
 	// SourcePath records which file the manifest was loaded from.
 	SourcePath string `json:"-"`
 }
@@ -143,6 +150,13 @@ func Parse(data []byte) (*Manifest, error) {
 	if lk, ok := doc.tables["lock"]; ok {
 		m.LockRequired = strings.EqualFold(strings.TrimSpace(lk["required"]), "true")
 	}
+	if b, ok := doc.tables["binding"]; ok {
+		mode, err := binding.ParseMode(unquote(b["mode"]))
+		if err != nil {
+			return nil, fmt.Errorf("binding.mode: %w", err)
+		}
+		m.BindingModeValue = string(mode)
+	}
 	for key := range doc.tables {
 		switch key {
 		case "project", "policy", "lock", "binding":
@@ -153,10 +167,15 @@ func Parse(data []byte) (*Manifest, error) {
 	return m, nil
 }
 
-// BindingMode reads the optional [binding] table (P6 one-bridge default).
-// Absent means "managed". Only an explicit mode = "native" opts into native
-// per-package registration.
-func (m *Manifest) BindingMode() string { return "managed" }
+// BindingMode reports the validated [binding] mode (P6 one-bridge default).
+// An absent table means "managed"; only an explicit mode = "native" opts into
+// native per-package registration.
+func (m *Manifest) BindingMode() string {
+	if m == nil || m.BindingModeValue == "" {
+		return string(binding.ModeManaged)
+	}
+	return m.BindingModeValue
+}
 
 // MarshalCanonical renders the manifest in canonical TOML form (stable key
 // order, no timestamps) for digesting.
@@ -190,6 +209,10 @@ func (m *Manifest) MarshalCanonical() string {
 		sb.WriteString("required = true\n")
 	} else {
 		sb.WriteString("required = false\n")
+	}
+	if m.BindingModeValue != "" && m.BindingModeValue != string(binding.ModeManaged) {
+		sb.WriteString("\n[binding]\n")
+		fmt.Fprintf(&sb, "mode = %s\n", quote(m.BindingModeValue))
 	}
 	return sb.String()
 }

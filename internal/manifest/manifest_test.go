@@ -86,6 +86,52 @@ func TestCanonicalRoundTrip(t *testing.T) {
 	}
 }
 
+func TestBindingModeDefaultsToManaged(t *testing.T) {
+	m, err := Parse([]byte(fixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := m.BindingMode(); got != "managed" {
+		t.Errorf("absent [binding] must default to managed, got %q", got)
+	}
+
+	// A present-but-empty table is still the managed default.
+	m2, err := Parse([]byte("schemaVersion = 1\n[project]\nname = \"x\"\n[binding]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := m2.BindingMode(); got != "managed" {
+		t.Errorf("[binding] without a mode must default to managed, got %q", got)
+	}
+}
+
+func TestBindingModeNative(t *testing.T) {
+	src := "schemaVersion = 1\n[project]\nname = \"x\"\n[binding]\nmode = \"native\"\n"
+	m, err := Parse([]byte(src))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if got := m.BindingMode(); got != "native" {
+		t.Fatalf("BindingMode = %q, want native", got)
+	}
+
+	// Canonical round-trip must preserve the explicit opt-in.
+	m2, err := Parse([]byte(m.MarshalCanonical()))
+	if err != nil {
+		t.Fatalf("re-parse canonical: %v", err)
+	}
+	if got := m2.BindingMode(); got != "native" {
+		t.Errorf("canonical round-trip lost the binding mode: %q", got)
+	}
+}
+
+func TestParseRejectsInvalidBindingMode(t *testing.T) {
+	src := "schemaVersion = 1\n[project]\nname = \"x\"\n[binding]\nmode = \"sideways\"\n"
+	if _, err := Parse([]byte(src)); err == nil {
+		t.Error("expected an invalid binding mode to be rejected")
+	}
+}
+
 func TestFindUp(t *testing.T) {
 	root := t.TempDir()
 	sub := filepath.Join(root, "a", "b")
