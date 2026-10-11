@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Pi gets a real `/marketplace` panel, not a wall of text.** `litespm host setup pi-agent` now writes
+  a companion extension that registers `/marketplace [query]`: it opens a focused overlay
+  (`ctx.ui.custom`, the documented way an extension mounts a panel) with a search line, a keyboard-driven
+  list with `[installed]` badges, an inspector pane showing the publisher, summary, id and installability,
+  and Enter to install into Pi. Typing filters the fetched set locally rather than shelling out per
+  keystroke; a bare `/marketplace` lists what is installed here and says how to search the catalog. The
+  panel is deliberately self-contained — only `node:` builtins plus a type-only import — so extension
+  loading cannot fail on module resolution, and it renders without ANSI so it cannot clash with the host
+  theme. It locates its own binary from the bridge entry in `mcp.json`, falling back to `PATH`. The
+  emitted TypeScript is type-checked with `tsc --strict` against the real pi 0.80.10 types, and the panel
+  itself is exercised headlessly (render, filter, backspace, arrow, Enter) — the previous extension
+  registered successfully and then threw `command.handler is not a function` the first time anyone used it.
+
+- **`litespm search` can answer a machine.** `--json` prints a `litespm-search/v1` document (id, kind,
+  publisher, summary, version and installability per row, plus `indexCount` so "no match" is
+  distinguishable from "empty index"), and `--limit <n>` raises the cap to 500 for a caller that filters
+  client-side. This is what the Pi panel reads; before it existed the only way to search programmatically
+  was to parse a padded table.
+
+### Changed
+
 - **An installed MCP server can be given a credential without the credential ever touching LiteSPM.**
   `litespm install <mcp-id> --env <VARIABLE_NAME>` (repeatable) records that a server needs a variable. It takes **names only, never values**: the host config
   receives a reference the host expands at spawn time, so the secret stays in the environment your agent was started in and never enters a config file, a backup, the

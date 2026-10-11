@@ -90,10 +90,16 @@ func TestPiProjectScopeInstallWritesDotPiMcpJSON(t *testing.T) {
 // takes `handler: (args: string, ctx: ExtensionCommandContext) => Promise<void>`,
 // so the command never ran — and called `pi.mcp.callTool`, a member no
 // ExtensionAPI has (verified against pi 0.80.10's bundled types.d.ts:839-999 and
-// upstream main types.ts). What a command handler can do is enumerate the
-// bridge's tools with pi.getAllTools() (types.d.ts:919) and show them through
-// ctx.ui.notify (types.d.ts:75), filtering the `mcp__litespm__*` names that MCP
-// servers register their tools under (mcp.md:77).
+// upstream main types.ts).
+//
+// The current blob registers /marketplace, a real panel: ctx.ui.custom
+// (types.d.ts:116) mounts a Component — pi-tui requires render(width) plus
+// invalidate(), with handleInput optional (pi-tui dist/tui.d.ts:10-30) — and the
+// panel gets its data by shelling out to the CLI through pi.exec
+// (types.d.ts:915), because a command handler cannot invoke a tool at all.
+// The emitted TypeScript is type-checked with tsc --strict against the real
+// pi 0.80.10 types (a separate, offline check); this test pins the shape that
+// check depends on.
 func TestPiExtensionGeneratedUsesRealExtensionAPI(t *testing.T) {
 	home := entryHome(t)
 	t.Setenv("PI_CODING_AGENT_DIR", "")
@@ -128,9 +134,31 @@ func TestPiExtensionGeneratedUsesRealExtensionAPI(t *testing.T) {
 		"getAllTools()",
 		"mcp__litespm__",
 		"ctx.ui.notify",
+		// The panel.
+		`pi.registerCommand("marketplace"`,
+		"ctx.ui.custom",
+		"render(width: number): string[]",
+		"invalidate(): void",
+		"handleInput(data: string): void",
+		// Its data path: the CLI, not a tool call a command handler cannot make.
+		"pi.exec",
+		`"--json"`,
 	} {
 		if !strings.Contains(code, want) {
 			t.Errorf("the generated extension is missing %q:\n%s", want, code)
+		}
+	}
+
+	// The panel must stay self-contained: a runtime import of a host package
+	// would make extension loading depend on module resolution inside the
+	// agent's install, which is exactly the kind of silent breakage this
+	// extension already had once.
+	for _, forbidden := range []string{
+		"from \"@earendil-works/pi-tui\"",
+		"template literal",
+	} {
+		if strings.Contains(code, forbidden) {
+			t.Errorf("the generated extension imports %q; only node: builtins and the type-only ExtensionAPI import are allowed:\n%s", forbidden, code)
 		}
 	}
 }

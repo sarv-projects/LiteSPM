@@ -132,24 +132,292 @@ func (a *PiAgentAdapter) PlanSetup(ctx context.Context, binaryPath string, backu
 //     only on ExtensionToolContext — the context a tool's own execute() gets
 //     (upstream types.ts:367-396) — not on ExtensionCommandContext
 //     (upstream types.ts:401-451), and the installed 0.80.10 types have no
-//     executeTool at all. So the command enumerates what the bridge exposes
-//     instead: pi.getAllTools(): ToolInfo[] (types.d.ts:919; upstream
-//     types.ts:1741) reports every connected tool including MCP servers'
-//     (mcp.md:254), whose tools are named mcp__<server>__<tool> (mcp.md:77),
-//     and ctx.ui.notify shows them (types.d.ts:75; upstream types.ts:160).
+//     executeTool at all. So the panel gets its data by SHELLING OUT to the
+//     litespm CLI through pi.exec (types.d.ts:915, ExecResult { stdout, stderr,
+//     code, killed } at core/exec.d.ts:18-23), which is deterministic and
+//     needs no model round-trip.
+//   - The panel itself is a custom component shown with ctx.ui.custom
+//     (types.d.ts:116-130): the factory returns anything satisfying
+//     pi-tui's Component — render(width): string[] plus invalidate() and an
+//     optional handleInput(data) — and Pi mounts it as a focused overlay.
+//     The component is deliberately self-contained (only node: imports plus a
+//     type-only import) so extension loading cannot fail on module
+//     resolution, and it uses no ANSI so it cannot clash with the host theme.
 //
 // A backtick cannot appear in this Go raw string, so the TypeScript uses
 // concatenation rather than template literals.
 const piExtensionCode = `// LiteSPM companion extension for Pi Agent.
 //
-// Registers /litespm, which lists the MCP tools the LiteSPM bridge exposes to
-// this agent. Tools appear once the "litespm" server from mcp.json has
-// connected (check with /mcp).
+//   /marketplace [query]   searchable panel: the catalog for a query, or what is
+//                          already installed here when no query is given
+//   /litespm               plain-text list of the bridge's MCP tools
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const BRIDGE_TOOL_PREFIX = "mcp__litespm__";
 
+interface Capability {
+  id: string;
+  name: string;
+  kind: string;
+  publisher: string;
+  summary: string;
+  installability?: string;
+  scope?: string;
+  installed?: boolean;
+}
+
+function agentDir(): string {
+  const override = process.env.PI_CODING_AGENT_DIR;
+  return override ? override : join(homedir(), ".pi", "agent");
+}
+
+// The bridge entry LiteSPM wrote into mcp.json names the exact binary, so the
+// panel does not depend on PATH being right for the agent's shell.
+function liteSPMBinary(): string {
+  try {
+    const raw = readFileSync(join(agentDir(), "mcp.json"), "utf8");
+    const parsed = JSON.parse(raw) as { mcpServers?: Record<string, { command?: string[] }> };
+    const entry = parsed.mcpServers ? parsed.mcpServers.litespm : undefined;
+    const command = entry ? entry.command : undefined;
+    if (command && command.length > 0) return command[0];
+  } catch {
+    // No readable config: PATH lookup below is the honest fallback.
+  }
+  return "litespm";
+}
+
+async function readJSON<T>(pi: ExtensionAPI, args: string[]): Promise<T | undefined> {
+  const result = await pi.exec(liteSPMBinary(), args, { timeout: 30000 });
+  if (result.code !== 0) return undefined;
+  try {
+    return JSON.parse(result.stdout) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+function clip(text: string, width: number): string {
+  if (width < 8 || text.length <= width) return text;
+  return text.slice(0, width - 1) + "...";
+}
+
+class MarketplacePanel {
+  private rows: Capability[];
+  private visible: Capability[];
+  private query = "";
+  private selected = 0;
+  private notice: string;
+  private readonly done: (result: string | undefined) => void;
+
+  constructor(
+    candidates: Capability[],
+    notice: string,
+    done: (result: string | undefined) => void,
+  ) {
+    this.rows = candidates;
+    this.visible = candidates;
+    this.notice = notice;
+    this.done = done;
+  }
+
+  invalidate(): void {}
+
+  private refilter(): void {
+    const needle = this.query.trim().toLowerCase();
+    this.visible =
+      needle === ""
+        ? this.rows
+        : this.rows.filter((row) =>
+            (row.name + " " + row.id + " " + row.publisher + " " + row.summary)
+              .toLowerCase()
+              .includes(needle),
+          );
+    if (this.selected >= this.visible.length) {
+      this.selected = Math.max(0, this.visible.length - 1);
+    }
+  }
+
+  private current(): Capability | undefined {
+    return this.visible[this.selected];
+  }
+
+  handleInput(data: string): void {
+    switch (data) {
+      case "\x1b[A":
+        this.selected = Math.max(0, this.selected - 1);
+        return;
+      case "\x1b[B":
+        this.selected = Math.max(0, Math.min(this.visible.length - 1, this.selected + 1));
+        return;
+      case "\r":
+      case "\n": {
+        const picked = this.current();
+        this.done(picked ? picked.id : undefined);
+        return;
+      }
+      case "\x1b":
+        this.done(undefined);
+        return;
+      case "\x7f":
+      case "\b":
+        this.query = this.query.slice(0, -1);
+        this.refilter();
+        return;
+      default:
+        break;
+    }
+    if (data.length === 1 && data >= " ") {
+      this.query += data;
+      this.refilter();
+    }
+  }
+
+  render(width: number): string[] {
+    const rule = "-".repeat(Math.max(20, Math.min(width, 100)));
+    const lines: string[] = [];
+    lines.push("LiteSPM Marketplace");
+    lines.push("");
+    lines.push("Search: " + (this.query === "" ? "type to filter..." : this.query));
+    lines.push(
+      this.visible.length +
+        " of " +
+        this.rows.length +
+        " capabilities" +
+        (this.notice ? "   (" + this.notice + ")" : ""),
+    );
+    lines.push(rule);
+
+    if (this.visible.length === 0) {
+      lines.push("  no match");
+    }
+    const height = 12;
+    const start = Math.max(
+      0,
+      Math.min(this.selected - Math.floor(height / 2), this.visible.length - height),
+    );
+    const end = Math.min(this.visible.length, start + height);
+    for (let i = start; i < end; i++) {
+      const row = this.visible[i];
+      const marker = i === this.selected ? "> " : "  ";
+      const badge = row.installed ? " [installed]" : "";
+      lines.push(
+        marker +
+          clip(row.name, Math.max(12, width - 24)) +
+          badge +
+          "  (" +
+          row.kind +
+          ")",
+      );
+    }
+
+    lines.push(rule);
+    const picked = this.current();
+    if (picked) {
+      lines.push(clip(picked.name + "  -  " + picked.publisher, width));
+      lines.push(clip(picked.summary, width));
+      lines.push(
+        picked.id +
+          (picked.installed ? "   [installed: " + (picked.scope || "user") + "]" : "") +
+          (picked.installability ? "   " + picked.installability : ""),
+      );
+    }
+    lines.push("");
+    lines.push("up/down move   enter install   type to filter   esc close");
+    return lines;
+  }
+}
+
 export default function (pi: ExtensionAPI) {
+  pi.registerCommand("marketplace", {
+    description: "Browse and install LiteSPM capabilities",
+    handler: async (args, ctx) => {
+      const query = args.trim();
+      const installedDoc = await readJSON<{
+        records?: Array<{ id?: string; scope?: string }>;
+      }>(pi, ["list", "--json"]);
+      const searchDoc =
+        query === ""
+          ? undefined
+          : await readJSON<{ results?: Capability[] }>(pi, [
+              "search",
+              query,
+              "--json",
+              "--limit",
+              "300",
+            ]);
+
+      const installed = new Map<string, string>();
+      const records = installedDoc && installedDoc.records ? installedDoc.records : [];
+      for (const record of records) {
+        if (record.id) installed.set(record.id, record.scope ? record.scope : "user");
+      }
+
+      const candidates: Capability[] = [];
+      const seen = new Set<string>();
+      const results = searchDoc && searchDoc.results ? searchDoc.results : [];
+      for (const row of results) {
+        if (!row.id || seen.has(row.id)) continue;
+        seen.add(row.id);
+        row.installed = installed.has(row.id);
+        row.scope = installed.get(row.id);
+        candidates.push(row);
+      }
+      for (const entry of installed) {
+        if (seen.has(entry[0])) continue;
+        seen.add(entry[0]);
+        candidates.push({
+          id: entry[0],
+          name: entry[0],
+          kind: "installed",
+          publisher: "",
+          summary: "",
+          installed: true,
+          scope: entry[1],
+        });
+      }
+
+      if (candidates.length === 0) {
+        ctx.ui.notify(
+          query === ""
+            ? "Nothing installed here yet. Try: /marketplace postgres"
+            : "No capabilities matched " + query + ". If the catalog is empty, run litespm catalog sync.",
+          "info",
+        );
+        return;
+      }
+
+      const notice =
+        query === ""
+          ? "installed here; /marketplace <query> searches the catalog"
+          : "catalog results for: " + query;
+
+      const picked = await ctx.ui.custom<string | undefined>(
+        (_tui, _theme, _keybindings, done) =>
+          new MarketplacePanel(candidates, notice, done),
+        { overlay: true },
+      );
+
+      if (!picked) return;
+      const outcome = await pi.exec(
+        liteSPMBinary(),
+        ["install", picked, "--host", "pi-agent"],
+        { timeout: 120000 },
+      );
+      const output = (outcome.stdout + outcome.stderr).trim();
+      if (outcome.code === 0) {
+        ctx.ui.notify("Installed " + picked + ".", "info");
+      } else {
+        ctx.ui.notify(
+          "Install did not complete for " + picked + ":\\n" + (output === "" ? "no output" : output),
+          "warning",
+        );
+      }
+    },
+  });
+
   pi.registerCommand("litespm", {
     description: "List the LiteSPM bridge capabilities",
     handler: async (args, ctx) => {
@@ -168,7 +436,7 @@ export default function (pi: ExtensionAPI) {
         (tool) => tool.name + (tool.description ? " - " + tool.description : ""),
       );
       ctx.ui.notify(
-        "LiteSPM bridge capabilities (" + bridgeTools.length + "):\n" + lines.join("\n"),
+        "LiteSPM bridge capabilities (" + bridgeTools.length + "):\\n" + lines.join("\\n"),
         "info",
       );
     },
