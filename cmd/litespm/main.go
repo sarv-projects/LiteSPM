@@ -74,12 +74,12 @@ func main() {
 		}
 
 	case "search":
-		query, queryErr := searchQueryArgs(os.Args[2:])
+		opts, queryErr := searchQueryArgs(os.Args[2:])
 		if queryErr != nil {
 			fmt.Fprintf(os.Stderr, "Usage error: %v\n", queryErr)
 			os.Exit(2)
 		}
-		runSearch(query)
+		runSearch(opts)
 
 	case "install", "add", "i":
 		runInstall(os.Args[2:])
@@ -939,25 +939,83 @@ func truncate(s string, max int) string {
 	return s[:max-1] + "…"
 }
 
-// searchQueryArgs turns the words after `search` into a query.
-//
-// It refuses flag-shaped words instead of folding them into the query, because
-// the alternative is worse than an error: `litespm search github --json` used
-// to search the literal string "github --json", the fuzzy index still matched
-// github rows, and the user got a plausible answer that silently ignored the
-// `--json` they asked for. Every other command validates its flags and exits 2
-// (the documented usage exit code); search was the one that swallowed them.
-// `--json` belongs to `list` and `inventory`, not to search.
-func searchQueryArgs(args []string) (string, error) {
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "--") {
-			return "", fmt.Errorf("search takes no flags (got %q); --json belongs to `list` and `inventory`, not `search`", arg)
-		}
-	}
-	return strings.Join(args, " "), nil
+// searchOptions is the parsed command line for `litespm search`.
+type searchOptions struct {
+	query string
+	// json emits the machine-readable document instead of the table. It exists
+	// because something finally needs it: the Pi companion extension's
+	// /marketplace panel reads it, and a table is not an interface.
+	json bool
+	// limit bounds the result set. The default matches the table's historical
+	// 25; a caller that filters client-side asks for more in one call.
+	limit int
 }
 
-func runSearch(query string) {
+// searchQueryArgs turns the words after `search` into a query, and honours the
+// two flags this command has.
+//
+// It refuses any other flag-shaped word instead of folding it into the query,
+// because the alternative is worse than an error: `litespm search github
+// --frozen` used to search the literal string "github --frozen", the fuzzy
+// index still matched github rows, and the user got a plausible answer that
+// silently ignored what they asked for.
+func searchQueryArgs(args []string) (searchOptions, error) {
+	opts := searchOptions{limit: 25}
+	var words []string
+	rest := args
+	for len(rest) > 0 {
+		arg := rest[0]
+		rest = rest[1:]
+		switch arg {
+		case "--json":
+			opts.json = true
+		case "--limit":
+			if len(rest) == 0 {
+				return opts, fmt.Errorf("--limit needs a number between 1 and 500")
+			}
+			value := rest[0]
+			rest = rest[1:]
+			n, err := strconv.Atoi(value)
+			if err != nil || n < 1 || n > 500 {
+				return opts, fmt.Errorf("--limit must be a number between 1 and 500 (got %q)", value)
+			}
+			opts.limit = n
+		default:
+			if strings.HasPrefix(arg, "--") {
+				return opts, fmt.Errorf("search takes --json and --limit (got %q)", arg)
+			}
+			words = append(words, arg)
+		}
+	}
+	opts.query = strings.Join(words, " ")
+	return opts, nil
+}
+
+// searchResultRow is one row of the `--json` document. It is deliberately
+// smaller than domain.Listing: a consumer needs identity, what it is, who
+// claims it, and whether it can be installed — not the whole provenance record.
+type searchResultRow struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Kind           string `json:"kind"`
+	Publisher      string `json:"publisher"`
+	Summary        string `json:"summary"`
+	Version        string `json:"version,omitempty"`
+	Installability string `json:"installability,omitempty"`
+}
+
+// searchDocument is the `litespm search --json` payload (schema
+// litespm-search/v1). `indexCount` is the size of the local index, so a
+// consumer can tell "no match" from "empty index" without a second call.
+type searchDocument struct {
+	Schema     string            `json:"schema"`
+	Query      string            `json:"query"`
+	Count      int               `json:"count"`
+	IndexCount int               `json:"indexCount"`
+	Results    []searchResultRow `json:"results"`
+}
+
+func runSearch(opts searchOptions) {
 	paths, err := config.ResolvePlatformPaths()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal: failed to resolve platform paths: %v\n", err)
@@ -968,7 +1026,41 @@ func runSearch(query string) {
 	regURL := registryURLOf(cfg)
 
 	catClient := catalog.NewClientWithTimeout(regURL, paths.DataRoot, catalogTimeoutOf(cfg), nil)
-	results := catClient.Search(query, catalog.SearchOptions{Limit: 25})
+	results := catClient.Search(opts.query, catalog.SearchOptions{Limit: opts.limit})
+
+	if opts.json {
+		doc := searchDocument{
+			Schema:     "litespm-search/v1",
+			Query:      opts.query,
+			Count:      len(results),
+			IndexCount: catClient.Count(),
+			Results:    make([]searchResultRow, 0, len(results)),
+		}
+		for _, res := range results {
+			row := searchResultRow{
+				ID:             res.Listing.ID,
+				Name:           res.Listing.Name,
+				Kind:           string(res.Listing.Kind),
+				Publisher:      res.Listing.PublisherClaim.Name,
+				Summary:        res.Listing.Summary,
+				Installability: string(res.Listing.Installability),
+			}
+			if row.Publisher == "" {
+				row.Publisher = "community"
+			}
+			if len(res.Listing.Versions) > 0 {
+				row.Version = res.Listing.Versions[0].Version
+			}
+			doc.Results = append(doc.Results, row)
+		}
+		encoded, encErr := json.MarshalIndent(doc, "", "  ")
+		if encErr != nil {
+			fmt.Fprintf(os.Stderr, "Fatal: encode search results: %v\n", encErr)
+			os.Exit(1)
+		}
+		fmt.Println(string(encoded))
+		return
+	}
 
 	if len(results) == 0 {
 		if catClient.Count() == 0 {
@@ -976,11 +1068,11 @@ func runSearch(query string) {
 			fmt.Println("Run 'litespm catalog sync' to populate it from the registry.")
 			return
 		}
-		fmt.Printf("No capabilities found matching %q.\n", query)
+		fmt.Printf("No capabilities found matching %q.\n", opts.query)
 		return
 	}
 
-	fmt.Printf("Found %d capabilities matching %q:\n\n", len(results), query)
+	fmt.Printf("Found %d capabilities matching %q:\n\n", len(results), opts.query)
 	fmt.Printf("%-32s %-8s %-16s %s\n", "NAME / ID", "KIND", "PUBLISHER", "SUMMARY")
 	fmt.Println(strings.Repeat("-", 80))
 	for _, res := range results {

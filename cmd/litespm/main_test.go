@@ -1205,37 +1205,57 @@ func TestToolsListUnionsProjectScope(t *testing.T) {
 	})
 }
 
-// TestSearchQueryArgsRefusesFlags pins the usage rule the CLI already applies
-// everywhere else: a flag-shaped word is an error, not part of the query. It
-// used to be folded in, so `litespm search github --json` searched the literal
-// string "github --json", the fuzzy index matched github rows anyway, and the
-// user got a plausible answer that silently ignored what they asked for.
-func TestSearchQueryArgsRefusesFlags(t *testing.T) {
+// TestSearchQueryArgsParsesFlags pins the usage contract: --json and --limit
+// are honoured, every other flag-shaped word is an error rather than part of
+// the query. Folding flags into the query was the old behaviour, and it was
+// worse than an error: `litespm search github --frozen` searched the literal
+// string, the fuzzy index matched github rows anyway, and the user got a
+// plausible answer that silently ignored what they asked for.
+func TestSearchQueryArgsParsesFlags(t *testing.T) {
 	for _, tc := range []struct {
+		name    string
 		args    []string
-		want    string
-		wantErr bool
+		want    searchOptions
+		wantErr string
 	}{
-		{args: []string{"github"}, want: "github"},
-		{args: []string{"github", "mcp"}, want: "github mcp"},
-		{args: nil, want: ""},
-		{args: []string{"--json"}, wantErr: true},
-		{args: []string{"github", "--json"}, wantErr: true},
-		{args: []string{"github", "--frozen"}, wantErr: true},
+		{name: "bare words", args: []string{"github", "mcp"},
+			want: searchOptions{query: "github mcp", limit: 25}},
+		{name: "no arguments", args: nil,
+			want: searchOptions{query: "", limit: 25}},
+		{name: "json", args: []string{"github", "--json"},
+			want: searchOptions{query: "github", json: true, limit: 25}},
+		{name: "limit", args: []string{"--limit", "200", "github"},
+			want: searchOptions{query: "github", limit: 200}},
+		{name: "json and limit together", args: []string{"--json", "--limit", "500"},
+			want: searchOptions{query: "", json: true, limit: 500}},
+		{name: "unknown flag", args: []string{"github", "--frozen"},
+			wantErr: "--frozen"},
+		{name: "bare dash word is a query", args: []string{"c++"},
+			want: searchOptions{query: "c++", limit: 25}},
+		{name: "limit without a value", args: []string{"--limit"},
+			wantErr: "--limit needs a number"},
+		{name: "limit out of range", args: []string{"--limit", "0"},
+			wantErr: "--limit must be a number between 1 and 500"},
+		{name: "limit not a number", args: []string{"--limit", "lots"},
+			wantErr: "--limit must be a number between 1 and 500"},
 	} {
-		got, err := searchQueryArgs(tc.args)
-		if tc.wantErr {
-			if err == nil {
-				t.Errorf("searchQueryArgs(%v) accepted a flag as search text", tc.args)
-				continue
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := searchQueryArgs(tc.args)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("searchQueryArgs(%v) = %+v, want an error mentioning %q", tc.args, got, tc.wantErr)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("error = %q, want it to mention %q", err, tc.wantErr)
+				}
+				return
 			}
-			if !strings.Contains(err.Error(), "--json belongs to") {
-				t.Errorf("the refusal must say where --json belongs, got: %v", err)
+			if err != nil {
+				t.Fatalf("searchQueryArgs(%v): %v", tc.args, err)
 			}
-			continue
-		}
-		if err != nil || got != tc.want {
-			t.Errorf("searchQueryArgs(%v) = %q, %v; want %q", tc.args, got, err, tc.want)
-		}
+			if got != tc.want {
+				t.Errorf("searchQueryArgs(%v) = %+v, want %+v", tc.args, got, tc.want)
+			}
+		})
 	}
 }

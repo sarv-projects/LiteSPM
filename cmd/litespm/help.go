@@ -74,18 +74,24 @@ func buildHelpCatalog() map[string]commandHelp {
 			Canonical: "search",
 			Group:     "DISCOVER",
 			Purpose:   "Search the local catalog index for MCP servers, skills and plugins.",
-			Synopsis:  []string{"litespm search <query>"},
+			Synopsis: []string{
+				"litespm search <query> [--json] [--limit <n>]",
+			},
 			Does: []string{
 				"Looks up your words in the catalog index that `litespm catalog sync` keeps on disk and prints up to 25 matches with their id, kind, publisher and summary. Plain words work: `litespm search github`.",
+				"`--json` prints a `litespm-search/v1` document instead of the table — id, kind, publisher, summary, version and installability per row, plus `indexCount` so a caller can tell \"no match\" from \"empty index\" without a second call. It is what the Pi companion extension's `/marketplace` panel reads.",
+				"`--limit <n>` raises the cap (1-500) for a caller that filters client-side rather than searching again per keystroke.",
 				"The index is local, so search answers the same way every time you run it with the same synced release.",
 			},
 			DoesNot: []string{
 				"Does not search the network: an empty index is reported as empty, with the `litespm catalog sync` hint, never filled in from a guess.",
 				"Does not install anything, and does not rank results by popularity — the catalog publishes no popularity numbers.",
+				"Accepts no other flags: an unknown `--word` is a usage error (exit 2), never a word silently folded into the query.",
 			},
 			Examples: []string{
 				"litespm search github",
 				"litespm search postgres",
+				"litespm search github --json --limit 200",
 				"litespm catalog sync   # refresh the index first if it is empty",
 			},
 			SeeAlso: []string{"install", "catalog", "list"},
