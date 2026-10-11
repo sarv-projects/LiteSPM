@@ -366,3 +366,53 @@ func TestLoadDenyRules(t *testing.T) {
 		}
 	}
 }
+
+// TestDenyRuleMatchesTargetRefAliases pins the alias arm of DenyRule.matches:
+// a rule keyed on the canonical TargetRef refuses the operation, and so does a
+// rule keyed on any TargetAliases entry, because the install paths name the
+// same capability differently (MCP: the listing id the user types plus the host
+// server-entry name; skills: the skill name, which is the only identity that
+// path has). A rule that matched one vocabulary only would fail open on the
+// other.
+func TestDenyRuleMatchesTargetRefAliases(t *testing.T) {
+	input := PolicyInput{
+		Actor:         "user",
+		Operation:     "install",
+		TargetRef:     "mcp:acme:demo",
+		TargetAliases: []string{"demo-mcp"},
+		Effects:       []EffectDeclaration{{Effect: EffectPackageInstall}},
+	}
+	// One rule per engine: the deny tier returns on the first matching rule, so
+	// a single evaluation cannot prove that two rules both matched.
+	for _, tc := range []struct{ name, targetRef string }{
+		{name: "canonical targetRef", targetRef: "mcp:acme:demo"},
+		{name: "installed-name alias", targetRef: "demo-mcp"},
+	} {
+		engine := NewEngine(nil, []DenyRule{
+			{RuleID: "deny_rule", TargetRef: tc.targetRef, Effect: EffectPackageInstall},
+		})
+		dec := engine.Evaluate(context.Background(), input)
+		if dec.Decision != DecisionDeny {
+			t.Fatalf("rule keyed on the %s did not deny: got %s (%s)", tc.name, dec.Decision, dec.Detail)
+		}
+		if !containsRule(dec.MatchedRuleIDs, "deny_rule") {
+			t.Errorf("rule keyed on the %s denied without naming itself: %v", tc.name, dec.MatchedRuleIDs)
+		}
+	}
+	// A rule for a different target still matches nothing.
+	other := NewEngine(nil, []DenyRule{
+		{RuleID: "by_unrelated", TargetRef: "mcp:acme:other", Effect: EffectPackageInstall},
+	})
+	if dec := other.Evaluate(context.Background(), input); dec.Decision == DecisionDeny {
+		t.Errorf("a rule for a different target denied the operation: %s", dec.Detail)
+	}
+}
+
+func containsRule(ids []string, want string) bool {
+	for _, id := range ids {
+		if id == want {
+			return true
+		}
+	}
+	return false
+}

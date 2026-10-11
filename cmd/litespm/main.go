@@ -111,17 +111,17 @@ func main() {
 				runCatalogBuild(os.Args[3:])
 			default:
 				fmt.Println("Usage: litespm catalog [sync|build]")
-				os.Exit(1)
+				os.Exit(2)
 			}
 		} else {
 			fmt.Println("Usage: litespm catalog [sync|build]")
-			os.Exit(1)
+			os.Exit(2)
 		}
 
 	case "daemon":
 		if len(os.Args) < 3 || os.Args[2] != "serve" {
 			fmt.Println("Usage: litespm daemon serve")
-			os.Exit(1)
+			os.Exit(2)
 		}
 		runDaemonServe()
 
@@ -131,7 +131,7 @@ func main() {
 	case "host":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: litespm host [list|detect|setup <host-id>|remove <host-id>|remove --all]")
-			os.Exit(1)
+			os.Exit(2)
 		}
 		runHostCommand(os.Args[2:])
 
@@ -152,7 +152,7 @@ func main() {
 	case "skills":
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: litespm skills [add <source> | list | update <name>... --source <src> | remove <name>|--all]")
-			os.Exit(1)
+			os.Exit(2)
 		}
 		switch os.Args[2] {
 		case "add":
@@ -166,7 +166,7 @@ func main() {
 		default:
 			fmt.Printf("Unknown skills subcommand: %s\n", os.Args[2])
 			fmt.Println("Usage: litespm skills [add <source> | list | update <name>... --source <src> | remove <name>|--all]")
-			os.Exit(1)
+			os.Exit(2)
 		}
 
 	case "list":
@@ -545,7 +545,7 @@ func runHostCommand(args []string) {
 	case "setup":
 		if len(args) < 2 {
 			fmt.Println("Usage: litespm host setup <host-id>")
-			os.Exit(1)
+			os.Exit(2)
 		}
 		hostID := args[1]
 		adapter, err := host.GetAdapter(hostID)
@@ -579,7 +579,7 @@ func runHostCommand(args []string) {
 
 	default:
 		fmt.Printf("Unknown host subcommand: %s\n", sub)
-		os.Exit(1)
+		os.Exit(2)
 	}
 }
 
@@ -589,7 +589,7 @@ func runHostCommand(args []string) {
 func runHostRemove(ctx context.Context, args []string) {
 	if len(args) == 0 {
 		fmt.Println("Usage: litespm host remove <host-id> | --all")
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	paths, _ := config.ResolvePlatformPaths()
@@ -725,7 +725,7 @@ after the install are kept, not deleted.
 
 See also:
   litespm restore <installId>   byte-exact rollback to the pre-install state`)
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	ctx := context.Background()
@@ -754,7 +754,7 @@ func runAgentCommand(args []string) {
 
 	if len(args) == 0 {
 		fmt.Println("Usage: litespm agent [list|resolve <id>] [--registry <url>] [--file <path>] [--json]")
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	sub := args[0]
@@ -831,7 +831,7 @@ func runAgentCommand(args []string) {
 	case "resolve":
 		if id == "" {
 			fmt.Println("Usage: litespm agent resolve <id>")
-			os.Exit(1)
+			os.Exit(2)
 		}
 		a, ok := reg.FindAgent(id)
 		if !ok {
@@ -879,7 +879,7 @@ func runAgentCommand(args []string) {
 
 	default:
 		fmt.Printf("Unknown agent subcommand: %s\n", sub)
-		os.Exit(1)
+		os.Exit(2)
 	}
 }
 
@@ -1789,8 +1789,13 @@ func runDaemonServe() {
 
 	server := ipc.NewServer(Version, ProtocolVersion)
 
-	// Register Core Handlers
-	registerCoreHandlers(server, db, catClient, installEngine, paths, secretStore, supervisor, policyDefaultsFrom(cfg))
+	// Register Core Handlers. A policy tier that cannot be loaded (a
+	// present-but-unreadable deny-rules file) halts the daemon rather than
+	// letting it serve installs with an empty blacklist.
+	if err := registerCoreHandlers(server, db, catClient, installEngine, paths, secretStore, supervisor, policyDefaultsFrom(cfg)); err != nil {
+		fmt.Fprintf(os.Stderr, "Fatal: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -1815,8 +1820,16 @@ func runDaemonServe() {
 	fmt.Println("[daemon] Shutdown complete.")
 }
 
-func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.Client, installEngine *install.Engine, paths *config.PlatformPaths, secretStore secrets.SecretStore, supervisor *provider.Supervisor, policyDefaults policy.Defaults) {
-	policyEngine := policy.NewEngineWithDefaults(db, nil, policyDefaults)
+func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.Client, installEngine *install.Engine, paths *config.PlatformPaths, secretStore secrets.SecretStore, supervisor *provider.Supervisor, policyDefaults policy.Defaults) error {
+	// The engine the install paths share must carry the user's real deny tier,
+	// exactly like newPolicyEngine does for the skills/MCP paths. Building it
+	// with nil rules (the previous wiring) let the archive/package install path
+	// run with an empty blacklist, so `policy-deny.json` was silently ignored
+	// there. A deny-rules file that exists but cannot be read fails closed.
+	policyEngine, policyErr := newPolicyEngine(db, paths.DataRoot, policyDefaults)
+	if policyErr != nil {
+		return fmt.Errorf("load policy deny rules: %w", policyErr)
+	}
 	installEngine.SetPolicy(policyEngine)
 
 	// 1. tools.list returns installed capabilities & external detected tools.
@@ -1825,6 +1838,16 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 	// omitted (unknown) unless derivable from real data. Kind is parsed from
 	// the canonical listing ID; external entries carry the kind detected in the
 	// host's own config file.
+	//
+	// Scope: the IPC surface (tools.list, skills.*) is USER-scope only. The
+	// bridge shim calls these methods with nil params over IPC (see
+	// internal/bridge/shim.go), and neither the protocol nor the daemon carries
+	// the agent's project directory, so a project-scope install cannot be
+	// resolved here without inventing a workspace. `list`/`inventory` and
+	// `install.remove` see project-scope installs because they run with the
+	// invoking process's CWD or address an install by id; the daemon cannot.
+	// This is a real limitation, not an oversight: a project context is never
+	// fabricated.
 	server.RegisterHandler("tools.list", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
 		installs, err := db.ListInstalls(ctx, domain.ScopeUser, "")
 		if err != nil {
@@ -2153,6 +2176,8 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 	// 7. skills.list returns progressive disclosure index.
 	// Level-1 summaries only: name/description/metadata. Instruction bodies and
 	// raw SKILL.md content stay behind skills.load_body.
+	// USER-scope only, for the same reason as tools.list above: the IPC call
+	// carries no project context.
 	server.RegisterHandler("skills.list", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
 		installs, err := db.ListInstalls(ctx, domain.ScopeUser, "")
 		if err != nil {
@@ -2524,6 +2549,8 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			"pid":             os.Getpid(),
 		}, nil
 	})
+
+	return nil
 }
 
 // runStartupRecovery sweeps the operation journal before the daemon starts
@@ -3040,6 +3067,7 @@ func installRPCError(err error) *ipc.RPCError {
 	// the egress guard refuses, and --env on a remote entry, are the same
 	// shape of mistake: the request asked for something LiteSPM will not do.
 	case "LPSM-STATE-NOT-FOUND", "LPSM-DOMAIN-INVALID-ID", "LPSM-STATE-CONFLICT", "LPSM-NAME-CONFLICT", "LPSM-INSTALL-TARGET-UNAVAILABLE", "LPSM-NOT-INSTALLABLE",
+		"LPSM-ARTIFACT-UNAVAILABLE",
 		"LPSM-EGRESS-BLOCKED", "LPSM-REMOTE-ENV-REFUSED":
 		return &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}
 	default:

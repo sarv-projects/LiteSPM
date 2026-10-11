@@ -35,6 +35,14 @@ type skillPolicyAsker func(ctx context.Context, req skills.PolicyRequest, detail
 // skillPolicyInput maps a skill write onto the canonical policy input. The
 // capability identity fields are intentionally empty: a skill directory is not
 // a provider capability, so tier-3 grant matching does not apply.
+//
+// TargetRef is the skill's NAME (the sanitized directory name it installs
+// under). This is the one documented semantic shared with the MCP install path
+// (install_mcp.go's authorizeMCPInstallPolicy): a deny rule matches a
+// capability by the name it is installed as — the skill name here, the host
+// server-entry name there. A skill has no catalog listing id on the
+// `litespm skills add <source>` path, so a name is the only identity both
+// paths can honestly produce.
 func skillPolicyInput(req skills.PolicyRequest) policy.PolicyInput {
 	effects := make([]policy.EffectDeclaration, 0, len(req.Effects))
 	for _, e := range req.Effects {

@@ -140,7 +140,7 @@ func runSkillsAdd(args []string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		skillsAddUsage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	interactive := isTerminal(os.Stdin) && !opts.yes && !opts.jsonOut

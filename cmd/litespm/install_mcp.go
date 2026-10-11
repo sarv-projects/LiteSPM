@@ -389,7 +389,7 @@ func installMCPFromListing(
 			}
 		}
 	}
-	if err := authorizeMCPInstallPolicy(ctx, db, dataRoot, listing, scope, hosts); err != nil {
+	if err := authorizeMCPInstallPolicy(ctx, db, dataRoot, listing, name, scope, hosts); err != nil {
 		return nil, err
 	}
 
@@ -549,9 +549,13 @@ func installMCPFromListing(
 			}); err != nil {
 				return fmt.Errorf("record the host registration: %w", err)
 			}
+			locator, locErr := hostLocatorFor(result.HostID, name, scope)
+			if locErr != nil {
+				return locErr
+			}
 			m := lifecycle.OwnedWrite(outcome.InstallID, listing.ID,
 				result.HostID, string(scope), result.ConfigPath,
-				hostStructureTypeFor(result.HostID), hostLocatorFor(result.HostID, name),
+				hostStructureTypeFor(result.HostID), locator,
 				result.PriorFingerprint, result.Fingerprint, result.PriorEntry, result.BackupPath)
 			if err := deployment.SaveMutationExec(ctx, tx, m); err != nil {
 				return fmt.Errorf("record the deployment mutation: %w", err)
@@ -570,7 +574,17 @@ func installMCPFromListing(
 	return outcome, nil
 }
 
-func authorizeMCPInstallPolicy(ctx context.Context, db *state.DB, dataRoot string, listing *domain.Listing, scope domain.InstallScope, hosts []string) error {
+// authorizeMCPInstallPolicy is the MCP install path's policy gate. TargetRef is
+// the canonical listing id, and name — the server entry name the host will
+// store — rides as TargetAliases, so a deny rule keyed on either refuses the
+// install. Both names are legitimate: the CLI takes the listing id
+// (`litespm install mcp:acme:demo`), the host config takes the entry name, and
+// a rule that silently stopped matching one of them would fail open. The
+// skills path (`skills_policy.go`) has no catalog listing, so its TargetRef is
+// the skill name — the only identity that path can honestly produce. The
+// refusal code for a deny is unchanged (LPSM-POLICY-UNAUTHORIZED ->
+// ipc.CodeUnauthorized).
+func authorizeMCPInstallPolicy(ctx context.Context, db *state.DB, dataRoot string, listing *domain.Listing, name string, scope domain.InstallScope, hosts []string) error {
 	auth, authorized := installAuthorizationFrom(ctx)
 	if !authorized {
 		return domain.ErrUnauthorized("package.install", "no recorded plan and approval authorize this install")
@@ -597,12 +611,13 @@ func authorizeMCPInstallPolicy(ctx context.Context, db *state.DB, dataRoot strin
 	// it properly" here.
 	for _, hostID := range hosts {
 		decision := engine.Evaluate(ctx, policy.PolicyInput{
-			Actor:     "user",
-			HostID:    hostID,
-			Operation: "install",
-			TargetRef: listing.ID,
-			Effects:   effects,
-			Scope:     scope,
+			Actor:         "user",
+			HostID:        hostID,
+			Operation:     "install",
+			TargetRef:     listing.ID,
+			TargetAliases: []string{name},
+			Effects:       effects,
+			Scope:         scope,
 		})
 		switch decision.Decision {
 		case policy.DecisionAllow:

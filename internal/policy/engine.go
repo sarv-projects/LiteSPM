@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -74,10 +75,16 @@ type EffectDeclaration struct {
 
 // PolicyInput encapsulates all context required to evaluate an operation.
 type PolicyInput struct {
-	Actor               string              `json:"actor"` // user | agent | system
-	HostID              string              `json:"hostId"`
-	Operation           string              `json:"operation"` // install | update | invoke | start
-	TargetRef           string              `json:"targetRef"` // ListingId or CapabilityId
+	Actor     string `json:"actor"` // user | agent | system
+	HostID    string `json:"hostId"`
+	Operation string `json:"operation"` // install | update | invoke | start
+	TargetRef string `json:"targetRef"` // ListingId or CapabilityId
+	// TargetAliases are the other names the same capability is known by on
+	// this path — today the host server-entry name an MCP listing installs
+	// under (the listing id stays TargetRef). A deny rule's TargetRef matches
+	// either the canonical ref or any alias, so a rule written against either
+	// name refuses the operation; neither vocabulary silently stops matching.
+	TargetAliases       []string            `json:"targetAliases,omitempty"`
 	CapabilityID        string              `json:"capabilityId,omitempty"`
 	Effects             []EffectDeclaration `json:"effects"`
 	RequestedAccess     []string            `json:"requestedAccess"`
@@ -104,6 +111,10 @@ type PolicyDecision struct {
 // that sets TargetRef and Effect denies only that effect on that target, and a
 // rule that sets HostID applies only to operations from that host. A rule with
 // no field set matches nothing.
+//
+// TargetRef matches PolicyInput.TargetRef (exact) or any of
+// PolicyInput.TargetAliases, so a rule keeps working when a path names the
+// capability by its listing id and another by its installed entry name.
 type DenyRule struct {
 	RuleID    string          `json:"ruleId"`
 	TargetRef string          `json:"targetRef,omitempty"`
@@ -241,7 +252,7 @@ func (r DenyRule) matches(input PolicyInput) (matchedEffect CanonicalEffect, ok 
 	if r.HostID != "" && r.HostID != input.HostID {
 		return "", false
 	}
-	if r.TargetRef != "" && r.TargetRef != input.TargetRef {
+	if r.TargetRef != "" && r.TargetRef != input.TargetRef && !slices.Contains(input.TargetAliases, r.TargetRef) {
 		return "", false
 	}
 	if r.Effect != "" {

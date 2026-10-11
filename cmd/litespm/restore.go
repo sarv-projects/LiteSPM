@@ -369,7 +369,7 @@ func runRestore(ctx context.Context, args []string) {
 		case "--host":
 			if i+1 >= len(args) {
 				fmt.Fprintln(os.Stderr, "Error: --host requires a host id (see `litespm host list`)")
-				os.Exit(1)
+				os.Exit(2)
 			}
 			i++
 			hostID = args[i]
@@ -382,22 +382,22 @@ func runRestore(ctx context.Context, args []string) {
 			if strings.HasPrefix(a, "-") {
 				fmt.Fprintf(os.Stderr, "Error: unknown flag %q\n\n", a)
 				restoreUsage()
-				os.Exit(1)
+				os.Exit(2)
 			}
 			if installID != "" {
 				fmt.Fprintln(os.Stderr, "Error: give one install id, or --host, not both")
-				os.Exit(1)
+				os.Exit(2)
 			}
 			installID = a
 		}
 	}
 	if installID == "" && hostID == "" {
 		restoreUsage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 	if installID != "" && hostID != "" {
 		fmt.Fprintln(os.Stderr, "Error: give one install id, or --host, not both")
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	paths, err := config.ResolvePlatformPaths()

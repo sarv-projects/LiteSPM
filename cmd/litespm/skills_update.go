@@ -130,7 +130,7 @@ func runSkillsUpdate(args []string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		skillsUpdateUsage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 	if opts.help {
 		skillsUpdateUsage()
@@ -139,12 +139,12 @@ func runSkillsUpdate(args []string) {
 	if strings.TrimSpace(opts.source) == "" {
 		fmt.Fprintln(os.Stderr, "Error: --source <src> is required")
 		skillsUpdateUsage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 	if len(opts.names) == 0 {
 		fmt.Fprintln(os.Stderr, "Error: at least one skill <name> is required")
 		skillsUpdateUsage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	paths, err := config.ResolvePlatformPaths()

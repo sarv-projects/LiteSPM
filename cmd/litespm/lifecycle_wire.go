@@ -59,22 +59,26 @@ func hostStructureTypeFor(hostID string) string {
 }
 
 // hostLocatorFor builds the ARCH/33 §3 in-structure address of an owned MCP
-// entry (e.g. mcpServers.demo-mcp).
-func hostLocatorFor(hostID, entryName string) string {
-	containers := map[string]string{
-		"claude-code": "mcpServers",
-		"cline":       "mcpServers",
-		"pi-agent":    "mcpServers",
-		"pi":          "mcpServers",
-		"opencode":    "mcp",
-		"codex":       "mcp_servers",
-		"grok":        "mcp_servers",
-		"grok-build":  "mcp_servers",
+// entry (e.g. mcpServers.demo-mcp). The container key path is read from the
+// host registry itself (host.EntryLayoutForScope) at the scope the install
+// wrote with, which is the same key path host.InstallServerEntry used — never a
+// guessed default, and never the user key for a project install (a project
+// install into a host like `fx` lands under `mcpServers`, while its user file
+// uses `mcp`; a wrong locator makes restore refuse a rollback it should own).
+// A host with no registered adapter, or one whose registry row declares no
+// entry layout, is refused rather than mapped to a plausible-looking node:
+// a wrong locator would make reconcile/removal act on a node LiteSPM never
+// wrote.
+func hostLocatorFor(hostID, entryName string, scope domain.InstallScope) (string, error) {
+	adapter, err := host.GetAdapter(hostID)
+	if err != nil {
+		return "", fmt.Errorf("locate owned MCP entry %q: %w", entryName, err)
 	}
-	if c, ok := containers[strings.ToLower(hostID)]; ok {
-		return c + "." + entryName
+	keyPath, _, ok := host.EntryLayoutForScope(adapter, scope)
+	if !ok || strings.TrimSpace(keyPath) == "" {
+		return "", fmt.Errorf("host %q declares no MCP entry layout, so the owned node for %q cannot be located", hostID, entryName)
 	}
-	return "mcpServers." + entryName
+	return keyPath + "." + entryName, nil
 }
 
 // mutationScope maps a ledger scope string onto the install-scope enum.

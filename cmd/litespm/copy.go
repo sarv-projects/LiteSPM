@@ -425,7 +425,7 @@ func readCopySource(ctx context.Context, paths *config.PlatformPaths,
 	d := adapter.Descriptor()
 	src := &porting.Source{From: d.HostID, Display: d.DisplayName}
 
-	if keyPath, shape, ok := host.EntryLayout(adapter); ok && keyPath != "" {
+	if keyPath, shape, ok := host.EntryLayoutForScope(adapter, scope); ok && keyPath != "" {
 		src.EntryShape = shape
 		entries, err := host.ListServerEntriesWithValues(ctx, d.HostID, scope)
 		if err != nil {
@@ -555,7 +555,7 @@ func readCopyTarget(ctx context.Context, paths *config.PlatformPaths,
 	if remoteSpec, ok := host.RemoteEntrySpecFor(d.HostID); ok {
 		tgt.Remote = &remoteSpec
 	}
-	if keyPath, shape, ok := host.EntryLayout(adapter); ok && keyPath != "" {
+	if keyPath, shape, ok := host.EntryLayoutForScope(adapter, scope); ok && keyPath != "" {
 		tgt.HasEntrySpec = true
 		tgt.EntryShape = shape
 		entries, err := host.ListServerEntriesWithValues(ctx, d.HostID, scope)
@@ -995,9 +995,13 @@ func applyMCPItem(ctx context.Context, db *state.DB, paths *config.PlatformPaths
 		}); err != nil {
 			return fmt.Errorf("record the host registration: %w", err)
 		}
+		locator, locErr := hostLocatorFor(written.HostID, item.ID, scope)
+		if locErr != nil {
+			return locErr
+		}
 		m := lifecycle.OwnedWrite(installID, listingID, written.HostID, string(scope),
 			written.ConfigPath, hostStructureTypeFor(written.HostID),
-			hostLocatorFor(written.HostID, item.ID),
+			locator,
 			written.PriorFingerprint, written.Fingerprint, written.PriorEntry, written.BackupPath)
 		if err := deployment.SaveMutationExec(ctx, tx, m); err != nil {
 			return fmt.Errorf("record the deployment mutation: %w", err)

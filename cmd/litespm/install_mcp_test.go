@@ -138,7 +138,7 @@ func TestInstallMCPPolicyDenyPreventsHostConfigWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	rules, err := json.Marshal([]policy.DenyRule{{
-		RuleID: "deny-demo-install", TargetRef: "mcp:example:demo-mcp", Effect: policy.EffectPackageInstall,
+		RuleID: "deny-demo-install", TargetRef: "demo-mcp", Effect: policy.EffectPackageInstall,
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -159,6 +159,56 @@ func TestInstallMCPPolicyDenyPreventsHostConfigWrite(t *testing.T) {
 	}
 	if string(after) != string(before) {
 		t.Fatalf("denied install modified host config:\nbefore: %s\nafter: %s", before, after)
+	}
+}
+
+// TestMCPPolicyDenyMatchesListingIDOrEntryName pins defect 13a's rule now that
+// targetRef accepts both vocabularies: the MCP path sends the canonical listing
+// id as TargetRef and the host server-entry name as an alias, so a deny rule
+// keyed on EITHER refuses the install. Keying only on the entry name (an earlier
+// revision) silently stopped enforcing rules written against the listing id the
+// user types on the command line.
+func TestMCPPolicyDenyMatchesListingIDOrEntryName(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		targetRef string
+	}{
+		{name: "listing id", targetRef: "mcp:example:demo-mcp"},
+		{name: "entry name", targetRef: "demo-mcp"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := openTestState(t)
+			dataRoot := t.TempDir()
+			_, configPath := homeWithBridge(t)
+			before, err := os.ReadFile(configPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			rules, err := json.Marshal([]policy.DenyRule{{
+				RuleID: "deny-demo-install", TargetRef: tc.targetRef, Effect: policy.EffectPackageInstall,
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dataRoot, policy.DenyRulesFile), rules, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = installMCPFromListing(authorizedTestContext(), db, dataRoot,
+				mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+				[]string{"claude-code"}, false, stdioRuntime(), nil)
+			if err == nil || domain.ErrorCode(err) != "LPSM-POLICY-UNAUTHORIZED" {
+				t.Fatalf("deny rule keyed on the %s did not refuse the install: %v", tc.name, err)
+			}
+			after, err := os.ReadFile(configPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(after) != string(before) {
+				t.Fatalf("denied install modified host config:\nbefore: %s\nafter: %s", before, after)
+			}
+		})
 	}
 }
 

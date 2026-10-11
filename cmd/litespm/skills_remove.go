@@ -149,7 +149,7 @@ func runSkillsRemove(args []string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		skillsRemoveUsage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 	if opts.help {
 		skillsRemoveUsage()
@@ -157,7 +157,7 @@ func runSkillsRemove(args []string) {
 	}
 	if !opts.all && len(opts.names) == 0 {
 		skillsRemoveUsage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	paths, err := config.ResolvePlatformPaths()

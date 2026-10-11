@@ -290,14 +290,12 @@ func TestHostChangesForSkipsNonMCPKinds(t *testing.T) {
 	}
 }
 
-// versionLessSkillFixture is a faithful copy of the version-less skill row the
-// release publishes — `skill:aaron-he-zhu:aaron-marketing-skills` in
-// rel-2026-10-07-01, one of the 5,811 of 5,825 listings with `versions: []` —
-// together with its versions.json record (version "", component id embedding
-// the @discovery segment). It keeps this test running in a clean checkout,
-// where the release tree (web/public/v1/releases/, built at release time and
-// gitignored) is absent; versionLessSkillFromRelease prefers the real bytes
-// when they exist.
+// versionLessSkillFixture is a faithful copy of a version-less skill row a
+// release publishes — `skill:aaron-he-zhu:aaron-marketing-skills`, a listing
+// with `versions: []` — together with its versions.json record (version "",
+// component id embedding the @discovery segment). The fixture is built here,
+// in the test, so the test never depends on a committed release tree
+// (web/public/v1/releases/, built at release time and gitignored).
 func versionLessSkillFixture() (*domain.Listing, *domain.VersionRecord) {
 	const id = "skill:aaron-he-zhu:aaron-marketing-skills"
 	listing := &domain.Listing{
@@ -329,53 +327,6 @@ func versionLessSkillFixture() (*domain.Listing, *domain.VersionRecord) {
 		}},
 	}
 	return listing, record
-}
-
-// versionLessSkillFromRelease loads the first version-less skill row (and its
-// version record) from the committed-on-disk rel-2026-10-07-01 release tree.
-// The tree is a gitignored build artifact, so its absence skips rather than
-// fails; this checkout has it and the test runs against the real bytes.
-func versionLessSkillFromRelease(t *testing.T) (*domain.Listing, *domain.VersionRecord) {
-	t.Helper()
-	base := filepath.Join("..", "..", "web", "public", "v1", "releases", "rel-2026-10-07-01")
-
-	listingsRaw, err := os.ReadFile(filepath.Join(base, "listings.json"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			t.Skipf("release tree %s not present (built at release time; gitignored)", base)
-		}
-		t.Fatalf("read listings.json: %v", err)
-	}
-	var listings []domain.Listing
-	if err := json.Unmarshal(listingsRaw, &listings); err != nil {
-		t.Fatalf("decode listings.json: %v", err)
-	}
-	var row *domain.Listing
-	for i := range listings {
-		if listings[i].Kind == domain.KindSkill && len(listings[i].Versions) == 0 {
-			row = &listings[i]
-			break
-		}
-	}
-	if row == nil {
-		t.Fatal("release publishes no version-less skill row (listings.json changed shape?)")
-	}
-
-	recordsRaw, err := os.ReadFile(filepath.Join(base, "versions.json"))
-	if err != nil {
-		t.Fatalf("read versions.json: %v", err)
-	}
-	var records []domain.VersionRecord
-	if err := json.Unmarshal(recordsRaw, &records); err != nil {
-		t.Fatalf("decode versions.json: %v", err)
-	}
-	for i := range records {
-		if records[i].ListingID == row.ID {
-			return row, &records[i]
-		}
-	}
-	t.Fatalf("release publishes no version record for %s", row.ID)
-	return nil, nil
 }
 
 // assertVersionLessPlan builds a plan for a version-less skill row and pins
@@ -453,15 +404,8 @@ func assertVersionLessPlan(t *testing.T, row *domain.Listing, rec *domain.Versio
 // a listing whose Versions is [] — the shape that used to die in the resolver
 // with LPSM-RESOLVE-CONFLICT "no versions available in catalog".
 func TestBuildInstallPlanResolvesVersionLessSkillRow(t *testing.T) {
-	t.Run("faithful fixture", func(t *testing.T) {
-		row, rec := versionLessSkillFixture()
-		assertVersionLessPlan(t, row, rec)
-	})
-	t.Run("rel-2026-10-07-01 row", func(t *testing.T) {
-		row, rec := versionLessSkillFromRelease(t)
-		t.Logf("loaded real release row %s (versions: %d)", row.ID, len(row.Versions))
-		assertVersionLessPlan(t, row, rec)
-	})
+	row, rec := versionLessSkillFixture()
+	assertVersionLessPlan(t, row, rec)
 }
 
 // --- B1 Phase 3: plan-time gating for remote (URL) MCP installs ------------

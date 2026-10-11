@@ -21,6 +21,7 @@ import (
 	"github.com/sarv-projects/litespm/internal/domain"
 	"github.com/sarv-projects/litespm/internal/install"
 	"github.com/sarv-projects/litespm/internal/ipc"
+	"github.com/sarv-projects/litespm/internal/policy"
 	"github.com/sarv-projects/litespm/internal/provider"
 	"github.com/sarv-projects/litespm/internal/secrets"
 	"github.com/sarv-projects/litespm/internal/state"
@@ -89,6 +90,15 @@ func newHarnessWith(t *testing.T, extra []*domain.Listing) *harness {
 // catalog side of every test stays fixture-driven, with no network.
 func newHarnessWithCatalog(t *testing.T, extra []*domain.Listing, extraRecords []*domain.VersionRecord) *harness {
 	t.Helper()
+	return newHarnessFull(t, extra, extraRecords, nil)
+}
+
+// newHarnessFull is newHarnessWithCatalog plus a beforeRegister hook: it runs
+// after the platform paths exist but before registerCoreHandlers wires the
+// handlers, so a test can plant data (a deny-rules file, for example) that the
+// handler wiring reads at construction time.
+func newHarnessFull(t *testing.T, extra []*domain.Listing, extraRecords []*domain.VersionRecord, beforeRegister func(paths *config.PlatformPaths)) *harness {
+	t.Helper()
 	tempDir := t.TempDir()
 	paths := &config.PlatformPaths{
 		ConfigRoot:  filepath.Join(tempDir, "config"),
@@ -153,9 +163,14 @@ func newHarnessWithCatalog(t *testing.T, extra []*domain.Listing, extraRecords [
 	supervisor := provider.NewSupervisor()
 
 	server := ipc.NewServer("test-daemon", ProtocolVersion)
+	if beforeRegister != nil {
+		beforeRegister(paths)
+	}
 	// nil config → the secure compiled policy defaults, exactly as a daemon
 	// with unreadable configuration would run.
-	registerCoreHandlers(server, db, catClient, engine, paths, store, supervisor, policyDefaultsFrom(nil))
+	if err := registerCoreHandlers(server, db, catClient, engine, paths, store, supervisor, policyDefaultsFrom(nil)); err != nil {
+		t.Fatalf("registerCoreHandlers failed: %v", err)
+	}
 
 	listener := newPipeListener()
 	serveDone := make(chan error, 1)
@@ -994,5 +1009,123 @@ func TestInstallExecuteRefusesDiscoveryOnly(t *testing.T) {
 	err := h.client.Call(context.Background(), "install.execute", map[string]any{"listingId": id}, &raw)
 	if err == nil || !strings.Contains(err.Error(), "LPSM-NOT-INSTALLABLE") {
 		t.Fatalf("err = %v, want LPSM-NOT-INSTALLABLE", err)
+	}
+}
+
+// TestArchiveInstallPathEnforcesDenyRules pins defect 5: the install engine the
+// daemon wires (registerCoreHandlers) must carry the user's real deny tier from
+// policy-deny.json, exactly like the skills/MCP paths do. Before the fix the
+// engine was built with nil rules, so a deny on the archive/package install
+// path was silently ignored and the install proceeded.
+func TestArchiveInstallPathEnforcesDenyRules(t *testing.T) {
+	const id = "pkg:example:blocked-archive"
+	rules, err := json.Marshal([]policy.DenyRule{{
+		RuleID: "deny-archive-install", TargetRef: id, Effect: policy.EffectPackageInstall,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The deny-rules file must exist before registerCoreHandlers builds the
+	// engine, so it is planted through the pre-registration hook.
+	h := newHarnessFull(t, nil, nil, func(paths *config.PlatformPaths) {
+		if werr := os.WriteFile(filepath.Join(paths.DataRoot, policy.DenyRulesFile), rules, 0o600); werr != nil {
+			t.Fatalf("write deny rules: %v", werr)
+		}
+	})
+
+	_, err = h.engine.Execute(context.Background(), install.InstallOptions{
+		ListingID: id,
+		Version:   "1.0.0",
+		TreeSource: func(context.Context, string) (*domain.ExtractedTreeInfo, error) {
+			return nil, errors.New("tree source must not be consulted: policy denies before any work")
+		},
+	})
+	if err == nil {
+		t.Fatal("archive install ran despite a matching deny rule")
+	}
+	if code := domain.ErrorCode(err); code != "LPSM-POLICY-UNAUTHORIZED" {
+		t.Fatalf("code = %q, want LPSM-POLICY-UNAUTHORIZED (%v)", code, err)
+	}
+	if !strings.Contains(err.Error(), "deny-archive-install") {
+		t.Fatalf("the denial must name the matched rule, got %v", err)
+	}
+	// The refusal code the skills/MCP paths surface over IPC is unchanged.
+	if code := installRPCError(err).Code; code != ipc.CodeUnauthorized {
+		t.Errorf("IPC code = %d, want %d (CodeUnauthorized)", code, ipc.CodeUnauthorized)
+	}
+}
+
+// TestInstallRPCErrorEnumeratesArtifactUnavailable pins defect 8:
+// LPSM-ARTIFACT-UNAVAILABLE maps to the same JSON-RPC code (-32602) as its
+// sibling LPSM-NOT-INSTALLABLE, so a user refusal no longer surfaces as a
+// -32603 internal error.
+func TestInstallRPCErrorEnumeratesArtifactUnavailable(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"artifact unavailable", domain.ErrArtifactUnavailable("pkg:example:x", "no artifact locator")},
+		{"not installable", domain.ErrNotInstallable("pkg:example:x", "discovery-only")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rpcErr := installRPCError(tc.err)
+			if rpcErr.Code != ipc.CodeInvalidParams {
+				t.Errorf("code = %d, want %d (CodeInvalidParams)", rpcErr.Code, ipc.CodeInvalidParams)
+			}
+			if rpcErr.Code == ipc.CodeInternalError {
+				t.Errorf("a caller-input refusal must not surface as an internal error")
+			}
+		})
+	}
+}
+
+// TestToolsListIsUserScopeOnly pins defect 9's chosen behaviour (option b): the
+// bridge/IPC surface has no project context — the shim calls tools.list with
+// nil params and the protocol carries no workspace or CWD — so it reports
+// USER-scope installs only. The CLI list/inventory see project-scope installs
+// because they run with the invoking process's CWD; the daemon cannot, and a
+// project scope must never be fabricated. This test documents the limitation.
+func TestToolsListIsUserScopeOnly(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	h := newHarness(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	save := func(id string, scope domain.InstallScope, ws string) {
+		t.Helper()
+		if err := h.db.SaveInstall(ctx, &domain.InstallRecord{
+			InstallID: id, ListingID: id, Kind: domain.KindMCP, Version: "1.0.0",
+			Scope: scope, WorkspaceID: ws, Status: domain.InstallActive,
+			InstalledAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("SaveInstall %s: %v", id, err)
+		}
+	}
+	save("mcp:example:user-one", domain.ScopeUser, "")
+	save("mcp:example:proj-one", domain.ScopeProject, "ws-one")
+
+	var resp struct {
+		Installs []struct {
+			ID         string `json:"id"`
+			IsExternal bool   `json:"isExternal"`
+		} `json:"installs"`
+	}
+	if err := h.client.Call(ctx, "tools.list", nil, &resp); err != nil {
+		t.Fatalf("tools.list: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, it := range resp.Installs {
+		if !it.IsExternal {
+			seen[it.ID] = true
+		}
+	}
+	if !seen["mcp:example:user-one"] {
+		t.Errorf("user-scope install missing from tools.list: %+v", resp.Installs)
+	}
+	if seen["mcp:example:proj-one"] {
+		t.Errorf("tools.list returned a project-scope install; the IPC surface has no project context: %+v", resp.Installs)
 	}
 }
