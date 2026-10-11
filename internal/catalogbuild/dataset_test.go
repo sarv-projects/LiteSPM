@@ -2,14 +2,55 @@ package catalogbuild
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/sarv-projects/litespm/internal/domain"
 )
+
+// shardNamesFor lists a base name's files in a manifest, in shard order. The
+// index is zero-padded, so sorting by name orders them by index.
+func shardNamesFor(files map[string]ReleaseManifestFile, base string) []string {
+	names := []string{}
+	for name := range files {
+		if name == base+".json" || strings.HasPrefix(name, base+"-") {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// shardBytesFor returns one base name's emitted bytes, in shard order.
+func shardBytesFor(t *testing.T, output *BuildOutput, releaseID, base string) [][]byte {
+	t.Helper()
+	names := shardNamesFor(output.Manifest.Files, base)
+	if len(names) == 0 {
+		t.Fatalf("builder emitted no %s file (keys: %v)", base, sortedOutputKeys(output))
+	}
+	out := make([][]byte, 0, len(names))
+	for _, name := range names {
+		content, ok := output.Files[fmt.Sprintf("v1/releases/%s/%s", releaseID, name)]
+		if !ok {
+			t.Fatalf("manifest names %s but the builder did not emit it", name)
+		}
+		out = append(out, content)
+	}
+	return out
+}
+
+func concatBytes(shards [][]byte) []byte {
+	var out []byte
+	for _, shard := range shards {
+		out = append(out, shard...)
+	}
+	return out
+}
 
 const validMCPRow = `{
 	"id": "mcp:brave:brave-search-mcp-server",
@@ -517,23 +558,41 @@ func TestDatasetPipelineAgainstRealCatalog(t *testing.T) {
 
 	// The whole corpus must compile into a release tree — the real build's
 	// first stage — and the compiled listings must round-trip at full count.
+	// At real-catalog magnitude that tree is SHARDED: no single file may exceed
+	// the 25 MiB per-asset limit a static CDN enforces, and every shard must be
+	// a complete array the client can decode on its own.
 	output, err := CompileRelease("rel-2026-10-05-01", 1, []string{snapshotID}, listings, versions, ingestedAt)
 	if err != nil {
 		t.Fatalf("CompileRelease over real dataset: %v", err)
 	}
-	listingsBytes, ok := output.Files["v1/releases/rel-2026-10-05-01/listings.json"]
-	if !ok {
-		t.Fatalf("builder did not emit listings.json (keys: %v)", sortedOutputKeys(output))
-	}
+	listingShards := shardBytesFor(t, output, "rel-2026-10-05-01", "listings")
+	versionShards := shardBytesFor(t, output, "rel-2026-10-05-01", "versions")
 	var roundTrip []*domain.Listing
-	if err := json.Unmarshal(listingsBytes, &roundTrip); err != nil {
-		t.Fatalf("compiled listings do not decode: %v", err)
+	for _, shard := range listingShards {
+		if len(shard) > ReleaseShardMaxBytes {
+			t.Fatalf("listings shard is %d bytes, over the %d-byte ceiling", len(shard), ReleaseShardMaxBytes)
+		}
+		var part []*domain.Listing
+		if err := json.Unmarshal(shard, &part); err != nil {
+			t.Fatalf("a compiled listings shard does not decode on its own: %v", err)
+		}
+		roundTrip = append(roundTrip, part...)
+	}
+	for _, shard := range versionShards {
+		if len(shard) > ReleaseShardMaxBytes {
+			t.Fatalf("versions shard is %d bytes, over the %d-byte ceiling", len(shard), ReleaseShardMaxBytes)
+		}
 	}
 	if len(roundTrip) != len(rows) {
-		t.Fatalf("compiled listings round-tripped %d of %d", len(roundTrip), len(rows))
+		t.Fatalf("compiled listings round-tripped %d of %d across %d shards", len(roundTrip), len(rows), len(listingShards))
 	}
 	if output.Manifest.ItemCount != len(rows) {
 		t.Fatalf("manifest itemCount %d != %d", output.Manifest.ItemCount, len(rows))
+	}
+	// contentDigest is the digest of the release's CONTENT, however many files
+	// that content was split across: the ordered concatenation of the shards.
+	if actual := ContentDigestOf(concatBytes(listingShards), concatBytes(versionShards)); actual != output.Manifest.ContentDigest {
+		t.Errorf("contentDigest %s != %s over the concatenated shards", output.Manifest.ContentDigest, actual)
 	}
 
 	// The compiled manifest must decode into its own Go types with sizes at
@@ -548,18 +607,27 @@ func TestDatasetPipelineAgainstRealCatalog(t *testing.T) {
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		t.Fatalf("compiled manifest does not decode into ReleaseManifest: %v", err)
 	}
-	entry, ok := manifest.Files["listings.json"]
-	if !ok {
-		t.Fatal("compiled manifest has no listings.json entry")
+	// Every shard is a manifest entry like any other file, so anything that
+	// verifies a file verifies a shard without knowing the difference.
+	for _, name := range shardNamesFor(manifest.Files, "listings") {
+		entry, ok := manifest.Files[name]
+		if !ok {
+			t.Fatalf("compiled manifest has no %s entry", name)
+		}
+		actual := output.Files[fmt.Sprintf("v1/releases/rel-2026-10-05-01/%s", name)]
+		if entry.Size != int64(len(actual)) {
+			t.Errorf("manifest %s size %d != actual %d", name, entry.Size, len(actual))
+		}
+		if entry.Digest != domain.ComputeBytesDigest(actual) {
+			t.Errorf("manifest %s digest %s != %s", name, entry.Digest, domain.ComputeBytesDigest(actual))
+		}
 	}
-	if entry.Size != int64(len(listingsBytes)) {
-		t.Errorf("manifest listings size %d != actual %d", entry.Size, len(listingsBytes))
+	totalShardBytes := 0
+	for _, shard := range listingShards {
+		totalShardBytes += len(shard)
 	}
-	if entry.Size < 1_000_000 {
-		t.Errorf("listings.json is %d bytes: expected real-catalog magnitude to exercise large-size formatting", entry.Size)
-	}
-	if entry.Digest != domain.ComputeBytesDigest(listingsBytes) {
-		t.Errorf("manifest listings digest %s != %s", entry.Digest, domain.ComputeBytesDigest(listingsBytes))
+	if totalShardBytes < 1_000_000 {
+		t.Errorf("listings total %d bytes: expected real-catalog magnitude to exercise large-size formatting", totalShardBytes)
 	}
 	if manifestDigest := domain.ComputeBytesDigest(manifestBytes); output.ManifestDigest != manifestDigest {
 		t.Errorf("BuildOutput.ManifestDigest %s != digest of emitted manifest %s", output.ManifestDigest, manifestDigest)

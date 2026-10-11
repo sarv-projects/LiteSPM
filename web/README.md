@@ -39,8 +39,8 @@ web/
                   Each route is a Server Component (`page.tsx`) that reads `data/catalog.json`
                   at build time, a thin client wrapper (`*Route.tsx`) that owns the `next/dynamic`
                   import, and the view (`*View.tsx`) that hydrates from props.
-                  `app/data/catalog.json/route.ts` exports the rows as `/data/catalog.json`
-                  (`force-static`), byte-for-byte from `data/catalog.json`.
+                  `scripts/emit-catalog-shards.mjs` (run via `prebuild`) shards `data/catalog.json`
+                  into `public/data/catalog.json` (an index) + `public/data/catalog-*.json`.
   components/     catalog/  hero/  home/  layout/  navigation/  package/  ui/
   lib/            catalog.ts  catalogData.ts  hosts.ts  landing.ts  query.ts  telemetry.ts
                   search.worker.ts  useCatalogSearch.ts  site.ts  clipboard.ts  format.ts
@@ -56,7 +56,7 @@ web/
 | File | Rows / shape | Read by | Produced by |
 |---|---|---|---|
 | `data/catalog.json` | **46,166** rows (`id`, `name`, `slug`, `kind`, `summary`, `category`, `publisher`, `transport`, `runtime`, `stars`, `version`, `command`, `args`, …) — the committed producer dataset | **Build time only:** the `page.tsx` Server Components derive counts, facets, section rows and one page of grid rows from it and serialize *those* into the HTML. The rows themselves are never imported by client code — that is what keeps ~3.8 MB out of every JS chunk. | `scripts/build_full_catalog.py` |
-| `/data/catalog.json` | the same bytes, exported by `app/data/catalog.json/route.ts` | fetched at **runtime**, lazily — on the first search, filter or entry lookup (`lib/catalogData.ts`), never on a passive visit. Versioned by `data/release.json`'s `datasetDigest` (`?v=…`) so a CDN cannot answer a newer build with stale rows. | `next build` (route handler reads `data/catalog.json` and writes `out/data/catalog.json`) |
+| `/data/catalog.json` | the shard index (`schema`, `rowCount`, `datasetDigest`, `shards[]`), plus the `catalog-*.json` shard files it names | fetched at **runtime**, lazily — on the first search, filter or entry lookup (`lib/catalogData.ts` concatenates the shards in order), never on a passive visit. Versioned by `data/release.json`'s `datasetDigest` (`?v=…`) so a CDN cannot answer a newer build with stale rows. | `npm run build` (`prebuild` runs `scripts/emit-catalog-shards.mjs`, which writes `public/data/`; each shard stays under Cloudflare's 25 MiB per-file cap) |
 | `data/hosts.json` | **50** bridge adapters | `lib/hosts.ts` | `scripts/gen_hosts_ts.go` from `internal/host` |
 | `data/skill-targets.json` | **77** skill install targets | `lib/hosts.ts` | `scripts/gen_hosts_ts.go` from `internal/skills` |
 | `data/release.json` | merged stats bundle: dataset stats (`itemCount`, per-kind counts, `hostCompatibility`, `datasetDigest`) + release identity (`releaseId`, `sequence`, `manifestDigest`, `createdAt`) | imported at **build time** (`lib/telemetry.ts`) | **Single writer per key:** `scripts/build_full_catalog.py` merges the dataset stats, `litespm catalog build` stamps the release identity |
@@ -89,8 +89,8 @@ adjudicated** ([STATUS.md](../STATUS.md) §2).
 
 ## 5. Output & deployment
 
-- `npm run build` → **`web/out/`** (`index.html` per route, `_next/`, `404.html`, `data/catalog.json`,
-  and `v1/` copied from `public/v1` — ≈28 MB today, almost all of it the release tree). Gitignored.
+- `npm run build` → **`web/out/`** (`index.html` per route, `_next/`, `404.html`, the sharded
+  catalog under `data/` (index + `catalog-*.json`), and `v1/` copied from `public/v1`). Gitignored.
   The exported `v1/`
   carries whatever the last local `catalog build` left in `public/v1/` — the deploy script drops it
   and materializes the released tree instead.
@@ -115,7 +115,7 @@ The site is public static content. Binding rules:
    could read them.
 2. The only data shipped is the JSON in §3 — public catalog metadata and host paths written as `~`
    or `<project>` placeholders by `gen_hosts_ts.go`.
-3. The app performs **two** same-origin requests, both public static files and no cookies: `/v1/current.json` on load (release liveness), and `/data/catalog.json` **only when a reader searches, filters, sorts, pages or opens an entry** — a passive first visit fetches neither the rows nor any script containing them. Search, the MiniSearch worker and the index all run in the browser; there is no analytics
+3. The app performs same-origin requests for public static files only and no cookies: `/v1/current.json` on load (release liveness), and `/data/catalog.json` plus the `catalog-*.json` shards it names **only when a reader searches, filters, sorts, pages or opens an entry** — a passive first visit fetches neither the rows nor any script containing them. Search, the MiniSearch worker and the index all run in the browser; there is no analytics
    beacon, no cookie, no third-party script. The only browser state is two `localStorage` keys
    that never leave the machine — `litespm-theme` (system/light/dark) and `litespm-agent` (the
    "What do you use?" preference) — and neither one can trigger a fetch.

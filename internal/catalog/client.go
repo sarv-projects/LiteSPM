@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -282,44 +283,33 @@ func (c *Client) LoadFromCache() error {
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		return err
 	}
-	listingMeta, ok := manifest.Files["listings.json"]
-	if !ok {
-		return fmt.Errorf("cached manifest for %s has no listings.json entry", current.ReleaseID)
-	}
-
-	listingsData, err := os.ReadFile(filepath.Join(releaseDir, "listings.json"))
+	listingNames, err := releaseShardNames(&manifest, "listings")
 	if err != nil {
 		return err
 	}
-	if actual := domain.ComputeBytesDigest(listingsData); actual != listingMeta.Digest {
-		return domain.ErrChecksumMismatch(listingMeta.Digest, actual)
-	}
-
-	versionMeta, ok := manifest.Files["versions.json"]
-	if !ok {
-		return fmt.Errorf("cached manifest for %s has no versions.json entry", current.ReleaseID)
-	}
-	versionsData, err := os.ReadFile(filepath.Join(releaseDir, "versions.json"))
+	listings, listingsData, err := decodeShards[*domain.Listing](listingNames, &manifest, func(name string, size int64) ([]byte, error) {
+		return os.ReadFile(filepath.Join(releaseDir, name))
+	})
 	if err != nil {
 		return err
 	}
-	if actual := domain.ComputeBytesDigest(versionsData); actual != versionMeta.Digest {
-		return domain.ErrChecksumMismatch(versionMeta.Digest, actual)
+
+	versionNames, err := releaseShardNames(&manifest, "versions")
+	if err != nil {
+		return err
+	}
+	versions, versionsData, err := decodeShards[*domain.VersionRecord](versionNames, &manifest, func(name string, size int64) ([]byte, error) {
+		return os.ReadFile(filepath.Join(releaseDir, name))
+	})
+	if err != nil {
+		return err
 	}
 	// The manifest's contentDigest pins the listings+versions pair as one
 	// unit, so a cache whose files were rewritten while keeping every per-file
-	// digest consistent is still refused.
-	if actual := catalogbuild.ContentDigestOf(listingsData, versionsData); actual != manifest.ContentDigest {
+	// digest consistent is still refused. With shards it covers the ordered
+	// concatenation, which is the same content in more files.
+	if actual := catalogbuild.ContentDigestOf(concatenate(listingsData), concatenate(versionsData)); actual != manifest.ContentDigest {
 		return domain.ErrChecksumMismatch(manifest.ContentDigest, actual)
-	}
-
-	var listings []*domain.Listing
-	if err := json.Unmarshal(listingsData, &listings); err != nil {
-		return err
-	}
-	var versions []*domain.VersionRecord
-	if err := json.Unmarshal(versionsData, &versions); err != nil {
-		return err
 	}
 
 	c.index.Replace(listings, versions)
@@ -560,53 +550,108 @@ func (c *Client) FetchListings(ctx context.Context, releaseID string, manifest *
 	return listings, err
 }
 
-// fetchListings downloads listings.json, verifies it against the manifest, and
-// retains the served bytes for cache persistence.
-func (c *Client) fetchListings(ctx context.Context, releaseID string, manifest *catalogbuild.ReleaseManifest) ([]*domain.Listing, []byte, error) {
-	fileMeta, exists := manifest.Files["listings.json"]
-	if !exists {
-		return nil, nil, fmt.Errorf("manifest missing listings.json entry")
+// releaseShardNames returns the manifest's entries for one base name in shard
+// order. A release that fits in one file keeps the historical `<base>.json`
+// name, so a client reads old and new releases through the same path; a sharded
+// release is `<base>-0000.json`, `<base>-0001.json`, … ordered by name because
+// the index is zero-padded.
+func releaseShardNames(manifest *catalogbuild.ReleaseManifest, base string) ([]string, error) {
+	names := []string{}
+	for name := range manifest.Files {
+		if name == base+".json" || strings.HasPrefix(name, base+"-") {
+			names = append(names, name)
+		}
 	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("manifest for %s has no %s entry", manifest.ReleaseID, base)
+	}
+	sort.Strings(names)
+	return names, nil
+}
 
+// servedFile is one release file exactly as the origin served it. The cache
+// persists these verbatim, so a cached release mirrors the origin file for file
+// and LoadFromCache's per-file digest checks verify against the same manifest
+// the pointer anchored.
+type servedFile struct {
+	name  string
+	bytes []byte
+}
+
+// concatenate is the digest domain of ContentDigestOf: the ordered bytes of a
+// release's content, however many files that content was split across.
+func concatenate(files []servedFile) []byte {
+	var out []byte
+	for _, file := range files {
+		out = append(out, file.bytes...)
+	}
+	return out
+}
+
+// decodeShards verifies every shard of one base name against the manifest and
+// decodes it into a single row slice, returning the files as served.
+func decodeShards[T any](
+	names []string,
+	manifest *catalogbuild.ReleaseManifest,
+	read func(name string, size int64) ([]byte, error),
+) ([]T, []servedFile, error) {
+	var out []T
+	var files []servedFile
+	for _, name := range names {
+		meta, ok := manifest.Files[name]
+		if !ok {
+			return nil, nil, fmt.Errorf("manifest for %s does not describe %s", manifest.ReleaseID, name)
+		}
+		raw, err := read(name, meta.Size)
+		if err != nil {
+			return nil, nil, err
+		}
+		if actual := domain.ComputeBytesDigest(raw); actual != meta.Digest {
+			return nil, nil, domain.ErrChecksumMismatch(meta.Digest, actual)
+		}
+		var rows []T
+		if err := json.Unmarshal(raw, &rows); err != nil {
+			return nil, nil, fmt.Errorf("failed to unmarshal %s: %w", name, err)
+		}
+		out = append(out, rows...)
+		files = append(files, servedFile{name: name, bytes: raw})
+	}
+	return out, files, nil
+}
+
+// fetchListings downloads a release's listings, verifies every shard against
+// the manifest, and retains the served bytes for cache persistence.
+func (c *Client) fetchListings(ctx context.Context, releaseID string, manifest *catalogbuild.ReleaseManifest) ([]*domain.Listing, []servedFile, error) {
+	names, err := releaseShardNames(manifest, "listings")
+	if err != nil {
+		return nil, nil, err
+	}
 	if err := domain.ValidateReleaseID(releaseID); err != nil {
 		return nil, nil, fmt.Errorf("refusing to fetch listings for unsafe release id: %w", err)
 	}
-	fetchURL := fmt.Sprintf("%s/v1/releases/%s/listings.json", c.baseURL, releaseID)
-	if err := checkCatalogURL(fetchURL); err != nil {
-		return nil, nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fetchURL, nil)
+	listings, files, err := decodeShards[*domain.Listing](names, manifest, func(name string, size int64) ([]byte, error) {
+		fetchURL := fmt.Sprintf("%s/v1/releases/%s/%s", c.baseURL, releaseID, name)
+		if err := checkCatalogURL(fetchURL); err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fetchURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("failed to download %s: status %d", name, resp.StatusCode)
+		}
+		return readCatalogFileBody(resp.Body, size)
+	})
 	if err != nil {
 		return nil, nil, err
 	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("failed to download listings.json: status %d", resp.StatusCode)
-	}
-
-	body, err := readCatalogFileBody(resp.Body, fileMeta.Size)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Verify digest
-	actualDigest := domain.ComputeBytesDigest(body)
-	if actualDigest != fileMeta.Digest {
-		return nil, nil, domain.ErrChecksumMismatch(fileMeta.Digest, actualDigest)
-	}
-
-	var listings []*domain.Listing
-	if err := json.Unmarshal(body, &listings); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal listings.json: %w", err)
-	}
-
-	return listings, body, nil
+	return listings, files, nil
 }
 
 // FetchVersions downloads versions.json, verifies it against the manifest, and
@@ -621,42 +666,37 @@ func (c *Client) FetchVersions(ctx context.Context, releaseID string, manifest *
 	return records, err
 }
 
-func (c *Client) fetchVersions(ctx context.Context, releaseID string, manifest *catalogbuild.ReleaseManifest) ([]*domain.VersionRecord, []byte, error) {
-	fileMeta, exists := manifest.Files["versions.json"]
-	if !exists {
-		return nil, nil, fmt.Errorf("manifest missing versions.json entry")
+func (c *Client) fetchVersions(ctx context.Context, releaseID string, manifest *catalogbuild.ReleaseManifest) ([]*domain.VersionRecord, []servedFile, error) {
+	names, err := releaseShardNames(manifest, "versions")
+	if err != nil {
+		return nil, nil, err
 	}
 	if err := domain.ValidateReleaseID(releaseID); err != nil {
 		return nil, nil, fmt.Errorf("refusing to fetch versions for unsafe release id: %w", err)
 	}
-	fetchURL := fmt.Sprintf("%s/v1/releases/%s/versions.json", c.baseURL, releaseID)
-	if err := checkCatalogURL(fetchURL); err != nil {
-		return nil, nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fetchURL, nil)
+	versions, files, err := decodeShards[*domain.VersionRecord](names, manifest, func(name string, size int64) ([]byte, error) {
+		fetchURL := fmt.Sprintf("%s/v1/releases/%s/%s", c.baseURL, releaseID, name)
+		if err := checkCatalogURL(fetchURL); err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fetchURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("failed to download %s: status %d", name, resp.StatusCode)
+		}
+		return readCatalogFileBody(resp.Body, size)
+	})
 	if err != nil {
 		return nil, nil, err
 	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("failed to download versions.json: status %d", resp.StatusCode)
-	}
-	body, err := readCatalogFileBody(resp.Body, fileMeta.Size)
-	if err != nil {
-		return nil, nil, err
-	}
-	if actualDigest := domain.ComputeBytesDigest(body); actualDigest != fileMeta.Digest {
-		return nil, nil, domain.ErrChecksumMismatch(fileMeta.Digest, actualDigest)
-	}
-	var versions []*domain.VersionRecord
-	if err := json.Unmarshal(body, &versions); err != nil {
-		return nil, nil, fmt.Errorf("failed to unmarshal versions.json: %w", err)
-	}
-	return versions, body, nil
+	return versions, files, nil
 }
 
 // VersionRecordFor returns the published version record for a listing, if the
@@ -776,7 +816,7 @@ func (c *Client) Sync(ctx context.Context) (*SyncResult, error) {
 	// unit. Its per-file sizes and digests are checked above, but a rewrite
 	// that fixed those entries would still be caught here, because the digest
 	// is computed over the byte concatenation the compiler emitted.
-	if got := catalogbuild.ContentDigestOf(listingsRaw, versionsRaw); got != manifest.ContentDigest {
+	if got := catalogbuild.ContentDigestOf(concatenate(listingsRaw), concatenate(versionsRaw)); got != manifest.ContentDigest {
 		return nil, domain.ErrChecksumMismatch(manifest.ContentDigest, got)
 	}
 
@@ -794,18 +834,22 @@ func (c *Client) Sync(ctx context.Context) (*SyncResult, error) {
 		// half-written manifest in place. The pointer goes last: it is the
 		// commit marker LoadFromCache reads first, so an interrupted sync
 		// leaves the previous cache as the consistent state.
-		for _, w := range []struct {
-			path string
-			data []byte
-		}{
-			{filepath.Join(releaseDir, "manifest.json"), manifestRaw},
-			{filepath.Join(releaseDir, "listings.json"), listingsRaw},
-			{filepath.Join(releaseDir, "versions.json"), versionsRaw},
-			{filepath.Join(c.cacheDir, "v1", "current.json"), currentRaw},
-		} {
-			if err := writeAtomicFile(w.path, w.data, 0644); err != nil {
-				return nil, fmt.Errorf("persist catalog cache (%s): %w", w.path, err)
+		manifestPath := filepath.Join(releaseDir, "manifest.json")
+		if err := writeAtomicFile(manifestPath, manifestRaw, 0644); err != nil {
+			return nil, fmt.Errorf("persist catalog cache (%s): %w", manifestPath, err)
+		}
+		// Every file the origin served is written under the name the manifest
+		// gives it, so a sharded release is cached as the same shards: the
+		// cache is a mirror of the origin, not a re-serialization of it.
+		for _, file := range append(append([]servedFile{}, listingsRaw...), versionsRaw...) {
+			path := filepath.Join(releaseDir, file.name)
+			if err := writeAtomicFile(path, file.bytes, 0644); err != nil {
+				return nil, fmt.Errorf("persist catalog cache (%s): %w", path, err)
 			}
+		}
+		pointerPath := filepath.Join(c.cacheDir, "v1", "current.json")
+		if err := writeAtomicFile(pointerPath, currentRaw, 0644); err != nil {
+			return nil, fmt.Errorf("persist catalog cache (%s): %w", pointerPath, err)
 		}
 	}
 

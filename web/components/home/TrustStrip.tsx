@@ -173,9 +173,9 @@ export function TrustStrip({ provenance }: { provenance: ProvenanceStats }) {
             <div>
               <dt>byte-parity</dt>
               <dd>
-                <code className="t-mono">/data/catalog.json</code> is exported byte-for-byte from
-                <code className="t-mono"> web/data/catalog.json</code>, so the rows you fetch on
-                demand are the rows this page was built from.
+                <code className="t-mono">/data/catalog.json</code> and its shards are generated at
+                build time from <code className="t-mono">web/data/catalog.json</code>, so the rows
+                you fetch on demand are the rows this page was built from.
               </dd>
             </div>
           </dl>

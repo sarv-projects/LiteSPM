@@ -92,6 +92,19 @@ cat << 'EOF' > "${PAGES_DIR}/_headers"
   Cache-Control: public, max-age=300, must-revalidate
   Access-Control-Allow-Origin: *
   X-Content-Type-Options: nosniff
+
+# Catalog shards named by the /data/catalog.json index. _headers matches the
+# path, not the query, and the loader requests every shard with the same
+# ?v=<datasetDigest> the index carries — so a redeploy that changes any row
+# changes the query and every shard URL becomes a fresh cache key, while the
+# bytes behind a given key are immutable by construction (a digest-addressed
+# dataset never rewrites a shard in place). Long immutable caching is
+# therefore safe here and makes repeated visits to the same dataset free;
+# the index itself stays short-lived as above.
+/data/catalog-*.json
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+  X-Content-Type-Options: nosniff
 EOF
 
 # Every judgement about the finished bundle lives in one script, which CI also

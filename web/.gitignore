@@ -1,0 +1,4 @@
+# Sharded catalog emitted from data/catalog.json by scripts/emit-catalog-shards.mjs
+# (prebuild). Regenerated on every build; the committed artifact is the source
+# dataset in data/catalog.json, not its published form.
+public/data/

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,32 @@ func decodeArray(t *testing.T, what string, raw []byte) []any {
 		t.Fatalf("%s: expected a JSON array, got %T", what, v)
 	}
 	return arr
+}
+
+// readShards returns one kind's files from a release manifest, in shard order,
+// each read whole. A release that fits in one file keeps the historical name,
+// so this reads old and new releases the same way.
+func readShards(t *testing.T, dir string, files map[string]json.RawMessage, base string) [][]byte {
+	t.Helper()
+	names := []string{}
+	for name := range files {
+		if name == base+".json" || strings.HasPrefix(name, base+"-") {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		t.Fatalf("manifest describes no %s file", base)
+	}
+	sort.Strings(names)
+	shards := make([][]byte, 0, len(names))
+	for _, name := range names {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		shards = append(shards, data)
+	}
+	return shards
 }
 
 // TestCommittedReleaseTreeValidates validates the real artifacts published
@@ -79,23 +106,32 @@ func TestCommittedReleaseTreeValidates(t *testing.T) {
 			t.Fatalf("%s manifest.json: %v", e.Name(), err)
 		}
 
-		listingsRaw, err := os.ReadFile(filepath.Join(dir, "listings.json"))
-		if err != nil {
-			t.Fatalf("%s: read listings: %v", e.Name(), err)
+		// A release's listings and versions may be split across shards when the
+		// content exceeds the CDN's per-asset limit (ARCH/18 §2.1); the manifest
+		// names every shard, so every row is validated either way.
+		var manifestDoc struct {
+			Files map[string]json.RawMessage `json:"files"`
 		}
-		for i, item := range decodeArray(t, e.Name()+"/listings.json", listingsRaw) {
-			if err := listingSchema.Validate(item); err != nil {
-				t.Fatalf("%s listings[%d]: %v", e.Name(), i, err)
+		if err := json.Unmarshal(manifest, &manifestDoc); err != nil {
+			t.Fatalf("%s: parse manifest: %v", e.Name(), err)
+		}
+		listingRows := 0
+		for _, shard := range readShards(t, dir, manifestDoc.Files, "listings") {
+			for _, item := range decodeArray(t, e.Name()+"/listings", shard) {
+				if err := listingSchema.Validate(item); err != nil {
+					t.Fatalf("%s listings[%d]: %v", e.Name(), listingRows, err)
+				}
+				listingRows++
 			}
 		}
 
-		versionsRaw, err := os.ReadFile(filepath.Join(dir, "versions.json"))
-		if err != nil {
-			t.Fatalf("%s: read versions: %v", e.Name(), err)
-		}
-		for i, item := range decodeArray(t, e.Name()+"/versions.json", versionsRaw) {
-			if err := versionSchema.Validate(item); err != nil {
-				t.Fatalf("%s versions[%d]: %v", e.Name(), i, err)
+		versionRows := 0
+		for _, shard := range readShards(t, dir, manifestDoc.Files, "versions") {
+			for _, item := range decodeArray(t, e.Name()+"/versions", shard) {
+				if err := versionSchema.Validate(item); err != nil {
+					t.Fatalf("%s versions[%d]: %v", e.Name(), versionRows, err)
+				}
+				versionRows++
 			}
 		}
 	}

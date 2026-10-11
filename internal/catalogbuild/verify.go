@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -72,8 +73,18 @@ func VerifyMaterializedTree(dir string) (*CurrentPointer, *ReleaseManifest, erro
 		return nil, nil, fmt.Errorf("manifest lists no files")
 	}
 
+	// Iterate in sorted name order: the content digest below covers the
+	// ordered concatenation of a kind's shards, and a Go map would hand them
+	// over in a random order every run.
+	names := make([]string, 0, len(manifest.Files))
+	for name := range manifest.Files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
 	var listingsBytes, versionsBytes []byte
-	for name, entry := range manifest.Files {
+	for _, name := range names {
+		entry := manifest.Files[name]
 		if strings.Contains(name, "..") || filepath.IsAbs(name) {
 			return nil, nil, fmt.Errorf("manifest declares an unsafe file path %q", name)
 		}
@@ -88,19 +99,19 @@ func VerifyMaterializedTree(dir string) (*CurrentPointer, *ReleaseManifest, erro
 		if got := digestBytes(data); got != entry.Digest {
 			return nil, nil, fmt.Errorf("%s: digest mismatch: manifest says %s, file is %s", name, entry.Digest, got)
 		}
-		switch name {
-		case "listings.json":
-			listingsBytes = data
-		case "versions.json":
-			versionsBytes = data
+		switch {
+		case name == "listings.json" || strings.HasPrefix(name, "listings-"):
+			listingsBytes = append(listingsBytes, data...)
+		case name == "versions.json" || strings.HasPrefix(name, "versions-"):
+			versionsBytes = append(versionsBytes, data...)
 		}
 	}
 
 	if listingsBytes == nil || versionsBytes == nil {
-		return nil, nil, fmt.Errorf("manifest does not describe both listings.json and versions.json, so its contentDigest cannot be verified")
+		return nil, nil, fmt.Errorf("manifest describes no listings or versions file, so its contentDigest cannot be verified")
 	}
 	if got := ContentDigestOf(listingsBytes, versionsBytes); got != manifest.ContentDigest {
-		return nil, nil, fmt.Errorf("contentDigest mismatch: manifest says %s, listings.json+versions.json are %s", manifest.ContentDigest, got)
+		return nil, nil, fmt.Errorf("contentDigest mismatch: manifest says %s, the ordered release content is %s", manifest.ContentDigest, got)
 	}
 
 	return &pointer, &manifest, nil

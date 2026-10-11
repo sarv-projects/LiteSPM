@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/sarv-projects/litespm/internal/domain"
@@ -104,44 +105,26 @@ func CompileRelease(
 		return sortedVersions[i].ListingID < sortedVersions[j].ListingID
 	})
 
-	// 3. Serialize listings.json
-	rawListingsJSON, err := json.Marshal(sortedListings)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal listings: %w", err)
-	}
-	canonicalListings, err := domain.CanonicalizeJSON(rawListingsJSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to canonicalize listings: %w", err)
-	}
-	// Release files live under the same /v1 API namespace as the pointer that
-	// names them, so a client that fetched <base>/v1/current.json resolves every
-	// relative path below <base>/v1/. ARCH/18 §2 and the CDN cache policy both
-	// specify /v1/releases/; this path must not drift from them.
-	listingsPath := fmt.Sprintf("v1/releases/%s/listings.json", releaseID)
-	outputFiles[listingsPath] = canonicalListings
-	manifestFiles["listings.json"] = ReleaseManifestFile{
-		Size:   int64(len(canonicalListings)),
-		Digest: domain.ComputeBytesDigest(canonicalListings),
+	// 3. Serialize listings, sharded so no single file exceeds the 25 MiB
+	// per-asset limit Cloudflare Workers enforces (verified live:
+	// `wrangler deploy --dry-run` rejects a larger file outright). A release
+	// whose listings fit in one shard keeps the historical single-file name and
+	// bytes, so nothing about a small release changes.
+	if err := emitSharded(outputFiles, manifestFiles, releaseID, "listings", sortedListings); err != nil {
+		return nil, fmt.Errorf("failed to serialize listings: %w", err)
 	}
 
-	// 4. Serialize versions.json
-	rawVersionsJSON, err := json.Marshal(sortedVersions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal versions: %w", err)
-	}
-	canonicalVersions, err := domain.CanonicalizeJSON(rawVersionsJSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to canonicalize versions: %w", err)
-	}
-	versionsPath := fmt.Sprintf("v1/releases/%s/versions.json", releaseID)
-	outputFiles[versionsPath] = canonicalVersions
-	manifestFiles["versions.json"] = ReleaseManifestFile{
-		Size:   int64(len(canonicalVersions)),
-		Digest: domain.ComputeBytesDigest(canonicalVersions),
+	// 4. Serialize versions, sharded by the same rule.
+	if err := emitSharded(outputFiles, manifestFiles, releaseID, "versions", sortedVersions); err != nil {
+		return nil, fmt.Errorf("failed to serialize versions: %w", err)
 	}
 
-	// 5. Compute contentDigest over combined files
-	contentDigest := ContentDigestOf(canonicalListings, canonicalVersions)
+	// 5. Compute contentDigest over the combined content. With shards that is
+	// the ordered concatenation of the shard files, which is still a digest
+	// over every byte this release serves — every one of those bytes is itself
+	// pinned by a per-file digest in the manifest, so a rewritten shard breaks
+	// both its own entry and this one.
+	contentDigest := ContentDigestOf(concatShards(outputFiles, releaseID, "listings"), concatShards(outputFiles, releaseID, "versions"))
 
 	// 6. Build Manifest
 	manifest := &ReleaseManifest{
@@ -209,4 +192,136 @@ func (b *BuildOutput) WriteToDirectory(baseDir string) error {
 		}
 	}
 	return nil
+}
+
+// ReleaseShardMaxBytes is the largest file this builder aims to emit.
+//
+// The ceiling it respects is Cloudflare Workers' 25 MiB per-asset limit, which
+// `wrangler deploy` enforces at upload time — a larger file fails the whole
+// deploy with "Asset too large". The 5 MiB of headroom is deliberate: the limit
+// counts the file as uploaded, and a release that grows a little should not be
+// the reason a deploy stops working.
+const ReleaseShardMaxBytes = 20 << 20
+
+// shardName is the name of one shard. The index is zero-padded to four digits
+// so that sorting shard names lexicographically orders them numerically —
+// clients derive the row order from the name, and no client should have to know
+// how many shards a release has.
+func shardName(base string, index int) string {
+	return fmt.Sprintf("%s-%04d.json", base, index)
+}
+
+// emitSharded serializes one row set into the release tree, splitting it across
+// as many files as it needs to stay under ReleaseShardMaxBytes.
+//
+// A set that fits in ONE shard is written under the historical single-file name
+// (`<base>.json`) with its historical bytes, so a small release is byte-for-byte
+// what it was before sharding existed and its digest does not move. Larger sets
+// become `<base>-0000.json`, `<base>-0001.json`, … each an independently
+// parseable canonical array, and every shard is recorded in the manifest with
+// its own digest and size — the manifest is already a map of file → digest, so
+// a shard is indistinguishable from a file to anything verifying it.
+func emitSharded(files map[string][]byte, manifest map[string]ReleaseManifestFile, releaseID, base string, rows any) error {
+	raw, err := json.Marshal(rows)
+	if err != nil {
+		return err
+	}
+	canonical, err := domain.CanonicalizeJSON(raw)
+	if err != nil {
+		return err
+	}
+
+	if len(canonical) <= ReleaseShardMaxBytes {
+		name := base + ".json"
+		files[fmt.Sprintf("v1/releases/%s/%s", releaseID, name)] = canonical
+		manifest[name] = ReleaseManifestFile{
+			Size:   int64(len(canonical)),
+			Digest: domain.ComputeBytesDigest(canonical),
+		}
+		return nil
+	}
+
+	var elements []json.RawMessage
+	if err := json.Unmarshal(canonical, &elements); err != nil {
+		return fmt.Errorf("split %s into shards: %w", base, err)
+	}
+
+	writeShard := func(chunk []json.RawMessage) error {
+		encoded, err := json.Marshal(chunk)
+		if err != nil {
+			return err
+		}
+		shard, err := domain.CanonicalizeJSON(encoded)
+		if err != nil {
+			return err
+		}
+		name := shardName(base, manifestShards(manifest, base))
+		files[fmt.Sprintf("v1/releases/%s/%s", releaseID, name)] = shard
+		manifest[name] = ReleaseManifestFile{
+			Size:   int64(len(shard)),
+			Digest: domain.ComputeBytesDigest(shard),
+		}
+		return nil
+	}
+
+	chunk := []json.RawMessage{}
+	// "[", "]", and a comma per element but the first.
+	size := 2
+	for _, element := range elements {
+		cost := len(element)
+		if len(chunk) > 0 {
+			cost++
+		}
+		if len(chunk) > 0 && size+cost > ReleaseShardMaxBytes {
+			if err := writeShard(chunk); err != nil {
+				return err
+			}
+			chunk = []json.RawMessage{}
+			size = 2
+		}
+		chunk = append(chunk, element)
+		size += cost
+	}
+	if len(chunk) > 0 {
+		if err := writeShard(chunk); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// manifestShards counts the shards already recorded for a base name, which is
+// also the next shard index.
+func manifestShards(manifest map[string]ReleaseManifestFile, base string) int {
+	count := 0
+	for name := range manifest {
+		if name == base+".json" || strings.HasPrefix(name, base+"-") {
+			count++
+		}
+	}
+	return count
+}
+
+// concatShards returns the bytes a release serves for one base name, in shard
+// order. It is the digest domain of ContentDigestOf: hashing the ordered
+// concatenation means contentDigest still covers every byte of the release's
+// content, spread across as many files as that content needed.
+func concatShards(files map[string][]byte, releaseID, base string) []byte {
+	prefix := fmt.Sprintf("v1/releases/%s/", releaseID)
+	names := []string{}
+	for path := range files {
+		if !strings.HasPrefix(path, prefix) {
+			continue
+		}
+		name := strings.TrimPrefix(path, prefix)
+		if name == base+".json" || strings.HasPrefix(name, base+"-") {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	var out []byte
+	for _, name := range names {
+		out = append(out, files[prefix+name]...)
+	}
+	return out
 }

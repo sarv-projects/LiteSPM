@@ -2,11 +2,13 @@
 
 // Lazily-fetched catalog rows.
 //
-// The 5,825-row dataset is NOT part of any JavaScript bundle: the build-time
-// pages prerender from `data/catalog.json` through a Server Component (server
-// bundles never reach the browser), and the browser fetches the same bytes as
-// a plain JSON document — exported byte-for-byte by `app/data/catalog.json/
-// route.ts` — only when a page actually needs the full row set.
+// The dataset (69,376 rows, ~52 MB) is NOT part of any JavaScript bundle: the
+// build-time pages prerender from `data/catalog.json` through a Server
+// Component (server bundles never reach the browser), and the browser fetches
+// the same rows only when a page actually needs the full set. The served
+// document at `/data/catalog.json` is a shard index emitted by
+// `scripts/emit-catalog-shards.mjs` from that same file at build time; the
+// rows themselves arrive as ordered shard files that this module concatenates.
 //
 // Timing is the point of the design. A first visit therefore downloads the
 // page's HTML and ~107 kB of First Load JS and nothing else; the dataset is
@@ -20,7 +22,11 @@ import type { Listing } from "./telemetry";
 import { withLinkKeys } from "./catalog";
 import bundledRelease from "../data/release.json";
 
-/** Rows as served: `web/data/catalog.json`, re-keyed with `withLinkKeys`. */
+/**
+ * Shard index as served: the build-time emitter writes it to
+ * `web/public/data/catalog.json`; the rows arrive as the shard files it names
+ * and are re-keyed with `withLinkKeys` once concatenated.
+ */
 export const CATALOG_PATH = "/data/catalog.json";
 
 /**
@@ -39,10 +45,64 @@ const DATASET_VERSION = (() => {
 
 export const CATALOG_URL = `${CATALOG_PATH}${DATASET_VERSION}`;
 
+/** Directory of the index; shards are its siblings (`/data/catalog-0000.json`). */
+const CATALOG_DATA_DIR = CATALOG_PATH.slice(0, CATALOG_PATH.lastIndexOf("/"));
+
 export type CatalogStatus = "idle" | "loading" | "ready" | "error";
 
 let cached: Listing[] | null = null;
 let inflight: Promise<Listing[]> | null = null;
+
+/** Shape of the index document written by `scripts/emit-catalog-shards.mjs`. */
+interface CatalogIndex {
+  schema: string;
+  rowCount: number;
+  datasetDigest: string;
+  shards: { file: string; digest: string; size: number }[];
+}
+
+function isCatalogIndex(data: unknown): data is CatalogIndex {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    Array.isArray((data as CatalogIndex).shards)
+  );
+}
+
+function fetchRowsFromShards(index: CatalogIndex): Promise<Listing[]> {
+  // The browser deliberately does NOT verify the shards' sha256 digests. The
+  // transport is HTTPS — the same trust model as every other asset the page
+  // loads — and re-hashing 50+ MB of SHA-256 on the main thread would stall
+  // the interaction that triggered the fetch for a guarantee the TLS channel
+  // already provides. Integrity against a compromised origin is the CDN's and
+  // the build's job, not the reader's.
+  //
+  // Each shard is requested with the same `?v=<datasetDigest>` cache-buster
+  // as the index, so a CDN cannot answer one shard from a newer dataset with
+  // rows from an older one — the shards of a given digest are consistent by
+  // construction.
+  return Promise.all(
+    index.shards.map((shard) =>
+      fetch(`${CATALOG_DATA_DIR}/${encodeURIComponent(shard.file)}${DATASET_VERSION}`, {
+        cache: "no-cache",
+      }).then((res) => {
+        if (!res.ok) {
+          throw new Error(`catalog shard ${shard.file} fetch failed: HTTP ${res.status}`);
+        }
+        return res.json();
+      }),
+    ),
+  ).then((shardRows) => {
+    const rows: Listing[] = [];
+    for (const part of shardRows) {
+      if (!Array.isArray(part)) {
+        throw new Error("catalog shard did not contain a JSON array");
+      }
+      rows.push(...(part as Listing[]));
+    }
+    return rows;
+  });
+}
 
 function fetchCatalog(): Promise<Listing[]> {
   if (cached) return Promise.resolve(cached);
@@ -52,8 +112,17 @@ function fetchCatalog(): Promise<Listing[]> {
       if (!res.ok) throw new Error(`catalog fetch failed: HTTP ${res.status}`);
       return res.json();
     })
+    .then((data) => {
+      // A plain array is a legacy single-file export; the sharded build serves
+      // an index document that names the shard files to concatenate in order.
+      if (Array.isArray(data)) return data as unknown as Listing[];
+      if (!isCatalogIndex(data)) {
+        throw new Error("catalog document is neither a row array nor a shard index");
+      }
+      return fetchRowsFromShards(data);
+    })
     .then((rows) => {
-      const items = withLinkKeys(rows as unknown as Listing[]);
+      const items = withLinkKeys(rows);
       cached = items;
       inflight = null;
       return items;
