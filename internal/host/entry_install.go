@@ -192,6 +192,21 @@ func SupportsProjectScope(adapter HostAdapter) bool {
 	return ok && g.Target.ProjectPath != nil
 }
 
+// ProjectConfigPathFor is a host's documented project-scope config path,
+// resolved against root, and whether the host has one at all. It is the
+// published form of what detectEntryConfig will actually open, so a path the
+// website prints can never disagree with the path an install writes.
+func ProjectConfigPathFor(adapter HostAdapter, root string) (string, bool) {
+	if !SupportsProjectScope(adapter) {
+		return "", false
+	}
+	path, err := projectConfigPathFor(adapter, root)
+	if err != nil {
+		return "", false
+	}
+	return path, true
+}
+
 // detectEntryConfig resolves the config file a server entry is read from or
 // written to at the given scope.
 //

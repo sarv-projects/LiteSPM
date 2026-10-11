@@ -30,6 +30,12 @@ import (
 
 const fakeHome = "/tmp/__litespm_home__"
 
+// fakeRoot is the stand-in project directory project-scope paths are resolved
+// against, so the emitted path is published relative to a repository root
+// rather than as an absolute machine path.
+const fakeRoot = "/tmp/__litespm_project__"
+const fakeRootSlash = fakeRoot + "/"
+
 type emittedHost struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -40,6 +46,12 @@ type emittedHost struct {
 	Projected bool   `json:"projectOnly,omitempty"`
 	DocsURL   string `json:"docsUrl,omitempty"`
 	Generic   bool   `json:"generic"`
+	// ProjectScope is true when `install --scope project` can write this host,
+	// and ProjectPath is the file it writes, relative to the project root.
+	// Both come from the adapters, so the site cannot advertise a project
+	// config the binary refuses.
+	ProjectScope bool   `json:"projectScope,omitempty"`
+	ProjectPath  string `json:"projectPath,omitempty"`
 	// Remote marks a host whose registry row carries a verified remote (URL)
 	// MCP entry spelling (host.RemoteEntrySpecFor). Absent on every host that
 	// must refuse a remote install, so the site can state the capability
@@ -86,6 +98,19 @@ func main() {
 		// disagree with what the binary will actually write.
 		if _, ok := host.RemoteEntrySpecFor(d.HostID); ok {
 			row.Remote = true
+		}
+		// Project scope, from the same predicate `install --scope project` uses
+		// (host.SupportsProjectScope) and the same path it writes
+		// (host.ProjectConfigPathFor). A site row can therefore never advertise a
+		// project config the adapter refuses, which is the honesty rule the agent
+		// atlas is built on: every chip is a fact one of the Go tables states.
+		row.ProjectScope = host.SupportsProjectScope(a)
+		if row.ProjectScope {
+			if path, ok := host.ProjectConfigPathFor(a, fakeRoot); ok {
+				// Published relative to the project, so it reads as a location
+				// inside a repository rather than as an absolute machine path.
+				row.ProjectPath = strings.TrimPrefix(tidyPath(path), fakeRootSlash)
+			}
 		}
 		if p, err := a.DetectConfig(ctx, domain.ScopeUser); err == nil && p != "" {
 			row.UserPath = tidyPath(p)

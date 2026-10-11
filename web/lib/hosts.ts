@@ -44,6 +44,14 @@ export interface HostAdapter {
   generic: boolean;
   /** True when the MCP key is nested below another object. */
   nested: boolean;
+  /**
+   * True when `install --scope project` can write this host, and the file it
+   * writes, relative to the project root. Both are emitted from the Go
+   * adapters (host.SupportsProjectScope / host.ProjectConfigPathFor), so this
+   * file cannot advertise a project config the binary refuses.
+   */
+  projectScope?: boolean;
+  projectPath?: string;
 }
 
 /** Shape of one row in the generated web/data/hosts.json. */
@@ -62,6 +70,14 @@ interface GeneratedHost {
    *  there is refused fail-closed. Deliberately not part of HostShape: remote
    *  is an axis beside the stdio entry shape, not a fifth shape. */
   remote?: boolean;
+  /**
+   * True when `install --scope project` can write this host, and the file it
+   * writes, relative to the project root. Both are emitted from the Go
+   * adapters (host.SupportsProjectScope / host.ProjectConfigPathFor), so this
+   * file cannot advertise a project config the binary refuses.
+   */
+  projectScope?: boolean;
+  projectPath?: string;
 }
 
 /**
@@ -102,6 +118,8 @@ export const HOSTS: HostAdapter[] = (generated as GeneratedHost[]).map((h) => {
     docsUrl: h.docsUrl,
     generic: h.generic,
     nested: keyPath.includes("."),
+    projectScope: h.projectScope,
+    projectPath: h.projectPath,
   };
 });
 

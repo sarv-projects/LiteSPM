@@ -7,7 +7,9 @@
     "shape": "object",
     "userPath": "~/.aider-desk/mcp-servers.json",
     "docsUrl": "https://aiderdesk.hotovo.com/docs/agent-mode/mcp-servers",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".aider-desk/mcp-servers.json"
   },
   {
     "id": "amp",
@@ -17,7 +19,9 @@
     "shape": "object",
     "userPath": "~/.config/amp/settings.json",
     "docsUrl": "https://ampcode.com/docs/customize/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".amp/settings.json"
   },
   {
     "id": "antigravity",
@@ -27,7 +31,9 @@
     "shape": "object",
     "userPath": "~/.gemini/config/mcp_config.json",
     "docsUrl": "https://antigravity.google/docs/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".agents/mcp_config.json"
   },
   {
     "id": "antigravity-cli",
@@ -37,7 +43,9 @@
     "shape": "object",
     "userPath": "~/.gemini/config/mcp_config.json",
     "docsUrl": "https://antigravity.google/docs/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".agents/mcp_config.json"
   },
   {
     "id": "astrbot",
@@ -67,7 +75,9 @@
     "shape": "object",
     "userPath": "~/.bob/settings/mcp.json",
     "docsUrl": "https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".bob/mcp.json"
   },
   {
     "id": "claude-code",
@@ -77,6 +87,8 @@
     "shape": "object",
     "userPath": "~/.claude.json",
     "generic": false,
+    "projectScope": true,
+    "projectPath": ".mcp.json",
     "remote": true
   },
   {
@@ -97,7 +109,9 @@
     "shape": "local-array",
     "userPath": "~/.codeartsdoer/codearts_cli.jsonc",
     "docsUrl": "https://support.huaweicloud.com/intl/en-us/usermanual-cli/codeartsagent_cli_0035.html",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".codeartsdoer/codearts_cli.jsonc"
   },
   {
     "id": "codebuddy",
@@ -107,7 +121,9 @@
     "shape": "object",
     "userPath": "~/.codebuddy/.mcp.json",
     "docsUrl": "https://codebuddy.ai/docs/cli/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".mcp.json"
   },
   {
     "id": "codestudio",
@@ -118,7 +134,9 @@
     "userPath": "\u003cproject\u003e/.codestudio/mcp.json",
     "projectOnly": true,
     "docsUrl": "https://ej2.syncfusion.com/angular/documentation/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".codestudio/mcp.json"
   },
   {
     "id": "codex",
@@ -128,6 +146,8 @@
     "shape": "object",
     "userPath": "~/.codex/config.toml",
     "generic": false,
+    "projectScope": true,
+    "projectPath": ".codex/config.toml",
     "remote": true
   },
   {
@@ -138,7 +158,9 @@
     "shape": "object",
     "userPath": "~/.commandcode/mcp.json",
     "docsUrl": "https://commandcode.ai/docs/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".mcp.json"
   },
   {
     "id": "cortex",
@@ -158,7 +180,9 @@
     "shape": "stdio-typed",
     "userPath": "~/.config/crush/crush.json",
     "docsUrl": "https://charmbracelet-crush.mintlify.app/configuration/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".crush.json"
   },
   {
     "id": "cursor",
@@ -169,6 +193,8 @@
     "userPath": "~/.cursor/mcp.json",
     "docsUrl": "https://cursor.com/docs/mcp",
     "generic": true,
+    "projectScope": true,
+    "projectPath": ".cursor/mcp.json",
     "remote": true
   },
   {
@@ -179,7 +205,9 @@
     "shape": "object",
     "userPath": "~/.deepagents/.mcp.json",
     "docsUrl": "https://docs.langchain.com/oss/deepagents/code/mcp-tools",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".mcp.json"
   },
   {
     "id": "devin",
@@ -189,7 +217,9 @@
     "shape": "object",
     "userPath": "~/.config/devin/mcp_config.json",
     "docsUrl": "https://docs.devin.ai/cli/extensibility/mcp/configuration",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".devin/mcp_config.json"
   },
   {
     "id": "droid",
@@ -199,7 +229,9 @@
     "shape": "object",
     "userPath": "~/.factory/mcp.json",
     "docsUrl": "https://docs.factory.ai/harness/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".factory/mcp.json"
   },
   {
     "id": "firebender",
@@ -209,7 +241,9 @@
     "shape": "object",
     "userPath": "~/.firebender/firebender.json",
     "docsUrl": "https://docs.firebender.com/context/mcp/overview",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": "firebender.json"
   },
   {
     "id": "forgecode",
@@ -219,7 +253,9 @@
     "shape": "object",
     "userPath": "~/forge/.mcp.json",
     "docsUrl": "https://github.com/tailcallhq/forgecode",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".mcp.json"
   },
   {
     "id": "fx",
@@ -229,7 +265,9 @@
     "shape": "local-array",
     "userPath": "~/.fx/mcp.json",
     "docsUrl": "https://fx.sh/docs/capabilities/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".mcp.json"
   },
   {
     "id": "gemini-cli",
@@ -239,7 +277,9 @@
     "shape": "object",
     "userPath": "~/.gemini/settings.json",
     "docsUrl": "https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".gemini/settings.json"
   },
   {
     "id": "github-copilot",
@@ -249,7 +289,9 @@
     "shape": "object",
     "userPath": "~/.copilot/mcp-config.json",
     "docsUrl": "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".mcp.json"
   },
   {
     "id": "grok-build",
@@ -259,6 +301,8 @@
     "shape": "object",
     "userPath": "~/.grok/config.toml",
     "generic": false,
+    "projectScope": true,
+    "projectPath": ".grok/config.toml",
     "remote": true
   },
   {
@@ -269,7 +313,9 @@
     "shape": "object",
     "userPath": "~/.iflow/settings.json",
     "docsUrl": "https://github.com/iflow-ai/iflow-cli",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".iflow/settings.json"
   },
   {
     "id": "jazz",
@@ -279,7 +325,9 @@
     "shape": "object",
     "userPath": "~/.agents/mcp.json",
     "docsUrl": "https://github.com/lvndry/jazz",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".agents/mcp.json"
   },
   {
     "id": "junie",
@@ -289,7 +337,9 @@
     "shape": "object",
     "userPath": "~/.junie/mcp/mcp.json",
     "docsUrl": "https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".junie/mcp/mcp.json"
   },
   {
     "id": "kilo",
@@ -299,7 +349,9 @@
     "shape": "local-array",
     "userPath": "~/.config/kilo/kilo.json",
     "docsUrl": "https://kilo.ai/docs/automate/mcp/using-in-cli",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": "kilo.json"
   },
   {
     "id": "kimchi",
@@ -319,7 +371,9 @@
     "shape": "object",
     "userPath": "~/.kimi-code/mcp.json",
     "docsUrl": "https://kimi.com/code/docs/en/kimi-code-cli/customization/mcp.html",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".kimi-code/mcp.json"
   },
   {
     "id": "kiro-cli",
@@ -329,7 +383,9 @@
     "shape": "object",
     "userPath": "~/.kiro/settings/mcp.json",
     "docsUrl": "https://kiro.dev/docs/mcp/configuration",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".kiro/settings/mcp.json"
   },
   {
     "id": "kode",
@@ -339,7 +395,9 @@
     "shape": "object",
     "userPath": "~/.kode.json",
     "docsUrl": "https://github.com/shareAI-lab/Kode-cli",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".mcp.json"
   },
   {
     "id": "mux",
@@ -349,7 +407,9 @@
     "shape": "command-string",
     "userPath": "~/.xum/mcp.jsonc",
     "docsUrl": "https://xum.coder.com/config/mcp-servers",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".xum/mcp.jsonc"
   },
   {
     "id": "neovate",
@@ -359,7 +419,9 @@
     "shape": "object",
     "userPath": "~/.neovate/config.json",
     "docsUrl": "https://github.com/neovateai/neovate-code",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".neovate/config.json"
   },
   {
     "id": "ona",
@@ -370,7 +432,9 @@
     "userPath": "\u003cproject\u003e/.ona/mcp-config.json",
     "projectOnly": true,
     "docsUrl": "https://ona.com/docs/ona/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".ona/mcp-config.json"
   },
   {
     "id": "opencode",
@@ -380,6 +444,8 @@
     "shape": "local-array",
     "userPath": "~/.config/opencode/opencode.json",
     "generic": false,
+    "projectScope": true,
+    "projectPath": "opencode.json",
     "remote": true
   },
   {
@@ -400,6 +466,8 @@
     "shape": "object",
     "userPath": "~/.pi/agent/mcp.json",
     "generic": false,
+    "projectScope": true,
+    "projectPath": ".pi/mcp.json",
     "remote": true
   },
   {
@@ -410,7 +478,9 @@
     "shape": "object",
     "userPath": "~/.pochi/config.jsonc",
     "docsUrl": "https://docs.getpochi.com/mcp",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".pochi/config.jsonc"
   },
   {
     "id": "posit-assistant",
@@ -420,7 +490,9 @@
     "shape": "local-array",
     "userPath": "~/.posit/assistant/settings.json",
     "docsUrl": "https://assistant.posit.co/docs/reference/mcp-servers/",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".posit/assistant/settings.json"
   },
   {
     "id": "qoder",
@@ -430,7 +502,9 @@
     "shape": "object",
     "userPath": "~/.qoder/settings.json",
     "docsUrl": "https://docs.qoder.com/cli/mcp-servers",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".qoder/settings.json"
   },
   {
     "id": "qoder-cn",
@@ -440,7 +514,9 @@
     "shape": "object",
     "userPath": "~/.qoder-cn/settings.json",
     "docsUrl": "https://docs.qoder.cn/cli/mcp-reference",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".qoder/settings.json"
   },
   {
     "id": "qwen-code",
@@ -450,7 +526,9 @@
     "shape": "object",
     "userPath": "~/.qwen/settings.json",
     "docsUrl": "https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/mcp.md",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".qwen/settings.json"
   },
   {
     "id": "roo",
@@ -461,7 +539,9 @@
     "userPath": "\u003cproject\u003e/.roo/mcp.json",
     "projectOnly": true,
     "docsUrl": "https://docs.roocode.com/features/mcp/using-mcp-in-roo",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".roo/mcp.json"
   },
   {
     "id": "rovodev",
@@ -481,7 +561,9 @@
     "shape": "object",
     "userPath": "~/.tabnine/agent/settings.json",
     "docsUrl": "https://docs.tabnine.com/main/getting-started/tabnine-agent/mcp-intro-and-setup/mcp-server-config",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".tabnine/agent/settings.json"
   },
   {
     "id": "zcode",
@@ -491,7 +573,9 @@
     "shape": "object",
     "userPath": "~/.zcode/cli/config.json",
     "docsUrl": "https://zcode.z.ai/en/docs/mcp-services",
-    "generic": true
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".zcode/config.json"
   },
   {
     "id": "zed",
@@ -502,6 +586,8 @@
     "userPath": "~/.config/zed/settings.json",
     "docsUrl": "https://zed.dev/docs/ai/mcp",
     "generic": true,
+    "projectScope": true,
+    "projectPath": ".zed/settings.json",
     "remote": true
   }
 ]
