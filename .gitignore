@@ -21,6 +21,13 @@ daemon.lock
 # (scripts/snapshot_store.py). A cache, not a published artifact.
 source-snapshots/
 
+# CLI acceptance / scratch output. Throwaway run directories, never repo content.
+tmp-cli-sandbox-*/
+tmp-catalog-*/
+
+# Agent-harness session state (goals, locks, per-session scratch).
+.opencode/
+
 # OS and IDE files
 .DS_Store
 Thumbs.db

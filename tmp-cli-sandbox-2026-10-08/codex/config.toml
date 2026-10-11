@@ -1,3 +1,0 @@
-[mcp_servers.sandbox-demo]
-command = "node"
-args = ["server.js", "--stdio"]

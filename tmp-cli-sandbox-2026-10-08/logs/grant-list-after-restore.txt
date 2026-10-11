@@ -1,1 +1,0 @@
-No capability grants recorded. `litespm grant <capabilityId>` creates one after an interactive confirmation.

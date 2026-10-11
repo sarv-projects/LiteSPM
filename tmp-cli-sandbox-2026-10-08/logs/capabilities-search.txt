@@ -1,1 +1,0 @@
-No tools discovered yet. Run 'litespm capabilities refresh'.
