@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-11
+
 ### Added
+
+- **Release `rel-2026-10-11-01` (sequence 146) — 69,376 capabilities, and installs that actually work.**
+  The headline is not the row count, it is that **25,401 MCP servers are `metadata_verified`** where the
+  previous release had **zero** (every MCP and skill row there was `discovery_only`, so
+  `litespm install <mcp>` could only ever refuse). Six of the seven catalog sources are complete;
+  `feed:mcpmarket-com` is incomplete by budget and **accepted deliberately** — its crawl is bounded at
+  `MCPMARKET_MAX_PAGE_FETCHES` pages, and closing it would mean an uncapped crawl of a third-party
+  directory for rows the official MCP Registry feed already covers. The state is published honestly
+  (`incompleteSources: ["feed:mcpmarket-com"]`) rather than papered over. The pointer, the site's
+  `release.json` and `web/data/catalog.json` were verified to agree with each other before commit, which
+  also closes the long-standing dataset-versus-pointer incoherence.
 
 - **Pi gets a real `/marketplace` panel, not a wall of text.** `litespm host setup pi-agent` now writes
   a companion extension that registers `/marketplace [query]`: it opens a focused overlay

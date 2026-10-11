@@ -1,6 +1,6 @@
 {
   "name": "litespm",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The Lightweight Skill & Package Manager for AI Agents — MCP servers, skills, and plugins through one bridge.",
   "bin": {
     "litespm": "bin/litespm.js"

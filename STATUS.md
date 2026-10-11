@@ -61,6 +61,27 @@ whose only real origin is broken is `WIRED` with the breakage stated, not
 | Catalog release tree `/v1/releases/<id>/` | `SHIPPED` | Built by `litespm catalog build`; served live from `https://litespm.sarveshbh-2022.workers.dev` (probe 2026-10-05: all four files 200, byte-identical to the committed release `rel-2026-10-05-01`, pointer `manifestDigest` matches the served manifest bytes); `scripts/deploy-pages.sh` materializes the released tree byte-for-byte (`ARCH/18` §1–§2 `index.json`/`shards`/`items` remain un-emitted by design) | Release tagging; retire the legacy `litepsm` Worker |
 | Catalog deltas / shards / FTS index | `DESIGNED` | One ~3.4 MB `catalog.json` blob; no shard or FTS output | A measured trigger, then shard + delta output |
 
+### Current release: `rel-2026-10-11-01` (sequence 146, 69,376 capabilities)
+
+Cut 2026-10-11 from the full all-source producer run. Pointer `web/public/v1/current.json`, site
+metadata `web/data/release.json`, and the row set `web/data/catalog.json` all describe this release and
+were verified to agree with each other (69,376 rows = 48,418 MCP + 20,320 skills + 638 plugins, and the
+pointer's `manifestDigest` matches the built manifest).
+
+**Source completeness: six of seven sources are complete.** `feed:mcpmarket-com` is **incomplete by
+budget, accepted deliberately** (decision, 2026-10-11): its crawl is bounded at
+`MCPMARKET_MAX_PAGE_FETCHES` pages, and closing it would mean an uncapped crawl of a third-party
+directory for rows the official MCP Registry feed already covers. The honest state is published as-is —
+`CATALOG_INGESTION_STATUS.incompleteSources: ["feed:mcpmarket-com"]` — and this entry is what stops that
+from reading as an accident. A loc refused by our own crawl policy is reported separately as
+`refusedLocs` and does not mark a source incomplete (`feed:skills-sh` reports 36).
+
+The release's material change is **installability**: it carries **25,401 `metadata_verified` MCP rows**
+from the official MCP Registry, against **zero** in the previous release, where every MCP and skill row
+was `discovery_only` and `litespm install <mcp>` could therefore only ever refuse. Verified locally end
+to end against a locally built release tree (sync → `install --host codex` → `list` → `install remove`);
+the live origin is untouched until this release is deployed.
+
 ## 3. Install plane
 
 | Subsystem | State | Evidence | To reach the next state |
