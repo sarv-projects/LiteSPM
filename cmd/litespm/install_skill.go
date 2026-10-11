@@ -218,6 +218,17 @@ func installSkillFromListing(
 	if len(outcome.Destinations) > 0 {
 		installPath = outcome.Destinations[0]
 	}
+	// The workspace belongs to a project-scope install only. projectRoot is also
+	// the agent-detection root for the planning above, so a non-empty value
+	// here does not by itself mean the install is project-scoped: a user-scope
+	// row keeps both fields empty rather than claiming a project it does not
+	// belong to.
+	workspaceID := ""
+	recordRoot := ""
+	if scope == domain.ScopeProject {
+		workspaceID = domain.WorkspaceIDForProjectRoot(projectRoot)
+		recordRoot = projectRoot
+	}
 	rec := &domain.InstallRecord{
 		InstallID:   outcome.InstallID,
 		ListingID:   listing.ID,
@@ -226,6 +237,8 @@ func installSkillFromListing(
 		TreeDigest:  outcome.ContentDigest,
 		InstallPath: installPath,
 		Scope:       scope,
+		WorkspaceID: workspaceID,
+		ProjectRoot: recordRoot,
 		Status:      domain.InstallActive,
 		InstalledAt: now,
 		UpdatedAt:   now,

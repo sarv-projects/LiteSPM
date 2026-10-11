@@ -506,3 +506,82 @@ func TestBridge_ReportsBuildVersion(t *testing.T) {
 		t.Errorf("serverInfo.version = %q, want the build version", out.ServerInfo.Version)
 	}
 }
+
+// TestBridge_ProjectRootForwardedToScopeAwareTools pins that the shim hands the
+// project it runs in to exactly the tools that select installs — list_installed,
+// load_skill and read_skill_resource — and omits the key entirely when it has
+// no project, so the daemon never has to tell "no project context" apart from
+// an empty path.
+func TestBridge_ProjectRootForwardedToScopeAwareTools(t *testing.T) {
+	ctx := context.Background()
+	scopeAware := []string{"tools.list", "skills.load_body", "skills.read_resource"}
+
+	var mu sync.Mutex
+	seen := map[string]map[string]any{}
+	handler := func(method string) ipc.HandlerFunc {
+		return func(_ context.Context, params json.RawMessage) (any, *ipc.RPCError) {
+			var got map[string]any
+			if len(params) > 0 {
+				_ = json.Unmarshal(params, &got)
+			}
+			mu.Lock()
+			seen[method] = got
+			mu.Unlock()
+			switch method {
+			case "tools.list":
+				return map[string]any{"count": 0, "installs": []CapabilityItem{}}, nil
+			case "skills.load_body":
+				return map[string]any{"skillId": "s", "instructions": "body"}, nil
+			default:
+				return map[string]any{"content": "c"}, nil
+			}
+		}
+	}
+	shim := newDaemonBackedShim(t, map[string]ipc.HandlerFunc{
+		"tools.list":           handler("tools.list"),
+		"skills.load_body":     handler("skills.load_body"),
+		"skills.read_resource": handler("skills.read_resource"),
+	})
+
+	call := func(t *testing.T, tool string, args json.RawMessage) {
+		t.Helper()
+		if res := shim.DispatchTool(ctx, tool, args); res.IsError {
+			t.Fatalf("%s failed: %+v", tool, res.Content)
+		}
+	}
+
+	t.Run("with a project root every scope-aware tool carries it", func(t *testing.T) {
+		shim.ProjectRoot = "/abs/project"
+		call(t, "list_installed", nil)
+		call(t, "load_skill", json.RawMessage(`{"skillId":"s"}`))
+		call(t, "read_skill_resource", json.RawMessage(`{"skillId":"s","path":"a.txt"}`))
+
+		for _, method := range scopeAware {
+			mu.Lock()
+			got := seen[method]
+			mu.Unlock()
+			if got["projectRoot"] != "/abs/project" {
+				t.Errorf("%s params = %#v, want projectRoot=/abs/project", method, got)
+			}
+		}
+	})
+
+	t.Run("without a project root the key is absent and the call still works", func(t *testing.T) {
+		shim.ProjectRoot = ""
+		call(t, "list_installed", nil)
+		call(t, "load_skill", json.RawMessage(`{"skillId":"s"}`))
+		call(t, "read_skill_resource", json.RawMessage(`{"skillId":"s","path":"a.txt"}`))
+
+		for _, method := range scopeAware {
+			mu.Lock()
+			got := seen[method]
+			mu.Unlock()
+			if _, ok := got["projectRoot"]; ok {
+				t.Errorf("%s sent projectRoot while the shim has no project: %#v", method, got)
+			}
+			if _, ok := got["skillId"]; !ok && method != "tools.list" {
+				t.Errorf("%s lost its own arguments: %#v", method, got)
+			}
+		}
+	})
+}

@@ -117,7 +117,7 @@ func seedListMachine(t *testing.T) listSeed {
 	// agents. This is the row the counting rule is about.
 	ctx := context.Background()
 	if _, err := installMCPFromListing(authorizedTestContext(), db, dataRoot, mcpListing(seedMCPListing, "demo-mcp"),
-		"1.0.0", domain.ScopeUser, []string{"claude-code", "codex"}, false, stdioRuntime(), nil); err != nil {
+		"1.0.0", domain.ScopeUser, "", []string{"claude-code", "codex"}, false, stdioRuntime(), nil); err != nil {
 		t.Fatalf("seed MCP install: %v", err)
 	}
 

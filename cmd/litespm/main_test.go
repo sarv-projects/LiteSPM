@@ -232,7 +232,31 @@ func TestParseInstallFlags(t *testing.T) {
 		{name: "invalid scope", args: []string{"--scope", "global", "listing"}, wantErr: true},
 		{name: "missing scope value", args: []string{"listing", "--scope"}, wantErr: true},
 		{name: "missing version value", args: []string{"listing", "--version"}, wantErr: true},
-		{name: "unsupported workspace targeting", args: []string{"listing", "--workspace", "ws_1"}, wantErr: true},
+		{name: "workspace implies project scope", args: []string{"listing", "--workspace", "/tmp/proj"},
+			check: func(t *testing.T, f installFlags) {
+				if f.workspace != "/tmp/proj" {
+					t.Errorf("workspace = %q, want /tmp/proj", f.workspace)
+				}
+				if f.scope != domain.ScopeProject {
+					t.Errorf("scope = %q, want %q (--workspace implies project)", f.scope, domain.ScopeProject)
+				}
+			}},
+		{name: "short workspace flag implies project scope", args: []string{"listing", "-w", "/tmp/proj"},
+			check: func(t *testing.T, f installFlags) {
+				if f.workspace != "/tmp/proj" || f.scope != domain.ScopeProject {
+					t.Errorf("unexpected flags: %+v", f)
+				}
+			}},
+		{name: "explicit project scope with workspace", args: []string{"--scope", "project", "--workspace", "/tmp/proj", "listing"},
+			check: func(t *testing.T, f installFlags) {
+				if f.scope != domain.ScopeProject || f.workspace != "/tmp/proj" {
+					t.Errorf("unexpected flags: %+v", f)
+				}
+			}},
+		{name: "workspace contradicts explicit user scope", args: []string{"--scope", "user", "--workspace", "/tmp/proj", "listing"}, wantErr: true},
+		{name: "user scope after workspace contradicts", args: []string{"--workspace", "/tmp/proj", "--scope", "user", "listing"}, wantErr: true},
+		{name: "missing workspace value", args: []string{"listing", "--workspace"}, wantErr: true},
+		{name: "empty workspace value", args: []string{"listing", "--workspace", ""}, wantErr: true},
 		{name: "extra positional", args: []string{"one", "two"}, wantErr: true},
 	}
 
@@ -1080,13 +1104,12 @@ func TestInstallRPCErrorEnumeratesArtifactUnavailable(t *testing.T) {
 	}
 }
 
-// TestToolsListIsUserScopeOnly pins defect 9's chosen behaviour (option b): the
-// bridge/IPC surface has no project context — the shim calls tools.list with
-// nil params and the protocol carries no workspace or CWD — so it reports
-// USER-scope installs only. The CLI list/inventory see project-scope installs
-// because they run with the invoking process's CWD; the daemon cannot, and a
-// project scope must never be fabricated. This test documents the limitation.
-func TestToolsListIsUserScopeOnly(t *testing.T) {
+// TestToolsListUnionsProjectScope pins the read-path contract: tools.list
+// unions the caller's user-scope installs with the project-scope installs of
+// the workspace it names, and every item states which scope it came from. A
+// caller that names no root — or a different root — sees user scope only,
+// never a fabricated project and never an error.
+func TestToolsListUnionsProjectScope(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
@@ -1104,28 +1127,80 @@ func TestToolsListIsUserScopeOnly(t *testing.T) {
 			t.Fatalf("SaveInstall %s: %v", id, err)
 		}
 	}
-	save("mcp:example:user-one", domain.ScopeUser, "")
-	save("mcp:example:proj-one", domain.ScopeProject, "ws-one")
 
-	var resp struct {
-		Installs []struct {
-			ID         string `json:"id"`
-			IsExternal bool   `json:"isExternal"`
-		} `json:"installs"`
+	project := t.TempDir()
+	save("mcp:example:user-one", domain.ScopeUser, "")
+	save("mcp:example:proj-one", domain.ScopeProject, domain.WorkspaceIDForProjectRoot(project))
+
+	type item struct {
+		ID         string `json:"id"`
+		IsExternal bool   `json:"isExternal"`
+		Scope      string `json:"scope"`
 	}
-	if err := h.client.Call(ctx, "tools.list", nil, &resp); err != nil {
-		t.Fatalf("tools.list: %v", err)
-	}
-	seen := map[string]bool{}
-	for _, it := range resp.Installs {
-		if !it.IsExternal {
-			seen[it.ID] = true
+	list := func(t *testing.T, projectRoot string) []item {
+		t.Helper()
+		var params any
+		if projectRoot != "" {
+			params = map[string]any{"projectRoot": projectRoot}
 		}
+		var resp struct {
+			Installs []item `json:"installs"`
+		}
+		if err := h.client.Call(ctx, "tools.list", params, &resp); err != nil {
+			t.Fatalf("tools.list: %v", err)
+		}
+		installs := make([]item, 0, len(resp.Installs))
+		for _, it := range resp.Installs {
+			if !it.IsExternal {
+				installs = append(installs, it)
+			}
+		}
+		return installs
 	}
-	if !seen["mcp:example:user-one"] {
-		t.Errorf("user-scope install missing from tools.list: %+v", resp.Installs)
+	scopesOf := func(items []item) map[string]string {
+		out := make(map[string]string, len(items))
+		for _, it := range items {
+			out[it.ID] = it.Scope
+		}
+		return out
 	}
-	if seen["mcp:example:proj-one"] {
-		t.Errorf("tools.list returned a project-scope install; the IPC surface has no project context: %+v", resp.Installs)
-	}
+
+	t.Run("no project root sees user scope only", func(t *testing.T) {
+		got := scopesOf(list(t, ""))
+		if got["mcp:example:user-one"] != "user" {
+			t.Errorf("user install missing or unlabelled: %+v", got)
+		}
+		if _, ok := got["mcp:example:proj-one"]; ok {
+			t.Errorf("a project-scope install leaked without a project root: %+v", got)
+		}
+	})
+
+	t.Run("a different project root sees user scope only", func(t *testing.T) {
+		got := scopesOf(list(t, t.TempDir()))
+		if _, ok := got["mcp:example:proj-one"]; ok {
+			t.Errorf("another project's install was visible: %+v", got)
+		}
+		if _, ok := got["mcp:example:user-one"]; !ok {
+			t.Errorf("user scope must stay visible: %+v", got)
+		}
+	})
+
+	t.Run("the matching project root sees both, each labelled", func(t *testing.T) {
+		items := list(t, project)
+		got := scopesOf(items)
+		if got["mcp:example:user-one"] != "user" {
+			t.Errorf("user install missing or unlabelled: %+v", got)
+		}
+		if got["mcp:example:proj-one"] != "project" {
+			t.Errorf("project install missing or unlabelled: %+v", got)
+		}
+		// Deterministic order: user rows first, then project rows.
+		var order []string
+		for _, it := range items {
+			order = append(order, it.ID)
+		}
+		if len(order) != 2 || order[0] != "mcp:example:user-one" || order[1] != "mcp:example:proj-one" {
+			t.Errorf("order = %v, want user rows before project rows", order)
+		}
+	})
 }

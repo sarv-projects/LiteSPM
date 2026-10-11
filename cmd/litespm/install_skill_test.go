@@ -88,6 +88,18 @@ func TestInstallSkillFromListingLocal(t *testing.T) {
 	if rec.ListingID != listing.ID || rec.Status != domain.InstallActive {
 		t.Errorf("install record = %+v", rec)
 	}
+	// A project-scope install carries its workspace: the derived id and the
+	// project root the install targeted, so a read that names the project
+	// selects exactly this row.
+	if rec.Scope != domain.ScopeProject {
+		t.Errorf("install scope = %q, want project", rec.Scope)
+	}
+	if want := domain.WorkspaceIDForProjectRoot(project); rec.WorkspaceID != want {
+		t.Errorf("install workspaceId = %q, want %q", rec.WorkspaceID, want)
+	}
+	if rec.ProjectRoot != filepath.Clean(project) {
+		t.Errorf("install projectRoot = %q, want %q", rec.ProjectRoot, filepath.Clean(project))
+	}
 }
 
 // TestInstallExecuteSkillThroughDaemon is the agent-facing path end to end:

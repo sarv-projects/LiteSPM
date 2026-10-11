@@ -381,7 +381,7 @@ func TestAuthorizeHumanInstallReportsRemoteCapabilityDrops(t *testing.T) {
 		t.Fatal(err)
 	}
 	grant, drops, err := authorizeHumanInstall(context.Background(), h.db, h.catClient, listing,
-		"1.0.0", domain.ScopeUser, &mcpInstallBinding{
+		"1.0.0", domain.ScopeUser, "", &mcpInstallBinding{
 			Hosts:   []string{"claude-code", "gemini-cli", "codex"},
 			Runtime: remoteRuntime(),
 		})

@@ -215,7 +215,7 @@ func installedMCPServers(ctx context.Context, db *state.DB, client *catalog.Clie
 
 	var specs []discover.ProviderSpec
 	for _, hostID := range hosts {
-		entries, listErr := host.ListServerEntriesWithValues(ctx, hostID, domain.ScopeUser)
+		entries, listErr := host.ListServerEntriesWithValues(ctx, hostID, domain.ScopeUser, "")
 		if listErr != nil {
 			fmt.Fprintf(os.Stderr, "  %s: %v\n", hostID, listErr)
 			continue

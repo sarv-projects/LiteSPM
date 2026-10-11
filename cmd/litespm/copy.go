@@ -388,7 +388,7 @@ func runCopyTo(out io.Writer, args []string) int {
 		}
 	}
 
-	return applyCopyPlan(out, plan, paths, scope, srcHost, tgt)
+	return applyCopyPlan(out, plan, paths, scope, projectRoot, srcHost, tgt)
 }
 
 // askConflictDecision prompts for one conflict on an interactive terminal.
@@ -427,7 +427,7 @@ func readCopySource(ctx context.Context, paths *config.PlatformPaths,
 
 	if keyPath, shape, ok := host.EntryLayoutForScope(adapter, scope); ok && keyPath != "" {
 		src.EntryShape = shape
-		entries, err := host.ListServerEntriesWithValues(ctx, d.HostID, scope)
+		entries, err := host.ListServerEntriesWithValues(ctx, d.HostID, scope, projectRoot)
 		if err != nil {
 			return nil, fmt.Errorf("list MCP entries of %s: %w", d.HostID, err)
 		}
@@ -558,7 +558,7 @@ func readCopyTarget(ctx context.Context, paths *config.PlatformPaths,
 	if keyPath, shape, ok := host.EntryLayoutForScope(adapter, scope); ok && keyPath != "" {
 		tgt.HasEntrySpec = true
 		tgt.EntryShape = shape
-		entries, err := host.ListServerEntriesWithValues(ctx, d.HostID, scope)
+		entries, err := host.ListServerEntriesWithValues(ctx, d.HostID, scope, projectRoot)
 		if err != nil {
 			return nil, fmt.Errorf("list MCP entries of %s: %w", d.HostID, err)
 		}
@@ -845,7 +845,7 @@ func printCopyResult(out io.Writer, r copyItemResult) {
 // verification — one item failing does not strand the others, and every
 // failure is reported and reflected in the exit code.
 func applyCopyPlan(out io.Writer, plan *porting.CopyPlan, paths *config.PlatformPaths,
-	scope domain.InstallScope, srcHost string, tgt *porting.TargetCaps) int {
+	scope domain.InstallScope, projectRoot, srcHost string, tgt *porting.TargetCaps) int {
 	ctx := context.Background()
 	if err := paths.EnsureDirectories(); err != nil {
 		fmt.Fprintf(os.Stderr, "copy: initialize storage directories: %v\n", err)
@@ -874,7 +874,7 @@ func applyCopyPlan(out io.Writer, plan *porting.CopyPlan, paths *config.Platform
 		var err error
 		switch item.Kind {
 		case porting.KindMCP:
-			res, err = applyMCPItem(ctx, db, paths, srcHost, tgt.To, scope, item, force)
+			res, err = applyMCPItem(ctx, db, paths, srcHost, tgt.To, scope, projectRoot, item, force)
 		case porting.KindSkill:
 			if skillInstaller == nil {
 				skillLedger, skillInstaller, err = newCopySkillWriter(db, paths.DataRoot)
@@ -919,7 +919,7 @@ func applyCopyPlan(out io.Writer, plan *porting.CopyPlan, paths *config.Platform
 // backup, registration, deployment row, install transaction — then verifies
 // it by reading it back before the transaction commits.
 func applyMCPItem(ctx context.Context, db *state.DB, paths *config.PlatformPaths,
-	srcHost, hostID string, scope domain.InstallScope, item porting.CopyItem, force bool) (copyItemResult, error) {
+	srcHost, hostID string, scope domain.InstallScope, projectRoot string, item porting.CopyItem, force bool) (copyItemResult, error) {
 	res := copyItemResult{Item: item}
 	txn := lifecycle.BeginInstall(ctx)
 	defer txn.RollbackUnlessCommitted()
@@ -927,7 +927,11 @@ func applyMCPItem(ctx context.Context, db *state.DB, paths *config.PlatformPaths
 	written, err := host.InstallServerEntry(ctx, hostID, item.IR, host.EntryInstallOptions{
 		BackupDir: paths.BackupsPath(),
 		Scope:     scope,
-		Force:     force,
+		// The same project the plan was read against: a copy at project scope
+		// writes into that project's config, not whatever directory this
+		// process happens to be in.
+		ProjectRoot: projectRoot,
+		Force:       force,
 	})
 	if err != nil {
 		res.Err = err
@@ -940,7 +944,7 @@ func applyMCPItem(ctx context.Context, db *state.DB, paths *config.PlatformPaths
 	// fingerprint with the plan's IR. A mismatch means the write did not
 	// produce what was approved — the transaction rolls back and the item
 	// reports LPSM-COPY-007.
-	l1Detail, l1err := verifyMCPReadBack(ctx, hostID, scope, item)
+	l1Detail, l1err := verifyMCPReadBack(ctx, hostID, scope, projectRoot, item)
 	res.L1 = l1Detail
 	if l1err != nil {
 		cause := fmt.Errorf("LPSM-COPY-007: verification failed after write for %s %s: %s", item.Kind, item.ID, l1Detail)
@@ -1021,8 +1025,8 @@ func applyMCPItem(ctx context.Context, db *state.DB, paths *config.PlatformPaths
 
 // verifyMCPReadBack is verification level 1: the target re-parses and the
 // entry's fingerprint equals the plan's rendered entry.
-func verifyMCPReadBack(ctx context.Context, hostID string, scope domain.InstallScope, item porting.CopyItem) (string, error) {
-	entries, err := host.ListServerEntriesWithValues(ctx, hostID, scope)
+func verifyMCPReadBack(ctx context.Context, hostID string, scope domain.InstallScope, projectRoot string, item porting.CopyItem) (string, error) {
+	entries, err := host.ListServerEntriesWithValues(ctx, hostID, scope, projectRoot)
 	if err != nil {
 		return fmt.Sprintf("failed: could not re-read the target config: %v", err), err
 	}

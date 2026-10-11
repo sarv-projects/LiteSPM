@@ -423,13 +423,24 @@ func (db *DB) GetInstall(ctx context.Context, installID string) (*domain.Install
 }
 
 // ListInstalls lists installations filtered by scope and workspace.
+//
+// For project scope an empty workspaceID selects EVERY workspace, not the rows
+// whose workspace_id happens to be empty: the machine-wide inventory
+// (`litespm list`) asks that way and narrows by --project afterwards, while a
+// caller that already knows its project passes the id it derived from the
+// project root to select exactly that namespace. (The IPC read surface never
+// passes an empty id for project scope — it resolves one first.)
 func (db *DB) ListInstalls(ctx context.Context, scope domain.InstallScope, workspaceID string) ([]*domain.InstallRecord, error) {
 	var query string
 	var args []any
 
 	if scope == domain.ScopeProject {
-		query = `SELECT install_id, listing_id, kind, version, COALESCE(immutable_ref, ''), tree_digest, install_path, scope, workspace_id, project_root, enabled, installed_at, updated_at FROM installs WHERE scope = 'project' AND workspace_id = ? ORDER BY installed_at DESC;`
-		args = append(args, workspaceID)
+		if workspaceID == "" {
+			query = `SELECT install_id, listing_id, kind, version, COALESCE(immutable_ref, ''), tree_digest, install_path, scope, workspace_id, project_root, enabled, installed_at, updated_at FROM installs WHERE scope = 'project' ORDER BY installed_at DESC;`
+		} else {
+			query = `SELECT install_id, listing_id, kind, version, COALESCE(immutable_ref, ''), tree_digest, install_path, scope, workspace_id, project_root, enabled, installed_at, updated_at FROM installs WHERE scope = 'project' AND workspace_id = ? ORDER BY installed_at DESC;`
+			args = append(args, workspaceID)
+		}
 	} else {
 		query = `SELECT install_id, listing_id, kind, version, COALESCE(immutable_ref, ''), tree_digest, install_path, scope, workspace_id, project_root, enabled, installed_at, updated_at FROM installs WHERE scope = 'user' ORDER BY installed_at DESC;`
 	}

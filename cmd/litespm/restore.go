@@ -93,7 +93,8 @@ type restoreOutcome struct {
 // error is a refusal with the reasons attached; the machine is left exactly
 // as it is.
 func planRestore(ctx context.Context, db *state.DB, installID string) (*restorePlan, error) {
-	if _, err := db.GetInstall(ctx, installID); err != nil {
+	rec, err := db.GetInstall(ctx, installID)
+	if err != nil {
 		return nil, err
 	}
 	muts, err := deployment.NewLedger(db.Raw()).MutationsForInstall(ctx, installID)
@@ -133,7 +134,7 @@ func planRestore(ctx context.Context, db *state.DB, installID string) (*restoreP
 			}
 			continue
 		}
-		action, note, err := planFileRestore(ctx, rows)
+		action, note, err := planFileRestore(ctx, rows, rec.ProjectRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -152,7 +153,9 @@ func planRestore(ctx context.Context, db *state.DB, installID string) (*restoreP
 // removing the directory restores the pre-install state exactly.
 func planSkillRestore(_ context.Context, rows []deployment.Mutation, plan *restorePlan) error {
 	m := rows[0]
-	current := currentOwnedImage(context.Background(), m)
+	// A skill directory is read from disk by path, so no host config and no
+	// project root are involved in this guard.
+	current := currentOwnedImage(context.Background(), m, "")
 	switch {
 	case current == "":
 		plan.Notes = append(plan.Notes, fmt.Sprintf("%s: already absent", m.FilePath))
@@ -165,15 +168,17 @@ func planSkillRestore(_ context.Context, rows []deployment.Mutation, plan *resto
 }
 
 // planFileRestore runs both guards for one host config and returns the
-// action (nil = nothing to do) or a refusal.
-func planFileRestore(ctx context.Context, rows []deployment.Mutation) (*fileAction, string, error) {
+// action (nil = nothing to do) or a refusal. projectRoot is the install's
+// project directory, which is where a project-scope config node lives (see
+// currentOwnedImage); it is unused for user-scope nodes.
+func planFileRestore(ctx context.Context, rows []deployment.Mutation, projectRoot string) (*fileAction, string, error) {
 	first := rows[0]
 	owned := make([][]string, 0, len(rows))
 	entryKeys := map[string]bool{}
 	for _, m := range rows {
 		// Guard 1: every owned node must still match what LiteSPM wrote (or
 		// be exactly the pre-install node / gone).
-		c := currentOwnedImage(ctx, m)
+		c := currentOwnedImage(ctx, m, projectRoot)
 		if c != "" && c != m.PostImageHash && c != m.PreImageHash {
 			return nil, "", fmt.Errorf("restore refused: %s in %s was edited after the install and no longer matches what LiteSPM wrote; use `litespm install remove` to remove only LiteSPM's entries and keep your edit",
 				m.Locator, m.FilePath)
@@ -316,7 +321,7 @@ func applyRestore(ctx context.Context, db *state.DB, dataRoot string, plan *rest
 	// delete the install (which cascades its deployment rows).
 	for _, a := range plan.Files {
 		for _, key := range a.EntryKeys {
-			if err := db.DeleteHostRegistration(ctx, a.HostID, a.Scope, "", key); err != nil {
+			if err := dropHostRegistrations(ctx, db, a.HostID, a.Scope, key); err != nil {
 				return nil, fmt.Errorf("drop registration of %q on %s: %w", key, a.HostID, err)
 			}
 		}

@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -75,6 +76,13 @@ type EntryInstallOptions struct {
 	// BackupDir receives a pre-edit copy of every config that is modified.
 	BackupDir string
 	Scope     domain.InstallScope
+	// ProjectRoot is the project directory a project-scope write targets. It is
+	// REQUIRED for ScopeProject and ignored otherwise: HostAdapter.DetectConfig
+	// derives its project path from the process's working directory, which for
+	// the daemon, or for `litespm install --workspace <dir>` run elsewhere, is
+	// not the project being installed into — honouring that would write one
+	// file while the state row recorded another.
+	ProjectRoot string
 	// Force replaces an existing entry with the same name instead of refusing.
 	Force bool
 }
@@ -148,6 +156,57 @@ func EntryLayoutForScope(adapter HostAdapter, scope domain.InstallScope) (keyPat
 		return "", "", false
 	}
 	return strings.Join(spec.KeyPath, "."), string(spec.Shape), true
+}
+
+// SupportsProjectScope reports whether an adapter can be WRITTEN at project
+// scope, i.e. whether it documents a project-scope config path at all. Only
+// the data-driven targets do: the six bespoke adapters ignore the scope
+// argument in DetectConfig and would answer with their user config file, which
+// is not a project config. Callers refuse a project-scope plan for a host that
+// returns false, so no one is asked to approve a plan that cannot execute.
+func SupportsProjectScope(adapter HostAdapter) bool {
+	g, ok := adapter.(*GenericAdapter)
+	return ok && g.Target.ProjectPath != nil
+}
+
+// detectEntryConfig resolves the config file a server entry is read from or
+// written to at the given scope.
+//
+// User scope is the adapter's own answer. Project scope must name its
+// directory: DetectConfig derives a project path from the process's working
+// directory, which for the daemon (install.execute) or for `litespm install
+// --workspace <dir>` run from elsewhere is not the project in question, so
+// using it would write one file while InstallRecord.ProjectRoot recorded
+// another — a registration the project's own reads would never find. An
+// adapter with no documented project path refuses here rather than
+// substituting the user config.
+func detectEntryConfig(ctx context.Context, adapter HostAdapter, scope domain.InstallScope, projectRoot string) (string, error) {
+	if scope != domain.ScopeProject {
+		return adapter.DetectConfig(ctx, scope)
+	}
+	root := strings.TrimSpace(projectRoot)
+	if root == "" {
+		return "", fmt.Errorf("a project-scope server entry must name its project directory")
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	return projectConfigPathFor(adapter, abs)
+}
+
+// projectConfigPathFor is a host's documented project-scope config path,
+// resolved against a NAMED project directory, or a refusal naming the reason.
+func projectConfigPathFor(adapter HostAdapter, root string) (string, error) {
+	if g, ok := adapter.(*GenericAdapter); ok {
+		if g.Target.ProjectPath == nil {
+			return "", fmt.Errorf("host %s has no documented project-scope config path; install it with --scope user",
+				adapter.Descriptor().DisplayName)
+		}
+		return g.Target.ProjectPath(root), nil
+	}
+	return "", fmt.Errorf("host %s documents only a user-scope config path, so a project-scope entry cannot be written for it; install it with --scope user",
+		adapter.Descriptor().DisplayName)
 }
 
 // entrySpecFor resolves a host's entry spec at user scope. Callers that need
@@ -591,7 +650,7 @@ func InstallServerEntry(ctx context.Context, hostID string, entry ServerEntry, o
 		}
 	}
 
-	configPath, err := adapter.DetectConfig(ctx, opts.Scope)
+	configPath, err := detectEntryConfig(ctx, adapter, opts.Scope, opts.ProjectRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -795,7 +854,9 @@ type HostServerEntry struct {
 // ListServerEntriesWithValues returns the registered servers with their launch
 // lines, skipping the bridge. listingID is resolved from the install records
 // passed in, so a server LiteSPM did not install comes back without one.
-func ListServerEntriesWithValues(ctx context.Context, hostID string, scope domain.InstallScope) ([]HostServerEntry, error) {
+// projectRoot names the project directory for a project-scope listing and is
+// ignored at user scope (see detectEntryConfig).
+func ListServerEntriesWithValues(ctx context.Context, hostID string, scope domain.InstallScope, projectRoot string) ([]HostServerEntry, error) {
 	adapter, err := GetAdapter(hostID)
 	if err != nil {
 		return nil, err
@@ -804,7 +865,7 @@ func ListServerEntriesWithValues(ctx context.Context, hostID string, scope domai
 	if !ok {
 		return nil, fmt.Errorf("host %q has no documented MCP entry shape", hostID)
 	}
-	configPath, err := adapter.DetectConfig(ctx, scope)
+	configPath, err := detectEntryConfig(ctx, adapter, scope, projectRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -1040,8 +1101,9 @@ func tomlServerEntries(spec entrySpec, content string) []HostServerEntry {
 
 // ListServerEntries returns the entry names currently registered for a host, so
 // an install can report what is already configured and refuse a collision before
-// touching a file.
-func ListServerEntries(ctx context.Context, hostID string, scope domain.InstallScope) ([]string, error) {
+// touching a file. projectRoot names the project directory for a project-scope
+// listing (see detectEntryConfig); it is ignored at user scope.
+func ListServerEntries(ctx context.Context, hostID string, scope domain.InstallScope, projectRoot string) ([]string, error) {
 	adapter, err := GetAdapter(hostID)
 	if err != nil {
 		return nil, err
@@ -1050,7 +1112,7 @@ func ListServerEntries(ctx context.Context, hostID string, scope domain.InstallS
 	if !ok {
 		return nil, fmt.Errorf("host %q has no documented MCP entry shape", hostID)
 	}
-	configPath, err := adapter.DetectConfig(ctx, scope)
+	configPath, err := detectEntryConfig(ctx, adapter, scope, projectRoot)
 	if err != nil {
 		return nil, err
 	}

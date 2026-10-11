@@ -34,7 +34,7 @@ func TestInstallRejectsUnusableEnvNamesBeforeWriting(t *testing.T) {
 
 	for _, bad := range []string{"has space", "2LEADING", "has-dash", "has.dot"} {
 		_, err := installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-			mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+			mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 			[]string{"claude-code"}, false, stdioRuntime(), []string{bad})
 		if err == nil {
 			t.Errorf("--env %q was accepted", bad)
@@ -45,7 +45,7 @@ func TestInstallRejectsUnusableEnvNamesBeforeWriting(t *testing.T) {
 		}
 	}
 	if _, err := installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, false, stdioRuntime(), []string{"A", "A"}); err == nil {
 		t.Error("a duplicated variable name was accepted; it would collapse to one entry")
 	}
@@ -64,7 +64,7 @@ func TestInstallRefusesEnvForUnverifiedHost(t *testing.T) {
 	before, _ := os.ReadFile(configPath)
 
 	_, err := installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"windsurf"}, false, stdioRuntime(), []string{"GITHUB_TOKEN"})
 	if err == nil {
 		t.Fatal("--env accepted for a host with no documented behaviour")
@@ -86,7 +86,7 @@ func TestInstallRefusesEnvForShapeThatCannotCarryIt(t *testing.T) {
 	homeWithBridge(t)
 
 	_, err := installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"mux"}, false, stdioRuntime(), []string{"GITHUB_TOKEN"})
 	if err == nil {
 		t.Fatal("--env accepted for a host whose entry shape cannot carry one")

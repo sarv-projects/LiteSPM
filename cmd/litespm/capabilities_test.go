@@ -140,7 +140,7 @@ func TestMCPInstallWritesTheComponentRowFksRequire(t *testing.T) {
 	homeWithBridge(t)
 
 	outcome, err := installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-		mcpListing("mcp:example:needs-component", "needs-component"), "1.0.0", domain.ScopeUser, []string{"claude-code"}, false, stdioRuntime(), nil)
+		mcpListing("mcp:example:needs-component", "needs-component"), "1.0.0", domain.ScopeUser, "", []string{"claude-code"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestCapabilitiesRefreshOverAMixedRemoteAndStdioSet(t *testing.T) {
 		t.Errorf("remote entry not written in claude-code's own shape (endpoint=%t type=%t):\n%s",
 			hasEndpoint, hasDiscriminator, data)
 	}
-	entries, err := host.ListServerEntriesWithValues(ctx, "claude-code", domain.ScopeUser)
+	entries, err := host.ListServerEntriesWithValues(ctx, "claude-code", domain.ScopeUser, "")
 	if err != nil {
 		t.Fatalf("read back the entries: %v", err)
 	}

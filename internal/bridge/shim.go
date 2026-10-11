@@ -51,10 +51,15 @@ const (
 
 // CapabilityItem represents a capability summary across the 4 tabs.
 type CapabilityItem struct {
-	ID         string          `json:"id"`
-	Name       string          `json:"name"`
-	Kind       string          `json:"kind"` // mcp | skill | plugin
-	Summary    string          `json:"summary"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Kind    string `json:"kind"` // mcp | skill | plugin
+	Summary string `json:"summary"`
+	// Scope is the install scope the item came from ("user" | "project"), so a
+	// project install is distinguishable from a machine-wide one that happens
+	// to share its name. Omitted for entries that are not installs (detected
+	// external host tools).
+	Scope      string          `json:"scope,omitempty"`
 	Transport  string          `json:"transport,omitempty"`
 	Status     InstalledStatus `json:"status,omitempty"`
 	IsExternal bool            `json:"isExternal,omitempty"`
@@ -65,12 +70,20 @@ type CapabilityItem struct {
 
 // Shim serves the 12 canonical LiteSPM tools over standard input/output.
 type Shim struct {
-	client  *ipc.Client
-	hostID  string
-	tools   []MCPTool
-	reader  *bufio.Reader
-	writer  io.Writer
-	writeMu sync.Mutex
+	client *ipc.Client
+	hostID string
+	// ProjectRoot is the project directory this shim runs in, forwarded as the
+	// "projectRoot" selection key on the tools that read installs (list_installed,
+	// load_skill, read_skill_resource). It only WIDENS what those tools can see —
+	// user-scope installs are always visible, and an empty root simply leaves the
+	// project scope out. It is a selection key, never an authorization boundary:
+	// the daemon authenticates the peer by uid and only selects DB rows at this
+	// path, it never reads the filesystem there.
+	ProjectRoot string
+	tools       []MCPTool
+	reader      *bufio.Reader
+	writer      io.Writer
+	writeMu     sync.Mutex
 }
 
 // NewShim creates a new stdio Bridge shim.
@@ -405,7 +418,7 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 			Count    int              `json:"count"`
 			Installs []CapabilityItem `json:"installs"`
 		}
-		err := s.client.Call(ctx, "tools.list", nil, &resp)
+		err := s.client.Call(ctx, "tools.list", s.projectParams(nil), &resp)
 		if err != nil {
 			return FormatErrorResult(err), nil
 		}
@@ -462,10 +475,10 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 			SkillID      string `json:"skillId"`
 			Instructions string `json:"instructions"`
 		}
-		err := s.client.Call(ctx, "skills.load_body", map[string]any{
+		err := s.client.Call(ctx, "skills.load_body", s.projectParams(map[string]any{
 			"skillId": req.SkillID,
 			"version": req.Version,
-		}, &resp)
+		}), &resp)
 		if err != nil {
 			return FormatErrorResult(err), nil
 		}
@@ -492,10 +505,10 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 		var resp struct {
 			Content string `json:"content"`
 		}
-		err := s.client.Call(ctx, "skills.read_resource", map[string]any{
+		err := s.client.Call(ctx, "skills.read_resource", s.projectParams(map[string]any{
 			"skillId": req.SkillID,
 			"path":    req.Path,
-		}, &resp)
+		}), &resp)
 		if err != nil {
 			return FormatErrorResult(err), nil
 		}
@@ -566,6 +579,22 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 	default:
 		return FormatErrorResult(domain.ErrNotFound("tool", name)), nil
 	}
+}
+
+// projectParams returns the params for a tool that selects installs by project,
+// adding the shim's project root when it has one. An empty root omits the key
+// entirely rather than sending "", so the daemon never has to tell "no project
+// context" apart from an empty path. The map is freshly built by each caller,
+// so mutating it here is safe.
+func (s *Shim) projectParams(params map[string]any) map[string]any {
+	if s.ProjectRoot == "" {
+		return params
+	}
+	if params == nil {
+		params = map[string]any{}
+	}
+	params["projectRoot"] = s.ProjectRoot
+	return params
 }
 
 // FormatInstalledPanel renders the in-agent 4-tab capability layout for installed tools.

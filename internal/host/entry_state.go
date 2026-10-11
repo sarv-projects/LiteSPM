@@ -87,8 +87,10 @@ func entryStateFromContent(spec entrySpec, content, name string) (raw string, pr
 }
 
 // ReadServerEntryState reads the named entry from a host's config. It returns
-// (nil, nil) when the config file or the entry does not exist.
-func ReadServerEntryState(ctx context.Context, hostID, name string, scope domain.InstallScope) (*EntryState, error) {
+// (nil, nil) when the config file or the entry does not exist. projectRoot
+// names the project directory for a project-scope read (see detectEntryConfig)
+// and is ignored at user scope.
+func ReadServerEntryState(ctx context.Context, hostID, name string, scope domain.InstallScope, projectRoot string) (*EntryState, error) {
 	adapter, err := GetAdapter(hostID)
 	if err != nil {
 		return nil, err
@@ -97,7 +99,7 @@ func ReadServerEntryState(ctx context.Context, hostID, name string, scope domain
 	if !ok {
 		return nil, fmt.Errorf("host %q has no documented MCP entry shape", hostID)
 	}
-	configPath, err := adapter.DetectConfig(ctx, scope)
+	configPath, err := detectEntryConfig(ctx, adapter, scope, projectRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +140,13 @@ const EntryUnreadable = "unreadable:entry"
 // This is the C image of ARCH/33 §4 for a host-config node: it hashes the
 // entry's canonical text, never the whole file, so a sibling edit elsewhere in
 // the config does not read as modification of this node.
-func EntryFingerprintNow(ctx context.Context, hostID, name string, scope domain.InstallScope) (string, error) {
+//
+// projectRoot names the project directory for a project-scope node (see
+// detectEntryConfig) and is ignored at user scope. It matters most here: a
+// fingerprint taken from the wrong file reads as "the node is gone", which
+// reconcile reports as missing, which then skips the strip that would have
+// removed the entry and its registration.
+func EntryFingerprintNow(ctx context.Context, hostID, name string, scope domain.InstallScope, projectRoot string) (string, error) {
 	adapter, err := GetAdapter(hostID)
 	if err != nil {
 		return EntryUnreadable, err
@@ -147,7 +155,7 @@ func EntryFingerprintNow(ctx context.Context, hostID, name string, scope domain.
 	if !ok {
 		return EntryUnreadable, fmt.Errorf("host %q has no documented MCP entry shape", hostID)
 	}
-	configPath, err := adapter.DetectConfig(ctx, scope)
+	configPath, err := detectEntryConfig(ctx, adapter, scope, projectRoot)
 	if err != nil {
 		return EntryUnreadable, err
 	}
@@ -186,7 +194,11 @@ type EntryRemoveResult struct {
 // that prior value instead of deleted, so an install that overwrote a
 // user-authored entry is fully reversed. An entry that is already gone is
 // reported as Removed=false, not as an error.
-func RemoveServerEntry(ctx context.Context, hostID, name string, scope domain.InstallScope, backupDir, restorePrior string) (*EntryRemoveResult, error) {
+//
+// projectRoot names the project directory for a project-scope removal (and is
+// required for one): removal must open the SAME file the install wrote, which
+// is the named project's config, never the caller's working directory.
+func RemoveServerEntry(ctx context.Context, hostID, name string, scope domain.InstallScope, projectRoot, backupDir, restorePrior string) (*EntryRemoveResult, error) {
 	if err := ValidateServerEntryName(name); err != nil {
 		return nil, err
 	}
@@ -198,7 +210,7 @@ func RemoveServerEntry(ctx context.Context, hostID, name string, scope domain.In
 	if !ok {
 		return nil, fmt.Errorf("host %q has no documented MCP entry shape", hostID)
 	}
-	configPath, err := adapter.DetectConfig(ctx, scope)
+	configPath, err := detectEntryConfig(ctx, adapter, scope, projectRoot)
 	if err != nil {
 		return nil, err
 	}

@@ -55,7 +55,7 @@ func TestInstallMCPFromListingRegistersWithConfiguredHosts(t *testing.T) {
 	_, configPath := homeWithBridge(t)
 
 	outcome, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, []string{"claude-code"}, false, stdioRuntime(), nil)
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "", []string{"claude-code"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestInstallMCPFromListingRefusesCollisions(t *testing.T) {
 	}
 
 	_, err = installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "mine"), "1.0.0", domain.ScopeUser, []string{"claude-code"}, false, stdioRuntime(), nil)
+		mcpListing("mcp:example:demo-mcp", "mine"), "1.0.0", domain.ScopeUser, "", []string{"claude-code"}, false, stdioRuntime(), nil)
 	if err == nil {
 		t.Fatal("install overwrote an entry the user already had")
 	}
@@ -120,7 +120,7 @@ func TestInstallMCPFromListingRefusesWithoutAnyConfiguredHost(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 
 	_, err := installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, nil, false, stdioRuntime(), nil)
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "", nil, false, stdioRuntime(), nil)
 	if err == nil {
 		t.Fatal("install proceeded with no host configured")
 	}
@@ -148,7 +148,7 @@ func TestInstallMCPPolicyDenyPreventsHostConfigWrite(t *testing.T) {
 	}
 
 	_, err = installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, false, stdioRuntime(), nil)
 	if err == nil || domain.ErrorCode(err) != "LPSM-POLICY-UNAUTHORIZED" {
 		t.Fatalf("explicit package.install deny was not enforced: %v", err)
@@ -196,7 +196,7 @@ func TestMCPPolicyDenyMatchesListingIDOrEntryName(t *testing.T) {
 			}
 
 			_, err = installMCPFromListing(authorizedTestContext(), db, dataRoot,
-				mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+				mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 				[]string{"claude-code"}, false, stdioRuntime(), nil)
 			if err == nil || domain.ErrorCode(err) != "LPSM-POLICY-UNAUTHORIZED" {
 				t.Fatalf("deny rule keyed on the %s did not refuse the install: %v", tc.name, err)
@@ -217,7 +217,7 @@ func TestInstallMCPFromListingRefusesWhenNoCommandIsPublished(t *testing.T) {
 	homeWithBridge(t)
 
 	_, err := installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, nil, false, nil, nil)
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "", nil, false, nil, nil)
 	if err == nil {
 		t.Fatal("install proceeded with no runtime descriptor")
 	}
@@ -256,7 +256,7 @@ func TestInstallMCPFromListingRefusesDiscoveryOnly(t *testing.T) {
 	for _, class := range []domain.Installability{"", domain.InstallabilityDiscoveryOnly} {
 		listing := mcpListing("mcp:example:demo", "demo")
 		listing.Installability = class
-		_, err := installMCPFromListing(context.Background(), nil, t.TempDir(), listing, "1.0.0", domain.ScopeUser, nil, false, stdioRuntime(), nil)
+		_, err := installMCPFromListing(context.Background(), nil, t.TempDir(), listing, "1.0.0", domain.ScopeUser, "", nil, false, stdioRuntime(), nil)
 		if domain.ErrorCode(err) != "LPSM-NOT-INSTALLABLE" {
 			t.Fatalf("class %q: err = %v, want LPSM-NOT-INSTALLABLE", class, err)
 		}
@@ -280,7 +280,7 @@ func TestInstallMCPFromListingRegistersRemoteEndpoint(t *testing.T) {
 	_, configPath := homeWithBridge(t)
 
 	outcome, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, false, remoteRuntime(), nil)
 	if err != nil {
 		t.Fatalf("remote install: %v", err)
@@ -360,7 +360,7 @@ func TestInstallMCPFromListingRefusesUnsafeRemoteEndpoint(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err = installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-			mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+			mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 			[]string{"claude-code"}, false,
 			&domain.RuntimeDescriptor{Type: "streamable-http", Endpoint: endpoint}, nil)
 		if domain.ErrorCode(err) != "LPSM-EGRESS-BLOCKED" {
@@ -400,7 +400,7 @@ func TestInstallMCPFromListingRefusesInvalidTransportShapes(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err = installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-				mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+				mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 				[]string{"claude-code"}, false, tc.runtime, nil)
 			if domain.ErrorCode(err) != "LPSM-ARTIFACT-UNAVAILABLE" {
 				t.Fatalf("err = %v, want LPSM-ARTIFACT-UNAVAILABLE", err)
@@ -427,7 +427,7 @@ func TestInstallMCPFromListingRefusesIncapableRemoteHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code", "gemini-cli"}, false, remoteRuntime(), nil)
 	if domain.ErrorCode(err) != "LPSM-INSTALL-TARGET-UNAVAILABLE" {
 		t.Fatalf("err = %v, want LPSM-INSTALL-TARGET-UNAVAILABLE", err)
@@ -457,7 +457,7 @@ func TestInstallMCPFromListingRefusesEnvForRemoteEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, false, remoteRuntime(), []string{"API_TOKEN"})
 	if domain.ErrorCode(err) != "LPSM-REMOTE-ENV-REFUSED" {
 		t.Fatalf("err = %v, want LPSM-REMOTE-ENV-REFUSED", err)
@@ -480,7 +480,7 @@ func TestInstallTreeDigestSeparatesStdioFromRemote(t *testing.T) {
 	stdioDB := openTestState(t)
 	homeWithBridge(t)
 	stdioOutcome, err := installMCPFromListing(authorizedTestContext(), stdioDB, t.TempDir(),
-		listing, "1.0.0", domain.ScopeUser, []string{"claude-code"}, false, stdioRuntime(), nil)
+		listing, "1.0.0", domain.ScopeUser, "", []string{"claude-code"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("stdio install: %v", err)
 	}
@@ -492,7 +492,7 @@ func TestInstallTreeDigestSeparatesStdioFromRemote(t *testing.T) {
 	remoteDB := openTestState(t)
 	homeWithBridge(t) // a fresh machine: same listing, other transport
 	remoteOutcome, err := installMCPFromListing(authorizedTestContext(), remoteDB, t.TempDir(),
-		listing, "1.0.0", domain.ScopeUser, []string{"claude-code"}, false, remoteRuntime(), nil)
+		listing, "1.0.0", domain.ScopeUser, "", []string{"claude-code"}, false, remoteRuntime(), nil)
 	if err != nil {
 		t.Fatalf("remote install: %v", err)
 	}
@@ -647,4 +647,57 @@ func TestPrintMCPInstallOutcomeText(t *testing.T) {
 			t.Errorf("stdio outcome lost its --env advice:\n%s", out)
 		}
 	})
+}
+
+// TestRemoveProjectInstallDropsItsHostRegistration is the regression test for
+// the orphaned row: host registrations are deleted by the exact tuple
+// (host, scope, workspace, key), so passing a hard-coded empty workspace —
+// which is what removal used to do — silently MISSED the rows a project
+// install writes, and the registration outlived the install it described.
+func TestRemoveProjectInstallDropsItsHostRegistration(t *testing.T) {
+	ctx := context.Background()
+	db := openTestState(t)
+	dataRoot := t.TempDir()
+	homeWithBridge(t)
+	project := t.TempDir()
+
+	outcome, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeProject, project,
+		[]string{"cursor"}, false, stdioRuntime(), nil)
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	projectConfig := filepath.Join(project, ".cursor", "mcp.json")
+	if data, readErr := os.ReadFile(projectConfig); readErr != nil || !strings.Contains(string(data), `"demo-mcp"`) {
+		t.Fatalf("the entry must be in the project's own config (%s): %v\n%s", projectConfig, readErr, data)
+	}
+
+	regs, err := db.ListHostRegistrationsForEntry(ctx, domain.ScopeProject, "demo-mcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(regs) != 1 {
+		t.Fatalf("expected one host registration, got %d", len(regs))
+	}
+	if regs[0].WorkspaceID == "" || regs[0].WorkspaceID != domain.WorkspaceIDForProjectRoot(project) {
+		t.Fatalf("the registration must carry this project's workspace id, got %q", regs[0].WorkspaceID)
+	}
+
+	if err := removeInstalledPackage(ctx, db, dataRoot, outcome.InstallID); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+
+	regs, err = db.ListHostRegistrationsForEntry(ctx, domain.ScopeProject, "demo-mcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(regs) != 0 {
+		t.Fatalf("the host registration outlived its install: %+v", regs)
+	}
+	if _, err := db.GetInstall(ctx, outcome.InstallID); err == nil {
+		t.Error("the install record should be gone after removal")
+	}
+	if data, readErr := os.ReadFile(projectConfig); readErr == nil && strings.Contains(string(data), `"demo-mcp"`) {
+		t.Errorf("the entry survived removal in the project config:\n%s", data)
+	}
 }

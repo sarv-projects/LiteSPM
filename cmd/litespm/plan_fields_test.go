@@ -341,7 +341,7 @@ func assertVersionLessPlan(t *testing.T, row *domain.Listing, rec *domain.Versio
 	client.IndexListings([]*domain.Listing{row})
 	client.IndexVersionRecords([]*domain.VersionRecord{rec})
 
-	plan, _, rpcErr := buildInstallPlan(ctx, client, row.ID, "", domain.ScopeUser, row, nil)
+	plan, _, rpcErr := buildInstallPlan(ctx, client, row.ID, "", domain.ScopeUser, "", row, nil)
 	if rpcErr != nil {
 		t.Fatalf("version-less listing must resolve, got: %s", rpcErr.Message)
 	}
@@ -498,7 +498,7 @@ func TestBuildInstallPlanFiltersIncapableHostsForRemoteRuntime(t *testing.T) {
 		Runtime: remoteRuntime(),
 	}
 	plan, drops, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, listing, binding)
+		domain.ScopeUser, "", listing, binding)
 	if rpcErr != nil {
 		t.Fatalf("plan build failed: %s", rpcErr.Message)
 	}
@@ -558,7 +558,7 @@ func TestBuildInstallPlanExplicitHostFailsByName(t *testing.T) {
 		ExplicitHosts: true,
 	}
 	plan, drops, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, listing, binding)
+		domain.ScopeUser, "", listing, binding)
 	if rpcErr == nil {
 		t.Fatalf("an explicit host that cannot express a remote entry was accepted: %+v", plan)
 	}
@@ -590,7 +590,7 @@ func TestBuildInstallPlanAllIncapableHostsFailWithCapabilityReason(t *testing.T)
 		Runtime: remoteRuntime(),
 	}
 	plan, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, listing, binding)
+		domain.ScopeUser, "", listing, binding)
 	if rpcErr == nil {
 		t.Fatalf("an all-incapable target set produced a plan: %+v", plan)
 	}
@@ -624,7 +624,7 @@ func TestBuildInstallPlanFiltersHostsThatLackTheTransport(t *testing.T) {
 		},
 	}
 	plan, drops, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, listing, binding)
+		domain.ScopeUser, "", listing, binding)
 	if rpcErr != nil {
 		t.Fatalf("plan build failed: %s", rpcErr.Message)
 	}
@@ -659,7 +659,7 @@ func TestBuildInstallPlanRefusesUnsafeEndpoint(t *testing.T) {
 				Type: "streamable-http", Endpoint: tc.endpoint,
 			}}
 			plan, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-				domain.ScopeUser, listing, binding)
+				domain.ScopeUser, "", listing, binding)
 			if rpcErr == nil {
 				t.Fatalf("unsafe endpoint %q produced a plan: %+v", tc.endpoint, plan)
 			}
@@ -683,7 +683,7 @@ func TestBuildInstallPlanRefusesUnsafeEndpoint(t *testing.T) {
 			Type: "streamable-http", Endpoint: ok,
 		}}
 		if _, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-			domain.ScopeUser, listing, binding); rpcErr != nil {
+			domain.ScopeUser, "", listing, binding); rpcErr != nil {
 			t.Errorf("legitimate endpoint %q was refused at plan time: %s", ok, rpcErr.Message)
 		}
 	}
@@ -700,7 +700,7 @@ func TestBuildInstallPlanRefusesEnvForRemoteRuntime(t *testing.T) {
 		EnvNames: []string{"API_TOKEN"},
 	}
 	plan, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, listing, binding)
+		domain.ScopeUser, "", listing, binding)
 	if rpcErr == nil {
 		t.Fatalf("--env on a remote runtime produced a plan: %+v", plan)
 	}
@@ -716,7 +716,7 @@ func TestBuildInstallPlanRefusesEnvForRemoteRuntime(t *testing.T) {
 		EnvNames: []string{"API_TOKEN"},
 	}
 	if _, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, listing, stdio); rpcErr != nil {
+		domain.ScopeUser, "", listing, stdio); rpcErr != nil {
 		t.Fatalf("--env on a stdio runtime must still plan: %s", rpcErr.Message)
 	}
 }

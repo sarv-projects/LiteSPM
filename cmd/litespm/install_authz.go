@@ -212,8 +212,8 @@ func recordHumanApproval(ctx context.Context, db *state.DB, plan *domain.Install
 // auto-chosen target set (always empty for an explicit --host set, which
 // fails instead, and for stdio runtimes): the caller prints them so the user
 // sees exactly which hosts the approval covers.
-func authorizeHumanInstall(ctx context.Context, db *state.DB, catClient *catalog.Client, listing *domain.Listing, version string, scope domain.InstallScope, mcpBinding *mcpInstallBinding) (*installGrant, []hostCapabilityDrop, error) {
-	plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, listing.ID, version, scope, listing, mcpBinding)
+func authorizeHumanInstall(ctx context.Context, db *state.DB, catClient *catalog.Client, listing *domain.Listing, version string, scope domain.InstallScope, projectRoot string, mcpBinding *mcpInstallBinding) (*installGrant, []hostCapabilityDrop, error) {
+	plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, listing.ID, version, scope, projectRoot, listing, mcpBinding)
 	if rpcErr != nil {
 		return nil, nil, fmt.Errorf("plan install: %s", rpcErr.Message)
 	}
@@ -340,11 +340,21 @@ func runApprove(args []string) {
 // the URL blind (B1 research §2.4, PART 4 Step 3.4), so the only skip is a
 // descriptor with NEITHER — which the plan gate refuses before a plan exists.
 //
+// A project-scope plan also names the project directory and its workspace id,
+// which together are what the approval binds: the approver sees which project
+// the install lands in, not just that it is "project" scope.
+//
 // It writes to w so the exact bytes can be pinned by a golden test.
 func writeApprovalPrompt(w io.Writer, plan *domain.InstallPlan) {
 	fmt.Fprintf(w, "  listing : %s\n", plan.Request.ListingID)
 	fmt.Fprintf(w, "  version : %s\n", firstNonEmpty(plan.Resolved.Version, plan.Request.RequestedVersion, "latest"))
 	fmt.Fprintf(w, "  scope   : %s\n", plan.Request.TargetScope)
+	// A project install writes into one project: the approver must see which,
+	// because the workspace is what the approval binds (it is inside the plan
+	// hash). A user-scope plan prints no such line.
+	if plan.Request.ProjectRoot != "" {
+		fmt.Fprintf(w, "  project : %s (%s)\n", plan.Request.ProjectRoot, plan.Request.WorkspaceID)
+	}
 	fmt.Fprintf(w, "  effects : %s\n", strings.Join(plan.Effects, ", "))
 	var printedRuntime bool
 	var printedOptions bool

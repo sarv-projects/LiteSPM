@@ -80,10 +80,15 @@ func preparePlan(t *testing.T, h *harness, listingID string) domain.InstallPlan 
 
 func preparePlanScoped(t *testing.T, h *harness, listingID, scope string) domain.InstallPlan {
 	t.Helper()
+	params := map[string]any{"id": listingID, "version": "1.0.0", "scope": scope}
+	if scope == "project" {
+		// A project-scope plan must name its project: the daemon refuses a
+		// workspace-less project plan instead of resolving it silently against
+		// its own working directory.
+		params["projectRoot"] = t.TempDir()
+	}
 	var plan domain.InstallPlan
-	if err := h.client.Call(context.Background(), "resolver.prepare_plan", map[string]any{
-		"id": listingID, "version": "1.0.0", "scope": scope,
-	}, &plan); err != nil {
+	if err := h.client.Call(context.Background(), "resolver.prepare_plan", params, &plan); err != nil {
 		t.Fatalf("prepare_plan: %v", err)
 	}
 	return plan
@@ -256,7 +261,7 @@ func TestAuthorizeHumanInstall_RecordsHumanCLIApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	grant, _, err := authorizeHumanInstall(ctx, h.db, h.catClient, listing, "1.0.0", domain.ScopeUser, nil)
+	grant, _, err := authorizeHumanInstall(ctx, h.db, h.catClient, listing, "1.0.0", domain.ScopeUser, "", nil)
 	if err != nil {
 		t.Fatalf("authorizeHumanInstall: %v", err)
 	}

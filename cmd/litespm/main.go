@@ -478,12 +478,33 @@ func runInteractiveWizard() {
 	}
 }
 
+const bridgeUsage = "Usage: litespm bridge stdio [--host <host-id>] [--workspace <dir>]\n\n" +
+	"  --host      the agent host id this bridge serves (default: generic).\n" +
+	"  --workspace the project directory to report as this agent's project, when it\n" +
+	"              is not the process working directory. It only WIDENS what\n" +
+	"              list_installed, load_skill and read_skill_resource can see: the\n" +
+	"              agent's user-scope installs are always visible, and naming a\n" +
+	"              project adds that project's installs (each labelled with its\n" +
+	"              scope). It is a selection key, not an authorization boundary.\n"
+
 func runBridge(args []string) {
 	hostID := "generic"
+	workspace := ""
 	for i := 0; i < len(args); i++ {
-		if args[i] == "--host" && i+1 < len(args) {
-			hostID = args[i+1]
-			i++
+		switch args[i] {
+		case "--help", "-h":
+			fmt.Print(bridgeUsage)
+			return
+		case "--host":
+			if i+1 < len(args) {
+				hostID = args[i+1]
+				i++
+			}
+		case "--workspace", "-w":
+			if i+1 < len(args) {
+				workspace = args[i+1]
+				i++
+			}
 		}
 	}
 
@@ -504,10 +525,34 @@ func runBridge(args []string) {
 	}
 
 	shim := bridge.NewShim(hostID, client, os.Stdin, os.Stdout)
+	// Best effort, never fatal: a bridge that cannot name the project still
+	// serves the user scope, which is what every bridge did before.
+	shim.ProjectRoot = resolveBridgeProjectRoot(workspace)
 	if err := shim.Serve(context.Background()); err != nil && err != io.EOF {
 		fmt.Fprintf(os.Stderr, "Bridge error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// resolveBridgeProjectRoot resolves the project directory this bridge reports:
+// --workspace when given, else the process working directory. Any failure —
+// no working directory, a path that is not a directory — yields "" (no project
+// context) rather than an error, because losing the project scope must never
+// stop the bridge from serving the user scope.
+func resolveBridgeProjectRoot(workspace string) string {
+	dir := workspace
+	if dir == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return ""
+		}
+		dir = cwd
+	}
+	abs, err := resolveProjectDir(dir)
+	if err != nil {
+		return ""
+	}
+	return abs
 }
 
 func runHostCommand(args []string) {
@@ -937,6 +982,15 @@ type installFlags struct {
 	listingID string
 	version   string
 	scope     domain.InstallScope
+	// scopeSet records an explicit --scope, so --workspace can refuse to
+	// contradict a deliberate `--scope user` instead of quietly overriding it.
+	scopeSet bool
+	// workspace is the project directory a project-scope install targets
+	// (--workspace/-w). It implies --scope project and names the workspace the
+	// install row and its read-back are bound to. Empty means "the current
+	// directory" for a project install, and "no project context" for a user
+	// one.
+	workspace string
 	showHelp  bool
 	// hosts names the agent hosts to register an MCP server with. Empty means
 	// every host whose LiteSPM bridge verifies as registered.
@@ -953,7 +1007,15 @@ type installFlags struct {
 }
 
 const installUsage = "Usage: litespm install <listing-id> [--version <ver>] [--scope user|project]\n" +
-	"                     [--host <host-id>]... [--env <VAR>]... [--force] [--frozen]\n\n" +
+	"                     [--workspace <dir>] [--host <host-id>]... [--env <VAR>]... [--force] [--frozen]\n\n" +
+	"  --scope  user installs for this machine; project installs for one project\n" +
+	"           directory (the current directory, or --workspace).\n" +
+	"  --workspace <dir>\n" +
+	"           the project directory a project-scope install targets. It implies\n" +
+	"           --scope project (an explicit `--scope user` alongside it is a\n" +
+	"           contradiction and is refused). The directory is the workspace\n" +
+	"           identity: the same directory is the same workspace for every\n" +
+	"           install and every read that names it.\n" +
 	"  --host   register an MCP server with this agent host (repeatable). Default: every\n" +
 	"           host where 'litespm host setup' has been run.\n" +
 	"  --env    forward this environment VARIABLE NAME to the server (repeatable). The\n" +
@@ -994,11 +1056,16 @@ func parseInstallFlags(args []string) (installFlags, error) {
 				return flags, fmt.Errorf("invalid --scope %q: must be %s or %s", args[i], domain.ScopeUser, domain.ScopeProject)
 			}
 			flags.scope = scope
+			flags.scopeSet = true
 		case "--workspace", "-w":
 			if i+1 >= len(args) {
 				return flags, fmt.Errorf("flag %s requires a value", arg)
 			}
-			return flags, fmt.Errorf("%s is not supported: workspace targeting is not implemented", arg)
+			i++
+			if strings.TrimSpace(args[i]) == "" {
+				return flags, fmt.Errorf("flag %s requires a project directory", arg)
+			}
+			flags.workspace = args[i]
 		case "--host":
 			if i+1 >= len(args) {
 				return flags, fmt.Errorf("flag %s requires a value", arg)
@@ -1027,6 +1094,16 @@ func parseInstallFlags(args []string) (installFlags, error) {
 		}
 	}
 
+	// --workspace implies a project install. A deliberate `--scope user`
+	// alongside it is a contradiction, not something to silently override:
+	// the user asked for two different targets.
+	if flags.workspace != "" {
+		if flags.scopeSet && flags.scope != domain.ScopeProject {
+			return flags, fmt.Errorf("--workspace %s targets a project, but --scope %s was given: use one, or --scope project", flags.workspace, flags.scope)
+		}
+		flags.scope = domain.ScopeProject
+	}
+
 	if flags.listingID == "" {
 		return flags, fmt.Errorf("missing <listing-id>")
 	}
@@ -1050,6 +1127,34 @@ func runInstall(args []string) {
 	if flags.showHelp {
 		fmt.Println(installUsage)
 		return
+	}
+
+	// A project install is bound to a workspace, and the workspace is an
+	// absolute directory: --workspace names it, otherwise the invoking
+	// process's working directory does. An unusable root is a usage error (2),
+	// resolved here so no plan, host config or state row is created for a
+	// directory that is not real. A user-scope install carries no project root
+	// at all (the workspace fields stay empty), which is what keeps the two
+	// scopes separable.
+	projectRoot := ""
+	if flags.scope == domain.ScopeProject {
+		requested := flags.workspace
+		if requested == "" {
+			cwd, werr := os.Getwd()
+			if werr != nil {
+				fmt.Fprintf(os.Stderr, "Install error: resolve the project directory: %v\n", werr)
+				fmt.Println(installUsage)
+				os.Exit(2)
+			}
+			requested = cwd
+		}
+		abs, perr := resolveProjectDir(requested)
+		if perr != nil {
+			fmt.Fprintf(os.Stderr, "Install error: project directory %s: %v\n", requested, perr)
+			fmt.Println(installUsage)
+			os.Exit(2)
+		}
+		projectRoot = abs
 	}
 
 	// --frozen resolves the version from litespm.lock before anything else:
@@ -1144,7 +1249,7 @@ func runInstall(args []string) {
 	}
 	var grant *installGrant
 	if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP {
-		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, mcpBinding)
+		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, projectRoot, mcpBinding)
 		if gerr != nil {
 			fmt.Fprintf(os.Stderr, "Install failed: %v\n", gerr)
 			os.Exit(1)
@@ -1168,8 +1273,7 @@ func runInstall(args []string) {
 
 	if listing.Kind == domain.KindSkill {
 		home, _ := os.UserHomeDir()
-		project, _ := os.Getwd()
-		outcome, err := installSkillFromListing(ctx, db, paths.DataRoot, project, home, listing, versionOrLatest(flags.version), flags.scope, nil)
+		outcome, err := installSkillFromListing(ctx, db, paths.DataRoot, projectRoot, home, listing, versionOrLatest(flags.version), flags.scope, nil)
 		if err != nil {
 			failInstall(err)
 		}
@@ -1182,7 +1286,7 @@ func runInstall(args []string) {
 		if err != nil {
 			failInstall(err)
 		}
-		outcome, err := installMCPFromListing(ctx, db, paths.DataRoot, listing, grant.Version, flags.scope,
+		outcome, err := installMCPFromListing(ctx, db, paths.DataRoot, listing, grant.Version, flags.scope, projectRoot,
 			plannedBinding.Hosts, plannedBinding.Force, plannedBinding.Runtime, plannedBinding.EnvNames)
 		if err != nil {
 			failInstall(err)
@@ -1820,6 +1924,35 @@ func runDaemonServe() {
 	fmt.Println("[daemon] Shutdown complete.")
 }
 
+// installsForProjectRoot unions the install scopes the IPC read surface can
+// see: the caller's user-scope installs always, plus the project-scope installs
+// of the workspace named by projectRoot when that root is usable.
+//
+// The project root is a SELECTION key, not an authorization boundary: the IPC
+// peer is already authenticated as the same uid and these handlers only select
+// database rows — they never read the filesystem at the supplied path. A root
+// that is empty or not absolute selects no workspace and is not an error: the
+// caller simply sees user scope, which is what every caller saw before.
+//
+// Order is deterministic and is the precedence rule for the single-skill
+// lookups (skills.load_body, skills.read_resource): user rows first, then
+// project rows, so a user-scope install wins a name collision.
+func installsForProjectRoot(ctx context.Context, db *state.DB, projectRoot string) ([]*domain.InstallRecord, error) {
+	installs, err := db.ListInstalls(ctx, domain.ScopeUser, "")
+	if err != nil {
+		return nil, err
+	}
+	workspaceID := domain.WorkspaceIDForProjectRoot(projectRoot)
+	if workspaceID == "" {
+		return installs, nil
+	}
+	project, err := db.ListInstalls(ctx, domain.ScopeProject, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return append(installs, project...), nil
+}
+
 func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.Client, installEngine *install.Engine, paths *config.PlatformPaths, secretStore secrets.SecretStore, supervisor *provider.Supervisor, policyDefaults policy.Defaults) error {
 	// The engine the install paths share must carry the user's real deny tier,
 	// exactly like newPolicyEngine does for the skills/MCP paths. Building it
@@ -1839,17 +1972,23 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 	// the canonical listing ID; external entries carry the kind detected in the
 	// host's own config file.
 	//
-	// Scope: the IPC surface (tools.list, skills.*) is USER-scope only. The
-	// bridge shim calls these methods with nil params over IPC (see
-	// internal/bridge/shim.go), and neither the protocol nor the daemon carries
-	// the agent's project directory, so a project-scope install cannot be
-	// resolved here without inventing a workspace. `list`/`inventory` and
-	// `install.remove` see project-scope installs because they run with the
-	// invoking process's CWD or address an install by id; the daemon cannot.
-	// This is a real limitation, not an oversight: a project context is never
-	// fabricated.
+	// Scope: the two install scopes are unioned. The caller's user-scope
+	// installs are always visible; when it names a usable project root, that
+	// project's installs are added and every item reports which scope it came
+	// from. A caller that names no root (or names one that is not a usable
+	// absolute path) sees user scope only — never an error, and never a
+	// fabricated project.
 	server.RegisterHandler("tools.list", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
-		installs, err := db.ListInstalls(ctx, domain.ScopeUser, "")
+		var req struct {
+			ProjectRoot string `json:"projectRoot,omitempty"`
+		}
+		if len(params) > 0 {
+			if err := json.Unmarshal(params, &req); err != nil {
+				return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params"}
+			}
+		}
+
+		installs, err := installsForProjectRoot(ctx, db, req.ProjectRoot)
 		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
 		}
@@ -1860,6 +1999,7 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				ID:      inst.ListingID,
 				Name:    inst.ListingID,
 				Summary: fmt.Sprintf("Installed capability (v%s)", inst.Version),
+				Scope:   string(inst.Scope),
 			}
 			if lid, err := domain.ParseListingID(inst.ListingID); err == nil {
 				item.Kind = string(lid.Kind())
@@ -1965,9 +2105,10 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 	// persists it so install.execute can re-verify exactly this document.
 	server.RegisterHandler("resolver.prepare_plan", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
 		var req struct {
-			ID      string `json:"id"`
-			Version string `json:"version,omitempty"`
-			Scope   string `json:"scope,omitempty"`
+			ID          string `json:"id"`
+			Version     string `json:"version,omitempty"`
+			Scope       string `json:"scope,omitempty"`
+			ProjectRoot string `json:"projectRoot,omitempty"`
 		}
 		if err := json.Unmarshal(params, &req); err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params"}
@@ -1984,13 +2125,41 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				Message: fmt.Sprintf("invalid scope %q: must be %q or %q", req.Scope, domain.ScopeUser, domain.ScopeProject)}
 		}
 
+		// The workspace of a project install is named, never defaulted: the
+		// daemon's working directory is not the agent's project, and silently
+		// planning against it would bind the install to the wrong workspace.
+		// So a project-scope request without a usable projectRoot is refused
+		// with the fix, and the CLI's --workspace (or the CWD) is the path that
+		// does supply one.
+		//
+		// Decision: a projectRoot sent with scope=user is refused rather than
+		// ignored. It is a contradiction — the caller named a workspace for an
+		// install that has none — and dropping the argument would silently
+		// produce a user-scope plan the caller did not ask for.
+		projectRoot := strings.TrimSpace(req.ProjectRoot)
+		switch {
+		case scope == domain.ScopeProject && projectRoot == "":
+			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams,
+				Message: "a project install must name its project: pass projectRoot, or install from the CLI with --workspace"}
+		case scope == domain.ScopeProject:
+			abs, perr := resolveProjectDir(projectRoot)
+			if perr != nil {
+				return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams,
+					Message: fmt.Sprintf("projectRoot %q does not resolve to a directory: %v", req.ProjectRoot, perr)}
+			}
+			projectRoot = abs
+		case projectRoot != "":
+			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams,
+				Message: "projectRoot is only meaningful for scope=project: a user-scope plan has no workspace"}
+		}
+
 		listing, err := catClient.GetListing(req.ID)
 		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams,
 				Message: fmt.Sprintf("listing %s not found in the local catalog index: %v", req.ID, err)}
 		}
 
-		plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, req.ID, req.Version, scope, listing, nil)
+		plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, req.ID, req.Version, scope, projectRoot, listing, nil)
 		if rpcErr != nil {
 			return nil, rpcErr
 		}
@@ -2068,8 +2237,10 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				}()
 				if listing.Kind == domain.KindSkill {
 					home, _ := os.UserHomeDir()
-					project, _ := os.Getwd()
-					outcome, ierr := installSkillFromListing(ctx, db, paths.DataRoot, project, home, listing, versionOrLatest(version), scope, nil)
+					// The workspace comes from the sealed plan, never from a
+					// fresh request field: the approval the human gave covers
+					// this plan's hash, and the project root is part of it.
+					outcome, ierr := installSkillFromListing(ctx, db, paths.DataRoot, grant.Plan.Request.ProjectRoot, home, listing, versionOrLatest(version), scope, nil)
 					if ierr != nil {
 						return nil, installRPCError(ierr)
 					}
@@ -2090,6 +2261,7 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 					return nil, installRPCError(berr)
 				}
 				outcome, ierr := installMCPFromListing(ctx, db, paths.DataRoot, listing, versionOrLatest(version), scope,
+					grant.Plan.Request.ProjectRoot,
 					mcpBinding.Hosts, mcpBinding.Force, mcpBinding.Runtime, mcpBinding.EnvNames)
 				if ierr != nil {
 					return nil, installRPCError(ierr)
@@ -2176,17 +2348,28 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 	// 7. skills.list returns progressive disclosure index.
 	// Level-1 summaries only: name/description/metadata. Instruction bodies and
 	// raw SKILL.md content stay behind skills.load_body.
-	// USER-scope only, for the same reason as tools.list above: the IPC call
-	// carries no project context.
+	// Both scopes are unioned exactly as tools.list does: user-scope skills
+	// always, plus the named project's when the caller supplies a usable
+	// projectRoot, each summary labelled with its scope.
 	server.RegisterHandler("skills.list", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
-		installs, err := db.ListInstalls(ctx, domain.ScopeUser, "")
+		var req struct {
+			ProjectRoot string `json:"projectRoot,omitempty"`
+		}
+		if len(params) > 0 {
+			if err := json.Unmarshal(params, &req); err != nil {
+				return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params"}
+			}
+		}
+
+		installs, err := installsForProjectRoot(ctx, db, req.ProjectRoot)
 		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
 		}
 
 		type loadedSkill struct {
-			id  string
-			pkg *skills.SkillPackage
+			id    string
+			scope domain.InstallScope
+			pkg   *skills.SkillPackage
 		}
 		var loaded []loadedSkill
 		for _, inst := range installs {
@@ -2195,7 +2378,7 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				continue
 			}
 			if sp, err := skills.LoadSkillFromDirectory(treePath); err == nil {
-				loaded = append(loaded, loadedSkill{id: inst.ListingID, pkg: sp})
+				loaded = append(loaded, loadedSkill{id: inst.ListingID, scope: inst.Scope, pkg: sp})
 			}
 		}
 
@@ -2207,6 +2390,7 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				"id":          l.id,
 				"name":        l.pkg.Name,
 				"description": l.pkg.Description,
+				"scope":       string(l.scope),
 			}
 			if l.pkg.License != "" {
 				summary["license"] = l.pkg.License
@@ -2232,11 +2416,16 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 		}, nil
 	})
 
-	// 8. skills.load_body loads progressive instructions from CAS tree
+	// 8. skills.load_body loads progressive instructions from CAS tree.
+	// The union of user- and (named) project-scope installs is searched in
+	// order, user first, so a user-scope skill wins a name collision with a
+	// project one. An absent or unusable projectRoot narrows the search to user
+	// scope without erroring.
 	server.RegisterHandler("skills.load_body", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
 		var req struct {
-			SkillID string `json:"skillId"`
-			Version string `json:"version,omitempty"`
+			SkillID     string `json:"skillId"`
+			Version     string `json:"version,omitempty"`
+			ProjectRoot string `json:"projectRoot,omitempty"`
 		}
 		if err := json.Unmarshal(params, &req); err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params"}
@@ -2245,7 +2434,7 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params: skillId is required"}
 		}
 
-		installs, err := db.ListInstalls(ctx, domain.ScopeUser, "")
+		installs, err := installsForProjectRoot(ctx, db, req.ProjectRoot)
 		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
 		}
@@ -2284,10 +2473,13 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 	// Fail-closed like skills.load_body: every failure path returns a real RPC
 	// error (not-installed -> -32602, unreadable CAS/file -> -32603) instead of
 	// fabricating a resource body. The path-traversal guards are unchanged.
+	// Scope handling matches skills.load_body: the user/project union, user
+	// first, with an unusable projectRoot narrowing to user scope only.
 	server.RegisterHandler("skills.read_resource", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
 		var req struct {
-			SkillID string `json:"skillId"`
-			Path    string `json:"path"`
+			SkillID     string `json:"skillId"`
+			Path        string `json:"path"`
+			ProjectRoot string `json:"projectRoot,omitempty"`
 		}
 		if err := json.Unmarshal(params, &req); err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params"}
@@ -2296,7 +2488,7 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params: skillId is required"}
 		}
 
-		installs, err := db.ListInstalls(ctx, domain.ScopeUser, "")
+		installs, err := installsForProjectRoot(ctx, db, req.ProjectRoot)
 		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
 		}
@@ -2757,6 +2949,14 @@ type preparePlanResult struct {
 // seals the outcome into a persisted InstallPlan. Resolution failures are
 // returned as RPC errors carrying the resolver's LPSM-RESOLVE-* details.
 //
+// projectRoot is the workspace identity of a project-scope install: an absolute
+// directory, or "" for user scope. It is sealed into the plan Request (both
+// ProjectRoot and its derived WorkspaceID) and therefore covered by the plan
+// hash, so an approval binds the workspace the install will write to and a
+// later execution re-derives it from the sealed document rather than from a
+// fresh client argument. Callers validate the directory before getting here
+// (the CLI exits 2, the IPC handler answers -32602).
+//
 // Every field the plan declares is derived from data already in hand — the
 // listing, the catalog's published version record for the selected version,
 // and the hosts this install scope actually targets. A fact that cannot be
@@ -2767,7 +2967,7 @@ type preparePlanResult struct {
 // The returned drop list names every host removed from an auto-chosen target
 // set because it cannot express the runtime's transport (always empty for a
 // stdio runtime and for an explicit --host set, which fails by name instead).
-func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, version string, scope domain.InstallScope, listing *domain.Listing, mcpBinding *mcpInstallBinding) (*domain.InstallPlan, []hostCapabilityDrop, *ipc.RPCError) {
+func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, version string, scope domain.InstallScope, projectRoot string, listing *domain.Listing, mcpBinding *mcpInstallBinding) (*domain.InstallPlan, []hostCapabilityDrop, *ipc.RPCError) {
 	r := resolver.NewResolver(&catalogResolutionProvider{client: catClient})
 	res, err := r.Resolve(ctx, id, version)
 	if err != nil {
@@ -2812,6 +3012,24 @@ func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, versio
 		}
 		targetHosts = kept
 		droppedHosts = drops
+		// A project-scope MCP install is written into a project config file,
+		// and only the data-driven targets document one. Refusing here — before
+		// the plan is persisted and before a human is asked to approve it —
+		// beats discovering it at execution time, when the approval has already
+		// been spent (internal/host.SupportsProjectScope is the same predicate
+		// the write itself enforces).
+		if scope == domain.ScopeProject {
+			for _, hostID := range targetHosts {
+				adapter, adapterErr := host.GetAdapter(hostID)
+				if adapterErr != nil {
+					return nil, nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: adapterErr.Error()}
+				}
+				if !host.SupportsProjectScope(adapter) {
+					return nil, nil, &ipc.RPCError{Code: ipc.CodeInvalidParams,
+						Message: fmt.Sprintf("host %s has no documented project-scope config path, so %s cannot be installed for a single project; install it with --scope user, or choose a host that documents a project file", adapter.Descriptor().DisplayName, id)}
+				}
+			}
+		}
 	}
 
 	now := time.Now().UTC()
@@ -2824,6 +3042,8 @@ func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, versio
 			ListingID:        id,
 			RequestedVersion: version,
 			TargetScope:      scope,
+			WorkspaceID:      domain.WorkspaceIDForProjectRoot(projectRoot),
+			ProjectRoot:      projectRoot,
 		},
 		Resolved: domain.PlanResolved{
 			Version:   res.SelectedVersions[id],

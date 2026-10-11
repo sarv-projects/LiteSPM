@@ -617,7 +617,7 @@ func configRecordFor(ctx context.Context, inst *domain.InstallRecord, componentN
 	if name == "" {
 		name = locatorName(m)
 	}
-	current := currentOwnedImage(ctx, m)
+	current := currentOwnedImage(ctx, m, projectRootForScope(inst, mutationScope(m.Scope)))
 	st, detail, currentDigest := classifyOwned(m, current)
 	origin := originForListing(inst.ListingID)
 	if st == stateManaged && origin == originAdopted {
@@ -776,7 +776,7 @@ func classifyOwned(m deployment.Mutation, current string) (st, detail, currentDi
 // read-only, with no install behind it and no digest LiteSPM ever wrote.
 func observedRecordFor(ctx context.Context, hostID string, comp host.PreExistingComponent) inventoryRecord {
 	current := ""
-	if fp, err := host.EntryFingerprintNow(ctx, hostID, comp.Name, domain.ScopeUser); err == nil && fp != host.EntryUnreadable {
+	if fp, err := host.EntryFingerprintNow(ctx, hostID, comp.Name, domain.ScopeUser, ""); err == nil && fp != host.EntryUnreadable {
 		current = fp
 	}
 	detail := "found in the agent's own config; LiteSPM reports it read-only"

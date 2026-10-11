@@ -24,7 +24,7 @@ func TestEntryFingerprintIsHashOfWrittenEntryAndDetectsEdits(t *testing.T) {
 			if !strings.HasPrefix(res.Fingerprint, "sha256:") || len(res.Fingerprint) != len("sha256:")+64 {
 				t.Fatalf("fingerprint is not a sha256: %q", res.Fingerprint)
 			}
-			st, err := ReadServerEntryState(ctx, hostID, "demo", domain.ScopeUser)
+			st, err := ReadServerEntryState(ctx, hostID, "demo", domain.ScopeUser, "")
 			if err != nil || st == nil {
 				t.Fatalf("read state: %v %v", st, err)
 			}
@@ -36,12 +36,12 @@ func TestEntryFingerprintIsHashOfWrittenEntryAndDetectsEdits(t *testing.T) {
 				EntryInstallOptions{BackupDir: backups, Scope: domain.ScopeUser}); err != nil {
 				t.Fatal(err)
 			}
-			st2, _ := ReadServerEntryState(ctx, hostID, "demo", domain.ScopeUser)
+			st2, _ := ReadServerEntryState(ctx, hostID, "demo", domain.ScopeUser, "")
 			if st2 == nil || st2.Fingerprint != res.Fingerprint {
 				t.Errorf("sibling install altered the fingerprint of an untouched node")
 			}
 			// Distinct entries have distinct fingerprints.
-			o, _ := ReadServerEntryState(ctx, hostID, "other", domain.ScopeUser)
+			o, _ := ReadServerEntryState(ctx, hostID, "other", domain.ScopeUser, "")
 			if o == nil || o.Fingerprint == res.Fingerprint {
 				t.Errorf("distinct entries must not share a fingerprint")
 			}
@@ -62,7 +62,7 @@ func TestRemoveServerEntryRemovesOnlyTheOwnedEntry(t *testing.T) {
 		EntryInstallOptions{BackupDir: backups, Scope: domain.ScopeUser}); err != nil {
 		t.Fatal(err)
 	}
-	res, err := RemoveServerEntry(ctx, "claude-code", "demo", domain.ScopeUser, backups, "")
+	res, err := RemoveServerEntry(ctx, "claude-code", "demo", domain.ScopeUser, "", backups, "")
 	if err != nil || !res.Removed {
 		t.Fatalf("remove: %+v %v", res, err)
 	}
@@ -76,7 +76,7 @@ func TestRemoveServerEntryRemovesOnlyTheOwnedEntry(t *testing.T) {
 		}
 	}
 	// Second removal reports absence instead of failing or rewriting.
-	res, err = RemoveServerEntry(ctx, "claude-code", "demo", domain.ScopeUser, backups, "")
+	res, err = RemoveServerEntry(ctx, "claude-code", "demo", domain.ScopeUser, "", backups, "")
 	if err != nil || res.Removed {
 		t.Errorf("repeat remove should report not-present: %+v %v", res, err)
 	}
@@ -93,7 +93,7 @@ func TestForceReplaceThenRemoveRestoresPriorEntry(t *testing.T) {
 				EntryInstallOptions{BackupDir: backups, Scope: domain.ScopeUser}); err != nil {
 				t.Fatal(err)
 			}
-			prior, _ := ReadServerEntryState(ctx, hostID, "demo", domain.ScopeUser)
+			prior, _ := ReadServerEntryState(ctx, hostID, "demo", domain.ScopeUser, "")
 			res, err := InstallServerEntry(ctx, hostID, ServerEntry{Name: "demo", Command: "litespm-cmd"},
 				EntryInstallOptions{BackupDir: backups, Scope: domain.ScopeUser, Force: true})
 			if err != nil {
@@ -102,11 +102,11 @@ func TestForceReplaceThenRemoveRestoresPriorEntry(t *testing.T) {
 			if !res.Replaced || res.PriorEntry == "" || res.PriorFingerprint != prior.Fingerprint {
 				t.Fatalf("replace must capture the prior entry: %+v (prior fp %s)", res, prior.Fingerprint)
 			}
-			rm, err := RemoveServerEntry(ctx, hostID, "demo", domain.ScopeUser, backups, res.PriorEntry)
+			rm, err := RemoveServerEntry(ctx, hostID, "demo", domain.ScopeUser, "", backups, res.PriorEntry)
 			if err != nil || !rm.Restored {
 				t.Fatalf("restore: %+v %v", rm, err)
 			}
-			now, _ := ReadServerEntryState(ctx, hostID, "demo", domain.ScopeUser)
+			now, _ := ReadServerEntryState(ctx, hostID, "demo", domain.ScopeUser, "")
 			if now == nil || now.Fingerprint != prior.Fingerprint {
 				t.Errorf("prior entry not restored byte-for-byte semantically: %+v vs %+v", now, prior)
 			}

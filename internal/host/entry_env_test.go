@@ -125,7 +125,7 @@ func TestEnvEntryReadsBackIntact(t *testing.T) {
 	path := filepath.Join(home, ".claude.json")
 	installEnvInto(t, "claude-code", "GITHUB_TOKEN", path)
 
-	entries, err := ListServerEntriesWithValues(t.Context(), "claude-code", domain.ScopeUser)
+	entries, err := ListServerEntriesWithValues(t.Context(), "claude-code", domain.ScopeUser, "")
 	if err != nil {
 		t.Fatalf("read back: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestCodexNameListReadsBackAsResolvableName(t *testing.T) {
 	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
 	installEnvInto(t, "codex", "GITHUB_TOKEN", filepath.Join(home, ".codex", "config.toml"))
 
-	entries, err := ListServerEntriesWithValues(t.Context(), "codex", domain.ScopeUser)
+	entries, err := ListServerEntriesWithValues(t.Context(), "codex", domain.ScopeUser, "")
 	if err != nil {
 		t.Fatalf("read back: %v", err)
 	}

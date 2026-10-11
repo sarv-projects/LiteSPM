@@ -43,7 +43,7 @@ func TestRestoreRollsBackExactPreInstallBytes(t *testing.T) {
 	}
 
 	outcome, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, true, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("force install: %v", err)
@@ -103,7 +103,7 @@ func TestRestoreRemovesEntryFromUntouchedConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	outcome, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("install: %v", err)
@@ -129,7 +129,7 @@ func TestRestoreRefusesWhenSiblingChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	outcome, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("install: %v", err)
@@ -193,7 +193,7 @@ func TestRestoreRefusesWhenOwnedNodeEdited(t *testing.T) {
 		t.Fatal(err)
 	}
 	outcome, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("install: %v", err)
@@ -243,7 +243,7 @@ func TestRestoreRemovesCreatedConfigAndRefusesAdditions(t *testing.T) {
 	configPath := filepath.Join(home, ".claude.json")
 
 	outcome, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("install: %v", err)
@@ -263,7 +263,7 @@ func TestRestoreRemovesCreatedConfigAndRefusesAdditions(t *testing.T) {
 
 	// The user put something of their own into the created config.
 	outcome2, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:other", "other-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:other", "other-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"claude-code"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("second install: %v", err)
@@ -309,7 +309,7 @@ func TestRestoreRollsBackTOMLConfig(t *testing.T) {
 	}
 
 	outcome, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"codex"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("install: %v", err)
@@ -323,7 +323,7 @@ func TestRestoreRollsBackTOMLConfig(t *testing.T) {
 
 	// A sibling TOML section changed since the install → refuse.
 	outcome2, err := installMCPFromListing(authorizedTestContext(), db, dataRoot,
-		mcpListing("mcp:example:other", "other-mcp"), "1.0.0", domain.ScopeUser,
+		mcpListing("mcp:example:other", "other-mcp"), "1.0.0", domain.ScopeUser, "",
 		[]string{"codex"}, false, stdioRuntime(), nil)
 	if err != nil {
 		t.Fatalf("second install: %v", err)

@@ -219,7 +219,7 @@ func TestRemoteEntryRoundTrip(t *testing.T) {
 			installRemote(t, home, tc.hostID, ServerEntry{
 				Name: "demo", Endpoint: remoteTestURL, Transport: TransportStreamableHTTP,
 			}, false)
-			entries, err := ListServerEntriesWithValues(context.Background(), tc.hostID, domain.ScopeUser)
+			entries, err := ListServerEntriesWithValues(context.Background(), tc.hostID, domain.ScopeUser, "")
 			if err != nil {
 				t.Fatalf("ListServerEntriesWithValues: %v", err)
 			}
@@ -477,13 +477,13 @@ func TestRemoveStripsRemoteEntryLeavingSiblings(t *testing.T) {
 			}
 			// The node's own fingerprint is observable and stable, i.e.
 			// entryStateFromContent handles a remote entry.
-			fp, err := EntryFingerprintNow(context.Background(), tc.hostID, "demo", domain.ScopeUser)
+			fp, err := EntryFingerprintNow(context.Background(), tc.hostID, "demo", domain.ScopeUser, "")
 			if err != nil || !strings.HasPrefix(fp, "sha256:") {
 				t.Fatalf("fingerprint of a remote entry: %q, %v", fp, err)
 			}
 
 			res, err := RemoveServerEntry(context.Background(), tc.hostID, "demo",
-				domain.ScopeUser, filepath.Join(home, "backups"), "")
+				domain.ScopeUser, "", filepath.Join(home, "backups"), "")
 			if err != nil {
 				t.Fatalf("remove: %v", err)
 			}
@@ -513,7 +513,7 @@ func TestRemoveRemoteEntryFromCompactFileKeepsSiblings(t *testing.T) {
 		Name: "demo", Endpoint: remoteTestURL, Transport: TransportStreamableHTTP,
 	}, false)
 	if _, err := RemoveServerEntry(context.Background(), "claude-code", "demo",
-		domain.ScopeUser, filepath.Join(home, "backups"), ""); err != nil {
+		domain.ScopeUser, "", filepath.Join(home, "backups"), ""); err != nil {
 		t.Fatalf("remove: %v", err)
 	}
 	after := string(fileContents(t, path))
@@ -552,7 +552,7 @@ func TestRemoteEntryForceReplaceThenRemoveRestoresPrior(t *testing.T) {
 		t.Fatalf("forced install: %v", err)
 	}
 	rem, err := RemoveServerEntry(ctx, "claude-code", "mine", domain.ScopeUser,
-		filepath.Join(home, "backups"), res.PriorEntry)
+		"", filepath.Join(home, "backups"), res.PriorEntry)
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}

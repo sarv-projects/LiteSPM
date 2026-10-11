@@ -310,6 +310,11 @@ type mcpInstallOutcome struct {
 // hosts is the exact approved target set. The installer never re-resolves an
 // empty set from machine state: callers must capture targets in the plan before
 // approval, and an empty set fails closed.
+//
+// projectRoot is the project directory a project-scope install belongs to, and
+// "" for a user-scope install. It is the workspace identity the install row and
+// every host registration carry, so a later read can select exactly this
+// project's registrations. On the IPC path it comes from the sealed plan.
 func installMCPFromListing(
 	ctx context.Context,
 	db *state.DB,
@@ -317,6 +322,7 @@ func installMCPFromListing(
 	listing *domain.Listing,
 	version string,
 	scope domain.InstallScope,
+	projectRoot string,
 	hosts []string,
 	force bool,
 	runtime *domain.RuntimeDescriptor,
@@ -451,7 +457,7 @@ func installMCPFromListing(
 		if force {
 			continue
 		}
-		names, err := host.ListServerEntries(ctx, hostID, scope)
+		names, err := host.ListServerEntries(ctx, hostID, scope, projectRoot)
 		if err != nil {
 			continue // InstallServerEntry reports the real parse/IO failure
 		}
@@ -482,7 +488,11 @@ func installMCPFromListing(
 		result, err := host.InstallServerEntry(ctx, hostID, entry, host.EntryInstallOptions{
 			BackupDir: backupDir,
 			Scope:     scope,
-			Force:     force,
+			// The named project, not this process's working directory: the
+			// install record below records this root as the workspace, so the
+			// file written must be the one at this root or the two disagree.
+			ProjectRoot: projectRoot,
+			Force:       force,
 		})
 		if err != nil {
 			return nil, errors.Join(err, txn.Rollback())
@@ -511,6 +521,8 @@ func installMCPFromListing(
 		TreeDigest:  entryDigest,
 		InstallPath: installPath,
 		Scope:       scope,
+		WorkspaceID: domain.WorkspaceIDForProjectRoot(projectRoot),
+		ProjectRoot: projectRoot,
 		Status:      domain.InstallActive,
 		InstalledAt: time.Now().UTC(),
 		UpdatedAt:   time.Now().UTC(),
@@ -540,6 +552,7 @@ func installMCPFromListing(
 			if err := db.SaveHostRegistrationExec(ctx, tx, &domain.HostRegistrationRecord{
 				HostID:           result.HostID,
 				Scope:            scope,
+				WorkspaceID:      domain.WorkspaceIDForProjectRoot(projectRoot),
 				ConfigPath:       result.ConfigPath,
 				ConfigFormat:     string(hostConfigFormatFor(result.HostID)),
 				ManagedEntryKey:  name,

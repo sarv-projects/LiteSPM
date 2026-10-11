@@ -199,13 +199,14 @@ func buildHelpCatalog() map[string]commandHelp {
 			Purpose:   "Install a capability, or remove one install surgically.",
 			Synopsis: []string{
 				"litespm install <listing-id> [--version <ver>] [--scope user|project]",
-				"               [--host <host-id>]... [--env <VAR>]...",
+				"               [--workspace <dir>] [--host <host-id>]... [--env <VAR>]...",
 				"               [--force] [--frozen]",
 				"litespm install remove <installId>",
 			},
 			Does: []string{
 				"Resolves the listing in the local index, records a plan plus your approval, then installs: skills are copied as files into the agent's own skill directory, and MCP servers are registered as a named entry in each configured agent's config.",
 				"`--host` names the agents to register with (repeatable; default: every agent where `litespm host setup` has been run). `--env <VAR>` forwards an environment variable NAME as a reference the agent expands.",
+				"`--workspace <dir>` installs for one project (the current directory when omitted) and implies `--scope project`; that directory is the workspace identity, so an agent running in it can see the install with `list_installed`.",
 				"`install remove <installId>` strips only LiteSPM's entries and keeps any node you edited; `--frozen` installs exactly the version `litespm lock` recorded.",
 			},
 			DoesNot: []string{
@@ -471,18 +472,21 @@ func buildHelpCatalog() map[string]commandHelp {
 			Canonical: "bridge",
 			Group:     "CONFIGURE",
 			Purpose:   "Serve the stdio MCP bridge an agent host launches.",
-			Synopsis:  []string{"litespm bridge stdio [--host <host-id>]"},
+			Synopsis:  []string{"litespm bridge stdio [--host <host-id>] [--workspace <dir>]"},
 			Does: []string{
 				"Speaks MCP over stdio on the agent's behalf and forwards each request to the running daemon: catalog search, plans, `list_installed`, skill loading and capability invocation.",
+				"`--workspace <dir>` reports the project this agent is working in (default: the process working directory). It only widens what `list_installed`, `load_skill` and `read_skill_resource` can see — the agent's user-scope installs are always visible, and naming a project adds that project's installs, each labelled with its scope.",
 				"Without the daemon it still starts, and says so, so an agent sees an honest empty bridge instead of a hang.",
 			},
 			DoesNot: []string{
 				"Does not persist anything itself, and does not health-check installed capabilities — an unobserved status is rendered unknown, never Ready.",
 				"Does not start the daemon for you.",
+				"`--workspace` is a selection key, not an authorization boundary: it narrows which recorded installs are listed, and the bridge never reads the filesystem at that path.",
 			},
 			Examples: []string{
 				"litespm bridge stdio --host codex",
 				"litespm bridge stdio   # --host defaults to generic",
+				"litespm bridge stdio --host codex --workspace /path/to/project",
 			},
 			SeeAlso: []string{"daemon", "host", "capabilities"},
 		},

@@ -343,12 +343,110 @@ func TestListServerEntriesNeverReportsTheBridge(t *testing.T) {
 	if err := os.WriteFile(claudeFile, []byte(`{"mcpServers":{"litespm":{"command":"/usr/local/bin/litespm"},"context7":{"command":"npx"}}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	names, err := ListServerEntries(ctx, "claude-code", domain.ScopeUser)
+	names, err := ListServerEntries(ctx, "claude-code", domain.ScopeUser, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(names) != 1 || names[0] != "context7" {
 		t.Errorf("expected only the foreign entry, got %v", names)
+	}
+}
+
+// TestProjectScopeWriteBindsToTheNamedProject pins the write target of a
+// project-scope entry. It used to be whatever directory the CALLER happened to
+// be in — DetectConfig derives a project path from the process working
+// directory — while the install record named the workspace it was told, so a
+// `litespm install --workspace <dir>` run from elsewhere wrote the entry into
+// one project's config and recorded another's. The two must be the same file,
+// or the project's own reads never find what LiteSPM says it installed.
+func TestProjectScopeWriteBindsToTheNamedProject(t *testing.T) {
+	home := entryHome(t)
+	ctx := context.Background()
+
+	// A directory that is not the project. Nothing may be written here.
+	elsewhere := t.TempDir()
+	prior, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(elsewhere); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(prior) })
+
+	project := t.TempDir()
+	result, err := InstallServerEntry(ctx, "cursor", ServerEntry{Name: "demo", Command: "npx"}, EntryInstallOptions{
+		BackupDir:   filepath.Join(home, "backups"),
+		Scope:       domain.ScopeProject,
+		ProjectRoot: project,
+	})
+	if err != nil {
+		t.Fatalf("InstallServerEntry: %v", err)
+	}
+	want := filepath.Join(project, ".cursor", "mcp.json")
+	if result.ConfigPath != want {
+		t.Errorf("wrote to %s, want the named project's config %s", result.ConfigPath, want)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("the project config was not created: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(elsewhere, ".cursor", "mcp.json")); !os.IsNotExist(err) {
+		t.Errorf("the entry also landed in the caller's working directory: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".cursor", "mcp.json")); !os.IsNotExist(err) {
+		t.Errorf("a project-scope entry must not be written to the user config: %v", err)
+	}
+
+	// Removal has to reopen the same file it wrote. Deriving the path from the
+	// working directory here would answer "no config file at this path" and
+	// leave the entry behind, so the root travels with the scope.
+	rm, err := RemoveServerEntry(ctx, "cursor", "demo", domain.ScopeProject, project, filepath.Join(home, "backups"), "")
+	if err != nil || !rm.Removed {
+		t.Fatalf("remove at the named project: %v %+v", err, rm)
+	}
+	data, readErr := os.ReadFile(want)
+	if readErr == nil && strings.Contains(string(data), `"demo"`) {
+		t.Errorf("entry survived removal:\n%s", data)
+	}
+}
+
+// TestProjectScopeRefusesHostsWithoutAProjectPath is the honesty rule for the
+// other direction: the six bespoke adapters ignore the scope argument in
+// DetectConfig and would answer with their user config file, so a
+// project-scope install recorded against them would land in a file the record
+// does not describe. Refusing — with the fix in the message — beats writing
+// it anyway.
+func TestProjectScopeRefusesHostsWithoutAProjectPath(t *testing.T) {
+	home := entryHome(t)
+	ctx := context.Background()
+	project := t.TempDir()
+
+	_, err := InstallServerEntry(ctx, "claude-code", ServerEntry{Name: "demo", Command: "npx"}, EntryInstallOptions{
+		BackupDir:   filepath.Join(home, "backups"),
+		Scope:       domain.ScopeProject,
+		ProjectRoot: project,
+	})
+	if err == nil {
+		t.Fatal("a project-scope install for a host with no project config path must be refused")
+	}
+	if !strings.Contains(err.Error(), "--scope user") {
+		t.Errorf("the refusal must name what to do instead, got: %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(home, ".claude.json")); !os.IsNotExist(statErr) {
+		t.Errorf("the refusal must not have written the user config: %v", statErr)
+	}
+
+	for _, tc := range []struct {
+		hostID string
+		want   bool
+	}{{"claude-code", false}, {"codex", false}, {"cursor", true}, {"gemini-cli", true}} {
+		adapter, aerr := GetAdapter(tc.hostID)
+		if aerr != nil {
+			t.Fatalf("adapter %s: %v", tc.hostID, aerr)
+		}
+		if got := SupportsProjectScope(adapter); got != tc.want {
+			t.Errorf("SupportsProjectScope(%s)=%v, want %v", tc.hostID, got, tc.want)
+		}
 	}
 }
 

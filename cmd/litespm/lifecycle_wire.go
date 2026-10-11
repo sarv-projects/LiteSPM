@@ -112,15 +112,24 @@ func locatorName(m deployment.Mutation) string {
 
 // currentOwnedImage is the C image of the ARCH/33 §4 three-way decision:
 // what the owned structure looks like on disk right now ("" = missing).
-func currentOwnedImage(ctx context.Context, m deployment.Mutation) string {
+func currentOwnedImage(ctx context.Context, m deployment.Mutation, projectRoot string) string {
 	if m.StructureType == "skill-dir" {
 		prov, err := skills.CaptureProvenance(m.FilePath)
 		if err != nil {
-			return "" // missing or unreadable directory: reported as orphan
+			return "" // missing or unreadable directory; reported as orphan
 		}
 		return prov.Digest
 	}
-	fp, err := host.EntryFingerprintNow(ctx, m.HostID, locatorName(m), mutationScope(m.Scope))
+	// A project node's config lives in its project, not in this process's
+	// working directory, so the caller supplies the project the node was
+	// written into. With no usable root the entry cannot be fingerprinted at
+	// all, and the unreadable sentinel is the safe answer: reconcile then
+	// treats the node as "not provably ours" (keep it) rather than "gone"
+	// (which would skip the strip that removes the entry and its registration).
+	if mutationScope(m.Scope) == domain.ScopeProject && strings.TrimSpace(projectRoot) == "" {
+		return host.EntryUnreadable
+	}
+	fp, err := host.EntryFingerprintNow(ctx, m.HostID, locatorName(m), mutationScope(m.Scope), projectRoot)
 	if err != nil {
 		// The answer could not be established (unparseable config, unknown
 		// host). Return the unreadable sentinel so reconcile classifies the
@@ -164,7 +173,15 @@ func removeInstalledPackage(ctx context.Context, db *state.DB, dataRoot string, 
 	if orch == nil {
 		return db.DeleteInstall(ctx, installID)
 	}
-	current := func(m deployment.Mutation) string { return currentOwnedImage(ctx, m) }
+	current := func(m deployment.Mutation) string {
+		root, rootErr := projectRootForMutation(ctx, db, m)
+		if rootErr != nil {
+			// The project this node belongs to could not be established, so
+			// neither can its config: reconcile must keep the node.
+			return host.EntryUnreadable
+		}
+		return currentOwnedImage(ctx, m, root)
+	}
 	plan, err := orch.PlanRemove(ctx, installID, current)
 	if err != nil {
 		return err
@@ -190,14 +207,66 @@ func stripOwnedImage(ctx context.Context, db *state.DB, dataRoot string, m deplo
 	}
 	name := locatorName(m)
 	scope := mutationScope(m.Scope)
-	if _, err := host.RemoveServerEntry(ctx, m.HostID, name, scope, backupDirFor(dataRoot), m.PriorEntry); err != nil {
+	projectRoot, rootErr := projectRootForMutation(ctx, db, m)
+	if rootErr != nil {
+		return rootErr
+	}
+	if _, err := host.RemoveServerEntry(ctx, m.HostID, name, scope, projectRoot, backupDirFor(dataRoot), m.PriorEntry); err != nil {
 		return fmt.Errorf("strip entry %q from %s: %w", name, m.FilePath, err)
 	}
 	// The registration row describes an entry that is now gone (or restored
 	// to the user's own text); it must not outlive it. A row that has already
 	// vanished is fine — DeleteHostRegistration only fails on real errors.
-	if err := db.DeleteHostRegistration(ctx, m.HostID, scope, "", name); err != nil {
+	if err := dropHostRegistrations(ctx, db, m.HostID, scope, name); err != nil {
 		return fmt.Errorf("entry %q stripped from %s but its registration row could not be dropped: %w", name, m.FilePath, err)
+	}
+	return nil
+}
+
+// projectRootForMutation is the project directory a project-scope host write
+// targeted, read from the install row — the authority for it. The mutation row
+// records the config path but not the root that named it, and a removal must
+// reopen the same file, so the root has to come from the install. A user-scope
+// write has no project and returns "" without a lookup.
+func projectRootForMutation(ctx context.Context, db *state.DB, m deployment.Mutation) (string, error) {
+	if mutationScope(m.Scope) != domain.ScopeProject {
+		return "", nil
+	}
+	rec, err := db.GetInstall(ctx, m.InstallID)
+	if err != nil {
+		return "", fmt.Errorf("look up install %s for its project directory: %w", m.InstallID, err)
+	}
+	return rec.ProjectRoot, nil
+}
+
+// projectRootForScope is the install's project directory, but only for the rows
+// that belong to project scope: a user-scope registration must not inherit one,
+// or its removal would look for a file the install never wrote.
+func projectRootForScope(rec *domain.InstallRecord, scope domain.InstallScope) string {
+	if scope != domain.ScopeProject {
+		return ""
+	}
+	return rec.ProjectRoot
+}
+
+// dropHostRegistrations removes every host-registration row that names this
+// entry on this host at this scope. The delete predicate is exact —
+// (host, scope, workspace, key) — so a fixed "" workspace used to MISS the rows
+// a project install writes: those carry a real workspace id, and the row
+// survived its own install's removal. Listing the rows first and deleting each
+// with the workspace it was written under is symmetric with the install.
+func dropHostRegistrations(ctx context.Context, db *state.DB, hostID string, scope domain.InstallScope, key string) error {
+	regs, err := db.ListHostRegistrationsForEntry(ctx, scope, key)
+	if err != nil {
+		return err
+	}
+	for _, reg := range regs {
+		if reg.HostID != hostID {
+			continue
+		}
+		if err := db.DeleteHostRegistration(ctx, reg.HostID, reg.Scope, reg.WorkspaceID, key); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -250,7 +319,7 @@ func bestEffortRemove(ctx context.Context, db *state.DB, dataRoot string, rec *d
 				return fmt.Errorf("list host registrations for %q: %w", comp.ComponentName, err)
 			}
 			for _, reg := range regs {
-				if _, err := host.RemoveServerEntry(ctx, reg.HostID, comp.ComponentName, reg.Scope, backupDir, ""); err != nil {
+				if _, err := host.RemoveServerEntry(ctx, reg.HostID, comp.ComponentName, reg.Scope, projectRootForScope(rec, reg.Scope), backupDir, ""); err != nil {
 					return fmt.Errorf("strip %q from host %s: %w", comp.ComponentName, reg.HostID, err)
 				}
 				if err := db.DeleteHostRegistration(ctx, reg.HostID, reg.Scope, reg.WorkspaceID, comp.ComponentName); err != nil {
