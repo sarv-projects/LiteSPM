@@ -376,7 +376,7 @@
     "id": "opencode",
     "name": "OpenCode CLI",
     "format": "json",
-    "keyPath": "mcp",
+    "keyPath": "mcp.servers",
     "shape": "local-array",
     "userPath": "~/.config/opencode/opencode.json",
     "generic": false,

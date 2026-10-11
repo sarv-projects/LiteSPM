@@ -30,6 +30,18 @@ func (a *ClaudeCodeAdapter) DetectConfig(ctx context.Context, scope domain.Insta
 	return filepath.Join(homeDir, ".claude.json"), nil
 }
 
+// ProjectConfigPath implements ProjectConfigPather. Claude Code's documented
+// project-scope file is `.mcp.json` at the project root, with the same
+// `mcpServers` container and entry shapes as `~/.claude.json` (so there is no
+// per-scope entry spec for this host): "Project-scoped servers … storing
+// configurations in a `.mcp.json` file at your project's root directory", and
+// the scopes table gives the file as ".mcp.json in project root".
+// Source: https://code.claude.com/docs/en/mcp (Project scope, MCP installation
+// scopes) — verified 2026-10-11.
+func (a *ClaudeCodeAdapter) ProjectConfigPath(root string) string {
+	return filepath.Join(root, ".mcp.json")
+}
+
 func (a *ClaudeCodeAdapter) PlanSetup(ctx context.Context, binaryPath string, backupDir string) (*HostChangePlan, error) {
 	configPath, err := a.DetectConfig(ctx, domain.ScopeUser)
 	if err != nil {

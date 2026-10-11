@@ -129,7 +129,7 @@ func TestBespokeJSONAdaptersSpliceWithoutRewriting(t *testing.T) {
 		}
 	})
 
-	t.Run("opencode_writes_no_invented_container", func(t *testing.T) {
+	t.Run("opencode_writes_documented_servers_container", func(t *testing.T) {
 		home := spliceHome(t)
 		dir := filepath.Join(home, ".config", "opencode")
 		if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -144,11 +144,8 @@ func TestBespokeJSONAdaptersSpliceWithoutRewriting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PlanSetup: %v", err)
 		}
-		// OpenCode types `mcp` as a map of server entries; a `servers` member is
-		// not in the schema and the runtime rejects it for having no `type`.
-		if strings.Contains(plan.ProposedContent, `"servers"`) {
-			t.Errorf("wrote an undocumented mcp.servers container:\n%s", plan.ProposedContent)
-		}
+		// OpenCode v2 documents servers at `mcp.servers.<name>`; the bridge
+		// must land there, never as a flat member directly under `mcp`.
 		merged, err := parseHostJSON([]byte(plan.ProposedContent))
 		if err != nil {
 			t.Fatalf("merged config does not parse: %v", err)
@@ -157,11 +154,18 @@ func TestBespokeJSONAdaptersSpliceWithoutRewriting(t *testing.T) {
 		if !ok {
 			t.Fatalf("mcp missing:\n%s", plan.ProposedContent)
 		}
+		if _, flat := mcpMap[litespmServerName]; flat {
+			t.Errorf("bridge written flat under mcp:\n%s", plan.ProposedContent)
+		}
+		servers, ok := mcpMap["servers"].(map[string]any)
+		if !ok {
+			t.Fatalf("documented mcp.servers container missing:\n%s", plan.ProposedContent)
+		}
+		if _, ok := servers[litespmServerName]; !ok {
+			t.Errorf("bridge entry missing under mcp.servers:\n%s", plan.ProposedContent)
+		}
 		if _, ok := mcpMap["other"]; !ok {
 			t.Errorf("pre-existing server destroyed:\n%s", plan.ProposedContent)
-		}
-		if _, ok := mcpMap[litespmServerName]; !ok {
-			t.Errorf("bridge entry missing under mcp:\n%s", plan.ProposedContent)
 		}
 		if _, ok := merged["mine"]; !ok {
 			t.Errorf("unrelated top-level key destroyed:\n%s", plan.ProposedContent)
@@ -182,7 +186,7 @@ func TestBespokeJSONAdaptersCreateMissingConfigFile(t *testing.T) {
 		{"claude-code", []string{"mcpServers"}},
 		{"cline", []string{"mcpServers"}},
 		{"pi-agent", []string{"mcpServers"}},
-		{"opencode", []string{"mcp"}},
+		{"opencode", []string{"mcp", "servers"}},
 	} {
 		t.Run(tc.id, func(t *testing.T) {
 			spliceHome(t)

@@ -34,12 +34,29 @@ func (a *ClineAdapter) Descriptor() HostDescriptor {
 // (shared across VSCode, CLI, and JetBrains clients)", and reads the old
 // globalStorage path only as a ONE-SHOT legacy migration. Writing to the
 // globalStorage path therefore does nothing on any current install, while
-// `CLINE_MCP_SETTINGS_PATH` or `CLINE_DATA_DIR` relocate the real one.
+// `CLINE_MCP_SETTINGS_PATH`, `CLINE_DATA_DIR` or `CLINE_DIR` relocate the
+// real one (https://docs.cline.bot/getting-started/config,
+// https://docs.cline.bot/mcp/mcp-overview):
 //
-// Precedence: the env overrides first (they are what the running client uses),
-// then the shared path, then the legacy globalStorage files for a client too
-// old to have migrated. When nothing exists yet we create the shared path,
-// because that is the file every current Cline reads.
+//   - CLINE_MCP_SETTINGS_PATH — the full path of the settings file itself.
+//   - CLINE_DATA_DIR — replaces ~/.cline/data/, so the file lives at
+//     $CLINE_DATA_DIR/settings/cline_mcp_settings.json.
+//   - CLINE_DIR — replaces ~/.cline/ wholesale, so the file lives at
+//     $CLINE_DIR/data/settings/cline_mcp_settings.json.
+//
+// Precedence among the three is MOST SPECIFIC WINS:
+// CLINE_MCP_SETTINGS_PATH > CLINE_DATA_DIR > CLINE_DIR > default. The vendor
+// docs list each variable but never state an order among them; most-specific-
+// wins is the only order consistent with their semantics — a variable that
+// names the exact file pins more than one that names a directory, which in
+// turn pins more than one that only replaces the parent of the data dir — and
+// it degrades gracefully: setting a broader variable in addition to a narrower
+// one changes nothing while the narrower one is set.
+//
+// After the env overrides come the shared default path, then the legacy
+// globalStorage files for a client too old to have migrated. When nothing
+// exists yet we create the most specific override's path, or the shared path
+// when no override is set, because that is the file every current Cline reads.
 func (a *ClineAdapter) DetectConfig(ctx context.Context, scope domain.InstallScope) (string, error) {
 	homeDir := resolveHomeDir()
 
@@ -56,11 +73,18 @@ func (a *ClineAdapter) DetectConfig(ctx context.Context, scope domain.InstallSco
 			preferred = candidate
 		}
 	}
+	if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" {
+		candidate := filepath.Join(clineDir, "data", "settings", "cline_mcp_settings.json")
+		candidates = append(candidates, candidate)
+		if preferred == "" {
+			preferred = candidate
+		}
+	}
 	shared := filepath.Join(homeDir, ".cline", "data", "settings", "cline_mcp_settings.json")
 	candidates = append(candidates, shared)
 
-	// Legacy: VS Code / VS Code Insiders globalStorage, read once by Cline's
-	// settings migration. Kept last so a pre-migration client is still found.
+	// Legacy: unverified VS Code / VS Code Insiders globalStorage locations
+	// kept as last-resort READ targets (see legacyClineSettingsPaths).
 	for _, c := range legacyClineSettingsPaths(homeDir) {
 		candidates = append(candidates, c)
 	}
@@ -78,8 +102,14 @@ func (a *ClineAdapter) DetectConfig(ctx context.Context, scope domain.InstallSco
 	return shared, nil
 }
 
-// legacyClineSettingsPaths lists the pre-migration VS Code globalStorage
+// legacyClineSettingsPaths lists pre-migration VS Code globalStorage
 // locations, in Cline's own order.
+//
+// These are UNVERIFIED legacy paths: they appear in no current vendor
+// documentation page (https://docs.cline.bot/getting-started/config,
+// https://docs.cline.bot/mcp/mcp-overview). They survive only as last-resort
+// READ targets for a pre-migration client whose config never moved; nothing
+// ever writes to them.
 func legacyClineSettingsPaths(homeDir string) []string {
 	suffix := filepath.Join("User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
 	var roots []string

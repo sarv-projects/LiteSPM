@@ -288,9 +288,15 @@ func TestInstallServerEntryHostShapes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("written config does not parse: %v\n%s", err, data)
 		}
-		entry, ok := root["mcp"].(map[string]any)["brave-search"].(map[string]any)
+		// OpenCode's documented v2 container is mcp.servers; the flat `mcp.<name>`
+		// shape is a legacy layout LiteSPM still reads but no longer writes.
+		mcp, ok := root["mcp"].(map[string]any)
 		if !ok {
-			t.Fatalf("entry missing:\n%s", data)
+			t.Fatalf("mcp container missing:\n%s", data)
+		}
+		entry, ok := mcp["servers"].(map[string]any)["brave-search"].(map[string]any)
+		if !ok {
+			t.Fatalf("entry missing from mcp.servers:\n%s", data)
 		}
 		if entry["type"] != "local" {
 			t.Errorf("opencode requires type=local: %v", entry)
@@ -411,17 +417,18 @@ func TestProjectScopeWriteBindsToTheNamedProject(t *testing.T) {
 }
 
 // TestProjectScopeRefusesHostsWithoutAProjectPath is the honesty rule for the
-// other direction: the six bespoke adapters ignore the scope argument in
-// DetectConfig and would answer with their user config file, so a
-// project-scope install recorded against them would land in a file the record
-// does not describe. Refusing — with the fix in the message — beats writing
-// it anyway.
+// other direction: a bespoke adapter that ignores the scope argument in
+// DetectConfig would answer with its user config file, so a project-scope
+// install recorded against it would land in a file the record does not
+// describe. Refusing — with the fix in the message — beats writing it anyway.
+// Claude Code no longer belongs here: it documents `.mcp.json` at the project
+// root and opts in through ProjectConfigPather (see the round-trip test below).
 func TestProjectScopeRefusesHostsWithoutAProjectPath(t *testing.T) {
 	home := entryHome(t)
 	ctx := context.Background()
 	project := t.TempDir()
 
-	_, err := InstallServerEntry(ctx, "claude-code", ServerEntry{Name: "demo", Command: "npx"}, EntryInstallOptions{
+	_, err := InstallServerEntry(ctx, "cline", ServerEntry{Name: "demo", Command: "npx"}, EntryInstallOptions{
 		BackupDir:   filepath.Join(home, "backups"),
 		Scope:       domain.ScopeProject,
 		ProjectRoot: project,
@@ -432,14 +439,27 @@ func TestProjectScopeRefusesHostsWithoutAProjectPath(t *testing.T) {
 	if !strings.Contains(err.Error(), "--scope user") {
 		t.Errorf("the refusal must name what to do instead, got: %v", err)
 	}
-	if _, statErr := os.Stat(filepath.Join(home, ".claude.json")); !os.IsNotExist(statErr) {
+	if _, statErr := os.Stat(filepath.Join(home, ".cline", "data", "settings", "cline_mcp_settings.json")); !os.IsNotExist(statErr) {
 		t.Errorf("the refusal must not have written the user config: %v", statErr)
 	}
 
 	for _, tc := range []struct {
 		hostID string
 		want   bool
-	}{{"claude-code", false}, {"codex", false}, {"cursor", true}, {"gemini-cli", true}} {
+	}{
+		// Opted in through host.ProjectConfigPather, each with the project file
+		// its own vendor documents (see the per-host project-scope tests).
+		{"claude-code", true}, // <root>/.mcp.json
+		{"codex", true},       // <root>/.codex/config.toml
+		{"grok-build", true},  // <root>/.grok/config.toml
+		{"opencode", true},    // <root>/opencode.json
+		{"pi-agent", true},    // <root>/.pi/mcp.json
+		// Data-driven targets carry their project path in the BridgeTarget row.
+		{"cursor", true},
+		{"gemini-cli", true},
+		// Cline documents no project MCP file at all, so it refuses.
+		{"cline", false},
+	} {
 		adapter, aerr := GetAdapter(tc.hostID)
 		if aerr != nil {
 			t.Fatalf("adapter %s: %v", tc.hostID, aerr)
@@ -447,6 +467,57 @@ func TestProjectScopeRefusesHostsWithoutAProjectPath(t *testing.T) {
 		if got := SupportsProjectScope(adapter); got != tc.want {
 			t.Errorf("SupportsProjectScope(%s)=%v, want %v", tc.hostID, got, tc.want)
 		}
+	}
+}
+
+// TestProjectScopeInstallRoundTripForClaudeCode pins the first bespoke
+// adapter with a documented project file: Claude Code's `.mcp.json` at the
+// project root, with the same `mcpServers` container as `~/.claude.json`
+// (https://code.claude.com/docs/en/mcp, "Project scope" / MCP installation
+// scopes). The entry must land in the project's file and never in the user's
+// config, and removal must reopen the same file and take the entry out.
+func TestProjectScopeInstallRoundTripForClaudeCode(t *testing.T) {
+	home := entryHome(t)
+	ctx := context.Background()
+	project := t.TempDir()
+
+	result, err := InstallServerEntry(ctx, "claude-code", ServerEntry{
+		Name: "demo", Command: "npx", Args: []string{"-y", "demo-mcp"},
+	}, EntryInstallOptions{
+		BackupDir:   filepath.Join(home, "backups"),
+		Scope:       domain.ScopeProject,
+		ProjectRoot: project,
+	})
+	if err != nil {
+		t.Fatalf("project-scope install for claude-code: %v", err)
+	}
+	want := filepath.Join(project, ".mcp.json")
+	if result.ConfigPath != want {
+		t.Errorf("wrote to %s, want the project file %s", result.ConfigPath, want)
+	}
+	data, readErr := os.ReadFile(want)
+	if readErr != nil {
+		t.Fatalf("the project .mcp.json was not created: %v", readErr)
+	}
+	if !strings.Contains(string(data), `"mcpServers"`) || !strings.Contains(string(data), `"demo"`) {
+		t.Errorf("the entry is not in the project .mcp.json:\n%s", data)
+	}
+	if _, statErr := os.Stat(filepath.Join(home, ".claude.json")); !os.IsNotExist(statErr) {
+		t.Errorf("a project-scope entry must not be written to the user config: %v", statErr)
+	}
+
+	// Removal reopens the same project file — the entry leaves it without
+	// touching the user config.
+	rm, err := RemoveServerEntry(ctx, "claude-code", "demo", domain.ScopeProject, project, filepath.Join(home, "backups"), "")
+	if err != nil || !rm.Removed {
+		t.Fatalf("remove at the project file: %v %+v", err, rm)
+	}
+	data, readErr = os.ReadFile(want)
+	if readErr != nil {
+		t.Fatalf("re-read the project file after removal: %v", readErr)
+	}
+	if strings.Contains(string(data), `"demo"`) {
+		t.Errorf("entry survived removal:\n%s", data)
 	}
 }
 

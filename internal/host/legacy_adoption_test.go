@@ -244,12 +244,13 @@ func TestPiAgentIgnoresForeignContainersAndAdoptsLegacyEntry(t *testing.T) {
 	}
 }
 
-// TestOpenCodeAdoptsLegacyEntryInBothLayouts covers the flat layout and the
-// nested `mcp.servers` layout that earlier LiteSPM versions wrote. Upstream
-// OpenCode has no nested layout — the published schema types `mcp` as a map of
-// server entries and the runtime rejects a member without `type` — so the
-// legacy entry must be adopted from wherever it sits and the current entry
-// written flat, or the bridge is invisible to the host.
+// TestOpenCodeAdoptsLegacyEntryInBothLayouts covers the two positions a
+// legacy bridge can sit in: flat at `mcp.litepsm` (the v1 shape older
+// LiteSPM releases wrote) and nested at `mcp.servers.litepsm`. Whichever it
+// sits in, PlanSetup must adopt it — strip the pre-rename entry, write exactly
+// one current entry at the documented v2 container `mcp.servers.<name>`
+// (https://opencode.ai/v2/docs/mcp-servers), and never leave a flat twin that
+// would register the same server name twice.
 func TestOpenCodeAdoptsLegacyEntryInBothLayouts(t *testing.T) {
 	ctx := context.Background()
 	cases := []struct {
@@ -260,12 +261,12 @@ func TestOpenCodeAdoptsLegacyEntryInBothLayouts(t *testing.T) {
 		{
 			name:    "flat",
 			seed:    `{"mcp":{"mine":{"command":"x"},"litepsm":{"command":"/old/legacy"}}}`,
-			keyPath: []string{"mcp"},
+			keyPath: []string{"mcp", "servers"},
 		},
 		{
 			name:    "legacy nested layout",
 			seed:    `{"mcp":{"servers":{"mine":{"type":"local","command":["x"]},"litepsm":{"type":"local","command":["/old/legacy"]}}}}`,
-			keyPath: []string{"mcp"},
+			keyPath: []string{"mcp", "servers"},
 		},
 	}
 	for _, tc := range cases {

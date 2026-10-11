@@ -48,6 +48,29 @@ func (a *CodexAdapter) DetectConfig(ctx context.Context, scope domain.InstallSco
 	return filepath.Join(dir, "config.toml"), nil
 }
 
+// ProjectConfigPath implements ProjectConfigPather. Codex documents a
+// project-scoped `config.toml` beside the project: "Codex stores MCP
+// configuration in `config.toml` … By default this is `~/.codex/config.toml`,
+// but you can also scope MCP servers to a project with `.codex/config.toml`
+// (trusted projects only)". The trusted-projects gate is Codex's own load-time
+// policy — Codex reads a project config only for projects the user has marked
+// trusted — not a write-time concern of ours: writing the entry is always safe,
+// and whether Codex currently honours the file is Codex's decision to make.
+//
+// The container key is the SAME at both scopes, so this host needs no
+// per-scope entry spec — only a path: the MCP docs say "Configure each MCP
+// server with a `[mcp_servers.<server-name>]` table in the configuration file"
+// for `~/.codex/config.toml` *or* a project-scoped `.codex/config.toml`, and
+// the configuration reference confirms project files are the same `config.toml`
+// format with a small ignore-list (`model_provider`, `notify`, …) that does
+// not include `mcp_servers`.
+// Sources: https://learn.chatgpt.com/docs/extend/mcp and
+// https://learn.chatgpt.com/docs/config-file/config-reference — verified
+// 2026-10-11.
+func (a *CodexAdapter) ProjectConfigPath(root string) string {
+	return filepath.Join(root, ".codex", "config.toml")
+}
+
 func (a *CodexAdapter) PlanSetup(ctx context.Context, binaryPath string, backupDir string) (*HostChangePlan, error) {
 	configPath, err := a.DetectConfig(ctx, domain.ScopeUser)
 	if err != nil {

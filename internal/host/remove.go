@@ -66,8 +66,10 @@ var bespokeRemovalSpecs = map[string]removalSpec{
 
 // removalSpecFor resolves the removal spec for any registered adapter.
 //
-// OpenCode is the one host with two documented layouts (v1 `mcpServers`, v2
-// `mcp.servers`), so its spec is chosen by reading the file rather than assumed.
+// OpenCode is the one host with several documented container shapes (v1 flat
+// `mcp.<name>`, v2 nested `mcp.servers.<name>`, plus the `mcpServers` spelling
+// some configs use), so its spec lists every candidate and the removal path
+// tries each in turn rather than assuming the one the adapter last wrote.
 func removalSpecFor(adapter HostAdapter) (removalSpec, error) {
 	id := strings.ToLower(adapter.Descriptor().HostID)
 
@@ -98,17 +100,16 @@ func removalSpecFor(adapter HostAdapter) (removalSpec, error) {
 	return removalSpec{}, fmt.Errorf("no removal path is defined for host %q", id)
 }
 
-// openCodeRemovalSpec lists every documented OpenCode container shape.
+// openCodeRemovalSpec lists every documented OpenCode container shape,
+// most-likely-first: `mcp.servers` (the v2 container the adapter writes), then
+// the v1 flat `mcp`, then the `mcpServers` spelling some configs use.
 //
-// OpenCode is the one host with more than one layout: v1 keeps servers
-// directly under `mcp`, v2 nests them under `mcp.servers`, and some configs
-// use the `mcpServers` spelling. Which shape a file uses can also differ from
-// the one the adapter last wrote — after an upgrade, or when a user
-// reorganised their config by hand — so removal tries each in turn and
-// rewrites only the one that actually holds an entry. Deriving the path by
-// reading the file is not enough on its own: a config that fails to parse
-// (JSONC, a stray trailing comma) would silently push removal onto the wrong
-// path and leave the bridge registration behind.
+// Which shape a file uses can differ from the one the adapter last wrote —
+// after an upgrade, or when a user reorganised their config by hand — so
+// removal tries each in turn and rewrites only the one that actually holds an
+// entry. Deriving the path by reading the file is not enough on its own: a
+// config that fails to parse (JSONC, a stray trailing comma) would silently
+// push removal onto the wrong path and leave the bridge registration behind.
 func openCodeRemovalSpec() removalSpec {
 	paths := [][]string{{"mcp", "servers"}, {"mcp"}, {"mcpServers"}}
 	return removalSpec{Format: FormatJSON, KeyPath: paths[0], Candidates: paths}

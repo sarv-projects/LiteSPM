@@ -5,20 +5,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/sarv-projects/litespm/internal/domain"
 )
 
 // OpenCodeAdapter manages integration with OpenCode CLI.
 //
-// OpenCode has ONE documented layout: servers are direct members of the root
-// `mcp` object, each one carrying a `type`. The nested `mcp.servers` container
-// that older LiteSPM releases wrote is not part of that layout — it is not in
-// the published schema and the runtime rejects a member without `type` — so
-// this adapter never writes it. It is still *read* (verify, pre-existing-tool
-// detection) so an install that already carries the nested shape keeps
-// reporting and detecting what is actually on disk.
+// OpenCode v2 documents ONE layout for MCP servers: each one lives at
+// `mcp.servers.<name>` (https://opencode.ai/v2/docs/mcp-servers, "Config").
+// Flat members directly under `mcp` — what earlier LiteSPM releases wrote —
+// are the v1 shape: a live v2.0.26 run still loads them, but the v2 docs state
+// that flat names under `mcp` are not the v2 layout. So this adapter WRITES
+// the documented nested container and keeps READING both shapes (setup verify,
+// pre-existing-tool detection) so a config written in either shape keeps
+// reporting what is actually on disk.
 type OpenCodeAdapter struct{}
 
 func (a *OpenCodeAdapter) Descriptor() HostDescriptor {
@@ -66,6 +66,18 @@ func (a *OpenCodeAdapter) DetectConfig(ctx context.Context, scope domain.Install
 	return candidates[1], nil
 }
 
+// ProjectConfigPath implements ProjectConfigPather. OpenCode's project-scope
+// config file is `opencode.json` / `opencode.jsonc` at the project root (the
+// `.opencode/opencode.json(c)` subdirectory form is the next candidate in the
+// same upward walk from the working directory), so a named project resolves to
+// the plain file at its root — the first place that walk looks
+// (https://opencode.ai/v2/docs/config, "Locations"; verified 2026-10-11). The
+// project file shares the user file's schema, so the entry spec — including
+// the `mcp.servers` container — is identical at both scopes.
+func (a *OpenCodeAdapter) ProjectConfigPath(root string) string {
+	return filepath.Join(root, "opencode.json")
+}
+
 func (a *OpenCodeAdapter) PlanSetup(ctx context.Context, binaryPath string, backupDir string) (*HostChangePlan, error) {
 	configPath, err := a.DetectConfig(ctx, domain.ScopeUser)
 	if err != nil {
@@ -82,15 +94,13 @@ func (a *OpenCodeAdapter) PlanSetup(ctx context.Context, binaryPath string, back
 		return nil, err
 	}
 
-	// OpenCode has ONE documented layout: servers are direct members of the
-	// `mcp` object. The published schema types `mcp` as additionalProperties of
-	// McpLocalConfig/McpRemoteConfig and contains no `servers` key, and the
-	// runtime rejects a member without `type`
-	// ("Ignoring MCP config entry without type"). A two-level `mcp.servers`
-	// path was therefore invented here and silently produced a config
-	// OpenCode refuses to load, while this adapter's own verify looked for the
-	// same invented path and reported ready.
-	orig := pruneEmptyLegacyServersObject(origContent)
+	// OpenCode v2 documents servers under `mcp.servers.<name>`
+	// (https://opencode.ai/v2/docs/mcp-servers, "Config"), so the bridge goes
+	// there. The flat `mcp.litespm` member an earlier LiteSPM release wrote is
+	// the v1 shape the runtime still loads: migrate it out here, or one config
+	// would carry two bridge registrations that flatten to the same server
+	// name. Foreign flat members (`mcp.weather` and friends) are left alone.
+	orig := stripLegacyFlatBridgeEntries(origContent)
 
 	bridgeEntry := map[string]any{
 		"type": "local",
@@ -99,7 +109,7 @@ func (a *OpenCodeAdapter) PlanSetup(ctx context.Context, binaryPath string, back
 		"command": append([]string{filepath.ToSlash(binaryPath)}, "bridge", "stdio", "--host", "opencode"),
 	}
 
-	proposed, err := renderBridgeEntryJSON("opencode", orig, []string{"mcp"}, bridgeEntry)
+	proposed, err := renderBridgeEntryJSON("opencode", orig, []string{"mcp", "servers"}, bridgeEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -126,25 +136,19 @@ func (a *OpenCodeAdapter) ApplySetup(ctx context.Context, plan *HostChangePlan) 
 	}, nil
 }
 
-// pruneEmptyLegacyServersObject removes the `mcp.servers` object that earlier
-// LiteSPM versions wrote, but only once it is empty. OpenCode treats every
-// member of `mcp` as a server definition and rejects one without `type`, so a
-// leftover `servers` object is a config error the user cannot see the cause of.
-// A `servers` object that still holds someone else's entries is left alone.
-func pruneEmptyLegacyServersObject(orig string) string {
+// stripLegacyFlatBridgeEntries removes LiteSPM's own bridge members from the
+// flat `mcp.<name>` position (the v1 shape) so a setup can migrate the bridge
+// into the documented v2 container `mcp.servers.<name>` without leaving a
+// second registration behind. It touches only the two names LiteSPM has ever
+// written (`litespm` and its pre-rename `litepsm`); foreign flat members stay
+// put, and `mcp.servers` itself is never touched — that container is the
+// documented home of servers, not residue to prune.
+func stripLegacyFlatBridgeEntries(orig string) string {
 	out := orig
-	for _, name := range []string{legacyServerName, litespmServerName} {
-		if stripped, removed, err := stripJSONEntryNamed(out, []string{"mcp", "servers"}, name); err == nil && removed {
+	for _, name := range []string{litespmServerName, legacyServerName} {
+		if stripped, removed, err := stripJSONEntryNamed(out, []string{"mcp"}, name); err == nil && removed {
 			out = stripped
 		}
-	}
-	innerStart, innerEnd, found, spanErr := jsonValueSpan(stripJSONComments(out), []string{"mcp", "servers"})
-	if spanErr == nil && found && !isEmptyJSONObject(strings.TrimSpace(out[innerStart:innerEnd])) {
-		// Someone else's servers are still configured there: leave it be.
-		return out
-	}
-	if pruned, prunedOK, err := stripJSONEntryNamed(out, []string{"mcp"}, "servers"); err == nil && prunedOK {
-		return pruned
 	}
 	return out
 }
@@ -167,16 +171,18 @@ func (a *OpenCodeAdapter) VerifySetup(ctx context.Context) (*HostVerification, e
 
 	registered := false
 	if mcpVal, ok := rootMap["mcp"].(map[string]any); ok {
-		// The documented layout is flat: `mcp.litespm`. A nested
-		// `mcp.servers` container is only ever the residue of an older
-		// LiteSPM release, but it must still verify — the bridge entry is
-		// real, and reporting "missing" would send the user to re-run a
-		// setup that already succeeded.
+		// The documented v2 container: `mcp.servers.litespm`.
 		if serversVal, ok := mcpVal["servers"].(map[string]any); ok {
 			if _, ok := serversVal["litespm"]; ok {
 				registered = true
 			}
-		} else if _, ok := mcpVal["litespm"]; ok {
+		}
+		// The v1 flat shape (`mcp.litespm`) is still loaded by a live v2.0.26
+		// run, so it must verify too: the bridge entry is real, and reporting
+		// "missing" would send the user to re-run a setup that already
+		// succeeded. Both shapes are checked independently — a file holds
+		// either one, and during a migration both.
+		if _, ok := mcpVal["litespm"]; ok {
 			registered = true
 		}
 	}
@@ -216,26 +222,29 @@ func (a *OpenCodeAdapter) DetectPreExistingComponents(ctx context.Context) ([]Pr
 		return nil, nil
 	}
 
-	// The documented layout stores servers directly under `mcp`. A nested
-	// `mcp.servers` container is the residue of an older LiteSPM release; it is
-	// read here so those installs still surface their foreign entries, and it is
-	// never written.
+	// Both shapes are read: the documented v2 container `mcp.servers.<name>`
+	// and the v1 flat members directly under `mcp`. Neither is preferred over
+	// what is on disk — a config holds either one (or both during a
+	// migration), and a foreign tool configured in the shape LiteSPM does not
+	// write must still surface here.
+	seen := make(map[string]bool)
+	add := func(name string, details any) {
+		if name == litespmServerName || name == legacyServerName || name == "servers" {
+			return
+		}
+		if seen[name] {
+			return
+		}
+		seen[name] = true
+		results = append(results, a.extractComponent(name, details, configPath))
+	}
 	if serversVal, ok := mcpVal["servers"].(map[string]any); ok {
 		for name, details := range serversVal {
-			if name == litespmServerName || name == legacyServerName {
-				continue
-			}
-			comp := a.extractComponent(name, details, configPath)
-			results = append(results, comp)
+			add(name, details)
 		}
-	} else {
-		for name, details := range mcpVal {
-			if name == litespmServerName || name == legacyServerName || name == "servers" {
-				continue
-			}
-			comp := a.extractComponent(name, details, configPath)
-			results = append(results, comp)
-		}
+	}
+	for name, details := range mcpVal {
+		add(name, details)
 	}
 
 	return results, nil
@@ -281,20 +290,20 @@ func (a *OpenCodeAdapter) extractComponent(name string, details any, configPath 
 
 // RenderManualSetup prints the snippet the wizard falls back on when it cannot
 // write the config itself. It shows the same shape PlanSetup writes:
-// bespokeEntrySpecs["opencode"] is KeyPath ["mcp"] with ShapeLocalArray, so the
-// servers sit directly under `mcp`. The nested `mcp.servers` container earlier
-// revisions printed here is not in OpenCode's published schema — the runtime
-// treats every member of `mcp` as a server definition and rejects one without
-// `type` — which meant pasting the old snippet produced a config OpenCode
-// never loads.
+// bespokeEntrySpecs["opencode"] is KeyPath ["mcp","servers"] with
+// ShapeLocalArray, so each server sits at `mcp.servers.<name>` — the layout
+// OpenCode v2 documents (https://opencode.ai/v2/docs/mcp-servers, "Config") —
+// carrying `"type": "local"` and a combined command array.
 func (a *OpenCodeAdapter) RenderManualSetup(binaryPath string) string {
 	cleanBin := filepath.ToSlash(binaryPath)
-	return fmt.Sprintf(`// Add to opencode.json: each entry under "mcp" is one server.
+	return fmt.Sprintf(`// Add to opencode.json: servers live under "mcp"."servers" (OpenCode v2).
 {
   "mcp": {
-    "litespm": {
-      "type": "local",
-      "command": [%q, "bridge", "stdio", "--host", "opencode"]
+    "servers": {
+      "litespm": {
+        "type": "local",
+        "command": [%q, "bridge", "stdio", "--host", "opencode"]
+      }
     }
   }
 }

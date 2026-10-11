@@ -40,9 +40,27 @@ func fingerprintOf(raw string) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// entryStateFromContent extracts the named entry from config text. present is
-// false when the entry does not exist; an unparseable JSON document is an error.
+// entryStateFromContent extracts the named entry from config text, trying
+// every documented container (see readKeyPaths) with the spec's own KeyPath
+// first. present is false when the entry exists in none of them; an
+// unparseable JSON document is an error.
 func entryStateFromContent(spec entrySpec, content, name string) (raw string, present bool, err error) {
+	if strings.TrimSpace(content) == "" {
+		return "", false, nil
+	}
+	for _, keyPath := range readKeyPaths(spec) {
+		attempt := spec
+		attempt.KeyPath = keyPath
+		raw, present, err := entryStateAt(attempt, content, name)
+		if err != nil || present {
+			return raw, present, err
+		}
+	}
+	return "", false, nil
+}
+
+// entryStateAt reads the named entry from exactly one container.
+func entryStateAt(spec entrySpec, content, name string) (raw string, present bool, err error) {
 	if strings.TrimSpace(content) == "" {
 		return "", false, nil
 	}
@@ -234,16 +252,10 @@ func RemoveServerEntry(ctx context.Context, hostID, name string, scope domain.In
 	originalBytes := append([]byte(nil), data...)
 	original := string(data)
 
-	// Try the container the install wrote to first, then every documented
-	// alternative (OpenCode has three layouts).
-	paths := [][]string{spec.KeyPath}
-	if rs, rerr := removalSpecFor(adapter); rerr == nil {
-		for _, c := range rs.effectiveKeyPaths() {
-			if strings.Join(c, ".") != strings.Join(spec.KeyPath, ".") {
-				paths = append(paths, c)
-			}
-		}
-	}
+	// The container the install wrote to first, then every documented
+	// alternative (OpenCode has three layouts) — the same list reads use
+	// (readKeyPaths), so removal cannot miss an entry a read just reported.
+	paths := readKeyPaths(spec)
 
 	var proposed string
 	found := false

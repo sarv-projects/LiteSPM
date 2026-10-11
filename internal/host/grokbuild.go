@@ -45,6 +45,26 @@ func (a *GrokBuildAdapter) DetectConfig(ctx context.Context, scope domain.Instal
 	return filepath.Join(dir, "config.toml"), nil
 }
 
+// ProjectConfigPath implements ProjectConfigPather. The settings scope table
+// documents "Project | `.grok/config.toml` in the repo | Repo-shared MCP,
+// plugins, and permission rules", and the MCP docs confirm the vendor's own
+// `grok mcp add --scope project` writes exactly that file ("it writes
+// `.grok/config.toml` in the current directory"). Note the project file is
+// keyed from the project directory, NOT from `$GROK_HOME`: that variable
+// relocates only the user scope.
+//
+// The container key is the SAME at both scopes, so this host needs no
+// per-scope entry spec — only a path: project configs are a strict subset of
+// `config.toml` ("limited to MCP servers, plugins, and permission rules, not
+// full user configs") and the documented MCP declaration is the same
+// `[mcp_servers.<name>]` TOML table in either file.
+// Sources: https://docs.x.ai/build/settings (Scopes) and
+// https://docs.x.ai/build/features/mcp-servers ("Project scope") — verified
+// 2026-10-11.
+func (a *GrokBuildAdapter) ProjectConfigPath(root string) string {
+	return filepath.Join(root, ".grok", "config.toml")
+}
+
 func (a *GrokBuildAdapter) PlanSetup(ctx context.Context, binaryPath string, backupDir string) (*HostChangePlan, error) {
 	configPath, err := a.DetectConfig(ctx, domain.ScopeUser)
 	if err != nil {

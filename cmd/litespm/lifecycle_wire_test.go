@@ -19,14 +19,16 @@ import (
 
 // TestHostLocatorForKeepsBespokeHostsByteIdentical pins the eight hosts the old
 // hardcoded map covered: the registry-derived locator must be exactly what the
-// map produced, so this change cannot move an already-correct address.
+// map produced, so this change cannot move an already-correct address. (One
+// address did move with the vendor docs, not with the refactor: OpenCode v2
+// documents servers at `mcp.servers.<name>`, so its row is the migrated path.)
 func TestHostLocatorForKeepsBespokeHostsByteIdentical(t *testing.T) {
 	want := map[string]string{
 		"claude-code": "mcpServers.demo",
 		"cline":       "mcpServers.demo",
 		"pi-agent":    "mcpServers.demo",
 		"pi":          "mcpServers.demo",
-		"opencode":    "mcp.demo",
+		"opencode":    "mcp.servers.demo",
 		"codex":       "mcp_servers.demo",
 		"grok":        "mcp_servers.demo",
 		"grok-build":  "mcp_servers.demo",

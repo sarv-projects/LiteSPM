@@ -147,9 +147,10 @@ type entrySpec struct {
 //
 // scripts/gen_hosts_ts.go emits the user-scope layout into web/data/hosts.json,
 // which is what web/lib/hosts.ts imports, so the site can no longer disagree
-// with the binary: it used to hard-code the six hand-written adapters and had
-// OpenCode wrong (a two-level `mcp.servers` path that no OpenCode release reads
-// — servers are direct members of `mcp`, see opencode.go).
+// with the binary: it used to hard-code the six hand-written adapters, and its
+// OpenCode row drifted from the adapter's — first one way, then the other,
+// across the flat-`mcp` vs nested-`mcp.servers` corrections (see opencode.go).
+// The registry is the single source of truth either way.
 func EntryLayoutForScope(adapter HostAdapter, scope domain.InstallScope) (keyPath string, shape string, ok bool) {
 	spec, ok := entrySpecForScope(adapter, scope)
 	if !ok || len(spec.KeyPath) == 0 {
@@ -158,13 +159,35 @@ func EntryLayoutForScope(adapter HostAdapter, scope domain.InstallScope) (keyPat
 	return strings.Join(spec.KeyPath, "."), string(spec.Shape), true
 }
 
+// ProjectConfigPather is the OPTIONAL capability a bespoke adapter implements
+// when it documents a project-scope config file of its own. It is not part of
+// HostAdapter on purpose: the other five bespoke adapters keep refusing
+// project scope (they answer DetectConfig with their user config no matter the
+// scope), and this interface lets one host opt in without widening the
+// interface every adapter must satisfy.
+//
+// Claude Code is the first adopter: its project file is `<root>/.mcp.json`
+// with the same `mcpServers` container and the same stdio/remote entry shapes
+// as `~/.claude.json` (https://code.claude.com/docs/en/mcp, "Project scope"),
+// so it needs no per-scope entry spec — only a path.
+type ProjectConfigPather interface {
+	// ProjectConfigPath resolves the host's documented project config file
+	// against a NAMED project directory. It must not consult the process
+	// working directory, for the same reason detectEntryConfig does not.
+	ProjectConfigPath(root string) string
+}
+
 // SupportsProjectScope reports whether an adapter can be WRITTEN at project
-// scope, i.e. whether it documents a project-scope config path at all. Only
-// the data-driven targets do: the six bespoke adapters ignore the scope
-// argument in DetectConfig and would answer with their user config file, which
-// is not a project config. Callers refuse a project-scope plan for a host that
-// returns false, so no one is asked to approve a plan that cannot execute.
+// scope, i.e. whether it documents a project-scope config path at all. That is
+// the data-driven targets (BridgeTarget.ProjectPath) plus any bespoke adapter
+// that opts in through ProjectConfigPather; the bespoke adapters that do not
+// would answer DetectConfig with their user config file, which is not a
+// project config. Callers refuse a project-scope plan for a host that returns
+// false, so no one is asked to approve a plan that cannot execute.
 func SupportsProjectScope(adapter HostAdapter) bool {
+	if _, ok := adapter.(ProjectConfigPather); ok {
+		return true
+	}
 	g, ok := adapter.(*GenericAdapter)
 	return ok && g.Target.ProjectPath != nil
 }
@@ -197,7 +220,12 @@ func detectEntryConfig(ctx context.Context, adapter HostAdapter, scope domain.In
 
 // projectConfigPathFor is a host's documented project-scope config path,
 // resolved against a NAMED project directory, or a refusal naming the reason.
+// The capability check runs first so a bespoke adapter with a real project
+// file (ProjectConfigPather) wins before the data-driven fallback.
 func projectConfigPathFor(adapter HostAdapter, root string) (string, error) {
+	if p, ok := adapter.(ProjectConfigPather); ok {
+		return p.ProjectConfigPath(root), nil
+	}
 	if g, ok := adapter.(*GenericAdapter); ok {
 		if g.Target.ProjectPath == nil {
 			return "", fmt.Errorf("host %s has no documented project-scope config path; install it with --scope user",
@@ -263,9 +291,12 @@ var bespokeEntrySpecs = map[string]entrySpec{
 	"cline":       {Format: FormatJSON, KeyPath: []string{"mcpServers"}, Shape: ShapeObject, Remote: clineRemoteSpec()},
 	"pi-agent":    {Format: FormatJSON, KeyPath: []string{"mcpServers"}, Shape: ShapeObject, Remote: bareURLRemoteSpec(TransportStreamableHTTP)},
 	"pi":          {Format: FormatJSON, KeyPath: []string{"mcpServers"}, Shape: ShapeObject, Remote: bareURLRemoteSpec(TransportStreamableHTTP)},
-	// OpenCode requires `type` and a combined argv array; its `mcp` container is
-	// a flat map of server entries (there is no nested `servers` object).
-	"opencode":   {Format: FormatJSON, KeyPath: []string{"mcp"}, Shape: ShapeLocalArray, Remote: opencodeRemoteSpec()},
+	// OpenCode requires `type` and a combined argv array. OpenCode v2 documents
+	// servers at `mcp.servers.<name>` (https://opencode.ai/v2/docs/mcp-servers,
+	// "Config"); flat members directly under `mcp` are the v1 shape the runtime
+	// still loads but the docs state is not the v2 layout, so the write targets
+	// the nested container and the read/removal paths keep both in play.
+	"opencode":   {Format: FormatJSON, KeyPath: []string{"mcp", "servers"}, Shape: ShapeLocalArray, Remote: opencodeRemoteSpec()},
 	"codex":      {Format: FormatTOML, KeyPath: []string{"mcp_servers"}, Shape: ShapeObject, Remote: bareURLRemoteSpec(TransportStreamableHTTP)},
 	"grok":       {Format: FormatTOML, KeyPath: []string{"mcp_servers"}, Shape: ShapeObject, Remote: bareURLRemoteSpec(TransportStreamableHTTP)},
 	"grok-build": {Format: FormatTOML, KeyPath: []string{"mcp_servers"}, Shape: ShapeObject, Remote: bareURLRemoteSpec(TransportStreamableHTTP)},
@@ -689,6 +720,25 @@ func InstallServerEntry(ctx context.Context, hostID string, entry ServerEntry, o
 		}
 		replaced = true
 	}
+	// An entry that already sits in a documented ALTERNATIVE container (a
+	// legacy shape the host still loads) is moved, not duplicated: strip it
+	// there before the merge at spec.KeyPath, or a force-replace would leave
+	// two members of one name in one file. Hosts with a single documented
+	// container have no alternatives, so this loop never runs for them.
+	mergeBase := original
+	for _, keyPath := range readKeyPaths(spec) {
+		if strings.Join(keyPath, ".") == strings.Join(spec.KeyPath, ".") {
+			continue
+		}
+		stripped, did, stripErr := stripServerEntry(mergeBase, removalSpec{Format: spec.Format, KeyPath: keyPath}, entry.Name)
+		if stripErr != nil {
+			return nil, fmt.Errorf("%s: the entry %q also sits in the legacy container %s and could not be moved: %w",
+				adapter.Descriptor().HostID, entry.Name, strings.Join(keyPath, "."), stripErr)
+		}
+		if did {
+			mergeBase = stripped
+		}
+	}
 
 	var proposed string
 	if spec.Format == FormatTOML {
@@ -699,7 +749,7 @@ func InstallServerEntry(ctx context.Context, hostID string, entry ServerEntry, o
 		if created {
 			proposed = block
 		} else {
-			merged, mergeErr := mergeTOMLEntry(original, "["+strings.Join(append(append([]string{}, spec.KeyPath...), entry.Name), ".")+"]", block)
+			merged, mergeErr := mergeTOMLEntry(mergeBase, "["+strings.Join(append(append([]string{}, spec.KeyPath...), entry.Name), ".")+"]", block)
 			if mergeErr != nil {
 				return nil, fmt.Errorf("%s: %w", adapter.Descriptor().HostID, mergeErr)
 			}
@@ -710,7 +760,7 @@ func InstallServerEntry(ctx context.Context, hostID string, entry ServerEntry, o
 		if valueErr != nil {
 			return nil, valueErr
 		}
-		merged, mergeErr := mergeJSONEntrySurgicalNamed(original, spec.KeyPath, entry.Name, value)
+		merged, mergeErr := mergeJSONEntrySurgicalNamed(mergeBase, spec.KeyPath, entry.Name, value)
 		if mergeErr != nil {
 			return nil, fmt.Errorf("%s: %w", adapter.Descriptor().HostID, mergeErr)
 		}
@@ -785,11 +835,24 @@ func InstallServerEntry(ctx context.Context, hostID string, entry ServerEntry, o
 	}, nil
 }
 
-// lookupServerEntry reports whether a named entry is already registered.
+// lookupServerEntry reports whether a named entry is already registered in
+// any documented container (see readKeyPaths), primary first.
 func lookupServerEntry(spec entrySpec, content, name string) (string, bool) {
 	if strings.TrimSpace(content) == "" {
 		return "", false
 	}
+	for _, keyPath := range readKeyPaths(spec) {
+		attempt := spec
+		attempt.KeyPath = keyPath
+		if raw, ok := lookupEntryAt(attempt, content, name); ok {
+			return raw, true
+		}
+	}
+	return "", false
+}
+
+// lookupEntryAt checks one container: the single key path the caller names.
+func lookupEntryAt(spec entrySpec, content, name string) (string, bool) {
 	if spec.Format == FormatTOML {
 		table := "[" + strings.Join(append(append([]string{}, spec.KeyPath...), name), ".") + "]"
 		for _, line := range strings.Split(content, "\n") {
@@ -809,6 +872,38 @@ func lookupServerEntry(spec entrySpec, content, name string) (string, bool) {
 		return "", false
 	}
 	return fmt.Sprintf("%v", value), true
+}
+
+// readKeyPaths resolves every container path a READ of a host's server entries
+// should try, primary first: the spec's own KeyPath (the container the adapter
+// writes), then each documented alternative the removal path already knows
+// (removalSpecFor), de-duplicated. OpenCode is the host that needs more than
+// one today: v2 documents servers at `mcp.servers.<name>` while the v1 flat
+// `mcp.<name>` shape is still loaded by the runtime, so an entry written by
+// either LiteSPM or the user stays visible to list, collision detection and
+// fingerprinting — not only to removal. Every other host has a single
+// documented container and gets exactly its spec path, so its behaviour is
+// unchanged.
+func readKeyPaths(spec entrySpec) [][]string {
+	paths := [][]string{spec.KeyPath}
+	if len(spec.KeyPath) == 0 {
+		return paths
+	}
+	adapter, err := GetAdapter(spec.HostID)
+	if err != nil {
+		return paths
+	}
+	rs, rerr := removalSpecFor(adapter)
+	if rerr != nil {
+		return paths
+	}
+	primary := strings.Join(spec.KeyPath, ".")
+	for _, candidate := range rs.effectiveKeyPaths() {
+		if strings.Join(candidate, ".") != primary {
+			paths = append(paths, candidate)
+		}
+	}
+	return paths
 }
 
 func lookupInMap(root map[string]any, keyPath []string) map[string]any {
@@ -886,102 +981,110 @@ func ListServerEntriesWithValues(ctx context.Context, hostID string, scope domai
 		return nil, fmt.Errorf("%s: %w", adapter.Descriptor().DisplayName, perr)
 	}
 	var out []HostServerEntry
-	for name, value := range lookupInMap(root, spec.KeyPath) {
-		if name == litespmServerName || name == legacyServerName {
-			continue
-		}
-		entry := HostServerEntry{Name: name, Transport: "stdio"}
-		if m, ok := value.(map[string]any); ok {
-			entry.Command, _ = m["command"].(string)
-			entry.Transport, _ = m["type"].(string)
-			// A remote (URL) entry is read through this host's verified URL key
-			// — never a guessed one. A url member on a host with no Remote spec
-			// stays invisible (Endpoint stays empty and the both-empty skip
-			// below keeps the old behaviour): we do not invent URL keys.
-			if spec.Remote != nil {
-				if u, ok := m[spec.Remote.URLKey].(string); ok {
-					entry.Endpoint = u
-				}
-				if entry.Endpoint != "" {
-					// Transport is the host's own discriminator ("http",
-					// "streamableHttp", "remote", "sse"), or the registry token
-					// when the host infers the transport from the URL alone.
-					entry.Transport = TransportStreamableHTTP
-					if spec.Remote.TypeKey != "" {
-						if v, ok := m[spec.Remote.TypeKey].(string); ok && v != "" {
-							entry.Transport = v
+	// Primary container first, then every documented alternative (see
+	// readKeyPaths), so an entry in a legacy shape still lists with its full
+	// launch line, endpoint and env — the pre-existing-detection merge in
+	// copy carries none of those and would silently degrade it.
+	seenName := make(map[string]bool)
+	for _, keyPath := range readKeyPaths(spec) {
+		for name, value := range lookupInMap(root, keyPath) {
+			if name == litespmServerName || name == legacyServerName || seenName[name] {
+				continue
+			}
+			seenName[name] = true
+			entry := HostServerEntry{Name: name, Transport: "stdio"}
+			if m, ok := value.(map[string]any); ok {
+				entry.Command, _ = m["command"].(string)
+				entry.Transport, _ = m["type"].(string)
+				// A remote (URL) entry is read through this host's verified URL key
+				// — never a guessed one. A url member on a host with no Remote spec
+				// stays invisible (Endpoint stays empty and the both-empty skip
+				// below keeps the old behaviour): we do not invent URL keys.
+				if spec.Remote != nil {
+					if u, ok := m[spec.Remote.URLKey].(string); ok {
+						entry.Endpoint = u
+					}
+					if entry.Endpoint != "" {
+						// Transport is the host's own discriminator ("http",
+						// "streamableHttp", "remote", "sse"), or the registry token
+						// when the host infers the transport from the URL alone.
+						entry.Transport = TransportStreamableHTTP
+						if spec.Remote.TypeKey != "" {
+							if v, ok := m[spec.Remote.TypeKey].(string); ok && v != "" {
+								entry.Transport = v
+							}
 						}
 					}
 				}
-			}
-			if argv, ok := m["command"].([]any); ok {
-				// ShapeLocalArray hosts store a combined argv array.
-				entry.Command = ""
-				for i, item := range argv {
-					if s, ok := item.(string); ok {
-						if i == 0 {
-							entry.Command = s
-						} else {
+				if argv, ok := m["command"].([]any); ok {
+					// ShapeLocalArray hosts store a combined argv array.
+					entry.Command = ""
+					for i, item := range argv {
+						if s, ok := item.(string); ok {
+							if i == 0 {
+								entry.Command = s
+							} else {
+								entry.Args = append(entry.Args, s)
+							}
+						}
+					}
+				}
+				if raw, ok := m["args"].([]any); ok {
+					for _, item := range raw {
+						if s, ok := item.(string); ok {
 							entry.Args = append(entry.Args, s)
 						}
 					}
 				}
-			}
-			if raw, ok := m["args"].([]any); ok {
-				for _, item := range raw {
-					if s, ok := item.(string); ok {
-						entry.Args = append(entry.Args, s)
+				// Read every key this host could have used, not just `env`: OpenCode
+				// names it `environment`, and a name-list host stores names in an
+				// array with no value at all. Missing either form here means the probe
+				// would spawn the server without the variable the user forwarded.
+				for _, field := range []string{"env", "environment"} {
+					if env, ok := m[field].(map[string]any); ok {
+						if entry.Env == nil {
+							entry.Env = map[string]string{}
+						}
+						for k, v := range env {
+							if s, ok := v.(string); ok {
+								entry.Env[k] = s
+							}
+						}
 					}
 				}
-			}
-			// Read every key this host could have used, not just `env`: OpenCode
-			// names it `environment`, and a name-list host stores names in an
-			// array with no value at all. Missing either form here means the probe
-			// would spawn the server without the variable the user forwarded.
-			for _, field := range []string{"env", "environment"} {
-				if env, ok := m[field].(map[string]any); ok {
+				if names, ok := m[spec.EnvRef.NameListField].([]any); ok && spec.HasEnvRef {
 					if entry.Env == nil {
 						entry.Env = map[string]string{}
 					}
-					for k, v := range env {
-						if s, ok := v.(string); ok {
-							entry.Env[k] = s
+					for _, item := range names {
+						if n, ok := item.(string); ok {
+							// The value is not in the config; record the name so the
+							// probe resolves it from this process's environment.
+							entry.EnvNames = append(entry.EnvNames, n)
+							if _, seen := entry.Env[n]; !seen {
+								entry.Env[n] = ""
+							}
 						}
 					}
 				}
-			}
-			if names, ok := m[spec.EnvRef.NameListField].([]any); ok && spec.HasEnvRef {
-				if entry.Env == nil {
-					entry.Env = map[string]string{}
-				}
-				for _, item := range names {
-					if n, ok := item.(string); ok {
-						// The value is not in the config; record the name so the
-						// probe resolves it from this process's environment.
-						entry.EnvNames = append(entry.EnvNames, n)
-						if _, seen := entry.Env[n]; !seen {
-							entry.Env[n] = ""
-						}
-					}
+			} else if s, ok := value.(string); ok && spec.Shape == ShapeCommandString {
+				// ShapeCommandString hosts store one bare command line.
+				fields := strings.Fields(s)
+				if len(fields) > 0 {
+					entry.Command = fields[0]
+					entry.Args = fields[1:]
 				}
 			}
-		} else if s, ok := value.(string); ok && spec.Shape == ShapeCommandString {
-			// ShapeCommandString hosts store one bare command line.
-			fields := strings.Fields(s)
-			if len(fields) > 0 {
-				entry.Command = fields[0]
-				entry.Args = fields[1:]
+			// Skip only when the entry names NEITHER a command nor an endpoint.
+			// The old rule skipped on an empty Command alone, which made every
+			// remote (URL) entry — a valid stdio-less registration — invisible to
+			// copy, capabilities and remove. An entry with no launch line at all
+			// still carries nothing a caller could use, so it stays skipped.
+			if entry.Command == "" && entry.Endpoint == "" {
+				continue
 			}
+			out = append(out, entry)
 		}
-		// Skip only when the entry names NEITHER a command nor an endpoint.
-		// The old rule skipped on an empty Command alone, which made every
-		// remote (URL) entry — a valid stdio-less registration — invisible to
-		// copy, capabilities and remove. An entry with no launch line at all
-		// still carries nothing a caller could use, so it stays skipped.
-		if entry.Command == "" && entry.Endpoint == "" {
-			continue
-		}
-		out = append(out, entry)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
@@ -1140,11 +1243,15 @@ func ListServerEntries(ctx context.Context, hostID string, scope domain.InstallS
 		return nil, perr
 	}
 	var names []string
-	for name := range lookupInMap(root, spec.KeyPath) {
-		if name == litespmServerName || name == legacyServerName {
-			continue
+	seen := make(map[string]bool)
+	for _, keyPath := range readKeyPaths(spec) {
+		for name := range lookupInMap(root, keyPath) {
+			if name == litespmServerName || name == legacyServerName || seen[name] {
+				continue
+			}
+			seen[name] = true
+			names = append(names, name)
 		}
-		names = append(names, name)
 	}
 	sortStrings(names)
 	return names, nil

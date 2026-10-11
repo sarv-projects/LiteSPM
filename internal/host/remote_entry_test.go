@@ -73,7 +73,7 @@ func remoteGoldenCases() []remoteGoldenCase {
 		{
 			hostID:            "opencode",
 			file:              ".config/opencode/opencode.json",
-			streamableHTTP:    "{\n  \"mcp\": {\n  \"demo\": {\"type\":\"remote\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcp\": {\n    \"servers\": {\n  \"demo\": {\"type\":\"remote\",\"url\":\"" + remoteTestURL + "\"}\n}\n  }\n}",
 			readBackTransport: "remote",
 		},
 		{

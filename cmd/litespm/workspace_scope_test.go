@@ -120,11 +120,11 @@ func TestPreparePlanProjectScopeWorkspace(t *testing.T) {
 // TestInstallMCPProjectScopeRecordsWorkspace pins the write half of the
 // contract: a project-scope MCP install stamps the derived workspace id and the
 // project root on the install row, and the workspace id on the host
-// registration it writes. It uses a data-driven host because those are the
-// ones that document a project-scope config path — a project install for a
-// host that does not (Claude Code, Codex, …) is refused rather than written
-// into the user config (TestProjectScopeRefusesHostsWithoutAProjectPath in
-// internal/host pins that refusal).
+// registration it writes. It uses `cursor` because a data-driven target needs
+// no adapter work to have a project file; a host without one is refused rather
+// than written into its user config (TestProjectScopeRefusesHostsWithoutAProjectPath
+// in internal/host pins that refusal, and internal/host/codex_grok_project_scope_test.go
+// covers a bespoke adapter that opted in through host.ProjectConfigPather).
 func TestInstallMCPProjectScopeRecordsWorkspace(t *testing.T) {
 	db := openTestState(t)
 	dataRoot := t.TempDir()

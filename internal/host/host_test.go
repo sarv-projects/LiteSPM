@@ -155,15 +155,18 @@ func TestClaudeCodeAdapter(t *testing.T) {
 }
 
 // TestOpenCodeAdapter_V1_and_V2 pins the two shapes this adapter must cope
-// with on disk: the one documented layout (servers as direct members of `mcp`)
-// and the nested `mcp.servers` container older releases wrote, which is read
-// but never written.
+// with on disk: the documented v2 container (`mcp.servers.<name>`) and the
+// flat v1 shape (servers as direct members of `mcp`) that earlier LiteSPM
+// releases wrote and a live v2.0.26 run still loads. Both remain writable as
+// input to ApplySetup (which splices bytes as given) and both must read back;
+// PlanSetup writes the nested one.
 func TestOpenCodeAdapter_V1_and_V2(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	backupDir := filepath.Join(tempDir, "backups")
 
-	// Documented layout: servers are direct members of `mcp`.
+	// Legacy v1 layout: servers as direct members of `mcp`. The runtime still
+	// loads it; PlanSetup migrates LiteSPM's own member out of it.
 	v1File := filepath.Join(tempDir, "opencode_v1.json")
 	v1Content := `{
   "mcp": {
@@ -200,8 +203,8 @@ func TestOpenCodeAdapter_V1_and_V2(t *testing.T) {
 		t.Fatalf("ApplySetup V1 failed: %v", err)
 	}
 
-	// Legacy nested container written by older releases. Read compatibility
-	// only: PlanSetup prunes it when empty and never writes it.
+	// Documented v2 container: servers at `mcp.servers.<name>`. This is the
+	// shape PlanSetup writes and the manual snippet prints.
 	v2File := filepath.Join(tempDir, "opencode_v2.json")
 	v2Content := `{
   "mcp": {
@@ -241,33 +244,31 @@ func TestOpenCodeAdapter_V1_and_V2(t *testing.T) {
 	}
 
 	// The manual snippet is what a user pastes when the wizard cannot write the
-	// config itself, so it must show exactly one thing: the documented flat
+	// config itself, so it must show exactly one thing: the documented v2
 	// layout PlanSetup writes.
 	manual := adapter.RenderManualSetup("/opt/litespm/litespm")
-	assertManualSetupIsFlatMCP(t, manual)
+	assertManualSetupUsesServersContainer(t, manual)
 }
 
-// assertManualSetupIsFlatMCP pins the OpenCode manual snippet to the single
-// documented layout — servers as direct members of `mcp`, each carrying
+// assertManualSetupUsesServersContainer pins the OpenCode manual snippet to
+// the documented v2 layout — servers at `mcp.servers.<name>`, each carrying
 // `"type": "local"` and a combined command array — which is what
-// bespokeEntrySpecs["opencode"] (KeyPath ["mcp"], ShapeLocalArray) writes.
+// bespokeEntrySpecs["opencode"] (KeyPath ["mcp","servers"], ShapeLocalArray)
+// writes.
 //
-// This must fail if anyone reintroduces the nested `mcp.servers` container: it
-// is absent from OpenCode's published schema, and the runtime treats it as one
-// server definition named "servers" with no `type`, so it refuses to load the
-// file. The check decodes the snippet rather than grepping it, because a grep
-// can be satisfied by a comment while the pasted JSON stays wrong.
-func assertManualSetupIsFlatMCP(t *testing.T, manual string) {
+// This must fail if the snippet drifts back to flat members directly under
+// `mcp`: that is the v1 shape, not what the v2 docs (and this adapter) put in
+// the file, so a pasted snippet would disagree with what the binary writes.
+// The check decodes the snippet rather than grepping it, because a grep can be
+// satisfied by a comment while the pasted JSON stays wrong.
+func assertManualSetupUsesServersContainer(t *testing.T, manual string) {
 	t.Helper()
 
-	if !strings.Contains(manual, `"mcp"`) {
-		t.Errorf("manual snippet does not name the mcp key:\n%s", manual)
+	if !strings.Contains(manual, `"mcp"`) || !strings.Contains(manual, `"servers"`) {
+		t.Errorf("manual snippet must name the mcp.servers container:\n%s", manual)
 	}
 	if !strings.Contains(manual, `"type": "local"`) {
 		t.Errorf("manual snippet does not declare type local:\n%s", manual)
-	}
-	if strings.Contains(manual, "servers") {
-		t.Errorf("manual snippet names a servers container:\n%s", manual)
 	}
 
 	// Strip the leading comment line the way a reader pasting the body does,
@@ -284,12 +285,16 @@ func assertManualSetupIsFlatMCP(t *testing.T, manual string) {
 	if !ok {
 		t.Fatalf("manual snippet missing the mcp object:\n%s", manual)
 	}
-	if _, nested := mcpMap["servers"]; nested {
-		t.Fatalf("manual snippet reintroduced the undocumented mcp.servers nesting:\n%s", manual)
+	if _, flat := mcpMap[litespmServerName]; flat {
+		t.Fatalf("manual snippet put the bridge flat under mcp instead of mcp.servers:\n%s", manual)
 	}
-	entry, ok := mcpMap[litespmServerName].(map[string]any)
+	servers, ok := mcpMap["servers"].(map[string]any)
 	if !ok {
-		t.Fatalf("manual snippet missing the %s entry directly under mcp:\n%s", litespmServerName, manual)
+		t.Fatalf("manual snippet missing the mcp.servers container:\n%s", manual)
+	}
+	entry, ok := servers[litespmServerName].(map[string]any)
+	if !ok {
+		t.Fatalf("manual snippet missing the %s entry under mcp.servers:\n%s", litespmServerName, manual)
 	}
 	if entry["type"] != "local" {
 		t.Errorf("manual snippet type = %v, want local", entry["type"])
@@ -333,7 +338,7 @@ func TestOpenCodePlanSetup_EmitsLocalTypeAndArrayCommand(t *testing.T) {
 		return home
 	}
 
-	assertLocalEntry := func(t *testing.T, content string, nested bool) {
+	assertLocalEntry := func(t *testing.T, content string) {
 		t.Helper()
 		// The entry is spliced in surgically, so its own formatting follows the
 		// surrounding document rather than a fixed pretty-printer: assert the
@@ -346,16 +351,16 @@ func TestOpenCodePlanSetup_EmitsLocalTypeAndArrayCommand(t *testing.T) {
 		if !ok {
 			t.Fatalf("proposed content missing mcp object:\n%s", content)
 		}
-		container := mcpMap
-		if servers, ok := mcpMap["servers"].(map[string]any); ok {
-			if !nested {
-				t.Fatalf("expected a flat v1 layout but found mcp.servers:\n%s", content)
-			}
-			container = servers
-		} else if nested {
-			t.Fatalf("expected a nested v2 layout with mcp.servers:\n%s", content)
+		// The documented v2 container, and only it: a flat twin under `mcp`
+		// would register the same server name twice.
+		if _, flat := mcpMap[litespmServerName]; flat {
+			t.Fatalf("bridge written flat under mcp instead of mcp.servers:\n%s", content)
 		}
-		entry, ok := container["litespm"].(map[string]any)
+		servers, ok := mcpMap["servers"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected the documented mcp.servers container:\n%s", content)
+		}
+		entry, ok := servers["litespm"].(map[string]any)
 		if !ok {
 			t.Fatalf("proposed content missing litespm entry:\n%s", content)
 		}
@@ -382,10 +387,10 @@ func TestOpenCodePlanSetup_EmitsLocalTypeAndArrayCommand(t *testing.T) {
 		}
 	}
 
-	// OpenCode has one documented layout: servers are direct members of `mcp`.
-	// A `mcp.servers` nesting is not in the published schema, and the runtime
-	// rejects a member without `type`, so it must never be written.
-	t.Run("new_config_defaults_to_flat_mcp", func(t *testing.T) {
+	// OpenCode v2 documents servers at `mcp.servers.<name>`; flat members
+	// directly under `mcp` are the v1 shape the runtime still loads, so
+	// PlanSetup lands the bridge in the documented container.
+	t.Run("new_config_defaults_to_documented_servers_container", func(t *testing.T) {
 		newHermeticHome(t)
 		adapter := &OpenCodeAdapter{}
 		plan, err := adapter.PlanSetup(ctx, "/opt/litespm/litespm", t.TempDir())
@@ -395,10 +400,7 @@ func TestOpenCodePlanSetup_EmitsLocalTypeAndArrayCommand(t *testing.T) {
 		if plan.HostID != "opencode" {
 			t.Errorf("unexpected plan HostID: %s", plan.HostID)
 		}
-		assertLocalEntry(t, plan.ProposedContent, false)
-		if strings.Contains(plan.ProposedContent, `"servers"`) {
-			t.Errorf("wrote an undocumented mcp.servers container:\n%s", plan.ProposedContent)
-		}
+		assertLocalEntry(t, plan.ProposedContent)
 	})
 
 	t.Run("existing_flat_config", func(t *testing.T) {
@@ -417,7 +419,7 @@ func TestOpenCodePlanSetup_EmitsLocalTypeAndArrayCommand(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PlanSetup failed: %v", err)
 		}
-		assertLocalEntry(t, plan.ProposedContent, false)
+		assertLocalEntry(t, plan.ProposedContent)
 		// The pre-existing v1 entry must be preserved by the merge.
 		if !strings.Contains(plan.ProposedContent, "weather_mcp") {
 			t.Errorf("existing v1 entry was not preserved:\n%s", plan.ProposedContent)

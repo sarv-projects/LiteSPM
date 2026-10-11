@@ -46,6 +46,16 @@ func piAgentDir() string {
 	return filepath.Join(resolveHomeDir(), ".pi", "agent")
 }
 
+// ProjectConfigPath implements ProjectConfigPather. Pi reads user-level
+// servers from `~/.pi/agent/mcp.json` and project servers from
+// `<project>/.pi/mcp.json`, in the same `mcpServers` container and entry
+// shapes; "a project entry replaces a user-level entry with the same name"
+// (https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md,
+// "Configuration files"; verified 2026-10-11).
+func (a *PiAgentAdapter) ProjectConfigPath(root string) string {
+	return filepath.Join(root, ".pi", "mcp.json")
+}
+
 func (a *PiAgentAdapter) ExtensionPath() string {
 	return filepath.Join(piAgentDir(), "extensions", "litespm.ts")
 }
@@ -103,6 +113,69 @@ func (a *PiAgentAdapter) PlanSetup(ctx context.Context, binaryPath string, backu
 	}, nil
 }
 
+// piExtensionCode is the companion extension ApplySetup writes to
+// `<agent-dir>/extensions/litespm.ts` when it does not exist yet.
+//
+// It is written against Pi's real extension API — every symbol below was read
+// in the bundled type declarations of the pi 0.80.10 CLI on this machine
+// (dist/core/extensions/types.d.ts) and cross-checked against upstream main
+// (packages/coding-agent/src/core/extensions/types.ts, fetched 2026-10-11):
+//
+//   - registerCommand(name, options) takes Omit<RegisteredCommand, "name" |
+//     "sourceInfo"> (types.d.ts:876; upstream types.ts:1652), and
+//     RegisteredCommand.handler is (args: string, ctx: ExtensionCommandContext)
+//     => Promise<void> (types.d.ts:829; upstream types.ts:1546): args is the
+//     raw argument STRING, and there is no `execute` member on the command.
+//   - ExtensionAPI (types.d.ts:839-999) has no `mcp` member and no `callTool`
+//     anywhere, so the removed pi.mcp.callTool() call could never run.
+//   - A command handler cannot invoke a tool either: ctx.executeTool exists
+//     only on ExtensionToolContext — the context a tool's own execute() gets
+//     (upstream types.ts:367-396) — not on ExtensionCommandContext
+//     (upstream types.ts:401-451), and the installed 0.80.10 types have no
+//     executeTool at all. So the command enumerates what the bridge exposes
+//     instead: pi.getAllTools(): ToolInfo[] (types.d.ts:919; upstream
+//     types.ts:1741) reports every connected tool including MCP servers'
+//     (mcp.md:254), whose tools are named mcp__<server>__<tool> (mcp.md:77),
+//     and ctx.ui.notify shows them (types.d.ts:75; upstream types.ts:160).
+//
+// A backtick cannot appear in this Go raw string, so the TypeScript uses
+// concatenation rather than template literals.
+const piExtensionCode = `// LiteSPM companion extension for Pi Agent.
+//
+// Registers /litespm, which lists the MCP tools the LiteSPM bridge exposes to
+// this agent. Tools appear once the "litespm" server from mcp.json has
+// connected (check with /mcp).
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+const BRIDGE_TOOL_PREFIX = "mcp__litespm__";
+
+export default function (pi: ExtensionAPI) {
+  pi.registerCommand("litespm", {
+    description: "List the LiteSPM bridge capabilities",
+    handler: async (args, ctx) => {
+      const bridgeTools = pi
+        .getAllTools()
+        .filter((tool) => tool.name.startsWith(BRIDGE_TOOL_PREFIX));
+      if (bridgeTools.length === 0) {
+        ctx.ui.notify(
+          "LiteSPM bridge: no tools are connected yet. Check the 'litespm' " +
+            "entry in mcp.json (see /mcp).",
+          "warning",
+        );
+        return;
+      }
+      const lines = bridgeTools.map(
+        (tool) => tool.name + (tool.description ? " - " + tool.description : ""),
+      );
+      ctx.ui.notify(
+        "LiteSPM bridge capabilities (" + bridgeTools.length + "):\n" + lines.join("\n"),
+        "info",
+      );
+    },
+  });
+}
+`
+
 func (a *PiAgentAdapter) ApplySetup(ctx context.Context, plan *HostChangePlan) (*HostApplyResult, error) {
 	if err := ApplyPlanWrite(plan); err != nil {
 		return nil, err
@@ -113,17 +186,7 @@ func (a *PiAgentAdapter) ApplySetup(ctx context.Context, plan *HostChangePlan) (
 	extDir := filepath.Dir(extPath)
 	if err := os.MkdirAll(extDir, 0700); err == nil {
 		if _, err := os.Stat(extPath); os.IsNotExist(err) {
-			extensionCode := `// LiteSPM companion extension for Pi Agent
-export default function (pi: any) {
-  pi.registerCommand("litespm", {
-    description: "Launch LiteSPM capability manager",
-    async execute(args: string[]) {
-      return pi.mcp.callTool("litespm", "list_installed", {});
-    }
-  });
-}
-`
-			_ = os.WriteFile(extPath, []byte(extensionCode), 0600)
+			_ = os.WriteFile(extPath, []byte(piExtensionCode), 0600)
 		}
 	}
 
