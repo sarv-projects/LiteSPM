@@ -76,6 +76,32 @@ func TestHTTPArchiveFetcherRefusesCredentials(t *testing.T) {
 	}
 }
 
+// TestHTTPArchiveFetcherDefaultTransportHasNoProxy pins the SSRF fix: the
+// default transport must not delegate through an environment proxy, or the
+// checked dialer would validate the proxy's address instead of the artifact
+// host. The dialer must remain the SSRF-checked one, which refuses a loopback
+// destination before any dial.
+func TestHTTPArchiveFetcherDefaultTransportHasNoProxy(t *testing.T) {
+	f := NewHTTPArchiveFetcher(DefaultFetcherOptions())
+	tr, ok := f.client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("default transport is %T, want *http.Transport", f.client.Transport)
+	}
+	if tr.Proxy != nil {
+		t.Error("default transport carries a proxy function; the checked dialer would validate the proxy, not the artifact host")
+	}
+	if tr.DialContext == nil {
+		t.Fatal("default transport has no DialContext; the SSRF-checked dialer must be installed")
+	}
+	_, err := tr.DialContext(context.Background(), "tcp", "127.0.0.1:443")
+	if err == nil {
+		t.Fatal("transport dialer accepted a loopback destination; it is not the SSRF-checked dialer")
+	}
+	if code := etagCode(t, err); code != "LPSM-EGRESS-BLOCKED" {
+		t.Fatalf("transport dialer refused loopback with code %s, want LPSM-EGRESS-BLOCKED", code)
+	}
+}
+
 // TestHTTPArchiveFetcherRefusesNonPublicHosts is the SSRF guard: loopback,
 // link-local (cloud metadata) and private literals are refused by the default
 // posture, before any request body is read.

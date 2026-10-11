@@ -11,8 +11,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -96,7 +98,16 @@ func SHA256Verifier(blob []byte, pinned string) Verdict {
 
 // SBOM emits a minimal CycloneDX or SPDX document derived from the lock
 // (ARCH/32 §4.1). Every document carries the lock digest it was generated
-// from so the two cannot drift.
+// from so the two cannot drift, and the output is deterministic: the CycloneDX
+// timestamp honours SOURCE_DATE_EPOCH (the repo-wide reproducible-build
+// convention used by cmd/litespm.parseBuildCreatedAt and
+// scripts/build_full_catalog.py) and the SPDX documentNamespace is derived
+// from the lock digest.
+//
+// No PURL is emitted. A LockedEntry carries the registry listing id, version
+// and content digests — not an ecosystem package coordinate
+// (pkg:type/namespace/name) — so a purl would be invented identity, which the
+// honesty rule forbids.
 func SBOM(l *lockfile.Lock, format string) ([]byte, error) {
 	switch format {
 	case "cyclonedx-json":
@@ -109,20 +120,12 @@ func SBOM(l *lockfile.Lock, format string) ([]byte, error) {
 }
 
 func cyclonedx(l *lockfile.Lock) []byte {
-	type comp struct {
-		Type     string `json:"type"`
-		Name     string `json:"name"`
-		Version  string `json:"version"`
-		Licenses []any  `json:"licenses,omitempty"`
-		Hashes   []any  `json:"hashes,omitempty"`
-		PURL     string `json:"purl,omitempty"`
-	}
 	doc := map[string]any{
 		"bomFormat":   "CycloneDX",
 		"specVersion": "1.5",
 		"version":     1,
 		"metadata": map[string]any{
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"timestamp": sbomTimestamp(),
 			"properties": []any{
 				map[string]any{"name": "litespm:lockDigest", "value": l.LockDigest},
 			},
@@ -146,28 +149,27 @@ func cyclonedx(l *lockfile.Lock) []byte {
 }
 
 func spdx(l *lockfile.Lock) []byte {
-	type pkg struct {
-		SPDXID           string `json:"SPDXID"`
-		Name             string `json:"name"`
-		VersionInfo      string `json:"versionInfo,omitempty"`
-		LicenseConcluded string `json:"licenseConcluded"`
-		Checksums        []any  `json:"checksums,omitempty"`
-	}
 	doc := map[string]any{
 		"spdxVersion": "SPDX-2.3",
 		"dataLicense": "CC0-1.0",
 		"SPDXID":      "SPDXRef-DOCUMENT",
 		"name":        "litespm-lock-sbom",
-		"comment":     "generated from lock " + l.LockDigest,
+		// Deterministic and unique per lock: the namespace is derived from the
+		// content-addressed lock digest, so two generations from the same lock
+		// agree and two different locks never collide.
+		"documentNamespace": "https://litespm.dev/sbom/" + strings.TrimPrefix(l.LockDigest, "sha256:"),
+		"comment":           "generated from lock " + l.LockDigest,
 	}
 	var pkgs []any
+	var rels []any
 	for i, e := range l.Entries {
 		lic := e.License
 		if lic == "" {
 			lic = lockfile.LicenseNoAssertion
 		}
+		spdxID := fmt.Sprintf("SPDXRef-Package-%d", i+1)
 		p := map[string]any{
-			"SPDXID":           fmt.Sprintf("SPDXRef-Package-%d", i+1),
+			"SPDXID":           spdxID,
 			"name":             e.ID,
 			"versionInfo":      e.Version,
 			"licenseConcluded": lic,
@@ -176,10 +178,33 @@ func spdx(l *lockfile.Lock) []byte {
 			p["checksums"] = []any{map[string]any{"algorithm": "SHA256", "checksumValue": strings.TrimPrefix(e.ArtifactSHA256, "sha256:")}}
 		}
 		pkgs = append(pkgs, p)
+		// The document DESCRIBES every package it lists; SPDX requires the
+		// relationship to be explicit.
+		rels = append(rels, map[string]any{
+			"spdxElementId":      "SPDXRef-DOCUMENT",
+			"relatedSpdxElement": spdxID,
+			"relationshipType":   "DESCRIBES",
+		})
 	}
 	doc["packages"] = pkgs
+	doc["relationships"] = rels
 	b, _ := json.MarshalIndent(doc, "", "  ")
 	return b
+}
+
+// sbomTimestamp returns the CycloneDX metadata timestamp. It honours
+// SOURCE_DATE_EPOCH — the repo-wide reproducible-build convention (see
+// cmd/litespm.parseBuildCreatedAt and scripts/build_full_catalog.py) — so an
+// SBOM generated twice from the same lock is byte-identical; without it the
+// wall clock is stamped, the honest default. A malformed value falls back to
+// the wall clock rather than failing the export.
+func sbomTimestamp() string {
+	if epoch := os.Getenv("SOURCE_DATE_EPOCH"); epoch != "" {
+		if n, err := strconv.ParseInt(epoch, 10, 64); err == nil {
+			return time.Unix(n, 0).UTC().Format(time.RFC3339)
+		}
+	}
+	return time.Now().UTC().Format(time.RFC3339)
 }
 
 // Advisory is a signed upstream notice affecting a package range.

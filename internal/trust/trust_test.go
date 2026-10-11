@@ -1,6 +1,7 @@
 package trust
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -74,6 +75,67 @@ func TestSBOMCarriesLockDigest(t *testing.T) {
 	}
 	if _, err := SBOM(l, "bogus"); err == nil {
 		t.Error("bad SBOM format must fail")
+	}
+}
+
+// TestSBOMIsReproducible pins the SBOM determinism fix: two generations from
+// the same lock must be byte-identical, and the CycloneDX timestamp must be
+// pinned to SOURCE_DATE_EPOCH rather than the wall clock (the wall clock is
+// what made the output non-reproducible). The SPDX document namespace must be
+// derived from the lock digest and carry a DESCRIBES relationship per package.
+func TestSBOMIsReproducible(t *testing.T) {
+	t.Setenv("SOURCE_DATE_EPOCH", "1759665600") // 2025-10-05T12:00:00Z
+	l := testLock(t)
+
+	for _, format := range []string{"cyclonedx-json", "spdx-json"} {
+		first, err := SBOM(l, format)
+		if err != nil {
+			t.Fatalf("%s: %v", format, err)
+		}
+		second, err := SBOM(l, format)
+		if err != nil {
+			t.Fatalf("%s: %v", format, err)
+		}
+		if !bytes.Equal(first, second) {
+			t.Errorf("%s is not byte-reproducible across calls:\n%s\n%s", format, first, second)
+		}
+	}
+
+	cdx, err := SBOM(l, "cyclonedx-json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(cdx, []byte("2025-10-05T12:00:00Z")) {
+		t.Errorf("cyclonedx timestamp is not pinned to SOURCE_DATE_EPOCH: %s", cdx)
+	}
+
+	spdxDoc, err := SBOM(l, "spdx-json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		DocumentNamespace string `json:"documentNamespace"`
+		Relationships     []struct {
+			SpdxElementID    string `json:"spdxElementId"`
+			RelationshipType string `json:"relationshipType"`
+		} `json:"relationships"`
+		Packages []struct {
+			SPDXID string `json:"SPDXID"`
+		} `json:"packages"`
+	}
+	if err := json.Unmarshal(spdxDoc, &doc); err != nil {
+		t.Fatalf("spdx is not JSON: %v", err)
+	}
+	if !strings.Contains(doc.DocumentNamespace, strings.TrimPrefix(l.LockDigest, "sha256:")) {
+		t.Errorf("spdx namespace %q does not derive from lock digest %q", doc.DocumentNamespace, l.LockDigest)
+	}
+	if len(doc.Packages) == 0 || len(doc.Relationships) != len(doc.Packages) {
+		t.Fatalf("want one DESCRIBES relationship per package, got %d relationships for %d packages", len(doc.Relationships), len(doc.Packages))
+	}
+	for _, r := range doc.Relationships {
+		if r.RelationshipType != "DESCRIBES" || r.SpdxElementID != "SPDXRef-DOCUMENT" {
+			t.Errorf("unexpected relationship %+v", r)
+		}
 	}
 }
 

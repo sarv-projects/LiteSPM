@@ -18,6 +18,11 @@ package artifact
 //     literal IP so the name cannot be re-pointed between the check and the
 //     connection (no TOCTOU). Redirects pass through the same dialer, so a
 //     redirect cannot dodge the policy.
+//   - No proxy: the default transport never delegates through HTTP_PROXY /
+//     HTTPS_PROXY. A proxy would dial the artifact host itself, so the checked
+//     dialer would validate the proxy instead of the destination and every SSRF
+//     rule above would be bypassed. internal/egress does the same for the
+//     catalog client (internal/catalog/client.go).
 //   - No downgrade: a redirect to a non-HTTPS scheme is refused.
 //   - Redirect cap, request timeout, and a hard byte bound (SpoolDownloadBounded)
 //     with a streaming SHA-256.
@@ -126,7 +131,11 @@ func NewHTTPArchiveFetcher(opts FetcherOptions) *HTTPArchiveFetcher {
 	transport := opts.Transport
 	if transport == nil {
 		transport = &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
+			// Proxy stays nil: with the environment proxy the dialer below
+			// would validate the proxy's address, not the artifact host, and
+			// the whole SSRF policy would be bypassed. Matches the catalog
+			// client, which disables the environment proxy for the same
+			// reason (internal/egress.ConfigureTransport).
 			DialContext:           opts.dialContext,
 			TLSHandshakeTimeout:   15 * time.Second,
 			ResponseHeaderTimeout: 30 * time.Second,
