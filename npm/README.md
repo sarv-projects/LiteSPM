@@ -54,10 +54,11 @@ npm install -g litespm
 
 Prefer a standalone binary? Grab the release for your platform from
 [GitHub Releases](https://github.com/sarv-projects/LiteSPM/releases). The npm
-package is a thin launcher: it downloads the native binary for your OS and
-checks it against the published SHA-256 checksums — aborting on a mismatch, but
-**warning and proceeding unverified** if the manifest has no entry for your
-platform (see [`SECURITY.md`](https://github.com/sarv-projects/LiteSPM/blob/main/SECURITY.md)).
+package is a thin launcher: it downloads the native binary for your OS and verifies it against the
+published SHA-256 checksums — **fail-closed**. A missing checksum manifest, a manifest with no entry
+for your platform, an unreadable manifest, or a digest mismatch all discard the download; nothing
+unverified is installed or executed. Downloads are HTTPS-only (an https→http redirect is refused).
+See [`SECURITY.md`](https://github.com/sarv-projects/LiteSPM/blob/main/SECURITY.md).
 
 > **Honest status.** The catalog is live end-to-end and skills install from it
 > (`litespm install <skill-id>` fetches the source and writes the skill files).

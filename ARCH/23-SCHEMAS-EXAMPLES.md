@@ -11,6 +11,33 @@ All public contracts and local plans are validated against strict JSON Schema (D
 5.  `schemas/catalog-release.schema.json`: Release pointers and file manifests.
 6.  `schemas/errors.schema.json`: Machine-readable error envelopes.
 
+### 1.1 The validator (`internal/schemacheck`)
+
+The six schemas are not decorative. `internal/schemacheck` is a dependency-free JSON Schema
+(Draft 2020-12) validator that parses them and validates the *artifacts the code actually emits*
+against them. `internal/schemacheck/schema.go` implements exactly the keyword subset these files
+use — `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`, `pattern`,
+`minimum`, `maximum`, `minLength`, `maxLength`, `minItems`, `maxItems`, `uniqueItems`, `oneOf`,
+`anyOf`, `allOf` — plus the annotation keywords (`$schema`, `$id`, `title`, `description`, `default`,
+`format`, `examples`, `$comment`, `deprecated`), which are parsed and ignored exactly as draft
+2020-12 defines (`format` is an annotation and is not enforced). Any keyword outside that set is
+**rejected at Parse time**: a validator that silently ignored a constraint the author wrote would
+hide the very drift it exists to catch.
+
+`internal/schemacheck/contracts_test.go` is where drift becomes a test failure. It validates the
+committed release tree under `web/public/v1/releases/` (`TestCommittedReleaseTreeValidates`), a
+fresh `CompileRelease` output (`TestCompiledReleaseValidates`), a real snapshot record
+(`TestSnapshotRecordValidates`), an `LPSMError` envelope (`TestErrorEnvelopeValidates`) and a
+marshalled `domain.InstallPlan` (`TestInstallPlanValidates`); it pins the schemas that duplicate a
+domain identifier grammar to `domain.Regex*` (`TestSchemaPatternsMatchDomainIdentifiers`) and
+reproduces the pre-fix failure, where each old subschema rejected the real artifact it was supposed
+to describe (`TestPreFixSchemasRejectRealArtifacts`).
+
+**The schemas mirror the emitted artifacts, not a target.** Where a schema and the Go producer
+disagreed, the schema was corrected to the artifact the code writes — this session that was
+`catalog-release`, `source`, `listing`, `version` and `install-plan`; `errors` was already
+consistent.
+
 ---
 
 ## 2. Specification: `install-plan.schema.json`
@@ -43,8 +70,11 @@ All public contracts and local plans are validated against strict JSON Schema (D
         "requestedVersion": { "type": "string" },
         "selectedComponents": { "type": "array", "items": { "type": "string" } },
         "targetScope": { "type": "string", "enum": ["user", "project"] },
-        "targetHost": { "type": "string" }
-      }
+        "targetHost": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "projectRoot": { "type": "string" }
+      },
+      "additionalProperties": false
     },
     "resolved": {
       "type": "object",
@@ -63,47 +93,98 @@ All public contracts and local plans are validated against strict JSON Schema (D
               "locator": { "type": "string" },
               "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
               "size": { "type": "integer" }
-            }
+            },
+            "additionalProperties": false
+          }
+        },
+        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "runtimeRequirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "name"],
+            "properties": {
+              "type": { "type": "string" },
+              "name": { "type": "string" },
+              "version": { "type": "string" }
+            },
+            "additionalProperties": false
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
-    "effects": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["type"],
-        "properties": {
-          "type": { "type": "string" },
-          "target": { "type": "string" }
-        }
-      }
-    },
+    "effects": { "type": "array", "items": { "type": "string" } },
     "preconditions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["type"],
-        "properties": {
-          "type": { "type": "string" },
-          "target": { "type": "string" },
-          "expected": { "type": "string" }
-        }
-      }
+      "type": "object",
+      "properties": {
+        "filesystemPaths": { "type": "array", "items": { "type": "string" } },
+        "portsAvailable": { "type": "array", "items": { "type": "integer" } },
+        "runtimesFound": { "type": "array", "items": { "type": "string" } },
+        "diskSpaceBytes": { "type": "integer" }
+      },
+      "additionalProperties": false
     },
     "approval": {
       "type": "object",
-      "required": ["required"],
+      "required": ["channel", "decision"],
       "properties": {
-        "required": { "type": "bool" },
-        "reasonCodes": { "type": "array", "items": { "type": "string" } },
-        "minimumChannel": { "type": "string" }
+        "approvalId": { "type": "string" },
+        "channel": { "type": "string" },
+        "decision": { "type": "string" },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "approvedBy": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "hostChanges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["hostId", "configPath", "action", "entryKey"],
+        "properties": {
+          "hostId": { "type": "string" },
+          "configPath": { "type": "string" },
+          "action": { "type": "string" },
+          "entryKey": { "type": "string" },
+          "valueJson": { "type": "string" }
+        },
+        "additionalProperties": false
       }
+    },
+    "providerLaunches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["providerId", "transport"],
+        "properties": {
+          "providerId": { "type": "string" },
+          "transport": { "type": "string" },
+          "command": { "type": "string" },
+          "args": { "type": "array", "items": { "type": "string" } },
+          "env": { "type": "object", "additionalProperties": { "type": "string" } },
+          "endpoint": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "requestedAccess": {
+      "type": "object",
+      "properties": {
+        "tools": { "type": "array", "items": { "type": "string" } },
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "hosts": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
 }
 ```
+
+The excerpt above is the committed schema
+([`schemas/install-plan.schema.json`](../schemas/install-plan.schema.json)); the authoritative text
+is that file, and `internal/schemacheck` validates a marshalled `domain.InstallPlan` against it.
 
 ---
 

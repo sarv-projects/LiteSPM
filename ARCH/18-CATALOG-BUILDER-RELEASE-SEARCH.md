@@ -27,16 +27,17 @@
 >     release tree have a single writer, `litespm catalog build`. That split (Python = ingestion,
 >     Go = publication) is what the code does; locked decision D4 itself is still unadjudicated
 >     (`STATUS.md` §2).
-> *   The committed `web/public/v1/current.json` is now Go-built (`schemaVersion`, digest over
->     `manifest.json`, second-precision timestamps); only the served origin copy is the legacy one
->     described above.
+> *   The committed `web/public/v1/current.json` is Go-built (`schemaVersion`, digest over
+>     `manifest.json`, second-precision timestamps) and names `rel-2026-10-07-01`, sequence 145,
+>     5,825 items; the last verified served pointer was `rel-2026-10-05-01` (probe 2026-10-05).
 >
 > The normative path contract in §2 (`/v1/releases/...`) **is** what the client requests, and
 > `TestReleasePathContractPinsDocumentedLayout` in `internal/catalog/catalog_test.go` pins it against
-> a server that serves only the documented tree. See
-> [31 — Competitive Landscape & Roadmap](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md) §4.2–§4.4.
-> Until the origin is re-published, treat §1/§2's extra artifacts (`index.json`, `shards/`,
-> `items/`) as `DESIGNED`; the four-file tree + pointer are `WIRED`, not live.
+a server that serves only the documented tree. See
+[31 — Competitive Landscape & Roadmap](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md) §4.2–§4.4.
+The four-file tree + pointer are **live**: the origin serves them and `catalog sync` succeeds
+against them (`SHIPPED`, [STATUS.md](../STATUS.md) §2). Only §1/§2's extra artifacts (`index.json`,
+`shards/`, `items/`, `metadata.json`) remain `DESIGNED` — `CompileRelease` does not emit them.
 
 ## 1. Deterministic CI Catalog Builder
 

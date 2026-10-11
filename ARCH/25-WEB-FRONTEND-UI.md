@@ -116,9 +116,9 @@ Clicking any card opens the canonical detail page (query route; `slug` when glob
 
 ## 4. Technical Stack & Deployment
 
-*   **Framework (Frozen):** **Next.js 15.1.7 (App Router with `output: 'export'`, `trailingSlash: true`, `images.unoptimized`)** and React 19.
-*   **Static Generation:** Query-route detail pages (`/package/?slug=`); no per-item `generateStaticParams` (5,814 items vs 20k Pages file limit — see ARCH/26 §6.3).
-*   **Styling:** Tailwind CSS 3.4 with CSS variables for the light palette plus the dark overrides keyed to `data-theme`/`prefers-color-scheme` (`web/app/globals.css`); `tailwind-merge` + `clsx` for class composition.
+*   **Framework (Frozen):** **Next.js 15.5.27 (App Router with `output: 'export'`, `trailingSlash: true`, `images.unoptimized`)** and React 19.
+*   **Static Generation:** Query-route detail pages (`/package/?slug=`); no per-item `generateStaticParams` (the committed dataset `web/data/catalog.json` holds 46,166 rows, far past the 20k-file Pages limit — see ARCH/26 §6.3).
+*   **Styling:** Tailwind CSS 4, consumed through the legacy `@config` bridge in `web/app/globals.css` (`@config "../tailwind.config.js"`), with CSS variables for the light palette plus the dark overrides keyed to `data-theme`/`prefers-color-scheme`; `tailwind-merge` + `clsx` for class composition.
 *   **Component Primitives:** Local primitives only (`CountUp`, `Toast`); no Radix dependency (`web/package.json`).
 *   **Icons:** Lucide React.
 *   **Search Engine:** MiniSearch 7.2 in a dedicated Web Worker over the static catalog, with in-thread fallback; `date-fns` for relative recency.
@@ -126,13 +126,16 @@ Clicking any card opens the canonical detail page (query route; `slug` when glob
 
 ---
 
-## 5. Design System — Three Densities (J001, `DESIGNED`)
+## 5. Design System — Three Densities (J001, `IMPLEMENTED`)
 
-> **Status:** the tokens, type roles, motion scale, theme system and component
-> splits in §5–§8 are the approved Phase-J spec (TODO `LPSM-J001`–`J009`);
-> implementation is in flight. §1–§4 above keep describing the shipped tree
-> until each row's acceptance evidence lands. Where §5 and §1 disagree during
-> the transition, this section is the target and STATUS/TODO record the state.
+> **Status (per [TODO.md](../TODO.md) `LPSM-J001`–`J009`):** `J001`, `J002`,
+> `J003` and `J005` are `IMPLEMENTED` — the tokens/type roles/theme system in
+> `web/app/globals.css`, the landing page (`web/app/`, `web/components/{hero,home}/`),
+> the `CapabilityCard`/`CatalogRow` split (`web/components/catalog/CapabilityCard.tsx`,
+> `web/components/home/SearchResults.tsx`) and the package-page restructure are in
+> the tree. `J004`, `J006`, `J007`, `J008` and `J009` remain `DESIGNED`; the
+> specs below are their target. Where a `DESIGNED` spec and §1–§4 disagree,
+> §1–§4 describe the shipped tree.
 
 The site currently speaks one visual language everywhere — the "friendly
 index" register §1 set for Explore. The mistake is making every page use it.
@@ -207,7 +210,7 @@ per-reload typing animations.
 
 ---
 
-## 6. Landing Page (J002, `DESIGNED`)
+## 6. Landing Page (J002, `IMPLEMENTED`)
 
 Section order (the wireframe, top to bottom):
 
@@ -267,9 +270,9 @@ origin (ARCH/01), not the headline.
 
 ---
 
-## 7. Component & Page Specs (J003–J009, `DESIGNED`)
+## 7. Component & Page Specs (J003–J009; J003/J005 `IMPLEMENTED`, J004/J006–J009 `DESIGNED`)
 
-### 7.1 Two card components, two layers (J003)
+### 7.1 Two card components, two layers (J003, `IMPLEMENTED`)
 
 *   **`CatalogRow`** — dense search result (what Explore keeps): name, kind
     badge, one metadata line, counts; hover affordance only.
@@ -282,7 +285,7 @@ origin (ARCH/01), not the headline.
     technical layer (runtime, transport, version, source, digest) sits
     behind disclosure/expand — same page, same component, different depth.
 
-### 7.2 Explore additions (J004)
+### 7.2 Explore additions (J004, `DESIGNED`)
 
 Desktop filter panel (Type · Works with · Runtime · Transport), mobile
 filter bottom-sheet (≥44 px), Compact ↔ Cards toggle, and a **quick
@@ -291,18 +294,18 @@ with summary, works-with, source, trust state, install command and `View
 full page` — without navigating away. Esc closes; keyboard behavior (`/`,
 arrows) preserved.
 
-### 7.3 Package page restructure (J005)
+### 7.3 Package page restructure (J005, `IMPLEMENTED`)
 
 Answer, in order: **What is this? What can it do? Will it work with what I
 use? What access does it need? How do I add it?** — then tabs (Overview ·
 Capabilities · Compatibility · Security · Versions · Source). The generic
 host-setup block (OS/agent/config path/snippet) that currently repeats on
-all 5,814 pages moves behind a single **Manual setup** disclosure. Install
+every page in the 46,166-row dataset moves behind a single **Manual setup** disclosure. Install
 panel reflects the selected agent: `✓ LiteSPM is configured for Codex`
 → `[Add GitHub]`, or `LiteSPM isn't connected yet → [Set up Codex]` (static
 site: show the three-step guided flow, never fake local detection).
 
-### 7.4 Agent Atlas & compare (J006/J007)
+### 7.4 Agent Atlas & compare (J006/J007, `DESIGNED`)
 
 `/agents` becomes a discovery grid (logo, vendor, kind, capability chips,
 OS, compatible counts) + per-agent profile pages with a capability matrix.
@@ -310,7 +313,7 @@ OS, compatible counts) + per-agent profile pages with a capability matrix.
 (`web/lib/hosts.ts`, `SKILL_TARGETS`, catalog `compatibleHosts`, detection
 data); unknown cells render `—`, never `✗`; no "best agent" editorializing.
 
-### 7.5 Routes & palette (J008/J009)
+### 7.5 Routes & palette (J008/J009, `DESIGNED`)
 
 `/trending` → `/insights` with redirect and link sweep (the page never had
 trends); `/docs` hand-built sections (no new dependencies); `/tour` with
@@ -320,7 +323,7 @@ fetch the dataset under the §2/E1 contract.
 
 ---
 
-## 8. User Flows (J002, `DESIGNED`)
+## 8. User Flows (J002, `IMPLEMENTED`)
 
 ### 8.1 Two journeys, one site
 

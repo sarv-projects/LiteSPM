@@ -127,6 +127,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   brace, a comment line that documented the removed member) and refuses rather
   than writing a document it has just proved is broken.
 
+- **A manifest can declare `[binding] mode = "native"`.** `manifest.Parse` hard-coded
+  `BindingMode() == "managed"` and ignored the optional `[binding]` table the format documents (the
+  P6 one-bridge default), so the table was accepted and discarded. It is now parsed and validated
+  against `internal/binding`'s modes: an absent table stays `managed`, only an explicit `native` opts
+  into per-package registration, an unknown mode is refused at parse time, and a non-default mode
+  round-trips through `MarshalCanonical`.
+
 ### Changed
 
 - **Deployment renamed to `litespm`.** The live Cloudflare Worker moved from the
@@ -150,7 +157,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   byte. A single-line JSON object can retain one line break, because inserting an
   entry into it necessarily added a line; content and validity are preserved.
 
+- **The HTTPS artifact fetcher no longer inherits an environment proxy.**
+  `http.ProxyFromEnvironment` made the SSRF-checked dialer validate the *proxy's* address instead of
+  the artifact host, so a proxy could carry the request to any destination and bypass the whole
+  address policy. The fetcher's transport now leaves `Proxy` nil, matching the catalog client's
+  `egress.ConfigureTransport` for the same reason.
+- **SBOM output is reproducible and its SPDX relationships are explicit.** The CycloneDX timestamp
+  honours `SOURCE_DATE_EPOCH` (the repo-wide reproducible-build convention) and the SPDX
+  `documentNamespace` derives from the lock digest, so the same lock emits byte-identical SBOMs;
+  SPDX packages are now linked to the document with explicit `DESCRIBES` relationships, which the
+  spec requires.
+- **One destination predicate for the egress guard.** `IsAllowedAddr` and the resolve/dial path each
+  decided allowed destinations, so the two could disagree; the allow decision now lives in a single
+  `allowsDestination` both share, with the configured-host and loopback qualifications applied once.
+- **The archive/package install path now loads the user's deny rules.** The daemon built its install
+  policy engine with `nil` rules, so `policy-deny.json` was silently ignored on `install.execute`; it now builds the engine through
+  `newPolicyEngine` — the same user-deny tier the skills/MCP paths use — and `runDaemonServe` halts
+  with a fatal error if a present deny-rules file cannot be read rather than serving an empty
+  blacklist.
+- **The owned-entry locator is derived from the host registry, at the install's scope.** `hostLocatorFor`
+  hard-coded a container-per-host map that could disagree with where `InstallServerEntry` actually wrote the
+  entry; the locator now reads `host.EntryLayoutForScope` from the adapter registry at the scope the install
+  used — the same key path the writer used, including the hosts whose project container differs from their
+  user one — and refuses a host with no registered layout instead of guessing a plausible node.
+- **A deny rule matches a capability by its listing id *or* the name it installs under.** The MCP path
+  passed the catalog listing id as the rule's `targetRef` while the skills path passed the installed name,
+  so one vocabulary silently stopped enforcing on the other path. `PolicyInput` now carries the canonical
+  `TargetRef` (the listing id on the MCP path, the skill name on the skills path, which has no listing id)
+  plus `TargetAliases` (the host server-entry name), and `DenyRule.matches` accepts either — a rule keyed on
+  the id the user types on the command line and a rule keyed on the config entry name both refuse the
+  install.
+- **Usage errors exit 2, not 1.** The dispatch and subcommand guards for `catalog`, `daemon`,
+  `host`, `skills`, `agent`, `restore` and the skills subcommands printed usage and exited `1`,
+  colliding with internal errors; they now exit `2` as `ARCH/20` §2 documents.
+- **`LPSM-ARTIFACT-UNAVAILABLE` maps to `-32602` (invalid params) over IPC.** The Bridge's
+  `request_install` surfaced a listing with no artifact locator as an internal error; it is a
+  caller-visible request problem, so `installRPCError` now classifies it with the other
+  invalid-params codes.
+
 ### Fixed
+
+- **Receipt chain verification checks the real link order, not just any issued hash.**
+  `receipts.Store.VerifyChain` re-hashed every receipt but accepted a `PrevReceiptHash` that named
+  *any* hash the store had once issued, so a receipt deleted from the store, reordered, or relinked
+  to a non-predecessor still passed. The store now records the per-provider issue order and verifies
+  the true chain: each receipt's `PrevReceiptHash` must equal its immediate predecessor's
+  `ReceiptHash`, and the first receipt must carry no link.
+
+- **The schema validator's release-tree check skips on a clean checkout instead of failing it.**
+  `web/public/v1/releases/` is generated by `litespm catalog build` and gitignored (the committed artifact
+  is the pointer `web/public/v1/current.json`), so a fresh clone had no tree to validate and the new contract
+  test failed before reaching anything it could check. It now skips with that reason; the freshly compiled
+  release in the same file still covers the contract, verified by running the package in a tree without the
+  generated directory.
+
+- **`runtime.env` in a version record must map to strings.** Schema validation accepted an object of any
+  values there, but `domain.RuntimeDescriptor.Env` is `map[string]string`, so a release declaring
+  `"env": {"TOKEN": 42}` passed the contract and then failed to unmarshal in the catalog client. The
+  property now constrains its values, closing the gap between what the schema accepts and what the client
+  can read.
+
+- **The release `contentDigest` is re-verified from the bytes, not only the per-file digests.**
+  `manifest.contentDigest` pins `listings.json || versions.json` as one unit, but neither the deploy
+  verifier nor the catalog client recomputed it, so a rewrite that fixed every per-file size and
+  digest in the manifest would still have been accepted. `catalogbuild.ContentDigestOf` is now the
+  single implementation, and `VerifyMaterializedTree` plus `catalog.sync`/`LoadFromCache` recompute
+  it and refuse a mismatch.
+
+- **Four JSON Schemas now describe the artifacts the code actually emits, and a dependency-free validator keeps them honest.** `schemas/catalog-release.schema.json`
+  demanded `rel_` + 26 base32 characters for `releaseId` — a grammar no release id has ever had (real ids are `rel-2026-10-07-01`); `source.schema.json` forbade
+  `sourceId` inside the `snapshot` object the store always writes and typed `upstreamRevision` non-null although its absence is recorded as `null`;
+  `listing.schema.json` required `source.sourceType`/`manifestFormat`, which `domain.SourceReference` does not carry, and described publisher, verification,
+  compatibility and provenance objects that never matched the emitted shape; and `version.schema.json`/`install-plan.schema.json` had drifted from
+  `domain.VersionRecord` (dependency `constraint`, requirement `version`, permission `type`, effect objects, signature `algorithm`, and `version` `minLength: 1` versus
+  the empty version version-less listings publish) and from `domain.InstallPlan` (`effects` are strings not objects, `preconditions` is an object, `approval` carries
+  channel/decision, `requestedAccess`/`providerLaunches` differ, and the phantom top-level `collisions`/`warnings` are gone). The new `internal/schemacheck` package
+  implements only the draft 2020-12 keywords these six files use and **rejects any keyword it does not implement** rather than ignoring it; its tests validate the
+  committed release tree, a fresh `CompileRelease` output, a real snapshot record, an `LPSMError` envelope and a marshalled `InstallPlan`, and pin the schemas that
+  duplicate a domain identifier grammar to `domain.Regex*`. The same tests reproduce the pre-fix failure: each old subschema rejects the real artifact it was supposed
+  to describe.
 
 - **Reading an installed MCP server back from a TOML host config returned no arguments at all.** The parser tried to unquote a whole array (`["-y", "demo"]`) as if it were a
   single string literal, which can never succeed, so `args` silently came back empty and every server installed for Codex or Grok Build would have been probed with
@@ -228,10 +313,29 @@ Verified remediation phases 0–3:
   adapters were routed through the shared helper; it is now pinned by
   `TestMergeJSONEntrySurgicalTwoLevelKeyPath`.
 
+### Removed
+
+- **Deleted `config.RedactConfig`.** It claimed to return a copy of the config with sensitive values
+  scrubbed, but nothing called it and its field list did not cover the config's actual secrets — it
+  offered false reassurance. The real redaction paths (`doctor`, logging) do the work.
+- **Deleted the dead `state.newAuditEventID`.** It minted collision-resistant audit-event ids, but no
+  caller used it; the live audit write path was already the one in use.
+- **Deleted `secrets.NewFileEncryptedSecretStore`.** It derived the vault key from the vault path and
+  the local username — obfuscation presented as encryption, and it was test-only. The platform store
+  is now the sole path: `OpenSecretStore` → `NewFileEncryptedSecretStoreWithKey` with an
+  OS-keyring-protected master key.
+
 ### Known limitations
 
 - The install path cannot execute end-to-end until the daemon supplies an
   artifact source; `invoke_capability` and related tools return JSON-RPC
   `-32601`. See `STATUS.md` and `REMEDIATION-PLAN.md` (finding M3).
 - The catalog release tree and pointer are published, and `catalog sync`
-  succeeds against the live origin (2026-10-05); releases remain unsigned.
+  succeeds against the live origin (2026-10-05); artifact signing is implemented
+  (keyless cosign bundles plus a CycloneDX SBOM in `release.yml`, verified by
+  `self-update` and on catalog sync), but no `v*` tag has shipped a signed
+  release yet.
+- Invocation-receipt chain verification detects a reordered, interior-deleted or
+  relinked receipt; a truncated tail leaves a self-consistent prefix and is not
+  detectable from inside the store, which would need an expected head anchored
+  outside the receipt file.

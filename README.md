@@ -25,24 +25,25 @@ It eliminates the need to manually configure, update, and manage capabilities ac
 
 | Phase | Description | State | Evidence / what is missing |
 |---|---|---|---|
-| **Phase A** | **Architecture Freeze & LLD Specifications** | `DESIGNED` | `ARCH/00`–`ARCH/37` exist. `ARCH/24` is an aspirational inventory, not a compiled one; `ARCH/18` specifies an output tree (`index.json`, `shards/`, `items/`) that the compiler does not emit (those outputs are labelled `DESIGNED`) |
+| **Phase A** | **Architecture Freeze & LLD Specifications** | `DESIGNED` | `ARCH/00`–`ARCH/38` exist. `ARCH/24` is an aspirational inventory, not a compiled one; `ARCH/18` specifies an output tree (`index.json`, `shards/`, `items/`) that the compiler does not emit (those outputs are labelled `DESIGNED`) |
 | **Phase B** | **Foundations, Storage & Local IPC** | `TESTED` | `internal/domain`, `internal/config`, `internal/state` (SQLite WAL, 22 tables), `internal/ipc` (named pipes / Unix sockets). Contract tests bind; see [STATUS.md](STATUS.md) §1 |
-| **Phase C** | **Static Catalog & Discovery Plane** | `SHIPPED` | `internal/catalogbuild` + `litespm catalog build` are `TESTED` (real-dataset + end-to-end build→serve→sync→search tests); the release tree **is published** and `litespm catalog sync` was verified against the live origin from a clean data root (2026-10-05: release `rel-2026-10-05-01`, 5,814 indexed). `ARCH/18` §1–§2's `index.json`/`shards`/`items` remain un-emitted (shards are `DESIGNED`) |
+| **Phase C** | **Static Catalog & Discovery Plane** | `SHIPPED` | `internal/catalogbuild` + `litespm catalog build` are `TESTED` (real-dataset + end-to-end build→serve→sync→search tests); the release tree **is published** and `litespm catalog sync` was verified against the live origin from a clean data root (2026-10-05 probe: release `rel-2026-10-05-01`, 5,814 indexed; the committed pointer `web/public/v1/current.json` now names `rel-2026-10-07-01`, sequence 145, 5,825 items). `ARCH/18` §1–§2's `index.json`/`shards`/`items` remain un-emitted (shards are `DESIGNED`) |
 | **Phase D** | **Safe Extraction & Skill Store** | `WIRED` (resolver, skills); `IMPLEMENTED` (install engine); `TESTED` (artifact) | `internal/resolver` and `internal/skills` are reached from production paths and `internal/artifact` is test-covered ([STATUS.md](STATUS.md) §1/§3); skills and MCP servers install end to end (verified against the live catalog). Only **plugins** still need an artifact source — [ARCH/31 §4.1](ARCH/31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#41-the-agent-facing-install-path-cannot-complete--wired-is-false) |
 | **Phase E** | **Process Supervision, Bridge & Host Adapters** | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | 6 bespoke adapters + 44 generic BridgeTargets (50 total, `ARCH/30`) + 77 skill targets are registered. Provider autostart is inert: the `providers` table is never populated by non-test code (finding `m4`). See [STATUS.md](STATUS.md) §1/§4 |
 | **Phase F** | **MCP Protocol Dual-Profile, Secrets & OAuth** | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | Dual-profile client, native OS keystores, OAuth PKCE loopback exist; the secrets vault is opened before serving (`WIRED`), but secrets are not injected at provider launch, `mcpclient`'s first production importer is `internal/discover`, and `auth` still has zero production importers — the `AuthBroker` currently has no consumer (finding 99), [STATUS.md](STATUS.md) §1/§4 |
-| **Phase G** | **In-Agent `/marketplace` Panel & Web UI** | `WIRED` for the static web marketplace; panel `WIRED` | The Next.js static export and Bridge tool surface exist; the panel's install action completes for skills and MCP servers. Plugins remain blocked by Phase D. See [STATUS.md](STATUS.md) §1 |
+| **Phase G** | **In-Agent `/marketplace` Panel & Web UI** | `SHIPPED` (static web marketplace); panel `WIRED` | The Next.js static export and Bridge tool surface exist and the static marketplace is published ([STATUS.md](STATUS.md) §1); the panel's install action completes for skills and MCP servers. Plugins remain blocked by Phase D. See [STATUS.md](STATUS.md) §1 |
 | **Phase H** | **Release Engineering & Packaging** | `IMPLEMENTED` | Cross-platform builds, npm wrapper, CI checks, and keyless cosign signing of every release artifact plus a CycloneDX SBOM (`release.yml`). `self-update` completes only once a release publishes `litespm-*` assets (packaging P7) |
 | **Phase I** | **Golden Fixtures, Self-Update & Migrations** | `TESTED` for fixtures and migrations; self-update `WIRED` (signed) | Fixtures corpus and migration engine (forward apply + downgrade guard) are tested; `self-update` is fail-closed on SHA-256 with rollback and verifies the release's keyless signature bundle (required via `LITESPM_REQUIRE_SIGNED_UPDATE=1`). The first signed release is cut on the next `v*` tag — see [SECURITY.md](SECURITY.md). Per-row detail: [TODO.md](TODO.md) Phase I |
 
-**Not yet true of LiteSPM, and not claimed anywhere:** provider autostart, a project manifest +
-lockfile, npm package signatures, plugin installation, and any isolation level beyond process
-supervision. (Release **signing** is implemented — every artifact gets a keyless cosign bundle the
-updater verifies, and the catalog pointer is signed and checked on sync — but no signed release has
-shipped yet; runtime policy **is** now enforced at invocation: `provider.invoke` runs the policy
-engine and ungranted tools fail closed until an interactive `litespm grant`; the catalog release
-tree **is** published — the live origin serves it and `catalog sync` succeeds against it; and
-`request_install` **does** complete an agent-driven install for skill and MCP-server listings.)
+**Not yet true of LiteSPM, and not claimed anywhere:** provider autostart, npm package signatures,
+plugin installation, and any isolation level beyond process supervision. (By contrast: a project
+manifest + lockfile **is** implemented — `litespm lock`/`install --frozen` (`ARCH/32` §2–§4,
+[STATUS.md](STATUS.md) §5); release **signing** is implemented — every artifact gets a keyless cosign
+bundle the updater verifies, and the catalog pointer is signed and checked on sync — but no signed
+release has shipped yet; runtime policy **is** now enforced at invocation: `provider.invoke` runs the
+policy engine and ungranted tools fail closed until an interactive `litespm grant`; the catalog
+release tree **is** published — the live origin serves it and `catalog sync` succeeds against it;
+and `request_install` **does** complete an agent-driven install for skill and MCP-server listings.)
 
 ---
 
@@ -228,20 +229,20 @@ installed capabilities, so no ready/needs-auth/stopped light is asserted: unobse
 as `— Unknown`. External components are detected; there is **no `Adopt` action** — the label is
 rendered by the panel, but no adopt handler or tool exists (it is `DESIGNED`).
 
-### 3.5 Capability Schema-Drift & Identity Protection (`WIRED` for the drift gate, `IMPLEMENTED` for grants)
+### 3.5 Capability Schema-Drift & Identity Protection (`WIRED` for the drift gate, `WIRED` for grants)
 *   Upon tool discovery, LiteSPM generates a SHA-256 fingerprint of the tool's input JSON Schema (`schemaFingerprint`).
 *   User approvals are designed to bind cryptographically to strong identity tuples:
     *   **Local Stdio:** `(capability_id, schemaFingerprint, casTreeDigest)`
     *   **Remote HTTP:** `(capability_id, schemaFingerprint, endpointOrigin, serverVersionDigest)`
 *   If an upstream provider modifies its schema upon reconnection, or if local code or remote endpoints change, LiteSPM invalidates the grant (`status: "changed"`), blocking unapproved execution until re-reviewed.
 
-**Honest limit:** the *check* half is real — `internal/discover` re-probes the server before every
+**Honest limit:** both halves are real now. The *check* half re-probes the server before every
 call and refuses one whose fingerprint no longer matches what was discovered, and the policy engine
-is evaluated before the server is spawned (`WIRED`). The *grant* half is not: `SaveCapabilityGrant`
-has no non-test caller, so no `CapabilityGrant` row is ever written and therefore none can be
-invalidated — `status: "changed"` is a state nothing yet produces. The `capabilities` and
-`providers` writers **do** have a production caller now (`internal/discover`). See
-[STATUS.md](STATUS.md) §4.
+is evaluated before the server is spawned. The *grant* half is wired: `litespm grant <capabilityId>`
+(`cmd/litespm/grant.go`) writes one `capability_grants` row per capability and `internal/policy`
+Tier 3 reads it before an effectful invocation. What no code path yet produces is the drift
+*invalidation* state — `grant revoke` sets `revoked`, but nothing flips a grant to
+`status: "changed"` when a re-probe sees a new fingerprint. See [STATUS.md](STATUS.md) §4.
 
 ---
 
@@ -286,7 +287,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
   │       ├── skills_remove.go                          # `skills remove/list` ledger-backed removal
   │       └── skills_policy.go                          # skills policy hook (deny rules → installed skills)
   │
-  ├── internal/ (38 packages; the 21 listed below are the `ARCH/24` inventory)
+  ├── internal/ (42 packages; the 21 listed below are the `ARCH/24` inventory)
   │   ├── domain/                                       # Pure domain models, canonical IDs, RFC 8785 JCS, errors
   │   ├── config/                                       # Platform paths (%LOCALAPPDATA%, XDG, runtimes) & config
   │   ├── state/                                        # SQLite WAL engine (22 tables), safe CAS rollback journal
@@ -321,7 +322,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
   ├── web/                                              # Next.js static marketplace — see web/README.md
   ├── LICENSE                                           # Apache License 2.0
   ├── NOTICE                                            # Apache-2.0 attribution + third-party notices
-  └── ARCH/                                             # 38 Architecture & LLD Documents (00–37)
+  └── ARCH/                                             # 39 Architecture & LLD Documents (00–38)
       ├── 00-INDEX.md                                   # Normative status, precedence & registry
       ├── 01-PRODUCT.md                                 # Product contract & 5-stage lifecycle
       ├── 02-HLD.md                                     # Daemon/Bridge split & sequence diagrams
@@ -329,7 +330,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
       ├── 04-CLIENT-INSTALL.md                          # Interactive TUI, CAS layout & resolver
       ├── 05-SECURITY.md                                # Archive limits & schema-drift defense
       ├── 06-API-CONTRACTS.md                           # Immutable releases & Plan v2
-      ├── 07-DECISIONS.md                               # Accepted ADRs D-001 through D-025
+      ├── 07-DECISIONS.md                               # Accepted ADRs D-001 through D-031
       ├── 08-DELIVERY.md                                # Delivery roadmap & acceptance gates
       ├── 09-RESEARCH.md                                # MCP 2026-07-28 & primary ecosystem research
       ├── 10-DOMAIN-MODEL.md                            # Domain models & RFC 8785 canonical hashing
@@ -346,7 +347,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
       ├── 21-TESTING-CONFORMANCE.md                     # Test pyramid, crash injection & canary scans
       ├── 22-PLATFORM-RELEASE-MIGRATIONS.md             # Cross-compilation & DB migrations
       ├── 23-SCHEMAS-EXAMPLES.md                        # Schema fixtures & examples
-      ├── 24-FUNCTION-INVENTORY.md                      # Aspirational function map (21 of the 38 packages; §21 verified)
+      ├── 24-FUNCTION-INVENTORY.md                      # Aspirational function map (21 of the 42 packages; §21 verified)
       ├── 25-WEB-FRONTEND-UI.md                         # Web marketplace frontend inspired by mcpmarket.com
       ├── 26-ECOSYSTEM-IA-PACKAGE-MODEL.md              # Neutral Package/Capability model, 8-type taxonomy, honesty rule
       ├── 27-CAPABILITY-SOURCE-SUPPORT-MATRIX.md        # Status snapshot per type/source with code evidence
@@ -359,7 +360,8 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
       ├── 34-RUNTIME-INVOCATION-RECEIPTS.md             # Capability registry, invocation engine, receipts  [DESIGNED]
       ├── 35-PROFILES-AND-CAPABILITY-LEASES.md          # Multi-kind profiles & capability leases  [DESIGNED]
       ├── 36-ENTERPRISE-POLICY-AND-AUDIT.md             # Policy hierarchy, audit --ci, signing  [DESIGNED]
-      └── 37-TUI-AND-COMPLETION.md                      # TUI, staged-plan tray, shell completion  [DESIGNED]
+      ├── 37-TUI-AND-COMPLETION.md                      # TUI, staged-plan tray, shell completion  [DESIGNED]
+      └── 38-CLI-PRODUCT-SURFACE.md                     # CLI surface: dispatch, help, list/inventory, profiles, orientation commands
 ```
 
 ### 5.1 Command-line surface
@@ -395,7 +397,7 @@ Exit codes: `0` success · `1` internal · `2` usage · `10` catalog · `20` res
 
 *   **Local Core & Daemon:** Written in Go (1.26) for static cross-platform compilation, OS process group / Job Object control, SQLite WAL concurrency, and hand-rolled MCP JSON-RPC 2.0 (no external SDK).
 *   **Database:** SQLite 3 with Write-Ahead Logging (`WAL`), utilizing pure-Go drivers (`modernc.org/sqlite`) for zero-CGO cross-compilation.
-*   **Web Marketplace:** Static export using Next.js 15 / React 19 + Tailwind CSS + Radix UI, deployed to Cloudflare Pages — commands, layout and deploy path are documented in [`web/README.md`](web/README.md).
+*   **Web Marketplace:** Static export using Next.js 15 / React 19 + Tailwind CSS 4 (no Radix dependency; local primitives only), deployed to Cloudflare Pages — commands, layout and deploy path are documented in [`web/README.md`](web/README.md).
 *   **Testing:** Multi-tier testing pyramid featuring property-based tests, hostile archive fuzzing, and synthetic secret canary scans. A systematic crash-injection harness is designed but **not built** (see [ARCH/21 §4](ARCH/21-TESTING-CONFORMANCE.md#4-crash-injection-fault-matrix-designed--no-harness-in-tree)).
 
 ---
@@ -466,5 +468,8 @@ which matter for a project that writes into other people's agent configuration f
     not `WIRED` — [STATUS.md](STATUS.md) §1); a future brokered connector never hands its token to
     the agent ([ARCH/29](ARCH/29-CONNECTOR-SYSTEM-DESIGN.md)).
 *   **Release integrity:** release binaries are published with `SHA256SUMS.txt` and the self-updater
-    fails closed on a digest mismatch. **Releases are not yet signed** — see
-    [`SECURITY.md`](SECURITY.md) for the open gap and the planned mitigations.
+    fails closed on a digest mismatch. **Release signing is implemented but not yet shipped:**
+    `release.yml` produces a keyless cosign bundle over every release artifact plus a CycloneDX
+    SBOM, the updater verifies the bundle, and the catalog pointer is signed and checked on sync —
+    but no `v*` tag has shipped yet, so no published release carries a bundle. See
+    [`SECURITY.md`](SECURITY.md) and [STATUS.md](STATUS.md) §1/§5 for the authorities.

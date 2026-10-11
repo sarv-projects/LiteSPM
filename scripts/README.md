@@ -1,6 +1,6 @@
 # `scripts/` — repository scripts
 
-Thirteen scripts live in this directory. **Two of them are executed on a push or pull request.**
+Twenty scripts live in this directory. **Two of them are executed on a push or pull request.**
 `.github/workflows/ci.yml` *checks the syntax* of every script (`bash -n scripts/*.sh`,
 `python3 -m py_compile scripts/*.py`) and **executes** `gen_hosts_ts.go` (regeneration gate),
 `deploy-pages.sh` (in its `build-web` job, so the staged bundle is packaged and leak-audited on
@@ -28,9 +28,22 @@ history is in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md).
 | `parse_catalogs.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
 | `parse_skills.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
 | `sample_voltagent.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
+| `audit-pages-dist.sh` | bash | **CI** — called by `deploy-pages.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — `set -euo pipefail` + explicit leak/digest `exit 1`; usage error exits 2 |
+| `migrate_dataset_transport.py` | Python | **Manual** — one-time historical migration (its header warns against re-running) | Yes, but it is historical: see the header before running it |
+| `test_snapshot_lifecycle.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
+| `test_catalog_ingestion_safety.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
+| `test_remote_endpoints.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
+| `test_mcpmarket_source.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
+| `test_skill_promotion.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
 
 `scripts/__pycache__/` is a build artifact of `python3 -m py_compile` and is gitignored — it is not
 a script.
+
+**Test suites are not run by CI.** The five `scripts/test_*.py` suites (`test_snapshot_lifecycle.py`,
+`test_catalog_ingestion_safety.py`, `test_remote_endpoints.py`, `test_mcpmarket_source.py`,
+`test_skill_promotion.py`) and `snapshot_store.py`'s own self-test are manual: `ci.yml` only
+byte-compiles `scripts/*.py` (`python3 -m py_compile`) and never executes them, so a green build
+proves they parse, not that they pass. Run them by hand before touching the producer.
 
 ---
 
@@ -60,7 +73,7 @@ a script.
   (`ARCH/18` §4), and audit the staged tree for source/secret leaks (`ARCH/18` §5 strict allowlist).
 - **Invocation.** `./scripts/deploy-pages.sh` from the repo root; optionally
   `NEXT_PUBLIC_SITE_URL=https://<origin> ./scripts/deploy-pages.sh`.
-- **Inputs.** `web/` (runs `npm ci || npm install`, then `npm run build`), and the released pointer
+- **Inputs.** `web/` (runs a strict `npm ci`, then `npm run build`), and the released pointer
   `web/public/v1/current.json` (must exist — it is the release the bundle reproduces).
 - **Outputs.** `pages-dist/` = copy of `web/out/` **with its exported `v1/` replaced** by
   `go run ./cmd/litespm catalog build --materialize --out pages-dist`, which reproduces the
@@ -78,7 +91,8 @@ a script.
 - **Truthfulness gaps.** It packages, it does not deploy. It reproduces the released pointer but
   never cuts a new release: refreshing the catalog is `python3 scripts/build_full_catalog.py`
   (dataset) then `go run ./cmd/litespm catalog build --out web/public` (pointer + tree), and only
-  then this script. The `npm ci || npm install` fallback hides a lockfile mismatch. Its
+  then this script. `web/` is installed with a strict **`npm ci`** (no `npm install` fallback), so a
+  lockfile mismatch fails the packaging run instead of being hidden. Its
   forbidden-file `find` expression rejects `.go`, `.env*`, `.pem`, `.key`, `.db`, `.sqlite*` and any
   `.ts` file, but cannot catch a secret pasted into `.json`/`.html`. Because CI runs the script,
   the audit **is** enforced on every push/PR.
@@ -104,7 +118,7 @@ a script.
   manifests, and the two registries `web/data/hosts.json` + `web/data/skill-targets.json` (run
   `gen_hosts_ts.go` first — if they are unreadable the script warns and publishes **empty** host
   lists).
-- **Outputs.** `web/data/catalog.json` (**5,814 rows** as committed; every listing id passes through
+- **Outputs.** `web/data/catalog.json` (**46,166 rows** as committed; every listing id passes through
   fail-closed `canonical_id()`, which strips query junk/apostrophes and maps everything outside
   `[A-Za-z0-9_.~%+-]` to `-` — an earlier revision shipped six ids the domain grammar rejects) and
   the dataset stats in `web/data/release.json` (`itemCount`, per-kind counts, `hostCompatibility`,
@@ -177,12 +191,14 @@ not ingestion: the ingestion path they informed is `build_full_catalog.py`.
 
 - **Executed by CI on every push/PR:** `deploy-pages.sh` (the `build-web` job's
   `Package and Audit the Deploy Bundle` step, so the export, the byte-for-byte release
-  materialization and the leak audit run on each change) — in addition to the syntax steps
-  `bash -n scripts/*.sh` (syntax) and `python3 -m py_compile scripts/*.py` (byte-compile).
+  materialization and the leak audit run on each change) — which in turn runs
+  `audit-pages-dist.sh` — in addition to the syntax steps `bash -n scripts/*.sh` (syntax) and
+  `python3 -m py_compile scripts/*.py` (byte-compile, which does not execute anything).
 - **Executed by the release workflow:** `build-release.sh`.
 - **Manual-only:** `build_full_catalog.py`, `snapshot_store.py` (its self-test),
-  `gen_hosts_ts.go`, `check_ci.py`, and the six research
-  probes. (Not a script, but the same workflow: the release/publication step
+  `gen_hosts_ts.go`, `check_ci.py`, the six research probes, the five `scripts/test_*.py`
+  suites, `migrate_dataset_transport.py`, and `audit-pages-dist.sh` (when run directly).
+  (Not a script, but the same workflow: the release/publication step
   `go run ./cmd/litespm catalog build --out web/public` is also manual, and `deploy-pages.sh` runs
   its `-materialize` form on every packaging run.)
 - **Assertion-less (never fail on bad content):** `build_full_catalog.py` (no row/schema checks of

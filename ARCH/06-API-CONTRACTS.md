@@ -89,26 +89,25 @@ Shape as typed by `catalogbuild.CurrentPointer` (`internal/catalogbuild/compiler
 
 ## 2. InstallPlan Contract
 
-Three shapes exist and **they disagree**. This section states each honestly.
+One shape: the Go `domain.InstallPlan` (`internal/domain/models.go:500-524`) **is** what
+`schemas/install-plan.schema.json` describes. The schema was realigned to the Go struct (the daemon
+is what ships), so the two no longer disagree, and `internal/schemacheck` now fails a test on drift
+(`internal/schemacheck/contracts_test.go`, `TestInstallPlanValidates`). This plan is what
+`resolver.prepare_plan` builds, hashes, persists and returns, and what `install.execute` re-verifies
+before it acts — hash and expiry at `internal/install/engine.go:105-120`, artifact source at
+`:204-207`.
 
-*   **(a) Current — Go `domain.InstallPlan`** (`internal/domain/models.go:436-452`). This is what
-    `resolver.prepare_plan` builds, hashes, persists, and returns
-    (`cmd/litespm/main.go:1848-1902`), and what `install.execute` re-verifies before it acts —
-    hash and expiry at `internal/install/engine.go:105-120`, artifact source at `:204-207`.
-*   **(b) Target — `schemas/install-plan.schema.json`.** Draft 2020-12, `$id`
-    `https://litespm.dev/schemas/v1/install-plan.schema.json`, `additionalProperties: false`.
-*   **(c) A stale example previously published in this document**, which matched (b) and not (a).
-
-**The Go type does not adhere to the schema, and no test asserts that it does.** The comment at
-`internal/domain/models.go:435` ("strictly adheres to") is inaccurate; treat (b) as the target to be
-reached by a future migration, not as a description of today's bytes.
+*   **(a) Go `domain.InstallPlan`** — the marshalled, persisted, hashed shape documented in §2.1.
+*   **(b) `schemas/install-plan.schema.json`** — Draft 2020-12, `$id`
+    `https://litespm.dev/schemas/v1/install-plan.schema.json`, `additionalProperties: false`. It
+    now mirrors (a); see §2.2.
 
 ### 2.1 Current shape (Go serialization)
 
 ```json
 {
   "schemaVersion": 2,
-  "planId": "plan_7Q2K4M9B5X3T8V6R1D0F9H2J7N4",
+  "planId": "plan_7Q2K4M9B5X3T8V6R1D0F9H2J7N",
   "planHash": "sha256:4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b",
   "createdAt": "2026-10-05T09:15:00Z",
   "expiresAt": "2026-10-05T09:30:00Z",
@@ -131,29 +130,25 @@ reached by a future migration, not as a description of today's bytes.
 Notes on that serialization:
 
 *   `planId` is `plan_` + 26 Crockford base32 symbols, matching `^plan_[0-9A-Za-z]{26}$`
-    (`cmd/litespm/main.go:1803-1817`).
+    (`cmd/litespm/main.go:2602-2616`).
 *   `catalogReleaseId` is emitted empty today — `buildInstallPlan` never sets it.
 *   `preconditions` and `approval` marshal to empty objects because every field inside them is
-    `omitempty` (`internal/domain/models.go:393-407`); a plan built by `buildInstallPlan` populates
+    `omitempty` (`internal/domain/models.go:460-473`); a plan built by `buildInstallPlan` populates
     none of them.
-*   `collisions` and `warnings` have no counterpart in the Go struct at all.
-*   Plan lifetime is 15 minutes from creation (`cmd/litespm/main.go:1865`).
+*   Neither the Go struct nor the schema carries `collisions`/`warnings`; earlier revisions of the
+    schema declared them, and they are now removed.
+*   Plan lifetime is 15 minutes from creation (`cmd/litespm/main.go:2822`).
 
-### 2.2 Known mismatches: Go type vs `schemas/install-plan.schema.json`
+### 2.2 Schema alignment: Go type ≡ `schemas/install-plan.schema.json`
 
-| Field | Go (current) | Schema (target) |
-|---|---|---|
-| `effects` | `[]string` — `["package.install"]` (`models.go:446`) | array of `{type, target}` objects (`additionalProperties: false`) |
-| `preconditions` | `PlanPreconditions{filesystemPaths[], portsAvailable[], runtimesFound[], diskSpaceBytes}` (`models.go:393-398,447`) | array of `{type, target, expected}` |
-| `approval` | `PlanApproval{approvalId, channel, decision, decidedAt, approvedBy}` (`models.go:401-407,448`) | `{required: bool, reasonCodes[], minimumChannel}` — `required` is mandatory |
-| `requestedAccess` | `*RequestedAccess{tools[], paths[], hosts[]}` (`models.go:429-433,451`) | array of `{resource, description}` |
-| `providerLaunches` | `ProviderLaunch{providerId, transport, command, args, env: map[string]string, endpoint}` (`models.go:419-426,450`) | `{providerName, executable, args[], environmentVariables[]}` |
-| `collisions`, `warnings` | absent | present and top-level (`additionalProperties: false`) |
-
-`effects`, `preconditions`, and `approval` are **required** by the schema, so a plan produced by the
-daemon today would fail validation on three required fields plus any populated optional one. Closing
-this gap requires choosing one shape and migrating the other; until then, consumers must use the Go
-shape (a).
+The schema no longer describes a divergent "target". It was rewritten to the Go shape — `effects` is
+an array of strings, `preconditions` is an object (`filesystemPaths`/`portsAvailable`/
+`runtimesFound`/`diskSpaceBytes`), `approval` carries `channel`/`decision`, `requestedAccess` and
+`providerLaunches` mirror their structs, and the phantom top-level `collisions`/`warnings` are gone.
+`internal/schemacheck` validates a marshalled `domain.InstallPlan` against the schema in
+`TestInstallPlanValidates` (`internal/schemacheck/contracts_test.go`), so any future drift fails the
+test rather than becoming a documentation footnote. Consumers keep using the Go shape — which is now
+also the schema's shape.
 
 ### 2.3 Cryptographic Plan Hashing Rule (matches the code)
 

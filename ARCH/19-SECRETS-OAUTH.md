@@ -82,10 +82,14 @@ in an AES-256-GCM encrypted vault file that the master key unlocks.
 └─────────────┴──────────────────────────────────────────────────────────────┘
 ```
 
-*   **Vault payload:** `vault.enc` at the platform data path, AES-256-GCM,
-    `NewFileEncryptedSecretStoreWithKey` (`internal/secrets/vault_file.go:43`).
-    The path-derived-key variant `NewFileEncryptedSecretStore`
-    (`vault_file.go:73`) is used only by tests.
+*   **Vault payload:** `vault.enc` at the platform data path, AES-256-GCM, written
+    through `NewFileEncryptedSecretStoreWithKey` (`internal/secrets/vault_file.go:41`).
+    The store is opened by `OpenSecretStore` (`internal/secrets/store.go:4`), which
+    resolves the platform backend in §2 and supplies the OS-keyring-protected master
+    key — `secret-tool` (Linux Secret Service), Keychain (macOS), or Windows DPAPI.
+    There is no path-derived key: the earlier `NewFileEncryptedSecretStore`, which
+    derived its key from the vault path and username, was deleted — that was
+    obfuscation, not encryption.
 *   **In-memory store:** `MemorySecretStore` (`store_mem.go`) is an AES-256-GCM
     in-memory vault used by tests and test harnesses — it is not a fallback for
     a missing OS vault.

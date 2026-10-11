@@ -129,10 +129,14 @@ args = ["mcp-server-sqlite", "--db-path", "test.db"]
 
 ### Test Case 5: Slash Command (`/marketplace`) Registration
 *   **Objective:** Confirm the host descriptor advertises the `/marketplace` trigger.
-*   **Status:** Host adapters perform an **MCP-entry merge only**; they record
+*   **Status:** Host adapters perform an **MCP-entry merge only** — they record
     `SlashCommandTrigger` metadata (`internal/host/*.go`) but do **not** write an extension, custom
-    instruction, or command hook into the host. Assertions 1 and 3 below therefore describe an
-    intended projection, not shipped behavior.
+    instruction, or command hook into the host — **with one exception**: the Pi Agent adapter also
+    creates the companion extension `<agent-dir>/extensions/litespm.ts`, which registers a Pi command
+    named `litespm` (not `/marketplace`) whose handler calls the bridge's `list_installed`
+    (`internal/host/piagent.go:111-126`; `ARCH/16` §3.2, `AGENTS.md` §4.2). That file is **not**
+    removed by `host remove`/`uninstall` — removal only strips config entries. Any claim that the Pi
+    adapter writes no extension is wrong; every other host writes none.
 *   **Procedure (implemented part):** Assert the adapter descriptor for each host reports
     `SlashCommandTrigger: "/marketplace"` (`internal/host/targets_data_test.go:376`).
 

@@ -1,16 +1,17 @@
 # `web/` — LiteSPM public marketplace site
 
-A **Next.js 15.1.7 static export** (`output: "export"` in `next.config.ts`) of React 19 + Tailwind
-3.4 that publishes the catalog index: omni-search, category rail, cards, detail pages, host
-coverage. It is a *read-only public site* — it never talks to the local daemon, the bridge, or the
+A **Next.js 15.5.27 static export** (`output: "export"` in `next.config.ts`) of React 19 + Tailwind
+CSS 4 that publishes the catalog index: omni-search, category rail, cards, detail pages, host
+coverage. Tailwind CSS 4 is consumed through the v3-compat bridge in `web/app/globals.css`
+(`@config "../tailwind.config.js"`), so the existing `tailwind.config.js` still drives the theme.
+It is a *read-only public site* — it never talks to the local daemon, the bridge, or the
 vault.
 
-Capability state: **`WIRED`** for the static marketplace, and the deployed catalog data is
 Capability state: **`SHIPPED`** for the static marketplace and the published catalog — see
 [STATUS.md](../STATUS.md) §1–§2. The site and the binary now read the same origin:
 `https://litespm.sarveshbh-2022.workers.dev` serves both, and `litespm catalog sync` was verified
-against it from a clean data root on 2026-10-05 (release `rel-2026-10-05-01`, sequence 143, 5,814
-indexed). The earlier "the sync path is dead at the origin" defect
+against it from a clean data root on 2026-10-05 (probe: release `rel-2026-10-05-01`, sequence 143,
+5,814 indexed; the committed pointer now names `rel-2026-10-07-01`, sequence 145). The earlier "the sync path is dead at the origin" defect
 ([ARCH/31 §4.2](../ARCH/31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#42-the-published-catalog-and-the-client-read-different-files--the-sync-path-is-dead-at-the-origin))
 is closed.
 
@@ -54,12 +55,12 @@ web/
 
 | File | Rows / shape | Read by | Produced by |
 |---|---|---|---|
-| `data/catalog.json` | **5,814** rows (`id`, `name`, `slug`, `kind`, `summary`, `category`, `publisher`, `transport`, `runtime`, `stars`, `version`, `command`, `args`, …) | **Build time only:** the `page.tsx` Server Components derive counts, facets, section rows and one page of grid rows from it and serialize *those* into the HTML. The rows themselves are never imported by client code — that is what keeps ~3.8 MB out of every JS chunk. | `scripts/build_full_catalog.py` |
+| `data/catalog.json` | **46,166** rows (`id`, `name`, `slug`, `kind`, `summary`, `category`, `publisher`, `transport`, `runtime`, `stars`, `version`, `command`, `args`, …) — the committed producer dataset | **Build time only:** the `page.tsx` Server Components derive counts, facets, section rows and one page of grid rows from it and serialize *those* into the HTML. The rows themselves are never imported by client code — that is what keeps ~3.8 MB out of every JS chunk. | `scripts/build_full_catalog.py` |
 | `/data/catalog.json` | the same bytes, exported by `app/data/catalog.json/route.ts` | fetched at **runtime**, lazily — on the first search, filter or entry lookup (`lib/catalogData.ts`), never on a passive visit. Versioned by `data/release.json`'s `datasetDigest` (`?v=…`) so a CDN cannot answer a newer build with stale rows. | `next build` (route handler reads `data/catalog.json` and writes `out/data/catalog.json`) |
 | `data/hosts.json` | **50** bridge adapters | `lib/hosts.ts` | `scripts/gen_hosts_ts.go` from `internal/host` |
 | `data/skill-targets.json` | **77** skill install targets | `lib/hosts.ts` | `scripts/gen_hosts_ts.go` from `internal/skills` |
 | `data/release.json` | merged stats bundle: dataset stats (`itemCount`, per-kind counts, `hostCompatibility`, `datasetDigest`) + release identity (`releaseId`, `sequence`, `manifestDigest`, `createdAt`) | imported at **build time** (`lib/telemetry.ts`) | **Single writer per key:** `scripts/build_full_catalog.py` merges the dataset stats, `litespm catalog build` stamps the release identity |
-| `public/v1/current.json` | released pointer, `releaseId rel-2026-10-05-01`, `sequence 143`, `itemCount 5814`, `manifestDigest` over `manifest.json` | fetched at **runtime**, `cache: "no-store"` (`lib/telemetry.ts`) — the release-liveness check the header reports on | `go run ./cmd/litespm catalog build --out web/public` (copied through by `scripts/deploy-pages.sh`, which re-materializes it byte-for-byte) |
+| `public/v1/current.json` | released pointer, `releaseId rel-2026-10-07-01`, `sequence 145`, `itemCount 5825`, `manifestDigest` over `manifest.json` | fetched at **runtime**, `cache: "no-store"` (`lib/telemetry.ts`) — the release-liveness check the header reports on | `go run ./cmd/litespm catalog build --out web/public` (copied through by `scripts/deploy-pages.sh`, which re-materializes it byte-for-byte) |
 
 `stars` is `null` on every row by policy: no upstream source exposes a machine-readable popularity
 figure, so none is published (`ARCH/26` §12.4).
