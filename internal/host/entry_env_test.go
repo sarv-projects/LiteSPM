@@ -207,7 +207,7 @@ func TestNoEnvNamesWritesNoEnvField(t *testing.T) {
 // argument containing a comma needs the same quote-aware split, so both cases are
 // pinned here.
 func TestTOMLArgsAndEnvReadBack(t *testing.T) {
-	spec, ok := entrySpecFor(mustAdapter(t, "codex"))
+	spec, ok := entrySpecForScope(mustAdapter(t, "codex"), domain.ScopeUser)
 	if !ok {
 		t.Fatal("no entry spec for codex")
 	}

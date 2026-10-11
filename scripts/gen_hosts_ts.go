@@ -71,12 +71,13 @@ func main() {
 			}
 		}
 		// The container key path and entry shape come from the registry for
-		// EVERY adapter, the six hand-written ones included (host.EntryLayout
-		// resolves bespokeEntrySpecs for those). The web UI used to hard-code
-		// those six — and had OpenCode wrong, emitting a two-level
-		// `mcp.servers` path no OpenCode release reads — so the drift is
-		// removed at the source instead of being patched in TypeScript.
-		if keyPath, shape, ok := host.EntryLayout(a); ok {
+		// EVERY adapter, the six hand-written ones included
+		// (host.EntryLayoutForScope resolves bespokeEntrySpecs for those). The
+		// web UI used to hard-code those six — and had OpenCode wrong, emitting
+		// a two-level `mcp.servers` path no OpenCode release reads — so the
+		// drift is removed at the source instead of being patched in
+		// TypeScript. The site documents the user-scope layout.
+		if keyPath, shape, ok := host.EntryLayoutForScope(a, domain.ScopeUser); ok {
 			row.KeyPath = keyPath
 			row.Shape = shape
 		}

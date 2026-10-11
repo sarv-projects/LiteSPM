@@ -13,7 +13,7 @@ package host
 // host (a plain `{command,args}`, OpenCode's `{type:"local",command:[...]}`, a
 // TOML table), and a fourth field on the interface would push that variation
 // into six hand-written adapters that would then differ only by a table lookup.
-// The variation is data, so it lives in data: `entrySpecFor` resolves it from the
+// The variation is data, so it lives in data: `entrySpecForScope` resolves it from the
 // data-driven target table where the host is data-driven, and from
 // `bespokeEntrySpecs` for the six hand-written ones.
 //
@@ -130,37 +130,38 @@ type entrySpec struct {
 	HasEnvRef bool
 }
 
-// entrySpecFor resolves the per-host entry shape. Data-driven targets already
-// declare all three; the hand-written adapters declare them here, next to the
-// removal specs that describe the same containers.
-func entrySpecFor(adapter HostAdapter) (entrySpec, bool) {
-	return entrySpecForScope(adapter, domain.ScopeUser)
-}
-
-// EntryLayout exposes the server-entry container key path and entry shape for
-// any registered adapter — user scope, the same spec InstallServerEntry writes
-// with. keyPath is dotted ("mcpServers", "mcp", "amp.mcpServers"); ok is false
-// when the registry declares no layout for the host, which callers must treat
-// as "fall back to the format's conventional default", never as an empty path.
+// EntryLayoutForScope exposes the server-entry container key path and entry
+// shape for any registered adapter at the given install scope — the same spec
+// InstallServerEntry writes with, so a locator derived from it always names the
+// node the install actually created. keyPath is dotted ("mcpServers", "mcp",
+// "amp.mcpServers"); ok is false when the registry declares no layout for the
+// host, which callers must treat as "refuse", never as a guessed default.
 //
-// scripts/gen_hosts_ts.go emits this into web/data/hosts.json, which is what
-// web/lib/hosts.ts imports, so the site can no longer disagree with the
-// binary: it used to hard-code the six hand-written adapters and had OpenCode
-// wrong (a two-level `mcp.servers` path that no OpenCode release reads —
-// servers are direct members of `mcp`, see opencode.go).
-func EntryLayout(adapter HostAdapter) (keyPath string, shape string, ok bool) {
-	spec, ok := entrySpecFor(adapter)
+// scripts/gen_hosts_ts.go emits the user-scope layout into web/data/hosts.json,
+// which is what web/lib/hosts.ts imports, so the site can no longer disagree
+// with the binary: it used to hard-code the six hand-written adapters and had
+// OpenCode wrong (a two-level `mcp.servers` path that no OpenCode release reads
+// — servers are direct members of `mcp`, see opencode.go).
+func EntryLayoutForScope(adapter HostAdapter, scope domain.InstallScope) (keyPath string, shape string, ok bool) {
+	spec, ok := entrySpecForScope(adapter, scope)
 	if !ok || len(spec.KeyPath) == 0 {
 		return "", "", false
 	}
 	return strings.Join(spec.KeyPath, "."), string(spec.Shape), true
 }
 
-// entrySpecForScope is entrySpecFor with the install scope honoured. Hosts
-// whose user and project containers differ (fx reads `mcp` in the user file
-// and `mcpServers` in a project `.mcp.json`) must be written at the key the
-// scope actually uses: entrySpecFor always returned the user key, so a
-// project-scope install into fx landed under `mcp`, where fx never looks.
+// entrySpecFor resolves a host's entry spec at user scope. Callers that need
+// the container key path must use EntryLayoutForScope instead, because that is
+// the field the scope changes; the Remote, Shape and EnvRef answers are
+// scope-invariant, which is why the capability queries below may use this.
+func entrySpecFor(adapter HostAdapter) (entrySpec, bool) {
+	return entrySpecForScope(adapter, domain.ScopeUser)
+}
+
+// entrySpecForScope is the single resolver for a host's server-entry layout,
+// with the install scope honoured: hosts whose user and project containers
+// differ (fx reads `mcp` in the user file and `mcpServers` in a project
+// `.mcp.json`) must be read and written at the key the scope actually uses.
 func entrySpecForScope(adapter HostAdapter, scope domain.InstallScope) (entrySpec, bool) {
 	id := strings.ToLower(adapter.Descriptor().HostID)
 	projectScope := scope == domain.ScopeProject
@@ -1098,7 +1099,7 @@ func RegisteredBridgeHosts(ctx context.Context, scope domain.InstallScope) []str
 		if err != nil || verification == nil || !verification.Registered {
 			continue
 		}
-		if _, ok := entrySpecFor(adapter); !ok {
+		if _, ok := entrySpecForScope(adapter, scope); !ok {
 			continue
 		}
 		hosts = append(hosts, id)
