@@ -73,9 +73,16 @@ func TestSecretStore_CRUD(t *testing.T) {
 func TestResolveLaunchSecrets(t *testing.T) {
 	ctx := context.Background()
 	tmpVault := filepath.Join(t.TempDir(), "vault.enc")
-	store, err := NewFileEncryptedSecretStore(tmpVault)
+	// Folded off the deleted path-derived-key constructor (defect 13c): the
+	// shipped platform path builds this same store with a random master key
+	// from the OS keyring, so use real random key material here too.
+	masterKey := make([]byte, 32)
+	if _, err := rand.Read(masterKey); err != nil {
+		t.Fatalf("failed to generate vault master key: %v", err)
+	}
+	store, err := NewFileEncryptedSecretStoreWithKey(tmpVault, masterKey)
 	if err != nil {
-		t.Fatalf("NewFileEncryptedSecretStore failed: %v", err)
+		t.Fatalf("NewFileEncryptedSecretStoreWithKey failed: %v", err)
 	}
 	defer store.Close()
 

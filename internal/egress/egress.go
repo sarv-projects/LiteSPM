@@ -199,25 +199,16 @@ func refusedWithoutKnob(addr netip.Addr) bool {
 	return !isPublicAddr(addr)
 }
 
-// IsAllowedAddr reports whether addr is an acceptable destination under p —
-// the public-destination rule plus the policy additions. It has no host
-// context: the configured-host exception and the loopback-host qualification
-// live in the resolve/dial layers, which know which host is being asked for.
+// IsAllowedAddr reports whether addr is an acceptable destination under p,
+// treating the address literal as its own host. It is the host-bearing entry
+// point of the one destination rule: allowsDestination is the sole
+// implementation, and a literal IP host's context is the literal itself, so
+// the configured-private-destination exception and the loopback-host
+// qualification apply exactly as the resolve/dial layers apply them to a
+// literal host. Callers that have a hostname must go through
+// ResolveChecked/DialContext instead, which carry the real host.
 func IsAllowedAddr(addr netip.Addr, p Policy) bool {
-	if !addr.IsValid() {
-		return false
-	}
-	addr = addr.Unmap()
-	if isPublicAddr(addr) {
-		return true
-	}
-	if refusedWithoutKnob(addr) {
-		return false
-	}
-	if addr.IsLoopback() {
-		return p.AllowLoopbackHTTP
-	}
-	return p.AllowPrivate // RFC1918 / ULA
+	return p.allowsDestination(addr.String(), addr.AsSlice())
 }
 
 // configuredPrivateDestination reports whether host (optionally resolved to
@@ -268,10 +259,12 @@ func IsLoopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// allowsDestination is the resolve/dial-time rule for one address of host:
-// public always passes; the one configured literal host passes for its own
-// addresses; then the policy additions — RFC1918/ULA under AllowPrivate, and
-// loopback addresses when the host itself is loopback under
+// allowsDestination is the one destination rule for one address of host, and
+// the only place the allow decision is made: IsAllowedAddr (literal host) and
+// the resolve/dial layers (ResolveChecked, checkRequest, DialContext) all
+// funnel here. Public always passes; the one configured literal host passes
+// for its own addresses; then the policy additions — RFC1918/ULA under
+// AllowPrivate, and loopback addresses when the host itself is loopback under
 // AllowLoopbackHTTP. A hostname that merely resolves to loopback does NOT
 // pass (the host must be loopback itself), so hostile DNS cannot reclassify
 // an origin as local. Ranges refusedWithoutKnob never pass, configured host

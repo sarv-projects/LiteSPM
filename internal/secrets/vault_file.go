@@ -5,12 +5,10 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -68,13 +66,6 @@ func NewFileEncryptedSecretStoreWithKey(vaultPath string, key []byte) (*FileEncr
 	return store, nil
 }
 
-// NewFileEncryptedSecretStore initializes or loads a persistent AES-256-GCM encrypted vault.
-// Note: For native keystore integration, use OpenSecretStore().
-func NewFileEncryptedSecretStore(vaultPath string) (*FileEncryptedSecretStore, error) {
-	key := deriveVaultKey(vaultPath)
-	return NewFileEncryptedSecretStoreWithKey(vaultPath, key)
-}
-
 // DefaultVaultPath returns the platform-standard location of the encrypted secrets vault.
 func DefaultVaultPath() string {
 	if runtime.GOOS == "windows" {
@@ -94,19 +85,6 @@ func DefaultVaultPath() string {
 		return filepath.Join(home, ".local", "share", "litespm", "secrets", "vault.enc")
 	}
 	return filepath.Join(".", "secrets", "vault.enc")
-}
-
-func deriveVaultKey(path string) []byte {
-	h := sha256.New()
-	h.Write([]byte("litespm-vault-key-salt-v1:"))
-	h.Write([]byte(path))
-	if u, err := user.Current(); err == nil && u != nil {
-		h.Write([]byte(u.Uid + ":" + u.Username))
-	}
-	if host, err := os.Hostname(); err == nil {
-		h.Write([]byte(host))
-	}
-	return h.Sum(nil)
 }
 
 func (s *FileEncryptedSecretStore) load() error {

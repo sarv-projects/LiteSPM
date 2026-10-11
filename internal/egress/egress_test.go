@@ -171,6 +171,55 @@ func TestIsAllowedAddrHonoursUnconditionalRefusalsAndKnobs(t *testing.T) {
 	}
 }
 
+// TestDestinationRuleAgreesAcrossEntryPoints pins defect 13b's fix: there is
+// one destination rule, so the exported IsAllowedAddr and the public resolve
+// path (ResolveChecked) must return the identical verdict for the same address
+// under every policy shape. The address literal is its own host, which is
+// exactly the host context IsAllowedAddr supplies.
+func TestDestinationRuleAgreesAcrossEntryPoints(t *testing.T) {
+	ctx := context.Background()
+	rawAddrs := []string{
+		"93.184.216.34",        // public IPv4
+		"2606:4700:4700::1111", // public IPv6
+		"127.0.0.1",            // loopback
+		"::1",                  // loopback (v6)
+		"10.2.3.4",             // RFC1918
+		"172.16.5.9",           // RFC1918
+		"192.168.1.5",          // RFC1918
+		"fd00::1",              // ULA
+		"169.254.169.254",      // link-local metadata
+		"fe80::1",              // link-local (v6)
+		"100.64.0.1",           // CGNAT
+		"0.0.0.0",              // unspecified
+		"255.255.255.255",      // broadcast
+		"ff02::1",              // multicast
+		"203.0.113.7",          // documentation
+		"198.18.0.1",           // benchmarking
+	}
+	policies := map[string]egress.Policy{
+		"zero":                 {},
+		"catalog":              catalogPolicy(),
+		"remote":               remotePolicy(),
+		"permissive":           {AllowPrivate: true, AllowLoopbackHTTP: true},
+		"configured-private":   {AllowedPrivateHost: "10.2.3.4"},
+		"configured-localhost": {AllowedPrivateHost: "localhost"},
+	}
+	for _, raw := range rawAddrs {
+		addr, err := netip.ParseAddr(raw)
+		if err != nil {
+			t.Fatalf("parse %q: %v", raw, err)
+		}
+		for name, p := range policies {
+			want := egress.IsAllowedAddr(addr, p)
+			_, resolveErr := egress.ResolveCheckedWithLookup(ctx, addr.String(), p, nil)
+			if got := resolveErr == nil; got != want {
+				t.Errorf("%s/%s: IsAllowedAddr=%v but ResolveChecked allowed=%v (err=%v)",
+					name, raw, want, got, resolveErr)
+			}
+		}
+	}
+}
+
 // --- ResolveChecked / simulated resolvers --------------------------------
 
 func TestHostnameResolvingToLoopbackRefusedUnderDefaultPolicy(t *testing.T) {
