@@ -136,7 +136,7 @@ own config file. It does **not** assert runtime health:
     3.  Browse available tools or view existing tools. Cline displays the green status dot in its MCP settings view.
 
 ### 4.2 Pi Agent (`pi-coding-agent`)
-*   **How it works:** Minimalist terminal agent by Mario Zechner. LiteSPM registers under the `mcpServers` key — the only container Pi reads — in `<agent-dir>/mcp.json`, where the agent directory is `~/.pi/agent` (`%USERPROFILE%\.pi\agent` on Windows) unless `PI_CODING_AGENT_DIR` overrides it, and creates `<agent-dir>/extensions/litespm.ts`. There is no project-scope or legacy-fallback file: `~/.pi/config.json` and `~/.pi/mcp.json` appear in no Pi documentation or source, and probing them used to write the bridge into a file Pi never reads (`internal/host/piagent.go`).
+*   **How it works:** Minimalist terminal agent by Mario Zechner. LiteSPM registers under the `mcpServers` key — the only container Pi reads — in `<agent-dir>/mcp.json`, where the agent directory is `~/.pi/agent` (`%USERPROFILE%\.pi\agent` on Windows) unless `PI_CODING_AGENT_DIR` overrides it, and creates `<agent-dir>/extensions/litespm.ts`. A project-scope install writes `<project>/.pi/mcp.json` under the same `mcpServers` key; Pi replaces a user entry with a same-named project entry. There is no legacy-fallback file: `~/.pi/config.json` and `~/.pi/mcp.json` appear in no Pi documentation or source, and probing them used to write the bridge into a file Pi never reads (`internal/host/piagent.go`).
 *   **Accessing in Pi:**
     1.  Launch `pi` in terminal.
     2.  Type `/marketplace search <term>` or run `/marketplace` to trigger the interactive capability selector.
@@ -154,11 +154,11 @@ own config file. It does **not** assert runtime health:
 *   **Accessing in Codex:** Launch `codex` and type `/marketplace` or use the registered companion skill.
 
 ### 4.5 OpenCode
-*   **How it works:** LiteSPM writes into `$OPENCODE_CONFIG_DIR/opencode.jsonc` (preferred) or `opencode.json`, falling back to `$XDG_CONFIG_HOME/opencode/` — default `~/.config/opencode/` on Unix and `%USERPROFILE%\.config\opencode\` on Windows — because OpenCode resolves its config directory through xdg-basedir on every OS. `%APPDATA%\OpenCode\opencode.json` is read by no OpenCode release and is not probed; neither is a project-scope `opencode.json` / `.opencode/` (`internal/host/opencode.go`, `ARCH/16` §3).
-*   **Layout:** OpenCode has **one** documented layout — servers are direct members of the `mcp` object — so the nested `mcp.servers` shape earlier revisions wrote is pruned when it is empty. Both shapes are still *read* when detecting pre-existing tools, so nothing already configured is lost.
+*   **How it works:** LiteSPM writes into `$OPENCODE_CONFIG_DIR/opencode.jsonc` (preferred) or `opencode.json`, falling back to `$XDG_CONFIG_HOME/opencode/` — default `~/.config/opencode/` on Unix and `%USERPROFILE%\.config\opencode\` on Windows — because OpenCode resolves its config directory through xdg-basedir on every OS. `%APPDATA%\OpenCode\opencode.json` is read by no OpenCode release and is not probed. Project scope is `opencode.json` / `opencode.jsonc` at the project root (the `.opencode/` subdirectory form is the next candidate in the same upward walk from the working directory), and a `--scope project` install writes `<root>/opencode.json` (`internal/host/opencode.go`, `ARCH/16` §3.6).
+*   **Layout:** OpenCode v2 documents servers at `mcp.servers.<name>` (`https://opencode.ai/v2/docs/mcp-servers`, "Config"), so LiteSPM writes that container; the flat `mcp.<name>` shape earlier releases wrote is the v1 layout the runtime still loads. Both shapes are still *read* — verify, pre-existing-tool detection, listing, collision detection and removal all span them — so nothing already configured is lost, and setup migrates LiteSPM's own flat bridge member into the documented container.
 *   **Local entry shape:** OpenCode local MCP entries require `"type": "local"` and a combined string array `"command"`:
     ```json
-    {"mcp":{"litespm":{"type":"local","command":["litespm","bridge","stdio","--host","opencode"]}}}
+    {"mcp":{"servers":{"litespm":{"type":"local","command":["litespm","bridge","stdio","--host","opencode"]}}}}
     ```
 *   **Accessing in OpenCode:** Type `/marketplace` in the OpenCode CLI.
 

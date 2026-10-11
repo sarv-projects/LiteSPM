@@ -503,12 +503,14 @@ carry a project/workspace through IPC and the bridge so agents can see project-s
   by adding path confinement; that would be security theatre over a same-uid socket.
 - `scope=user` with a `projectRoot` is refused rather than ignored, because silently dropping it would
   return a plan the caller did not ask for.
-- **A project-scope MCP install only works for the data-driven hosts.** The six bespoke adapters
-  (Claude Code, Cline, Codex, Grok Build, OpenCode, Pi) document only a user config file — their
-  `DetectConfig` ignores the scope argument — so a project install for one of them is refused with
-  `install it with --scope user` instead of being written into the user config under a project
-  label. Claude Code's documented project file (`.mcp.json`) is the known gap if someone wants to
-  close it; it is an adapter change, not a policy one.
+- **A project-scope MCP install requires the host to document a project config file.** Claude Code is
+  the exception that proves the rule was never policy: it opted in through
+  `host.ProjectConfigPather` (`<root>/.mcp.json`, per code.claude.com/docs/en/mcp), so it now installs
+  at project scope like the data-driven targets. Cline, Codex, Grok Build, OpenCode and Pi still refuse
+  with `install it with --scope user`, because their adapters document only a user config path and
+  ignore the scope argument — writing the user file under a project label would be a lie. The
+  vendor-docs review of 2026-10-11 found several of them DO document a project file that LiteSPM does
+  not write yet; that is adapter work, and `ProjectConfigPather` is the seam.
 - Debugging tip that paid off: the producer's completeness verdict can be reproduced offline against the
   recorded sitemap snapshots (`snapshot_store.load_snapshot` + the same predicates), which is how the 36
   refusals were identified without another 33-minute crawl.

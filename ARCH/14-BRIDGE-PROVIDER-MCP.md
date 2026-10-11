@@ -118,10 +118,18 @@ Two consequences worth stating precisely:
 > into the config of the project it names (`host.EntryInstallOptions.ProjectRoot`,
 > resolved by `host.detectEntryConfig`), never the caller's working directory, and
 > install, reconcile, remove, restore and copy all resolve the same path. A host
-> that documents no project-scope config path (the six bespoke adapters: Claude
-> Code, Cline, Codex, Grok Build, OpenCode, Pi) is **refused** for a project
-> install — at plan time and again at write time — rather than written into its
-> user config under a project label (`host.SupportsProjectScope`).
+> that documents no project-scope config path is **refused** for a project install
+> — at plan time and again at write time — rather than written into its user
+> config under a project label (`host.SupportsProjectScope`).
+>
+> Five of the six bespoke adapters opt in through `host.ProjectConfigPather`,
+> each with the project file its own vendor documents (verified against primary
+> vendor docs on 2026-10-11): Claude Code `<root>/.mcp.json`, Codex
+> `<root>/.codex/config.toml` (Codex loads it only for trusted projects — a
+> Codex-side gate), Grok Build `<root>/.grok/config.toml`, OpenCode
+> `<root>/opencode.json`, Pi `<root>/.pi/mcp.json`. Cline is the one that still
+> refuses: its docs describe no project MCP file, only project `.cline/` for
+> rules, skills, hooks, agents and plugins.
 
 Ten of the twelve tools resolve. `request_install` reaches the handler and completes for
 skills and MCP servers, stopping only at the missing artifact source for plugins; the other

@@ -212,6 +212,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **OpenCode follows the v2-documented `mcp.servers.<name>` layout again, and a project-scope
+  install lands in the project's `opencode.json`.** The v2 docs (`https://opencode.ai/v2/docs/mcp-servers`,
+  "Config") place servers at `mcp.servers.<name>` and state that flat names directly under `mcp` are
+  not the v2 layout; a live v2.0.26 run still loads flat entries, so the adapter now **writes** the
+  nested container (bridge setup, server entries, the manual snippet, `EntryLayoutForScope`) while
+  **reading** both shapes everywhere — setup verify, pre-existing-tool detection, listing, collision
+  detection and fingerprinting span `mcp.servers`, `mcp` and `mcpServers` through `readKeyPaths`, the
+  same candidate list removal has always tried — so legacy flat installs keep listing with their env
+  and endpoint intact instead of degrading into a command-only shadow. Setup migrates LiteSPM's own
+  flat bridge member into the documented container (foreign flat members untouched), a forced
+  re-install MOVES an existing entry to `mcp.servers` rather than leaving two members of one name in
+  one file, and `pruneEmptyLegacyServersObject` — which deleted an empty `mcp.servers` as "invented
+  residue" — is gone: that container is the documented home of servers. Project scope
+  (`ProjectConfigPath`, per `https://opencode.ai/v2/docs/config` "Locations": `opencode.json(c)` /
+  `.opencode/` walked upward from the working directory) makes `SupportsProjectScope(opencode)` true
+  and binds install/list/remove/fingerprint to `<root>/opencode.json`. JSONC tolerance is unchanged.
+  Pinned by the `opencode_project_scope_test.go` suite (user-scope nested landing, legacy-flat
+  removal, project round-trip, both-shape reads, flat-bridge migration).
+
+- **The Pi Agent adapter now works against Pi's real API: the companion extension runs, and a
+  project-scope install lands in `<project>/.pi/mcp.json`.** The generated `litespm.ts` registered
+  `async execute` — `RegisteredCommand` takes `handler: (args: string, ctx: ExtensionCommandContext)
+  => Promise<void>` — and called `pi.mcp.callTool`, a member no `ExtensionAPI` has, so the `/litespm`
+  command could never run. The rewrite enumerates the bridge's connected `mcp__litespm__*` tools with
+  `pi.getAllTools()` and shows them through `ctx.ui.notify`, because a command handler has no
+  tool-invocation API (`ctx.executeTool` exists only on `ExtensionToolContext` — the context a tool's
+  own `execute()` receives — and is absent from the installed 0.80.10 types entirely); every symbol
+  is cited against the bundled 0.80.10 `types.d.ts` and upstream main, and the generated source
+  type-checks offline with `tsc --strict`. Project scope is implemented through `ProjectConfigPath`
+  per Pi's mcp.md ("project servers from `.pi/mcp.json`"; a project entry replaces a user entry of
+  the same name), which the adapter previously refused with `install it with --scope user`. Pinned by
+  `TestPiExtensionGeneratedUsesRealExtensionAPI` and `TestPiProjectScopeInstallWritesDotPiMcpJSON`.
+
 - **A project-scope MCP install now writes into the project it names, and refuses the hosts that
   document no project file.** The workspace the plan seals was previously used only to stamp state:
   the host-config write still resolved its target from the process's working directory (a

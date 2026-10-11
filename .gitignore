@@ -53,3 +53,5 @@ __pycache__/
 
 # Deepwork progress is session-local; see .ignore for agent visibility.
 .slim/deepwork/
+tmp-oh-my-pi/
+tmp-agent-sandbox-*/
