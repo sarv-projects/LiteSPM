@@ -501,12 +501,10 @@ type RequestedAccess struct {
 
 // InstallPlan is the plan document the daemon persists and hashes.
 //
-// It does NOT currently validate against schemas/install-plan.schema.json:
-// ARCH/06 §2.2 records the open mismatches (effects, preconditions, approval,
-// requestedAccess, providerLaunches and the top-level collisions/warnings all
-// differ, and three of them are schema-required). The Go shape is authoritative
-// for now; consumers must use it rather than the schema. planHash covers the
-// Go fields only — see ARCH/06 §2.3.
+// It is the shape schemas/install-plan.schema.json describes: that schema was
+// realigned to this struct (the daemon is what ships), and
+// schemacheck_test.go keeps the two from drifting again. planHash covers the
+// execution fields only — see ComputePlanHash.
 type InstallPlan struct {
 	SchemaVersion    int               `json:"schemaVersion"`
 	PlanID           string            `json:"planId"`

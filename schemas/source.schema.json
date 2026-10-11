@@ -55,6 +55,7 @@
         "cursor-marketplace.json",
         "grok-marketplace.json",
         "acp-registry.json",
+        "directory-html",
         "litespm-native"
       ]
     },
@@ -107,11 +108,15 @@
           "type": "string",
           "pattern": "^snap_[0-9A-Za-z]{26}$"
         },
+        "sourceId": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]{3,32}:[a-z0-9_-]{3,64}$"
+        },
         "adapterVersion": {
           "type": "string"
         },
         "upstreamRevision": {
-          "type": "string"
+          "type": ["string", "null"]
         },
         "startedAt": {
           "type": "string",

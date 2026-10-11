@@ -17,8 +17,7 @@
       "pattern": "^(plugin|mcp|skill|connector|agent|rule|hook|tool|lsp):[a-z0-9_:-]+:[A-Za-z0-9_.~%+-]+$"
     },
     "version": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "immutableRef": {
       "type": "string"
@@ -67,10 +66,32 @@
           "path": { "type": "string" },
           "sourceArtifactId": { "type": "string" },
           "hostExtensions": { "type": "object" },
-          "runtime": { "type": "object" },
+          "runtime": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": { "type": "string" },
+              "command": { "type": "string" },
+              "args": { "type": "array", "items": { "type": "string" } },
+              "env": { "type": "object", "additionalProperties": { "type": "string" } },
+              "endpoint": { "type": "string" },
+              "workingDir": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
           "declaredEffects": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "object",
+              "required": ["type", "provenance", "confidence"],
+              "properties": {
+                "type": { "type": "string" },
+                "target": { "type": "string" },
+                "provenance": { "type": "string" },
+                "confidence": { "type": "number" }
+              },
+              "additionalProperties": false
+            }
           },
           "supportedByLiteSPM": {
             "type": "string",
@@ -84,10 +105,10 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["listingId", "versionConstraint"],
+        "required": ["listingId", "constraint"],
         "properties": {
           "listingId": { "type": "string" },
-          "versionConstraint": { "type": "string" }
+          "constraint": { "type": "string" }
         },
         "additionalProperties": false
       }
@@ -100,7 +121,7 @@
         "properties": {
           "type": { "type": "string" },
           "name": { "type": "string" },
-          "minVersion": { "type": "string" }
+          "version": { "type": "string" }
         },
         "additionalProperties": false
       }
@@ -109,9 +130,10 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["resource"],
+        "required": ["type"],
         "properties": {
-          "resource": { "type": "string" },
+          "type": { "type": "string" },
+          "target": { "type": "string" },
           "description": { "type": "string" }
         },
         "additionalProperties": false
@@ -121,10 +143,12 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["host", "supported"],
+        "required": ["hostId", "status"],
         "properties": {
-          "host": { "type": "string" },
-          "supported": { "type": "string" }
+          "hostId": { "type": "string" },
+          "hostVersion": { "type": "string" },
+          "status": { "type": "string" },
+          "notes": { "type": "string" }
         },
         "additionalProperties": false
       }
@@ -133,12 +157,11 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["testedAt", "environment", "result"],
+        "required": ["hostId", "passed", "executedAt"],
         "properties": {
-          "testedAt": { "type": "string", "format": "date-time" },
-          "environment": { "type": "string" },
-          "result": { "type": "string" },
-          "logRef": { "type": "string" }
+          "hostId": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "executedAt": { "type": "string", "format": "date-time" }
         },
         "additionalProperties": false
       }
@@ -147,10 +170,11 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["keyId", "signature"],
+        "required": ["keyId", "signature", "algorithm"],
         "properties": {
           "keyId": { "type": "string" },
-          "signature": { "type": "string" }
+          "signature": { "type": "string" },
+          "algorithm": { "type": "string" }
         },
         "additionalProperties": false
       }

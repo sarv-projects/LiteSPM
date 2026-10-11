@@ -100,7 +100,7 @@
             "properties": {
               "type": { "type": "string" },
               "name": { "type": "string" },
-              "minVersion": { "type": "string" }
+              "version": { "type": "string" }
             },
             "additionalProperties": false
           }
@@ -110,74 +110,76 @@
     },
     "effects": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["type"],
-        "properties": {
-          "type": { "type": "string" },
-          "target": { "type": "string" }
-        },
-        "additionalProperties": false
-      }
+      "items": { "type": "string" }
     },
-    "requestedAccess": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["resource"],
-        "properties": {
-          "resource": { "type": "string" },
-          "description": { "type": "string" }
+    "preconditions": {
+      "type": "object",
+      "properties": {
+        "filesystemPaths": {
+          "type": "array",
+          "items": { "type": "string" }
         },
-        "additionalProperties": false
-      }
+        "portsAvailable": {
+          "type": "array",
+          "items": { "type": "integer" }
+        },
+        "runtimesFound": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "diskSpaceBytes": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "approval": {
+      "type": "object",
+      "required": ["channel", "decision"],
+      "properties": {
+        "approvalId": { "type": "string" },
+        "channel": { "type": "string" },
+        "decision": { "type": "string" },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "approvedBy": { "type": "string" }
+      },
+      "additionalProperties": false
     },
     "hostChanges": {
       "type": "array",
-      "items": { "type": "object" }
+      "items": {
+        "type": "object",
+        "required": ["hostId", "configPath", "action", "entryKey"],
+        "properties": {
+          "hostId": { "type": "string" },
+          "configPath": { "type": "string" },
+          "action": { "type": "string" },
+          "entryKey": { "type": "string" },
+          "valueJson": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
     },
     "providerLaunches": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["providerName", "executable", "args"],
+        "required": ["providerId", "transport"],
         "properties": {
-          "providerName": { "type": "string" },
-          "executable": { "type": "string" },
+          "providerId": { "type": "string" },
+          "transport": { "type": "string" },
+          "command": { "type": "string" },
           "args": { "type": "array", "items": { "type": "string" } },
-          "environmentVariables": { "type": "array", "items": { "type": "string" } }
+          "env": { "type": "object", "additionalProperties": { "type": "string" } },
+          "endpoint": { "type": "string" }
         },
         "additionalProperties": false
       }
     },
-    "collisions": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "warnings": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "preconditions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["type"],
-        "properties": {
-          "type": { "type": "string" },
-          "target": { "type": "string" },
-          "expected": { "type": "string" }
-        },
-        "additionalProperties": false
-      }
-    },
-    "approval": {
+    "requestedAccess": {
       "type": "object",
-      "required": ["required"],
       "properties": {
-        "required": { "type": "boolean" },
-        "reasonCodes": { "type": "array", "items": { "type": "string" } },
-        "minimumChannel": { "type": "string" }
+        "tools": { "type": "array", "items": { "type": "string" } },
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "hosts": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     }

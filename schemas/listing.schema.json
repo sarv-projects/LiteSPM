@@ -44,23 +44,23 @@
     },
     "publisherClaim": {
       "type": "object",
+      "required": ["name"],
       "properties": {
         "name": { "type": "string" },
-        "namespace": { "type": "string" },
-        "url": { "type": "string", "format": "uri" }
-      }
+        "url": { "type": "string", "format": "uri" },
+        "contact": { "type": "string" }
+      },
+      "additionalProperties": false
     },
     "source": {
       "type": "object",
-      "required": ["sourceId", "upstreamId", "sourceType", "manifestFormat"],
+      "required": ["sourceId", "upstreamId"],
       "properties": {
         "sourceId": { "type": "string" },
         "upstreamId": { "type": "string" },
-        "sourceType": { "type": "string" },
-        "sourceUrl": { "type": "string", "format": "uri" },
-        "manifestFormat": { "type": "string" },
-        "manifestSchemaVersion": { "type": "string" }
-      }
+        "url": { "type": "string", "format": "uri" }
+      },
+      "additionalProperties": false
     },
     "versions": {
       "type": "array",
@@ -71,7 +71,8 @@
           "version": { "type": "string" },
           "immutableRef": { "type": "string" },
           "publishedAt": { "type": "string", "format": "date-time" }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "componentsSummary": {
@@ -81,9 +82,9 @@
         "required": ["kind", "name"],
         "properties": {
           "kind": { "type": "string" },
-          "name": { "type": "string" },
-          "supportedByLiteSPM": { "type": "string", "enum": ["yes", "partial", "no", "unknown"] }
-        }
+          "name": { "type": "string" }
+        },
+        "additionalProperties": false
       }
     },
     "requirementsSummary": {
@@ -94,29 +95,36 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["host", "supported"],
+        "required": ["hostId", "status"],
         "properties": {
-          "host": { "type": "string" },
-          "supported": { "type": "string" }
-        }
+          "hostId": { "type": "string" },
+          "hostVersion": { "type": "string" },
+          "status": { "type": "string" },
+          "notes": { "type": "string" }
+        },
+        "additionalProperties": false
       }
     },
     "verificationSummary": {
       "type": "object",
+      "required": ["level", "auditedAt"],
       "properties": {
-        "sourceVerified": { "type": "boolean" },
-        "formatCompatible": { "type": "boolean" },
-        "tested": { "type": "boolean" },
-        "lastTestedAt": { "type": "string", "format": "date-time" }
-      }
+        "level": { "type": "string" },
+        "auditedAt": { "type": "string", "format": "date-time" },
+        "auditor": { "type": "string" },
+        "scoreStars": { "type": "integer" }
+      },
+      "additionalProperties": false
     },
     "provenance": {
       "type": "object",
+      "required": ["sourceSnapshotId", "ingestedAt"],
       "properties": {
-        "firstSeenAt": { "type": "string", "format": "date-time" },
-        "lastSeenAt": { "type": "string", "format": "date-time" },
-        "fetchedAt": { "type": "string", "format": "date-time" }
-      }
+        "sourceSnapshotId": { "type": "string" },
+        "ingestedAt": { "type": "string", "format": "date-time" },
+        "catalogReleaseId": { "type": "string" }
+      },
+      "additionalProperties": false
     },
     "status": {
       "type": "string",

@@ -19,7 +19,7 @@
     },
     "releaseId": {
       "type": "string",
-      "pattern": "^rel_[0-9A-Za-z]{26}$"
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
     },
     "createdAt": {
       "type": "string",
