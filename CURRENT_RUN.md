@@ -488,12 +488,51 @@ carry a project/workspace through IPC and the bridge so agents can see project-s
 
 ### Next Exact Steps
 
-1. Run the **full** producer in replay mode into an isolated output and require
-   `CATALOG_INGESTION_STATUS {completeness: complete}` (the skills.sh refusals now appear as
-   `refusedLocs`, not `incompleteSources`). Decide the `feed:mcpmarket-com` budget question above.
-2. Only then cut and verify a release; do not promote the 46,166-row dataset under the old identity.
+1. ~~Run the full producer~~ **Done** (2026-10-11, fourth pass): 69,376 rows, and
+   `CATALOG_INGESTION_STATUS` reads `incompleteSources: ["feed:mcpmarket-com"]` with
+   `refusedLocs: {"feed:skills-sh": 36}` — six of seven sources are complete and skills.sh is no longer
+   one of the failures. **The remaining decision is real and unmade:** cap mcpmarket and publish with a
+   documented gap, or spend one uncapped crawl (`MCPMARKET_MAX_PAGE_FETCHES`) to close it.
+2. Publish nothing until that decision is made. The 5,825-row `rel-2026-10-07-01` is still what the live
+   origin serves; the new dataset is 69,376 rows with **25,401 installable MCP servers** (the published
+   one has zero — every MCP/skill row there is `discovery_only`), so publishing it is what turns
+   `litespm install <mcp>` from "always refused" into a working command. Proven locally, never published.
 3. The three deferred `internal/` follow-ups remain open: `install.InstallOptions.HostID`,
-   `skills.PolicyRequest` listing id, and (now optional) nothing for defect 9 — it is implemented.
+   `skills.PolicyRequest` listing id, and nothing for defect 9 — it is implemented.
+
+## Fourth pass — panel, agent centre, and the release gate (2026-10-11)
+
+- **The full producer run completed** (2h05m, all 7 sources) writing `tmp-catalog-full-20261011/catalog.json`
+  (51 MB, 69,376 rows). The skills.sh fix behaves exactly as designed. The new dataset also carries
+  **25,401 `metadata_verified` MCP rows** from the official MCP Registry feed, against zero in the
+  published release — that is the difference between an install that always fails and one that works.
+- **End-to-end install proven locally, nothing published.** `litespm catalog build --dataset … --out …`
+  produces a static release tree; serving it and pointing a sandbox at it with `LITESPM_REGISTRY_URL`
+  syncs the new index. Then `install mcp:builtin:mcp-registry:com.00widget-00widget --host codex`
+  wrote `[mcp_servers.00widget] url = "https://api.00widget.com/mcp"` into codex's config, `list`
+  reported it `managed / user`, and `install remove` stripped exactly that entry leaving the bridge
+  intact. This is the first working install in the project's history.
+- **The Pi `/marketplace` panel was redesigned** for non-developers (see CHANGELOG): framed layout,
+  columns that do not shift, colour from the host's `Theme` passed into the factory (semantic slots, no
+  imports), `✔ added` / `add` / `not yet` states, and a detail band that says what Enter will do with the
+  file it touches. The extension source moved to `internal/host/pi_extension.ts` behind `go:embed` so it
+  is type-checked like the rest of the TypeScript. Verified with `tsc --strict` against the real pi
+  0.80.10 types, a headless render at 84 and 52 columns, and Pi loading it clean.
+- **The agent centre shipped**: `/agents/<id>/` for all 50 hosts (61 static routes, 104 kB First Load JS
+  unchanged). The file card is the centrepiece — the real config path, the real bridge entry, and
+  "This is the only file LiteSPM changes." Descriptions live in `web/lib/hostNotes.ts` with provenance
+  per entry; an agent with no note shows registry facts and the verified configuration docs, never
+  invented prose. `hosts.json` now publishes `projectScope`/`projectPath` for **43 of 50** adapters,
+  emitted from `host.ProjectConfigPathFor`, so the site cannot advertise a project config the binary
+  refuses.
+- **Vendor-docs review** of all six bespoke adapters found seven discrepancies, six fixed (project scope
+  for Claude Code/Codex/Grok/OpenCode/Pi, OpenCode's `mcp.servers` container, Cline's `CLINE_DIR`); the
+  seventh (protocol negotiation) is what made OpenCode refuse the bridge, now fixed and confirmed live
+  (`opencode mcp list` → `✓ litespm connected`).
+- **Gotcha worth keeping:** `npm install --prefix <dir>` prunes packages reachable through symlinks in
+  that directory's `node_modules`. A symlink into the user's global tree cost a deleted global `pi`
+  (restored with `npm install -g @earendil-works/pi-coding-agent@0.80.10`). Use tsconfig `paths` to
+  type-check against an installed package instead of symlinking it.
 
 ### Decisions & Gotchas
 
