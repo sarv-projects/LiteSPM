@@ -90,26 +90,38 @@ Two consequences worth stating precisely:
 
 ### 1.2 The 12 tools and what each resolves to today
 
-`tools/list` advertises exactly 12 tools (`internal/bridge/shim.go:93-156`);
-`knownTool` rejects anything else (`shim.go:566-573`).
+`tools/list` advertises exactly 12 tools (`internal/bridge/shim.go:111-156`);
+`knownTool` rejects anything else (`shim.go:658-666`).
 
 | # | MCP tool | Daemon method (`internal/bridge/shim.go`) | Status |
 |---|---|---|---|
-| 1 | `search_catalog` | `catalog.search` (`:282`) | `WIRED` — real index search |
-| 2 | `get_extension` | `catalog.get_item` (`:305`) | `WIRED` |
-| 3 | `prepare_install` | `resolver.prepare_plan` (`:323`) | `WIRED` — plan persisted with `planHash` |
-| 4 | `request_install` | `install.execute` (`:341`) | `WIRED` **for skills and MCP servers** (installs files through the skills ledger / registers the server in each target host's config, both behind the plan + approval gate), `LPSM-ARTIFACT-UNAVAILABLE` for plugins ([STATUS.md](../STATUS.md) §3) |
-| 5 | `list_installed` | `tools.list` (`:359`) | `WIRED` — installs + read-only detected external tools |
-| 6 | `search_capabilities` | `capabilities.search` (`:370`) | Resolves — searches the tools **discovered on this machine**, which is a different question from `search_catalog`'s registry search |
-| 7 | `describe_capability` | `capabilities.describe` (`:388`) | Resolves — returns the real input schema, fingerprint and the command behind it |
-| 8 | `load_skill` | `skills.load_body` (`:404`) | `WIRED` |
-| 9 | `read_skill_resource` | `skills.read_resource` (`:433`) | `WIRED` — path-traversal checked (`main.go:1601-1608`) |
-| 10 | `invoke_capability` | `provider.invoke` (`:452`) | Resolves — spawns the installed server and calls the discovered tool; refuses on schema drift |
-| 11 | `get_invocation` | `invocation.get` (`:475`) | **`-32601`** — the async registry is ARCH/34 (`DESIGNED`); `provider.invoke` is synchronous by contract |
-| 12 | `cancel_invocation` | `invocation.cancel` (`:491`) | **`-32601`** — as tool 11 |
+| 1 | `search_catalog` | `catalog.search` (`:345`) | `WIRED` — real index search |
+| 2 | `get_extension` | `catalog.get_item` (`:366`) | `WIRED` |
+| 3 | `prepare_install` | `resolver.prepare_plan` (`:386`) | `WIRED` — plan persisted with `planHash`; a project-scope call must name its `projectRoot` |
+| 4 | `request_install` | `install.execute` (`:406`) | `WIRED` **for skills and MCP servers** (installs files through the skills ledger / registers the server in each target host's config, both behind the plan + approval gate), `LPSM-ARTIFACT-UNAVAILABLE` for plugins ([STATUS.md](../STATUS.md) §3) |
+| 5 | `list_installed` | `tools.list` (`:421`) | `WIRED` — installs + read-only detected external tools; sends `projectRoot` so the agent also sees the workspace's project-scope installs, each labelled with its scope |
+| 6 | `search_capabilities` | `capabilities.search` (`:437`) | Resolves — searches the tools **discovered on this machine**, which is a different question from `search_catalog`'s registry search |
+| 7 | `describe_capability` | `capabilities.describe` (`:456`) | Resolves — returns the real input schema, fingerprint and the command behind it |
+| 8 | `load_skill` | `skills.load_body` (`:478`) | `WIRED` — `projectRoot` as tool 5; user scope wins a name collision |
+| 9 | `read_skill_resource` | `skills.read_resource` (`:508`) | `WIRED` — path-traversal checked (`main.go:2951-2958`); `projectRoot` as tool 5 |
+| 10 | `invoke_capability` | `provider.invoke` (`:530`) | Resolves — spawns the installed server and calls the discovered tool; refuses on schema drift |
+| 11 | `get_invocation` | `invocation.get` (`:551`) | **`-32601`** — the async registry is ARCH/34 (`DESIGNED`); `provider.invoke` is synchronous by contract |
+| 12 | `cancel_invocation` | `invocation.cancel` (`:571`) | **`-32601`** — as tool 11 |
 
-> Line numbers in the table are the `case` labels inside `DispatchTool`
-> (`shim.go:270-511`).
+> Line numbers in the table are the `s.client.Call` sites inside `DispatchTool`
+> (`shim.go:294-580`). `litespm bridge stdio [--workspace <dir>]` sets the project
+> root the shim forwards (default: the process working directory); it widens reads
+> only, and the daemon treats it as a selection key rather than an authorization
+> boundary (ARCH/06 §4).
+>
+> On the write side the same root is not optional: a project-scope install writes
+> into the config of the project it names (`host.EntryInstallOptions.ProjectRoot`,
+> resolved by `host.detectEntryConfig`), never the caller's working directory, and
+> install, reconcile, remove, restore and copy all resolve the same path. A host
+> that documents no project-scope config path (the six bespoke adapters: Claude
+> Code, Cline, Codex, Grok Build, OpenCode, Pi) is **refused** for a project
+> install — at plan time and again at write time — rather than written into its
+> user config under a project label (`host.SupportsProjectScope`).
 
 Ten of the twelve tools resolve. `request_install` reaches the handler and completes for
 skills and MCP servers, stopping only at the missing artifact source for plugins; the other

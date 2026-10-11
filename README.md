@@ -371,13 +371,19 @@ litespm                                  interactive setup wizard (no network fe
 litespm setup | init                     same as `litespm`
 litespm version                          version + protocol + build target
 litespm search <query>                   search the local catalog index
-litespm install <id> [--version <v>] [--scope user|project]
+litespm install <id> [--version <v>] [--scope user|project] [--workspace <dir>]
                                           records a plan + human approval; skills and MCP servers
-                                          install, plugins need artifact wiring (STATUS.md)
+                                          install, plugins need artifact wiring (STATUS.md).
+                                          --workspace names the project for a project-scope install
+                                          (it implies --scope project; the default is the working
+                                          directory) and is sealed into the plan
 litespm uninstall [--dry-run]            remove the bridge entry from every host config
 litespm catalog sync                     fetch the release pointer (live origin — STATUS.md §2)
 litespm daemon serve                     start the supervisor + IPC engine
-litespm bridge stdio [--host <id>]       stateless MCP stdio shim
+litespm bridge stdio [--host <id>] [--workspace <dir>]
+                                          stateless MCP stdio shim; --workspace (default: the
+                                          working directory) is the project whose installs the
+                                          shim may also list — it widens reads only
 litespm host list|detect|setup|remove    host adapters (remove takes <host-id> or --all)
 litespm agent list|resolve <id>          ACP registry listing / launch-spec resolution [--registry|--file|--json]
 litespm skills add|list|update|remove    SKILL.md lifecycle (add: --skill/--agent/--scope/--yes/--json)

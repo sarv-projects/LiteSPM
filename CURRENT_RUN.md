@@ -341,7 +341,7 @@ Answer whether the Workers URL is the live marketplace, reproduce the reported d
 ### Next Exact Steps
 
 1. Continue to check PID `286397` before any resume; wait for completion and require a complete, non-stale skills.sh pass before running the isolated full producer.
-2. Homepage diagnosis: no source patch is justified yet. Current HEAD builds and navigates correctly both from the exported files and in Wrangler's local Workers Static Assets preview, while the deployed live page fails, including in a fresh tab. Treat this as a live deployment/artifact discrepancy; do not deploy or publish during the blocked catalog workflow. Revisit deployment only after the catalog gate and explicit authorization.
+2. Homepage diagnosis is complete — see "Root Cause Confirmed (2026-10-11)" below: the live origin serves the pre-fix build (Next 15.1.7 era); the current source already contains the fix, so the remedy is a redeploy of the current build. Do not deploy or publish during the blocked catalog workflow; revisit deployment only after the catalog gate and explicit authorization.
 3. Resume the release workflow only after all existing completeness, uniqueness, endpoint-safety, digest, and release checks pass. Do not stage, commit, push, publish, or promote pending user authorization and the release gate.
 
 ### Decisions & Gotchas
@@ -351,6 +351,14 @@ Answer whether the Workers URL is the live marketplace, reproduce the reported d
 - Triage disproved a bad Worker RSC payload (the `/explore/index.txt?_rsc=...` response is valid Flight data with HTTP 200) and a custom homepage click handler; direct native navigation works. Current-source static build (`NEXT_TELEMETRY_DISABLED=1 npm run build`, isolated under `/tmp/opencode/litespm-home-nav-current-20261010`) passed: homepage Explore navigation and a package-card click both worked with zero browser errors. The same built assets also passed homepage Explore navigation under a local Wrangler 4.107.0 Workers Static Assets preview (`not_found_handling = "404-page"`; only the >25 MiB catalog JSON was omitted for preview). The live HTML/build ID and asset hashes differ from that fresh build, and the live-only failure reproduces in a fresh tab; exact deployed artifact/config cause is not proven.
 - User rejected the proposed homepage-only native-link fallback; do not implement it. Do not make speculative product-code changes. Fixing the live origin requires a deployment-side change, which remains blocked by the catalog/release constraint.
 - No application source, deployed artifact, or catalog data was modified. Temporary local preview servers were stopped; preserve the active producer, `.opencode/`, and temp replay directory.
+
+### Root Cause Confirmed (2026-10-11)
+
+- **The live origin serves a pre-fix build.** An isolated rebuild of `57a5ff9` (last pre-`29643c3` commit; Next 15.1.7) reproduces the deployed pages: framework/hook chunks match live by content hash (`126.bfa2c423fb7b3105.js`, `117`, `702`, `4bd1b696`, `517`, `polyfills`); the entry chunks differ only in internal webpack module IDs. Live is that revision, deployed with `rel-2026-10-07-01`.
+- **Local reproduction, identical behavior**: home header-link click stays on `/` (idle does not help); typing in the hero search (loads `/data/catalog.json`) flushes the queued navigation to `/explore/`; `/explore/` clicks navigate client-side immediately; 0 console errors. Same signature measured on the live origin (dead click, idle 3s still dead, fill → flush; `/explore/` click client-side twice).
+- **Mechanism**: pre-fix `web/lib/useCatalogSearch.ts` takes `listings = full ?? []` — a fresh array identity every render until the catalog loads. Its drive effect (deps `[listings, query, kind, category, mode]`, `mode === "worker"`, `workerRef.current === null`) hits the unguarded `!worker` branch and calls `setResults(searchInThread(...))` — a new array every pass — so it re-renders forever (measured 3,808–14,824 `Array.prototype.filter` calls per 500ms; the loop runs on both `/` and `/explore`). That perpetual default-priority update stream starves App Router transitions on the homepage: the Link click is default-prevented, `router.push` dispatches, but nothing commits — no history update, no RSC fetch, no error. The homepage is the visible victim (largest per-iteration render work, ~4× `/explore`); `/explore` and other routes still commit navigation.
+- **Fix already in the repo**: `7d96ca1` added `EMPTY_LISTINGS` identity normalization (`web/lib/useCatalogSearch.ts:71,85`) and the missing `lastKeyRef` guard in the `!worker` branch (lines 200-201); `git log -S EMPTY_LISTINGS` confirms. Post-fix builds (Oct 8 export and the current-source isolated build) navigate on `/` with zero errors.
+- **Remedy = redeploy the current build.** No source change is needed for this defect; do not deploy during the blocked catalog workflow (no publish/promote).
 
 ## Full-Repository Read (2026-10-11)
 
@@ -387,22 +395,120 @@ Re-run the `feed:skills-sh` replay that died mid-feed, and fix the 15 source-der
 
 ### Where We Stopped
 
-- **Producer rerun is alive**: PID `9427` (own session; `tmp-catalog-replay-20261010/producer.pid`, log `producer.log`), `--only-source feed:skills-sh`, replay mode. Last observed `skills.sh: 16500/19792 processed`, no rate-limit circuit. **The release gate is still unpassed**; no release was cut, promoted, or published.
-- **All 15 defects fixed** plus the doc drift, by five parallel lanes and one bounded remediation pass; the full Go/Python/web gates are green (see Verification below). Nothing staged, committed, pushed, or published.
+- **Producer replay finished** (PID `9427` completed): all **19,792** `feed:skills-sh` rows taken,
+  `0 fetch failures`, 19,794 snapshots promoted to `healthy`. It nevertheless printed
+  `completeness: incomplete`, which the third pass below diagnosed and fixed at the source: the feed was
+  never incomplete — 36 sitemap locs are `robots.txt`-disallowed `/api/git/…` paths the producer refuses
+  by policy, and that refusal was being counted as a data gap. **The release gate is still unpassed**, but
+  now for the honest reason: a source-scoped run reports `partial` by design, so the gate needs a full
+  (all-source) run. No release was cut, promoted, or published.
+- **All 15 defects fixed** plus the doc drift, by five parallel lanes and one bounded remediation pass; the full Go/Python/web gates are green (see Verification below). These changes were **committed and pushed afterwards** (`4df6928` plus the third-pass commits below).
 - Two gate findings were fixed in the remediation pass and are worth knowing:
   - the first cut of the deny-`targetRef` fix *failed open* for existing listing-id rules; `PolicyInput.TargetAliases` now carries the host entry name beside the canonical `TargetRef`, so a rule keyed on either refuses;
   - the new `internal/schemacheck` contract test failed on a clean checkout (it read the gitignored `web/public/v1/releases/`); it now skips with that reason, and `host.EntryLayout` became the scope-aware `host.EntryLayoutForScope`.
-- Deliberate, documented decisions: bridge `tools.list`/`skills.*` stay **user-scope-only** (IPC carries no project/workspace context — option (a) is a protocol change, available on request); receipt-chain verification does **not** detect a truncated tail (documented, needs an external anchor); PURLs are **not** emitted in SBOMs (no ecosystem coordinate exists — inventing one is forbidden).
+- **Defect 9 option (a) was then implemented** (2026-10-11, second follow-up): project-scope installs are
+  first-class. `litespm install --workspace <dir>` (implies `--scope project`; the CWD is the default) and
+  `resolver.prepare_plan`'s required `projectRoot` seal `request.workspaceId` + `request.projectRoot` into
+  the plan, which the plan hash covers — so an approval binds the workspace. Records and host registrations
+  carry the workspace, the approval prompt names it, and the bridge forwards its project root so
+  `list_installed`/`load_skill`/`read_skill_resource` include that workspace's project-scope installs, each
+  row labelled with its `scope`. The root is a *selection* key, not an authorization boundary (same-uid IPC
+  peer auth is), and the daemon refuses a workspace-less project plan (`-32602`) rather than resolving it
+  against its own working directory.
+- Other deliberate, documented decisions: receipt-chain verification does **not** detect a truncated tail
+  (documented, needs an external anchor); PURLs are **not** emitted in SBOMs (no ecosystem coordinate
+  exists — inventing one is forbidden).
 - Deferred `internal/` follow-ups reported by the lanes, not implemented: `install.InstallOptions.HostID` (the archive path still cannot enforce per-host deny rules), `skills.PolicyRequest` has no listing id, and an IPC workspace channel for the bridge-scope option (a).
 
 ### Next Exact Steps
 
-1. **Do not start a second producer.** Re-check PID `9427`; require `CATALOG_INGESTION_STATUS` `complete` with no incomplete/stale `feed:skills-sh` before running the isolated full producer and considering a release cut.
-2. Review the uncommitted diff (57 files, +1,507/−561) and decide whether to commit — the standing instruction was to leave it uncommitted. `tmp-cli-sandbox-2026-10-08/` is still **tracked** (168 files incl. an 18.5 MB binary): untracking it needs `git rm -r --cached tmp-cli-sandbox-2026-10-08` plus a commit, so it needs explicit authorization; `.gitignore` now carries the `tmp-cli-sandbox-*/` rule for future runs.
-3. The committed 46,166-row `web/data/catalog.json` still does not match the 5,825-item published pointer; that incoherence is only resolved by a deliberate release cut from a complete dataset.
+1. **The defect remediation and its follow-ups are committed and pushed** (`4df6928`, then the third-pass commits). The tree is clean apart from ignored scratch. Do not re-litigate the fixes; they are gated by the suite below.
+2. **Release gate:** after the producer classification fix, run the **full** producer (no `--only-source`) in replay mode into an isolated output and require `CATALOG_INGESTION_STATUS` `complete` (it now reports `refusedLocs` for the skills.sh `/api/…` refusals instead of `incompleteSources`). The deliberately bounded `feed:mcpmarket-com` crawl is the remaining question — it is incomplete by design at the 2,000-page budget, so either raise `MCPMARKET_MAX_PAGE_FETCHES` for one uncapped crawl or accept a documented bounded-partial before cutting. Then cut and verify the release, and re-check `web/data` vs the pointer.
+3. `tmp-cli-sandbox-2026-10-08/` was untracked in the hygiene commit (files left on disk) and `tmp-cli-sandbox-*/`, `tmp-catalog-*/`, `.opencode/` are ignored now.
+4. The committed 46,166-row `web/data/catalog.json` still does not match the 5,825-item published pointer; that incoherence is only resolved by a deliberate release cut from a complete dataset.
 
 ### Decisions & Gotchas
 
 - **Verification actually run this session** (orchestrator, after the remediation pass): `gofmt -l .` empty; `go vet ./...` clean; `go build ./...` clean; `go test ./... -count=1` ok for **all 44 packages** (including `test/` and the previously failing `TestCatalogRelease_EndToEnd`); `cd web && npx tsc --noEmit` clean; `python3 -m py_compile scripts/*.py`, `bash -n scripts/*.sh`, `node --check` on both npm entry points; `build_full_catalog.py --check`; `snapshot_store.py` self-test (50), `test_snapshot_lifecycle.py` (23), `test_catalog_ingestion_safety.py` (31), `test_remote_endpoints.py` (77), `test_skill_promotion.py` (221), `test_mcpmarket_source.py` (105); `cd npm && npm test`; `go run scripts/gen_hosts_ts.go` reproduced `web/data/hosts.json` + `skill-targets.json` byte-identically.
 - The `--materialize` identity guard, the MCP deny-rules path, the approval host-binding, `install --workspace`, the self-update deadline, and the four UI defects reported earlier were already fixed at `7d96ca1`; they were NOT re-fixed, only re-confirmed by reading the code and its tests.
 - Schema direction taken (defect 6): the schemas now **mirror the artifacts the code emits** (code is the contract), and `internal/schemacheck` is a dependency-free draft-2020-12 subset validator that *rejects any keyword it does not implement*; its tests reproduce each pre-fix failure.
+
+## Producer Release-Gate Fix + Project-Scope Workspaces (2026-10-11, third pass)
+
+### Active Goal
+
+Two follow-ups the user asked for after the remediation was pushed: make the `feed:skills-sh` replay
+actually reach a complete ingestion state, and implement "option (a)" from the defect-9 decision —
+carry a project/workspace through IPC and the bridge so agents can see project-scope installs.
+
+### Where We Stopped
+
+- **Producer gate (fixed at the source).** `scripts/build_full_catalog.py` counted a loc it refuses by
+  our own crawl policy as evidence of an incomplete source, so `CATALOG_INGESTION_STATUS` could never
+  read `complete` for a feed that had in fact delivered all 19,792 rows. Diagnosed offline against the
+  recorded sitemaps (2 sub-sitemaps, 20,000 locs, exactly 36 offenders, all `robots.txt`-disallowed
+  `www.skills.sh/api/git/…`; 19,792 + 172 duplicate ids + 36 refused = 20,000). New
+  `_skills_sh_path_refusal` + `_is_policy_refused_listing_url` classify a policy-refused loc into
+  `refusedLocs` (reported in the status line and the summary), while a foreign host, a cleartext URL or
+  an undefined path still marks the source incomplete. `scripts/test_skill_promotion.py` 221 → **232
+  checks** (unit checks plus two end-to-end runs: a positive control and a negative control).
+- **Project scope is now real.** `litespm install --workspace <dir>` (implies `--scope project`; CWD
+  default) and `resolver.prepare_plan`'s required `projectRoot` seal `request.workspaceId`
+  (`ws_` + 16 hex of `sha256(abs root)`, `internal/domain/workspace.go`) and `request.projectRoot` into
+  the plan — inside the plan hash, so the approval binds the workspace. `install.execute` re-derives the
+  root from the sealed plan; install rows and host registrations carry the workspace; the approval
+  prompt prints `project : <root> (<ws>)`; the bridge forwards its project root so `list_installed`,
+  `load_skill` and `read_skill_resource` union user-scope rows with that workspace's project-scope rows,
+  each labelled with its `scope`. A workspace-less project plan is refused (`-32602`) rather than
+  resolved against the daemon's working directory.
+- **Deliberate query change:** `state.ListInstalls(ScopeProject, "")` now means "every workspace" (it
+  previously matched only rows with an empty `workspace_id`), because project rows now carry a real id
+  and `litespm list`/`inventory` is machine-wide; `list --project <dir>` still filters by `ProjectRoot`.
+- Verification: `gofmt -l .` empty, `go vet ./...` clean, `go build ./...` clean, `go test ./... -count=1`
+  **ok for all 44 packages**, `npx tsc --noEmit` clean, Python 50/23/31/77/232/105 checks + producer
+  `--check` + `py_compile`, `gen_hosts_ts.go` byte-identical, `npm test` pass.
+- **A security review of the workspace feature found two defects in its write half, both fixed.**
+  (1) The sealed root only stamped state: the host-config write still resolved its target from the
+  process's working directory (data-driven targets) or ignored the scope entirely (the six bespoke
+  adapters), so a project install could record one project and write another's file — or a user
+  config under a project label. The root now rides through `host.EntryInstallOptions` and every
+  scope-aware reader (`ListServerEntries`, `ListServerEntriesWithValues`, `ReadServerEntryState`,
+  `EntryFingerprintNow`, `RemoveServerEntry`), so install/reconcile/remove/restore/copy open the
+  same file; `host.SupportsProjectScope` refuses a project install for a host with no documented
+  project path, at plan time (before the approval is spent) and again at write time. (2) Both
+  teardown paths deleted host registrations with a hard-coded empty workspace id, which silently
+  matched nothing once project rows carried a real one — the row outlived the install. Removal now
+  deletes each row with the workspace it was written under, and reconcile reads a project node's
+  fingerprint from the project's own config (it used to observe "missing" and skip the strip
+  entirely). The reviewer confirmed the rest: the plan binding is real, no client-supplied root
+  reaches a write, consume/refund are untouched, the IPC peer is kernel-authenticated same-uid, and
+  the read tools never touch the supplied path. Pinned by `TestProjectScopeWriteBindsToTheNamedProject`,
+  `TestProjectScopeRefusesHostsWithoutAProjectPath` and
+  `TestRemoveProjectInstallDropsItsHostRegistration`.
+
+### Next Exact Steps
+
+1. Run the **full** producer in replay mode into an isolated output and require
+   `CATALOG_INGESTION_STATUS {completeness: complete}` (the skills.sh refusals now appear as
+   `refusedLocs`, not `incompleteSources`). Decide the `feed:mcpmarket-com` budget question above.
+2. Only then cut and verify a release; do not promote the 46,166-row dataset under the old identity.
+3. The three deferred `internal/` follow-ups remain open: `install.InstallOptions.HostID`,
+   `skills.PolicyRequest` listing id, and (now optional) nothing for defect 9 — it is implemented.
+
+### Decisions & Gotchas
+
+- The project root is a **selection key, not an authorization boundary**: the IPC peer is authenticated
+  by kernel peer credentials (same uid) before the first request, and the four read tools only choose
+  which database rows to read — they never read the filesystem at the supplied path. Do not "fix" this
+  by adding path confinement; that would be security theatre over a same-uid socket.
+- `scope=user` with a `projectRoot` is refused rather than ignored, because silently dropping it would
+  return a plan the caller did not ask for.
+- **A project-scope MCP install only works for the data-driven hosts.** The six bespoke adapters
+  (Claude Code, Cline, Codex, Grok Build, OpenCode, Pi) document only a user config file — their
+  `DetectConfig` ignores the scope argument — so a project install for one of them is refused with
+  `install it with --scope user` instead of being written into the user config under a project
+  label. Claude Code's documented project file (`.mcp.json`) is the known gap if someone wants to
+  close it; it is an adapter change, not a policy one.
+- Debugging tip that paid off: the producer's completeness verdict can be reproduced offline against the
+  recorded sitemap snapshots (`snapshot_store.load_snapshot` + the same predicates), which is how the 36
+  refusals were identified without another 33-minute crawl.

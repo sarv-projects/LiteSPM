@@ -191,6 +191,14 @@ type InstallRecord struct {
     UpdatedAt        time.Time        `json:"updatedAt"`
 }
 ```
+**Workspace identity.** `WorkspaceID` is `ws_` + the first 16 hex characters of
+`sha256(cleaned absolute project path)` (`domain.WorkspaceIDForProjectRoot`). It is a pure function of
+the path that is stored beside it in `ProjectRoot`, so one directory is one workspace for every
+install, plan and read, and the path is not hashed to hide it. `litespm install --workspace <dir>`
+(and `resolver.prepare_plan`'s `projectRoot`) seal both fields into `PlanRequest`, so the plan hash
+binds the workspace an approval authorises; the bridge passes its project root so the daemon can
+include that workspace's installs in `list_installed`/`load_skill`/`read_skill_resource`.
+
 **Written in production:** yes — `CommitInstallOperation` persists the record and
 its `InstallComponentRecord` (`internal/install/engine.go:462` →
 `internal/state/repositories.go:343`). That writer is reached only when an

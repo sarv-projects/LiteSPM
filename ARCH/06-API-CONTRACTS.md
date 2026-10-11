@@ -130,7 +130,13 @@ before it acts — hash and expiry at `internal/install/engine.go:105-120`, arti
 Notes on that serialization:
 
 *   `planId` is `plan_` + 26 Crockford base32 symbols, matching `^plan_[0-9A-Za-z]{26}$`
-    (`cmd/litespm/main.go:2602-2616`).
+    (`cmd/litespm/main.go:2673-2687`).
+*   For a project-scope plan, `request.workspaceId` and `request.projectRoot` are populated
+    (`ws_` + 16 hex of `sha256(absolute project root)`; ARCH/10 §2.5). Both sit inside `request`,
+    which the plan hash covers, so the approval binds the workspace as well as the listing — and
+    `install.execute` re-derives the root from the sealed plan rather than from a fresh argument.
+    `resolver.prepare_plan` refuses `scope=project` without a resolvable `projectRoot` (`-32602`)
+    instead of silently resolving against the daemon's working directory.
 *   `catalogReleaseId` is emitted empty today — `buildInstallPlan` never sets it.
 *   `preconditions` and `approval` marshal to empty objects because every field inside them is
     `omitempty` (`internal/domain/models.go:460-473`); a plan built by `buildInstallPlan` populates
@@ -238,25 +244,25 @@ Status column = highest honest state per [STATUS.md](../STATUS.md) §1/§4.
 | Method | Description | Status |
 |---|---|---|
 | `daemon.handshake` | Mandatory connection handshake; every other method is refused until it succeeds | `TESTED` (`internal/ipc/server.go`); the client handshakes lazily (§3.1) |
-| `tools.list` | Lists installed capabilities plus read-only detected external host tools | Resolves (`cmd/litespm/main.go:1244`) |
-| `catalog.search` | Queries the local catalog index with filters and limits | Resolves (`:1286`); empty until `catalog sync` succeeds |
-| `catalog.get_item` | Retrieves full listing metadata and version history | Resolves (`:1340`) |
-| `resolver.prepare_plan` | Pure dependency resolution producing an `InstallPlan`, persisted with `planHash` | Resolves (`:1359`) |
+| `tools.list` | Lists installed capabilities plus read-only detected external host tools; an optional `projectRoot` adds that workspace's project-scope installs, each row carrying its `scope` | Resolves (`cmd/litespm/main.go:1981`); without a root it is user scope only |
+| `catalog.search` | Queries the local catalog index with filters and limits | Resolves (`:2033`); empty until `catalog sync` succeeds |
+| `catalog.get_item` | Retrieves full listing metadata and version history | Resolves (`:2087`) |
+| `resolver.prepare_plan` | Pure dependency resolution producing an `InstallPlan`, persisted with `planHash`; `scope=project` requires `projectRoot`, which is sealed into `request.workspaceId`/`request.projectRoot` and so into the plan hash | Resolves (`:2106`) |
 | `install.execute` | Submits approval and begins transactional execution | Resolves **for skill and MCP listings** (`main.go` routes `kind=skill` through the skills ledger and `kind=mcp` through host-config registration, both behind the plan + approval gate in `install_authz.go`); only plugins return `LPSM-ARTIFACT-UNAVAILABLE` (no artifact source; `internal/install/engine.go:204-207`) |
-| `install.remove` | Safe removal and unreferenced CAS pruning | Resolves (`:1444`) |
-| `skills.list` | Returns progressive-disclosure skill index for installed trees | Resolves (`:1467`) |
-| `skills.load_body` | Retrieves progressive `SKILL.md` body on demand | Resolves (`:1522`) |
-| `skills.read_resource` | Reads bounded skill supporting resource | Resolves (`:1573`) |
-| `capabilities.search` | Searches capability/tool names across providers | Resolves (`main.go:2089`) — over the tools discovered on this machine |
-| `capabilities.describe` | Inspects capability schema, effects, and status | Resolves (`main.go:2135`) — real input schema, fingerprint and provider command |
-| `provider.probe` | Reports the supervisor's real view of one provider | Resolves (`:1648`); nothing tracks a provider in practice (no non-test provider rows) |
-| `provider.invoke` | Policy-evaluated tool execution | Resolves — calls a discovered capability through `internal/discover`; synchronous per §4, and refuses when the tool's schema has drifted since discovery |
+| `install.remove` | Safe removal and unreferenced CAS pruning | Resolves (`:2328`) |
+| `skills.list` | Returns progressive-disclosure skill index for installed trees; optional `projectRoot` as above | Resolves (`:2354`) |
+| `skills.load_body` | Retrieves progressive `SKILL.md` body on demand; optional `projectRoot`; user scope wins a name collision | Resolves (`:2424`) |
+| `skills.read_resource` | Reads bounded skill supporting resource; optional `projectRoot` | Resolves (`:2478`) |
+| `capabilities.search` | Searches capability/tool names across providers | Resolves (`:2538`) — over the tools discovered on this machine |
+| `capabilities.describe` | Inspects capability schema, effects, and status | Resolves (`:2584`) — real input schema, fingerprint and provider command |
+| `provider.probe` | Reports the supervisor's real view of one provider | Resolves (`:2617`); nothing tracks a provider in practice (no non-test provider rows) |
+| `provider.invoke` | Policy-evaluated tool execution | Resolves (`:2645`) — calls a discovered capability through `internal/discover`; synchronous per §4, and refuses when the tool's schema has drifted since discovery |
 | `invocation.get` | Retrieves invocation status | **`-32601`** — the asynchronous registry is ARCH/34, still `DESIGNED` |
 | `invocation.cancel` | Cancels an active invocation | **`-32601`** — as above |
-| `host.detect_config` | Probes default agent configuration file path | Resolves (`:1702`) |
-| `host.apply_setup` | Injects the Bridge MCP entry with atomic pre-edit backup | Resolves (`:1711`) |
-| `doctor.run_checks` | Runs 10 non-mutating system diagnostics | Resolves (`:1740`) |
-| `system.status` | Returns daemon version, protocol, PID, and readiness | Resolves (`:1747`) |
+| `host.detect_config` | Probes default agent configuration file path | Resolves (`:2691`) |
+| `host.apply_setup` | Injects the Bridge MCP entry with atomic pre-edit backup | Resolves (`:2700`) |
+| `doctor.run_checks` | Runs 10 non-mutating system diagnostics | Resolves (`:2729`) |
+| `system.status` | Returns daemon version, protocol, PID, and readiness | Resolves (`:2736`) |
 
 Notes:
 
@@ -300,8 +306,14 @@ When an agent host boots the LiteSPM Bridge via stdio, the shim advertises **12*
 
 Dispatch status (per [STATUS.md](../STATUS.md) §1/§4):
 
-*   **Resolve:** `search_catalog` (`shim.go:282`), `get_extension` (`:305`), `prepare_install`
-    (`:323`), `list_installed` (`:359`), `load_skill` (`:404`), `read_skill_resource` (`:433`).
+*   **Resolve:** `search_catalog` (`shim.go:331`), `get_extension` (`:356`), `prepare_install`
+    (`:376`), `list_installed` (`:416`), `load_skill` (`:465`), `read_skill_resource` (`:496`).
+    `list_installed`, `load_skill` and `read_skill_resource` also forward the shim's project root
+    (`bridge stdio --workspace <dir>`, else the process working directory) as `projectRoot`, so the
+    daemon includes that workspace's project-scope installs alongside the user-scope ones. The root
+    is a *selection* key, not an authorization boundary: the IPC peer is already authenticated as the
+    same uid, and these three tools only choose which database rows to read — they never read the
+    filesystem at the supplied path.
 *   **Resolves, but only two kinds complete:** `request_install` (`shim.go:341`) forwards to
     `install.execute`, which is gated by `install_authz.go` (a persisted, hash-verified plan plus a
     human approval recorded for that plan's hash). With both present, `kind=skill` installs real

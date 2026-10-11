@@ -134,6 +134,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into per-package registration, an unknown mode is refused at parse time, and a non-default mode
   round-trips through `MarshalCanonical`.
 
+- **Project-scope installs are first-class, and an agent can see the ones in its own project.**
+  `litespm install <id> --workspace <dir>` names the project (it implies `--scope project`; the working
+  directory is the default) and `resolver.prepare_plan` requires a `projectRoot` for `scope=project`. Both
+  seal `request.workspaceId` (`ws_` + 16 hex of `sha256(absolute project root)`, so the id is a pure
+  function of the path) and `request.projectRoot` into the plan, which the **plan hash covers** — the
+  approval a human gives therefore binds the workspace, and `install.execute` re-derives it from the sealed
+  plan rather than from a fresh argument. The install row and every host registration carry the workspace,
+  and the approval prompt names it (`project : <root> (<ws>)`). The Bridge forwards its own project root
+  (`bridge stdio --workspace <dir>`, else the process working directory), so `list_installed`,
+  `load_skill` and `read_skill_resource` include that workspace's project-scope installs, each row labelled
+  with its `scope`; without a root they stay user-scope-only, and a user-scope install of the same name wins
+  a collision. The root is a *selection* key, not an authorization boundary — the IPC peer is already
+  authenticated as the same uid, and these tools only choose which database rows to read, never read the
+  filesystem at the supplied path.
+
 ### Changed
 
 - **Deployment renamed to `litespm`.** The live Cloudflare Worker moved from the
@@ -197,6 +212,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A project-scope MCP install now writes into the project it names, and refuses the hosts that
+  document no project file.** The workspace the plan seals was previously used only to stamp state:
+  the host-config write still resolved its target from the process's working directory (a
+  data-driven target) or ignored the scope argument entirely (the six bespoke adapters), so
+  `litespm install --workspace <dir>` run from elsewhere recorded one project and wrote another's
+  config, a project install over IPC (`install.execute`) wrote relative to the daemon's launch
+  directory, and a project-scoped row for Claude Code/Codex/OpenCode/etc. described a file it had
+  never touched. The project root is now part of `host.EntryInstallOptions` and of every
+  scope-aware reader (`ListServerEntries`, `ListServerEntriesWithValues`, `ReadServerEntryState`,
+  `EntryFingerprintNow`, `RemoveServerEntry`), so install, reconcile, remove, restore and copy all
+  open the same file. `host.SupportsProjectScope` refuses — at plan time, before an approval is
+  spent, and again at write time — for a host with no documented project-scope path, with the fix
+  in the message (`install it with --scope user, or choose a host that documents a project file`)
+  rather than writing the user config under a project label. Pinned by
+  `TestProjectScopeWriteBindsToTheNamedProject` and
+  `TestProjectScopeRefusesHostsWithoutAProjectPath`.
+
+- **Removing or restoring a project-scope install no longer leaves its host registration behind.**
+  Host registrations are deleted by the exact tuple (host, scope, workspace, key), and both teardown
+  paths passed a hard-coded empty workspace — which silently matched nothing once project rows
+  carried a real id, so the registration row (with its stale config path and fingerprint) outlived
+  the install it described. Removal now lists the rows for that entry and deletes each with the
+  workspace it was written under. The three-way reconcile also reads a project node's fingerprint
+  from the project's own config instead of the caller's working directory: it used to observe "the
+  node is gone" and classify the install as missing, which skipped the strip that removes both the
+  entry and its row. Pinned by `TestRemoveProjectInstallDropsItsHostRegistration`.
+
 - **Receipt chain verification checks the real link order, not just any issued hash.**
   `receipts.Store.VerifyChain` re-hashed every receipt but accepted a `PrevReceiptHash` that named
   *any* hash the store had once issued, so a receipt deleted from the store, reordered, or relinked
@@ -216,6 +258,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `"env": {"TOKEN": 42}` passed the contract and then failed to unmarshal in the catalog client. The
   property now constrains its values, closing the gap between what the schema accepts and what the client
   can read.
+
+- **The skills.sh feed can no longer be called incomplete by our own crawl policy.** The producer treated
+  every `<loc>` its parser could not accept as evidence of an incomplete source. skills.sh's own
+  sub-sitemaps list `/api/git/…` paths, which `robots.txt` disallows: the producer correctly refuses to
+  fetch them, then counted that refusal as incompleteness — so `CATALOG_INGESTION_STATUS` could never read
+  `complete` for a feed that had in fact delivered all 19,792 of its rows (reproduced: 2 sub-sitemaps,
+  20,000 locs, exactly 36 refusals, all robots-disallowed). A loc refused **by our policy** (only an
+  allowed host on a robots-disallowed or traversal path) is now counted in `refusedLocs` and printed on
+  the source's summary line, and does not affect `completeness`; a loc refused for any other reason — a
+  foreign host, a cleartext URL, a path the feed does not define — still marks the source incomplete,
+  because that is an upstream defect and silence would be a lie.
 
 - **The release `contentDigest` is re-verified from the bytes, not only the per-file digests.**
   `manifest.contentDigest` pins `listings.json || versions.json` as one unit, but neither the deploy

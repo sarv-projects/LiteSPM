@@ -107,7 +107,14 @@ own config file. It does **not** assert runtime health:
     capability whose status was not observed renders as `— Unknown`. The `● Ready` / `🟡 Needs Auth`
     / `○ Stopped` lights exist in the renderer but are only shown for a status the daemon can
     actually observe (`internal/bridge/shim.go:514-560`).
-2.  **Detected External Capabilities (Read-Only):**
+2.  **Project-scope installs are visible in their own project.** The Bridge treats the directory the
+    agent host starts it in as the project it belongs to (`bridge stdio --workspace <dir>` overrides
+    it), and the daemon includes that workspace's project-scope installs alongside the user-scope
+    ones, each row labelled with its scope. A project install is created with
+    `litespm install <id> --workspace <dir>` (which implies `--scope project`); the workspace is
+    sealed into the plan the approval binds. Outside that project — or when the bridge has no
+    project context — only user-scope installs are listed, which is the pre-2026-10-11 behaviour.
+3.  **Detected External Capabilities (Read-Only):**
     *   LiteSPM scans the agent's primary configuration file for **pre-existing native tools**
         (e.g. servers previously added to `cline_mcp_settings.json` or `config.toml`).
     *   Detection is limited to documented on-disk config files known to the adapter.
