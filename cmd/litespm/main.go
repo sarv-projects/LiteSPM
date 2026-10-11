@@ -74,9 +74,10 @@ func main() {
 		}
 
 	case "search":
-		query := ""
-		if len(os.Args) >= 3 {
-			query = strings.Join(os.Args[2:], " ")
+		query, queryErr := searchQueryArgs(os.Args[2:])
+		if queryErr != nil {
+			fmt.Fprintf(os.Stderr, "Usage error: %v\n", queryErr)
+			os.Exit(2)
 		}
 		runSearch(query)
 
@@ -936,6 +937,24 @@ func truncate(s string, max int) string {
 		return s[:max]
 	}
 	return s[:max-1] + "…"
+}
+
+// searchQueryArgs turns the words after `search` into a query.
+//
+// It refuses flag-shaped words instead of folding them into the query, because
+// the alternative is worse than an error: `litespm search github --json` used
+// to search the literal string "github --json", the fuzzy index still matched
+// github rows, and the user got a plausible answer that silently ignored the
+// `--json` they asked for. Every other command validates its flags and exits 2
+// (the documented usage exit code); search was the one that swallowed them.
+// `--json` belongs to `list` and `inventory`, not to search.
+func searchQueryArgs(args []string) (string, error) {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--") {
+			return "", fmt.Errorf("search takes no flags (got %q); --json belongs to `list` and `inventory`, not `search`", arg)
+		}
+	}
+	return strings.Join(args, " "), nil
 }
 
 func runSearch(query string) {

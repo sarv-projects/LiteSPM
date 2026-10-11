@@ -1204,3 +1204,38 @@ func TestToolsListUnionsProjectScope(t *testing.T) {
 		}
 	})
 }
+
+// TestSearchQueryArgsRefusesFlags pins the usage rule the CLI already applies
+// everywhere else: a flag-shaped word is an error, not part of the query. It
+// used to be folded in, so `litespm search github --json` searched the literal
+// string "github --json", the fuzzy index matched github rows anyway, and the
+// user got a plausible answer that silently ignored what they asked for.
+func TestSearchQueryArgsRefusesFlags(t *testing.T) {
+	for _, tc := range []struct {
+		args    []string
+		want    string
+		wantErr bool
+	}{
+		{args: []string{"github"}, want: "github"},
+		{args: []string{"github", "mcp"}, want: "github mcp"},
+		{args: nil, want: ""},
+		{args: []string{"--json"}, wantErr: true},
+		{args: []string{"github", "--json"}, wantErr: true},
+		{args: []string{"github", "--frozen"}, wantErr: true},
+	} {
+		got, err := searchQueryArgs(tc.args)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("searchQueryArgs(%v) accepted a flag as search text", tc.args)
+				continue
+			}
+			if !strings.Contains(err.Error(), "--json belongs to") {
+				t.Errorf("the refusal must say where --json belongs, got: %v", err)
+			}
+			continue
+		}
+		if err != nil || got != tc.want {
+			t.Errorf("searchQueryArgs(%v) = %q, %v; want %q", tc.args, got, err, tc.want)
+		}
+	}
+}
