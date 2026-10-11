@@ -53,23 +53,37 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
             const host = resolveHost(agent.name);
             return (
               <li key={agent.slug}>
-                <Link
-                  href={`/explore/?host=${encodeURIComponent(agent.name)}`}
-                  className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-rule py-3 transition-colors hover:bg-hover md:grid-cols-[minmax(0,1fr)_92px_84px_minmax(0,1fr)]"
-                >
-                  <span className="flex min-w-0 items-center gap-2.5">
+                {/* The row is a container, not a link: the name goes to the
+                    host's detail page when LiteSPM can edit that host's
+                    config, and the count keeps the Explore filter this row
+                    already had — two targets, so no nested anchors. */}
+                <div className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-rule py-3 transition-colors hover:bg-hover md:grid-cols-[minmax(0,1fr)_92px_84px_minmax(0,1fr)]">
+                  <Link
+                    href={
+                      host
+                        ? `/agents/${host.id}/`
+                        : `/explore/?host=${encodeURIComponent(agent.name)}`
+                    }
+                    className="flex min-w-0 items-center gap-2.5"
+                  >
                     <span
                       aria-hidden="true"
                       className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-chip bg-sunken-2"
                     >
                       <SquareTerminal className="h-3 w-3 text-ink-2" />
                     </span>
-                    <span className="t-cond truncate text-[14px] font-medium text-ink">{agent.name}</span>
-                  </span>
+                    <span className="t-cond truncate text-[14px] font-medium text-ink transition-colors duration-hover group-hover:text-accent-text">
+                      {agent.name}
+                    </span>
+                  </Link>
 
-                  <span className="t-mono t-tabular text-right text-[12px] text-ink-2 md:order-3">
+                  <Link
+                    href={`/explore/?host=${encodeURIComponent(agent.name)}`}
+                    aria-label={`${formatCount(agent.count)} catalog entries in Explore for ${agent.name}`}
+                    className="t-mono t-tabular text-right text-[12px] text-ink-2 transition-colors duration-hover hover:text-accent-text md:order-3"
+                  >
                     {formatCount(agent.count)}
-                  </span>
+                  </Link>
 
                   <span className="hidden md:order-2 md:block">
                     {host ? (
@@ -93,7 +107,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                   >
                     {host ? host.userPath : "not managed by LiteSPM"}
                   </code>
-                </Link>
+                </div>
               </li>
             );
           })}
