@@ -545,8 +545,14 @@ func shortHome(path, home string) string {
 		if path == home {
 			return "~"
 		}
-		if strings.HasPrefix(path, home+string(filepath.Separator)) {
-			return "~" + path[len(home):]
+		// Accept either separator. This is a display helper, and on Windows a
+		// path can arrive with forward slashes from a config file or from user
+		// input; matching only filepath.Separator left those unreplaced and
+		// printed the full home path.
+		for _, sep := range []string{"/", string(filepath.Separator)} {
+			if strings.HasPrefix(path, home+sep) {
+				return "~" + path[len(home):]
+			}
 		}
 	}
 	return path
