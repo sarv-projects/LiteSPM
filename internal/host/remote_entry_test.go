@@ -21,6 +21,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -37,6 +38,10 @@ type remoteGoldenCase struct {
 	hostID string
 	// file is the config path relative to the sandbox home.
 	file string
+	// fileWindows overrides file on Windows, for a host whose vendor documents
+	// an APPDATA location there instead of a home-relative one. Empty means the
+	// same path on both.
+	fileWindows string
 	// streamableHTTP is the EXACT file content after installing a
 	// streamable-http remote entry into an empty machine.
 	streamableHTTP string
@@ -46,6 +51,17 @@ type remoteGoldenCase struct {
 	// readBackTransport is what ListServerEntriesWithValues reports as
 	// Transport for the streamable-http entry, before registry mapping.
 	readBackTransport string
+}
+
+// goldenFile is a case's config path for this platform. Zed is the host that
+// needs one: its vendor documents %APPDATA%\Zed\settings.json on Windows and
+// ~/.config/zed/settings.json on macOS and Linux. An empty override means the
+// same path everywhere.
+func goldenFile(file, fileWindows string) string {
+	if runtime.GOOS == "windows" && fileWindows != "" {
+		return fileWindows
+	}
+	return file
 }
 
 func remoteGoldenCases() []remoteGoldenCase {
@@ -106,6 +122,7 @@ func remoteGoldenCases() []remoteGoldenCase {
 		{
 			hostID:            "zed",
 			file:              ".config/zed/settings.json",
+			fileWindows:       filepath.Join("AppData", "Roaming", "Zed", "settings.json"),
 			streamableHTTP:    "{\n  \"context_servers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
 			readBackTransport: TransportStreamableHTTP,
 		},
@@ -156,7 +173,7 @@ func TestRemoteEntryGoldenText(t *testing.T) {
 				installRemote(t, home, tc.hostID, ServerEntry{
 					Name: "demo", Endpoint: remoteTestURL, Transport: TransportStreamableHTTP,
 				}, false)
-				data, err := os.ReadFile(filepath.Join(home, tc.file))
+				data, err := os.ReadFile(filepath.Join(home, goldenFile(tc.file, tc.fileWindows)))
 				if err != nil {
 					t.Fatalf("read config: %v", err)
 				}
@@ -186,7 +203,7 @@ func TestRemoteEntryGoldenText(t *testing.T) {
 					if !strings.Contains(err.Error(), tc.hostID) || !strings.Contains(err.Error(), TransportSSE) {
 						t.Errorf("refusal must name host and transport: %v", err)
 					}
-					if _, statErr := os.Stat(filepath.Join(home, tc.file)); !os.IsNotExist(statErr) {
+					if _, statErr := os.Stat(filepath.Join(home, goldenFile(tc.file, tc.fileWindows))); !os.IsNotExist(statErr) {
 						t.Errorf("a refused remote install must write nothing (stat: %v)", statErr)
 					}
 				})
@@ -197,7 +214,7 @@ func TestRemoteEntryGoldenText(t *testing.T) {
 				installRemote(t, home, tc.hostID, ServerEntry{
 					Name: "demo", Endpoint: remoteTestURL, Transport: TransportSSE,
 				}, false)
-				data, err := os.ReadFile(filepath.Join(home, tc.file))
+				data, err := os.ReadFile(filepath.Join(home, goldenFile(tc.file, tc.fileWindows)))
 				if err != nil {
 					t.Fatalf("read config: %v", err)
 				}
@@ -409,7 +426,7 @@ func TestRemoteEntryRollbackRestoresPreInstallBytes(t *testing.T) {
 	for _, tc := range remoteStateHosts() {
 		t.Run(tc.hostID, func(t *testing.T) {
 			home := remoteHome(t)
-			path := filepath.Join(home, tc.file)
+			path := filepath.Join(home, goldenFile(tc.file, ""))
 			var original string
 			if tc.hostID == "codex" {
 				original = "# my codex settings\nmodel = \"gpt-5\"\n\n[mcp_servers.mine]\ncommand = \"npx\"\n"
@@ -451,7 +468,7 @@ func TestRemoveStripsRemoteEntryLeavingSiblings(t *testing.T) {
 	for _, tc := range remoteStateHosts() {
 		t.Run(tc.hostID, func(t *testing.T) {
 			home := remoteHome(t)
-			path := filepath.Join(home, tc.file)
+			path := filepath.Join(home, goldenFile(tc.file, ""))
 			var original string
 			if tc.hostID == "codex" {
 				original = "[mcp_servers.litespm]\ncommand = \"litespm\"\nargs = [\"bridge\"]\n\n" +
