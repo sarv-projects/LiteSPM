@@ -18,6 +18,11 @@ func entryHome(t *testing.T) string {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	// LOCALAPPDATA must be pinned too. Windows hosts that document it (Crush:
+	// %LOCALAPPDATA%\crush\crush.json) otherwise resolved to the machine's real
+	// profile — a path OUTSIDE the sandbox, so the test both inspected a file
+	// it did not create and left the sandbox's purpose unmet.
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
 	return home
 }
 

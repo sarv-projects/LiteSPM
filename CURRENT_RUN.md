@@ -553,3 +553,46 @@ carry a project/workspace through IPC and the bridge so agents can see project-s
 - Debugging tip that paid off: the producer's completeness verdict can be reproduced offline against the
   recorded sitemap snapshots (`snapshot_store.load_snapshot` + the same predicates), which is how the 36
   refusals were identified without another 33-minute crawl.
+
+## Fifth pass — npm publish, the 25 MiB deploy failure, and platform fixes (2026-10-11/12)
+
+- **npm: `litespm@0.4.0` is published.** `npm view litespm version` → `0.4.0`, so
+  `npm install -g litespm` (the README's headline command) resolves for the first time. The package
+  fetches its binary from `releases/download/v0.4.0/`, which the `v*` tag's workflow published first.
+- **The site could not be redeployed, and the cause was Cloudflare's 25 MiB per-asset limit.**
+  Reproduced, not guessed: `wrangler deploy --dry-run` failed with
+  *"Asset too large … up to 25 MiB … listings.json with a size of 62.4 MiB"*. Going from 5,825 to
+  69,376 rows put three files over it (listings 62 MiB, versions 32 MB, `/data/catalog.json` 52 MB).
+  The clean-clone build passed, so the gitignored release tree was never the problem.
+- **Decision: shard, not R2.** The release manifest was already a map of `file → {digest,size}`, so
+  shards extend what exists; R2 would have added a second origin and an infra dependency to fix what
+  is really "one file outgrew its limit". `internal/catalogbuild` splits a kind across
+  `listings-NNNN.json` at ≤20 MiB, the client gathers/verifies/decodes them and persists the cache
+  verbatim, and `contentDigest` still covers the ordered concatenation (so every byte is pinned twice).
+  A release that fits in one shard keeps the historical name AND bytes. `ARCH/18` §2.1 records why
+  this is a transport split and not the logical shard format §2 designs.
+- **`rel-2026-10-11-02` (sequence 147) is LIVE**: pointer, 6 shards, and the site's own
+  `catalog-NNNN.json` all serve from the Worker. Verified in a browser — the page shows 69,376
+  capabilities / 48,418 MCP / 20,320 skills / `metadata_verified 26,803`, and `/agents/<id>/` pages
+  render. A new sequence was needed because release ids are immutable and the tree changed.
+- **Four platform defects fixed** (the macOS/Windows CI had been red since before this session):
+  1. `skills.read_resource` denied with `filepath.IsAbs`, which on Windows is FALSE for
+     `/etc/passwd` (no volume) — so a rooted path slipped the guard. Now `filepath.IsLocal`, which
+     states the real contract ("stays inside the tree") and also covers `..`, empty and reserved
+     names. **Security-relevant**: the join confined it anyway, so nothing escaped, but the check did
+     not do what it claimed.
+  2. Zed's adapter had a darwin branch writing `~/Library/Application Support/Zed/settings.json`;
+     Zed's own docs say macOS uses `~/.config/zed/settings.json`, and the same row's `DetectPaths`
+     looked in `.config/zed` — detection and write disagreed on macOS. Branch removed.
+  3. `shortHome` joined with `filepath.Separator` only, so a forward-slash path never shortened on
+     Windows. It is a display helper; it now accepts both separators.
+  4. The test sandbox did not pin `LOCALAPPDATA`, so Crush resolved to the runner's REAL
+     `%LOCALAPPDATA%\crush\crush.json` — outside the sandbox. Pinned, along with `CLINE_DIR`,
+     `CRUSH_GLOBAL_CONFIG` and `GEMINI_CLI_HOME`, so no per-host override can escape again.
+- **Not a bug, worth remembering:** the footer reads "0 … capabilities" until you scroll to it.
+  `CountUp` deliberately drops to 0 in `useLayoutEffect` and rolls up when an IntersectionObserver
+  reports it visible (threshold 0.4). The prerendered HTML always carries the real number.
+- **Verification run:** gofmt/vet/build clean, `go test ./...` all packages, `npx tsc --noEmit`,
+  `deploy-pages.sh` (6 files verified byte-for-byte), `wrangler deploy --dry-run` (242 assets, largest
+  exactly 20.0 MiB). CI: ubuntu + macOS + Static Checks + web build green at `27ac5b7`; the Windows
+  fix (LOCALAPPDATA) was pushed after that run and is the one outstanding check.

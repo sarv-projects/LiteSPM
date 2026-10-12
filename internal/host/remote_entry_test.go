@@ -141,7 +141,10 @@ func remoteHome(t *testing.T) string {
 		"PI_CODING_AGENT_DIR":     "",
 		"CLINE_MCP_SETTINGS_PATH": "",
 		"CLINE_DATA_DIR":          "",
+		"CLINE_DIR":               "",
 		"OPENCODE_CONFIG_DIR":     "",
+		"CRUSH_GLOBAL_CONFIG":     "",
+		"GEMINI_CLI_HOME":         "",
 	} {
 		t.Setenv(key, val)
 	}
