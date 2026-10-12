@@ -495,9 +495,15 @@ var verifiedBridgeTargets = []BridgeTarget{
 			if ad := windowsAppData(); ad != "" {
 				return filepath.Join(ad, "Zed", "settings.json")
 			}
-			if runtime.GOOS == "darwin" {
-				return filepath.Join(home, "Library", "Application Support", "Zed", "settings.json")
-			}
+			// macOS and Linux both use ~/.config/zed/settings.json — Zed's own
+			// docs list them identically ("Configuring Zed": macOS:
+			// ~/.config/zed/settings.json; Linux: ~/.config/zed/settings.json or
+			// $XDG_CONFIG_HOME/zed/settings.json; Windows: %APPDATA%\Zed).
+			// There used to be a darwin branch writing to
+			// ~/Library/Application Support/Zed instead, which meant `host setup`
+			// on macOS put the config where Zed never reads it — while
+			// DetectPaths below looked in .config/zed, so detection and write
+			// disagreed on the same machine.
 			return filepath.Join(xdgConfigDir(home), "zed", "settings.json")
 		},
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".zed", "settings.json") },
