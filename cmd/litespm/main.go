@@ -2616,12 +2616,19 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				}
 			}
 			cleanRel := filepath.Clean(req.Path)
-			if filepath.IsAbs(cleanRel) || strings.HasPrefix(cleanRel, "..") {
+			// IsLocal, not IsAbs: on Windows a path is only "absolute" when it
+			// carries a volume (`C:\…`), so `/etc/passwd` is rooted but NOT
+			// absolute and walked straight past an IsAbs check on Windows
+			// (it landed in the join below and failed as a missing file rather
+			// than being denied). IsLocal states the real contract — the path
+			// stays inside the tree — and covers rooted paths, ".." escapes,
+			// the empty path and Windows reserved names on every platform.
+			if !filepath.IsLocal(cleanRel) {
 				return nil, &ipc.RPCError{Code: -32602, Message: "path traversal denied"}
 			}
 			filePath := filepath.Join(treePath, cleanRel)
 			rel, err := filepath.Rel(treePath, filePath)
-			if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+			if err != nil || !filepath.IsLocal(rel) {
 				return nil, &ipc.RPCError{Code: -32602, Message: "path traversal denied"}
 			}
 			data, err := os.ReadFile(filePath)
