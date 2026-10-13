@@ -117,7 +117,7 @@ Clicking any card opens the canonical detail page (query route; `slug` when glob
 ## 4. Technical Stack & Deployment
 
 *   **Framework (Frozen):** **Next.js 15.5.27 (App Router with `output: 'export'`, `trailingSlash: true`, `images.unoptimized`)** and React 19.
-*   **Static Generation:** Query-route detail pages (`/package/?slug=`); no per-item `generateStaticParams` (the committed dataset `web/data/catalog.json` holds 46,166 rows, far past the 20k-file Pages limit — see ARCH/26 §6.3).
+*   **Static Generation:** Query-route detail pages (`/package/?slug=`); no per-item `generateStaticParams` (the committed dataset `web/data/catalog.json` holds 69,376 rows, far past the 20k-file Pages limit — see ARCH/18 §2.1 and ARCH/26 §6.3).
 *   **Styling:** Tailwind CSS 4, consumed through the legacy `@config` bridge in `web/app/globals.css` (`@config "../tailwind.config.js"`), with CSS variables for the light palette plus the dark overrides keyed to `data-theme`/`prefers-color-scheme`; `tailwind-merge` + `clsx` for class composition.
 *   **Component Primitives:** Local primitives only (`CountUp`, `Toast`); no Radix dependency (`web/package.json`).
 *   **Icons:** Lucide React.
@@ -300,7 +300,7 @@ Answer, in order: **What is this? What can it do? Will it work with what I
 use? What access does it need? How do I add it?** — then tabs (Overview ·
 Capabilities · Compatibility · Security · Versions · Source). The generic
 host-setup block (OS/agent/config path/snippet) that currently repeats on
-every page in the 46,166-row dataset moves behind a single **Manual setup** disclosure. Install
+every page in the dataset moves behind a single **Manual setup** disclosure. Install
 panel reflects the selected agent: `✓ LiteSPM is configured for Codex`
 → `[Add GitHub]`, or `LiteSPM isn't connected yet → [Set up Codex]` (static
 site: show the three-step guided flow, never fake local detection).

@@ -124,9 +124,8 @@ export default function CoveragePage({ total, boards }: TrendingViewProps) {
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
           These boards describe the shape of the snapshot: how many entries each source, publisher,
-          category and agent host accounts for. Nothing here is ranked by popularity. LiteSPM
-          publishes no star, download or install figures, because the upstream sources do not expose
-          them — an earlier build of this site estimated them, and that was wrong.
+          category and agent host accounts for. They are counts, not rankings — LiteSPM publishes no
+          star, download or install figures, because the upstream sources do not expose any.
         </p>
 
         <div className="mt-7 grid gap-x-10 gap-y-9 lg:grid-cols-2">

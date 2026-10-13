@@ -2,7 +2,10 @@
 
 **LiteSPM** — *the package manager for AI agents*. It connects once to your AI agent host, enabling you to discover, install, update, and monitor MCP servers, skills, and plugins through a single unified interface.
 
-> **State.** Install, invocation, and the catalog release tree are **not** end-to-end today.
+> **State.** An install completes for **skills and MCP servers** — plan, human approval, then the
+> skills ledger or a host-config registration. A **plugin** install cannot complete: there is no
+> plugin artifact source, so it fails closed with `LPSM-ARTIFACT-UNAVAILABLE` rather than
+> installing half a bundle. The catalog release tree is published and the live origin serves it.
 > [STATUS.md](STATUS.md) is the single source of truth for what each subsystem actually does; this
 > guide states the wiring, not the aspiration.
 

@@ -66,7 +66,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                         ? `/agents/${host.id}/`
                         : `/explore/?host=${encodeURIComponent(agent.name)}`
                     }
-                    className="flex min-w-0 items-center gap-2.5"
+                    className="flex min-h-[44px] min-w-0 items-center gap-2.5 md:min-h-0"
                   >
                     {/* The agent's own mark where we have one; the generic
                         terminal tile only for catalog hosts with no adapter
@@ -93,7 +93,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                   <Link
                     href={`/explore/?host=${encodeURIComponent(agent.name)}`}
                     aria-label={`${formatCount(agent.count)} catalog entries in Explore for ${agent.name}`}
-                    className="t-mono t-tabular text-right text-[12px] text-ink-2 transition-colors duration-hover hover:text-accent-text md:order-3"
+                    className="t-mono t-tabular inline-flex min-h-[44px] items-center justify-end text-[12px] text-ink-2 transition-colors duration-hover hover:text-accent-text md:min-h-0 md:order-3"
                   >
                     {formatCount(agent.count)}
                   </Link>

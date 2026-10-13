@@ -2,7 +2,6 @@
 
 import React from "react";
 import Link from "next/link";
-import { HOSTS } from "../../lib/hosts";
 import bundledRelease from "../../data/release.json";
 import { CountUp } from "../ui/CountUp";
 
@@ -16,14 +15,21 @@ const COUNTS = {
 };
 
 /**
- * The footer carries the site's data-provenance contract. Most indexes bury
- * this; on a catalog with no usage telemetry it is the most useful thing on
- * the page, so it gets real space.
+ * Footer: where this site lives, and what it is.
+ *
+ * It used to carry a third column explaining the site's own data provenance —
+ * how many adapters there are, why no popularity figures appear, what
+ * "vendor-listed" means. That text was written as a contract, but placed in the
+ * footer of every page it did three unhelpful things: it justified design
+ * decisions to readers who never asked, it read as a project describing itself
+ * rather than a product, and most of it was already stated where it is actually
+ * useful — the badge tooltips and the package page define their own vocabulary,
+ * `/agents/` reports the adapter count, and Coverage explains the counts.
  */
 export function SiteFooter() {
   return (
     <footer className="mt-auto border-t border-rule bg-surface">
-      <div className="shell grid gap-8 py-10 md:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="shell grid gap-8 py-10 md:grid-cols-[1.6fr_1fr]">
         <div>
           <p className="text-[15px] font-semibold text-ink">LiteSPM Market</p>
           <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-ink-2">
@@ -59,26 +65,6 @@ export function SiteFooter() {
               <a href="/v1/current.json" className="link touch-link t-mono text-[12px]!">
                 /v1/current.json
               </a>
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="t-mono text-[11px] font-medium text-ink">What the numbers mean</h2>
-          <ul className="mt-2 space-y-1.5 text-[12px] leading-relaxed text-ink-3">
-            <li>
-              <strong className="font-medium text-ink-2">No popularity figures are published.</strong>{" "}
-              The upstream sources do not expose machine-readable star or install counts, so the
-              catalog shows none rather than an estimate.
-            </li>
-            <li>
-              <CountUp value={HOSTS.length} className="font-medium text-ink-2" /> agent hosts have
-              compiled-in config adapters. Every one lists the documentation it was verified against.
-            </li>
-            <li>
-              Publisher &ldquo;vendor-listed&rdquo; means the row came from that publisher&rsquo;s own
-              marketplace manifest; no registry verified the publisher and this project did not audit it.
-              Rows from third-party awesome-lists are discovery-only: no version or launch command was proven.
             </li>
           </ul>
         </div>

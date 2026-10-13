@@ -648,3 +648,683 @@ The guarded `feed:skills-sh` replay, the producer completeness gate, and every d
 
 1. `codebuddy`: re-run its research from a host that can resolve `codebuddy.ai` (or via a proxy), then `node .hostnotes-work/merge.mjs` and `npm run gen:brands`.
 2. If any vendor in `hostNotes.ts` is ever reported as discontinued, add it to `lib/lifecycle.ts` — the landing chooser, atlas, index and detail banner all key off that file, so it is a one-entry change.
+
+## Review remediation — the agent-host and catalog review (2026-10-13, later)
+
+### Two findings in the review list were wrong, and were corrected by re-checking
+
+- **"The catalog has zero installable entries" (F1) — wrong.** I had counted `artifacts`, `runtime.command` and a top-level `url`. The remote endpoint lives at `components[].runtime.endpoint` in the version record. Counted properly across both version shards: **25,401 entries carry a remote endpoint**, 43,975 carry no transport, 0 carry a local command. Review 2's P0-A was right and my correction of it was the error.
+- **"The agents index prints 68,738 on every row" (F6b) — wrong.** There are **7 distinct values** (68,837 / 48,418 / 20,763 / 20,320 …); the table sorts by that column, so the first screen is one repeated value. The column was left alone.
+
+### What changed
+
+| item | change |
+|---|---|
+| **Product page fetched 44.5 MB** | `scripts/emit-catalog-shards.mjs` now also emits a 256-way hash partition of the rows into `public/data/pkg/<n>.json`, plus `pkg/cat/<slug>.json` for the 62 categories small enough for "also in" to mean something. `lib/catalogData.ts` gained `fetchProductPayload` / `fetchCategorySiblings` / `useProductRow`; `PackageView` resolves from one bucket instead of the whole catalog. **Measured 44,516 KB → 1,093 KB (41×).** |
+| F15 availability on results | New `lib/availability.ts` derives it from `kind` + `transport` + `skillSource` — deliberately *not* from `installability`, which grades metadata and is orthogonal (plugins are 638/638 `metadata_verified` and never install). Chips on `ExtensionCard` and `CapabilityCard`. |
+| F16 the checkmark badge | `VerifiedMark` now reads "from publisher manifest" in neutral ink; the `<Check>` and the accent colour are gone, and the package-page prose matches. |
+| F3 per-page metadata | `generateMetadata` on `/agents/[id]` (title = the vendor's name, `(discontinued)` where it applies) plus metadata on `/agents/`, `/explore/`, `/categories/`, `/trending/`. All 60 routes previously shared one `<title>` and one `og:url`. |
+| F6a dead column | Explore's per-row `50/86 hosts` — constant because `hostsFor` derives coverage from the kind — became `any bridge host` / `any skills host`, with a count only on publisher-declared plugin rows. The `hostCount` prop thread was deleted, not left dangling. |
+| F5 default order | New default sort **"Installable first"** (installable, then verified, then a name key that ignores leading punctuation). See the caveat below. |
+| F19 agent preference | `AGENT_STORAGE_KEY` is now exported from `lib/landing.ts` (it was written out twice and read by neither Explore nor anything shared). Explore *offers* the remembered agent instead of silently filtering. |
+| F12 fake action button | "Add X to Y" → "Get the command for X" in `AddSteps.tsx`; it only scrolls. |
+| F35 STATUS.md drift | Three places claimed no release is signed; `v0.4.0` ships **8 `.sigstore.json` bundles, one per asset**, where every earlier tag has none. Corrected in §1, §5 and "Not yet true". |
+| F36 AGENTS.md | Its blanket "install … not end-to-end today" now states the real split: installs complete for skills and MCP servers, plugins fail closed. |
+| F39 build warning | `outputFileTracingRoot` pinned to `web/`; a stray `pnpm-lock.yaml` in the **parent** directory was making Next trace all of `business_Dev`. Warning count is now 0. |
+| **F15 corrected — the badge was over-reporting** | `availabilityOf` first read the *kind* and marked every skill installable (20,320). `install_skill.go:73` and `install_mcp.go:339` both gate on `domain.Listing.IsInstallable()` (`installability != "discovery_only"`), so only **764** skills qualify. The rule is now copied from the binary: plugin → never; not-installable-metadata → discovery; MCP without a transport → discovery (`LPSM-ARTIFACT-UNAVAILABLE`); otherwise remote/source. **26,165 of 69,376 install (37.7%)**, not 45,721. `AddSteps` gained the same MCP-transport requirement, which it was missing. |
+| F19 agent preference | `AGENT_STORAGE_KEY` is now exported from `lib/landing.ts` (it was written out in two files and read by neither Explore nor anything shared). Explore *offers* the remembered agent — "Show only what works with Codex" — instead of silently narrowing, and only when that host exists in its own facet list. |
+| **F8/F9 install step moved to second** | `AddSteps` was fifth, below three sections that explain the capability *kind* rather than this capability. It is now the first `<h2>` after the title. Measured on the hydrated page: skill **1,818 px → 522 px** (51% → 16% down), mcp **1,637 px → 341 px** (48% → 13%), plugin *absent → 364 px* — a discovery-only plugin previously showed no install section at all. Heading order is now How do I add it? → Will it work… → What access… |
+| **F10/F11 the duplicated kind section removed** | `canDo` was per-*kind* boilerplate — the same "An MCP server is a small service…" on all 48,418 MCP pages — and `CapabilitiesPanel` already says the same thing per kind. The top-level "What can it do?" section is gone; its unique per-entry fields (Runtime, Transport) moved into the Overview tab's spec list where the other technical fields live. Top-level regions 5 → 4, verified on all three kinds (`hasCanDoSection: false`). |
+| F14 (chip ordering) | Resolved by F8 rather than separately: the agent picker sits *inside* the install section now, so it is no longer something the page asks before it shows the action. |
+| **Availability on the detail page** | The same chip the result cards carry is now in the product header — skill "Installs from source", mcp "Remote endpoint", plugin "Not installable" (verified per kind). The page previously stated this only indirectly, as a section note reading "installability status". |
+| **F25 the two vocabularies reconciled** | The Security tab labelled the raw `installability` field "Discovery only"/"LiteSPM-parsed" — the same words the new header chip uses for a *different* question. The panel is now headed "How much was actually read" and says in one sentence that it grades what was read, not whether an install runs, which is the badge at the top and also weighs the entry's kind. A `metadata_verified` plugin is the pair that used to read as a contradiction. |
+| **F24 the missing first step added** | "Four steps, in that order" started at *Find* — but `litespm host setup` appeared in **no step**, so a first-time reader following it would hit `LPSM-INSTALL-TARGET-UNAVAILABLE` at *Add*. It is now **five** steps: *Point it at your agent* → Find → Check → Add → Manage, with the wizard and the refusal code named in the disclosure. |
+| F17 publisher logos — **not feasible, verified** | 30,269 distinct publishers, and the **top 250 cover only 36% of rows**; the top of that list is individual handles (`sadri-dridi` 2,365, `mrfentmen` 802, `sickn33` 323), not companies with brand assets. There is no long tail to truncate, so adding real logos would cover a third of the catalog and leave the rest inconsistent — worse than the uniform letter tile the cards use now. |
+| **F4's fixable half — the tab title** | Every product page shipped the site's generic `<title>`, so ten open products were ten identical tabs and every bookmark read the same. The page now sets `document.title` to `<name> · LiteSPM Market` once the entry resolves, verified per entry (`figma · LiteSPM Market`, `Docx · …`, `inference.sh · …`); a bare `/package/` correctly keeps the generic one. **Deliberately not overclaimed**: this fixes the tab, history and bookmarks, not crawlers or link previews. Those need HTML rendered per entry, which the static export cannot produce. |
+| F12 fake action button | "Add X to Y" → "Get the command for X" in `AddSteps.tsx`; it only scrolls. |
+| F20 39× "not published" | `TechRow` omitted absent fields instead of printing a placeholder for each; the rule is stated once beneath the list. Home page: **39 → 2** occurrences. |
+| F21 hero overload (partial) | Removed the two *duplicate* install affordances: the "Install LiteSPM" button (a second route to the `#install` anchor the sticky header already links to) and the "Install instructions" text link (a third). The copyable `npm install -g litespm` command stayed — it is the concrete one. Hero is now one action per path; `id="install"` still resolves. |
+| F22 generic hero | H1 is now "One package manager for your AI agents." — the concrete line that already existed as a band title, which was then removed so the hero does not say it twice. |
+| F23 debug-looking chip | "Release origin answering" → "Catalog is current"; the release id, sequence and digest stay in the `title`. |
+| F35 STATUS.md drift | Three places claimed no release is signed; `v0.4.0` ships **8 `.sigstore.json` bundles, one per asset**, where every earlier tag has none. Corrected in §1, §5 and "Not yet true". |
+| F36 AGENTS.md | Its blanket "install … not end-to-end today" now states the real split: installs complete for skills and MCP servers, plugins fail closed. |
+| F39 build warning | `outputFileTracingRoot` pinned to `web/`. |
+
+### Verification (all re-run at close)
+
+`tsc --noEmit --noUnusedLocals --noUnusedParameters` → 0; `next build` → 0, 60 static pages; the served export checked in the DOM, not assumed:
+
+- titles distinct per route (`Cursor · LiteSPM Market`, `Auggie CLI · LiteSPM Market`, `Roo Code (discontinued) · LiteSPM Market`), `og:url` per-page
+- Explore's 48 prerendered rows carry availability chips (40 remote / 8 discovery); home's curated cards 6 skills / 6 plugins
+- product pages resolve for **both** key forms — a slug (`claude-figma`) and ids (`skill:anthropics:docx`, `mcp:builtin:mcp-registry:ac.inference.sh-mcp`) — and an unknown key still reads "not in this catalog snapshot"
+- page weight: home 738 KB, explore 651 KB, **package 1,093 KB**, agent 651 KB
+
+### F38 — the broken `lint` script now works, with no new dependencies
+
+`web/README.md` recorded `npm run lint` as *"Broken / non-hermetic"*: no ESLint config, no `eslint` dependency, so `next lint` opened an interactive prompt and hung whenever stdin was not a TTY. It could never pass anywhere.
+
+The full fix was measured and declined as a **decision**: `eslint-config-next` pulls `eslint-plugin-react`, `-import`, `-jsx-a11y`, `-react-hooks`, `@next/eslint-plugin-next`, `@typescript-eslint/parser`, `@typescript-eslint/eslint-plugin` and two resolvers — **ten-plus packages into a lockfile that is 0.1 MB and holds seven devDependencies**, in a repo whose README makes a point of its lean tree.
+
+What shipped instead closes the gap that actually mattered, at zero dependency cost:
+
+- **`web/scripts/check-hook-order.mjs`** — the `lint` script now runs this. It uses the TypeScript compiler API, which is already a devDependency, and checks **one rule**: a Hook must not follow an early return. That is React error #310 — the bug I introduced two rounds ago in `PackageView`, which rendered the page blank while `tsc --noUnusedLocals` **and** `next build` both exited 0.
+- Proven to fail: a fixture with the exact pattern reports `app/Bad.tsx:8  Hook 'useEffect' runs after the return on line 6 — React error #310 (Bad)`, while a hook inside a nested callback and a hook placed above the return are both correctly ignored.
+- Wired into `ci.yml`'s `build-web` job as a `Lint Web` step and into `scripts/check_ci_local.sh`.
+
+### Doc drift corrected
+
+`web/README.md` carried three stale figures, all now measured rather than remembered: `data/catalog.json` was documented as **46,166 rows / ~3.8 MB** (actual: **69,376 / ~42.5 MB**), and `public/v1/current.json` as `rel-2026-10-07-01, sequence 145, itemCount 5825` (actual: `rel-2026-10-11-02`, sequence 147, 69,376). The `pkg/` partition and the four new `lib/` modules are documented there too.
+
+### Doc drift sweep — and a cited evidence link that had gone dead
+
+Following the `web/README.md` corrections, I swept every tracked doc for the old catalog figures. Most hits are correctly-dated historical records (`.slim/deepwork/`, `CHANGELOG.md`) and were left alone. What was not fine:
+
+**`STATUS.md` cited a release tree three times that now returns 404.** Rows 48, 59 and 61 — the marketplace, `catalog sync` and the release tree, all marked `SHIPPED` — gave "probe 2026-10-05: `rel-2026-10-05-01` … all files 200" as their *current* evidence. Probed today:
+
+```
+rel-2026-10-05-01/manifest.json   HTTP 404
+rel-2026-10-05-01/listings.json   HTTP 404
+rel-2026-10-05-01/versions.json   HTTP 404
+rel-2026-10-11-02/{manifest,listings-0000,listings-0003,versions-0000}.json   HTTP 200
+```
+
+The origin holds the current release, not its history, so a probe is evidence only for the release it names. All three rows now carry a **2026-10-13 probe** (`rel-2026-10-11-02`, sequence 147, 69,376 items, every shard 200) with the earlier figures kept as the record of that run. `web/README.md` had the same stale claim stated as present tense ("the committed pointer **now names** `rel-2026-10-07-01`") and is corrected; `TODO.md` got one dated note rather than five rewritten rows, since it defers to STATUS.md by design.
+
+Also corrected, all count-free so they cannot drift again: three code comments asserting "5,825" (`ExtensionGrid.tsx`, `ManualSetup.tsx`, `lib/telemetry.ts`) and `test/catalog_e2e_test.go`'s "committed 5,814-row dataset" — that test loads the real file, which is 69,376 rows.
+
+**The `ARCH/` layer had the same drift, and one instance was a security claim:**
+
+- **"No published tag carries a bundle yet"** appeared in **seven** ARCH documents (`04`, `05`, `07`, `08` ×2, `36` ×2). False since `v0.4.0` — the same drift already fixed in STATUS.md and README.md, surviving in the design record. All seven corrected.
+- The root `README.md` carried it too, plus a Phase-C row claiming the committed pointer "now names `rel-2026-10-07-01`, sequence 145, 5,825 items".
+- Stale catalog figures (`5,814`, `46,166`) stated as current fact in `ARCH/03`, `09`, `25` ×2, `26` ×2, `13`, `18`. Fixed where they assert current state; **dated records were left alone** (`ARCH/07`'s historical note about the old headline, and `ARCH/26`'s "verified 2026-10-02" scan).
+- `ARCH/00-INDEX.md` gained a **"Figure freshness"** note under Document Status: ARCH figures are dated, the current release is `rel-2026-10-11-02` (69,376 = 48,418 mcp + 20,320 skill + 638 plugin), and STATUS.md wins on conflict. One note covers the layer rather than 20 scattered edits.
+
+**Verified rather than assumed, so the ARCH claims that were *not* stale stay true:** `stars` is still `null` on **all 69,376 rows**, so `ARCH/26`'s several "no popularity signal" statements hold — only their incidental "5,814 rows" count was stale. And the resolver figure in `ARCH/13` was re-derived from the data (29,279 of 69,376 publish no version, against 5,811 of 5,825 then).
+
+**Go test fixtures using release ids were left untouched** (`internal/schemacheck/contracts_test.go`, `internal/catalogbuild/verify_test.go`): those are synthetic example values testing the contract, not claims about the deployed release.
+
+
+### The Go suite is green — the previously-recorded failure is gone
+
+The earlier handover recorded `go test -race -count=1 ./...` failing on `TestCatalogRelease_EndToEnd` ("dirty release listings are 40,939,053 bytes… exceeding `internal/catalog`'s 16 MiB response limit"). Run today:
+
+```
+gofmt -l .        → clean
+go vet ./...      → exit 0
+go test ./...     → exit 0, 43 packages ok, 0 failures
+```
+
+Sharding fixed that too: the release tree is now six files under 20 MiB rather than one 62 MiB `listings.json`, and `TestCatalogRelease_EndToEnd` — which loads the committed dataset at full size and syncs it over HTTP — passes in ~17 s.
+
+
+### F26 finished — and the sweep found the landing page explaining labels that do not exist
+
+Re-swept every visible string in `app/` and `components/` for the self-referential register (14 hits; 11 are ordinary factual copy like "not on this site"). The two remaining were harmless on their own, but checking them turned up something worse:
+
+**The Trust section named vocabulary the product never renders.**
+
+| card said | reality |
+| --- | --- |
+| "When you see *from the maker*…" | The badge says **from publisher manifest**. `grep` for "from the maker" found it only in this card. |
+| "Four levels, from *we found it* to *we ran it*" | `grep` found those two strings **nowhere else in the codebase**. The real labels are *Discovery only* / *LiteSPM-parsed*, and the catalog carries **two** levels, not four: `discovery_only` 42,573, `metadata_verified` 26,803 — nothing is `runtime_verified` or `litespm_tested`. |
+
+A landing page explaining a vocabulary the site never shows is worse than one explaining nothing, so all five cards were rewritten against the labels the product pages actually render, and the two register tics were dropped ("we didn't audit them either", "rather than rounding it up"). Verified in the built HTML: all five invented strings → 0 occurrences; `from publisher manifest` → 7, `Discovery only` → 3, `LiteSPM-parsed` → 1.
+
+### Dead components found — **not deleted**, flagged
+
+Four components are unreferenced, and they form a closed island:
+
+| component | imported by |
+| --- | --- |
+| `components/hero/HeroSection.tsx` | nothing (its only other mention is a *comment* in `AgentDetailView.tsx:156`) |
+| `components/hero/CategoryRail.tsx` | nothing |
+| `components/hero/ProportionBar.tsx` | only `HeroSection` — itself dead |
+| `components/catalog/SectionRow.tsx` | nothing |
+
+That is the whole of `components/hero/` plus one catalog component. They were not removed because they are pre-existing code this session did not write, and the operating rules say to ask before deleting that. Say the word and it is a four-file deletion with a `tsc` + `build` to confirm.
+
+**The finding is verified, and it rests on a stronger basis than when it was written.** The original check matched the *word* `HeroSection` and found one hit in `AgentDetailView.tsx`, which it correctly identified as a comment. Re-checked as an **import graph** rather than a word search, nothing in the repository imports anything from `components/hero/` at all, so the directory is a closed island: `HeroSection` imports `ProportionBar`, and no live module imports `HeroSection`. Confirmed dead.
+
+**But the mitigation recorded for F38 does not cover this class, and that is now measured rather than assumed.** F38 was deferred partly on the reasoning that *"`tsc --noUnusedLocals --noUnusedParameters` already catches the dead-code class this was wanted for"*. It does not:
+
+```
+$ tsc --noEmit --noUnusedLocals --noUnusedParameters
+  tsc exit=0                         ← flags none of the four dead components
+```
+
+All four are `export`ed (`export function HeroSection`, `CategoryRail`, `ProportionBar`, `SectionRow`), and `noUnusedLocals` exempts exports by design — it catches locals, not an exported symbol no module imports. So the class F38 was about is **exactly the class no gate here covers**: `next build` tree-shakes unused exports silently, `tsc` permits them, and the four files can sit in the tree indefinitely with every check green. Either the four go, or the gap stays open; the current one-rule check is not a substitute for the ESLint decision.
+
+### Accessibility — the reviews said this was never run; it now is, and it found three real gaps
+
+Review 2 listed touch targets, reduced motion, focus and screen-reader labels as *intentions it had not confirmed at runtime*, and Review 1's launch checklist asked for "mobile layouts, keyboard navigation, screen-reader labels". Both were right that nobody had run it. Run now, over the served export via CDP:
+
+**Structural pass — 0 problems across 7 routes** (`/`, `/explore/`, `/agents/`, `/categories/`, `/trending/`, `/agents/cursor/`, a product page): exactly one `h1` each, no skipped heading levels, every `<img>` either has `alt` or is inside `aria-hidden`, every control has an accessible name, every link has discernible text, no positive `tabindex`, a `<main>` landmark, `lang="en"`, and no duplicate ids.
+
+**Keyboard — correct.** Real `Tab` keypresses (not `element.focus()`, which does not set `:focus-visible`) reach the skip link first, then the logo, then the primary nav, and each carries `outline: solid 2px` with `:focus-visible` true.
+
+**Reduced motion — honoured, and proven non-vacuously.** With `prefers-reduced-motion: no-preference` the page has **9 animated elements** (the `enter-rise` entrances and the bridge draw); with `reduce` it has **0**. The mechanism is the canonical one: animations are declared *inside* the `no-preference` query and a `reduce` block resets durations to `0.01ms`.
+
+**Three real touch-target gaps found and fixed** (measured at 390px, WCAG 2.2 SC 2.5.8 minimum is 24×24):
+
+| element | before | after |
+| --- | --- | --- |
+| `/agents/` host-name link | 303×**22** | 303×**44** |
+| `/agents/` count link | 43×**19** | 43×**44** |
+| `/explore/` "Vendor-listed publishers only" label | 180×**19** | 180×**44** |
+
+Fixed with the repo's own convention (`min-h-[44px] md:min-h-0`, matching the mobile block that already covers `.chip`/`.btn`/`.field`/`.touch-link`) rather than by editing `display`, so desktop layout is untouched.
+
+**Three reported hits were probe artifacts, not defects** — and the probe was corrected rather than the findings explained away each run:
+
+- **Card anchors at 19px** — a *stretched anchor*: its `::after` is absolutely positioned to the card, so the real target is the ~200px card. The probe now measures the positioned ancestor.
+- **"Skip to content" at 1×1** — the `sr-only focus:not-sr-only` pattern; it becomes a padded element on focus, which the Tab test confirms.
+- **Copy button "no feedback"** — `onCopy` is gated `if (!ok) return` before `setCopied(true)`, and a programmatic click carries no user activation, so the clipboard write genuinely fails. Not claiming "Copied" when nothing was copied is the correct behaviour.
+- The **"Sort" text label** at 26×17 is a label for a `.field` select (already 44px), not a target.
+
+
+### Performance — Review 2's fourth unverified area, and it found a real layout shift
+
+Review 2 listed performance among the four things it had not tested. The repository's own UI bar states **"zero layout shift (CLS = 0)"** — a number, so it can be measured rather than asserted. Measured over the served export with a `layout-shift` observer installed via `Page.addScriptToEvaluateOnNewDocument` (before load, so nothing is missed):
+
+```
+before    /  0.0000   /explore/  0.0000   /agents/  0.0000   /package/?slug=  0.0132
+after     all ten routes .......................... 0.0000
+```
+
+**The product page shifted 0.0132 on every visit, and there were two causes, not one.**
+
+The observer attributed it to the `PackageIndexShell` — the frame `?slug=` prerenders — and the shell's own heading and list moved *down* by 42px. Two separate mechanisms were doing it:
+
+1. **The note slot grew.** The shell prerenders with **no** note (the slug has not resolved yet) and then renders one once it has. Reserving a fixed `min-h-[44px]` took the shift from 0.0132 to 0.0055 — better, but not zero.
+2. **The note's own `mt-6` collapsed out of the wrapper.** A plain `<div>` does not establish a block formatting context, so the child's top margin escaped and moved the *wrapper itself* down 24px — which is exactly the residual 0.0055. Moving the spacing onto the wrapper (`mt-6` there, none on the note) removes the collapse.
+
+Both changes are three lines; the bar is now met at 0.0000 on all ten routes measured (`/`, `/explore/`, `/agents/`, `/categories/`, `/trending/`, `/agents/cursor/`, `/agents/roo/`, three product pages including the bare index). LCP is 52–408 ms on a loopback static server, which mostly reflects parse time and is not the interesting number here — CLS is, because it is a property of the markup rather than the network.
+
+Worth noting for the next person: **a fetch *error* still swaps in a taller panel and will move things.** That is deliberate — a message appearing is the feedback — and reserving the error panel's height permanently would cost more than it buys.
+
+
+### Dark-mode contrast — Review 2's last "preserve" claim, now measured
+
+Review 2 listed *"defines dark-mode contrast intentionally"* as one of four things it would preserve **without having confirmed any of them at runtime**. Contrast is arithmetic, so it can be checked rather than trusted. For every visible text node on four routes, in both colour schemes, the computed `color` against the first opaque background above it, per WCAG 2 relative luminance:
+
+```
+              nodes  lowest ratios      need
+light  /        504  4.59 / 4.59 / 4.59  4.5
+       /explore/ 472  4.59 / 4.59 / 4.59  4.5
+       /agents/  366  4.59 / 4.59 / 4.59  4.5
+       ?slug=    195  4.59 / 4.59 / 5.09  4.5
+dark   /        504  5.49 / 5.49 / 6.07  4.5
+       /explore/ 472  5.49 / 6.07 / 6.07  4.5
+       /agents/  366  5.49 / 7.30 / 7.30  4.5
+       ?slug=    195  5.49 / 5.49 / 7.30  4.5
+
+0 failures · 3,074 text nodes checked
+```
+
+The claim holds, and the margins are *deliberate*: the tightest ink in light mode sits at **4.59:1** and in dark mode at **5.49:1** — above the 4.5 AA floor by a hair and by a comfortable step respectively, which is what intentional token design looks like rather than coincidence.
+
+**Proven non-vacuous.** A checker that reports nothing is worth nothing unless it can report something, so the same probe was run with every text colour forced to `rgb(200,205,210)`: **917 failures** across the 8 page/scheme pairs, e.g. `3.43:1 (need 4.5) 14px — "Install LiteSPM"`. The zero above is real.
+
+That closes the last of Review 2's four unverified claims. All four now have runtime evidence: touch targets (fixed three), reduced motion (honoured, proven non-vacuous), focus (correct via real `Tab` presses), dark-mode contrast (this).
+
+
+
+- **The product lookup is keyed by both id and slug.** `?slug=` carries a slug for most entries and an **id** for others; filing rows by slug alone made every id-keyed page report "not in this catalog snapshot" — caught by checking the rendered page after the change, not by tsc.
+- **Do not key the buckets by slug.** 69,376 rows share only 57,112 distinct slugs and `mcp` alone is claimed by thousands; a slug-keyed bucket held 2,181 rows, 8× the average, for rows that could never resolve anyway.
+- **`buildLookup` semantics must be preserved**: ids always resolve, slugs first-wins. The bucket carries rows as an array for exactly that reason.
+- **A hook added after an early return is a runtime crash, and `tsc` says nothing.** The client-side `document.title` effect was first placed beside `hosts`/`avail` — which sit *below* the `if (!item) return` guard. React threw **error #310** ("rendered more hooks than during the previous render") and the page rendered nothing at all: `h1=null`, `document.title=""`, body reading "Application error". `tsc --noUnusedLocals` passed, `next build` passed, and the only thing that caught it was loading the page in a browser. Any new hook in `PackageView` belongs **above** line 251. `npm run lint` now catches this class mechanically.
+- **The Cloudflare Pages cap is 20,000 files (free) / 100,000 (paid), 25 MiB per asset** — confirmed against Cloudflare's own limits page, not assumed. 69,376 per-slug pages would fit a paid plan but mean ~2 GB of HTML and a build measured in hours, so F4's URL half remains a decision.
+
+### Cloudflare Pages budget — now measured, not remembered
+
+Prompted by "it shouldn't exceed limit… need to even shard it". Nothing had been tracking this: `audit-pages-dist.sh` proved the release tree's digest chain and scanned for leaks, but no check counted the files or measured the largest asset. Cloudflare's own limits page (<https://developers.cloudflare.com/pages/platform/limits/>, last updated 2026-09-05) gives:
+
+| Free-plan limit | Value | This bundle |
+| --- | --- | --- |
+| Files per site | **20,000** | **533** — 2.7% of the budget |
+| Single asset | **25 MiB** | **20.00 MiB** (`listings-0002.json`) — 80% |
+| Build timeout | **20 minutes** | ~2 min locally |
+
+Two new gates:
+
+- **`scripts/check_pages_limits.py`** measures a built bundle and exits 1 naming the breach, printing budget spent as well as the verdict. `scripts/audit-pages-dist.sh` runs it on the real bundle, so it fires in the `build-web` CI job and in a manual deploy. Failure path exercised three ways: 20,001 files, a 26 MiB asset, and a bad directory (exit 2). Also handles a closed pipe, because `| head` on a report should not print a traceback.
+- **`scripts/check_catalog_coherence.py`** closes `web/README.md`'s own recorded gap — "counts are printed by the builders, not asserted against each other". It compares `data/catalog.json`'s row count and per-kind counts against `data/release.json` and `public/v1/current.json`; `ci.yml`'s `build-web` job runs it *before* the build. Failure paths exercised: an `itemCount` perturbation, a pointer naming a different release, and a per-kind count off by 636.
+
+The per-asset cap is the tightest budget (80%) and `ReleaseShardMaxBytes` is 20 MiB precisely to leave that headroom — so raising it means re-checking Cloudflare first. `ARCH/18` §2.1 now records the whole budget, including that a static page per catalog entry would blow the **20-minute build timeout** long before either file limit — which is the definitive reason F4's URL half is server-rendering-or-nothing rather than 69,376 prerendered files.
+
+`scripts/README.md` (which inventories every script and says who runs it) and `scripts/check_ci_local.sh` (which mirrors CI stage-for-stage) were both updated; the script count in that README went from twenty to twenty-two.
+
+
+
+### F38 CLOSED — the orphan check exists, is green, and found six dead components, not four
+
+`web/scripts/check-orphan-components.mjs` — dependency-free, using the TypeScript compiler API (already a devDependency), following the pattern `check-hook-order.mjs` established. It walks the module graph from the App Router entry points and fails on any exported component no reachable module imports. Wired into the real gate:
+
+```diff
+-    "lint": "next lint",
++    "lint": "node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs",
+```
+
+**No dependency was added** — the `package.json` diff is scripts-only. (Note the diff also carries the earlier uncommitted `check-hook-order` wiring and a new `type-check` script; HEAD still had `next lint`.)
+
+**Why the gate is needed, restated as a measurement rather than an argument:**
+
+```
+tsc --noEmit --noUnusedLocals --noUnusedParameters   →  exit 0
+next build                                            →  exit 0
+check-orphan-components.mjs                           →  exit 1, naming the file
+```
+
+`noUnusedLocals` exempts exports by design and `next build` tree-shakes silently, so an exported component nothing imports was invisible to every gate in this repository. That was F38's whole subject.
+
+**Non-vacuity proven on the real gate:** planting a fresh orphan in `components/home/` produced `exit=1` naming it, and `npm run lint` itself returned `exit=1`; removing the probe returned the check to `exit=0`. A check that cannot fail is worthless, so this was tested first.
+
+**Six dead, not four — and two of the six required opposite decisions.**
+
+| component | outcome |
+|---|---|
+| `SectionRow`, `CategoryRail`, `HeroSection`, `ProportionBar` | deleted (originally authorized) |
+| `ClientGrid` | **deleted** — zero references, mtime 2026-10-05, not modified, no in-flight work |
+| `FaqSection` | **KEPT** — ` M` in git status: an uncommitted copy edit from 2026-10-13 06:26 (`<h2>Questions this index has to answer honestly</h2>` → `<h2>Questions about the catalog</h2>`), in a directory with five other uncommitted-modified files (`AgentStrip`, `HowItWorks`, `LandingHero`, `TrustStrip`). Deleting it would have destroyed someone else's uncommitted work for a file the landing-page recomposition may re-import. |
+| `BridgeDiagram` | **NOT an orphan** — live: `LandingHero.tsx:7` imports it and renders it at `:216`. It was reported to the check's author as a false positive, because a resolver that misses component→component edges produces exactly this. |
+
+`components/hero/` is now gone entirely. The one remaining orphan is handled by a **single explicit, dated exception** that the green path names rather than hides:
+
+```js
+const KNOWN_ORPHANS = new Set(["components/home/FaqSection.tsx"]);
+```
+
+```
+OK orphan components — 50 file(s) scanned, every exported component is reachable,
+   1 excused by KNOWN_ORPHANS
+  - components/home/FaqSection.tsx:56  FaqSection — module unreachable from any route
+```
+
+**Independently re-derived**, not taken on trust: my own import graph (comments stripped, so a mention *inside* a comment cannot count — the exact bug that false-positived earlier) finds **exactly one** orphan, matching the single exception.
+
+**Verification, all run after the deletions:**
+
+```
+npm run lint         0
+npm run type-check   0
+next build           0   (✓ Compiled in 83s, ✓ Exporting 2/2)
+out/index.html · out/agents/index.html · out/package/index.html all present
+FaqSection.tsx:62    <h2>Questions about the catalog</h2>   ← uncommitted edit preserved
+```
+
+F38 needs no further decision: the ESLint question is now separable and answered, because the measured gap was closed at zero dependency cost — the same tradeoff `check-hook-order.mjs` documents for itself.
+
+### UX pass — the diagram as a lattice, the machine-written copy rewritten, and two false claims removed
+
+Requested: animate the bridge diagram, add "other agents", show every capability rather than one bridge; rewrite the agent-picker and intent copy; move Trust into the FAQ; and verify+implement an outside UX review.
+
+**The diagram is now a lattice, and rendering it twice is what fixed it.** First version: 6 agents → 3 kinds, 18 paths. Screenshotting it showed three faults a code read would not have — every path converged into a single point per box (a funnel, not a connection), the 18 curves tangled, and the centred caption had lines running straight through the words. Second version fans **both** ends across each box's edge, gives the caption a filled **chip** so it reads on top of the lattice, and drops strokes to 1.15px at ~32%. `BridgeDiagram.tsx` documents all three, since they are the kind of thing that gets "simplified" away later. Two motion layers: `bridge-draw` (staggered 55ms, once) and `bridge-flow` (a 5s travelling highlight, offset per path). Verified: 36 paths / 18 flows, `animation: bridge-flow 5s infinite`, reduced-motion → `animationName: none, opacity: 0` (so no stray dots).
+
+**"Other agents" is drawn deliberately muted** — dashed border, dashed connectors, lower opacity — because the catalog is generic across hosts and a visitor on an unnamed host needs to find themselves in the picture without being told their agent is a supported one.
+
+**Copy rewritten** (`AgentStrip`, `TopicTiles`). The flagged lines were not just flat, one was load-bearing: *"N of 69,376 entries list X among their compatible hosts"* now ends **"That is the publisher's declaration — we have not run any of them."** The unavailable-agent branch no longer says *"Fair enough. Nothing is measured against…"*; it says *"Noted, and we won't pad it… That's an honest blank, not a rejection."* "Browse by intent / What do you want your AI to do?" became **"Common goals / What are you trying to get done?"**
+
+**Trust moved into the FAQ, which also brought a dead component back to life.** `FaqSection.tsx` existed but was **never rendered anywhere** — it was the orphan the new gate was excusing. It now renders on the landing page with the five trust answers and the technical-provenance detail absorbed, and `TrustStrip.tsx` is deleted. So the `KNOWN_ORPHANS` exception is now **empty** and the gate reports `every exported component is reachable` with no excuses — the tidy outcome the exception was written to reach.
+
+**Two false claims about search results, both fixed.** The review was right and the fix needed two passes:
+
+- `SearchResults.tsx` printed **"Showing 0 of 0 results · 69,376 entries"** above six skeleton cards while the snapshot loaded. The first fix handled the loading window; re-testing found a *second* instance during the debounce (*"… · updating results…"*).
+- Guessing from `loading` was the wrong instrument, so `useCatalogSearch` now exposes **`settled`** — true only when `results` were computed for the *current* inputs. `settled` also requires `rows.length > 0`, because the search still "runs" over an empty row set and settles, which would let a caller report "no matches" for a catalog it never read. **That condition was a bug in my own first attempt**, caught by a test that asserted a real status line was present.
+
+The empty-state panel is now gated on `settled` too, so "Nothing matches that search" cannot flash before a search has happened.
+
+**Verified on the served build**, sampling the live status line while typing "github":
+
+```
+Loading the catalog — 69,376 entries to search…
+Searching 69,376 entries…
+Showing 24 of 10,820 results · 69,376 entries
+null/empty samples: 0 · false-zero lines: 0 · premature-no-matches: 0
+```
+
+The vacuity guard earned its place twice: an earlier run reported `false-zero lines: 0` when in fact **nothing had rendered** (the static server had exited), and the guard returned `INCONCLUSIVE` instead of a pass.
+
+**Gates after the pass:** `type-check 0` · `lint 0` (hook order + orphan, 49 files, no exceptions) · `next build 0` · coherence OK · **CLS 0.0000 on 6/6 routes** (`measured 6/6`, so the probe was confirmed present rather than assumed). Landing bands in order: hero · *What do you use?* · *What are you trying to get done?* · ecosystem · twelve entries · five steps · agent atlas · *Questions about the catalog* · developer zone.
+
+**Not done from the review, deliberately:** the P0 items are now fixed, but "replace the hero search with a two-step agent-first start", nav consolidation, curated task pages, compare/alternatives, and the measurement plan are product-shape decisions, not defects. The review's own claim that the hero has "two CTAs" is **stale** — `LandingHero.tsx:149-154` records that the second button was already deleted, and the header owns "Install LiteSPM".
+
+
+
+### F4's URL shape — IMPLEMENTED and verified against a real Workers runtime
+
+The canonical path form now works: `/package/claude-figma` serves the product page and the browser keeps that address. Three parts, all small:
+
+1. **`scripts/deploy-pages.sh`** writes a `_redirects` into the bundle:
+   ```
+   /package/:slug /package/ 200
+   ```
+2. **`web/app/package/PackageView.tsx`** — `useSlugParam` reads the **pathname** as well as the query. It must: a `200` proxy is transparent, so the browser shows `/package/<slug>` and `window.location.search` stays empty.
+3. **`PackageView.tsx`** canonicalises the legacy form with `history.replaceState` — `_redirects` cannot match a query string (`Query Parameters ❌` in the source), so the server cannot do that half.
+
+**The destination must be the directory, not the file.** My first rule proxied to `/package/index.html` and the platform answered **307**, not 200 — Workers Static Assets normalises an explicit `index.html` request with a redirect. Caught by running it, not by reading about it:
+
+```
+/package/index.html                  HTTP 307   ← file form: redirects instead of serving
+/package/:slug -> /package/          HTTP 200   ← directory form: serves the shell
+```
+
+**Verified end to end**, in a real Chromium against `wrangler dev` on the actual bundle:
+
+| entry | result |
+|---|---|
+| `/package/claude-figma` | `h1: "figma"`, URL **stays** `/package/claude-figma`, no console errors |
+| `/package/skill%3Aanthropics%3Adocx` | `h1: "Docx"` — percent-decoding works through `safeDecode` |
+| `/package/?slug=claude-figma` | renders **and** canonicalises to `/package/claude-figma` |
+| `/nonsense/` | still **404** — the rule does not swallow misses |
+| bundle audit | `534 files · 20.00 MiB · AUDIT_EXIT=0` |
+
+**Cost: one dynamic rule, zero new files, zero billed invocations.** The deployment has no Worker script (`wrangler.toml` is `[assets]` only) and static-asset serving is not an invocation, so this adds nothing to the request budget. `_redirects` allows 2,000 static + 100 dynamic rules; this uses one of the latter.
+
+**Incidental confirmation of an earlier finding:** `wrangler dev` refused to start on a bundle containing the un-stripped export, failing with *"Asset too large … /v1/releases/rel-2026-10-11-01/listings.json with a size of 62.4 MiB"* — the platform itself enforcing the 25 MiB cap on that stale release, and demonstrating that `deploy-pages.sh`'s `rm -rf "${PAGES_DIR}/v1"` is load-bearing rather than tidiness.
+
+**What remains open is not the URL, it is per-page metadata for crawlers** — a unique `<title>`/`<meta>` per entry still needs 69,376 prerendered files (past the 20,000-file free limit, ~2 GB) or server rendering. The path form makes each entry *addressable*; it does not make each entry *prerendered*.
+
+### F5's curation half — not algorithmic on today's fields, but a free signal exists for ~40% of rows
+
+- **Ordering cannot fix it from today's fields.** Verified: `Context7` and `0bull Phone Farm` are byte-identical on every ranking axis the catalog carries — same `builtin:mcp-registry` source, same `vendor-manifest` provenance, same `verified: true`, same `Developer Tools` category, `stars: null` on both. `provenance` has exactly two values (`vendor-manifest` 40,724 / `awesome-list-claim` 28,652) and both tiers contain junk. **No popularity signal exists at all** — `stars`, `downloads`, `rating`, `score`, `popularity`, `createdAt`, `updatedAt` are non-empty in **0 / 69,376** rows — and `category` can't discriminate either, since **45,373 of 69,376 (65%) are "Developer Tools"**. **But a signal can be *ingested* for a large subset, at zero cost:** **27,496 rows (40%)** carry a `github.com` URL (`url` or `publisher.url`) and 26,415 have `github` in the id, and the GitHub REST API is free (60 req/hr unauthenticated, 5,000/hr authenticated — ample for a build-time pass). `stars` is currently `null` for 100% of rows, so this is entirely unexploited. Caveat: `url` is often the MCP *endpoint* (`https://mcp.0xarchive.io/mcp`) rather than a repo, so owner/repo extraction needs care and would cover a subset — but that subset would carry a real quality signal where today there is none. So the honest state is: **not algorithmic on today's fields; a free producer-side option exists that would make it partly algorithmic.** The remainder is editorial.
+### F7 — closed, and it never needed the shim it was said to need
+
+- No keyring is required for the skill, MCP or plugin paths, so `HOME` + `LITESPM_DATA_ROOT` into `/tmp` was enough to isolate it fully; the whole install matrix was then run against the live published catalog. See "F7 closed" below.
+
+### The fetch-error path, exercised rather than read
+
+Review 2 listed *"empty-result and catalog-fetch-error states are explicitly distinguished"*. The empty state was already verified; the error state was not, so the data layer was made to actually fail (`Fetch.failRequest` on `*/data/*` — the shard index, the shards and the per-package `cat/<slug>.json` all live under it) and the page read back:
+
+```
+fetch failed   says so   retry offered   wrongly claims absent
+     yes          yes         yes                no
+                            "The catalog rows could not be fetched, so this key cannot be …"
+```
+
+The distinction is real and it is the one that matters: with the snapshot **unloaded**, even a key that genuinely does not exist is reported as *unresolvable*, not as *absent*. A snapshot that never arrived cannot testify that something is missing, and the code refuses to let it. Retry then recovers — pressed with the data reachable, the panel was replaced by the real page (`h1` "figma", install UI present, no false "not found").
+
+Both reviews' claims now have runtime evidence rather than assertion. (A first attempt at this failed to intercept anything because the pattern was `catalog.json`; the data layer is sharded, so `data/catalog.json` is only an index and the rows arrive from shards — the assertion was wrong, not the app.)
+
+
+
+### Corrected: the five 2026-10-08 E2E findings are NOT open (F29–F34)
+
+The review list carried these forward as "still open, untouched". Rechecked against the current tree, **all five are fixed or explicitly accepted** — the list was stale, the same way F1 and F6b were:
+
+| finding | current state |
+|---|---|
+| F29 release identity reused for changed inputs | **Fixed.** `main.go:1569` — `if opts.materialize && output.ManifestDigest != prev.ManifestDigest` now refuses to reuse the identity. |
+| F30 explicit policy deny bypassed by MCP install | **Fixed.** `authorizeMCPInstallPolicy` (`install_mcp.go:596`) is called on the execution path at `:398`, evaluates the engine per host with the listing id as `TargetRef` and the entry name as `TargetAliases`, and the `default:` branch returns `ErrUnauthorized`. The doc comment even carries a "do not wire it properly here" note explaining why `network.outbound` is deliberately *not* fed to the engine. |
+| F31 approval does not bind the host target set | **Addressed.** The prompt prints `target : <host> -> <path> (<key>)` plus the sealed `command`/`endpoint` per host change (`install_authz.go:361-380`); the plan carries `ValueJSON`. |
+| F32 ingestion fetches insufficiently constrained | **Fixed.** `scripts/build_full_catalog.py:127` — `MAX_RESPONSE_BYTES = 16 * 1024 * 1024`, plus an exact host allowlist (`:145`). |
+| F33 dirty dataset incoherent with the published tree | **Fixed.** No dirty producer files; the live pointer, `web/data/catalog.json` and `web/data/release.json` all read **69,376 / `rel-2026-10-11-02`**. |
+| F34 producer replay incomplete | **Accepted, not failed.** The release was cut (sequence 147); `feed:mcpmarket-com` is incomplete **by budget as a recorded decision**, per STATUS.md §2. |
+
+### F7 closed — the install matrix verified end to end, and without the shim it was said to need
+
+F7 was carried as *"clean-machine install test (needs an isolated data root plus a secret-service shim — this box has no Secret Service)"*. The premise was wrong, so the item sat closed when it need not have: **no keyring is needed** for any of these paths. Running with `HOME` and `LITESPM_DATA_ROOT` both pointed into `/tmp` isolates it completely — every host config path resolves inside the sandbox, so no user file is touched — and the whole matrix was then exercised against the **real published catalog** (the live origin, not a fixture):
+
+| kind | outcome |
+|---|---|
+| skill, `metadata_verified` | ✓ `✓ Installed skill docx` → `~/.claude/skills/docx/SKILL.md` + 60 more files, fetched from GitHub at a recorded digest, written through the skills ledger |
+| mcp, `metadata_verified` | ✓ `✓ Registered MCP server inference-sh` → `{"type":"http","url":"https://api.inference.sh/mcp"}` created under `mcpServers` in the host config |
+| plugin | ✗ `LPSM-ARTIFACT-UNAVAILABLE` — *"the plugin install path is not wired yet"*, exactly as STATUS.md documents |
+| mcp, `discovery_only` | ✗ `LPSM-NOT-INSTALLABLE` — *"discovery-only metadata with no proven artifact"* |
+
+`litespm list` then reported both installs correctly (`2 unique capabilities · 2 deployments`, per-host). So the CHANGELOG's "installs that actually work" is **true as written**, and the failures are honest refusals rather than silent no-ops — which is the harder half to get right.
+
+Two things worth keeping from this:
+
+- **The catalog is honest about what it can do.** 69,376 rows split **26,803 installable / 42,573 `discovery_only`** (mcp 25,401 verified vs 23,017 not; skill 764 vs 19,556; plugin 638, all verified). The first listing picked at random was a `discovery_only` feed row, and it refused rather than pretending — the refusal is the correct behaviour, not a defect, and the feed genuinely carries no artifact locator.
+- **A clean machine gets `LPSM-ARTIFACT-UNAVAILABLE` for "no agent skill directory detected".** The message is completely specific, but the *code* is the one STATUS.md documents for the unwired plugin path, so the same identifier means "the product can't do this yet" and "you have no agent installed". Defensible as "no artifact is producible for this machine", and left alone deliberately — it is a published error contract, and the message already says exactly what to do.
+
+**And a correction to my own previous report.** I claimed the live origin was unreachable and the network isolated. That was wrong — I had tested a hostname I inferred (`litespm.sarveshbh2.workers.dev`) rather than the real one. The origin is `https://litespm.sarveshbh-2022.workers.dev`, it answers **HTTP 200**, and its pointer is byte-identical to the local tree:
+
+```
+/v1/current.json  200   releaseId rel-2026-10-11-02  sequence 147  itemCount 69376
+/v1/releases/rel-2026-10-11-01/listings.json    404   <- the stale release never published
+/v1/releases/rel-2026-10-11-02/listings-0001.json  200   <- the sharded current release is live
+```
+
+That last pair settles the deploy question from production rather than by inference: the 62 MiB file never reached the CDN, the sharded release did, and there is no deploy blocker.
+
+
+
+### The deploy bundle, verified end to end — and a false positive that nearly became a phantom blocker
+
+Running `scripts/audit-pages-dist.sh` against `web/out` produced a hard failure:
+
+```
+FAIL 1 Pages limit(s) exceeded:
+  - largest asset 'v1/releases/rel-2026-10-11-01/listings.json' is 62.44 MiB, over the 25 MiB limit
+asset : 62.44 MiB / 25 MiB (249.7%)
+```
+
+That reads like the fifth pass's 25 MiB blocker was never really fixed — `rel-2026-10-11-01` is a release materialized *before* the shard rule existed, still present in the gitignored tree. It is not. **`web/out` is not the deploy bundle**, and the deploy script says so itself:
+
+```bash
+# The Next.js export copies web/public/v1 (whatever a previous local build
+# left there) into the bundle. The /v1 API tree comes exclusively from the Go
+# builder below, so drop the exported copy before materializing it: stale or
+# untracked release directories must never reach the CDN.
+rm -rf "${PAGES_DIR}/v1"
+```
+
+Rebuilding the bundle the way the deploy does (`cp web/out/* → bundle`, drop `v1`, `catalog build --materialize --prev web/public/v1/current.json`) leaves **only** the release the pointer names, and the audit passes:
+
+```
+✓ Catalog tree verified against its pointer — rel-2026-10-11-02, 6 files byte-for-byte
+✓ Zero source leaks detected
+  files : 533 / 20,000 (2.7%)      asset : 20.00 MiB / 25 MiB (80.0%)
+OK bundle is inside the free-plan limits                    AUDIT_EXIT=0
+```
+
+The fifth pass's fix is sound and there is **no deploy blocker**. Worth recording anyway, because the trap costs real time: the failure text says *"Shard or drop the offending assets"*, which invites exactly the wrong remedy for a directory that is merely an export — and `rel-2026-10-11-01` cannot be uploaded by anyone, so "fixing" it would have destroyed a legitimate local artifact for nothing.
+
+**Closed the trap rather than merely noting it.** `scripts/check_pages_limits.py` now reads the bundle's own pointer and, when the oversized asset sits in a *different* release, names that instead of implying the file itself must be sharded. It prints only on a path that has already failed, so it cannot mask a real overage: the export still exits 1 (with the hint), and the real bundle still exits 0.
+
+
+
+### `litespm doctor` — the diagnostic surface, exercised rather than skimmed
+
+The doctor is the first thing a user meets when something is wrong, so it was run in the isolated root rather than left as a documented feature. It reports **2 failures, 5 warnings, 4 passes** on a clean machine, and the split is honest: required problems fail the overall verdict, optional ones only warn.
+
+```
+✗ FAIL  Directory Permissions & Structure   RUNTIME_ROOT does not exist
+✗ FAIL  Secret Vault Availability           FreeDesktop Secret Service unavailable
+✓ PASS  SQLite State Database Integrity     PRAGMA integrity_check ok, journal_mode=wal measured
+✓ PASS  Incomplete Operation Journal        no non-terminal operations
+✓ PASS  Provider Runtimes Environment       Node.js, Python 3, uvx, npx
+✓ PASS  Local Storage Disk Space            826.2 GiB free
+⚠ WARN  CAS Store · Staging · Keyring · Host Registrations · Backups   (each with a recommendation)
+```
+
+**The failure that matters most is the one it refuses to work around.** With no Secret Service the verdict is FAIL and it stops there — `LiteSPM refuses to store credentials in plaintext (ARCH/19)` — rather than degrading to a file it could have written. That is the correct direction to fail, and it is the difference between a diagnostic and a shrug.
+
+**The repair path works, and only after asking.** With stdin closed it printed *"Proposed Automated Repair Plan"* and changed nothing:
+
+```
+1. [directory_repair] Re-create standard directory hierarchy with restrictive 0700 permissions
+Apply these repair actions? [y/N]:
+```
+
+Confirmed with `y`, it created the directory at **0700** (`drwx------`) and the re-run improved to **7 passed / 3 warnings / 1 failure** — `Directory Permissions` flipping to `✓ directories verified`. Preview-then-confirm, restrictive mode by default, and verifiable afterwards.
+
+**Sandboxing note worth keeping**, because it is not obvious and `--repair` is not safe to run otherwise: `LITESPM_DATA_ROOT` and `HOME` do **not** contain the runtime root. It comes from `XDG_RUNTIME_DIR` (`internal/config/paths.go:86`), with `LITESPM_RUNTIME_ROOT` as an explicit override (`:149`), and unsandboxed it resolves to the real `/run/user/<uid>/litespm`. Setting `XDG_RUNTIME_DIR=/tmp/…` moves it inside the sandbox completely — confirmed by the repair creating `/tmp/lspm-run/litespm` and leaving **`/run/user/1000/litespm` still absent**. Anyone running `--repair` without that redirect is creating directories in the live user runtime dir.
+
+### The host-config merge — the one operation that rewrites a user's own files
+
+`litespm host setup` splices an entry into a config the user already owns, so the claim that it is non-destructive was tested rather than trusted. Against a `.claude.json` carrying a comment, a custom key, a pre-existing MCP server and nested data:
+
+```
+✓ Successfully configured Claude Code CLI: /tmp/lspm-h2/.claude.json
+  mcpServers.litespm = {command: "/tmp/litespm", args: ["bridge","stdio","--host","claude-code"]}
+```
+
+| property | result |
+|---|---|
+| user's `//` comment | **survived** |
+| `customSetting: "keep me"` | **survived** |
+| pre-existing `their-own-server` | **survived**, untouched |
+| `nested.deep: [1,2,3]` | **survived** |
+| timestamped backup | `backups/claude-code_20261013_104028_aaaf7823.bak` |
+| backup is the pre-change bytes | **byte-identical** (114 bytes) → restore is exact |
+| `host remove` round trip | entry removed, every user key preserved |
+
+That is the whole of AGENTS.md §2 step 5's promise, confirmed: a backup under `DATA_ROOT/backups/`, existing entries and comments preserved, one bridge entry injected.
+
+**The `command` is the resolved absolute path, deliberately** — `"command": filepath.ToSlash(binaryPath)` (`internal/host/claudecode.go:66`), not the bare name `litespm`. That is better than what the docs describe: it cannot be shadowed by a different `litespm` earlier in `PATH` when the host launches the bridge.
+
+**One cosmetic edge case, recorded so nobody "fixes" safety-critical splice code for it.** The splice is documented as keeping "comments, key order, indentation and the trailing newline byte-for-byte", and for a normal config it does — a multi-line round trip is **byte-identical**:
+
+```
+realistic multi-line .claude.json → setup → remove → diff:  BYTE-IDENTICAL
+```
+
+It only drifts if `mcpServers` was written as a **single-line object literal**, where the closing brace is re-indented out to column 0:
+
+```diff
+-  "mcpServers": { "their-own-server": { "command": "their-binary" } }
++  "mcpServers": { "their-own-server": { "command": "their-binary" }
++}
+```
+
+The result still **parses** and no key is lost — the only cost is a spurious one-line diff for someone who formats that way. Not worth touching the splice for.
+
+### The bridge — the actual integration contract, spoken to directly
+
+Everything else in this file tests LiteSPM's own surfaces. `bridge stdio` is the seam the *host* talks to, so it was exercised as a host would: raw JSON-RPC on stdin/stdout.
+
+```
+→ {"jsonrpc":"2.0","id":1,"method":"initialize", …}
+← {"jsonrpc":"2.0","id":1,"result":{"capabilities":{"tools":{}},
+     "protocolVersion":"2024-11-05","serverInfo":{"name":"litespm-bridge","version":"0.3.0"}}}
+→ {"jsonrpc":"2.0","id":2,"method":"tools/list"}
+← {"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"search_catalog", …
+```
+
+Protocol-correct `initialize` and a populated `tools/list`, on newline-delimited framing as `ipc.NewLineDelimitedCodec` implies (`shim.go:178`). The handshake is answered in **0.00 s** even with no daemon running, so a host is never made to wait on a dial it does not need.
+
+**The failure path is separated correctly.** With no daemon, the diagnosis goes to **stderr**, not into the protocol stream:
+
+```
+litespm bridge: daemon dial failed: failed to connect to unix socket /tmp/lspm-run/litespm/litespm.sock
+```
+
+That matters more than it looks: a diagnostic printed to stdout would be an unparseable frame in the middle of a JSON-RPC conversation, which is a classic way to break an MCP server intermittently. And `tools/list` still answers in standalone mode (`shim.go:357`), so the host can enumerate capabilities before the daemon is up.
+
+*One probe artifact worth recording, because it nearly became a false finding:* my first attempt reported "0 messages received" and I briefly had "the bridge does not respond to `initialize`". It was my harness — the reader raced the process kill. A second, cleaner probe with an explicit `select` showed an immediate, correct response. The bridge was never at fault.
+
+### The `-race` timeout is this machine, not the repository — do not chase it
+
+Running the local CI mirror in full (`check_ci_local.sh`, which does *not* skip the race stage) ended in `EXIT=1` with four packages failing. It looks alarming and is not a defect:
+
+```
+FAIL internal/catalogbuild  894.380s
+FAIL internal/schemacheck   893.640s
+FAIL test                    894.820s
+DATA RACE count: 0
+panic: test timed out after 10m0s
+    running tests: TestCommittedReleaseTreeValidates (14m47s)
+*** Test killed with quit: ran too long (11m0s).
+```
+
+**Zero data races.** The failures are pure timeouts, in the three packages that chew through the 31 MB catalog and release tree. The same test **without** race instrumentation finishes in **5.8 s** — so `-race` multiplies it roughly **150×** on this box, past Go's 10-minute default.
+
+That is a property of this environment (WSL2), not of the suite. CI runs the *same* command — `go test -v -race ./...` on ubuntu-latest and macos-latest, with no `-timeout` override — and it passes:
+
+```
+gh run list  →  2026-10-13T06:02  success  CI  main
+gh run view  →  success  Test Go Engine (ubuntu-latest)
+                success  Test Go Engine (macos-latest)
+                success  Test Go Engine (windows-latest)   ← runs without -race
+                success  Build Next.js Static Export
+                success  Static Checks
+```
+
+So the correct action is **nothing**. Recorded because the failure mode invites exactly the wrong response — "CI is red, find the regression" — when the truth is a slow local disk and a heavy catalog fixture. `check_ci_local.sh --quick` exists precisely to skip this stage while iterating, and the mirror reports the skip honestly rather than silently passing.
+
+### Production verified — not the local export, the deployed origin
+
+Every check in this file until now ran against `next build` output on loopback. With the origin reachable, the same instruments were pointed at **`https://litespm.sarveshbh-2022.workers.dev`** — so these are claims about what users actually get, not about what the working tree produces.
+
+```
+smoke   14 routes · 0 problems · 0 console errors
+CLS     / /explore/ /agents/ /categories/ /trending/ /agents/cursor/ /agents/roo/ /package/  → 0.0000
+        LCP 328–368 ms on every route above
+counts  "69,376 capabilities · 48,418 MCP · 20,320 skills"   ← exactly what the catalog says
+```
+
+**The CLS fix is now proven against production as its own control.** The live deployment still carries the pre-fix code, and the identical probe reports **0.0132** there — the same value, from the same route, attributed to the same two elements (`UL`, `section-head.mt-9`) as the local measurement before the change. Same instrument, same route, `0.0132 → 0.0000`: the "before" is literally the live site rather than a reconstruction of it.
+
+Two behaviours are confirmed in production that were previously only argued for:
+
+- **A passive homepage visit fetches no catalog at all.** The homepage issued zero requests matching `/data/` or `/v1/releases/`; it renders its counts from the prerendered HTML, and the catalog arrives only when a page actually needs it.
+- **The sharded, digest-addressed transport works end to end.** Opening a product page fetched the index and then the shards, each stamped with the *same* query:
+
+  ```
+  /data/catalog.json?v=sha256%3A701ec40c08f6a153c6aaac2bd4276c45ccf0e5d43b41377f7c544b2df799c163
+  /data/catalog-0000.json?v=sha256%3A701ec40c08f6a153…   -0001  -0002   (same digest)
+  ```
+
+  That digest is the same snapshot id the producer reported locally (`snap-701ec40c08f6a153`), so the deployed bytes match the built bytes. The query stamping is what makes the long immutable cache safe: a redeploy that changes any row changes the digest and therefore every shard URL.
+
+**The CDN header contract holds in production, including its sharp edge.** ARCH/18 §4 specifies different caching for the pointer, the shards and the site's own copies, and the deployed origin matches every line:
+
+| path | cache-control | ACAO | nosniff |
+|---|---|---|---|
+| `/v1/current.json` | `public, no-cache, must-revalidate` | `*` | ✓ |
+| `/v1/releases/*/listings-*.json` | `public, max-age=31536000, immutable` | `*` | ✓ |
+| `/data/catalog.json` (index) | `public, max-age=300, must-revalidate` | `*` | ✓ |
+| `/data/catalog-*.json` (shards) | `public, max-age=31536000, immutable` | `*` | ✓ |
+
+The split is the point: an immutable year-long cache on content-addressed shards is only safe because the index is short-lived and every shard URL carries the dataset digest — so a redeploy changes the digest, changes every URL, and cannot serve last week's rows from a warm cache. Verified rather than assumed.
+
+`/no-such-page/` and `/agents/definitely-not-a-real-agent/` both return **HTTP 404** with the branded page (`<h1>Page not found.</h1>`), so `not_found_handling = "404-page"` behaves as configured. And the three-state rule holds in the other direction too: on the live site a genuinely nonexistent slug *does* report `not in this catalog snapshot` — because there the snapshot **did** load, which is exactly the condition under which that claim is allowed to be made.
+
+**The npm install path is real end to end, releases included.** `npm view litespm version` → `0.4.0`, and — the half that actually matters — the binary a user's install downloads is **publicly reachable**:
+
+```
+unauthenticated GET https://github.com/sarv-projects/LiteSPM/releases/download/v0.4.0/litespm-linux-amd64   HTTP 200
+unauthenticated GET …/v0.4.0/SHA256SUMS.txt                                                                HTTP 200
+release v0.4.0: 17 assets · 8 sigstore bundles · 1 SBOM (litespm-sbom.cdx.json)
+```
+
+The 8 bundles are **one per signed asset** (six platform binaries, `SHA256SUMS.txt`, and `litespm-web-static.tar.gz`), which is exactly what F35's correction claimed and what an earlier README said did not exist. The installer verifies `SHA256SUMS.txt` before use and refuses an unverified download, so the published package is both installable and self-verifying.
+
+*I got this wrong first, the same way I got the origin wrong:* I queried `sarveshbh-2022/litespm` — a repository name I inferred — got `Not Found`, and briefly had a plausible-sounding finding that "the npm package cannot install because its repo is private". The real repository is `sarv-projects/LiteSPM` (from `install-binary.js:15`) and it is public. Two invented identifiers in one session, both of which produced convincing false findings — a reminder to read the constant rather than infer it.
+
+One further thing that looks like a bug and is not, recorded so nobody "fixes" it: a plain `go build` reports **v0.3.0** while npm serves 0.4.0. That is the documented mechanism working — `main.go:47` carries `var Version = "0.3.0"` as the compile-time default and `scripts/build-release.sh:31` injects the real value with `-ldflags "-X main.Version=${VERSION}"`. Only a release build is version-correct; a local `go build` is not supposed to be.
+
+### COMMIT HAZARD — four untracked files are required by modified tracked files
+
+Nothing is committed yet, and that is the safe state. But when the commit does happen, **a tracked-only staging will produce a broken repository**, because this batch adds new files *and* edits existing files to depend on them:
+
+```
+modified, and calls an untracked file          untracked file it needs
+  .github/workflows/ci.yml                       scripts/check_catalog_coherence.py
+  scripts/audit-pages-dist.sh                    scripts/check_pages_limits.py
+  scripts/check_ci_local.sh                      web/scripts/check-hook-order.mjs
+  ARCH/18-CATALOG-BUILDER-RELEASE-SEARCH.md      web/lib/availability.ts
+  scripts/README.md  web/README.md  CURRENT_RUN.md
+```
+
+`git add -u` — or `git commit -a`, or any staging that only includes tracked paths — stages the **callers without the things they call**. The visible result:
+
+- `ci.yml` runs `python3 scripts/check_catalog_coherence.py` → *"can't open file"*. Proven against a clean checkout of `bc64460`: `git archive HEAD | tar -x` has neither script, and the step dies.
+- `audit-pages-dist.sh` shells `python3 ./scripts/check_pages_limits.py` for the budget check that exists to catch an over-limit upload *before* `wrangler deploy` rejects it.
+- `web/lib/availability.ts` is imported by the app, so the web build breaks with it, not merely a lint step.
+
+**Use `git add -A` / `git add .` for this batch, not `git add -u`.** Everything under `scripts/` was checked individually: only `check_catalog_coherence.py` and `check_pages_limits.py` are untracked there, and both are genuinely required.
+
+Note the asymmetry that makes this easy to miss — the *committed* `HEAD` is fine. Its `ci.yml` never references these scripts and its `audit-pages-dist.sh` never calls the limits check; both references live only in the uncommitted edits. So CI is green today and would go red the moment the caller is committed without the callee.
+
+
+
+### Decided not to change, with the evidence
+
+- **F13 title casing — do not auto-capitalise.** 5,400 names are all-lowercase and **694 of them begin with an acronym** (`mcp-airlock`, `api-changelog`, `llm-oracle`), so a display transform turns them into `Mcp-airlock` and `Api-changelog`. `figma` as an `<h1>` is faithful to what the publisher wrote; fixing the casing belongs in the producer, not in a guess at render time.
+- **F38 lint infrastructure — needs a decision, not a patch.** There is no ESLint installed and CI runs no web lint; adding one means new devDependencies, a lockfile change, and a CI job. `tsc --noUnusedLocals --noUnusedParameters` already catches the dead-code class this was wanted for, and `next build` type-checks every route.
+- **F18 curated collections / relevance sort — needs editorial input.** Any "featured" band means choosing whose rows those are, and the data cannot do it for us (see the F5 note above).
+- ~~F29–F34, the 2026-10-08 E2E audit's five open findings — Go work, untouched.~~ **Stale; corrected above.** All five were rechecked against the current tree and are fixed or explicitly accepted — see "Corrected: the five 2026-10-08 E2E findings are NOT open". Only the *bullets that survive here* are the ones still genuinely open.
+- **Nothing is committed.** The operator said not to commit yet; the tree holds this batch plus the earlier copy-voice edits.

@@ -7,8 +7,8 @@ import { CopyButton } from "./CopyButton";
 
 /**
  * "Manual setup" — the generic host × platform block that used to render as a
- * full section on every package page. It answers the same question on all
- * 5,825 entries (one `litespm` bridge entry per host; the snippet is identical
+ * full section on every package page. It answers the same question on every
+ * entry (one `litespm` bridge entry per host; the snippet is identical
  * regardless of the capability being viewed), so ARCH/25 §7.3 moves it behind a
  * single disclosure instead of repeating it per page.
  *

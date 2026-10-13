@@ -26,6 +26,10 @@ export interface SearchResultsProps {
   /** Authoritative count once the rows are in; before that, nothing. */
   count?: number;
   loading: boolean;
+  /** The hook has evaluated the current query — the count is a measurement,
+   *  not a placeholder. Without it, "No matches" can be shown before the search
+   *  has run. */
+  settled: boolean;
   awaiting: boolean;
   error: boolean;
   onRetry: () => void;
@@ -39,6 +43,7 @@ export function SearchResults({
   query,
   count,
   loading,
+  settled,
   awaiting,
   error,
   onRetry,
@@ -71,13 +76,48 @@ export function SearchResults({
             aria-live="polite"
             aria-atomic="true"
           >
-            Showing{" "}
-            <span className="t-mono t-tabular text-ink">{formatCount(visibleItems.length)}</span> of{" "}
-            <span className="t-mono t-tabular text-ink">{formatCount(reported)}</span> results ·{" "}
-            <span className="t-mono t-tabular">{formatCount(total)}</span> entries
-            {loading && " · updating results…"}
-            {awaiting && " · loading the full snapshot…"}
-            {error && " · the snapshot could not be loaded"}
+            {/* A result line must never state a number it has not measured.
+                `settled` is the hook saying "these results are for this query",
+                so:
+                  · not settled and the rows are still arriving → say loading,
+                  · not settled otherwise (mid-debounce, or the frame before the
+                    effect runs) → say searching, never "0 of 0",
+                  · settled and zero → a real, measured "No matches",
+                  · settled and non-zero → the count, which is always true even
+                    if a newer query is already on its way. */}
+            {reported > 0 ? (
+              <>
+                Showing{" "}
+                <span className="t-mono t-tabular text-ink">
+                  {formatCount(visibleItems.length)}
+                </span>{" "}
+                of <span className="t-mono t-tabular text-ink">{formatCount(reported)}</span> results
+                · <span className="t-mono t-tabular">{formatCount(total)}</span> entries
+                {loading && " · updating results…"}
+                {error && " · the snapshot could not be loaded"}
+              </>
+            ) : settled ? (
+              error ? (
+                <>
+                  The catalog rows could not be loaded · this is not a &ldquo;no matches&rdquo;
+                  answer
+                </>
+              ) : (
+                <>
+                  No matches · <span className="t-mono t-tabular">{formatCount(total)}</span> entries
+                  searched
+                </>
+              )
+            ) : awaiting && count === undefined ? (
+              <>
+                Loading the catalog — <span className="t-mono t-tabular">{formatCount(total)}</span>{" "}
+                entries to search…
+              </>
+            ) : (
+              <>
+                Searching <span className="t-mono t-tabular">{formatCount(total)}</span> entries…
+              </>
+            )}
           </p>
         </div>
 
@@ -125,7 +165,7 @@ export function SearchResults({
             </li>
           ))}
         </ul>
-      ) : !error ? (
+      ) : !error && settled ? (
         <div className="mt-6 flex max-w-prose flex-col items-start gap-3 border-b border-rule pb-12">
           <SearchX className="h-6 w-6 text-ink-3" aria-hidden="true" />
           <h3 className="text-[15px] font-semibold">Nothing matches that search</h3>

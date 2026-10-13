@@ -2,6 +2,13 @@
 
 All work is **proposed** until verified code and observable automated test evidence exist. Each stage must satisfy its acceptance gates before subsequent phases begin.
 
+> **A probe is evidence only for the release it names.** Several rows below cite a 2026-10-05
+> probe of `rel-2026-10-05-01`. That tree has since been **replaced** at the origin and now returns
+> **404**, so those citations record the run that produced them rather than describing what is
+> served today. The current release is **`rel-2026-10-11-02`** (sequence 147, 69,376 items, sharded
+> into `listings-0000…0003` / `versions-0000…0001`), probe 2026-10-13; STATUS.md §1–§2 carries the
+> up-to-date evidence for the same rows.
+>
 > **Status vocabulary & authority.** [STATUS.md](STATUS.md) is the single source of truth for what
 > each subsystem actually does. Where this ledger and STATUS.md disagree, **STATUS.md wins**. The
 > `Status` column below uses the six evidence states defined by

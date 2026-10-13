@@ -136,7 +136,7 @@ The `agent-runtime` value is deferred as a *distinct* type only; v1 expresses in
 
 ### 3.4.2 v1 type support status (data reality)
 
-Which v1 types are backed by real rows in the current 5,814-item catalog (`web/data/catalog.json`: 4,079 `mcp`, 1,103 `skill`, 632 `plugin`):
+Which v1 types are backed by real rows in the current catalog (`web/data/catalog.json`, probe 2026-10-13: **69,376** rows — 48,418 `mcp`, 20,320 `skill`, 638 `plugin`):
 
 | v1 type | v1 catalog data | Rendering rule |
 |---|---|---|
@@ -197,7 +197,7 @@ The current implementation is a v1 discovery catalog. The gaps below are factual
 |---|---|---|---|
 | Top-level classification | Nine-value enum: `{plugin, mcp, skill, connector, agent, rule, hook, tool, lsp}` | `internal/domain/models.go` (`KindPlugin`, `KindMCP`, `KindSkill`, `KindConnector`, `KindAgent`, `KindRule`, `KindHook`, `KindTool`, `KindLSP`) | Target `type` enum of eight v1 values (§3.4), with deferred values in §3.4.1; `connector` exists in Go but is a deferred v2 value and never appears in the shipped dataset (5814 rows carry only `mcp`/`skill`/`plugin`) |
 | Web kind set | Three values: `"mcp" \| "skill" \| "plugin"` | `web/lib/telemetry.ts` (`Listing["kind"]`) | Web drops `connector` and the five zero-row v1 types; must align to the type taxonomy |
-| Shipped dataset kinds | 4,079 `mcp`, 1,103 `skill`, 632 `plugin` (5,814 total) | `web/data/catalog.json` | No rows for the other v1 types (`agent`, `rule`, `hook`, `tool`, `lsp`) despite `ComponentKind` supporting some; deferred values (§3.4.1) are not tracked in v1 |
+| Shipped dataset kinds | 48,418 `mcp`, 20,320 `skill`, 638 `plugin` (69,376 total, probe 2026-10-13) | `web/data/catalog.json` | No rows for the other v1 types (`agent`, `rule`, `hook`, `tool`, `lsp`) despite `ComponentKind` supporting some; deferred values (§3.4.1) are not tracked in v1 |
 | Component kinds | `skill, mcp-provider, hook, command, agent-definition, agent, rule, tool, lsp, asset` | `internal/domain/models.go` (`ComponentKind`) | Component kinds cover all eight v1 types plus legacy `command`/`agent-definition`/`asset`, but are not surfaced to web |
 
 ### 4.2 Dataset fields vs target

@@ -8,8 +8,9 @@
     "prebuild": "node scripts/emit-catalog-shards.mjs && node scripts/gen_brand_logos.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "gen:brands": "node scripts/gen_brand_logos.mjs"
+    "lint": "node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs",
+    "gen:brands": "node scripts/gen_brand_logos.mjs",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "clsx": "^2.1.1",

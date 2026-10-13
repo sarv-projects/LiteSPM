@@ -17,6 +17,7 @@
 
 import type { Listing } from "./telemetry";
 import { hostsFor } from "./hosts";
+import { availabilityOf } from "./availability";
 
 export const KIND_ORDER: Listing["kind"][] = ["mcp", "skill", "plugin"];
 
@@ -45,17 +46,50 @@ export function kindLabel(kind: string): string {
  * "stars" and "newest" were removed: the catalog publishes no star counts (the
  * upstream sources do not expose them) and carries no publish timestamps, so
  * both modes were ordering by nothing while their labels claimed otherwise.
+ *
+ * "installable" is the default. The artifact's own order led with whatever
+ * sorted first by name among verified publishers, and because names that begin
+ * with punctuation sort ahead of every letter that meant a Solana token was the
+ * first row of a package manager. Ordering by a property the catalog can prove
+ * — whether the row has a transport, or is a skill with a source — is both a
+ * better front door and a claim we can stand behind.
  */
-export type SortMode = "index" | "name" | "publisher";
+export type SortMode = "installable" | "index" | "name" | "publisher";
+
+export const DEFAULT_SORT: SortMode = "installable";
+
+/**
+ * Compare names on their first alphanumeric run.
+ *
+ * `$AI on HyperEVM`, `.FAF Context` and `(WiP) An everything app` all sort
+ * ahead of "Aardvark" under a plain `localeCompare`, which is how the catalog
+ * opened. Ignoring leading punctuation is the same convention that files
+ * "The Beatles" under B — it changes nothing about the data, only the order a
+ * reader reads it in.
+ */
+function nameKey(name: string): string {
+  const stripped = name.replace(/^[^0-9A-Za-z]+/, "");
+  return (stripped || name).toLowerCase();
+}
 
 export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[] {
   const copy = [...items];
-  if (mode === "name") return copy.sort((a, b) => a.name.localeCompare(b.name));
+  if (mode === "name") {
+    return copy.sort((a, b) => nameKey(a.name).localeCompare(nameKey(b.name)));
+  }
   if (mode === "publisher") {
     return copy.sort(
       (a, b) =>
         (a.publisher?.name || "").localeCompare(b.publisher?.name || "") ||
-        a.name.localeCompare(b.name)
+        nameKey(a.name).localeCompare(nameKey(b.name))
+    );
+  }
+  if (mode === "installable") {
+    return copy.sort(
+      (a, b) =>
+        Number(availabilityOf(b).installable) - Number(availabilityOf(a).installable) ||
+        Number(Boolean(b.publisher?.verified)) - Number(Boolean(a.publisher?.verified)) ||
+        nameKey(a.name).localeCompare(nameKey(b.name))
     );
   }
   // "index" is the builder's own order: verified publishers first, then kind,

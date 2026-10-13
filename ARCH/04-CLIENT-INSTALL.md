@@ -222,7 +222,7 @@ What actually happens today:
     (`cmd/litespm/wizard.go:138-143`).
 *   In-agent `/marketplace` reads resolve against the **local catalog index**, refreshed only by an
     explicit `litespm catalog sync` (which succeeds against the live origin — STATUS §2).
-*   `litespm update` / `self-update` updates the **binary** (`internal/update` SHA-256 fail-closed, plus the release's keyless Sigstore bundle when one is published — `cmd/litespm/main.go:391-438`; no published tag carries a bundle yet), not installed capabilities.
+*   `litespm update` / `self-update` updates the **binary** (`internal/update` SHA-256 fail-closed, plus the release's keyless Sigstore bundle when one is published — `cmd/litespm/main.go:391-438`; `v0.4.0` is the first tag to publish one), not installed capabilities.
 
 ### 5.2 Update Delta Evaluation — `DESIGNED`
 There is no `litespm update <listing-id>` command today (any such invocation is parsed as the

@@ -61,8 +61,12 @@ function ReleaseChip({ telemetry }: { telemetry: TelemetryState }) {
           status === "ready" ? "bg-accent" : status === "loading" ? "animate-pulse bg-ink-3" : "bg-ink-3/50"
         }`}
       />
-      {status === "loading" && "Checking release…"}
-      {status === "ready" && "Release origin answering"}
+      {status === "loading" && "Checking the catalog…"}
+      {/* Plain words, not "release origin answering" — that described the
+          mechanism to a reader who only wants to know whether what they are
+          looking at is current. The release id, sequence and digest stay in the
+          title, where someone who does want the mechanism will look. */}
+      {status === "ready" && "Catalog is current"}
       {status === "offline" && "Bundled catalog snapshot"}
     </span>
   );
@@ -90,8 +94,8 @@ export function LandingHero({
     <section className="shell hero-glow pb-10 pt-9 md:pb-14 md:pt-14">
       <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:gap-12">
         <div className="enter-rise">
-          <h1 className="max-w-[16ch] text-[34px] font-semibold leading-[1.06] tracking-tight text-ink sm:text-[44px] lg:text-[54px]">
-            Give your AI more abilities.
+          <h1 className="max-w-[20ch] text-[34px] font-semibold leading-[1.06] tracking-tight text-ink sm:text-[44px] lg:text-[54px]">
+            One package manager for your AI agents.
           </h1>
 
           <p className="mt-4 max-w-prose text-[15px] leading-relaxed text-ink-2 sm:text-[17px]">
@@ -142,9 +146,12 @@ export function LandingHero({
             <Link href="/explore/" className="btn btn-solid btn-lg">
               Explore capabilities
             </Link>
-            <Link href="/#install" className="btn btn-lg">
-              Install LiteSPM
-            </Link>
+            {/* "Install LiteSPM" (a second button to the same `#install` anchor
+                the sticky header already links to) used to sit here. It and the
+                copyable command immediately below it were two ways to do one
+                thing, in a column that also carried a third "Install
+                instructions" link to the same anchor. The command is the
+                concrete one, so it is the one that stayed. */}
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -172,14 +179,13 @@ export function LandingHero({
                 )}
               </button>
             </span>
-            <a href="#install" className="touch-link text-[12.5px] text-ink-2 underline decoration-ink-3 underline-offset-4 hover:text-accent-text hover:decoration-accent-text">
-              Install instructions
-            </a>
+            {/* The "Install instructions" link that sat here pointed at the same
+                `#install` anchor as the header button, a third time. */}
           </div>
 
-          <p className="mt-7 text-[16px] font-medium tracking-tight text-ink sm:text-[17px]">
-            The package manager for AI agents.
-          </p>
+          {/* "The package manager for AI agents." used to sit here as a second
+              positioning statement. It is the headline now, so repeating it
+              below the fold only competed with the install command above it. */}
 
           {/* Quiet proof: real numbers from the build-time slice, set small and
               in mono, after the promise rather than instead of it. */}

@@ -194,8 +194,8 @@ export default function AgentDetailView({
                 </a>
               </>
             )}
-            . That is what we can honestly say about it: where its config lives, and what LiteSPM
-            can put in it.
+            . Everything below is from LiteSPM&rsquo;s adapter registry: where this agent&rsquo;s
+            config lives, and what LiteSPM puts in it.
           </p>
         )}
 
@@ -356,13 +356,11 @@ export default function AgentDetailView({
 
           {/* This caveat used to be its own "Honest limits" section: five
               lines of what the page does *not* claim, standing alone right
-              before the footer. The footer's "What the numbers mean" already
-              carries the long form, so here it is one line under the number
-              it qualifies. Same honesty, a tenth of the space. */}
+              before the footer. The footer's long form is gone and one line
+              here does the same job next to the number it qualifies. */}
           <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            Only what this repository can source: this file, this command, this
-            count — not operating-system support, popularity, ratings, or which
-            host is best.
+            This page covers the config file, the command and the count. Operating-system support,
+            popularity and ratings are not published.
           </p>
         </section>
       </main>

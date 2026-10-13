@@ -3,7 +3,7 @@
 import React from "react";
 
 /**
- * Find → Check → Add → Manage: four steps, one plain sentence each, with the
+ * Point → Find → Check → Add → Manage: five steps, one plain sentence each, with the
  * technical explanation behind a disclosure rather than underneath it.
  *
  * The expanders are `<details>` — no route, no modal, no client state — and
@@ -21,6 +21,27 @@ interface Step {
 const STEPS: Step[] = [
   {
     n: "01",
+    title: "Point it at your agent",
+    plain: "Tell LiteSPM which agent you use, so it knows where to write. Nothing is installed yet.",
+    technical: (
+      <>
+        <p>
+          A bare <code className="t-mono">litespm</code> opens the setup wizard: it detects the
+          agent&rsquo;s config file, backs it up, and adds one{" "}
+          <code className="t-mono">litespm</code> bridge entry to it.{" "}
+          <code className="t-mono">litespm host setup &lt;agent&gt;</code> is the same step without
+          the prompts.
+        </p>
+        <p className="mt-2">
+          This step is not optional. An install with no host set up refuses with{" "}
+          <code className="t-mono">LPSM-INSTALL-TARGET-UNAVAILABLE</code> rather than guessing which
+          config file to edit.
+        </p>
+      </>
+    ),
+  },
+  {
+    n: "02",
     title: "Find",
     plain: "Search the catalog for what you need — by name, or by what you want done.",
     technical: (
@@ -40,7 +61,7 @@ const STEPS: Step[] = [
     ),
   },
   {
-    n: "02",
+    n: "03",
     title: "Check",
     plain: "See what it is, who published it, and what it would be able to reach.",
     technical: (
@@ -60,7 +81,7 @@ const STEPS: Step[] = [
     ),
   },
   {
-    n: "03",
+    n: "04",
     title: "Add",
     plain: "Install it into the agent you actually use, with one command.",
     technical: (
@@ -79,7 +100,7 @@ const STEPS: Step[] = [
     ),
   },
   {
-    n: "04",
+    n: "05",
     title: "Manage",
     plain: "Update, take things away, and put your original config back whenever you want.",
     technical: (
@@ -106,11 +127,11 @@ export function HowItWorks() {
       <div className="border-t border-rule pt-8">
         <p className="kicker">How LiteSPM works</p>
         <h2 id="how-title" className="band-title mt-2">
-          Four steps, in that order
+          Five steps, in that order
         </h2>
       </div>
 
-      <ol className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <ol className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {STEPS.map((step) => (
           <li
             key={step.n}

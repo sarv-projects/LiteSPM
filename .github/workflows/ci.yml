@@ -122,6 +122,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Nothing else compares these three files to each other: the dataset and
+      # the release stats are written by the Python producer, the pointer by the
+      # Go builder, so the site can describe a catalog the pointer does not name
+      # while every other check stays green. Runs before the build so a
+      # disagreement fails fast and names the file.
+      - name: Check Catalog Coherence
+        run: python3 scripts/check_catalog_coherence.py
+
       # scripts/deploy-pages.sh materializes the release tree with the Go
       # builder, so packaging it here requires the Go toolchain too.
       - name: Setup Go
@@ -149,7 +157,18 @@ jobs:
 
       - name: Type-check Web
         working-directory: ./web
-        run: npx tsc --noEmit
+        # Runs the script rather than the raw command so `npm run type-check`
+        # — which `lib/hosts.ts` already refers to — cannot rot unnoticed.
+        run: npm run type-check
+
+      - name: Lint Web
+        working-directory: ./web
+        # `next lint` hung here: no ESLint config, no eslint dependency, and an
+        # interactive prompt when stdin is not a TTY, so it could never pass.
+        # The script now checks the one rule that has actually bitten this
+        # codebase — a Hook below an early return, which React reports as #310
+        # and which both `tsc` and `next build` accept. See scripts/README.md.
+        run: npm run lint
 
       - name: Build Web Static Export
         working-directory: ./web

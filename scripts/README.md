@@ -1,10 +1,11 @@
 # `scripts/` — repository scripts
 
-Twenty scripts live in this directory. **Two of them are executed on a push or pull request.**
+Twenty-two scripts live in this directory. **Three of them are executed on a push or pull request.**
 `.github/workflows/ci.yml` *checks the syntax* of every script (`bash -n scripts/*.sh`,
 `python3 -m py_compile scripts/*.py`) and **executes** `gen_hosts_ts.go` (regeneration gate),
 `deploy-pages.sh` (in its `build-web` job, so the staged bundle is packaged and leak-audited on
-every push/PR), and the npm wrapper tests; `.github/workflows/release.yml`
+every push/PR) plus the two gates that job now calls directly — `check_catalog_coherence.py` and,
+through `deploy-pages.sh`, `check_pages_limits.py` — and the npm wrapper tests; `.github/workflows/release.yml`
 executes `build-release.sh`. The rest are manual — including **`check_ci_local.sh`**, which runs
 the CI stages on your machine in CI order.
 
@@ -28,7 +29,9 @@ history is in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md).
 | `parse_catalogs.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
 | `parse_skills.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
 | `sample_voltagent.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
-| `audit-pages-dist.sh` | bash | **CI** — called by `deploy-pages.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — `set -euo pipefail` + explicit leak/digest `exit 1`; usage error exits 2 |
+| `audit-pages-dist.sh` | bash | **CI** — called by `deploy-pages.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — `set -euo pipefail` + explicit leak/digest `exit 1`; usage error exits 2. Also runs `check_pages_limits.py` on the bundle |
+| `check_catalog_coherence.py` | Python | **CI** (`ci.yml`, `build-web` job, before the build) and **manual** | Yes — exit 1 naming every disagreement; exit 2 on a bad `--root` |
+| `check_pages_limits.py` | Python | **CI** — called by `audit-pages-dist.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — exit 1 on a files/asset-size limit breach, exit 2 on a bad directory. Prints the budget spent as well as the verdict |
 | `migrate_dataset_transport.py` | Python | **Manual** — one-time historical migration (its header warns against re-running) | Yes, but it is historical: see the header before running it |
 | `test_snapshot_lifecycle.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
 | `test_catalog_ingestion_safety.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |

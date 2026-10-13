@@ -1,10 +1,22 @@
 import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import { agentFacets, hostUniverse, withLinkKeys } from "../../lib/catalog";
-import { resolveHost } from "../../lib/hosts";
+import { HOSTS, resolveHost } from "../../lib/hosts";
 import { isDiscontinued } from "../../lib/lifecycle";
+import type { Metadata } from "next";
 import type { AgentsViewProps } from "./AgentsView";
 import AgentsRoute from "./AgentsRoute";
+
+/**
+ * Its own title and preview: this page previously inherited the layout's single
+ * `metadata`, so it shared a `<title>` and an `og:url` with every other route.
+ */
+export const metadata: Metadata = {
+  title: "Agent hosts",
+  description: `${HOSTS.length} agent hosts with a compiled-in LiteSPM adapter — the configuration file each one writes, the one bridge entry it adds, and the vendor documentation every row was checked against.`,
+  alternates: { canonical: "/agents/" },
+  openGraph: { title: "Agent hosts · LiteSPM Market", url: "/agents/" },
+};
 
 /**
  * Server Component: host coverage is an aggregate over the full snapshot,

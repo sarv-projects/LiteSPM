@@ -102,3 +102,119 @@ console.log(
   `✔ catalog shards: ${shards.length} shard(s), ${rows.length} rows, ` +
     `largest ${(largest / 1024 / 1024).toFixed(2)} MiB → ${path.relative(process.cwd(), outDir)}`,
 );
+
+// ---------------------------------------------------------------------------
+// Product-page lookups.
+//
+// The ordered shards above exist for Explore, which searches the whole catalog
+// and therefore needs all of it. A product page needs one row, two counts, and
+// a handful of same-category siblings — but it resolved all of that through the
+// same full-shard fetch, which measured at 44.5 MB to render a single page
+// (against 649 KB for Explore, 735 KB for the home page). On a phone that is
+// minutes of download to read one listing.
+//
+// So the rows are also written as a hash partition keyed by slug. The browser
+// computes the same bucket from the slug in the URL and fetches ~190 KB.
+//
+// The bucket function must agree with `bucketForSlug` in `lib/catalogData.ts`
+// byte for byte; FNV-1a 32-bit is used there for exactly that reason — it is
+// short enough to mirror by hand and has no library behind it to diverge.
+// ---------------------------------------------------------------------------
+const BUCKETS = 256;
+const PKG_DIR = path.join(outDir, "pkg");
+
+function bucketFor(key) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i += 1) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h % BUCKETS;
+}
+
+// A previous run's buckets must not survive a row-count change, for the same
+// reason the ordered shards are removed above.
+rmSync(PKG_DIR, { recursive: true, force: true });
+mkdirSync(PKG_DIR, { recursive: true });
+
+const buckets = Array.from({ length: BUCKETS }, () => []);
+let versioned = 0;
+let slugBucketExtras = 0;
+const seenSlugs = new Set();
+for (const row of rows) {
+  if (row.version) versioned += 1;
+
+  // A row must be reachable from whichever key a link used.
+  //
+  // `?slug=` carries a slug for most entries but an **id** for others — every
+  // entry that links by id, e.g. `skill:anthropics:docx`, arrives with a colon
+  // in the parameter. The browser hashes whatever the URL holds, so a row has
+  // to be filed under the bucket of each key it answers to; filing by slug
+  // alone made every id-keyed page report "not in this catalog snapshot".
+  const idBucket = bucketFor(row.id);
+  buckets[idBucket].push(row);
+
+  // Slugs are filed first-wins, matching `buildLookup`: 69,376 rows share only
+  // 57,112 distinct slugs, and `mcp` alone is claimed by thousands. Without
+  // this the `mcp` bucket held 2,181 rows, 8x the average, and those duplicate
+  // rows could never have been resolved anyway.
+  if (!seenSlugs.has(row.slug)) {
+    seenSlugs.add(row.slug);
+    const slugBucket = bucketFor(row.slug);
+    if (slugBucket !== idBucket) {
+      buckets[slugBucket].push(row);
+      slugBucketExtras += 1;
+    }
+  }
+}
+
+const counts = { total: rows.length, versioned };
+const bucketFiles = [];
+for (let i = 0; i < BUCKETS; i += 1) {
+  const doc = { counts, rows: buckets[i], schema: "litespm-web-pkg/v1" };
+  const body = `${JSON.stringify(doc)}\n`;
+  const file = `${String(i).padStart(3, "0")}.json`;
+  const buf = Buffer.from(body, "utf8");
+  writeFileSync(path.join(PKG_DIR, file), buf);
+  bucketFiles.push(buf.length);
+}
+
+// Siblings for the "Also in <category>" list.
+//
+// Only for categories small enough that "related" means something: the two
+// largest hold 45,373 and 19,209 rows, where twelve arbitrary entries are noise
+// and the existing "see all" link is the honest answer. The rest total a few
+// thousand rows and cost ~3 MB across the set.
+const SIBLING_CATEGORY_MAX = 500;
+const CAT_DIR = path.join(PKG_DIR, "cat");
+mkdirSync(CAT_DIR, { recursive: true });
+
+const byCategory = new Map();
+for (const row of rows) {
+  const key = row.category || "";
+  if (!key) continue;
+  if (!byCategory.has(key)) byCategory.set(key, []);
+  byCategory.get(key).push(row);
+}
+
+const categorySlug = (name) =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+let categoryFiles = 0;
+for (const [name, group] of byCategory) {
+  if (group.length > SIBLING_CATEGORY_MAX) continue;
+  const slug = categorySlug(name);
+  if (!slug) continue;
+  writeFileSync(path.join(CAT_DIR, `${slug}.json`), `${JSON.stringify(group)}\n`);
+  categoryFiles += 1;
+}
+
+console.log(
+  `✔ product lookups: ${BUCKETS} bucket(s) (${(Math.max(...bucketFiles) / 1024).toFixed(0)} KiB largest, ` +
+    `${(Math.min(...bucketFiles) / 1024).toFixed(0)} KiB smallest; ` +
+    `${slugBucketExtras} slug-key extra(s)) ` +
+    `+ ${categoryFiles} category file(s) → ${path.relative(process.cwd(), PKG_DIR)}`,
+);

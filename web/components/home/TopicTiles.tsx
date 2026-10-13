@@ -21,13 +21,14 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
     <section className="shell band" aria-labelledby="topics-title">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="kicker">Browse by intent</p>
+          <p className="kicker">Common goals</p>
           <h2 id="topics-title" className="band-title mt-2">
-            What do you want your AI to do?
+            What are you trying to get done?
           </h2>
           <p className="band-sub">
-            Each area lists what the catalog actually holds for it, with three entries you can open
-            right away.
+            Pick the one that sounds like your week. Each opens a real slice of the catalog — the
+            count and the examples below each tile are pulled from the rows that link actually
+            returns, so a tile can never advertise something it wouldn&rsquo;t show you.
           </p>
         </div>
         <Link href="/categories/" className="touch-link text-[13px] text-ink-2 hover:text-accent-text hover:underline">

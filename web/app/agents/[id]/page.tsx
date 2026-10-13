@@ -6,6 +6,7 @@ import { hostNote } from "../../../lib/hostNotes";
 import { vendorName } from "../../../lib/vendorNames";
 import { discontinuedNotice } from "../../../lib/lifecycle";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import type { AgentDetailViewProps } from "./AgentDetailView";
 import AgentDetailRoute from "./AgentDetailRoute";
 
@@ -30,6 +31,59 @@ export function generateStaticParams() {
  *  404, never a request-time render (there is no server under `output:
  *  "export"` to fall back to). */
 export const dynamicParams = false;
+
+/** Meta descriptions are truncated by search engines and previews around 155
+ *  characters; cutting at a word boundary beats a hard slice mid-word. */
+function clamp(text: string, max = 155): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 60 ? cut.slice(0, space) : cut).replace(/[,;:.]$/, "")}…`;
+}
+
+/**
+ * Every route used to inherit the one `metadata` block in `app/layout.tsx`, so
+ * all sixty pages shipped the same `<title>` and the same `og:url` — sharing a
+ * product link previewed as the homepage. Each agent page now names its own
+ * host, and the description is the same sourced sentence the page shows.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const host = HOSTS.find((h) => h.id === id);
+  if (!host) return {};
+
+  const note = hostNote(host.id);
+  const name = vendorName(host.id, host.name);
+  const gone = discontinuedNotice(host.id);
+
+  // A discontinued host says so in the title, so the status survives being
+  // pasted somewhere without the page around it.
+  const title = gone ? `${name} (discontinued)` : name;
+  const description = clamp(
+    gone
+      ? `${gone.notice} LiteSPM's adapter for ${name}: the config file it writes and the one entry it adds.`
+      : note
+        ? `${note.summary} LiteSPM writes a single bridge entry into ${name}'s own configuration.`
+        : `Where ${name} keeps its MCP configuration, and the single bridge entry LiteSPM adds to it.`
+  );
+
+  return {
+    title,
+    description,
+    alternates: { canonical: `/agents/${host.id}/` },
+    openGraph: {
+      type: "article",
+      // Not templated by Next: an OpenGraph title is used verbatim.
+      title: `${title} · LiteSPM Market`,
+      description,
+      url: `/agents/${host.id}/`,
+    },
+  };
+}
 
 /**
  * Reprints a bridge entry with arrays of plain values kept on one line.

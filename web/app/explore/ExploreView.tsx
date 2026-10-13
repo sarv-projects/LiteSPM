@@ -16,18 +16,26 @@ import {
   kindLabel,
   matchesHost,
   sortListings,
+  DEFAULT_SORT,
   SortMode,
 } from "../../lib/catalog";
+import { AGENT_STORAGE_KEY, findAgentChoice } from "../../lib/landing";
+import type { AgentChoice } from "../../lib/landing";
 
 const KINDS = ["all", "mcp", "skill", "plugin"] as const;
 const SORTS: Array<{ id: SortMode; label: string }> = [
-  { id: "index", label: "Index order" },
+  // Default first: this is what a visitor who touches nothing sees, and it is
+  // the only order that reflects whether the row can actually be installed.
+  { id: DEFAULT_SORT, label: "Installable first" },
   { id: "name", label: "Name" },
   { id: "publisher", label: "Publisher" },
+  // The release artifact's own order, kept as an explicit choice rather than
+  // the silent default it used to be.
+  { id: "index", label: "Catalog order" },
 ];
 
 const KINDS_SET = new Set<string>(["all", "mcp", "skill", "plugin"]);
-const SORTS_SET = new Set<string>(["index", "name", "publisher"]);
+const SORTS_SET = new Set<string>(SORTS.map((s) => s.id));
 
 /**
  * Facets and the first page of rows are computed at build time by
@@ -62,7 +70,7 @@ function useQueryFilters(request: () => void) {
     category: "all",
     agent: "all",
     verifiedOnly: false,
-    sort: "index" as SortMode,
+    sort: DEFAULT_SORT,
   });
 
   useEffect(() => {
@@ -74,7 +82,7 @@ function useQueryFilters(request: () => void) {
       category: p.get("category") ?? "",
       agent: p.get("host") ?? "",
       verifiedOnly: p.get("verified") === "1",
-      sort: SORTS_SET.has(sort) ? (sort as SortMode) : "index",
+      sort: SORTS_SET.has(sort) ? (sort as SortMode) : DEFAULT_SORT,
     };
     const seeded =
       next.query !== "" ||
@@ -82,7 +90,7 @@ function useQueryFilters(request: () => void) {
       next.category !== "" ||
       next.agent !== "" ||
       next.verifiedOnly ||
-      next.sort !== "index";
+      next.sort !== DEFAULT_SORT;
     setFilters({
       query: next.query,
       kind: next.kind,
@@ -108,6 +116,28 @@ function ExploreContent(props: ExploreViewProps) {
    * not a reason to download 3.8 MB, and the first keystroke already is.
    */
   const [focusSearch, setFocusSearch] = useState(false);
+
+  /**
+   * The agent chosen on the home page.
+   *
+   * Home and the product page both remember it; Explore ignored it entirely, so
+   * a reader who picked Codex and then opened Explore saw every host again with
+   * no sign their choice existed. Offered rather than applied: silently
+   * narrowing a result list is worse than not narrowing it, so this renders a
+   * line the reader can act on or dismiss.
+   */
+  const [savedAgent, setSavedAgent] = useState<AgentChoice | null>(null);
+  const [savedDismissed, setSavedDismissed] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("host")) return;
+    try {
+      const stored = window.localStorage.getItem(AGENT_STORAGE_KEY);
+      if (stored) setSavedAgent(findAgentChoice(stored));
+    } catch {
+      /* storage can be unavailable (private mode, policy) */
+    }
+  }, []);
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     if (p.get("focus") === "search") setFocusSearch(true);
@@ -170,7 +200,17 @@ function ExploreContent(props: ExploreViewProps) {
   }, [results, agent, verifiedOnly, sort]);
 
   const hasFilters =
-    query !== "" || kind !== "all" || category !== "all" || agent !== "all" || verifiedOnly || sort !== "index";
+    query !== "" || kind !== "all" || category !== "all" || agent !== "all" || verifiedOnly || sort !== DEFAULT_SORT;
+
+  /**
+   * Only offered when it would actually do something: no filter is set yet, the
+   * reader has not dismissed it, and the remembered agent names a host this
+   * catalog's own facet list carries — a preference for a host no row declares
+   * would filter to an empty page and read as a broken link.
+   */
+  const savedTarget = savedAgent && !savedDismissed && !hasFilters
+    ? savedAgent.hosts.find((h) => agents.some((a) => a.name === h)) ?? null
+    : null;
 
   // Same rule as Home: rows from the prerender until the dataset lands, an
   // empty set (skeleton) for a filter that has nothing to run against yet.
@@ -182,7 +222,7 @@ function ExploreContent(props: ExploreViewProps) {
     setCategory("all");
     setAgent("all");
     setVerifiedOnly(false);
-    setSort("index");
+    setSort(DEFAULT_SORT);
   };
 
   return (
@@ -202,6 +242,29 @@ function ExploreContent(props: ExploreViewProps) {
               {hostCount} hosts
             </p>
           </div>
+
+          {savedTarget && savedAgent && (
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-rule bg-sunken px-4 py-3">
+              <p className="text-[13px] text-ink-2">
+                You picked <strong className="font-medium text-ink">{savedAgent.label}</strong> on
+                the home page.
+              </p>
+              <button
+                type="button"
+                className="btn h-7 text-[11.5px]!"
+                onClick={() => setFilters((f) => ({ ...f, agent: savedTarget }))}
+              >
+                Show only what works with {savedAgent.label}
+              </button>
+              <button
+                type="button"
+                className="touch-link text-[12px] text-ink-3 hover:text-ink-2"
+                onClick={() => setSavedDismissed(true)}
+              >
+                Not now
+              </button>
+            </div>
+          )}
 
           <div className="mt-4 max-w-2xl">
             <SearchBar
@@ -271,7 +334,7 @@ function ExploreContent(props: ExploreViewProps) {
               </select>
             </label>
 
-            <label className="flex items-center gap-2 text-[12px] text-ink-2">
+            <label className="flex min-h-[44px] items-center gap-2 text-[12px] text-ink-2 md:min-h-0">
               <input
                 type="checkbox"
                 checked={verifiedOnly}
@@ -301,7 +364,7 @@ function ExploreContent(props: ExploreViewProps) {
             onRetry={request}
             onShowMore={request}
             onClearFilters={clear}
-            hostCount={hostCount}
+
             toolbar={
               <div className="flex shrink-0 items-center gap-2">
                 <label htmlFor="explore-sort" className="t-mono text-[11px] text-ink-3">

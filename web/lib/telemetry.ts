@@ -118,7 +118,7 @@ function bundledTelemetry(): Telemetry {
  *
  * `counts` are the per-kind totals the page already holds — they arrive as
  * props from the prerender rather than as a full row set, so this hook does not
- * need (and must not be given) the 5,825-row catalog just to compare two
+ * need (and must not be given) the whole catalog just to compare two
  * numbers. Deps are the primitives, so a fresh object identity per render
  * cannot re-trigger the fetch.
  */

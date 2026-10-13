@@ -11,6 +11,15 @@ This architecture defines the complete specification for **LiteSPM**, comprising
     $$\text{Security } (05) \succ \text{Data/State/Schema Contracts } (06, 10, 11, 12, 14, 15, 23) \succ \text{Catalog/Source/Install Contracts } (03, 04, 30) \succ \text{HLD } (02) \succ \text{Function Inventory } (24) \succ \text{ADRs } (07) \succ \text{Product/Delivery } (01, 08)$$
     (`24` keeps its tier for tie-breaking only: it is informative and never overrides the source
     tree or a normative document above it.)
+*   **Figure freshness — read catalog numbers in ARCH as dated, not current.** These documents are
+    design records, so the figures they carry (`5,814 items`; `4,079 mcp / 1,103 skill / 632 plugin`;
+    pointer `rel-2026-10-05-01`) describe the state at the time each was written. As of **2026-10-13**
+    the released catalog is **`rel-2026-10-11-02`, sequence 147, 69,376 items** — **48,418 mcp /
+    20,320 skill / 638 plugin** — split across six shard files, and `v0.4.0` (2026-10-11) publishes a
+    keyless Sigstore bundle for every asset, where every earlier tag publishes none. The origin holds
+    the *current* release, so a probe of an older release now returns 404 and is evidence only for
+    the release it names. Where an ARCH figure and [STATUS.md](../STATUS.md) disagree, **STATUS.md
+    wins** — it is the truth baseline, re-probed rather than accumulated.
 *   **Delivery-phase vocabulary:** the delivery sequence is the nine phases **A through I** of [08-DELIVERY](08-DELIVERY.md), mirrored row-for-row in [TODO.md](../TODO.md); both say nine. [31 §12](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#12-ordered-backlog) numbers its *backlog* 0–9 — a separate ordering for the forward plan, not the delivery phases.
 
 ---

@@ -72,7 +72,13 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
     item.installability === "metadata_verified" ||
     item.installability === "runtime_verified" ||
     item.installability === "litespm_tested";
-  const liteSPMInstallable = item.kind !== "plugin" && installabilityEstablished;
+  // An MCP row needs a launch line as well: `install_mcp.go` refuses one with
+  // neither a command nor an endpoint at LPSM-ARTIFACT-UNAVAILABLE whatever its
+  // metadata says. Kept in step with `availabilityOf`, which states the same
+  // rule for the badges.
+  const hasLaunchLine = item.kind !== "mcp" || Boolean(item.transport);
+  const liteSPMInstallable =
+    item.kind !== "plugin" && installabilityEstablished && hasLaunchLine;
   const targeted = liteSPMInstallable && agent !== null && agent.hosts.length > 0;
 
   return (
@@ -116,7 +122,11 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
               className="btn btn-solid btn-lg shrink-0"
               onClick={() => scrollToSection("pkg-step-add")}
             >
-              Add {item.name} to {agent?.label}
+              {/* Not "Add X to Y": this only moves the reader down to the steps.
+                  The site cannot reach a locally installed LiteSPM, so it never
+                  installs anything, and a button that promises an action it
+                  cannot take is the kind of label that costs trust on first use. */}
+              Get the command for {agent?.label}
             </button>
           </div>
         ) : (

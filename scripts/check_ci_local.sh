@@ -77,6 +77,9 @@ git diff --exit-code -- web/data/hosts.json web/data/skill-targets.json web/lib/
 stage "python catalog provenance check"
 python3 scripts/build_full_catalog.py --check || fail "build_full_catalog --check"
 
+stage "catalog coherence (dataset, release stats, pointer)"
+python3 scripts/check_catalog_coherence.py || fail "check_catalog_coherence"
+
 if [ "$QUICK" -eq 0 ]; then
   stage "go test -race ./..."
   go test -race ./... || fail "go test -race"
@@ -85,8 +88,8 @@ else
 fi
 
 if [ "$WEB" -eq 1 ]; then
-  stage "web: npm ci / tsc / static export"
-  (cd web && npm ci && npx tsc --noEmit && npm run build) || fail "web build"
+  stage "web: npm ci / type-check / lint / static export"
+  (cd web && npm ci && npm run type-check && npm run lint && npm run build) || fail "web build"
   test -f web/out/index.html || fail "web/out/index.html missing"
 fi
 

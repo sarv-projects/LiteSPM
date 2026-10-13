@@ -5,14 +5,13 @@ import Link from "next/link";
 import { Listing } from "../../lib/telemetry";
 import { kindLabel, listingHref } from "../../lib/catalog";
 import { PublisherTile, VerifiedMark } from "./PublisherMark";
+import { availabilityOf } from "../../lib/availability";
 import { hostsFor } from "../../lib/hosts";
 
 export type ExtensionItem = Listing;
 
 interface ExtensionCardProps {
   item: Listing;
-  /** Denominator for "n of N agents", so coverage is never implied by a dot. */
-  hostCount?: number;
 }
 
 const KIND_TAG: Record<Listing["kind"], string> = {
@@ -33,12 +32,46 @@ const KIND_TAG: Record<Listing["kind"], string> = {
  * upstream sources do not expose them), so a column that said "not published"
  * on every one of 5,814 rows was noise.
  */
-export function ExtensionCard({ item, hostCount }: ExtensionCardProps) {
+export function ExtensionCard({ item }: ExtensionCardProps) {
   const hosts = hostsFor(item);
-  const total = hostCount ?? hosts.length;
+  const avail = availabilityOf(item);
+  /**
+   * How this row's host coverage reads.
+   *
+   * `hostsFor` derives MCP and skill compatibility from the capability's KIND,
+   * so every MCP row printed the same "50/86 hosts" and every skill row the
+   * same figure. A column of identical numbers reads as machine output and
+   * trains the eye to skip it. The kind-derived rows now state the rule; only
+   * publisher-declared rows (plugins) carry a genuine per-row number.
+   */
+  const coverage =
+    item.kind === "plugin"
+      ? {
+          label:
+            hosts.length > 0
+              ? `${hosts.length} host${hosts.length === 1 ? "" : "s"}`
+              : "no hosts declared",
+          title:
+            hosts.length > 0
+              ? `This publisher declares compatibility with ${hosts.length} host${hosts.length === 1 ? "" : "s"}. Publisher-declared, not a test result.`
+              : "This publisher's manifest declares no compatible hosts.",
+        }
+      : item.kind === "skill"
+        ? {
+            label: "any skills host",
+            title: `Installs into any of the ${hosts.length} agent hosts that register a skills directory — derived from the capability's kind, not a per-row test result.`,
+          }
+        : {
+            label: "any bridge host",
+            title: `Installs into any of the ${hosts.length} agent hosts with a compiled-in adapter — derived from the capability's kind, not a per-row test result.`,
+          };
   const detail = [
     kindLabel(item.kind),
     item.publisher?.name ? `by ${item.publisher.name}` : "publisher unspecified",
+    // Stated in the accessible name as well as the chip, because a `title`
+    // tooltip is unreachable on touch and this is the field that decides
+    // whether the page behind the link can install anything.
+    avail.plain,
     item.summary,
   ].join(". ");
 
@@ -57,8 +90,14 @@ export function ExtensionCard({ item, hostCount }: ExtensionCardProps) {
         {item.summary && <span className="row-summary">{item.summary}</span>}
         <span className="row-meta">
           <span className="meta-publisher">{item.publisher?.name || "unspecified"}</span>
-          {item.publisher?.verified && <VerifiedMark glyph />}
+          {item.publisher?.verified && <VerifiedMark />}
           <span className={`meta-kind meta-kind-${item.kind}`}>{KIND_TAG[item.kind]}</span>
+          <span
+            className={`meta-avail meta-avail-${avail.installable ? "installable" : "blocked"}`}
+            title={avail.plain}
+          >
+            {avail.label}
+          </span>
           {item.transport && <span className="meta-spec">{item.transport}</span>}
           {item.runtime && <span className="meta-spec">{item.runtime}</span>}
           <span className="meta-category truncate">{item.category}</span>
@@ -68,9 +107,9 @@ export function ExtensionCard({ item, hostCount }: ExtensionCardProps) {
       <span className="row-side">
         <span
           className="t-mono t-tabular rounded-[3px] bg-sunken px-2 py-0.5 text-[11px] font-medium text-ink-2 border border-rule"
-          title={`Declares compatibility with ${hosts.length} of the ${total} agent hosts named in this catalog. Publisher-declared, not a test result.`}
+          title={coverage.title}
         >
-          {hosts.length}/{total} hosts
+          {coverage.label}
         </span>
       </span>
     </Link>

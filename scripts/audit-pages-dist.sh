@@ -53,3 +53,15 @@ if [ -n "${FORBIDDEN_FILES}" ]; then
 fi
 
 echo "✓ Zero source leaks detected. Dist allowlist verified."
+
+# Cloudflare Pages' asset budget, measured rather than assumed.
+#
+# The digest chain above proves the release tree is the one the pointer names,
+# and the scan proves nothing leaked — but neither says whether the bundle fits.
+# A deploy that exceeds a Pages limit fails at upload and reports a CDN problem,
+# not a spent budget, so this names it first: 20,000 files and 25 MiB per asset
+# on the Free plan (100,000 files when PAGES_WRANGLER_MAJOR_VERSION=4 is set).
+# Raise the plan argument here if this project moves off Free.
+echo "● Checking Cloudflare Pages limits..."
+python3 ./scripts/check_pages_limits.py "${PAGES_DIR}" --plan free
+

@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     template: "%s · LiteSPM Market",
   },
   description:
-    "The Lightweight Skill & Package Manager for AI Agents — a static index of MCP servers, portable agent skills, and plugins. Browse 5,000+ capabilities by kind, category, publisher, runtime and agent host, and install them through a single LiteSPM bridge entry.",
+    "The Lightweight Skill & Package Manager for AI Agents — a static index of MCP servers, portable agent skills, and plugins. Browse the catalog snapshot by kind, category, publisher, runtime and agent host, and install through a single LiteSPM bridge entry.",
   applicationName: "LiteSPM Market",
   keywords: [
     "MCP",

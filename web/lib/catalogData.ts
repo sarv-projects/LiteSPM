@@ -139,6 +139,167 @@ export function loadCatalog(): Promise<Listing[]> {
   return fetchCatalog();
 }
 
+// ---------------------------------------------------------------------------
+// Product-page lookup.
+//
+// A product page needs one row, two counts and a few same-category siblings.
+// It used to resolve all three through `fetchCatalog()`, which measured at
+// 44.5 MB to render a single page — against 649 KB for Explore, which actually
+// searches everything. These two endpoints serve the same answers from ~170 KB.
+//
+// `bucketForSlug` must stay byte-identical to the emitter's own copy in
+// `scripts/emit-catalog-shards.mjs`; both are FNV-1a 32-bit, chosen because it
+// is short enough to keep in two places without a shared dependency.
+// ---------------------------------------------------------------------------
+
+const PRODUCT_BUCKETS = 256;
+const PACKAGE_DATA_DIR = `${CATALOG_DATA_DIR}/pkg`;
+
+function bucketForSlug(slug: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < slug.length; i += 1) {
+    h ^= slug.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h % PRODUCT_BUCKETS;
+}
+
+export interface ProductPayload {
+  counts: { total: number; versioned: number };
+  /**
+   * The ~270 rows sharing this bucket, as an array.
+   *
+   * Not a slug-keyed map: 121 slugs in this catalog belong to more than one
+   * row, and the view's `buildLookup` resolves that by keying ids always and
+   * slugs only when unambiguous. Keying by slug here would drop a row.
+   */
+  rows: Listing[];
+}
+
+const productCache = new Map<string, ProductPayload>();
+const productInflight = new Map<string, Promise<ProductPayload>>();
+
+/** Fetch the bucket that holds `slug`. Cached per session; failures are not. */
+export function fetchProductPayload(slug: string): Promise<ProductPayload> {
+  const hit = productCache.get(slug);
+  if (hit) return Promise.resolve(hit);
+  const running = productInflight.get(slug);
+  if (running) return running;
+
+  const url = `${PACKAGE_DATA_DIR}/${String(bucketForSlug(slug)).padStart(3, "0")}.json${DATASET_VERSION}`;
+  const p = fetch(url)
+    .then((res) => {
+      if (!res.ok) throw new Error(`product bucket ${res.status}`);
+      return res.json();
+    })
+    .then((doc: ProductPayload) => {
+      const payload: ProductPayload = {
+        counts: doc.counts ?? { total: 0, versioned: 0 },
+        rows: withLinkKeys(Array.isArray(doc.rows) ? doc.rows : []),
+      };
+      productCache.set(slug, payload);
+      productInflight.delete(slug);
+      return payload;
+    })
+    .catch((err) => {
+      productInflight.delete(slug);
+      throw err;
+    });
+  productInflight.set(slug, p);
+  return p;
+}
+
+/**
+ * Same-category siblings, or `null` when the category is one of the two that
+ * hold most of the catalog — there, twelve arbitrary entries say nothing and
+ * the "see all" link is the honest answer.
+ */
+const siblingCache = new Map<string, Listing[]>();
+const siblingInflight = new Map<string, Promise<Listing[] | null>>();
+
+/** `null` result = no sibling file exists for this category (by design). */
+export function fetchCategorySiblings(category: string): Promise<Listing[] | null> {
+  const slug = category
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  if (!slug) return Promise.resolve(null);
+  const hit = siblingCache.get(slug);
+  if (hit) return Promise.resolve(hit);
+  const running = siblingInflight.get(slug);
+  if (running) return running;
+
+  const p = fetch(`${PACKAGE_DATA_DIR}/cat/${slug}.json${DATASET_VERSION}`)
+    .then((res) => {
+      // A 404 here is a normal answer, not a failure: it means the category is
+      // too large to have a sibling file.
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`category ${res.status}`);
+      return res.json();
+    })
+    .then((rows: Listing[] | null) => {
+      const out = rows ? withLinkKeys(rows) : null;
+      if (out) siblingCache.set(slug, out);
+      siblingInflight.delete(slug);
+      return out;
+    })
+    .catch((err) => {
+      siblingInflight.delete(slug);
+      throw err;
+    });
+  siblingInflight.set(slug, p);
+  return p;
+}
+
+/**
+ * Row-set state for a product page. Mirrors `useCatalog`'s status contract so
+ * the view keeps its existing three honest states (index shell, fetch failed,
+ * key absent) without change.
+ */
+export function useProductRow(slug: string | null): {
+  status: CatalogStatus;
+  payload: ProductPayload | null;
+  retry: () => void;
+} {
+  const [status, setStatus] = useState<CatalogStatus>(() => (slug ? "loading" : "idle"));
+  const [payload, setPayload] = useState<ProductPayload | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  // Same contract as `useCatalog`: a failed fetch may be retried, so
+  // `error -> loading` is a legal transition. The attempt counter re-runs the
+  // effect rather than adding a second code path.
+  const retry = useCallback(() => {
+    productCache.delete(slug ?? "");
+    setStatus("loading");
+    setAttempt((n) => n + 1);
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) {
+      setStatus("idle");
+      setPayload(null);
+      return;
+    }
+    let alive = true;
+    setStatus("loading");
+    fetchProductPayload(slug)
+      .then((p) => {
+        if (!alive) return;
+        setPayload(p);
+        setStatus("ready");
+      })
+      .catch(() => {
+        if (!alive) return;
+        setStatus("error");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [slug, attempt]);
+
+  return { status, payload, retry };
+}
+
 /**
  * Row-set state for a view that starts from prerendered props and upgrades to
  * the full catalog when it needs to filter, search or resolve an entry.

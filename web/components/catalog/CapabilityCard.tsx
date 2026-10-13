@@ -8,6 +8,7 @@ import { kindLabel, listingHref } from "../../lib/catalog";
 import { hostsFor } from "../../lib/hosts";
 import type { AgentChoice } from "../../lib/landing";
 import { rowWorksWithAgent } from "../../lib/landing";
+import { availabilityOf } from "../../lib/availability";
 import { PublisherTile, VerifiedMark } from "./PublisherMark";
 
 /**
@@ -40,14 +41,22 @@ const KIND_BADGE: Record<Listing["kind"], string> = {
   plugin: "meta-kind meta-kind-plugin",
 };
 
-/** Only fields the wire format actually publishes. Absent is stated, not guessed. */
+/**
+ * One technical field. Absent fields are omitted rather than rendered as
+ * "not published".
+ *
+ * The card used to print a placeholder for every field the publisher did not
+ * supply, which on a typical entry was two or three of six — the home page
+ * alone carried 39 of them. Six rows of which three say nothing is worse than
+ * three rows and a sentence explaining the rule, and the explanation is stated
+ * once below the list instead of once per row.
+ */
 function TechRow({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-rule py-1.5 last:border-b-0">
       <dt className="t-mono shrink-0 text-[10.5px] uppercase tracking-wider text-ink-3">{label}</dt>
-      <dd className="t-mono min-w-0 truncate text-right text-[11.5px] text-ink-2">
-        {value ? value : <span className="absent">not published</span>}
-      </dd>
+      <dd className="t-mono min-w-0 truncate text-right text-[11.5px] text-ink-2">{value}</dd>
     </div>
   );
 }
@@ -55,9 +64,11 @@ function TechRow({ label, value }: { label: string; value?: string | null }) {
 export function CapabilityCard({ item, agent, className = "" }: CapabilityCardProps) {
   const worksWith = rowWorksWithAgent(item, agent ?? null);
   const hosts = hostsFor(item);
+  const avail = availabilityOf(item);
   const detail = [
     kindLabel(item.kind),
     item.publisher?.name ? `by ${item.publisher.name}` : "publisher unspecified",
+    avail.plain,
     item.summary,
   ].join(". ");
 
@@ -93,8 +104,18 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className={KIND_BADGE[item.kind]}>{kindLabel(item.kind)}</span>
+        <span
+          className={`inline-flex items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
+            avail.installable
+              ? "border-rule-2 bg-surface text-ink-2"
+              : "border-dashed border-rule-2 bg-sunken text-ink-3"
+          }`}
+          title={avail.plain}
+        >
+          {avail.label}
+        </span>
         {item.category && <span className="text-[11.5px] text-ink-3">{item.category}</span>}
-        {item.publisher?.verified && <VerifiedMark glyph />}
+        {item.publisher?.verified && <VerifiedMark />}
         {agent && agent.hosts.length > 0 && (
           <span
             className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
@@ -130,6 +151,10 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
           <TechRow label="source" value={item.publisher?.provenance} />
           <TechRow label="hosts" value={hosts.length ? `${hosts.length} declared` : null} />
         </dl>
+        <p className="mt-2 text-[11.5px] leading-relaxed text-ink-3">
+          Only what the publisher published. A field it did not provide is left out rather than
+          guessed.
+        </p>
       </details>
     </article>
   );

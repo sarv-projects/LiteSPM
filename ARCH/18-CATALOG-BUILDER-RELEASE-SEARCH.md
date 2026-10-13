@@ -13,7 +13,8 @@
 >     `test/catalog_e2e_test.go` syncs it end to end (build → serve → sync → search → offline
 >     reload). **The live origin was re-published on 2026-10-05**: it serves the Go-built pointer
 >     (`rel-2026-10-05-01`, sequence 143, `schemaVersion` 1) and the release tree it digests, and
->     `catalog sync` against it was verified from a clean data root (5,814 indexed).
+>     `catalog sync` against it was verified from a clean data root (5,814 indexed at the time;
+>     the release it named has since been replaced — see the pointer note below).
 > *   The `_headers` cache policy in §4 **is** implemented — `scripts/deploy-pages.sh` writes it
 >     into the staging directory at deploy time. It is a build artifact under the gitignored
 >     `pages-dist/`, so it is absent from the source tree. §4's signature stanza
@@ -28,8 +29,10 @@
 >     Go = publication) is what the code does; locked decision D4 itself is still unadjudicated
 >     (`STATUS.md` §2).
 > *   The committed `web/public/v1/current.json` is Go-built (`schemaVersion`, digest over
->     `manifest.json`, second-precision timestamps) and names `rel-2026-10-07-01`, sequence 145,
->     5,825 items; the last verified served pointer was `rel-2026-10-05-01` (probe 2026-10-05).
+>     `manifest.json`, second-precision timestamps) and names **`rel-2026-10-11-02`**, sequence 147,
+>     **69,376 items** (probe 2026-10-13). Earlier pointers this file used to name
+>     (`rel-2026-10-07-01`, `rel-2026-10-05-01`) have since been **replaced at the origin** and now
+>     return 404, so a probe is evidence only for the release it names.
 >
 > The normative path contract in §2 (`/v1/releases/...`) **is** what the client requests, and
 > `TestReleasePathContractPinsDocumentedLayout` in `internal/catalog/catalog_test.go` pins it against
@@ -95,6 +98,30 @@ Properties a reader may rely on:
 - The client (`internal/catalog`) reads old and new releases through one path: it gathers a kind's
   shards from the manifest, verifies each against its recorded digest, and decodes them in order. The
   cache persists the shards verbatim, so a cached release mirrors the origin file for file.
+
+**The rest of the Free-plan budget, measured rather than remembered.** 25 MiB per asset is
+the limit that forced §2.1 above, but it is not the only one, and nothing used to assert the
+others — a change that spent the budget would fail at `wrangler deploy` and report a CDN
+problem rather than an exhausted budget. `scripts/check_pages_limits.py` now measures a built
+bundle against Cloudflare's published limits and `scripts/audit-pages-dist.sh` runs it on the
+real one before upload:
+
+| Free-plan limit | Value | This bundle (2026-10-13) |
+| --- | --- | --- |
+| Files per site | 20,000 | **533** — 2.7% of the budget |
+| Single asset | 25 MiB | **20.00 MiB** (`listings-0002.json`) — 80% |
+| Build timeout | 20 minutes | ~2 minutes locally |
+
+The per-asset cap is the tightest at 80%, and `ReleaseShardMaxBytes` is 20 MiB precisely to
+leave that headroom — raising it means re-checking Cloudflare's limit first. File count has
+97% of its budget free.
+
+That table also rules out a tempting design: one static page per catalog entry. 69,376 pages
+would fit the *paid* file count (100,000, with `PAGES_WRANGLER_MAJOR_VERSION=4`) but not the
+20-minute build timeout, so per-slug server rendering — not 69,376 prerendered files — is the
+only shape that would work there.
+
+Source: <https://developers.cloudflare.com/pages/platform/limits/> (last updated 2026-09-05).
 
 ---
 

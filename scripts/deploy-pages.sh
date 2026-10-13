@@ -107,6 +107,38 @@ cat << 'EOF' > "${PAGES_DIR}/_headers"
   X-Content-Type-Options: nosniff
 EOF
 
+echo "● Writing Cloudflare Pages _redirects..."
+# Canonical path form for product pages.
+#
+# Product pages shipped as `/package/?slug=<slug>`. A query parameter is not a
+# route: it carries no identity of its own, so it cannot be linked to as a page,
+# and the same key has one address that no crawler will treat as a resource.
+#
+# `/package/<slug>` fixes that WITHOUT a page per entry — which is what makes it
+# affordable. 69,376 prerendered pages would exceed the 20,000-file free-plan
+# limit and add ~2 GB of HTML inside the same 20-minute build. A `200` proxy
+# instead serves the one prerendered shell at the requested path, so the address
+# bar keeps `/package/<slug>` and there is no new file, no new HTML, and no
+# billed Worker invocation (this deployment has no Worker script — `wrangler.toml`
+# is `[assets]` only, and static asset serving is not an invocation).
+#
+# `:slug` matches every non-`/` character, so percent-escapes like
+# `skill%3Aanthropics%3Adocx` match as one segment. The proxy is transparent, so
+# `window.location.search` is empty at the client — `useSlugParam` reads the
+# pathname for exactly this reason, and canonicalises the legacy query form.
+#
+# The destination must be the DIRECTORY (`/package/`), not `/package/index.html`.
+# Verified against a local Workers runtime: the explicit-file form returns
+# **307** rather than serving, because Workers Static Assets normalises an
+# `index.html` request with a redirect. `/package/` serves the shell `200 OK`,
+# byte-identical to the bare route.
+#
+# Only the first matching rule in this file applies, and dynamic rules are
+# limited to 100: this uses one.
+cat << 'EOF' > "${PAGES_DIR}/_redirects"
+/package/:slug /package/ 200
+EOF
+
 # Every judgement about the finished bundle lives in one script, which CI also
 # runs, so the deploy path and the checks it faces cannot drift apart.
 ./scripts/audit-pages-dist.sh "${PAGES_DIR}"

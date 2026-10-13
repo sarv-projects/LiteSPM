@@ -52,13 +52,13 @@ Highest honest state per phase, with the subsystem rows that back it in [STATUS.
 |---|---|---|
 | A — Architecture Freeze & Schemas | `DESIGNED` | `ARCH/00`–`ARCH/37` exist; the specification is written, not verified |
 | B — Foundations, Storage & IPC | `TESTED` | `domain` / `state` / `ipc` tests bind; no independent falsification pass yet (STATUS §1) |
-| C — Static Catalog & Discovery | `SHIPPED` for the compiler, `catalog build` and `catalog sync` | the release tree is published and `catalog sync` was verified against the live origin (2026-10-05, release `rel-2026-10-05-01`); shards/`index.json` remain `DESIGNED` (STATUS §2) |
+| C — Static Catalog & Discovery | `SHIPPED` for the compiler, `catalog build` and `catalog sync` | the release tree is published and `catalog sync` was verified against the live origin; the origin now names **`rel-2026-10-11-02`** (sequence 147, 69,376 items, sharded — probe 2026-10-13), and the `rel-2026-10-05-01` tree the 2026-10-05 probe cited has since been replaced. `index.json`/`shards/` remain `DESIGNED`; transport sharding is `IMPLEMENTED` (STATUS §2) |
 | D — Extraction, Resolver & Skills | `WIRED` (resolver, skills); `IMPLEMENTED` (install engine); `TESTED` (artifact) | skills and MCP servers install end to end through `/marketplace`; `install.execute` still has no artifact source for plugins (STATUS §3) |
 | E — Supervision, Bridge & Hosts | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | `providers` table never populated by non-test code → autostart inert (STATUS §4) |
 | F — MCP profiles, Secrets & OAuth | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | `mcpclient`'s first production importer is `internal/discover`; `auth` still has zero production importers (STATUS §1, §4) |
 | G — Marketplace, `/marketplace`, wizard | `WIRED` for read tools and the web marketplace | `request_install` completes for skills and MCP servers; plugins need artifact ingestion; two bridge tools (`get_invocation`, `cancel_invocation`) answer `-32601` (STATUS §3, §4) |
 | H — Build, Conformance & Packaging | `IMPLEMENTED` | npm wrapper warns and proceeds on a missing checksum entry; `LICENSE`/`NOTICE` are listed in the npm `files` allowlist and staged by `release.yml` before publish, but no publish has occurred yet (STATUS §1) |
-| I — Fixtures, Self-Update & Migrations | `WIRED` (self-update) / `TESTED` (state) | self-update verifies SHA-256 fail-closed and then the release's keyless Sigstore bundle when one is published; no published tag carries a bundle yet, so updates today are checksum-only with a stated note (STATUS §1) |
+| I — Fixtures, Self-Update & Migrations | `WIRED` (self-update) / `TESTED` (state) | self-update verifies SHA-256 fail-closed and then the release's keyless Sigstore bundle when one is published; `v0.4.0` (2026-10-11) is the first tag to publish one for every asset; earlier tags are checksum-only with a stated note (STATUS §1) |
 
 **Not yet true, and not claimed here:** a published catalog release tree with a succeeding
 `catalog sync`; an end-to-end agent-driven install; provider autostart; a project manifest +
@@ -103,7 +103,7 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 *   **Current state:** byte-determinism is demonstrated for the Go compiler
     (`TODO.md` `LPSM-C002`), the deploy allowlist/leak audit exists (`deploy-pages.sh`), and the
     **user-visible gate — a `catalog sync` that succeeds against the live origin — passes**
-    (verified 2026-10-05: release `rel-2026-10-05-01`, 5,814 indexed; STATUS §2).
+    (verified 2026-10-05: release `rel-2026-10-05-01`, 5,814 indexed — that tree has since been replaced, so the figures record that run; the origin now serves `rel-2026-10-11-02`; STATUS §2).
     Two builders also remain in tree (D4 contested).
 
 ### Phase D: Safe Artifact Extraction & Skill Management
@@ -171,7 +171,7 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 ### Phase I: Golden Fixtures, Self-Update & Migrations
 *   **Deliverables:**
     *   Golden host-configuration fixture corpus (`fixtures/hosts/`, `fixtures/source/`).
-    *   `self-update` with fail-closed SHA-256 verification, Sigstore bundle verification when the release publishes one (`cmd/litespm/main.go:391-438`), downgrade guard, and atomic replace (`internal/update`) — `WIRED`. **No published tag carries a bundle yet**, so the branch exercised today is checksum-only with a stated note.
+    *   `self-update` with fail-closed SHA-256 verification, Sigstore bundle verification when the release publishes one (`cmd/litespm/main.go:391-438`), downgrade guard, and atomic replace (`internal/update`) — `WIRED`. **`v0.4.0` is the first tag to publish one** (8 bundles, one per asset), so the checksum-only branch with a stated note now applies only to older tags.
     *   Transactional migrations with downgrade prevention (`internal/state/migrations.go:57` → `LPSM-STATE-VERSION-INCOMPATIBLE`).
 *   **Gate:** fixture-backed adapter tests pass offline; update without a published checksum is refused; higher-schema databases halt.
 *   **Current state:** the three stated checks hold. The phase does **not** include signed releases —

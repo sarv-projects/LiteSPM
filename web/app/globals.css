@@ -562,6 +562,43 @@
     border: 1px solid color-mix(in srgb, var(--plugin) 20%, transparent);
   }
 
+  /*
+   * Whether `litespm install` can actually complete for this row.
+   *
+   * Deliberately built from ink/sunken rather than any of the `--mcp`/`--skill`/
+   * `--plugin` hues: those identify the *kind* of capability and reusing one for
+   * installability would compound exactly the confusion this chip exists to end.
+   *
+   * The blocked state is the one that has to be noticed — a reader who misses
+   * "Remote endpoint" loses nothing, a reader who misses "Discovery only" opens a
+   * page expecting an install that cannot happen. So the blocked state gets the
+   * dashed, recessed treatment and the installable states stay quiet but legible.
+   */
+  .meta-avail {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--r-chip);
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .meta-avail-installable {
+    background-color: var(--surface);
+    color: var(--ink-2);
+    border: 1px solid var(--rule-2);
+  }
+  .meta-avail-blocked {
+    background-color: var(--sunken);
+    color: var(--ink-3);
+    border: 1px dashed var(--rule-2);
+  }
+
   .meta-spec {
     display: inline-flex;
     align-items: center;
@@ -886,6 +923,40 @@
     }
     to {
       stroke-dashoffset: 0;
+    }
+  }
+
+  /* The travelling highlight. `pathLength={1}` normalises every path, so a
+     dash of 0.05 with a 0.95 gap tiles the length exactly and an offset of -1
+     lands visually where it started — a seamless loop with no resync jitter.
+     Offset per path inline (`animation-delay`), so the lattice never blinks in
+     lockstep; the whole thing is 1.4px at ~50% opacity, quiet enough to read as
+     texture at a glance and as direction on a second look. */
+  .bridge-flow {
+    stroke-dasharray: 0.05 0.95;
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+  /* No min-width here, unlike `bridge-draw`: the mobile diagram draws a smaller
+     lattice and it is still a lattice. One gate, the one that matters —
+     reduced motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    .bridge-flow {
+      animation: bridge-flow 5000ms linear infinite;
+    }
+  }
+  @keyframes bridge-flow {
+    from {
+      stroke-dashoffset: 0;
+      opacity: 0;
+    }
+    12%,
+    88% {
+      opacity: 1;
+    }
+    to {
+      stroke-dashoffset: -1;
+      opacity: 0;
     }
   }
 }

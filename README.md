@@ -27,7 +27,7 @@ It eliminates the need to manually configure, update, and manage capabilities ac
 |---|---|---|---|
 | **Phase A** | **Architecture Freeze & LLD Specifications** | `DESIGNED` | `ARCH/00`–`ARCH/38` exist. `ARCH/24` is an aspirational inventory, not a compiled one; `ARCH/18` specifies an output tree (`index.json`, `shards/`, `items/`) that the compiler does not emit (those outputs are labelled `DESIGNED`) |
 | **Phase B** | **Foundations, Storage & Local IPC** | `TESTED` | `internal/domain`, `internal/config`, `internal/state` (SQLite WAL, 22 tables), `internal/ipc` (named pipes / Unix sockets). Contract tests bind; see [STATUS.md](STATUS.md) §1 |
-| **Phase C** | **Static Catalog & Discovery Plane** | `SHIPPED` | `internal/catalogbuild` + `litespm catalog build` are `TESTED` (real-dataset + end-to-end build→serve→sync→search tests); the release tree **is published** and `litespm catalog sync` was verified against the live origin from a clean data root (2026-10-05 probe: release `rel-2026-10-05-01`, 5,814 indexed; the committed pointer `web/public/v1/current.json` now names `rel-2026-10-07-01`, sequence 145, 5,825 items). `ARCH/18` §1–§2's `index.json`/`shards`/`items` remain un-emitted (shards are `DESIGNED`) |
+| **Phase C** | **Static Catalog & Discovery Plane** | `SHIPPED` | `internal/catalogbuild` + `litespm catalog build` are `TESTED` (real-dataset + end-to-end build→serve→sync→search tests, green 2026-10-13); the release tree **is published** and `litespm catalog sync` was verified against the live origin from a clean data root (2026-10-05 probe: release `rel-2026-10-05-01`, 5,814 indexed — that tree has since been replaced and now 404s, so the figures are the record of that run). The current release is **`rel-2026-10-11-02`, sequence 147, 69,376 items**, named by both the committed pointer `web/public/v1/current.json` and the live origin (probe 2026-10-13). `ARCH/18` §1–§2's `index.json`/`shards`/`items` remain un-emitted; **transport sharding is `IMPLEMENTED`** (`listings-0000…0003`, `versions-0000…0001`) |
 | **Phase D** | **Safe Extraction & Skill Store** | `WIRED` (resolver, skills); `IMPLEMENTED` (install engine); `TESTED` (artifact) | `internal/resolver` and `internal/skills` are reached from production paths and `internal/artifact` is test-covered ([STATUS.md](STATUS.md) §1/§3); skills and MCP servers install end to end (verified against the live catalog). Only **plugins** still need an artifact source — [ARCH/31 §4.1](ARCH/31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#41-the-agent-facing-install-path-cannot-complete--wired-is-false) |
 | **Phase E** | **Process Supervision, Bridge & Host Adapters** | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | 6 bespoke adapters + 44 generic BridgeTargets (50 total, `ARCH/30`) + 77 skill targets are registered. Provider autostart is inert: the `providers` table is never populated by non-test code (finding `m4`). See [STATUS.md](STATUS.md) §1/§4 |
 | **Phase F** | **MCP Protocol Dual-Profile, Secrets & OAuth** | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | Dual-profile client, native OS keystores, OAuth PKCE loopback exist; the secrets vault is opened before serving (`WIRED`), but secrets are not injected at provider launch, `mcpclient`'s first production importer is `internal/discover`, and `auth` still has zero production importers — the `AuthBroker` currently has no consumer (finding 99), [STATUS.md](STATUS.md) §1/§4 |
@@ -474,8 +474,10 @@ which matter for a project that writes into other people's agent configuration f
     not `WIRED` — [STATUS.md](STATUS.md) §1); a future brokered connector never hands its token to
     the agent ([ARCH/29](ARCH/29-CONNECTOR-SYSTEM-DESIGN.md)).
 *   **Release integrity:** release binaries are published with `SHA256SUMS.txt` and the self-updater
-    fails closed on a digest mismatch. **Release signing is implemented but not yet shipped:**
-    `release.yml` produces a keyless cosign bundle over every release artifact plus a CycloneDX
-    SBOM, the updater verifies the bundle, and the catalog pointer is signed and checked on sync —
-    but no `v*` tag has shipped yet, so no published release carries a bundle. See
-    [`SECURITY.md`](SECURITY.md) and [STATUS.md](STATUS.md) §1/§5 for the authorities.
+    fails closed on a digest mismatch. **Release signing is implemented and shipped since `v0.4.0`
+    (2026-10-11):** `release.yml` produces a keyless cosign bundle over every release artifact plus a
+    CycloneDX SBOM, the updater verifies the bundle, and the catalog pointer is signed and checked on
+    sync. `v0.4.0` carries **8 `.sigstore.json` bundles — one per asset**; `v0.3.0` and every earlier
+    tag carry none, so an update from `v0.4.0` verifies a real signature while the checksum-only
+    branch remains reachable for older tags. See [`SECURITY.md`](SECURITY.md) and
+    [STATUS.md](STATUS.md) §1/§5 for the authorities.

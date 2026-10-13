@@ -142,7 +142,7 @@ function OverviewPanel({ item }: { item: Listing }) {
           )}
         </SpecRow>
         <SpecRow label="Publisher listing">
-          {item.publisher?.verified ? <VerifiedMark glyph /> : <Absent text="third-party list entry" />}
+          {item.publisher?.verified ? <VerifiedMark /> : <Absent text="third-party list entry" />}
         </SpecRow>
         <SpecRow label="Version">
           {item.version ? (
@@ -151,6 +151,27 @@ function OverviewPanel({ item }: { item: Listing }) {
             <Absent text="not published" />
           )}
         </SpecRow>
+        {/* Runtime and transport used to sit in their own "What can it do?"
+            section at the top of every page, inside a disclosure. They are
+            per-entry technical fields, which is what this list is for. */}
+        {item.kind === "mcp" && (
+          <SpecRow label="Runtime">
+            {item.runtime ? (
+              <span className="t-mono text-[12px]!">{item.runtime}</span>
+            ) : (
+              <Absent text="unspecified" />
+            )}
+          </SpecRow>
+        )}
+        {item.kind === "mcp" && (
+          <SpecRow label="Transport">
+            {item.transport ? (
+              <span className="t-mono text-[12px]!">{item.transport}</span>
+            ) : (
+              <Absent text="unspecified" />
+            )}
+          </SpecRow>
+        )}
         <SpecRow label="Popularity">
           <span
             className="absent"
@@ -316,7 +337,9 @@ function SecurityPanel({ item }: { item: Listing }) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <div className="border-t border-rule pt-3">
-        <h3 className="text-[14px] font-semibold tracking-tight text-ink">How far this got</h3>
+        <h3 className="text-[14px] font-semibold tracking-tight text-ink">
+          How much was actually read
+        </h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="chip pointer-events-none">{installability ? installability.label : "—"}</span>
           <code className="t-mono text-[11px] text-ink-3">
@@ -326,17 +349,29 @@ function SecurityPanel({ item }: { item: Listing }) {
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
           {installability ? installability.plain : "This entry does not publish a provenance level."}
         </p>
+        {/* Two different questions share the words "Discovery only", and only
+            this sentence separates them: `installability` grades how much
+            metadata was *read*, while the badge at the top of the page answers
+            whether `litespm install` will actually run — which also weighs the
+            entry's kind. A plugin can be `metadata_verified` (LiteSPM-parsed)
+            and still be not installable, which is exactly the pair a reader
+            would otherwise read as a contradiction. */}
+        <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
+          This grades what was read, not whether an install will run. The badge at the top of the
+          page answers that, and it also weighs the entry&rsquo;s kind — a plugin can be
+          <em> LiteSPM-parsed</em> and still not installable.
+        </p>
       </div>
 
       <div className="border-t border-rule pt-3">
         <h3 className="text-[14px] font-semibold tracking-tight text-ink">Who published it</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          {item.publisher?.verified ? <VerifiedMark glyph /> : <span className="chip pointer-events-none">third-party list entry</span>}
+          {item.publisher?.verified ? <VerifiedMark /> : <span className="chip pointer-events-none">third-party list entry</span>}
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
-          &ldquo;vendor-listed&rdquo; means the row came from that publisher&rsquo;s own marketplace
-          manifest. No registry verified the publisher, and LiteSPM has not audited it — it is a
-          provenance flag, not a security review.
+          &ldquo;From publisher manifest&rdquo; means the row came from that publisher&rsquo;s own
+          marketplace manifest. No registry verified the publisher, and LiteSPM has not audited it —
+          it is a provenance flag, not a security review.
         </p>
       </div>
 
@@ -463,8 +498,8 @@ function SourcePanel({ item }: { item: Listing }) {
         </p>
         {item.publisher?.verified && (
           <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-ink-3">
-            A verified listing flag means the row was parsed from that publisher&rsquo;s manifest —
-            not that any registry or this project reviewed the code.
+            A verified listing flag means the row was parsed from that publisher&rsquo;s manifest.
+            It is not a code review.
           </p>
         )}
       </div>

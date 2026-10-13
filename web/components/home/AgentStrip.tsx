@@ -35,15 +35,16 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
   if (!choice) {
     status = (
       <>
-        Pick an agent above and we&rsquo;ll point out what works with it. Nothing is sent anywhere —
-        we work it out from the rows already on this page.
+        Choose one and the cards below mark themselves against it. This stays on your machine — we
+        read it back out of this browser, and nothing about you leaves it.
       </>
     );
   } else if (choice.hosts.length === 0) {
     status = (
       <>
-        Fair enough. Nothing is measured against <strong className="font-medium text-ink-2">&ldquo;{choice.label}&rdquo;</strong>,
-        so no capability here will claim to work with it.
+        Noted, and we won&rsquo;t pad it. Nothing in this catalog has been tested against{" "}
+        <strong className="font-medium text-ink-2">&ldquo;{choice.label}&rdquo;</strong>, so nothing
+        here claims to work with you. That&rsquo;s an honest blank, not a rejection.
       </>
     );
   } else if (countFor !== null) {
@@ -51,16 +52,16 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
       <>
         <span className="t-mono t-tabular text-ink">{countFor.toLocaleString("en-US")}</span> of{" "}
         <span className="t-mono t-tabular text-ink">{total.toLocaleString("en-US")}</span> entries
-        list <strong className="font-medium text-ink-2">{choice.label}</strong> among their compatible
-        hosts.
+        name <strong className="font-medium text-ink-2">{choice.label}</strong> as a compatible host.
+        That is the publisher&rsquo;s declaration — we have not run any of them.
       </>
     );
   } else {
     status = (
       <>
-        Cards below are marked against{" "}
-        <strong className="font-medium text-ink-2">{choice.label}</strong> using the rows already on
-        this page. Open a capability to see its full host list.
+        The cards below are marked against{" "}
+        <strong className="font-medium text-ink-2">{choice.label}</strong> from the rows already on
+        this page. Open one for its full host list.
       </>
     );
   }
@@ -99,7 +100,7 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
 
         <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
           What the badge means: if something works with your agent, it&rsquo;s because it can run
-          there — not because we tested it there. We tell you which, rather than rounding it up.
+          there, not because it was tested there.
         </p>
       </div>
     </section>

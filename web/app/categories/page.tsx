@@ -1,8 +1,17 @@
 import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import { categoryIndex, withLinkKeys } from "../../lib/catalog";
+import type { Metadata } from "next";
 import type { CategoriesViewProps } from "./CategoriesView";
 import CategoriesRoute from "./CategoriesRoute";
+
+export const metadata: Metadata = {
+  title: "Categories",
+  description:
+    "Every category in the catalog snapshot, with the number of MCP servers, agent skills and plugins filed under it.",
+  alternates: { canonical: "/categories/" },
+  openGraph: { title: "Categories · LiteSPM Market", url: "/categories/" },
+};
 
 /**
  * Server Component: the category index is pure aggregation over the full

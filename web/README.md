@@ -11,7 +11,10 @@ Capability state: **`SHIPPED`** for the static marketplace and the published cat
 [STATUS.md](../STATUS.md) §1–§2. The site and the binary now read the same origin:
 `https://litespm.sarveshbh-2022.workers.dev` serves both, and `litespm catalog sync` was verified
 against it from a clean data root on 2026-10-05 (probe: release `rel-2026-10-05-01`, sequence 143,
-5,814 indexed; the committed pointer now names `rel-2026-10-07-01`, sequence 145). The earlier "the sync path is dead at the origin" defect
+5,814 indexed). That release has since been superseded: the committed pointer and the live origin
+both name **`rel-2026-10-11-02`, sequence 147, 69,376 items** (probe 2026-10-13, sharded — see the
+`/data/` table in §3), and the `rel-2026-10-05-01` tree the 2026-10-05 probe cited now 404s at the
+origin. The earlier "the sync path is dead at the origin" defect
 ([ARCH/31 §4.2](../ARCH/31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#42-the-published-catalog-and-the-client-read-different-files--the-sync-path-is-dead-at-the-origin))
 is closed.
 
@@ -24,12 +27,16 @@ is closed.
 | `npm ci` | — | Installs from `package-lock.json`. Works. |
 | `npm run dev` | `next dev` | Works (local development server). |
 | `npm run build` | `next build` | Works — writes the static export to **`web/out/`**. This is what CI and `scripts/deploy-pages.sh` run. |
-| `npx tsc --noEmit` | *(no script exists)* | Works — **exits 0** as of this pass. CI runs it as a `npx tsc --noEmit` step; `package.json` has **no `type-check` script**, so `npm run type-check` fails with "Missing script" even though `lib/hosts.ts` refers to it in a comment. |
+| `npm run type-check` | `tsc --noEmit` | Works — **exits 0**. `lib/hosts.ts:10` refers to this script, and until this pass it did not exist, so the comment named a command that failed with "Missing script". CI now runs `npm run type-check` (`build-web`) so the script cannot rot unnoticed. |
 | `npm run start` | `next start` | **Broken by design.** Next.js refuses: `"next start" does not work with "output: export" configuration. Use "npx serve@latest out" instead.` Use a static file server on `out/`. |
-| `npm run lint` | `next lint` | **Broken / non-hermetic.** There is no ESLint config and no `eslint` dependency, so `next lint` opens an interactive "How would you like to configure ESLint?" prompt and hangs when stdin is not a TTY. It cannot pass in CI and is not run there. |
+| `npm run lint` | `node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs` | Works — **exits 0**. It replaced `next lint`, which could never pass here: with no ESLint config and no `eslint` dependency it opened an interactive "How would you like to configure ESLint?" prompt and hung whenever stdin was not a TTY. Two rules run, both with the TypeScript API already in `devDependencies`: a Hook must not follow an early return (React error #310, which `tsc` and `next build` both accept), and an exported component must be reachable from a route. Neither is a general linter, and together they add nothing to the lockfile. |
 
-Only `npm ci` + `npx tsc --noEmit` + `npm run build` are wired into CI
-(`.github/workflows/ci.yml`, job `build-web`), which then asserts `test -f web/out/index.html`.
+CI's `build-web` job now runs, in order: `npm ci`, `npm run type-check`, `npm run lint`, `npm run build`,
+then `scripts/deploy-pages.sh` — which materializes the release tree, verifies its digest chain, scans
+the bundle for leaked source, and checks it against Cloudflare Pages' limits. The Job also asserts
+`test -f web/out/index.html`. Separately, a `Check Catalog Coherence` step runs
+`scripts/check_catalog_coherence.py` before the build so a dataset/release/pointer disagreement fails
+fast.
 
 ## 2. Layout
 
@@ -39,10 +46,15 @@ web/
                   Each route is a Server Component (`page.tsx`) that reads `data/catalog.json`
                   at build time, a thin client wrapper (`*Route.tsx`) that owns the `next/dynamic`
                   import, and the view (`*View.tsx`) that hydrates from props.
-                  `scripts/emit-catalog-shards.mjs` (run via `prebuild`) shards `data/catalog.json`
-                  into `public/data/catalog.json` (an index) + `public/data/catalog-*.json`.
-  components/     catalog/  hero/  home/  layout/  navigation/  package/  ui/
+                  `scripts/emit-catalog-shards.mjs` (run via `prebuild`) writes three things:
+                  `public/data/catalog.json` (an index) + `public/data/catalog-*.json` (the ordered
+                  shards Explore concatenates), and `public/data/pkg/<n>.json` — a 256-way hash
+                  partition so a *product page* resolves one row without downloading the catalog.
+                  `scripts/check-hook-order.mjs` and `scripts/check-orphan-components.mjs` are
+                  `npm run lint`.
+  components/     catalog/  home/  layout/  navigation/  package/  ui/
   lib/            catalog.ts  catalogData.ts  hosts.ts  landing.ts  query.ts  telemetry.ts
+                  availability.ts  brandLogos.ts  lifecycle.ts  vendorNames.ts
                   search.worker.ts  useCatalogSearch.ts  site.ts  clipboard.ts  format.ts
   data/           catalog.json · hosts.json · skill-targets.json · release.json   (build inputs)
   public/v1/      current.json                                                     (runtime fetch)
@@ -55,12 +67,13 @@ web/
 
 | File | Rows / shape | Read by | Produced by |
 |---|---|---|---|
-| `data/catalog.json` | **46,166** rows (`id`, `name`, `slug`, `kind`, `summary`, `category`, `publisher`, `transport`, `runtime`, `stars`, `version`, `command`, `args`, …) — the committed producer dataset | **Build time only:** the `page.tsx` Server Components derive counts, facets, section rows and one page of grid rows from it and serialize *those* into the HTML. The rows themselves are never imported by client code — that is what keeps ~3.8 MB out of every JS chunk. | `scripts/build_full_catalog.py` |
+| `data/catalog.json` | **69,376** rows (`id`, `name`, `slug`, `kind`, `summary`, `category`, `publisher`, `transport`, `runtime`, `stars`, `version`, `command`, `args`, …) — the committed producer dataset, ~42.5 MB | **Build time only:** the `page.tsx` Server Components derive counts, facets, section rows and one page of grid rows from it and serialize *those* into the HTML. The rows themselves are never imported by client code — that is what keeps tens of megabytes out of every JS chunk. | `scripts/build_full_catalog.py` |
 | `/data/catalog.json` | the shard index (`schema`, `rowCount`, `datasetDigest`, `shards[]`), plus the `catalog-*.json` shard files it names | fetched at **runtime**, lazily — on the first search, filter or entry lookup (`lib/catalogData.ts` concatenates the shards in order), never on a passive visit. Versioned by `data/release.json`'s `datasetDigest` (`?v=…`) so a CDN cannot answer a newer build with stale rows. | `npm run build` (`prebuild` runs `scripts/emit-catalog-shards.mjs`, which writes `public/data/`; each shard stays under Cloudflare's 25 MiB per-file cap) |
+| `/data/pkg/<n>.json`, `/data/pkg/cat/<slug>.json` | a 256-way hash partition of the same rows, keyed so a **product page fetches ~300 KB instead of the whole catalog** — plus a per-category sibling file for categories small enough for "also in" to mean something | fetched only by `/package/?slug=` (`fetchProductPayload` / `fetchCategorySiblings`). Before this, one product page concatenated all three catalog shards: **44.5 MB measured**. A row is filed under the bucket of both its `id` and its `slug`, because links use either. | `scripts/emit-catalog-shards.mjs` (`prebuild`) |
 | `data/hosts.json` | **50** bridge adapters | `lib/hosts.ts` | `scripts/gen_hosts_ts.go` from `internal/host` |
 | `data/skill-targets.json` | **77** skill install targets | `lib/hosts.ts` | `scripts/gen_hosts_ts.go` from `internal/skills` |
 | `data/release.json` | merged stats bundle: dataset stats (`itemCount`, per-kind counts, `hostCompatibility`, `datasetDigest`) + release identity (`releaseId`, `sequence`, `manifestDigest`, `createdAt`) | imported at **build time** (`lib/telemetry.ts`) | **Single writer per key:** `scripts/build_full_catalog.py` merges the dataset stats, `litespm catalog build` stamps the release identity |
-| `public/v1/current.json` | released pointer, `releaseId rel-2026-10-07-01`, `sequence 145`, `itemCount 5825`, `manifestDigest` over `manifest.json` | fetched at **runtime**, `cache: "no-store"` (`lib/telemetry.ts`) — the release-liveness check the header reports on | `go run ./cmd/litespm catalog build --out web/public` (copied through by `scripts/deploy-pages.sh`, which re-materializes it byte-for-byte) |
+| `public/v1/current.json` | released pointer: `releaseId rel-2026-10-11-02`, `sequence 147`, `itemCount 69376`, `manifestDigest` over `manifest.json` | fetched at **runtime**, `cache: "no-store"` (`lib/telemetry.ts`) — the release-liveness check the header reports on | `go run ./cmd/litespm catalog build --out web/public` (copied through by `scripts/deploy-pages.sh`, which re-materializes it byte-for-byte) |
 
 `stars` is `null` on every row by policy: no upstream source exposes a machine-readable popularity
 figure, so none is published (`ARCH/26` §12.4).
@@ -125,11 +138,16 @@ The site is public static content. Binding rules:
 
 ## 7. Truthfulness gaps (as of this pass)
 
-- `npm run start` and `npm run lint` are unusable (§1); there is no `type-check` script despite a
-  comment in `lib/hosts.ts` naming one.
-- Catalog freshness is not verified anywhere: no CI step runs the Python builder, so
-  `data/catalog.json` can go stale while every build stays green (row counts are printed by the
-  builders, not asserted against each other).
+- `npm run start` is unusable (§1); use a static server on `out/`. `npm run lint` no longer is: it
+  runs `check-hook-order.mjs` then `check-orphan-components.mjs` instead of the `next lint` that
+  could never pass. What remains missing is a *general* linter — the two rules that have bitten
+  this codebase are covered, nothing else is, and a full ESLint would add ten-plus plugin packages
+  to a tree that currently holds seven devDependencies.
+- Catalog freshness **is** now asserted: `scripts/check_catalog_coherence.py` compares the row count
+  and per-kind counts in `data/catalog.json` against the stats in `data/release.json` and the
+  pointer in `public/v1/current.json`, and the `build-web` job runs it before the build. The
+  remaining gap is *upstream of that*: no CI step runs the Python producer, so the numbers can be
+  internally consistent while the dataset itself is old.
 - UI stacks described elsewhere in prose do not all exist here: the dependency list contains no
   Radix packages — the components use plain React, Tailwind and `lucide-react` icons.
 - `next build` in CI proves the export compiles; it does not prove the deployed origin serves it

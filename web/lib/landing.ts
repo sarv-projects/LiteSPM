@@ -158,6 +158,15 @@ export function deriveTopics(items: Listing[]): TopicStat[] {
  * "What do you use?"
  * ------------------------------------------------------------------ */
 
+/**
+ * The key the agent preference is stored under.
+ *
+ * It was written out twice (`HomeView.tsx`, `PackageView.tsx`) and read by
+ * neither Explore nor any shared module. Exported here so the three surfaces
+ * that care about the choice cannot drift apart.
+ */
+export const AGENT_STORAGE_KEY = "litespm-agent";
+
 export interface AgentChoice {
   /** Value persisted in localStorage. */
   id: string;

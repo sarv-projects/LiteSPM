@@ -12,8 +12,8 @@ interface ExtensionGridProps {
   query: string;
   /**
    * Entry count for the header line. The prerendered view starts with one page
-   * of rows, so `items.length` would say "48 entries" over a catalog of 5,825;
-   * the caller passes the authoritative count instead.
+   * of rows, so `items.length` would say "48 entries" over a catalog of tens of
+   * thousands; the caller passes the authoritative count instead.
    */
   count?: number;
   loading?: boolean;
@@ -36,7 +36,6 @@ interface ExtensionGridProps {
   onShowMore?: () => void;
   /** Rendered above the rows; the caller owns the sort control. */
   toolbar?: React.ReactNode;
-  hostCount?: number;
 }
 
 const SUGGESTIONS = ["postgres", "github", "playwright", "browser", "memory", "docx"];
@@ -81,7 +80,6 @@ export function ExtensionGrid({
   onClearFilters,
   onShowMore,
   toolbar,
-  hostCount,
 }: ExtensionGridProps) {
   const [visible, setVisible] = useState(GRID_PAGE);
 
@@ -146,7 +144,7 @@ export function ExtensionGrid({
           </div>
 
           {shown.map((item) => (
-            <ExtensionCard key={item.id} item={item} hostCount={hostCount} />
+            <ExtensionCard key={item.id} item={item} />
           ))}
 
           {remaining > 0 && (

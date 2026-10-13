@@ -10,14 +10,14 @@ import { EcosystemSection } from "../components/home/EcosystemSection";
 import { StartSection } from "../components/home/StartSection";
 import { HowItWorks } from "../components/home/HowItWorks";
 import { AtlasTeaser } from "../components/home/AtlasTeaser";
-import { TrustStrip } from "../components/home/TrustStrip";
+import { FaqSection } from "../components/home/FaqSection";
 import { DeveloperZone } from "../components/home/DeveloperZone";
 import { SearchResults } from "../components/home/SearchResults";
 import { Listing, useTelemetry } from "../lib/telemetry";
 import { useCatalog } from "../lib/catalogData";
 import { useCatalogSearch } from "../lib/useCatalogSearch";
 import { deriveKindCounts, hostUniverse } from "../lib/catalog";
-import { AGENT_CHOICES, findAgentChoice, rowWorksWithAgent } from "../lib/landing";
+import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice, rowWorksWithAgent } from "../lib/landing";
 import type { ProvenanceStats, TopicStat } from "../lib/landing";
 
 /**
@@ -48,7 +48,6 @@ export interface HomeViewProps {
   vendorCount: number;
 }
 
-const AGENT_STORAGE_KEY = "litespm-agent";
 
 export default function Home(props: HomeViewProps) {
   const { status, items: full, request } = useCatalog();
@@ -94,7 +93,7 @@ export default function Home(props: HomeViewProps) {
     setSearchQuery(q);
   };
 
-  const { results, searching } = useCatalogSearch(full ?? [], deferredQuery, {
+  const { results, searching, settled } = useCatalogSearch(full ?? [], deferredQuery, {
     kind: null,
     category: null,
   });
@@ -137,6 +136,7 @@ export default function Home(props: HomeViewProps) {
             query={searchQuery}
             count={full ? results.length : undefined}
             loading={searching}
+            settled={settled}
             awaiting={awaiting}
             error={error}
             onRetry={request}
@@ -169,7 +169,7 @@ export default function Home(props: HomeViewProps) {
 
         <HowItWorks />
         <AtlasTeaser />
-        <TrustStrip provenance={props.provenance} />
+        <FaqSection provenance={props.provenance} />
         <DeveloperZone />
       </main>
 

@@ -8,18 +8,18 @@ import { SiteFooter } from "../../components/layout/SiteFooter";
 import { Listing } from "../../lib/telemetry";
 import { formatCount } from "../../lib/format";
 import { kindLabel, listingHref, sortListings } from "../../lib/catalog";
+import { availabilityOf } from "../../lib/availability";
 import { hostsFor } from "../../lib/hosts";
 import { VerifiedMark } from "../../components/catalog/PublisherMark";
-import { useCatalog } from "../../lib/catalogData";
+import { fetchCategorySiblings, useProductRow } from "../../lib/catalogData";
 import { SITE_URL } from "../../lib/site";
-import { AGENT_CHOICES, findAgentChoice, rowWorksWithAgent } from "../../lib/landing";
+import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice, rowWorksWithAgent } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { AddSteps, scrollToSection } from "../../components/package/AddSteps";
 import { PackageTabs } from "../../components/package/PackageTabs";
 import type { PackageTabId } from "../../components/package/PackageTabs";
 
 /** Same key the home strip writes; one preference, one storage slot. */
-const AGENT_STORAGE_KEY = "litespm-agent";
 
 /**
  * What `/package/` needs from the catalog, and all it needs before a reader
@@ -84,7 +84,24 @@ function PackageIndexShell({
           or its catalog id where the slug is shared by more than one entry.
         </p>
 
-        {note}
+        {/*
+          The note slot is reserved at a fixed height, and the vertical spacing
+          lives on the wrapper rather than on the note.
+
+          The shell prerenders with NO note (the slug has not resolved yet) and
+          then renders one once it has. Two things moved everything below it:
+          the note added height, and — because a plain `<div>` does not establish
+          a block formatting context — the note's own `mt-6` **collapsed out**
+          of the wrapper and moved the wrapper itself down 24px. Together that
+          measured as CLS 0.0132 against this repository's stated bar of *zero*
+          layout shift, on every visit to every product page, because it is the
+          mount→resolved transition itself. Spacing on the wrapper cannot
+          collapse, and `min-h` keeps both states the same height, so the shift
+          is gone. (A fetch *error* swaps in a taller panel and still moves
+          things; that is an exceptional state where a message appearing is the
+          feedback, and a permanently taller reservation would be worse.)
+        */}
+        <div className="mt-6 min-h-[44px]">{note}</div>
 
         <div className="section-head mt-9">
           <h2>Start of the catalog snapshot</h2>
@@ -142,38 +159,78 @@ function NotFound({ total }: { total: number }) {
 }
 
 /**
+ * Decode one URL path segment, tolerating malformed input.
+ *
+ * `decodeURIComponent` throws on a lone `%` or a truncated escape, and this runs
+ * on whatever the address bar holds — a hand-typed `/package/100%` must fall
+ * through to "no such key", not blank the page.
+ */
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+/**
  * The slug is read from `window.location` after mount rather than through
  * `useSearchParams`, so this route still prerenders as static HTML instead of
- * bailing into a Suspense boundary. With 5,814 entries the detail pages stay on
- * a single `?slug=` route - `generateStaticParams` would emit thousands of
- * files, which the static host cannot serve.
+ * bailing into a Suspense boundary. At 69,376 entries the detail pages stay on
+ * one prerendered page - `generateStaticParams` would emit 69,376 files, past
+ * the 20,000-file free-plan limit and ~2 GB of HTML, inside the same 20-minute
+ * build. (This comment said 5,814 entries; the catalog is 12x that now, so the
+ * argument has only strengthened.) The canonical path form `/package/<slug>` is
+ * served by a `_redirects` proxy in the deploy bundle rather than by a page per
+ * entry, which is why `useSlugParam` reads the pathname as well as the query.
  *
  * A slug is also the signal that the full row set is needed: the request fires
  * in the same effect that reads the parameter, so the fetch starts on the first
  * client frame rather than one render later. A bare `/package/` never asks.
  */
-function useSlugParam(request: () => void): { slug: string | null; resolved: boolean } {
+function useSlugParam(): { slug: string | null; resolved: boolean } {
   const [state, setState] = useState<{ slug: string | null; resolved: boolean }>({
     slug: null,
     resolved: false,
   });
 
   useEffect(() => {
-    // `?slug=` is a query, but the route is also reachable bare. Treat "no
-    // parameter" as resolved-with-nothing so a bare /package/ shows the route
-    // index rather than an unresolved placeholder.
-    const param = new URLSearchParams(window.location.search).get("slug");
-    if (param) request();
+    // Two spellings of the same page. `?slug=` is what the route shipped with;
+    // `/package/<slug>` is the canonical path form, served by a `_redirects`
+    // proxy in the deploy bundle. The proxy is transparent, so the browser keeps
+    // the path form and `window.location.search` stays empty — which is why the
+    // pathname has to be read here rather than relying on the query alone.
+    //
+    // A bare /package/ resolves-with-nothing, so it shows the route index rather
+    // than an unresolved placeholder.
+    const url = new URL(window.location.href);
+    const fromQuery = url.searchParams.get("slug");
+    const fromPath = /^\/package\/([^/]+)\/?$/.exec(url.pathname)?.[1] ?? null;
+    const param = fromQuery ?? (fromPath ? safeDecode(fromPath) : null);
+    // Canonicalise the legacy spelling. `_redirects` cannot match on a query
+    // string (Cloudflare lists `Query Parameters` as unsupported in the source),
+    // so the server cannot rewrite `?slug=` to the path form — but the client
+    // can, without a reload and without touching history length. Anyone who
+    // lands on the old form now gets a path-form address in the bar, so what
+    // they copy or bookmark is the canonical one.
+    if (fromQuery && !fromPath) {
+      window.history.replaceState(null, "", `/package/${encodeURIComponent(fromQuery)}`);
+    }
     setState({ slug: param, resolved: true });
-  }, [request]);
+  }, []);
 
   return state;
 }
 
 function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
-  const { status, items: full, request } = useCatalog();
-  const { slug, resolved } = useSlugParam(request);
-  const lookup = useMemo(() => (full ? buildLookup(full) : null), [full]);
+  const { slug, resolved } = useSlugParam();
+  // One product row, two counts and the sibling list come from ~170 KB of
+  // hash-partitioned rows rather than the 44.5 MB full catalog this route used
+  // to concatenate on every visit.
+  const { status, payload, retry } = useProductRow(slug);
+  // The same lookup the full set used: ids always resolve, ambiguous slugs are
+  // not registered. Only the input shrank from 69,376 rows to ~270.
+  const lookup = useMemo(() => (payload ? buildLookup(payload.rows) : null), [payload]);
   const item = useMemo(() => (slug && lookup ? lookup.get(slug) ?? null : null), [slug, lookup]);
 
   // The agent preference. Reading it is enough to personalize the page;
@@ -205,16 +262,45 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
 
   // Version coverage over the loaded row set — a count only because this route
   // has the rows in memory once a slug resolved.
-  const snapshot = useMemo(() => {
-    if (!full) return { total: 0, versioned: 0 };
-    let versioned = 0;
-    for (const row of full) if (row.version) versioned += 1;
-    return { total: full.length, versioned };
-  }, [full]);
+  // The bucket carries the whole-snapshot counts, so this stays a real count
+  // without the page holding 69,376 rows to derive it.
+  const snapshot = useMemo(
+    () => payload?.counts ?? { total: 0, versioned: 0 },
+    [payload]
+  );
 
   // Pre-hydration, and when the route is visited bare, we cannot know which
   // entry is wanted. Both cases get the route index: a described frame with
   // real links, not a spinner and not a false "not found".
+  /**
+   * The tab, the history entry and any bookmark read `document.title`, and
+   * every product page shipped the site's generic one — so browsing ten
+   * products gave ten identical tabs.
+   *
+   * This hook runs *before* the early returns below, on purpose: placing it
+   * after them changed the number of hooks between the unresolved and resolved
+   * renders, and React refuses that with error #310 ("rendered more hooks than
+   * during the previous render"). The null case is handled by the dependency
+   * instead of a guard.
+   *
+   * Client-side only, and not dressed up as more than it is: this fixes what
+   * the reader sees, not what a crawler or a link preview sees. Those need HTML
+   * rendered per entry, which the static export cannot produce — 69,376 pages
+   * against Cloudflare Pages' 20,000-file deployment cap (100,000 on a paid
+   * plan, at roughly 2 GB of HTML). The real fix for previews is per-slug
+   * server rendering, which contradicts this site's documented static-only
+   * architecture, so it is a decision rather than a patch.
+   */
+  const docTitle = item?.name ?? null;
+  useEffect(() => {
+    if (!docTitle) return;
+    const previous = document.title;
+    document.title = `${docTitle} · LiteSPM Market`;
+    return () => {
+      document.title = previous;
+    };
+  }, [docTitle]);
+
   if (!resolved || !slug) {
     return (
       <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
@@ -248,15 +334,15 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
           indexRows={indexRows}
           note={
             pending ? (
-              <p className="t-mono mt-6 text-[12px] text-ink-3" role="status">
+              <p className="t-mono text-[12px] text-ink-3" role="status">
                 Loading “{slug}”…
               </p>
             ) : (
-              <div className="mt-6 border border-rule-2 bg-sunken px-4 py-3">
+              <div className="border border-rule-2 bg-sunken px-4 py-3">
                 <p className="text-[13px] text-ink-2">
                   The catalog rows could not be fetched, so this key cannot be resolved either way.
                 </p>
-                <button type="button" onClick={request} className="btn btn-solid mt-2">
+                <button type="button" onClick={retry} className="btn btn-solid mt-2">
                   Try again
                 </button>
               </div>
@@ -270,6 +356,7 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
 
   const hosts = hostsFor(item);
   const worksWith = rowWorksWithAgent(item, agent);
+  const avail = availabilityOf(item);
 
   // Rendered client-side because the entry is keyed off `?slug=`. Every field
   // here comes straight from the bundled record; nothing is inferred.
@@ -306,30 +393,6 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
   };
 
   /** Question two — plain first, exact fields one disclosure deeper. */
-  const canDo = {
-    mcp: {
-      plain:
-        "An MCP server is a small service your agent talks to: it gives your agent new tools to call — search, read, write, run — without the agent itself changing. Once LiteSPM has registered it, your agent reaches it through the one LiteSPM bridge entry.",
-      published:
-        "The catalog publishes this server's description and its runtime. The individual tools it exposes are discovered by your agent after it connects — this page does not list them.",
-      connects: "the single LiteSPM bridge entry, once per host",
-    },
-    skill: {
-      plain:
-        "An agent skill is a written workflow — a SKILL.md your agent loads as instructions when they are relevant. It changes what your agent knows how to do, not what software it runs.",
-      published:
-        "The catalog publishes the skill's name, description and source repository; the instructions themselves live in that repository.",
-      connects: "the host's own skills directory, where LiteSPM writes the file",
-    },
-    plugin: {
-      plain:
-        "A plugin is a bundle the agent host installs as a unit — its commands, hooks and tools come from the host's own plugin system. What a bundle contains is defined by its publisher.",
-      published:
-        "The catalog publishes the publisher's description and the hosts the publisher declares it works with.",
-      connects: "the host's own plugin command",
-    },
-  }[item.kind];
-
   return (
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
       <Header />
@@ -408,56 +471,45 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
               ) : (
                 <span>{item.publisher?.name || "unspecified publisher"}</span>
               )}
-              {item.publisher?.verified && <VerifiedMark glyph />}
+              {item.publisher?.verified && <VerifiedMark />}
+              {/* The same availability the result cards carry. The detail page
+                  stated it indirectly (a section note reading "installability
+                  status"), which meant a reader arriving from a search result
+                  lost the one field that decided whether they could act. */}
+              <span
+                className={`inline-flex items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
+                  avail.installable
+                    ? "border-rule-2 bg-surface text-ink-2"
+                    : "border-dashed border-rule-2 bg-sunken text-ink-3"
+                }`}
+                title={avail.plain}
+              >
+                {avail.label}
+              </span>
             </p>
 
             <p className="mt-2.5 max-w-prose text-[14px] leading-relaxed text-ink-2">{item.summary}</p>
           </header>
 
-          {/* ---- 2. What can it do? ------------------------------------ */}
-          <section aria-labelledby="pkg-can-title" className="mt-9">
-            <div className="section-head">
-              <h2 id="pkg-can-title">What can it do?</h2>
-              <span className="section-note">plain language first</span>
-            </div>
-
-            <p className="mt-3 max-w-prose text-[14px] leading-relaxed text-ink-2">{canDo.plain}</p>
-            <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-3">{canDo.published}</p>
-
-            <details className="group mt-2 border-t border-rule">
-              <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-[12.5px] font-medium text-ink-2 transition-colors duration-state ease-out hover:text-ink md:min-h-[36px]">
-                Technical details
-                <span
-                  aria-hidden="true"
-                  className="text-ink-3 transition-transform duration-panel ease-out group-open:rotate-90"
-                >
-                  →
-                </span>
-              </summary>
-              <dl className="spec-list pb-1">
-                <div>
-                  <dt>Connects through</dt>
-                  <dd>{canDo.connects}</dd>
-                </div>
-                <div>
-                  <dt>Runtime</dt>
-                  <dd className="t-mono text-[12px]!">
-                    {item.runtime || (
-                      <span className="absent">{item.kind === "mcp" ? "unspecified" : "not applicable"}</span>
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Transport</dt>
-                  <dd className="t-mono text-[12px]!">
-                    {item.transport || (
-                      <span className="absent">{item.kind === "mcp" ? "unspecified" : "not applicable"}</span>
-                    )}
-                  </dd>
-                </div>
-              </dl>
-            </details>
-          </section>
+          {/* ---- 2. How do I add it? ----------------------------------- */}
+          {/*
+           * The action comes second, immediately after "what is this?".
+           *
+           * It used to be fifth, below three sections that explain the
+           * capability *kind* rather than this capability: on the rendered page
+           * the install command sat at 48-51% of the document, so a reader had
+           * to scroll past a definition of the word "plugin" before learning
+           * how to add one. Explanations that are genuinely wanted now follow
+           * the action instead of preceding it — the same order the
+           * competitor pages use, and the one a reader arrives expecting.
+           */}
+          <div className="mt-9">
+            <AddSteps
+              item={item}
+              agent={agent}
+              onChooseAgent={() => scrollToSection("will-it-work")}
+            />
+          </div>
 
           {/* ---- 3. Will it work with what I use? ---------------------- */}
           <section
@@ -552,7 +604,7 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
 
             <p className="mt-3 max-w-prose text-[14px] leading-relaxed text-ink-2">
               A per-entry list of the files, sites or credentials this capability can reach is
-              designed for the catalog but not published yet — so the honest answer today is{" "}
+              designed for the catalog but not published yet, so this is{" "}
               <span className="absent">not published</span>. What you do get: the config file
               LiteSPM would touch (one bridge entry, backed up first), and — where a server needs a
               credential — an environment variable you name at install time, recorded as a name
@@ -614,15 +666,6 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
             </details>
           </section>
 
-          {/* ---- 5. How do I add it? ----------------------------------- */}
-          <div className="mt-9">
-            <AddSteps
-              item={item}
-              agent={agent}
-              onChooseAgent={() => scrollToSection("will-it-work")}
-            />
-          </div>
-
           {/* ---- then: tabs -------------------------------------------- */}
           <div id="pkg-details" tabIndex={-1} className="scroll-mt-16">
             <PackageTabs
@@ -636,7 +679,7 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
           </div>
 
           {/* ---- related ---- */}
-          <RelatedRow item={item} full={full} />
+          <RelatedRow item={item} />
         </div>
       </main>
 
@@ -645,15 +688,39 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
   );
 }
 
-/** Also-in-category: discovery after the record, never a popularity list. */
-function RelatedRow({ item, full }: { item: Listing; full: Listing[] | null }) {
+/**
+ * Also-in-category: discovery after the record, never a popularity list.
+ *
+ * The siblings arrive as their own ~50 KB file. Two categories hold most of the
+ * catalog (45,373 and 19,209 rows) and deliberately have no file: twelve
+ * arbitrary entries out of forty-five thousand is noise, and the "see all"
+ * link below is the honest answer there. A missing file renders nothing.
+ */
+function RelatedRow({ item }: { item: Listing }) {
+  const [siblings, setSiblings] = useState<Listing[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setSiblings(null);
+    fetchCategorySiblings(item.category)
+      .then((rows) => {
+        if (alive) setSiblings(rows ?? []);
+      })
+      .catch(() => {
+        if (alive) setSiblings([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [item.category]);
+
   const related = useMemo(() => {
-    if (!item || !full) return [];
+    if (!siblings) return [];
     return sortListings(
-      full.filter((i) => i.id !== item.id && i.category === item.category),
+      siblings.filter((i) => i.id !== item.id),
       "index"
     ).slice(0, 6);
-  }, [item, full]);
+  }, [item.id, siblings]);
 
   if (related.length === 0) return null;
 

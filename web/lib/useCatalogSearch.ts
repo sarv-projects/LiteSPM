@@ -17,9 +17,32 @@ export interface CatalogSearchState {
   results: Listing[];
   searching: boolean;
   mode: "worker" | "fallback";
+  /**
+   * True only when `results` were computed for the *current* inputs.
+   *
+   * Without this a caller cannot tell "no matches" from "not searched yet": on
+   * the frame where the rows arrive, `results` still holds the previous run (an
+   * empty row set, so empty) while `searching` is already false — and a UI that
+   * trusted those two rendered a confident "No matches" before any search had
+   * happened. The hook knows the answer; callers should not have to guess it
+   * from a timing coincidence.
+   */
+  settled: boolean;
 }
 
 const DEBOUNCE_MS = 120;
+
+/** The identity of one search: mode, row set, query and filters. `settled` is
+ *  a comparison against this, so it must cover everything that changes results. */
+function searchKey(
+  mode: "worker" | "fallback",
+  rows: Listing[],
+  query: string,
+  kind: string | null,
+  category: string | null,
+): string {
+  return `${mode}::${listSignature(rows)}::${query}::${kind ?? ""}::${category ?? ""}`;
+}
 
 /** Cheap content signature so an identical listing set never re-indexes. */
 function listSignature(listings: Listing[]): string {
@@ -88,6 +111,9 @@ export function useCatalogSearch(
 
   const [mode, setMode] = useState<"worker" | "fallback">("worker");
   const [searching, setSearching] = useState(false);
+  const [settledKey, setSettledKey] = useState<string | null>(null);
+  /** The key whose search is in flight, so the worker reply can be attributed. */
+  const inflightKeyRef = useRef<string | null>(null);
   const [results, setResults] = useState<Listing[]>(() =>
     searchInThread(rows, query, kind, category)
   );
@@ -139,6 +165,7 @@ export function useCatalogSearch(
       }
       setResults(next);
       setSearching(false);
+      setSettledKey(inflightKeyRef.current);
     };
 
     worker.onerror = () => {
@@ -170,13 +197,14 @@ export function useCatalogSearch(
     listingMapRef.current = toListingMap(rows);
 
     const sig = listSignature(rows);
-    const key = `${mode}::${sig}::${query}::${kind ?? ""}::${category ?? ""}`;
+    const key = searchKey(mode, rows, query, kind, category);
 
     if (mode === "fallback") {
       if (lastKeyRef.current === key) return;
       lastKeyRef.current = key;
       setResults(searchInThread(rows, query, kind, category));
       setSearching(false);
+      setSettledKey(key);
       return;
     }
 
@@ -193,6 +221,7 @@ export function useCatalogSearch(
       lastKeyRef.current = key;
       setResults(searchInThread(rows, query, kind, category));
       setSearching(false);
+      setSettledKey(key);
       return;
     }
 
@@ -213,7 +242,10 @@ export function useCatalogSearch(
 
     const id = requestIdRef.current + 1;
     requestIdRef.current = id;
+    const inflight = searchKey(mode, rows, query, kind, category);
+    inflightKeyRef.current = inflight;
     setSearching(true);
+    setSettledKey(null);
 
     const timer = window.setTimeout(() => {
       const searchMessage: WorkerInboundMessage = {
@@ -233,5 +265,14 @@ export function useCatalogSearch(
     return () => window.clearTimeout(timer);
   }, [rows, query, kind, category, mode]);
 
-  return { results, searching, mode };
+  return {
+    results,
+    searching,
+    mode,
+    // `rows.length > 0` is load-bearing, not defensive: with no rows loaded the
+    // search still "runs" (over nothing) and settles, which would let a caller
+    // report "no matches" for a catalog it never read. A search that measured
+    // zero rows has measured nothing.
+    settled: rows.length > 0 && settledKey === searchKey(mode, rows, query, kind, category),
+  };
 }

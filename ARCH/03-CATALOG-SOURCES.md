@@ -17,7 +17,7 @@ LiteSPM is an **aggregator and compatibility layer**, not a monolithic proprieta
             └─ OpenAIPluginAdapter       (openai_plugin.go)      plugin.json (portable plugins)
 ```
 
-> **State of this pipeline.** The eight adapters are `IMPLEMENTED` with **test-only callers** — nothing outside `internal/source` imports the package, so no production ingestion exists. The `SourceSnapshot` step is `DESIGNED` (nothing writes snapshot rows in production). `catalogbuild.CompileRelease` / `WriteToDirectory` is `TESTED` with a non-test caller (`litespm catalog build`) and the release tree it emits **is published at the live origin** (probe 2026-10-05: `/v1/current.json` and `/v1/releases/rel-2026-10-05-01/{manifest,listings,versions}.json` all `200` and byte-identical to the committed release — [STATUS.md](../STATUS.md) §2). The deployed catalog dataset — **5,814 items** (`web/data/catalog.json`; the live `/v1/current.json` reports `itemCount: 5814`) — is produced by `scripts/build_full_catalog.py`, not by these adapters. The checked-in source registry (`KnownSources`, `internal/source/sources.go`) holds **13** upstream source *definitions* — the eleven manifest/registry entries plus the two directory sources the producer walks itself (`feed:skills-sh`, `feed:mcpservers-org`, §3); the eight rows above are the adapter *implementations* (canonical roster: `ARCH/17` §2.1).
+> **State of this pipeline.** The eight adapters are `IMPLEMENTED` with **test-only callers** — nothing outside `internal/source` imports the package, so no production ingestion exists. The `SourceSnapshot` step is `DESIGNED` (nothing writes snapshot rows in production). `catalogbuild.CompileRelease` / `WriteToDirectory` is `TESTED` with a non-test caller (`litespm catalog build`) and the release tree it emits **is published at the live origin** (probe 2026-10-05: `/v1/current.json` and `/v1/releases/rel-2026-10-05-01/{manifest,listings,versions}.json` all `200` and byte-identical to the committed release — [STATUS.md](../STATUS.md) §2). The deployed catalog dataset — **69,376 items** (`web/data/catalog.json`; the live `/v1/current.json` reports `itemCount: 69376`, probe 2026-10-13) — is produced by `scripts/build_full_catalog.py`, not by these adapters. The checked-in source registry (`KnownSources`, `internal/source/sources.go`) holds **13** upstream source *definitions* — the eleven manifest/registry entries plus the two directory sources the producer walks itself (`feed:skills-sh`, `feed:mcpservers-org`, §3); the eight rows above are the adapter *implementations* (canonical roster: `ARCH/17` §2.1).
 
 ---
 
@@ -47,7 +47,7 @@ Previous designs conflated metadata scraping, artifact downloading, and runtime 
 
 ## 3. Supported Upstream Source Families
 
-The catalog dataset shipped today holds **5,814 items** (built by `scripts/build_full_catalog.py`). The families below are what the adapters parse — plus the two directory families that `build_full_catalog.py` walks itself through the snapshot layer; adapter-side ingestion still has no production caller (see §1):
+The catalog dataset shipped today holds **69,376 items** (built by `scripts/build_full_catalog.py`; probe 2026-10-13). The families below are what the adapters parse — plus the two directory families that `build_full_catalog.py` walks itself through the snapshot layer; adapter-side ingestion still has no production caller (see §1):
 
 | Source Family | Ingestion Interface | Supported Package Formats | Security & Compatibility Caveats |
 |---|---|---|---|

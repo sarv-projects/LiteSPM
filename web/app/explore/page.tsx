@@ -6,9 +6,20 @@ import {
   GRID_PAGE,
   hostUniverse,
   withLinkKeys,
+  sortListings,
+  DEFAULT_SORT,
 } from "../../lib/catalog";
 import type { ExploreViewProps } from "./ExploreView";
+import type { Metadata } from "next";
 import ExploreRoute from "./ExploreRoute";
+
+export const metadata: Metadata = {
+  title: "Explore the catalog",
+  description:
+    "Search the whole catalog snapshot by name, summary, publisher, category, runtime or agent host, and filter to what installs into the agent you actually use.",
+  alternates: { canonical: "/explore/" },
+  openGraph: { title: "Explore the catalog · LiteSPM Market", url: "/explore/" },
+};
 
 /**
  * Server Component: the full catalog is read here, at build time, and only
@@ -28,7 +39,9 @@ export default function ExplorePage() {
     categories: categoryFacets(items, 200),
     agents: agentFacets(items),
     hostCount: hostUniverse(items).length,
-    gridRows: items.slice(0, GRID_PAGE),
+    // Sorted with the same function and the same default the browser uses, so
+    // the prerendered page and the hydrated one agree on what "first" means.
+    gridRows: sortListings(items, DEFAULT_SORT).slice(0, GRID_PAGE),
   };
 
   return <ExploreRoute {...props} />;

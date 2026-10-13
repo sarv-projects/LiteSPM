@@ -14,10 +14,11 @@ import (
 )
 
 // TestCatalogRelease_EndToEnd is the catalog gate as an automated test: the
-// committed 5,814-row dataset goes through validation, conversion, release
-// compilation, and on-disk publication, then a client synchronizes it over
-// HTTP exactly as it would against the live origin, searches it, and reloads
-// it from cache with no network. It exists because the two halves of that
+// committed dataset in `web/data/catalog.json` goes through validation,
+// conversion, release compilation, and on-disk publication, then a client
+// synchronizes it over HTTP exactly as it would against the live origin,
+// searches it, and reloads it from cache with no network. It exists because
+// the two halves of that
 // path had never run against each other on real-sized data: unit tests used
 // small fixtures (which hid a number-formatting bug in the manifest), and the
 // manual origin-replica run is not a test anyone re-runs.
