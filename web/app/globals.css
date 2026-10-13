@@ -901,64 +901,11 @@
   }
 
   /* ---- the one-bridge diagram ---------------------------------------- */
-  /* `pathLength="1"` normalises every connector, so one dash value drives all
-     of them. The default state is DRAWN: the animation is added only for a
-     wide viewport that has not asked for reduced motion, so mobile and
-     reduced-motion readers get the static diagram with no work to undo. The
-     per-path stagger rides in as an inline animation-delay, which never
-     matters when no animation is applied. */
-  .bridge-path {
-    stroke-dasharray: 1;
-    stroke-dashoffset: 0;
-    stroke-linecap: round;
-  }
-  @media (prefers-reduced-motion: no-preference) and (min-width: 768px) {
-    .bridge-path {
-      animation: bridge-draw 900ms ease-out both;
-    }
-  }
-  @keyframes bridge-draw {
-    from {
-      stroke-dashoffset: 1;
-    }
-    to {
-      stroke-dashoffset: 0;
-    }
-  }
-
-  /* The travelling highlight. `pathLength={1}` normalises every path, so a
-     dash of 0.05 with a 0.95 gap tiles the length exactly and an offset of -1
-     lands visually where it started — a seamless loop with no resync jitter.
-     Offset per path inline (`animation-delay`), so the lattice never blinks in
-     lockstep; the whole thing is 1.4px at ~50% opacity, quiet enough to read as
-     texture at a glance and as direction on a second look. */
-  .bridge-flow {
-    stroke-dasharray: 0.05 0.95;
-    stroke-dashoffset: 0;
-    opacity: 0;
-  }
-  /* No min-width here, unlike `bridge-draw`: the mobile diagram draws a smaller
-     lattice and it is still a lattice. One gate, the one that matters —
-     reduced motion. */
-  @media (prefers-reduced-motion: no-preference) {
-    .bridge-flow {
-      animation: bridge-flow 5000ms linear infinite;
-    }
-  }
-  @keyframes bridge-flow {
-    from {
-      stroke-dashoffset: 0;
-      opacity: 0;
-    }
-    12%,
-    88% {
-      opacity: 1;
-    }
-    to {
-      stroke-dashoffset: -1;
-      opacity: 0;
-    }
-  }
+  /* Deliberately static. The earlier version animated 36 connectors (a draw-on
+     plus an infinite travelling highlight on each) and rendered as a spiderweb
+     of crossing strokes. The diagram now draws nine straight lines with no
+     crossings and no animation at all; see components/home/BridgeDiagram.tsx.
+     Nothing here is gated on reduced-motion because nothing moves. */
 }
 
 @media (prefers-reduced-motion: reduce) {

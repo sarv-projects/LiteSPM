@@ -73,19 +73,24 @@ export function ManualSetup() {
           </div>
         </div>
 
-        <div className="no-scrollbar mt-4 flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Agent host">
-          {HOSTS.map((h) => (
-            <button
-              key={h.id}
-              type="button"
-              aria-pressed={activeHost === h.id}
-              onClick={() => setActiveHost(h.id)}
-              className="chip shrink-0"
-            >
-              {h.name}
-            </button>
-          ))}
-        </div>
+        {/* A select, not a chip scroller. The host registry is large enough
+            that chips forced a horizontal scrollbar with no visible affordance,
+            and the same rule already governs Explore's filters: "63 and 9
+            options do not fit as chips". */}
+        <label className="mt-4 flex items-center gap-2 text-[12px] text-ink-2">
+          Agent host
+          <select
+            value={activeHost}
+            onChange={(e) => setActiveHost(e.target.value)}
+            className="field max-w-full"
+          >
+            {HOSTS.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>

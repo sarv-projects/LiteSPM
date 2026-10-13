@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
@@ -280,6 +280,13 @@ function CompatibilityPanel({
   const hosts = hostsFor(item);
   const source = HOST_SOURCE[item.kind];
   const wanted = (agent?.hosts ?? []).map((n) => n.toLowerCase());
+  /* The host list is long enough that chips forced a horizontal scrollbar with
+     no visible affordance. A select is the house answer — see ExploreView's
+     category and agent filters, whose comment states the same rule. `selected`
+     is allowed to go stale when `item` changes: `current` re-derives it, so
+     there is no effect and no hook-order hazard. */
+  const [selected, setSelected] = useState<string>("");
+  const current = hosts.includes(selected) ? selected : (hosts[0] ?? "");
 
   return (
     <div>
@@ -293,29 +300,42 @@ function CompatibilityPanel({
       <p className="mt-3 max-w-prose text-[13.5px] leading-relaxed text-ink-2">{source.plain}</p>
 
       {hosts.length ? (
-        <ul className="mt-4 flex flex-wrap gap-1.5">
-          {hosts.map((h) => {
-            const mine = wanted.includes(h.toLowerCase());
-            return (
-              <li key={h}>
-                <span
-                  title={
-                    mine
-                      ? `Matches the agent you selected. ${source.plain}`
-                      : source.plain
-                  }
-                  className={`inline-flex min-h-[26px] items-center rounded-chip border px-2 py-0.5 text-[12px] ${
-                    mine
-                      ? "border-accent/40 bg-accent-wash text-accent-text"
-                      : "border-rule bg-sunken text-ink-2"
-                  }`}
-                >
+        <div className="mt-4">
+          {/* The agent the visitor already chose, surfaced on its own line. It
+              used to be one highlighted chip among fifty, which is why the page
+              read as though only that agent worked. */}
+          {wanted.length > 0 && (
+            <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-3">
+              Works with
+              {hosts
+                .filter((h) => wanted.includes(h.toLowerCase()))
+                .map((h) => (
+                  <span
+                    key={h}
+                    className="inline-flex min-h-[24px] items-center rounded-chip border border-accent/40 bg-accent-wash px-2 py-0.5 text-[12px] text-accent-text"
+                    title={`Matches the agent you selected. ${source.plain}`}
+                  >
+                    {h}
+                  </span>
+                ))}
+            </p>
+          )}
+
+          <label className="mt-2 flex items-center gap-2 text-[12px] text-ink-2">
+            All compatible hosts
+            <select
+              value={current}
+              onChange={(e) => setSelected(e.target.value)}
+              className="field max-w-full"
+            >
+              {hosts.map((h) => (
+                <option key={h} value={h}>
                   {h}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       ) : (
         <p className="mt-4 text-[13px] text-ink-3">
           This entry declares no agent compatibility — <span className="absent">—</span>, not a
