@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/skills"
@@ -377,6 +378,42 @@ func printUpdateResults(results []skillUpdateResult) {
 // fetchSkillSourceTree materializes a source into a local directory. Remote
 // sources are shallow-cloned (honoring a branch/tag pin); local sources are
 // used in place and need no cleanup.
+// gitCloneEnv hardens the child git against the caller's ambient environment.
+// Every one of these is a documented failure of an unhardened clone: a
+// credential helper or askpass popping UI mid-install (GIT_TERMINAL_PROMPT),
+// a `[protocol "x"] allow = always` in the user's global gitconfig
+// re-enabling a transport we never intended (GIT_ALLOW_PROTOCOL), and a repo
+// with LFS content plus a broken filter failing checkout (the filter.lfs.*
+// overrides, which kill the filter even when git-lfs is absent — the case
+// GIT_LFS_SKIP_SMUDGE alone does not cover).
+//
+// https:git is deliberately narrower than the reference installer's
+// https:http:ssh:git:file: ParseSkillSource already refuses anything that is
+// not an https URL, so plain http and ssh are transports we never legitimately
+// need, and refusing them here is enforced even against a hostile global
+// config rather than only against our own input.
+var gitCloneEnv = []string{
+	"GIT_ALLOW_PROTOCOL=https:git",
+	"GIT_TERMINAL_PROMPT=0",
+	"GIT_LFS_SKIP_SMUDGE=1",
+	"filter.lfs.required=false",
+	"filter.lfs.smudge=",
+	"filter.lfs.clean=",
+	"filter.lfs.process=",
+}
+
+// gitCloneTimeout bounds a clone. Without it a hung TCP peer hangs the CLI
+// indefinitely, because exec.Command carries no deadline of its own. Overridable
+// because a slow link and a large repo are legitimate reasons to need longer.
+var gitCloneTimeout = func() time.Duration {
+	if v := strings.TrimSpace(os.Getenv("SKILLS_GIT_TIMEOUT")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return 5 * time.Minute
+}()
+
 func fetchSkillSourceTree(src skills.SkillSource) (root string, cleanup func(), err error) {
 	if src.Kind == "local" {
 		return src.LocalDir, func() {}, nil
@@ -395,8 +432,30 @@ func fetchSkillSourceTree(src skills.SkillSource) (root string, cleanup func(), 
 		args = append(args, "--branch", src.Pin)
 	}
 	args = append(args, src.CloneURL, tmp)
-	if out, cloneErr := exec.Command("git", args...).CombinedOutput(); cloneErr != nil {
+
+	// git runs with the caller's ambient environment, which means it also
+	// honours the user's global gitconfig: a credential helper or askpass can
+	// pop UI mid-install, a `[protocol "x"] allow = always` can re-enable a
+	// transport we never intended, and a hung TCP peer would hang this command
+	// forever because there is no deadline. ParseSkillSource has already
+	// refused anything that is not an https URL, so the transports we actually
+	// need are exactly https and git-over-https — but refusing them here is
+	// still load-bearing, because it is enforced even against a hostile
+	// global config rather than only against our own input.
+	//
+	// LFS is disabled two ways for the same reason the reference installer
+	// does it: GIT_LFS_SKIP_SMUDGE covers an installed git-lfs, and emptying
+	// the filter.lfs.* config kills the filter even when git-lfs is absent,
+	// where a repo with LFS content and a broken filter fails checkout.
+	cloneCtx, cancel := context.WithTimeout(context.Background(), gitCloneTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(cloneCtx, "git", args...)
+	cmd.Env = append(os.Environ(), gitCloneEnv...)
+	if out, cloneErr := cmd.CombinedOutput(); cloneErr != nil {
 		cleanup()
+		if cloneCtx.Err() == context.DeadlineExceeded {
+			return "", nil, fmt.Errorf("cloning %s timed out after %s; the remote did not respond in time (raise it with SKILLS_GIT_TIMEOUT)", src.Display, gitCloneTimeout)
+		}
 		return "", nil, fmt.Errorf("failed to clone %s: %v\n%s", src.Display, cloneErr, strings.TrimSpace(string(out)))
 	}
 	return tmp, cleanup, nil

@@ -111,6 +111,52 @@ A note on scope: `ARCH/31` §12's phases 0–9 include whole `DESIGNED` subsyste
 invocation registry, enterprise policy, profiles/leases). Those are features, not defects, and are
 deliberately not attempted here.
 
+### Full-repo read of `vercel-labs/skills` — 138/138 files, ~34,800 lines (2026-10-13)
+
+The earlier three-subagent pass was uneven: I did not verify its coverage, and when the gap was
+measured, **four files were in no brief at all** and one brief named a path that does not exist
+(`tests/git.test.ts`; the real file is `src/git.test.ts`), which would have silently skipped 446
+lines. Re-run as six non-overlapping groups with a required per-group **coverage accounting** block
+(files read, lines read, anything not fully read) and a `comm`-based assignment audit against the
+repo listing before launch. Full evidence: `/tmp/opencode/skills-ref/FINDINGS.md`.
+
+**The one defect this found in OUR code, now fixed.** `fetchSkillSourceTree` ran
+`exec.Command("git", "clone", …)` with the caller's ambient environment and **no `context` at all**:
+a hung TCP peer hung the CLI indefinitely, a credential helper or askpass could pop UI mid-install,
+and a `[protocol "x"] allow = always` in the user's global gitconfig could re-enable a transport we
+never intended. Our parse boundary was genuinely better than theirs (`ParseSkillSource` refuses
+anything that is not an https URL, so `ext::`/`file`/`ssh` never reach git at all), but that refuses
+*our* input — it does nothing about what git reads from the ambient config. Now: `CommandContext`
+with a deadline (`SKILLS_GIT_TIMEOUT`, default 5m, a clear message when it fires), and
+`gitCloneEnv` naming `GIT_ALLOW_PROTOCOL=https:git` — deliberately narrower than the reference's
+`https:http:ssh:git:file` — `GIT_TERMINAL_PROMPT=0`, `GIT_LFS_SKIP_SMUDGE=1` and the four
+`filter.lfs.*` overrides. The last four matter as a pair: the skip flag covers an installed
+git-lfs, the config overrides kill the filter even when git-lfs is *absent*, which is the case
+where a repo with LFS content fails checkout. Pinned by `TestGitCloneEnvIsHardened` and
+`TestGitCloneTimeoutIsBounded`.
+
+**Six places where we are strictly stronger, now recorded in STATUS.md §1 so they stop being
+re-derived.** Removal confinement (`confineDest` vs their `rm -rf` on paths from a *committed*
+lock file); lock integrity (digest on every `Load` vs their corrupt-read-returns-empty, whose loss
+the *first mutator persists*); digest construction (`path\0size\0content\0` vs their delimiter-less
+`path‖content` where `{"x":"yz"}` and `{"xy":"z"}` collide, sorted by `localeCompare` so two
+machines hash identical trees differently); telemetry (nothing to leak vs raw search queries over
+GET query strings); terminal-escape stripping (we consume truncated sequences and drop invalid
+bytes; theirs leaves a dangling ESC and its C1 regex is largely dead code); and CI drift
+(`git diff --exit-code` vs a bot that repairs on main and never gates).
+
+**Where they beat us, all now TODO rows:** display-width measurement (our numbered picker
+misaligns on CJK *and* on emoji in a skill name); the `LockedSection<T>` prompt API; a
+"zero-change on abort" invariant; and the `.factory` triage skill — parameterized tool allowlists,
+an explicit untrusted-evidence rule, "regression coverage **must fail for the old mechanism**",
+enumerated blind spots, numeric output budgets. Their `pr-labeling` omits the untrusted-evidence
+clause despite ingesting PR titles; that asymmetry is the cautionary half.
+
+**Two corrections to my own earlier summary in this file.** `showInUniversalPrompt` and
+`showInUniversalList` are two different flags: 20 agents install via the locked group, only 12 are
+shown. And their Compatibility matrix is confirmed, not hypothesized: 19 agents × 4 features,
+outside every generated marker, with zero generator, zero data file, zero test and zero citations.
+
 ### What the `vercel-labs/skills` comparison showed (2026-10-13)
 
 Three subagents read that repository end to end — its CLI lifecycle, its lockfile and agent
