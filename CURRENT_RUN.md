@@ -1327,4 +1327,89 @@ Note the asymmetry that makes this easy to miss — the *committed* `HEAD` is fi
 - **F38 lint infrastructure — needs a decision, not a patch.** There is no ESLint installed and CI runs no web lint; adding one means new devDependencies, a lockfile change, and a CI job. `tsc --noUnusedLocals --noUnusedParameters` already catches the dead-code class this was wanted for, and `next build` type-checks every route.
 - **F18 curated collections / relevance sort — needs editorial input.** Any "featured" band means choosing whose rows those are, and the data cannot do it for us (see the F5 note above).
 - ~~F29–F34, the 2026-10-08 E2E audit's five open findings — Go work, untouched.~~ **Stale; corrected above.** All five were rechecked against the current tree and are fixed or explicitly accepted — see "Corrected: the five 2026-10-08 E2E findings are NOT open". Only the *bullets that survive here* are the ones still genuinely open.
-- **Nothing is committed.** The operator said not to commit yet; the tree holds this batch plus the earlier copy-voice edits.
+- ~~**Nothing is committed.** The operator said not to commit yet; the tree holds this batch plus the earlier copy-voice edits.~~ **Stale as of 2026-10-13.** Both batches are committed and pushed: `986089c` (canonical URLs, orphan gate, UX pass) and `8e11624` (static bridge diagram, host dropdowns). HEAD == origin/main, tree clean.
+
+---
+
+## Performance + competitor pass (2026-10-13, final)
+
+### The 42.8 MB search figure was wrong — the real number is 6.95 MB
+
+I reported "search downloads 42.8 MB before it can answer a keystroke". **That was the uncompressed JSON size, not the download cost.** Cloudflare serves brotli on all three shards (`content-encoding: br`, `cache-control: public, max-age=31536000, immutable`):
+
+| Shard | Raw JSON | On the wire |
+|---|---|---|
+| `catalog-0000` | 20,970,995 B | 2,925,160 B |
+| `catalog-0001` | 20,971,181 B | 3,790,583 B |
+| `catalog-0002` | 2,916,668 B | 574,245 B |
+| **Total** | **44,914,840 B (42.83 MB)** | **7,289,988 B (6.95 MB)** |
+
+Reproduce with `curl -s -H "Accept-Encoding: br" -o /dev/null -w '%{size_download}' <url>` — plain `curl` reports the raw size because it does not request compression.
+
+6.95 MB is still ~12× mcp.so's *entire* page (576 KB, 70 resources), but the diagnosis changes: compression already works, so the fix is **what we ship**, not **how we serve it**. All three shards carry full rows — 16 fields including `args`, `command`, `runtime`, `transport`, `version`, `installability`, `url`, and a `publisher` object with provenance — for a search that reads `name`, `summary`, `kind`, `publisher.name`, `slug`.
+
+### Search is slow because the catalog ships to the client; no competitor does this
+
+Measured, not assumed:
+
+| Site | Search mechanism | Cost |
+|---|---|---|
+| skills.sh | `GET /api/search?q=…&limit=100`, `x-search-version: algolia`, `server-timing: algolia_processing;dur=483 … total;dur=846.9` | ~850 ms cold, **5 fields/row**, no blob |
+| mcpservers.org | server-rendered `/search?query=…`, 30/page, `Showing 1-30 of 229` | zero client data |
+| PulseMCP | server-rendered, 42/page, URL-encoded filters | zero client data |
+| mcp.so | server-rendered paginated lists + ⌘K palette | 576 KB total |
+| **liteSPM** | `useCatalog()` → `fetchRowsFromShards()` pulls all 3 shards on mount | **6.95 MB** |
+
+`web/lib/catalogData.ts:85` fans out all shard fetches in one `Promise.all`; `useCatalogSearch` only runs once `rows.length > 0`. Nothing is lazy. The landing page does not need the catalog at all until someone types.
+
+**On "can we use something like fast ripgrep":** ripgrep is a native Rust binary; it cannot run in a browser. The equivalent browser-side techniques are a prebuilt chunked index (Pagefind's model — `<300 kB` payload on a 10k-page site) or a server/edge query endpoint. The competitors chose the endpoint. The prebuilt index is the option that keeps the deployment static.
+
+### Hosting: keep Cloudflare Workers
+
+Switching to Vercel, Netlify or Supabase would not touch the 6.95 MB or the broken animation — both are our data architecture and our CSS. Workers already gives brotli, immutable caching, and 390 ms TTFB measured on the live origin. What Workers does *not* do today is compute: there is no `main` script in `wrangler.toml`, so the deployment is static assets only and unbilled. Adding a Worker with D1/KV is the path to the server-side search every competitor runs, on the platform already in use, with no migration. Tradeoff: per-query invocation cost (fractions of a cent per 10k queries) and the loss of the "zero backend" property.
+
+### The animation is fixed — replaced with a static diagram, committed in `8e11624`
+
+What was wrong (verified by rendering the live origin in headless Chrome at 2s and 7s): 18 `.bridge-path` draw-on paths **plus** 18 `.bridge-flow` infinite-highlight paths = **42 animated SVG nodes**, rendering as a spiderweb of crossing strokes with washed-out pastel colours, one path escaping the card's left edge, and `OTHER AGENTS` overflowing the right edge. Computed styles confirmed `bridge-draw 0.9s 1` and `bridge-flow 5s infinite` both live.
+
+Replaced in `web/components/home/BridgeDiagram.tsx`: six agent boxes each drop **one straight line** into the bridge band, three lines leave the band to the three kinds. **Nine lines, zero crossings**, no `pathLength`, no `pathLength` animation. The dead CSS (`.bridge-path`, `.bridge-draw`, `.bridge-flow`, both `@keyframes`) was deleted from `web/app/globals.css`.
+
+Verified on built output served from `web/out`: `{lines:16, paths:85, bridgeFlow:0, bridgePath:0, animated:0}` and a screenshot at `/tmp/new_home.png` showing a clean figure with no overflow. Rationale recorded in the component: **three of four competitor sites use no prominent motion at all**; quality there is typography and density.
+
+### Host list is now a dropdown, committed in `8e11624`
+
+Two places, both following the rule already written into `web/app/explore/ExploreView.tsx` ("category and agent are selects because 63 and 9 options do not fit as chips"):
+
+- **`web/components/package/ManualSetup.tsx`** — the 50-chip `no-scrollbar` horizontal scroller is now `<select className="field max-w-full">` labelled "Agent host".
+- **`web/components/package/PackageTabs.tsx` `CompatibilityPanel`** — the 50-chip list is now a "Works with **X**" line (only the agent the visitor already picked, highlighted) plus an "All compatible hosts" select. New `useState<string>("")` with `const current = hosts.includes(selected) ? selected : (hosts[0] ?? "")` — `selected` may go stale when `item` changes and `current` re-derives it, so there is **no effect and no hook-order hazard**. `React, { useRef, useState }` import updated.
+
+**Verification status — be precise here:** `npm run type-check` exit 0, `npm run lint` exit 0 (both pass, including `check-hook-order.mjs` and `check-orphan-components.mjs`). **Not visually verified.** The build that was in flight when these edits landed (`/tmp/build2.log`, `BUILD_EXIT=0`) predates them, and the follow-up build never started — `/tmp/build3.log` does not exist, no `next build` process is running. The served `web/out` therefore has the **new diagram** but the **old chip UI**.
+
+### Competitor evidence (scout, 34 min, full report at `agent://CompetitorUiScout`)
+
+What to take:
+1. Server/edge search returning ~5 fields/row — eliminates the client catalog entirely.
+2. A single copyable install command **above the fold** on every package page (skills.sh `npx skills add …`, mcpservers.org `npx add-mcp '<url>'` + "Installs into Claude Code, Codex, Cursor and more", mcp.so one canonical JSON block).
+3. Compatibility split off the package page: PulseMCP has a `/clients` directory (598 clients), skills.sh inverts to `/agent/<name>` pages, mcpservers.org shows 3 hosts in a caption and links the rest. **Nobody renders 50 host chips.**
+4. Server-rendered results at a real paginated URL (`/search?query=github`, "Showing 1–30 of 229", numbered pages) — indexable, shareable, zero client data.
+5. Reserve layout space for lazy secondary sections (PulseMCP's `turbo-frame` with `min-height: 1500px` / `800px` mobile) to hold CLS at 0.
+6. Trust signals in a stats rail instead of motion: install counts + sparkline, stars, "First Seen", security-audit pass/warn badges (skills.sh: Agent Trust Hub / Socket / Snyk), freshness counters ("Last Update: 21,716 Servers").
+7. **Avoid** an auto-playing hero animation with no pause control — the only carousel among them (mcp.so) ships an explicit Pause button.
+
+Caveat recorded by the scout: `mcpmarket.org` returned an empty document under headless Chrome (0 resources, blank title) — **UNVERIFIED**, not evidence that it is worse. `pulsemcp.com` froze the browser tab, so its findings come from server-rendered HTML fetches rather than a live snapshot; structure is observed, motion is not.
+
+### Open decisions — both need the operator's answer, do not start either unprompted
+
+- **F4 prerender half** (per-page `<title>`/`<meta>` for crawlers): (i) Worker with `run_worker_first: ["/package/*"]` + `HTMLRewriter` injecting title/meta/canonical per slug — needs `compatibility_date` bumped from `2024-09-23`, adds a Worker invocation to an unbilled deployment; or (ii) bounded static prerender of a curated subset within the 20,000-file free cap.
+- **F5 GitHub stars:** 2,117 of 69,376 rows (**3.1%**) carry a GitHub repo URL, **1,825 distinct repos**, `stars` null on every row. The old "27,496 / 40%" figure was a substring match on `github` and is wrong. Ingesting them needs `api:github-stars` in `SOURCE_ALLOWED_HOSTS` (`scripts/build_full_catalog.py` ~line 101), a `snapshot_store.py` fetcher, a token (60 req/hr unauthenticated), and a **ranking change** on top — `build_full_catalog.py:~3138` currently says "No popularity ranking: `stars` is null for every row … nothing to rank by". Covers 3.1% of rows; cannot fix junk-ranking for the other 97%.
+
+### State at handover
+
+- HEAD `8e11624`, branch `main`, `origin/main` == HEAD, **tree clean**. `986089c` and `8e11624` both pushed.
+- CI on `986089c` (run `38400982963`): **all five jobs success** (Build Next.js Static Export, Static Checks, Test Go ubuntu/windows/macos). Only annotations: Node 20 deprecation on `actions/checkout@v4` + `actions/setup-go@v5`; ubuntu-latest migrating to Ubuntu 26 on 2026-10-19. **`8e11624` has not been watched for CI.**
+- Gates at `986089c`: type-check 0, lint 0, `go vet` 0, `gofmt` clean, `check_catalog_coherence.py` OK (69,376 rows = 48,418 mcp + 20,320 skill + 638 plugin, `rel-2026-10-11-02`, seq 147).
+- Live origin `https://litespm.sarveshbh-2022.workers.dev` serves `rel-2026-10-11-02`, seq 147, 69,376 items; `rel-2026-10-11-01/listings.json` → 404 (stale release never published). Landing TTFB 390 ms, DCL 1078 ms, load 1536 ms; 479 KB JS on first paint.
+- **The deployed origin still runs the old animated diagram and the old chip lists.** No deploy was made this session.
+- `web/out` is from a build that has the static diagram but **not** the dropdowns. A rebuild is required before any visual verification of the dropdowns.
+- Static server: `ux-srv3` running `python3 -m http.server 8099` from `web/out`. Headless Chrome CDP on `127.0.0.1:9222`.
+- `go test -race ./...` still not re-run here — earlier 10-minute timeout is this WSL box, not a defect; CI passes the same command on Linux and macOS.
