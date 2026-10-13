@@ -31,20 +31,22 @@ history is in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md).
 | `sample_voltagent.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
 | `audit-pages-dist.sh` | bash | **CI** — called by `deploy-pages.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — `set -euo pipefail` + explicit leak/digest `exit 1`; usage error exits 2. Also runs `check_pages_limits.py` on the bundle |
 | `check_catalog_coherence.py` | Python | **CI** (`ci.yml`, `build-web` job, before the build) and **manual** | Yes — exit 1 naming every disagreement; exit 2 on a bad `--root` |
-| `check_pages_limits.py` | Python | **CI** — called by `audit-pages-dist.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — exit 1 on a files/asset-size limit breach, exit 2 on a bad directory. Prints the budget spent as well as the verdict |
+| `check_pages_limits.py` | Python | **CI** — called by `audit-pages-dist.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — exit 1 on a files/asset-size limit breach *or* when a limit is within `--headroom` (default 0.90) of being spent, exit 2 on a bad directory or a headroom outside `(0, 1]`. Prints the budget spent as well as the verdict. `--headroom 1.0` restores over-the-line-only |
 | `migrate_dataset_transport.py` | Python | **Manual** — one-time historical migration (its header warns against re-running) | Yes, but it is historical: see the header before running it |
 | `test_snapshot_lifecycle.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
 | `test_catalog_ingestion_safety.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
 | `test_remote_endpoints.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
 | `test_mcpmarket_source.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
 | `test_skill_promotion.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
+| `test_pages_limits.py` | Python (test) | **Manual** — **not wired into CI** | Yes — 22 checks over the Pages budget gate: over-limit, within-headroom, `--headroom 1.0`, bad thresholds, missing directory |
 
 `scripts/__pycache__/` is a build artifact of `python3 -m py_compile` and is gitignored — it is not
 a script.
 
-**Test suites are not run by CI.** The five `scripts/test_*.py` suites (`test_snapshot_lifecycle.py`,
+**Test suites are not run by CI.** The six `scripts/test_*.py` suites (`test_snapshot_lifecycle.py`,
 `test_catalog_ingestion_safety.py`, `test_remote_endpoints.py`, `test_mcpmarket_source.py`,
-`test_skill_promotion.py`) and `snapshot_store.py`'s own self-test are manual: `ci.yml` only
+`test_skill_promotion.py`, `test_pages_limits.py`) and `snapshot_store.py`'s own self-test are
+manual: `ci.yml` only
 byte-compiles `scripts/*.py` (`python3 -m py_compile`) and never executes them, so a green build
 proves they parse, not that they pass. Run them by hand before touching the producer.
 
@@ -209,7 +211,7 @@ not ingestion: the ingestion path they informed is `build_full_catalog.py`.
   `python3 -m py_compile scripts/*.py` (byte-compile, which does not execute anything).
 - **Executed by the release workflow:** `build-release.sh`.
 - **Manual-only:** `build_full_catalog.py`, `snapshot_store.py` (its self-test),
-  `gen_hosts_ts.go`, `check_ci.py`, the six research probes, the five `scripts/test_*.py`
+  `gen_hosts_ts.go`, `check_ci.py`, the six research probes, the six `scripts/test_*.py`
   suites, `migrate_dataset_transport.py`, and `audit-pages-dist.sh` (when run directly).
   (Not a script, but the same workflow: the release/publication step
   `go run ./cmd/litespm catalog build --out web/public` is also manual, and `deploy-pages.sh` runs

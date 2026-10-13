@@ -48,6 +48,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `web/scripts/check-search-settled.mjs` (wired into `npm run lint`) fails naming the file and line if
   a caller passes `totalMatches` without `settled`.
 
+- **The Pages budget gate now fails *before* the budget is spent, not only after.**
+  `scripts/check_pages_limits.py` checked only the hard ceilings, so the last safe build and the first
+  rejected one were the same build: `wrangler deploy` refuses an over-limit upload and reports a CDN
+  problem, which is precisely the misdiagnosis the script exists to prevent. The largest catalog shard
+  now sits at **80% of Cloudflare's 25 MiB per-asset limit**, and the catalog grew ~12x in one
+  release, so "next release will probably fit" was not a plan. `--headroom` (default `0.90`) fails once
+  a limit is that close, naming the asset, the percentage and how many MiB remain, and says plainly
+  that nothing is over yet and `wrangler deploy` would still accept the bundle — a near miss must not
+  read like a breach. `--headroom 1.0` restores over-the-line-only; `1.5` is a usage error (exit 2).
+  `scripts/test_pages_limits.py` pins all four outcomes (22 checks), including the one CI cannot reach
+  — the real bundle passes the default headroom today, so an over-limit fixture is the only way to
+  cover that branch.
+
 - **The tree is gofmt/vet clean and `go test ./...` is 43/43** (also under `-race`).
 
 ### Known issue

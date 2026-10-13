@@ -24,7 +24,17 @@ This script answers "how much of the budget is spent" as well as "is it over",
 so the answer is visible before it becomes a failure. `--plan paid` checks
 against the 100,000-file ceiling instead.
 
-Usage: scripts/check_pages_limits.py <bundle-dir> [--plan free|paid]
+**It also fails before the budget is spent, not only after.** Checking only the
+hard limit means the last safe build and the first rejected one are the same
+build: `wrangler deploy` refuses an over-limit upload and reports it as a CDN
+problem, which is the exact misdiagnosis this script exists to prevent. The
+catalog grew ~12x in a single release, and the largest shard now sits at
+**80% of the per-asset ceiling**, so "next release will probably fit" is not a
+plan. `--headroom` (default 0.90) fails once a limit is that close, naming how
+much room is left and what to do; `--headroom 1.0` restores the old
+over-the-line-only behaviour.
+
+Usage: scripts/check_pages_limits.py <bundle-dir> [--plan free|paid] [--headroom 0.90]
 """
 
 from __future__ import annotations
@@ -40,6 +50,7 @@ DOCS_DATE = "2026-09-05"
 MAX_FILES = {"free": 20_000, "paid": 100_000}
 MAX_ASSET_BYTES = 25 * 1024 * 1024
 BUILD_TIMEOUT_MINUTES = 20
+DEFAULT_HEADROOM = 0.90
 
 
 def _stale_release_hint(root: str, name: str) -> str | None:
@@ -75,7 +86,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("bundle", help="directory to measure (the Pages upload root)")
     parser.add_argument("--plan", choices=sorted(MAX_FILES), default="free")
+    parser.add_argument(
+        "--headroom",
+        type=float,
+        default=DEFAULT_HEADROOM,
+        help=(
+            "fraction of a limit at which to fail early rather than wait for "
+            f"wrangler to reject the upload (default {DEFAULT_HEADROOM}; 1.0 = only fail when over)"
+        ),
+    )
     args = parser.parse_args()
+
+    if not 0 < args.headroom <= 1:
+        print(f"--headroom must be in (0, 1]; got {args.headroom}")
+        return 2
 
     root = args.bundle
     if not os.path.isdir(root):
@@ -101,17 +125,34 @@ def main() -> int:
     largest_size, largest_name = max(files)
     total = sum(size for size, _ in files)
 
-    problems = []
+    over = []
+    near = []
     if count > file_limit:
-        problems.append(
+        over.append(
             f"{count:,} files exceeds the {args.plan}-plan limit of {file_limit:,} "
             f"(over by {count - file_limit:,})"
         )
+    elif count > file_limit * args.headroom:
+        near.append(
+            f"{count:,} files is {count / file_limit * 100:.1f}% of the {args.plan}-plan limit of "
+            f"{file_limit:,} — {file_limit - count:,} file(s) of headroom left"
+        )
     if largest_size > MAX_ASSET_BYTES:
-        problems.append(
+        over.append(
             f"largest asset {largest_name!r} is {largest_size / 1048576:.2f} MiB, over the "
             f"{MAX_ASSET_BYTES / 1048576:.0f} MiB per-asset limit"
         )
+    elif largest_size > MAX_ASSET_BYTES * args.headroom:
+        near.append(
+            f"largest asset {largest_name!r} is {largest_size / 1048576:.2f} MiB — "
+            f"{largest_size / MAX_ASSET_BYTES * 100:.1f}% of the "
+            f"{MAX_ASSET_BYTES / 1048576:.0f} MiB per-asset limit, only "
+            f"{(MAX_ASSET_BYTES - largest_size) / 1048576:.2f} MiB of headroom left"
+        )
+
+    problems = [f"OVER: {p}" for p in over] + [
+        f"nearly out of room: {p}" for p in near
+    ]
 
     print(f"Cloudflare Pages limits ({DOCS}, as of {DOCS_DATE}):")
     print(f"  files : {count:,} / {file_limit:,}  ({count / file_limit * 100:.1f}% of the plan)")
@@ -124,16 +165,23 @@ def main() -> int:
     print(f"          catalog entry will hit this long before either limit above)")
 
     if problems:
-        print(f"\nFAIL {len(problems)} Pages limit(s) exceeded:")
+        print(f"\nFAIL {len(problems)} Pages budget problem(s):")
         for problem in problems:
             print(f"  - {problem}")
         hint = _stale_release_hint(root, largest_name) if largest_size > MAX_ASSET_BYTES else None
         if hint:
             print(hint)
-        print(
-            "\nShard or drop the offending assets before deploying; `wrangler deploy` would "
-            "reject the upload and report it without naming the budget."
-        )
+        if over:
+            print(
+                "\nShard or drop the offending assets before deploying; `wrangler deploy` would "
+                "reject the upload and report it without naming the budget."
+            )
+        else:
+            print(
+                "\nNothing here is over a limit yet — `wrangler deploy` would still accept this "
+                "bundle. It fails now because the budget is nearly spent and the next catalog "
+                "growth may not fit. Re-run with `--headroom 1.0` to check only the hard limits."
+            )
         return 1
 
     print(f"\nOK {root} is inside the {args.plan}-plan limits")
