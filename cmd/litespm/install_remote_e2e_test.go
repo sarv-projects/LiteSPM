@@ -27,6 +27,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sarv-projects/litespm/internal/discover"
 	"github.com/sarv-projects/litespm/internal/domain"
 	"github.com/sarv-projects/litespm/internal/host"
 	"github.com/sarv-projects/litespm/internal/policy"
@@ -217,9 +218,26 @@ func TestRemoteInstallEndToEndJSONAndTOMLHosts(t *testing.T) {
 	// just installed an MCP server had no provider row: autostart had nothing
 	// to start, and a fresh session could not reach the server without first
 	// running a manual refresh (STATUS.md §4, finding m4).
-	prov, err := h.db.GetProvider(ctx, exec.InstallID)
+	//
+	// The id MUST be the one discover derives, or the install and a later
+	// refresh each write their own row and one install ends up with two
+	// providers — which is exactly what happened when this used the bare
+	// install id. ProviderIDFor is exported by discover "so re-probing updates
+	// rows instead of accumulating duplicates"; the install path has to use it
+	// for that guarantee to hold.
+	wantProviderID := discover.ProviderIDFor(exec.InstallID, exec.EntryName)
+	prov, err := h.db.GetProvider(ctx, wantProviderID)
 	if err != nil {
-		t.Fatalf("install wrote no provider row: %v", err)
+		t.Fatalf("install wrote no provider row under %q: %v", wantProviderID, err)
+	}
+	// Exactly one row for this install, now and after a re-install.
+	var n int
+	if err := h.db.Raw().QueryRow(
+		"SELECT COUNT(*) FROM providers WHERE install_id = ?", exec.InstallID).Scan(&n); err != nil {
+		t.Fatalf("count providers: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("install produced %d provider rows for install %s, want exactly 1", n, exec.InstallID)
 	}
 	if prov.Endpoint != remoteEndpoint {
 		t.Errorf("provider endpoint = %q, want %q", prov.Endpoint, remoteEndpoint)

@@ -22,7 +22,8 @@ and writes nothing, which takes `search`, `install` and `/marketplace` with it. 
 `main` syncs the same tree and reports `69376 capabilities indexed`, so this is release ordering, not
 source. **`STATUS.md` §2 and `README` Phase C now say so; the fix is a re-tag, not a code change.**
 
-**Six defects fixed (the Go ones with tests that fail on regression):**
+**Nine defects fixed — seven in Go (each with a test that fails on regression) and two in the web UI —
+plus one Phase-0 truth pass:**
 
 1. `gofmt -w internal/host/remove.go` — committed unformatted since `454de4a`, so the CI `gofmt` gate
    (`ci.yml:30-37`) was red on `origin/main`.
@@ -45,6 +46,36 @@ source. **`STATUS.md` §2 and `README` Phase C now say so; the fix is a re-tag, 
 4. **Doc truth (Phase 0).** `STATUS.md` §1/§4, the "Not yet true" block, `README` Phase C, `TODO.md`
    (`LPSM-A005`/`LPSM-E001`/the roadmap table) and `ARCH/24`'s stale "21 of 42 packages" coverage note
    all now match the tree.
+
+5. **Remote MCP was broken end to end, and the suite could not see it.** `ConnectStreamableHTTP`
+   emitted `_meta` at the **top level** of the JSON-RPC request object. JSON-RPC 2.0 defines that
+   object as exactly `jsonrpc`/`id`/`method`/`params`, so every strict server refused the whole
+   body: `-32600 Bad Request: the request body is not a valid JSON-RPC message`. It also sent the
+   envelope under plain keys, where the `2026-07-28` revision LiteSPM declares requires
+   `io.modelcontextprotocol/protocolVersion` + `…/clientCapabilities` (`-32602`). Confirmed against a
+   live endpoint rather than reasoned about — `https://mcp.context7.com/mcp` 400s each wrong shape
+   and 200s each corrected one. `withMeta` now nests `_meta` inside `params` with the namespaced
+   keys, and `JSONRPCRequest` no longer *has* a `Meta` field, so the invalid shape is unrepresentable.
+   **Why nothing caught it:** the client's own fake server decoded a top-level `_meta` without
+   complaint — a mock more permissive than any real server. That fake server now rejects both
+   mistakes, and an opt-in `LITESPM_LIVE_MCP=1` check (skipped in CI) guards the mock against
+   reality drift. Sandbox proof: `capabilities refresh` went from **`Discovered 0 tools across
+   0 servers (1 could not be probed)`** to **`Discovered 2 tools across 1 servers`**.
+
+6. **One install produced two provider rows.** My own `m4` fix keyed the install-time row on the
+   bare install id, but `capabilities refresh` derives `prov_<install>_<component>` via the exported
+   `discover.ProviderIDFor` — added precisely "so re-probing updates rows instead of accumulating
+   duplicates". Install-then-refresh therefore left an orphaned duplicate that autostart and any
+   provider listing would have seen twice. Now uses `discover.ProviderIDFor`; the test asserts the
+   exact id *and* that exactly one row exists.
+
+7. **`litespm search` printed a `NAME / ID` header and never printed the id.** The id is the only
+   string `litespm install` accepts (exact map match, no alias), so discover could not feed install
+   without `--json` or the website. Each result now prints its id whole on the line below — a
+   shortened id would be something the user cannot paste. Closed end to end: the id taken straight
+   from `search` output installs.
+
+8. **The Pages budget gate waited until it was too late** (see below).
 
 **Web UI checked in a real browser, not just built:** `check_catalog_coherence.py` OK (69,376 rows),
 `tsc --noEmit` clean, hook-order + orphan-component lint clean, `next build` → 60 static pages / 50

@@ -86,6 +86,61 @@ func (c *StreamableHTTPClient) nextID() string {
 	return fmt.Sprintf("req-%d", atomic.AddUint64(&c.seq, 1))
 }
 
+// withMeta merges _meta into params, returning the params object to send.
+//
+// Two separate mistakes used to live here, and both are load-bearing.
+//
+//  1. PLACEMENT. MCP defines _meta as a member of RequestParams, i.e. inside
+//     `params`; JSON-RPC 2.0 defines the request object as exactly `jsonrpc`,
+//     `id`, `method` and `params`. Emitting `_meta` at the top level added an
+//     unknown member to the request object, and a strict server rejected the
+//     entire body with -32600 "Bad Request: the request body is not a valid
+//     JSON-RPC message" — which is how https://mcp.context7.com/mcp answered
+//     every streamable-http probe. The same server accepts the identical body
+//     with _meta nested in params, and accepts it with no _meta at all; only
+//     the top-level placement failed.
+//
+//  2. KEYS. Under the 2026-07-28 revision we declare in MCP-Protocol-Version,
+//     the envelope is addressed by its namespaced keys. With them missing the
+//     server answers -32602 "… the request is missing the required per-request
+//     envelope key(s): io.modelcontextprotocol/protocolVersion,
+//     io.modelcontextprotocol/clientCapabilities". Those two are therefore
+//     required, not cosmetic.
+//
+// The plain `protocolVersion`/`capabilities` duplicates are deliberately not
+// sent: _meta is a free-form bag, so two copies of the same value would be two
+// places for them to disagree later. `clientInfo` stays because it is identity
+// we mean to convey and it is not the same fact under another name.
+//
+// params must be a JSON object so _meta can live in it. MCP params are always
+// an object when present, so anything else is a caller bug and fails closed
+// rather than being wrapped or dropped: silently sending meta-less params
+// would hide the mismatch instead of surfacing it.
+func withMeta(params json.RawMessage, meta *RequestMeta) (json.RawMessage, error) {
+	envelope := map[string]any{
+		"io.modelcontextprotocol/protocolVersion":    meta.ProtocolVersion,
+		"io.modelcontextprotocol/clientCapabilities": meta.Capabilities,
+		"clientInfo": meta.ClientInfo,
+	}
+	metaJSON, err := json.Marshal(envelope)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal _meta: %w", err)
+	}
+	if len(bytes.TrimSpace(params)) == 0 {
+		return json.Marshal(map[string]json.RawMessage{"_meta": metaJSON})
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(params, &obj); err != nil {
+		return nil, fmt.Errorf("request params must be a JSON object so _meta can ride inside them: %w", err)
+	}
+	obj["_meta"] = metaJSON
+	merged, err := json.Marshal(obj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal params with _meta: %w", err)
+	}
+	return merged, nil
+}
+
 // sendRequest executes a stateless HTTP POST request with header mirroring and metadata.
 func (c *StreamableHTTPClient) sendRequest(ctx context.Context, method string, params any, toolName string) (*JSONRPCResponse, error) {
 	reqID := c.nextID()
@@ -106,12 +161,17 @@ func (c *StreamableHTTPClient) sendRequest(ctx context.Context, method string, p
 		Capabilities:    DefaultClientCaps(),
 	}
 
+	// _meta rides inside params, not beside them (see withMeta).
+	mergedParams, merr := withMeta(paramsRaw, meta)
+	if merr != nil {
+		return nil, merr
+	}
+
 	rpcReq := JSONRPCRequest{
 		JSONRPC: "2.0",
 		ID:      reqID,
 		Method:  method,
-		Params:  paramsRaw,
-		Meta:    meta,
+		Params:  mergedParams,
 	}
 
 	bodyBytes, err := json.Marshal(rpcReq)

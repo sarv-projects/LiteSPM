@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Remote MCP servers could not be discovered or invoked at all — the modern streamable-http
+  client sent a request every strict server rejected.** This is the most consequential bug found
+  this session, and it was invisible to the test suite. Two mistakes in the same request body:
+  `_meta` was emitted at the **top level** of the JSON-RPC request object, but JSON-RPC 2.0 defines
+  that object as exactly `jsonrpc`/`id`/`method`/`params`, so a strict server refused the whole body
+  with `-32600 "Bad Request: the request body is not a valid JSON-RPC message"`; and the envelope
+  was sent under plain keys where the `2026-07-28` revision LiteSPM declares requires the namespaced
+  `io.modelcontextprotocol/protocolVersion` and `io.modelcontextprotocol/clientCapabilities`
+  (`-32602`). Both were confirmed against a live endpoint rather than reasoned about —
+  `https://mcp.context7.com/mcp` returns 400 for each wrong shape and 200 for each corrected one.
+  `withMeta` now merges `_meta` **inside `params`** with the namespaced keys, and `JSONRPCRequest`
+  no longer carries a `Meta` field, so the invalid shape cannot be expressed again.
+  **Why nothing caught it:** the modern client's own test used a fake server that decoded a
+  top-level `_meta` without complaint — the mock was more permissive than any real server, so the
+  suite stayed green while `litespm capabilities refresh` discovered **0 tools across 0 servers**
+  against every real endpoint. The fake server now rejects a top-level `_meta` with `-32600` and
+  refuses `_meta` missing either namespaced key; an opt-in live check
+  (`LITESPM_LIVE_MCP=1`, skipped in CI) guards against the mock drifting from reality again.
+  Verified end to end in a sandbox: `capabilities refresh` against context7 now reports
+  **`Discovered 2 tools across 1 servers`**, and `capabilities search` / `describe` return real
+  schemas and fingerprints. The legacy (`2025-11-25`) and stdio profiles never sent `_meta` and were
+  unaffected — which is precisely why `ConnectLegacy` worked against the same endpoint while
+  `ConnectStreamableHTTP` did not.
+
+- **One MCP install produced two provider rows.** The install-time row I added for `m4` keyed itself
+  on the bare install id, but `capabilities refresh` derives `prov_<install>_<component>` via the
+  exported `discover.ProviderIDFor` — added exactly "so re-probing updates rows instead of
+  accumulating duplicates". Installing and then refreshing therefore wrote a second row, with the
+  discovered capabilities attached to discover's and the install's copy left as an orphaned
+  duplicate that autostart and any provider listing would have seen twice. The install path now
+  uses `discover.ProviderIDFor`, and `TestRemoteInstallEndToEndJSONAndTOMLHosts` asserts the exact
+  provider id *and* that exactly one row exists. Verified in a sandbox: install → refresh leaves one
+  row, two capability rows, zero orphans.
+
+- **`litespm search` printed a `NAME / ID` header and never printed the id.** The id is the only
+  string `litespm install` accepts — lookup is an exact map match with no prefix, alias or fuzzy
+  fallback — so the discover step could not feed the install step unless the user knew to add
+  `--json` or open the website. Each result now prints its id whole and untruncated on the line
+  below its name (a shortened id would be something the user cannot paste). Closing the loop
+  end to end in a sandbox: the id taken straight from `search` output installs.
+
+### Fixed
+
 - **Every install attempt and every invocation is now written to the audit log.**
   `state.RecordAuditEvent` had exactly one caller and it was a test, so the `audit_events` table was
   never written in production — no install, refusal or invocation left a trace. `cmd/litespm/main.go`

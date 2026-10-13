@@ -15,6 +15,7 @@ import (
 
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/deployment"
+	"github.com/sarv-projects/litespm/internal/discover"
 	"github.com/sarv-projects/litespm/internal/domain"
 	"github.com/sarv-projects/litespm/internal/egress"
 	"github.com/sarv-projects/litespm/internal/envref"
@@ -313,7 +314,14 @@ type mcpInstallOutcome struct {
 // struct, so nothing here can leak a credential into the state database.
 func providerRecordForInstall(installID, name string, entry host.ServerEntry) *domain.ProviderRecord {
 	rec := &domain.ProviderRecord{
-		ProviderID:    installID,
+		// discover.ProviderIDFor, NOT the install id: that is the id
+		// `capabilities refresh` derives for the same (install, component), and
+		// it is exported precisely "so re-probing updates rows instead of
+		// accumulating duplicates". Writing the bare install id here produced a
+		// SECOND row for one install — discovered capabilities then attached to
+		// discover's row, leaving this one as an orphaned duplicate that autostart
+		// and any provider listing would have seen twice.
+		ProviderID:    discover.ProviderIDFor(installID, name),
 		InstallID:     installID,
 		ComponentName: name,
 		Transport:     "stdio",

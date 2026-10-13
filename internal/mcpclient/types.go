@@ -90,7 +90,13 @@ type JSONRPCRequest struct {
 	ID      any             `json:"id"`
 	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params,omitempty"`
-	Meta    *RequestMeta    `json:"_meta,omitempty"`
+	// No _meta here, deliberately. MCP's _meta rides INSIDE params
+	// (RequestParams), not at the top level of the JSON-RPC request object —
+	// JSON-RPC 2.0 defines that object as exactly jsonrpc/id/method/params.
+	// A top-level _meta makes a strict server reject the whole body with
+	// -32600 "Bad Request: the request body is not a valid JSON-RPC message",
+	// which is what every streamable-http probe got until this was fixed.
+	// The field existed once; keeping it would invite re-adding the bug.
 }
 
 // JSONRPCResponse models inbound JSON-RPC 2.0 responses.

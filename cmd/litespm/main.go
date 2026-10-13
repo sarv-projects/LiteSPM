@@ -1085,6 +1085,15 @@ func runSearch(opts searchOptions) {
 			summary = summary[:37] + "..."
 		}
 		fmt.Printf("%-32s %-8s %-16s %s\n", res.Listing.Name, strings.ToUpper(string(res.Listing.Kind)), publisher, summary)
+		// The listing id is the ONLY string `litespm install` accepts: lookup
+		// is an exact map match against the local index (c.index.Get), with no
+		// prefix, alias or fuzzy fallback, and a miss is "listing X is not in
+		// the local catalog index". The header promised this column and the row
+		// never printed it, so the only way to discover an installable id was
+		// `--json` or the website — a discover step whose output the install
+		// step could not consume. Printed whole and untruncated: a shortened id
+		// would be something the user cannot paste.
+		fmt.Printf("  %s\n", res.Listing.ID)
 	}
 }
 

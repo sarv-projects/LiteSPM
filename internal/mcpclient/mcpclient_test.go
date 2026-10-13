@@ -21,14 +21,61 @@ func TestModern2026_StreamableHTTP(t *testing.T) {
 		receivedMethodHeader = r.Header.Get("Mcp-Method")
 		receivedNameHeader = r.Header.Get("Mcp-Name")
 
-		var rpcReq JSONRPCRequest
-		if err := json.NewDecoder(r.Body).Decode(&rpcReq); err != nil {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		if rpcReq.Meta != nil {
-			receivedMeta = *rpcReq.Meta
+		// Behave like a strict server, because that is what broke: JSON-RPC
+		// 2.0's request object is exactly jsonrpc/id/method/params, and MCP
+		// puts _meta inside params. A top-level _meta is rejected wholesale
+		// with -32600. This mirrors https://mcp.context7.com/mcp, which
+		// answered every streamable-http probe that way until _meta was moved.
+		var probe map[string]json.RawMessage
+		if err := json.Unmarshal(body, &probe); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if _, topLevelMeta := probe["_meta"]; topLevelMeta {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(JSONRPCResponse{
+				JSONRPC: "2.0",
+				Error: &JSONRPCError{
+					Code:    -32600,
+					Message: "Bad Request: the request body is not a valid JSON-RPC message",
+				},
+			})
+			return
+		}
+
+		var rpcReq JSONRPCRequest
+		if err := json.Unmarshal(body, &rpcReq); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// _meta travels inside params, and under 2026-07-28 it is addressed
+		// by namespaced keys — read it the way the revision specifies, and
+		// fail loudly if either required key is missing.
+		if len(rpcReq.Params) > 0 {
+			var p struct {
+				Meta map[string]json.RawMessage `json:"_meta"`
+			}
+			if err := json.Unmarshal(rpcReq.Params, &p); err == nil && p.Meta != nil {
+				if _, ok := p.Meta["io.modelcontextprotocol/protocolVersion"]; !ok {
+					http.Error(w, "_meta missing io.modelcontextprotocol/protocolVersion", http.StatusBadRequest)
+					return
+				}
+				if _, ok := p.Meta["io.modelcontextprotocol/clientCapabilities"]; !ok {
+					http.Error(w, "_meta missing io.modelcontextprotocol/clientCapabilities", http.StatusBadRequest)
+					return
+				}
+				_ = json.Unmarshal(p.Meta["io.modelcontextprotocol/protocolVersion"], &receivedMeta.ProtocolVersion)
+				_ = json.Unmarshal(p.Meta["io.modelcontextprotocol/clientCapabilities"], &receivedMeta.Capabilities)
+				_ = json.Unmarshal(p.Meta["clientInfo"], &receivedMeta.ClientInfo)
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
