@@ -4,7 +4,7 @@
 
 Website work on the agent-host surfaces: every agent host now carries a description and capabilities **read from that vendor's own documentation** (never composed), its **own official logo**, and its **exact vendor name** where the registry row differs. Agents whose vendors have ended the product were removed from the landing-page chooser, the agent atlas and the `/agents/` index. The previous guarded `feed:skills-sh` replay and defect-remediation work is unchanged and still open below.
 
-Preserve producer-owned data, source snapshots, the pre-session stash, and the CLI sandbox. **Do not stage, commit, push, publish, or promote any further work** — this session deliberately left its changes uncommitted (see the newest section at the end of this file).
+Preserve producer-owned data, source snapshots, the pre-session stash, and the CLI sandbox. The agent-host work described below is committed and pushed as `e2038e2`. The guarded `feed:skills-sh` replay and the defect-remediation lanes further down remain open and uncommitted; leave the producer-owned dirty paths alone.
 
 ## Repository State at Audit Close
 
@@ -638,13 +638,13 @@ Assets: `web/public/brands/` — 48 marks, 388 KB total.
 - **The landing hero had a latent hydration mismatch.** Adding a `<p>` as a *sibling* before `SearchBar` shifted `useId()`'s tree position, so server and client emitted different ids for the search label and input — leaving the label pointing at nothing. Confirmed by A/B (revert = clean, restore = mismatch). The brief is now nested inside the existing paragraph as a block `<span>`: same copy, same look, no extra sibling. Verified clean afterwards.
 - **Do not re-copy raw logo sources over `web/public/brands/`.** The gathered originals in `.hostnotes-work/logos/` are unoptimised (`codex.png` was 1024×1024 at 796 KB); re-vendoring overwrote the optimised copies once and it had to be redone. Resize to a 192 px cap and regenerate the manifest afterwards.
 
-### Not done, deliberately
+### Committed
 
-- **Nothing is committed.** The previous handover says not to stage, commit, push or promote, and that instruction was honoured: the change set is in the working tree only. `git status` is the record.
-- The guarded `feed:skills-sh` replay, the producer completeness gate, and every defect in the sections above are **untouched** and still open.
+**`e2038e2` — `feat(web): source each agent host's description, mark and name from its vendor`**, pushed to `origin/main` at the operator's instruction (which supersedes the "do not commit" note this file carried before). 69 files: 48 brand assets plus the modules, components and data above. The working tree is clean; `git status` confirms it.
+
+The guarded `feed:skills-sh` replay, the producer completeness gate, and every defect in the sections above are **untouched** and still open.
 
 ### Next steps
 
-1. Review the working tree and decide whether to commit; nothing is staged.
-2. `codebuddy`: re-run its research from a host that can resolve `codebuddy.ai` (or via a proxy), then `node .hostnotes-work/merge.mjs`.
-3. If any vendor in `hostNotes.ts` is ever reported as discontinued, add it to `lib/lifecycle.ts` — the landing chooser, atlas, index and detail banner all key off that file, so it is a one-entry change.
+1. `codebuddy`: re-run its research from a host that can resolve `codebuddy.ai` (or via a proxy), then `node .hostnotes-work/merge.mjs` and `npm run gen:brands`.
+2. If any vendor in `hostNotes.ts` is ever reported as discontinued, add it to `lib/lifecycle.ts` — the landing chooser, atlas, index and detail banner all key off that file, so it is a one-entry change.
