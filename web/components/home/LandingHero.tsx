@@ -96,6 +96,22 @@ export function LandingHero({
 
           <p className="mt-4 max-w-prose text-[15px] leading-relaxed text-ink-2 sm:text-[17px]">
             Find tools, skills, integrations and AI agents — and see exactly what works with what.
+            {/* The brief: the problem in the reader's own experience, then the fix. The four
+                pains it names — which file, nothing shows up, hand-edited JSON, restart and
+                hope — are the ones people describe most often when they describe setting up an
+                MCP server.
+
+                It is nested in this paragraph rather than a sibling after it on purpose: an
+                element here changes SearchBar's position in the tree, and React derives
+                `useId()` from that position, so a new sibling made the server and client emit
+                different ids for the search label and input — a hydration mismatch that leaves
+                the label pointing at nothing. Same markup, same look, no extra sibling. */}
+            <span className="mt-3 block max-w-[62ch] text-[14px] leading-relaxed text-ink-3 sm:text-[15px]">
+              Getting one into your agent usually means hunting for the right config file, editing
+              JSON by hand, restarting, and hoping something actually loaded. LiteSPM does that
+              part: one command installs a tool into the agent you already use, and one more takes
+              it out.
+            </span>
           </p>
 
           <div className="mt-7 max-w-2xl">

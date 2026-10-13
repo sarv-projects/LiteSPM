@@ -1,0 +1,242 @@
+{
+  "aider-desk": {
+    "src": "/brands/aider-desk.png",
+    "aspect": 1,
+    "square": true
+  },
+  "amp": {
+    "src": "/brands/amp.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "antigravity-cli": {
+    "src": "/brands/antigravity-cli.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "antigravity": {
+    "src": "/brands/antigravity.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "astrbot": {
+    "src": "/brands/astrbot.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "augment": {
+    "src": "/brands/augment.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "bob": {
+    "src": "/brands/bob.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "claude-code": {
+    "src": "/brands/claude-code.png",
+    "aspect": 1,
+    "square": true
+  },
+  "cline": {
+    "src": "/brands/cline.png",
+    "aspect": 1,
+    "square": true
+  },
+  "codearts-agent": {
+    "src": "/brands/codearts-agent.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "codestudio": {
+    "src": "/brands/codestudio.png",
+    "aspect": 1,
+    "square": true
+  },
+  "codex": {
+    "src": "/brands/codex.png",
+    "aspect": 1,
+    "square": true
+  },
+  "command-code": {
+    "src": "/brands/command-code.png",
+    "aspect": 1,
+    "square": true
+  },
+  "cortex": {
+    "src": "/brands/cortex.png",
+    "aspect": 1,
+    "square": true
+  },
+  "crush": {
+    "src": "/brands/crush.png",
+    "aspect": 1,
+    "square": true
+  },
+  "cursor": {
+    "src": "/brands/cursor.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "deepagents": {
+    "src": "/brands/deepagents.png",
+    "aspect": 1,
+    "square": true
+  },
+  "devin": {
+    "src": "/brands/devin.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "droid": {
+    "src": "/brands/droid.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "firebender": {
+    "src": "/brands/firebender.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "forgecode": {
+    "src": "/brands/forgecode.png",
+    "aspect": 1,
+    "square": true
+  },
+  "fx": {
+    "src": "/brands/fx.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "gemini-cli": {
+    "src": "/brands/gemini-cli.png",
+    "aspect": 1,
+    "square": true
+  },
+  "github-copilot": {
+    "src": "/brands/github-copilot.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "grok-build": {
+    "src": "/brands/grok-build.png",
+    "aspect": 1,
+    "square": true
+  },
+  "iflow-cli": {
+    "src": "/brands/iflow-cli.png",
+    "aspect": 1,
+    "square": true
+  },
+  "jazz": {
+    "src": "/brands/jazz.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "junie": {
+    "src": "/brands/junie.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "kilo": {
+    "src": "/brands/kilo.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "kimchi": {
+    "src": "/brands/kimchi.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "kimi-code-cli": {
+    "src": "/brands/kimi-code-cli.png",
+    "aspect": 1,
+    "square": true
+  },
+  "kiro-cli": {
+    "src": "/brands/kiro-cli.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "mux": {
+    "src": "/brands/mux.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "neovate": {
+    "src": "/brands/neovate.png",
+    "aspect": 1,
+    "square": true
+  },
+  "ona": {
+    "src": "/brands/ona.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "opencode": {
+    "src": "/brands/opencode.png",
+    "aspect": 1,
+    "square": true
+  },
+  "openhands": {
+    "src": "/brands/openhands.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "pi-agent": {
+    "src": "/brands/pi-agent.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "pochi": {
+    "src": "/brands/pochi.png",
+    "aspect": 1,
+    "square": true
+  },
+  "posit-assistant": {
+    "src": "/brands/posit-assistant.svg",
+    "aspect": 1.008,
+    "square": true
+  },
+  "qoder-cn": {
+    "src": "/brands/qoder-cn.png",
+    "aspect": 1,
+    "square": true
+  },
+  "qoder": {
+    "src": "/brands/qoder.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "qwen-code": {
+    "src": "/brands/qwen-code.png",
+    "aspect": 1,
+    "square": true
+  },
+  "roo": {
+    "src": "/brands/roo.png",
+    "aspect": 1,
+    "square": true
+  },
+  "rovodev": {
+    "src": "/brands/rovodev.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "tabnine-cli": {
+    "src": "/brands/tabnine-cli.svg",
+    "aspect": 1,
+    "square": true
+  },
+  "zcode": {
+    "src": "/brands/zcode.png",
+    "aspect": 1,
+    "square": true
+  },
+  "zed": {
+    "src": "/brands/zed.png",
+    "aspect": 1,
+    "square": true
+  }
+}

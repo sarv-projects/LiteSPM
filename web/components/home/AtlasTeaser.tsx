@@ -2,9 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Terminal } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { HOSTS, SKILL_TARGETS } from "../../lib/hosts";
 import type { HostAdapter } from "../../lib/hosts";
+import { isDiscontinued } from "../../lib/lifecycle";
+import { AgentLogo } from "../AgentLogo";
 
 /**
  * Agent Atlas teaser: five cards built strictly from the two generated
@@ -16,7 +18,11 @@ import type { HostAdapter } from "../../lib/hosts";
  *
  * No `/compare` link: that route does not exist yet (`LPSM-J007`).
  */
-const TEASER_IDS = ["claude-code", "codex", "opencode", "cursor", "cline"];
+const TEASER_IDS = ["claude-code", "codex", "opencode", "cursor", "cline"].filter(
+  // Belt and braces: this list is curated by hand, so a product ending would
+  // otherwise still get a card here. `lifecycle.ts` is the signal.
+  (id) => !isDiscontinued(id)
+);
 
 function skillTarget(id: string) {
   return SKILL_TARGETS.find((t) => t.id === id);
@@ -59,9 +65,7 @@ export function AtlasTeaser() {
               className="flex flex-col rounded-card border border-rule bg-surface p-4 transition-[transform,border-color,box-shadow] duration-hover ease-out hover:-translate-y-0.5 hover:border-ink-3 hover:shadow-card"
             >
               <div className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-chip bg-sunken-2">
-                  <Terminal className="h-3.5 w-3.5 text-ink-2" aria-hidden="true" />
-                </span>
+                <AgentLogo id={id} name={label} size={28} />
                 <h3 className="text-[15px] font-semibold tracking-tight text-ink">{label}</h3>
               </div>
 

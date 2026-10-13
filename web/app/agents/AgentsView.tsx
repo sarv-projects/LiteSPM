@@ -4,7 +4,9 @@ import Link from "next/link";
 import { SquareTerminal, Check } from "lucide-react";
 import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
+import { AgentLogo } from "../../components/AgentLogo";
 import { HOSTS, resolveHost } from "../../lib/hosts";
+import { vendorName } from "../../lib/vendorNames";
 import { formatCount } from "../../lib/format";
 
 /**
@@ -66,14 +68,25 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                     }
                     className="flex min-w-0 items-center gap-2.5"
                   >
-                    <span
-                      aria-hidden="true"
-                      className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-chip bg-sunken-2"
-                    >
-                      <SquareTerminal className="h-3 w-3 text-ink-2" />
-                    </span>
+                    {/* The agent's own mark where we have one; the generic
+                        terminal tile only for catalog hosts with no adapter
+                        (and therefore no registry id to look a logo up by). */}
+                    {host ? (
+                      <AgentLogo id={host.id} name={agent.name} size={22} />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-chip bg-sunken-2"
+                      >
+                        <SquareTerminal className="h-3 w-3 text-ink-2" />
+                      </span>
+                    )}
                     <span className="t-cond truncate text-[14px] font-medium text-ink transition-colors duration-hover group-hover:text-accent-text">
-                      {agent.name}
+                      {/* The vendor's own spelling — the catalog's host string
+                          is not always what the product calls itself. The link
+                          above still carries the catalog string, which is what
+                          Explore filters on. */}
+                      {host ? vendorName(host.id, agent.name) : agent.name}
                     </span>
                   </Link>
 

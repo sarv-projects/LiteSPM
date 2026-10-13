@@ -3,6 +3,8 @@
 import React from "react";
 import { AGENT_CHOICES } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
+import { HOSTS } from "../../lib/hosts";
+import { AgentLogo } from "../AgentLogo";
 
 /**
  * "What do you use?" — a preference, not a filter engine.
@@ -33,8 +35,8 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
   if (!choice) {
     status = (
       <>
-        Pick one and the capabilities on this page will say whether they work with it. Nothing is
-        downloaded to answer the question — the badges come from rows already on the page.
+        Pick an agent above and we&rsquo;ll point out what works with it. Nothing is sent anywhere —
+        we work it out from the rows already on this page.
       </>
     );
   } else if (choice.hosts.length === 0) {
@@ -74,26 +76,30 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {AGENT_CHOICES.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={choice?.id === option.id}
-              onClick={() => onChange(option.id)}
-              className="chip"
-            >
-              {option.label}
-            </button>
-          ))}
+          {AGENT_CHOICES.map((option) => {
+            // "Other" and "I'm not sure" are answers, not agents, so they get
+            // no mark — a letter tile beside them would read as one.
+            const isHost = HOSTS.some((h) => h.id === option.id);
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={choice?.id === option.id}
+                onClick={() => onChange(option.id)}
+                className="chip inline-flex items-center gap-1.5"
+              >
+                {isHost && <AgentLogo id={option.id} name={option.label} size={16} />}
+                {option.label}
+              </button>
+            );
+          })}
         </div>
 
         <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-ink-2">{status}</p>
 
         <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
-          Compatibility here is either publisher-declared or derived from the capability&rsquo;s kind —
-          every MCP server installs through the bridge into a host that has an adapter, every skill
-          into a host with a skills directory, and a plugin lists its own hosts. It is a declaration,
-          not a test result.
+          What the badge means: if something works with your agent, it&rsquo;s because it can run
+          there — not because we tested it there. We tell you which, rather than rounding it up.
         </p>
       </div>
     </section>

@@ -27,50 +27,47 @@ const SNIPPETS: Array<{ cmd: string; note: string }> = [
 
 const FEATURES: Array<{ title: string; body: React.ReactNode }> = [
   {
-    title: "Local-first state",
+    title: "Everything stays on your machine",
     body: (
       <>
-        Everything lives in a local SQLite store and a content-addressed tree on your machine. No
-        account, no analytics, no install telemetry.
+        No account, no analytics, no install telemetry. Your configs, your catalog and your history
+        are files on your disk, and nowhere else.
       </>
     ),
   },
   {
-    title: "Provenance",
+    title: "You can see where it came from",
     body: (
       <>
-        Every install is ledgered against the source it came from, and the catalog it searches is
-        digest-verified on every sync.
+        Every install records the source it came from, and the catalog is checked against a
+        signature every time it updates.
       </>
     ),
   },
   {
-    title: "Rollback",
+    title: "Undo, exactly",
     body: (
       <>
         <code className="t-mono">litespm restore</code> puts a config file back exactly as it was
-        before the edit.
+        before we touched it.
       </>
     ),
   },
   {
-    title: "Config preservation",
+    title: "It only touches its own line",
     body: (
       <>
-        Merges are atomic and keep your existing entries, comments and structure — LiteSPM touches
-        the one entry it owns and nothing else.
+        Your other servers, your comments and your formatting survive. We add, replace or remove the
+        one entry we own — nothing else in the file.
       </>
     ),
   },
   {
-    title: "Lockfiles",
+    title: "Locks that hold in CI",
     body: (
       <>
-        <code className="t-mono">litespm.yml</code> resolves to a byte-deterministic{" "}
-        <code className="t-mono">litespm.lock</code> over your local index;
-        <code className="t-mono"> litespm lock --check</code> catches a hand-edited lock in CI and{" "}
-        <code className="t-mono">litespm install --frozen</code> refuses drift before anything is
-        written (ARCH/32 §2–§4).
+        Pin what you resolved to <code className="t-mono">litespm.lock</code>, commit it, and let CI
+        fail if anything drifted underneath you.
       </>
     ),
   },

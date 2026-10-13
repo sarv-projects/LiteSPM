@@ -2,7 +2,9 @@
 
 ## Active Goal
 
-Resume the guarded `feed:skills-sh` source-only replay and rebuild only from reviewed, complete producer output; separately review/fix website UI defects. Preserve producer-owned data, source snapshots, the pre-session stash, and the CLI sandbox. Do not stage, commit, push, publish, or promote any further work. HEAD `7d96ca1` is already on `origin/main` and includes the prior UI/producer/CLI changes; leave that history unchanged.
+Website work on the agent-host surfaces: every agent host now carries a description and capabilities **read from that vendor's own documentation** (never composed), its **own official logo**, and its **exact vendor name** where the registry row differs. Agents whose vendors have ended the product were removed from the landing-page chooser, the agent atlas and the `/agents/` index. The previous guarded `feed:skills-sh` replay and defect-remediation work is unchanged and still open below.
+
+Preserve producer-owned data, source snapshots, the pre-session stash, and the CLI sandbox. **Do not stage, commit, push, publish, or promote any further work** — this session deliberately left its changes uncommitted (see the newest section at the end of this file).
 
 ## Repository State at Audit Close
 
@@ -596,3 +598,53 @@ carry a project/workspace through IPC and the bridge so agents can see project-s
   `deploy-pages.sh` (6 files verified byte-for-byte), `wrangler deploy --dry-run` (242 assets, largest
   exactly 20.0 MiB). CI: ubuntu + macOS + Static Checks + web build green at `27ac5b7`; the Windows
   fix (LOCALAPPDATA) was pushed after that run and is the one outstanding check.
+
+## Agent-host descriptions, marks, and discontinued products (2026-10-13)
+
+### What was asked
+
+Three things, in order: (1) every agent host should carry a description and capabilities **read from that vendor's own documentation** — not assumed, not composed, because the site promotes those products; (2) each host should show its **own official logo** on the landing page and on individual agent pages; (3) confirm each host's **exact name from its own docs**. Then a follow-up: **remove vendors that have shut down** (Roo Code named explicitly) from the landing page, and **check whether any other host has shut down**.
+
+### What changed
+
+New modules:
+
+- `web/lib/lifecycle.ts` — the vendors that have ended their product. Three entries, each quoting the vendor's own notice with a source URL. Drives the landing chooser, the atlas cards, the `/agents/` index filter, and the detail-page banner.
+- `web/lib/vendorNames.ts` — the nine hosts whose registry row spells the name differently from the vendor. Display only; links and counts still use the registry string.
+- `web/lib/brandLogos.ts` + `web/scripts/gen_brand_logos.mjs` + `web/data/brand-logos.json` — a generated manifest of what is actually on disk in `web/public/brands/`, plus each asset's aspect ratio, so the UI never requests a missing logo (a guaranteed 404 under `output: "export"`).
+- `web/components/AgentLogo.tsx` — the mark in a fixed-light tile (vendor marks are drawn for light backgrounds; the site's dark mode would silently destroy them), with an `aria-hidden` wrapper because the name is always adjacent, and a neutral letter mark when there is no asset.
+
+Changed: `web/lib/hostNotes.ts` grew from 11 to **49 sourced entries** (was 11), `web/lib/landing.ts` (chooser filters discontinued), `web/components/home/AgentStrip.tsx` and `AtlasTeaser.tsx` (marks; the atlas previously showed the *same* generic terminal icon on all five cards), `web/app/agents/AgentsView.tsx` (marks + vendor names), `web/app/agents/[id]/AgentDetailView.tsx` (mark in the header, discontinued banner, vendor-name line), `web/app/agents/[id]/page.tsx`, `web/app/agents/page.tsx` (filters discontinued at the data boundary so they never reach the browser), `web/package.json` (`gen:brands`, chained into `prebuild`), `.gitignore`.
+
+Assets: `web/public/brands/` — 48 marks, 388 KB total.
+
+### Verify the following yourself (all re-run at close)
+
+- `cd web && ./node_modules/.bin/tsc --noEmit` → 0.
+- `cd web && ./node_modules/.bin/next build` → 0; 60 static pages, 50 agent detail pages.
+- Served the export and checked the rendered HTML, not just the build:
+  - `/agents/` → **47 rows**; zero links to `roo`, `iflow-cli` or `rovodev`.
+  - `/agents/{roo,iflow-cli,rovodev}/` → HTTP 200 **with** the Discontinued banner; a live host has none.
+  - `/agents/{cortex,deepagents,codestudio}/` → `<h1>` reads **CoCo CLI**, **Deep Agents Code**, **Syncfusion MCP Server**.
+  - Every brand asset 200s, and the landing page references five of them (the chooser chips).
+
+### Findings worth keeping
+
+- **Three vendors have ended the product**, all quoted from their own pages: **Roo Code** ("The Roo Code Extension was shut down on May 15th"), **iFlow CLI** (README shutdown notice dated 2026-04-17, already past), **Rovo Dev** (Atlassian: "reaching end of life as a standalone product… moving into eligible Jira subscriptions"). A broad sweep of all fifty summaries and source files for shutdown/sunset/EOL/archived/deprecated language found no others. `codebuddy` could not be checked — see the gap below.
+- **Nine registry names are wrong**, found by reading the vendors' own pages: `Augment` → **Auggie CLI**, `Kimchi` → **Kimchi Coding**, `Mux (Xum)` → **Xum** (Mux is the retired pre-rename name), `Cortex Code` → **CoCo CLI**, `Deep Agents` → **Deep Agents Code**, `Code Studio` → **Syncfusion MCP Server**, plus three where the registry carries parenthetical plumbing suffix — `Grok Build (xAI Dev Tool)` → **Grok Build**, `Pi Agent (Terminal Agent)` → **Pi**, `GitHub Copilot CLI` → **GitHub Copilot**. The registry is generated from config adapters and is a poor source for a product's name.
+- **`codebuddy` has no note and no mark.** `codebuddy.ai` resolves to **0.0.0.1** on this host — a DNS sinkhole — so every fetch fails at connect time. That is an environment fact, not evidence the product is gone. It renders the designed no-note fallback (registry facts + a link to its config docs).
+- **`kode` legitimately has no mark**: its upstream publishes no square asset and its README hero is a wide banner. Letter mark, by design.
+- **Two merge-script bugs cost real time; both are fixed.** (a) A block record omitted its `idx`, so `out.slice(0, undefined)` returned the whole string and the file doubled on every corrected entry — 171 lines in, 5013 out. (b) The key-quoting test accepted hyphens, emitting `github-copilot: {`, which parses as a subtraction. The merge tool lives at `.hostnotes-work/merge.mjs` and reads the research JSON beside it — both are **gitignored scratch**, present in this working tree only, so a fresh clone will not have them. Everything they produced is committed: the prose with its `source` URLs in `lib/hostNotes.ts`, the marks in `web/public/brands/`, the names in `lib/vendorNames.ts`, the ended products in `lib/lifecycle.ts`. If the merge is ever re-run, keep both guards.
+- **The landing hero had a latent hydration mismatch.** Adding a `<p>` as a *sibling* before `SearchBar` shifted `useId()`'s tree position, so server and client emitted different ids for the search label and input — leaving the label pointing at nothing. Confirmed by A/B (revert = clean, restore = mismatch). The brief is now nested inside the existing paragraph as a block `<span>`: same copy, same look, no extra sibling. Verified clean afterwards.
+- **Do not re-copy raw logo sources over `web/public/brands/`.** The gathered originals in `.hostnotes-work/logos/` are unoptimised (`codex.png` was 1024×1024 at 796 KB); re-vendoring overwrote the optimised copies once and it had to be redone. Resize to a 192 px cap and regenerate the manifest afterwards.
+
+### Not done, deliberately
+
+- **Nothing is committed.** The previous handover says not to stage, commit, push or promote, and that instruction was honoured: the change set is in the working tree only. `git status` is the record.
+- The guarded `feed:skills-sh` replay, the producer completeness gate, and every defect in the sections above are **untouched** and still open.
+
+### Next steps
+
+1. Review the working tree and decide whether to commit; nothing is staged.
+2. `codebuddy`: re-run its research from a host that can resolve `codebuddy.ai` (or via a proxy), then `node .hostnotes-work/merge.mjs`.
+3. If any vendor in `hostNotes.ts` is ever reported as discontinued, add it to `lib/lifecycle.ts` — the landing chooser, atlas, index and detail banner all key off that file, so it is a one-entry change.

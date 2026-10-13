@@ -15,21 +15,15 @@ import { formatCount } from "../../lib/format";
  * verify the claim rather than take the paragraph on faith.
  */
 export function TrustStrip({ provenance }: { provenance: ProvenanceStats }) {
-  const cards: Array<{ title: string; plain: React.ReactNode; tech: React.ReactNode }> = [
+  const cards: Array<{ title: string; plain: React.ReactNode }> = [
     {
       title: "Where it came from",
       plain: (
         <>
-          Whether the entry was read out of the publisher&rsquo;s own manifest, or claimed by a
-          third-party list. Both are indexed; they are not the same thing.
-        </>
-      ),
-      tech: (
-        <>
-          <code className="t-mono">publisher.provenance</code> ={" "}
-          <code className="t-mono">vendor-manifest</code> ({formatCount(provenance.vendorManifest)}){" "}
-          <span className="text-ink-3">or</span> <code className="t-mono">awesome-list-claim</code>{" "}
-          ({formatCount(provenance.awesomeList)}).
+          Two kinds of source: we read it from the maker&rsquo;s own listing, or it turned up in a
+          community list. Both are worth having — you just shouldn&rsquo;t mistake one for the other.
+          Right now that&rsquo;s {formatCount(provenance.vendorManifest)} from makers and{" "}
+          {formatCount(provenance.awesomeList)} from lists.
         </>
       ),
     },
@@ -37,17 +31,9 @@ export function TrustStrip({ provenance }: { provenance: ProvenanceStats }) {
       title: "Who publishes it",
       plain: (
         <>
-          The name the upstream registry records. &ldquo;Vendor-listed&rdquo; means the row came from
-          that publisher&rsquo;s own marketplace manifest — no registry audited them, and neither did
-          this project.
-        </>
-      ),
-      tech: (
-        <>
-          <code className="t-mono">publisher.name</code>,{" "}
-          <code className="t-mono">publisher.url</code>, and the boolean{" "}
-          <code className="t-mono">publisher.verified</code> — a provenance flag, explicitly not a
-          security review.
+          The maker&rsquo;s own name and a link to them. When you see <em>from the maker</em>, we
+          copied it out of their listing — nobody audited them, and we didn&rsquo;t audit them
+          either.
         </>
       ),
     },
@@ -55,36 +41,18 @@ export function TrustStrip({ provenance }: { provenance: ProvenanceStats }) {
       title: "What it can access",
       plain: (
         <>
-          Not published per entry today. What you do get is the config file LiteSPM would write and,
-          where one was proven, the exact command the server launches with.
-        </>
-      ),
-      tech: (
-        <>
-          Published where known: <code className="t-mono">command</code>,{" "}
-          <code className="t-mono">args</code>, <code className="t-mono">installHint</code>,{" "}
-          <code className="t-mono">skillSource</code>. A per-entry effect declaration is designed
-          (<code className="t-mono">effects</code>), not yet published in the catalog.
+          You get the exact command it runs and the file LiteSPM would change. What it can reach once
+          it&rsquo;s running is something no catalog knows, so we don&rsquo;t pretend to tell you.
         </>
       ),
     },
     {
-      title: "Whether LiteSPM tested it",
+      title: "Whether we checked it",
       plain: (
         <>
-          Each entry states how far it got: discovery only, metadata checked, runtime proven, or
-          tested by LiteSPM. Nothing is promoted to a higher level for looking popular.
-        </>
-      ),
-      tech: (
-        <>
-          <code className="t-mono">installability</code>:{" "}
-          <code className="t-mono">discovery_only</code> ({formatCount(provenance.discoveryOnly)}),{" "}
-          <code className="t-mono">metadata_verified</code> (
-          {formatCount(provenance.metadataVerified)}),{" "}
-          <code className="t-mono">runtime_verified</code> ({formatCount(provenance.runtimeVerified)}
-          ), <code className="t-mono">litespm_tested</code> ({formatCount(provenance.litespmTested)}
-          ).
+          Four levels, from <em>we found it</em> to <em>we ran it</em>. Most entries are still in the
+          first two — {formatCount(provenance.discoveryOnly)} of them — and we&rsquo;d rather show
+          you that than round it up.
         </>
       ),
     },
@@ -92,15 +60,9 @@ export function TrustStrip({ provenance }: { provenance: ProvenanceStats }) {
       title: "What version",
       plain: (
         <>
-          A version string when the publisher published one. When they did not, the field is empty
-          and the page says <span className="absent">not published</span> rather than guessing.
-        </>
-      ),
-      tech: (
-        <>
-          <code className="t-mono">version</code> is present on{" "}
-          <span className="t-mono">{formatCount(provenance.versioned)}</span> of{" "}
-          <span className="t-mono">{formatCount(provenance.total)}</span> entries.
+          The version the maker published, on {formatCount(provenance.versioned)} of{" "}
+          {formatCount(provenance.total)} entries. Where there isn&rsquo;t one, the page says{" "}
+          <span className="absent">not published</span> instead of guessing.
         </>
       ),
     },
@@ -123,7 +85,6 @@ export function TrustStrip({ provenance }: { provenance: ProvenanceStats }) {
             <li key={card.title} className="border-t border-rule pt-3">
               <h3 className="text-[14px] font-semibold tracking-tight text-ink">{card.title}</h3>
               <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">{card.plain}</p>
-              <p className="mt-2 text-[12px] leading-relaxed text-ink-3">{card.tech}</p>
             </li>
           ))}
         </ul>
@@ -139,6 +100,20 @@ export function TrustStrip({ provenance }: { provenance: ProvenanceStats }) {
             </span>
           </summary>
           <dl className="spec-list pb-2">
+            <div>
+              <dt>fields</dt>
+              <dd>
+                The names behind the five cards above, for anyone who wants to check the claim:
+                <code className="t-mono"> publisher.provenance</code> (source),{" "}
+                <code className="t-mono">publisher.name</code>,{" "}
+                <code className="t-mono">publisher.url</code> and{" "}
+                <code className="t-mono">publisher.verified</code> (who — a provenance flag, not a
+                security review), <code className="t-mono">command</code>,{" "}
+                <code className="t-mono">args</code> and <code className="t-mono">installHint</code>{" "}
+                (what it runs), <code className="t-mono">installability</code> (how far we got), and{" "}
+                <code className="t-mono">version</code>.
+              </dd>
+            </div>
             <div>
               <dt>sha256</dt>
               <dd>

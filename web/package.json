@@ -5,10 +5,11 @@
   "scripts": {
     "predev": "node scripts/emit-catalog-shards.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/emit-catalog-shards.mjs",
+    "prebuild": "node scripts/emit-catalog-shards.mjs && node scripts/gen_brand_logos.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "gen:brands": "node scripts/gen_brand_logos.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

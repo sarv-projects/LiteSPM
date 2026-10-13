@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
-import { kindLabel } from "../../lib/catalog";
 import { formatCount } from "../../lib/format";
 
 /** One board's worth of precomputed rows — see `app/trending/page.tsx`. */

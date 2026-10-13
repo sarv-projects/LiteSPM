@@ -17,6 +17,7 @@
 import type { Listing } from "./telemetry";
 import { matchesQuery } from "./query";
 import { HOSTS, SKILL_TARGETS, hostsFor } from "./hosts";
+import { isDiscontinued } from "./lifecycle";
 
 export interface Topic {
   id: string;
@@ -180,11 +181,15 @@ const AGENT_HOST_IDS: Array<{ id: string; label: string }> = [
   { id: "opencode", label: "OpenCode" },
   { id: "cursor", label: "Cursor" },
   { id: "cline", label: "Cline" },
-  { id: "roo", label: "Roo Code" },
 ];
 
 export const AGENT_CHOICES: AgentChoice[] = [
-  ...AGENT_HOST_IDS.map(({ id, label }) => {
+  // Safety net rather than the primary mechanism: this list is curated, but a
+  // product can be discontinued at any time, and the chooser must stop offering
+  // it the moment `lifecycle.ts` records that. Roo Code left this list that way
+  // — its own docs carry an Extension Shutdown banner, so a chip offering it
+  // was a claim we could check and knew to be false.
+  ...AGENT_HOST_IDS.filter(({ id }) => !isDiscontinued(id)).map(({ id, label }) => {
     const names = [
       HOSTS.find((h) => h.id === id)?.name,
       SKILL_TARGETS.find((t) => t.id === id)?.displayName,

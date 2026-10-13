@@ -55,3 +55,9 @@ __pycache__/
 .slim/deepwork/
 tmp-oh-my-pi/
 tmp-agent-sandbox-*/
+
+# Per-agent research scratch (raw fetched pages, gathered logo candidates and
+# the quoted-source files behind web/lib/hostNotes.ts). The reviews that matter
+# are committed: the prose and its `source` URLs live in `lib/hostNotes.ts`, and
+# the marks that ship live in `web/public/brands/`.
+.hostnotes-work/
