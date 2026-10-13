@@ -128,6 +128,7 @@ export default function Home(props: HomeViewProps) {
           query={searchQuery}
           setQuery={setQuery}
           totalMatches={deferredQuery && full ? results.length : undefined}
+          settled={settled}
         />
 
         {hasQuery ? (

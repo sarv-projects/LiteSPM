@@ -1,5 +1,16 @@
 # Function Inventory — Aspirational Map
 
+> **Coverage is 21 of 42 packages, and the gap is not small.** `internal/` holds **42**
+> packages today; this document describes 21 of them. The 21 unlisted packages are not a
+> curated subset — they include every subsystem added after the original inventory, among them
+> `binding`, `buildinfo`, `compat`, `deployment`, `discover`, `egress`, `envref`, `fslock`,
+> `identity`, `interop`, `inventory`, `lifecycle`, `lockfile`, `manifest`, `manager`, `porting`,
+> `profiles`, `receipts`, `runtime`, `schemacheck` and `trust`. **Five of those are
+> `IMPLEMENTED`, unit-tested, and have zero production importers** (`receipts`, `identity`,
+> `compat`, `profiles`, `manager`), which means they implement features this document and
+> `STATUS.md` still record as `DESIGNED`. Corrected 2026-10-13; the `21` figure was itself a
+> stale artifact of the `internal/connector` deletion.
+>
 > **This document is not an API reference.** The previous revision presented itself as a
 > normative list of public Go signatures for all 21 internal packages. Most of those signatures
 > **did not exist**. It has been downgraded to an aspirational map. The authoritative API is the

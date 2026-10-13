@@ -27,7 +27,7 @@ It eliminates the need to manually configure, update, and manage capabilities ac
 |---|---|---|---|
 | **Phase A** | **Architecture Freeze & LLD Specifications** | `DESIGNED` | `ARCH/00`–`ARCH/38` exist. `ARCH/24` is an aspirational inventory, not a compiled one; `ARCH/18` specifies an output tree (`index.json`, `shards/`, `items/`) that the compiler does not emit (those outputs are labelled `DESIGNED`) |
 | **Phase B** | **Foundations, Storage & Local IPC** | `TESTED` | `internal/domain`, `internal/config`, `internal/state` (SQLite WAL, 22 tables), `internal/ipc` (named pipes / Unix sockets). Contract tests bind; see [STATUS.md](STATUS.md) §1 |
-| **Phase C** | **Static Catalog & Discovery Plane** | `SHIPPED` | `internal/catalogbuild` + `litespm catalog build` are `TESTED` (real-dataset + end-to-end build→serve→sync→search tests, green 2026-10-13); the release tree **is published** and `litespm catalog sync` was verified against the live origin from a clean data root (2026-10-05 probe: release `rel-2026-10-05-01`, 5,814 indexed — that tree has since been replaced and now 404s, so the figures are the record of that run). The current release is **`rel-2026-10-11-02`, sequence 147, 69,376 items**, named by both the committed pointer `web/public/v1/current.json` and the live origin (probe 2026-10-13). `ARCH/18` §1–§2's `index.json`/`shards`/`items` remain un-emitted; **transport sharding is `IMPLEMENTED`** (`listings-0000…0003`, `versions-0000…0001`) |
+| **Phase C** | **Static Catalog & Discovery Plane** | `SHIPPED` in source · **the published `v0.4.0` binary is broken** | `internal/catalogbuild` + `litespm catalog build` are `TESTED` (real-dataset + end-to-end build→serve→sync→search tests, green 2026-10-13); the release tree **is published** and the live origin serves it. The current release is **`rel-2026-10-11-02`, sequence 147, 69,376 items**, named by both the committed pointer `web/public/v1/current.json` and the live origin (probe 2026-10-13), sharded into `listings-0000…0003` / `versions-0000…0001`. A binary built from current `main` syncs it and reports `69376 capabilities indexed`. **However `npm install -g litespm` (v0.4.0) cannot:** that tag was cut at 21:24:01 on 2026-10-11, 2h29m before the shard-aware client landed, so it looks for a `listings.json` that the release does not contain and fails with `manifest missing listings.json entry`. `search`, `install` and `/marketplace` all depend on that sync. **Re-cut the release to use the npm package.** `ARCH/18` §1–§2's `index.json`/`shards`/`items` remain un-emitted; **transport sharding is `IMPLEMENTED`** |
 | **Phase D** | **Safe Extraction & Skill Store** | `WIRED` (resolver, skills); `IMPLEMENTED` (install engine); `TESTED` (artifact) | `internal/resolver` and `internal/skills` are reached from production paths and `internal/artifact` is test-covered ([STATUS.md](STATUS.md) §1/§3); skills and MCP servers install end to end (verified against the live catalog). Only **plugins** still need an artifact source — [ARCH/31 §4.1](ARCH/31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#41-the-agent-facing-install-path-cannot-complete--wired-is-false) |
 | **Phase E** | **Process Supervision, Bridge & Host Adapters** | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | 6 bespoke adapters + 44 generic BridgeTargets (50 total, `ARCH/30`) + 77 skill targets are registered. Provider autostart is inert: the `providers` table is never populated by non-test code (finding `m4`). See [STATUS.md](STATUS.md) §1/§4 |
 | **Phase F** | **MCP Protocol Dual-Profile, Secrets & OAuth** | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | Dual-profile client, native OS keystores, OAuth PKCE loopback exist; the secrets vault is opened before serving (`WIRED`), but secrets are not injected at provider launch, `mcpclient`'s first production importer is `internal/discover`, and `auth` still has zero production importers — the `AuthBroker` currently has no consumer (finding 99), [STATUS.md](STATUS.md) §1/§4 |
@@ -35,15 +35,20 @@ It eliminates the need to manually configure, update, and manage capabilities ac
 | **Phase H** | **Release Engineering & Packaging** | `IMPLEMENTED` | Cross-platform builds, npm wrapper, CI checks, and keyless cosign signing of every release artifact plus a CycloneDX SBOM (`release.yml`). `self-update` completes only once a release publishes `litespm-*` assets (packaging P7) |
 | **Phase I** | **Golden Fixtures, Self-Update & Migrations** | `TESTED` for fixtures and migrations; self-update `WIRED` (signed) | Fixtures corpus and migration engine (forward apply + downgrade guard) are tested; `self-update` is fail-closed on SHA-256 with rollback and verifies the release's keyless signature bundle (required via `LITESPM_REQUIRE_SIGNED_UPDATE=1`). The first signed release is cut on the next `v*` tag — see [SECURITY.md](SECURITY.md). Per-row detail: [TODO.md](TODO.md) Phase I |
 
-**Not yet true of LiteSPM, and not claimed anywhere:** provider autostart, npm package signatures,
-plugin installation, and any isolation level beyond process supervision. (By contrast: a project
-manifest + lockfile **is** implemented — `litespm lock`/`install --frozen` (`ARCH/32` §2–§4,
-[STATUS.md](STATUS.md) §5); release **signing** is implemented — every artifact gets a keyless cosign
-bundle the updater verifies, and the catalog pointer is signed and checked on sync — but no signed
-release has shipped yet; runtime policy **is** now enforced at invocation: `provider.invoke` runs the
-policy engine and ungranted tools fail closed until an interactive `litespm grant`; the catalog
-release tree **is** published — the live origin serves it and `catalog sync` succeeds against it;
-and `request_install` **does** complete an agent-driven install for skill and MCP-server listings.)
+**Not yet true of LiteSPM, and not claimed anywhere:** provider autostart (a provider row is now
+written at install time, but nothing starts it at boot), npm package signatures, plugin installation,
+and any isolation level beyond process supervision. **And one live regression you should know about
+before installing from npm:** the published `litespm@0.4.0` binary **cannot sync the published
+catalog** — it was tagged 2h29m before the shard-aware catalog client landed, so `catalog sync`
+fails with `manifest missing listings.json entry` and `search`, `install` and `/marketplace` are all
+unavailable with it. A build from current `main` syncs 69,376 capabilities correctly; see
+[STATUS.md](STATUS.md) §2 for the provenance. (By contrast: a project manifest + lockfile **is**
+implemented — `litespm lock`/`install --frozen` (`ARCH/32` §2–§4, [STATUS.md](STATUS.md) §5); release
+**signing** is implemented — every artifact gets a keyless cosign bundle the updater verifies, and
+the catalog pointer is signed and checked on sync; runtime policy **is** enforced at invocation:
+`provider.invoke` runs the policy engine and ungranted tools fail closed until an interactive
+`litespm grant`; every install attempt and invocation is written to the audit log; and
+`request_install` **does** complete an agent-driven install for skill and MCP-server listings.)
 
 ---
 
@@ -287,7 +292,8 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
   │       ├── skills_remove.go                          # `skills remove/list` ledger-backed removal
   │       └── skills_policy.go                          # skills policy hook (deny rules → installed skills)
   │
-  ├── internal/ (42 packages; the 21 listed below are the `ARCH/24` inventory)
+  ├── internal/ (42 packages; the 21 listed below are the `ARCH/24` inventory,
+  │   which covers less than half the tree — see ARCH/24's own coverage note)
   │   ├── domain/                                       # Pure domain models, canonical IDs, RFC 8785 JCS, errors
   │   ├── config/                                       # Platform paths (%LOCALAPPDATA%, XDG, runtimes) & config
   │   ├── state/                                        # SQLite WAL engine (22 tables), safe CAS rollback journal

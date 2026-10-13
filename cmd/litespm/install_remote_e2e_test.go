@@ -209,6 +209,39 @@ func TestRemoteInstallEndToEndJSONAndTOMLHosts(t *testing.T) {
 		t.Fatalf("written hosts = %+v, want claude-code and codex", exec.Hosts)
 	}
 
+	// --- 3b. the install carries its own launch line ------------------------
+	//
+	// The install writes a providers row in the same transaction as the install,
+	// component and registration rows. Before that, the only writer was
+	// internal/discover during `capabilities refresh`, so a machine that had
+	// just installed an MCP server had no provider row: autostart had nothing
+	// to start, and a fresh session could not reach the server without first
+	// running a manual refresh (STATUS.md §4, finding m4).
+	prov, err := h.db.GetProvider(ctx, exec.InstallID)
+	if err != nil {
+		t.Fatalf("install wrote no provider row: %v", err)
+	}
+	if prov.Endpoint != remoteEndpoint {
+		t.Errorf("provider endpoint = %q, want %q", prov.Endpoint, remoteEndpoint)
+	}
+	// Reading back reports the providers.mode enum, not the transport label the
+	// catalog uses: the column is CHECK-constrained to 'local-stdio' |
+	// 'remote-http' | 'legacy-sse', and ProviderMode maps a transport onto it.
+	// Asserting the enum here is deliberate — it is what a supervisor reads.
+	if prov.Transport != "remote-http" {
+		t.Errorf("provider mode = %q, want %q for a streamable-http endpoint", prov.Transport, "remote-http")
+	}
+	if prov.Command != "" {
+		t.Errorf("a remote provider row carries a command: %q", prov.Command)
+	}
+	if prov.InstallID != exec.InstallID {
+		t.Errorf("provider install_id = %q, want %q", prov.InstallID, exec.InstallID)
+	}
+	// It must point at a real component row, not at the install id.
+	if prov.ComponentID == "" || prov.ComponentID == prov.InstallID {
+		t.Errorf("provider component_id = %q; it must be a component id, never the install id", prov.ComponentID)
+	}
+
 	// --- 4. the configs hold EXACTLY the golden entries ---------------------
 	claudeData, err := os.ReadFile(claudePath)
 	if err != nil {

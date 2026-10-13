@@ -61,3 +61,6 @@ tmp-agent-sandbox-*/
 # are committed: the prose and its `source` URLs live in `lib/hostNotes.ts`, and
 # the marks that ship live in `web/public/brands/`.
 .hostnotes-work/
+
+# Engram AI agent memory
+.engram/

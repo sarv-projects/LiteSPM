@@ -1034,6 +1034,19 @@ func TestInstallExecuteRefusesDiscoveryOnly(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "LPSM-NOT-INSTALLABLE") {
 		t.Fatalf("err = %v, want LPSM-NOT-INSTALLABLE", err)
 	}
+	// The refusal is audited too: this gate fires before a plan or an approval
+	// ever exists, and a refusal that leaves no row cannot be distinguished
+	// from a request that was never made.
+	row := findAuditRow(auditRows(t, h), "package.install")
+	if row == nil {
+		t.Fatal("a discovery-only refusal wrote no audit event")
+	}
+	if row[2] != "deny" {
+		t.Errorf("audit decision = %q, want %q", row[2], "deny")
+	}
+	if row[1] != id {
+		t.Errorf("audit target = %q, want %q", row[1], id)
+	}
 }
 
 // TestArchiveInstallPathEnforcesDenyRules pins defect 5: the install engine the

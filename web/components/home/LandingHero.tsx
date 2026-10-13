@@ -28,6 +28,8 @@ export interface LandingHeroProps {
   query: string;
   setQuery: (q: string) => void;
   totalMatches?: number;
+  /** False while the search for `query` is still in flight; see SearchBar. */
+  settled?: boolean;
 }
 
 /** Real Explore parameters: `?q=` is matched by `matchesQuery`, `?category=`
@@ -80,6 +82,7 @@ export function LandingHero({
   query,
   setQuery,
   totalMatches,
+  settled,
 }: LandingHeroProps) {
   const [copied, setCopied] = React.useState(false);
 
@@ -123,6 +126,7 @@ export function LandingHero({
               query={query}
               setQuery={setQuery}
               totalMatches={totalMatches}
+              settled={settled}
               totalCount={total}
               placeholder="What do you want your AI to do?"
               hint={

@@ -29,7 +29,7 @@ is closed.
 | `npm run build` | `next build` | Works — writes the static export to **`web/out/`**. This is what CI and `scripts/deploy-pages.sh` run. |
 | `npm run type-check` | `tsc --noEmit` | Works — **exits 0**. `lib/hosts.ts:10` refers to this script, and until this pass it did not exist, so the comment named a command that failed with "Missing script". CI now runs `npm run type-check` (`build-web`) so the script cannot rot unnoticed. |
 | `npm run start` | `next start` | **Broken by design.** Next.js refuses: `"next start" does not work with "output: export" configuration. Use "npx serve@latest out" instead.` Use a static file server on `out/`. |
-| `npm run lint` | `node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs` | Works — **exits 0**. It replaced `next lint`, which could never pass here: with no ESLint config and no `eslint` dependency it opened an interactive "How would you like to configure ESLint?" prompt and hung whenever stdin was not a TTY. Two rules run, both with the TypeScript API already in `devDependencies`: a Hook must not follow an early return (React error #310, which `tsc` and `next build` both accept), and an exported component must be reachable from a route. Neither is a general linter, and together they add nothing to the lockfile. |
+| `npm run lint` | `node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs && node scripts/check-search-settled.mjs` | Works — **exits 0**. It replaced `next lint`, which could never pass here: with no ESLint config and no `eslint` dependency it opened an interactive "How would you like to configure ESLint?" prompt and hung whenever stdin was not a TTY. Three rules run, all with the TypeScript API already in `devDependencies`: a Hook must not follow an early return (React error #310, which `tsc` and `next build` both accept), an exported component must be reachable from a route, and a `<SearchBar>` reporting a match count must also pass `settled` (a count printed before the search ran is a number nobody measured — the field showed `0 found` for a query that matched 4,809 rows). None is a general linter, and together they add nothing to the lockfile. |
 
 CI's `build-web` job now runs, in order: `npm ci`, `npm run type-check`, `npm run lint`, `npm run build`,
 then `scripts/deploy-pages.sh` — which materializes the release tree, verifies its digest chain, scans
@@ -50,7 +50,8 @@ web/
                   `public/data/catalog.json` (an index) + `public/data/catalog-*.json` (the ordered
                   shards Explore concatenates), and `public/data/pkg/<n>.json` — a 256-way hash
                   partition so a *product page* resolves one row without downloading the catalog.
-                  `scripts/check-hook-order.mjs` and `scripts/check-orphan-components.mjs` are
+                  `scripts/check-hook-order.mjs`, `scripts/check-orphan-components.mjs` and
+                  `scripts/check-search-settled.mjs` are
                   `npm run lint`.
   components/     catalog/  home/  layout/  navigation/  package/  ui/
   lib/            catalog.ts  catalogData.ts  hosts.ts  landing.ts  query.ts  telemetry.ts

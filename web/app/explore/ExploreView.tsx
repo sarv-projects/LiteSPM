@@ -185,7 +185,7 @@ function ExploreContent(props: ExploreViewProps) {
   const agents = live ? live.agents : props.agents;
   const hostCount = live ? live.hostCount : props.hostCount;
 
-  const { results, searching } = useCatalogSearch(full ?? [], deferredQuery, {
+  const { results, searching, settled } = useCatalogSearch(full ?? [], deferredQuery, {
     kind: kind === "all" ? null : kind,
     category: category === "all" ? null : category,
   });
@@ -271,6 +271,7 @@ function ExploreContent(props: ExploreViewProps) {
               query={query}
               setQuery={setQuery}
               totalMatches={deferredQuery && full ? filtered.length : undefined}
+              settled={settled}
               totalCount={total}
               autoFocusOnMount={focusSearch}
             />

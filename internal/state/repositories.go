@@ -707,6 +707,21 @@ type launchSpec struct {
 
 // SaveProvider stores supervised MCP provider configuration.
 func (db *DB) SaveProvider(ctx context.Context, p *domain.ProviderRecord) error {
+	return db.SaveProviderExec(ctx, db.raw, p)
+}
+
+// SaveProviderExec writes a provider row through an arbitrary Execer, so the
+// row can join the install transaction that creates the install and component
+// rows it points at. providers.component_id is a foreign key onto
+// install_components, and install_id onto installs, so writing it outside that
+// transaction would either fail on the constraint or leave a provider row whose
+// install rolled back.
+//
+// This is also what makes autostart possible at all: before the install path
+// called this, the only writer was internal/discover on `capabilities refresh`,
+// so a freshly installed machine had no provider row and nothing to start
+// (STATUS.md §4 finding "m4").
+func (db *DB) SaveProviderExec(ctx context.Context, ex Execer, p *domain.ProviderRecord) error {
 	mode, err := ProviderMode(p.Transport)
 	if err != nil {
 		return err
@@ -737,15 +752,20 @@ func (db *DB) SaveProvider(ctx context.Context, p *domain.ProviderRecord) error 
 	// component_id is a foreign key onto install_components. An unset
 	// ComponentID is resolved to that install's mcp-provider component row
 	// (preferring the one named like the provider's ComponentName), never to the
-	// install id: component ids are distinct from install ids.
+	// install id: component ids are distinct from install ids. The lookup runs
+	// through the same Execer, so inside a transaction it reads that
+	// transaction's uncommitted component row.
 	componentID := p.ComponentID
 	if componentID == "" {
-		err := db.raw.QueryRowContext(ctx, `
+		row, qerr := queryRowExec(ctx, ex, `
 		SELECT component_id FROM install_components
 		WHERE install_id = ? AND kind = ?
 		ORDER BY (name = ?) DESC, component_id LIMIT 1;`,
-			p.InstallID, string(domain.ComponentMCPProvider), p.ComponentName).Scan(&componentID)
-		if err != nil {
+			p.InstallID, string(domain.ComponentMCPProvider), p.ComponentName)
+		if qerr != nil {
+			return qerr
+		}
+		if err := row.Scan(&componentID); err != nil {
 			if err == sql.ErrNoRows {
 				return fmt.Errorf("provider %s: install %s has no mcp-provider component row to attach to", p.ProviderID, p.InstallID)
 			}
@@ -772,7 +792,7 @@ func (db *DB) SaveProvider(ctx context.Context, p *domain.ProviderRecord) error 
 		authArg = p.AuthProfileID
 	}
 
-	_, err = db.raw.ExecContext(ctx, query,
+	_, err = ex.ExecContext(ctx, query,
 		p.ProviderID,
 		p.InstallID,
 		componentID,
@@ -782,6 +802,20 @@ func (db *DB) SaveProvider(ctx context.Context, p *domain.ProviderRecord) error 
 		p.CreatedAt,
 	)
 	return err
+}
+
+// queryRowExec is the QueryRowContext half of the Execer seam, so a repository
+// that must resolve a foreign key can do it through the caller's transaction.
+// It returns an error rather than a nil *sql.Row when the Execer cannot query,
+// because the caller scans the result and a nil row would panic.
+func queryRowExec(ctx context.Context, ex Execer, query string, args ...any) (*sql.Row, error) {
+	r, ok := ex.(interface {
+		QueryRowContext(context.Context, string, ...any) *sql.Row
+	})
+	if !ok {
+		return nil, fmt.Errorf("execer %T cannot run a row query; use *sql.DB or *sql.Tx", ex)
+	}
+	return r.QueryRowContext(ctx, query, args...), nil
 }
 
 // GetProvider reads one provider row back into a ProviderRecord, reconstructing

@@ -1,5 +1,90 @@
 # Current Run Handover
 
+## Session 2026-10-13 — Hands-On Validation + Four Defects Closed
+
+A validation session ran the product for real rather than reading it, then fixed what it found.
+Everything below is committed; nothing here is aspirational.
+
+**What was run.** Eleven MCP servers were installed into a real OpenCode host config (backup at
+`/tmp/opencode/oc-backup/`); 10 of 11 connect, `github` needs OAuth, and `desktop-commander` shows a
+client-side `Request timed out` despite a healthy 990 ms handshake / 25 tools. A hermetic sandbox at
+`/tmp/opencode/lspm-sandbox` (all roots redirected, `pi` 1.2.0 + `grok` 1.0.52 installed inside it)
+then drove LiteSPM end to end against the live origin: `catalog sync` → 69,376 capabilities,
+`host setup pi-agent` + `grok-build`, an install into both hosts, a byte-identical remove round trip
+on both a JSON and a TOML host, and a daemon + bridge `search_catalog` over the `0600` socket.
+
+**The one thing that did not work, and why.** The published `litespm@0.4.0` npm binary **cannot sync
+the published catalog.** It was tagged at 21:24:01 on 2026-10-11 (`791da17`), 2h29m before the
+shard-aware client (`547d230`, 23:53:34) landed, so it looks for a `listings.json` that
+`rel-2026-10-11-02` does not contain — the release was sharded precisely because the single file was
+62 MiB, over Cloudflare's 25 MiB per-asset cap. It fails with `manifest missing listings.json entry`
+and writes nothing, which takes `search`, `install` and `/marketplace` with it. A binary built from
+`main` syncs the same tree and reports `69376 capabilities indexed`, so this is release ordering, not
+source. **`STATUS.md` §2 and `README` Phase C now say so; the fix is a re-tag, not a code change.**
+
+**Six defects fixed (the Go ones with tests that fail on regression):**
+
+1. `gofmt -w internal/host/remove.go` — committed unformatted since `454de4a`, so the CI `gofmt` gate
+   (`ci.yml:30-37`) was red on `origin/main`.
+2. **`audit_events` is now wired.** `RecordAuditEvent` had exactly one caller, and it was a test, so
+   no install or invocation was ever logged. `cmd/litespm/main.go` `recordAudit` now writes one row
+   per install attempt — agent path **and** CLI path — and per capability invocation, allow and deny,
+   carrying the authorizing `approval_id`. The install `defer` is registered *before* authorization,
+   so a refusal by the gate is recorded too. Writes are best-effort: an audit failure goes to stderr
+   and never changes an operation's outcome. Pinned by `TestInstallExecuteWritesAuditEvent` and
+   `TestInstallExecuteRefusalIsAuditedAsDeny` (the latter caught a real hole — authorization
+   refusals originally returned before the `defer` existed).
+3. **`m4` closed: provider rows are written at install time.** `state.SaveProviderExec` (new `Execer`
+   seam over `SaveProvider`) writes the row inside the same transaction as the install, component,
+   registration and ledger rows, so an installed MCP server carries its own launch line. Previously
+   the only writer was `internal/discover` on `capabilities refresh`, so a freshly installed machine
+   had nothing to reach. Verified in the sandbox: `component_id` resolves to
+   `…#mcp-provider/context7` (a real component id, never the install id), mode `remote-http`,
+   `autostart 0`. Pinned by the provider assertions in
+   `TestRemoteInstallEndToEndJSONAndTOMLHosts`.
+4. **Doc truth (Phase 0).** `STATUS.md` §1/§4, the "Not yet true" block, `README` Phase C, `TODO.md`
+   (`LPSM-A005`/`LPSM-E001`/the roadmap table) and `ARCH/24`'s stale "21 of 42 packages" coverage note
+   all now match the tree.
+
+**Web UI checked in a real browser, not just built:** `check_catalog_coherence.py` OK (69,376 rows),
+`tsc --noEmit` clean, hook-order + orphan-component lint clean, `next build` → 60 static pages / 50
+agent routes at **104 kB** First Load JS (budget 110 kB), and `check_pages_limits.py --plan free` OK
+at 526 files / 20.00 MiB largest asset. Chrome was installed and the export served locally so the
+rendered app could actually be driven. Verified working: per-agent titles, the `roo` discontinued
+banner, the `mux` → "Xum" display-name override, the release chip (`rel-2026-10-11-02 · seq 147`),
+and real search results on both surfaces (home and Explore both report **4,809** for `context7`;
+Explore reports 580 for `playwright sequential-thinking`).
+
+**Two web defects found by driving it, both fixed:**
+
+1. **The search label described six fields while the matcher searched eight.**
+   `matchesQuery` (`web/lib/query.ts`) also folds in `tools[].name` and `tools[].description`, so a
+   query for `context7` returns 4,809 rows — most of them servers that merely *bundle* a context7
+   tool — and the accessible name on the field claimed "name, summary, publisher, category, runtime
+   or transport". The Explore meta description repeated the claim (and additionally invented "agent
+   host", which no matcher reads). Both now list runtime, transport and tool name. Found by reading
+   the a11y snapshot after wondering why the top hit for `context7` was "11agents Cloud MCP".
+
+2. **The result count asserted a measurement that had not been taken.** `useCatalogSearch` already
+   exposes `settled` precisely because "a UI that trusted those two rendered a confident 'No
+   matches' before any search had happened" — but neither caller passed it to `SearchBar`, which
+   printed `{count} found` unconditionally. On a cold load (rows arrive with a lazy fetch of ~43 MB
+   of shards, then MiniSearch indexes them) the homepage showed a flat **"0 found"** for
+   `context7` while the search was still in flight, then **4,809 found** eight seconds later.
+   `SearchBar` now takes `settled?: boolean` and reads "searching…" while it is `false`; `HomeView`
+   → `LandingHero` and `ExploreView` both pass it. Confirmed in the browser: "searching…" on the
+   first frame after typing, "4,809 found" once it settles. `ExploreView` did not even destructure
+   `settled`, so it had the same hole.
+
+A note on scope: `ARCH/31` §12's phases 0–9 include whole `DESIGNED` subsystems (ARCH/34–37 —
+invocation registry, enterprise policy, profiles/leases). Those are features, not defects, and are
+deliberately not attempted here.
+
+**Still open, in value order:** re-cut `v0.4.1`; the five `IMPLEMENTED`-but-unwired packages
+(`receipts`, `identity`, `compat`, `profiles`, `manager`); `ResolveLaunchSecrets` (no caller);
+`internal/source` adapters (no production ingest); REG-34 invocation registry; M3 plugin artifact
+locator. `ARCH/24` describes 21 of 42 packages and says so at the top.
+
 ## Active Goal
 
 Website work on the agent-host surfaces: every agent host now carries a description and capabilities **read from that vendor's own documentation** (never composed), its **own official logo**, and its **exact vendor name** where the registry row differs. Agents whose vendors have ended the product were removed from the landing-page chooser, the agent atlas and the `/agents/` index. The previous guarded `feed:skills-sh` replay and defect-remediation work is unchanged and still open below.

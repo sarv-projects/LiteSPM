@@ -305,6 +305,38 @@ type mcpInstallOutcome struct {
 	Backups          []string
 }
 
+// providerRecordForInstall builds the providers row for an installed MCP entry.
+//
+// Transport is derived from the entry's own shape rather than guessed: an
+// endpoint entry is remote, a command entry is local stdio. The row carries no
+// secret: EnvNames are names only, and the resolved value never reaches this
+// struct, so nothing here can leak a credential into the state database.
+func providerRecordForInstall(installID, name string, entry host.ServerEntry) *domain.ProviderRecord {
+	rec := &domain.ProviderRecord{
+		ProviderID:    installID,
+		InstallID:     installID,
+		ComponentName: name,
+		Transport:     "stdio",
+		Status:        "active",
+		CreatedAt:     time.Now().UTC(),
+	}
+	if entry.Endpoint != "" {
+		rec.Transport = entryTransportLabel(entry)
+		if rec.Transport == "" {
+			rec.Transport = host.TransportStreamableHTTP
+		}
+		rec.Endpoint = entry.Endpoint
+		return rec
+	}
+	rec.Command = entry.Command
+	if len(entry.Args) > 0 {
+		if raw, err := json.Marshal(entry.Args); err == nil {
+			rec.ArgsJSON = string(raw)
+		}
+	}
+	return rec
+}
+
 // installMCPFromListing registers a catalog MCP server with the given hosts.
 //
 // hosts is the exact approved target set. The installer never re-resolves an
@@ -573,6 +605,20 @@ func installMCPFromListing(
 			if err := deployment.SaveMutationExec(ctx, tx, m); err != nil {
 				return fmt.Errorf("record the deployment mutation: %w", err)
 			}
+		}
+		// A provider row is written HERE, in the install transaction, so the
+		// install carries its own launch line. Before this, the only writer was
+		// internal/discover during `capabilities refresh`: a machine that had
+		// installed an MCP server and then rebooted had no provider row at all,
+		// so autostart had nothing to start and `litespm capabilities` could not
+		// reach the server without a manual refresh (STATUS.md §4, finding m4).
+		//
+		// The row is idempotent on provider_id, so re-installing the same entry
+		// updates it rather than duplicating. autostart stays 0: writing the row
+		// makes the launch line durable, but starting a process on every boot is
+		// a product decision that ARCH/34 owns, not an install-time side effect.
+		if err := db.SaveProviderExec(ctx, tx, providerRecordForInstall(outcome.InstallID, name, outcome.Entry)); err != nil {
+			return fmt.Errorf("record the provider: %w", err)
 		}
 		return nil
 	}); err != nil {

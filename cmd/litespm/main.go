@@ -1321,14 +1321,16 @@ func runInstall(args []string) {
 		if catClient.Count() == 0 {
 			msg += "; run 'litespm catalog sync' first"
 		}
+		auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", msg)
 		fmt.Fprintf(os.Stderr, "Install failed: %s\n", msg)
 		os.Exit(1)
 	}
 
 	// Discovery-only rows are searchable metadata, not installable packages.
 	if !listing.IsInstallable() {
-		fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrNotInstallable(listing.ID,
-			"this listing is discovery-only metadata with no proven artifact"))
+		detail := "this listing is discovery-only metadata with no proven artifact"
+		auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", detail)
+		fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrNotInstallable(listing.ID, detail))
 		os.Exit(1)
 	}
 
@@ -1339,6 +1341,10 @@ func runInstall(args []string) {
 	if listing.Kind == domain.KindMCP {
 		runtime, runtimeErr := catClient.RuntimeForListing(listing.ID, versionOrLatest(flags.version))
 		if runtimeErr != nil {
+			// No launch line means no install: this is the same "cannot prove
+			// what would be executed" refusal the plan stage makes, and it
+			// happens before any approval exists.
+			auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", runtimeErr.Error())
 			fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrArtifactUnavailable(flags.listingID, runtimeErr.Error()))
 			os.Exit(1)
 		}
@@ -1362,6 +1368,9 @@ func runInstall(args []string) {
 	if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP {
 		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, projectRoot, mcpBinding)
 		if gerr != nil {
+			// The gate refused before any effect; it is still a refusal, and the
+			// agent path audits this same point. No approval was consumed.
+			auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", gerr.Error())
 			fmt.Fprintf(os.Stderr, "Install failed: %v\n", gerr)
 			os.Exit(1)
 		}
@@ -1374,10 +1383,20 @@ func runInstall(args []string) {
 			fmt.Printf("Note: host %q will not be written: %s\n", d.HostID, d.Reason)
 		}
 	}
+	// The approval the grant consumed, for the audit row. A path that never
+	// reached a grant (a discovery-only listing, an unreadable runtime) has no
+	// approval to name, and says so with "" rather than inventing one.
+	approvalID := ""
+	if grant != nil {
+		approvalID = grant.ApprovalID
+	}
 	failInstall := func(err error) {
 		if grant != nil {
 			grant.refund(ctx, db)
 		}
+		// The CLI path is the primary install path, so it audits exactly like the
+		// agent path: a refusal that lands no row is a refusal nobody can see.
+		auditCLIInstall(ctx, db, flags.listingID, approvalID, "deny", "refused", err.Error())
 		fmt.Fprintf(os.Stderr, "Install failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -1388,6 +1407,7 @@ func runInstall(args []string) {
 		if err != nil {
 			failInstall(err)
 		}
+		auditCLIInstall(ctx, db, flags.listingID, approvalID, "allow", "ok", "")
 		printSkillInstall(outcome)
 		return
 	}
@@ -1402,12 +1422,14 @@ func runInstall(args []string) {
 		if err != nil {
 			failInstall(err)
 		}
+		auditCLIInstall(ctx, db, flags.listingID, approvalID, "allow", "ok", "")
 		printMCPInstall(outcome)
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrArtifactUnavailable(flags.listingID,
-		fmt.Sprintf("the %q install path is not wired yet: the published catalog carries no artifact locator for it", listing.Kind)))
+	notWired := fmt.Errorf("the %q install path is not wired yet: the published catalog carries no artifact locator for it", listing.Kind)
+	auditCLIInstall(ctx, db, flags.listingID, approvalID, "deny", "refused", notWired.Error())
+	fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrArtifactUnavailable(flags.listingID, notWired.Error()))
 	os.Exit(1)
 }
 
@@ -2326,6 +2348,9 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 		if listing, lerr := catClient.GetListing(listingID); lerr == nil {
 			// Discovery-only rows are searchable metadata, not installable.
 			if !listing.IsInstallable() {
+				recordAudit(ctx, db, "agent", "package.install", listingID,
+					"deny", approvalID, "", "refused",
+					"discovery-only listing: no authoritative manifest proved a version or launch line")
 				return nil, installRPCError(domain.ErrNotInstallable(listingID,
 					"discovery-only listing: no authoritative manifest proved a version or launch line"))
 			}
@@ -2333,19 +2358,31 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			// a human-recorded approval bound to that plan's hash. The request
 			// reaching this handler is never itself the authorization.
 			if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP {
+				// Every attempt is audited, including the ones the authorization
+				// gate refuses before any effect: an audit trail that records
+				// only successes cannot answer "was this asked for?". The defer
+				// is registered BEFORE authorization so a refusal lands a deny row.
+				auditOutcome := "refused"
+				auditDetail := ""
+				installed := false
 				grant, authErr := authorizeInstallExecute(ctx, db, req.ListingID, req.Version, req.Scope, req.PlanID, approvalID)
+				defer func() {
+					if grant != nil && !installed {
+						grant.refund(ctx, db)
+					}
+					decision := "allow"
+					if !installed {
+						decision = "deny"
+					}
+					recordAudit(ctx, db, "agent", "package.install", listingID,
+						decision, approvalID, "", auditOutcome, auditDetail)
+				}()
 				if authErr != nil {
+					auditDetail = authErr.Message
 					return nil, authErr
 				}
 				ctx = grant.context(ctx)
 				listingID, version, scope = grant.ListingID, grant.Version, grant.Scope
-				installed := false
-				// A failure before the effect gives the approval back.
-				defer func() {
-					if !installed {
-						grant.refund(ctx, db)
-					}
-				}()
 				if listing.Kind == domain.KindSkill {
 					home, _ := os.UserHomeDir()
 					// The workspace comes from the sealed plan, never from a
@@ -2353,9 +2390,11 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 					// this plan's hash, and the project root is part of it.
 					outcome, ierr := installSkillFromListing(ctx, db, paths.DataRoot, grant.Plan.Request.ProjectRoot, home, listing, versionOrLatest(version), scope, nil)
 					if ierr != nil {
+						auditDetail = ierr.Error()
 						return nil, installRPCError(ierr)
 					}
 					installed = true
+					auditOutcome = "ok"
 					return map[string]any{
 						"installId":    outcome.InstallID,
 						"treeDigest":   outcome.ContentDigest,
@@ -2369,15 +2408,18 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				}
 				mcpBinding, berr := mcpInstallBindingFromPlan(ctx, grant.Plan, listing, scope)
 				if berr != nil {
+					auditDetail = berr.Error()
 					return nil, installRPCError(berr)
 				}
 				outcome, ierr := installMCPFromListing(ctx, db, paths.DataRoot, listing, versionOrLatest(version), scope,
 					grant.Plan.Request.ProjectRoot,
 					mcpBinding.Hosts, mcpBinding.Force, mcpBinding.Runtime, mcpBinding.EnvNames)
 				if ierr != nil {
+					auditDetail = ierr.Error()
 					return nil, installRPCError(ierr)
 				}
 				installed = true
+				auditOutcome = "ok"
 				hosts := make([]map[string]any, 0, len(outcome.Hosts))
 				for _, h := range outcome.Hosts {
 					hosts = append(hosts, map[string]any{
@@ -2781,8 +2823,12 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			// A tool that is not installed, not discovered, whose schema
 			// drifted, or that policy refused is the caller's problem to fix,
 			// not an internal failure.
+			recordAudit(ctx, db, "agent", "capability.invoke", req.CapabilityID,
+				"deny", "", "", "refused", err.Error())
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}
 		}
+		recordAudit(ctx, db, "agent", "capability.invoke", req.CapabilityID,
+			"allow", "", "", "ok", "")
 		return map[string]any{"output": result.Output, "isError": result.IsError}, nil
 	})
 
@@ -2861,6 +2907,41 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 	})
 
 	return nil
+}
+
+// auditCLIInstall records one `litespm install` attempt.
+//
+// This is the human path and the primary one — the agent path audits through
+// its own `recordAudit` call in `install.execute`. Both name the same action
+// and target so the log reads as one stream. Every exit from `runInstall`
+// passes through this: a success, a refusal by the authorization gate, a
+// listing the catalog cannot resolve, and a kind whose artifact source is not
+// wired. A refusal that leaves no row is a refusal nobody can see.
+func auditCLIInstall(ctx context.Context, db *state.DB, listingID, approvalID, decision, outcome, detail string) {
+	recordAudit(ctx, db, "human-cli", "package.install", listingID, decision, approvalID, "", outcome, detail)
+}
+
+// recordAudit appends one row to the audit_events log.
+//
+// It is deliberately best-effort: the operation being logged has already
+// succeeded or already failed on its own merits, so an audit-write error must
+// not change that outcome or fail the caller's request. The failure is written
+// to stderr instead, where the daemon log can pick it up. Before this helper
+// existed, RecordAuditEvent had no production caller at all — STATUS.md §1/§4
+// recorded audit_events as unwired, which was accurate.
+func recordAudit(ctx context.Context, db *state.DB, actor, action, targetRef, decision, approvalID, opID, outcome, detail string) {
+	if db == nil {
+		return
+	}
+	metadata := "{}"
+	if detail != "" {
+		if raw, err := json.Marshal(map[string]string{"detail": detail}); err == nil {
+			metadata = string(raw)
+		}
+	}
+	if err := db.RecordAuditEvent(ctx, actor, action, targetRef, decision, approvalID, opID, outcome, metadata); err != nil {
+		fmt.Fprintf(os.Stderr, "[audit] could not record %s/%s: %v\n", action, targetRef, err)
+	}
 }
 
 // runStartupRecovery sweeps the operation journal before the daemon starts

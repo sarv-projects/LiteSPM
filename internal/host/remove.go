@@ -210,17 +210,17 @@ func PlanRemoval(ctx context.Context, adapter HostAdapter, backupDir string) (*H
 	}
 
 	return &HostChangePlan{
-			HostID:          adapter.Descriptor().HostID,
-			ConfigPath:      configPath,
-			OriginalContent: orig,
-			ProposedContent: proposed,
-			BackupPath:      backupPath,
-		}, &RemovalResult{
-			HostID:     adapter.Descriptor().HostID,
-			ConfigPath: configPath,
-			BackupPath: backupPath,
-			Removed:    true,
-		}, nil
+		HostID:          adapter.Descriptor().HostID,
+		ConfigPath:      configPath,
+		OriginalContent: orig,
+		ProposedContent: proposed,
+		BackupPath:      backupPath,
+	}, &RemovalResult{
+		HostID:     adapter.Descriptor().HostID,
+		ConfigPath: configPath,
+		BackupPath: backupPath,
+		Removed:    true,
+	}, nil
 }
 
 // stripBridgeEntry removes every LiteSPM bridge entry (the current server name

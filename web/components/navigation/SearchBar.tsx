@@ -9,6 +9,17 @@ interface SearchBarProps {
   setQuery: (q: string) => void;
   totalMatches?: number;
   totalCount: number;
+  /**
+   * Whether `totalMatches` was measured for the *current* query.
+   *
+   * The rows arrive with a lazy fetch and the search runs off-thread, so there
+   * is a real window in which `totalMatches` is `0` because nothing has been
+   * searched yet — not because nothing matched. Printing that as "0 found"
+   * asserts a measurement that was never taken. When this is explicitly
+   * `false`, the count reads "searching…" instead. Omitting it preserves the
+   * plain count for callers that compute the number some other way.
+   */
+  settled?: boolean;
   /** Extra classes so the same control can sit in the hero or a filter bar. */
   className?: string;
   autoFocusOnMount?: boolean;
@@ -33,6 +44,7 @@ export function SearchBar({
   query,
   setQuery,
   totalMatches,
+  settled,
   totalCount,
   className = "",
   autoFocusOnMount = false,
@@ -86,7 +98,8 @@ export function SearchBar({
   return (
     <div className={className}>
       <label htmlFor={labelId} className="sr-only">
-        Search the capability catalog by name, summary, publisher, category, runtime or transport
+        Search the capability catalog by name, summary, publisher, category, runtime, transport or
+        tool name
       </label>
       {/*
         The search field is the primary control on the site, so it keeps the
@@ -117,7 +130,7 @@ export function SearchBar({
           <span className="flex shrink-0 items-center gap-2">
             {totalMatches !== undefined && (
               <span id={`${labelId}-count`} className="t-mono t-tabular text-[11px] text-ink-3" aria-live="polite">
-                {formatCount(totalMatches)} found
+                {settled === false ? "searching…" : `${formatCount(totalMatches)} found`}
               </span>
             )}
             <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="btn px-2!">
