@@ -50,8 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   below its name (a shortened id would be something the user cannot paste). Closing the loop
   end to end in a sandbox: the id taken straight from `search` output installs.
 
-### Fixed
-
 - **Every install attempt and every invocation is now written to the audit log.**
   `state.RecordAuditEvent` had exactly one caller and it was a test, so the `audit_events` table was
   never written in production — no install, refusal or invocation left a trace. `cmd/litespm/main.go`
@@ -105,6 +103,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cover that branch.
 
 - **The tree is gofmt/vet clean and `go test ./...` is 43/43** (also under `-race`).
+
+### Security
+
+- **Skill frontmatter was printed to the terminal unescaped.** A skill's `name`, `description`,
+  `triggers` and required-tool list are read out of a stranger's cloned repository, and every one of
+  them is printed to the user's screen at the moment they are deciding whether to trust the skill —
+  in the progressive index, the `skills add` summary, the ledger and `litespm skills list`. Nothing
+  stripped them, so a skill named `\x1b[2K\rLegit Looking Skill` would clear the victim's line and
+  overwrite it with text of the attacker's choosing. That is the terminal-escape class, CWE-150,
+  and it applied to every skill install. `internal/skills/sanitize.go` now strips OSC, DCS, PM, APC
+  and CSI sequences, raw C1 controls and the remaining C0 controls, and collapses the result to one
+  printable line. It runs **at the parse boundary** — a sink added later cannot forget to do it —
+  and the table renderer is sanitized again for its own formatting needs. Pinned by
+  `internal/skills/sanitize_test.go`, which covers each sequence class, an unterminated CSI, a
+  trailing lone ESC, and the trap that makes this easy to get wrong: a continuation byte *inside* a
+  valid multi-byte character also falls in `0x80–0x9F`, so a byte-wise C1 strip would corrupt every
+  non-Latin description on the page. Decoding, not byte masking, is what keeps those apart.
+- **`RenderProgressiveIndex` corrupted descriptions in two more ways while it was being fixed.**
+  A `|` in any value split the markdown row and destroyed the table (now escaped as `\|`), and the
+  truncation sliced **bytes** — `desc[:77]` — cutting a multi-byte character in half and printing
+  invalid UTF-8 for any description not written in a Latin script (now rune-counted).
+  `TestTruncateRunesDoesNotCorruptUTF8` asserts the old behaviour really was invalid UTF-8 rather
+  than taking that on trust.
 
 ### Known issue
 

@@ -70,6 +70,7 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 			// Check for list items
 			if strings.HasPrefix(trimmed, "- ") && currentListKey != "" {
 				itemVal := strings.TrimSpace(strings.Trim(strings.TrimPrefix(trimmed, "- "), "\"'`"))
+				itemVal = sanitizeForDisplay(itemVal)
 				switch currentListKey {
 				case "triggers":
 					pkg.Triggers = append(pkg.Triggers, itemVal)
@@ -87,29 +88,29 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 
 				switch key {
 				case "name":
-					pkg.Name = val
+					pkg.Name = sanitizeForDisplay(val)
 					currentListKey = ""
 				case "description":
-					pkg.Description = val
+					pkg.Description = sanitizeForDisplay(val)
 					currentListKey = ""
 				case "license":
-					pkg.License = val
+					pkg.License = sanitizeForDisplay(val)
 					currentListKey = ""
 				case "version":
-					pkg.Version = val
+					pkg.Version = sanitizeForDisplay(val)
 					currentListKey = ""
 				case "author":
-					pkg.Author = val
+					pkg.Author = sanitizeForDisplay(val)
 					currentListKey = ""
 				case "triggers":
 					currentListKey = "triggers"
 					if val != "" && !strings.HasPrefix(val, "[") {
-						pkg.Triggers = append(pkg.Triggers, val)
+						pkg.Triggers = append(pkg.Triggers, sanitizeForDisplay(val))
 					}
 				case "tools_required", "tools":
 					currentListKey = "tools_required"
 					if val != "" && !strings.HasPrefix(val, "[") {
-						pkg.ToolsRequired = append(pkg.ToolsRequired, val)
+						pkg.ToolsRequired = append(pkg.ToolsRequired, sanitizeForDisplay(val))
 					}
 				default:
 					currentListKey = ""
@@ -126,11 +127,12 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 	pkg.Instructions = strings.TrimSpace(strings.Join(bodyLines, "\n"))
 
 	if pkg.Name == "" {
-		// Fallback: derive name from first header or default
+		// Fallback: derive name from first header or default. Derived from
+		// body text, which is just as untrusted as frontmatter.
 		for _, bl := range bodyLines {
 			tb := strings.TrimSpace(bl)
 			if strings.HasPrefix(tb, "# ") {
-				pkg.Name = strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(tb, "# "), " ", "-"))
+				pkg.Name = sanitizeForDisplay(strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(tb, "# "), " ", "-")))
 				break
 			}
 		}
@@ -184,15 +186,27 @@ func RenderProgressiveIndex(skills []*SkillPackage) string {
 			toolsStr = fmt.Sprintf("`%s`", strings.Join(s.ToolsRequired, "`, `"))
 		}
 
-		desc := s.Description
-		if len(desc) > 80 {
-			desc = desc[:77] + "..."
-		}
-
-		sb.WriteString(fmt.Sprintf("| **%s** | %s | %s | %s |\n", s.Name, desc, triggersStr, toolsStr))
+		// Frontmatter is untrusted. It is sanitized at parse time, so the
+		// terminal escapes are already gone by here — but the renderer is
+		// sanitized again for its OWN formatting needs, so it cannot emit a
+		// value that breaks the table it is drawing even when a caller builds
+		// a SkillPackage without going through the parser. Two such defects
+		// were real: a `|` split the row, and the old `desc[:77]` sliced BYTES,
+		// cutting a multi-byte character in half and printing invalid UTF-8 for
+		// any description not written in a Latin script.
+		sb.WriteString(fmt.Sprintf("| **%s** | %s | %s | %s |\n",
+			escapeTableCell(sanitizeForDisplay(s.Name)),
+			escapeTableCell(truncateRunes(sanitizeForDisplay(s.Description), 80)),
+			escapeTableCell(sanitizeForDisplay(triggersStr)),
+			escapeTableCell(sanitizeForDisplay(toolsStr))))
 	}
 
 	return sb.String()
+}
+
+// escapeTableCell makes a value safe inside one markdown table cell.
+func escapeTableCell(s string) string {
+	return strings.ReplaceAll(s, "|", "\\|")
 }
 
 // RenderFullPrompt formats the complete instructional body when a skill is activated (Level 2).
