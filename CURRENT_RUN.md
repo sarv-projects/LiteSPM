@@ -111,6 +111,61 @@ A note on scope: `ARCH/31` §12's phases 0–9 include whole `DESIGNED` subsyste
 invocation registry, enterprise policy, profiles/leases). Those are features, not defects, and are
 deliberately not attempted here.
 
+### What the `vercel-labs/skills` comparison showed (2026-10-13)
+
+Three subagents read that repository end to end — its CLI lifecycle, its lockfile and agent
+detection, its docs/CI/registry pipeline — and compared it against the ARCH tree. It is the right
+reference: `internal/skills/agents.go:60-64` says so itself ("Source: vercel-labs/skills
+`src/agents.ts` (MIT), read 2026-10-01. Every entry here was transcribed from that file").
+
+**Where LiteSPM is already stronger — protect these:**
+
+- **Generated-data CI gate.** They regenerate their README on main-push with an auto-commit bot, so
+  a PR that forgets to regenerate merges green and gets silently patched later. LiteSPM re-runs
+  `gen_hosts_ts.go` and `git diff --exit-code`s the tree (`ci.yml:82-85`), making drift a red X on
+  the contributor's own PR — and the data is produced by *executing* the adapters, not restating
+  them (`scripts/gen_hosts_ts.go:115`).
+- **Approval integrity.** Their "Proceed with installation? Yes" is a process-local boolean: nothing
+  hashed, nothing recorded, replayable forever, and `-y`/`--all` deletes the gate. LiteSPM's approval
+  is single-use, TTL-bounded, and covers listing, version, scope, workspace, hosts, env names and
+  the command/endpoint inside `planHash` (`canonical.go:25-44`).
+- **Write/rollback/ledger.** Their install loop is best-effort per (skill, agent) with no rollback,
+  and the lock records successes only. LiteSPM's config path is transactional across N hosts with
+  LIFO compensations and byte-identical rollback; its ledger treats *its own file* as hostile
+  (`confineDest`, `ledger.go:116-143`); its digest binds `path\0size\0content\0`, where theirs
+  concatenates without a delimiter and can collide.
+- **Evidence discipline.** Every bridge row requires a `DocsURL`; unverified agents are *absent with
+  a recorded cause*; a seeded-config test exercises all 44 generic rows. Their registry's only
+  validation is duplicate-display-name, and their README prints an 18×3 compatibility matrix with no
+  evidence behind any cell. Their weakness is honest though: nothing in that repo can say "we were
+  wrong" — LiteSPM's STATUS.md can, and did (16 silently-broken rows, `ARCH/30:116-139`).
+
+**Where they are stronger, and what to do about it — the plan, in order:**
+
+1. **Release gating is the single biggest gap and it is a missing edge, not a missing test.**
+   `test/catalog_e2e_test.go` runs on main and would have caught `v0.4.0`; the tag simply did not
+   contain it. CI tests branches, releases are tags, nothing gates the difference. Cut the tag inside
+   the workflow, build from it, sync against a served tree, publish only then.
+2. **They own the authoring loop and LiteSPM does not attempt it.** Their `skills init` scaffolds a
+   SKILL.md and prints the publish commands in its own "Next steps". LiteSPM has no authoring path —
+   and its own catalog rows carry
+   `installHint: "npx skills add …"`, generated at `scripts/build_full_catalog.py:2650`, i.e. the
+   catalog tells users to install with the competitor's CLI. That is honest and it is also the
+   clearest possible statement of the gap. Being *indexed* is blocked on the ingestion adapters
+   (`ARCH/03:40`); the authoring surface need not wait.
+3. **Their universal-target prompt.** LiteSPM has the data (`agents.go:56`), the glyph
+   (`skills_add.go:368-379`) and the destination dedup (`install.go:337-364`), but no locked
+   "Universal (.agents/skills) — always included" group, and no warning that global scope means N
+   independent copies. Presentation only.
+4. **Their source-form ergonomics.** `litespm skills add` already matches them (repo / URL / local,
+   plus `@ref` pinning they lack). The gap is the *catalog* surface: `search` printed a `NAME / ID`
+   header and never the id — fixed this session — and `install` still shows no destination preview.
+5. **Do not copy two things** — their `detectInstalled` closures (unverifiable behaviour inside a
+   registry table, which is why their validator can only check display names), and their silent
+   destruction of user edits on re-install.
+
+Detailed rows for items 2-4 are in [TODO.md](TODO.md)'s roadmap table.
+
 **Still open, in value order:** re-cut `v0.4.1`; the five `IMPLEMENTED`-but-unwired packages
 (`receipts`, `identity`, `compat`, `profiles`, `manager`); `ResolveLaunchSecrets` (no caller);
 `internal/source` adapters (no production ingest); REG-34 invocation registry; M3 plugin artifact
