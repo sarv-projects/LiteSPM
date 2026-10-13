@@ -9,6 +9,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Every install attempt and every invocation is now written to the audit log.**
+  `state.RecordAuditEvent` had exactly one caller and it was a test, so the `audit_events` table was
+  never written in production — no install, refusal or invocation left a trace. `cmd/litespm/main.go`
+  now records one row per install attempt on **both** paths (`install.execute` for agents,
+  `auditCLIInstall` for `litespm install`) and one per `provider.invoke`, with `decision` = `allow` or
+  `deny` and the authorizing `approval_id` when an approval was consumed. The agent path registers its
+  `defer` *before* `authorizeInstallExecute`, so a refusal by the gate is recorded too — a log that
+  records only successes cannot answer "was this asked for?" Writes are deliberately best-effort: a
+  failed audit write goes to stderr and never changes the outcome of the operation being logged.
+  Pinned by `TestInstallExecuteWritesAuditEvent`, `TestInstallExecuteRefusalIsAuditedAsDeny` and the
+  discovery-only assertion in `TestInstallExecuteRefusesDiscoveryOnly`.
+
+- **An installed MCP server now writes its own `providers` row (finding `m4`).** The only writer was
+  `internal/discover` during `capabilities refresh`, so a machine that had just installed an MCP server
+  had no provider row: autostart had nothing to start, and `litespm capabilities` could not reach the
+  server without a manual refresh. `state.SaveProviderExec` (a new `Execer` seam over `SaveProvider`)
+  writes the row inside the *same* transaction that writes the install, component, registration and
+  ledger rows — the row cannot outlive an install that rolled back. `component_id` resolves to a real
+  component row, never to the install id. `autostart` deliberately stays `0`: starting a process at boot
+  is an ARCH/34 §4 product decision, not an install side effect. Pinned by the provider assertions in
+  `TestRemoteInstallEndToEndJSONAndTOMLHosts`.
+
+- **`internal/host/remove.go` is formatted.** It had been committed unformatted since `454de4a`, which
+  made the `gofmt` gate in `ci.yml` red on `origin/main`.
+
+- **The search field no longer claims to search fields it does not, and no longer prints a count it has
+  not measured.** `matchesQuery` also reads `tools[].name` and `tools[].description`, but the field's
+  accessible name listed six other fields — which is why a query for `context7` returned 4,809 rows
+  (most of them servers that merely *bundle* a context7 tool) under a label that did not mention tools
+  at all; the `/explore/` meta description repeated the claim and added "agent host", which no matcher
+  reads. Separately, `SearchBar` printed `{count} found` unconditionally, so a cold load showed a flat
+  **`0 found`** while the rows were still arriving and MiniSearch was still indexing — resolving to
+  `4,809 found` seconds later for the same query. `useCatalogSearch` already exposed `settled` for
+  exactly this, and its own doc comment warned that "a UI that trusted those two rendered a confident
+  'No matches' before any search had happened", but neither caller passed it. `SearchBar` now takes
+  `settled?: boolean` and reads "searching…" while it is `false`, and a new
+  `web/scripts/check-search-settled.mjs` (wired into `npm run lint`) fails naming the file and line if
+  a caller passes `totalMatches` without `settled`.
+
+- **The tree is gofmt/vet clean and `go test ./...` is 43/43** (also under `-race`).
+
+### Known issue
+
+- **`litespm@0.4.0` as published cannot read the published catalog.** The `v0.4.0` tag was cut at
+  21:24:01 on 2026-10-11 (`791da17`), 2h29m before the shard-aware catalog client (`547d230`, 23:53:34)
+  landed — `git merge-base --is-ancestor 547d230 v0.4.0` is false. The installed binary therefore looks
+  for a single `listings.json` that `rel-2026-10-11-02` does not contain (it was sharded precisely
+  because the whole file was 62 MiB, over Cloudflare's 25 MiB per-asset limit) and fails with
+  `manifest missing listings.json entry`, which takes `search`, `install` and `/marketplace` with it.
+  A binary built from current `main` syncs the same tree and reports `69376 capabilities indexed`, so
+  this is release ordering and not a source defect. **The fix is a re-tag, not a code change** — see
+  `CURRENT_RUN.md` for the exact procedure.
+
+### The sharding fix (carried from the release that never shipped)
+
 - **The release tree and the site's catalog are sharded, because Cloudflare rejects any static asset
   over 25 MiB.** The 69,376-row catalog produced a 62 MiB `listings.json`, a 32 MB `versions.json` and
   a 52 MB `/data/catalog.json`; `wrangler deploy` refused all three with *"Asset too large"* and the
@@ -25,6 +80,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names before accumulating, because a Go map would otherwise order the digest domain differently on
   every run. Recorded in `ARCH/18` §2.1, including why this is a transport split and not the logical
   shard format §2 designs.
+
+  **This is the change the published `v0.4.0` binary predates**, and it is why that binary cannot
+  sync: the shards exist, the client that reads them does not ship in that tag.
+
 
 ## [0.4.0] - 2026-10-11
 

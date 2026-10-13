@@ -85,6 +85,43 @@ deliberately not attempted here.
 `internal/source` adapters (no production ingest); REG-34 invocation registry; M3 plugin artifact
 locator. `ARCH/24` describes 21 of 42 packages and says so at the top.
 
+### How to cut `v0.4.1` (the one thing that unblocks npm users)
+
+Everything up to the credentials is prepared; nothing below has been run, because it publishes.
+
+```bash
+# 1. Prove the fix is in the tag you are about to cut (already true of HEAD):
+git merge-base --is-ancestor 547d230 HEAD && echo "shard-aware client present"
+
+# 2. Bump the version npm will fetch for. npm postinstall downloads
+#    https://github.com/<owner>/<repo>/releases/download/v${VERSION}/
+#    from npm/package.json, and release.yml derives VERSION from the tag name
+#    (export VERSION="${GITHUB_REF_NAME#v}"), so these two MUST agree:
+sed -i 's/"version": "0.4.0"/"version": "0.4.1"/' npm/package.json
+
+# 3. Move CHANGELOG.md [Unreleased] -> [0.4.1] - <date>
+
+# 4. Commit, tag, push. The tag is what triggers the build:
+git commit -am "release: v0.4.1"
+git tag -a v0.4.1 -m "v0.4.1"
+git push origin main --follow-tags   # pushes the tag -> .github/workflows/release.yml runs
+
+# 5. Only after the GitHub release exists (8 assets + 8 .sigstore.json bundles):
+cd npm && npm publish
+```
+
+Why this works where `v0.4.0` did not: the release matrix builds from the tagged tree, and the
+shard-aware `internal/catalog/client.go` (`547d230`) is an ancestor of HEAD but **not** of `v0.4.0`.
+Verify afterwards with a clean data root rather than trusting the log:
+
+```bash
+rm -rf /tmp/lspm-verify && HOME=/tmp/lspm-verify litespm catalog sync
+# expect: Release rel-2026-10-11-02, 69376 capabilities indexed
+```
+
+Do **not** re-publish `0.4.0`: the tag is immutable in the GitHub release chain and its assets are
+cosign-signed, so replacing them would break every signature check already made against it.
+
 ## Active Goal
 
 Website work on the agent-host surfaces: every agent host now carries a description and capabilities **read from that vendor's own documentation** (never composed), its **own official logo**, and its **exact vendor name** where the registry row differs. Agents whose vendors have ended the product were removed from the landing-page chooser, the agent atlas and the `/agents/` index. The previous guarded `feed:skills-sh` replay and defect-remediation work is unchanged and still open below.
