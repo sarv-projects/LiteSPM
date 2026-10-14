@@ -1,148 +1,64 @@
 /// <reference lib="webworker" />
 
-// Dedicated Web Worker that owns a MiniSearch index over the catalog.
-// The main thread sends the full listing set once (and again if it changes),
-// then asks for ranked ids. All matching state lives here so the UI thread
-// stays responsive even for large catalogs.
+// Dedicated Web Worker that owns the catalog search index.
+//
+// It does **not** receive the catalog rows. The previous worker was seeded with
+// all 69,376 rows on every init — a ~52 MB structured clone on the main thread
+// — and then spent seconds building a MiniSearch index over them. Now the
+// worker fetches the postings index emitted at build time
+// (`/data/catalog-search-index.bin.gz`, 2.7 MiB gzipped), decodes it into typed
+// arrays, and answers queries with ranked **row indices**. The main thread
+// keeps the display projection and hydrates exactly the rows it renders.
+//
+// Fetching from the worker rather than posting the bytes in keeps the main
+// thread free: the 2.7 MiB of compressed index never lands in a main-thread
+// ArrayBuffer and never crosses a structured clone.
+//
+// The query semantics live in `lib/searchFormat.mjs` — the same
+// `querySearchIndex` the in-thread fallback calls, so both paths answer with
+// the same row set as `matchesQuery`, which `scripts/check-search-index.mjs`
+// proves over the real dataset.
 
-import MiniSearch from "minisearch";
-import type { Listing } from "./telemetry";
-
-export type ListingKind = "mcp" | "skill" | "plugin";
+import { querySearchIndex } from "./searchFormat.mjs";
+import { fetchSearchIndex } from "./searchAssets";
+import type { DecodedSearchIndex } from "./searchAssets";
 
 /** Messages the main thread sends to the worker. */
 export type WorkerInboundMessage =
-  | { type: "init"; listings: Listing[] }
-  | {
-      type: "search";
-      id: number;
-      query: string;
-      kind?: ListingKind | null;
-      category?: string | null;
-    };
+  | { type: "load"; url: string }
+  | { type: "search"; id: number; query: string };
 
 /** Messages the worker sends back to the main thread. */
 export type WorkerOutboundMessage =
-  | { type: "ready"; count: number }
-  | { type: "results"; id: number; ids: string[] };
+  | { type: "ready"; rowCount: number }
+  | { type: "error"; message: string }
+  | { type: "results"; id: number; indices: number[] };
 
-/** Flattened document shape that MiniSearch actually indexes. */
-interface IndexDoc {
-  id: string;
-  name: string;
-  slug: string;
-  summary: string;
-  category: string;
-  publisher: string;
-  keywords: string;
-}
-
-const SEARCH_FIELDS = ["name", "slug", "summary", "category", "publisher", "keywords"];
+type SearchRequest = Extract<WorkerInboundMessage, { type: "search" }>;
 
 /** Bound as a dedicated worker; `dom` types would otherwise type this as Window. */
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
-let index: MiniSearch<IndexDoc> | null = null;
-const listingsById = new Map<string, Listing>();
-// Searches that arrive before the index exists are queued and flushed on init.
-const pending: Array<Extract<WorkerInboundMessage, { type: "search" }>> = [];
+let index: DecodedSearchIndex | null = null;
+let state: "idle" | "loading" | "ready" | "error" = "idle";
+// Searches that arrive before the index exists are queued and flushed on load.
+const pending: SearchRequest[] = [];
 const MAX_PENDING = 25;
 
 function post(message: WorkerOutboundMessage): void {
   scope.postMessage(message);
 }
 
-/** Collect the non-obvious searchable text: runtime, transport and tool names. */
-function buildKeywords(listing: Listing): string {
-  const parts: string[] = [];
-  if (listing.runtime) parts.push(listing.runtime);
-  if (listing.transport) parts.push(listing.transport);
-  for (const tool of listing.tools ?? []) {
-    if (tool?.name) parts.push(tool.name);
-    if (tool?.description) parts.push(tool.description);
+function respond(message: SearchRequest): void {
+  if (!index) {
+    post({ type: "results", id: message.id, indices: [] });
+    return;
   }
-  return parts.join(" ");
-}
-
-function toIndexDoc(listing: Listing): IndexDoc {
-  return {
-    id: listing.id,
-    name: listing.name ?? "",
-    slug: listing.slug ?? "",
-    summary: listing.summary ?? "",
-    category: listing.category ?? "",
-    // `publisher` is an object; flatten it to its name for indexing.
-    publisher: listing.publisher?.name ?? "",
-    keywords: buildKeywords(listing),
-  };
-}
-
-function initIndex(listings: Listing[]): void {
-  listingsById.clear();
-  const docs: IndexDoc[] = [];
-  for (const listing of listings) {
-    if (!listing || !listing.id) continue;
-    listingsById.set(listing.id, listing);
-    docs.push(toIndexDoc(listing));
-  }
-
-  const engine = new MiniSearch<IndexDoc>({
-    fields: SEARCH_FIELDS,
-    storeFields: [],
-    searchOptions: {
-      prefix: true,
-      fuzzy: 0.2,
-      boost: { name: 3, slug: 2, category: 1.5, summary: 1 },
-    },
-  });
-  engine.addAll(docs);
-  index = engine;
-
-  post({ type: "ready", count: docs.length });
-  flushPending();
-}
-
-function matchesFilters(
-  listing: Listing,
-  kind?: ListingKind | null,
-  category?: string | null
-): boolean {
-  if (kind && listing.kind !== kind) return false;
-  if (category && listing.category !== category) return false;
-  return true;
-}
-
-function allMatchingIds(kind?: ListingKind | null, category?: string | null): string[] {
-  const ids: string[] = [];
-  for (const [id, listing] of listingsById) {
-    if (matchesFilters(listing, kind, category)) ids.push(id);
-  }
-  return ids;
-}
-
-function runSearch(message: Extract<WorkerInboundMessage, { type: "search" }>): string[] {
-  const { kind, category } = message;
-  const query = (message.query ?? "").trim();
-
-  // Empty query means "browse": every listing that passes the filters.
-  if (!query) return allMatchingIds(kind, category);
-  if (!index) return [];
-
-  const ids: string[] = [];
-  for (const result of index.search(query)) {
-    const id = String(result.id);
-    const listing = listingsById.get(id);
-    if (listing && matchesFilters(listing, kind, category)) ids.push(id);
-  }
-  return ids;
-}
-
-function respond(message: Extract<WorkerInboundMessage, { type: "search" }>): void {
   try {
-    post({ type: "results", id: message.id, ids: runSearch(message) });
+    post({ type: "results", id: message.id, indices: querySearchIndex(index, message.query) });
   } catch {
-    // Never crash the worker on a bad index/search; report "no results".
-    post({ type: "results", id: message.id, ids: [] });
+    // Never crash the worker on a bad search; report "no results".
+    post({ type: "results", id: message.id, indices: [] });
   }
 }
 
@@ -153,32 +69,45 @@ function flushPending(): void {
   }
 }
 
-function handleSearch(message: Extract<WorkerInboundMessage, { type: "search" }>): void {
-  if (!index) {
-    if (pending.length >= MAX_PENDING) pending.shift();
-    pending.push(message);
-    return;
+async function load(url: string): Promise<void> {
+  if (state === "loading" || state === "ready") return;
+  state = "loading";
+  try {
+    const loaded = await fetchSearchIndex(url);
+    index = loaded.index;
+    state = "ready";
+    post({ type: "ready", rowCount: loaded.rowCount });
+    flushPending();
+  } catch (error) {
+    state = "error";
+    pending.length = 0;
+    post({
+      type: "error",
+      message: error instanceof Error ? error.message : "search index load failed",
+    });
   }
-  respond(message);
 }
 
 scope.onmessage = (event: MessageEvent<WorkerInboundMessage>): void => {
   const message = event.data;
-  try {
-    if (!message || typeof message !== "object") return;
-    if (message.type === "init") {
-      initIndex(Array.isArray(message.listings) ? message.listings : []);
+  if (!message || typeof message !== "object") return;
+  if (message.type === "load") {
+    void load(message.url);
+    return;
+  }
+  if (message.type === "search") {
+    if (state === "ready") {
+      respond(message);
       return;
     }
-    if (message.type === "search") {
-      handleSearch(message);
+    if (state === "error") {
+      // The main thread is told about the failure and switches to its own
+      // fallback; answer defensively so a late search cannot hang.
+      post({ type: "results", id: message.id, indices: [] });
+      return;
     }
-  } catch {
-    if (message && typeof message === "object" && message.type === "search") {
-      post({ type: "results", id: message.id, ids: [] });
-    } else {
-      post({ type: "ready", count: 0 });
-    }
+    if (pending.length >= MAX_PENDING) pending.shift();
+    pending.push(message);
   }
 };
 

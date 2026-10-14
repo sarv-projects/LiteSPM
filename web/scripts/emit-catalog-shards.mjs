@@ -14,6 +14,19 @@
 // built in a fixed order here). The index carries the sha256 of each shard so
 // the deploy audit can verify them without a second source of truth.
 //
+// The same pass also emits the two search artifacts the browser actually
+// searches with (`lib/searchFormat.mjs` owns their byte layout):
+//
+//   catalog-search-index.bin.gz  vocabulary + delta-varint postings
+//   catalog-search-rows.bin.gz   the display projection for every row
+//
+// Both are gzipped at build time rather than left to the CDN, because a
+// binary `application/octet-stream` asset is not on Cloudflare's compressible
+// type list; gzip keeps the transport independent of the edge. `node:zlib`'s
+// gzip output is deterministic for a given Node build, and
+// `scripts/check-search-index.mjs` re-emits both artifacts and fails on any
+// byte difference.
+//
 // No dependencies: node + stdlib only.
 
 import { createHash } from "node:crypto";
@@ -26,6 +39,16 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
+import {
+  buildDisplayRows,
+  buildSearchIndex,
+  encodeContainer,
+  encodeDisplayRows,
+  encodeSearchIndex,
+  SECTION_INDEX,
+  SECTION_ROWS,
+} from "../lib/searchFormat.mjs";
 
 const webRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sourcePath = path.join(webRoot, "data", "catalog.json");
@@ -217,4 +240,46 @@ console.log(
     `${(Math.min(...bucketFiles) / 1024).toFixed(0)} KiB smallest; ` +
     `${slugBucketExtras} slug-key extra(s)) ` +
     `+ ${categoryFiles} category file(s) → ${path.relative(process.cwd(), PKG_DIR)}`,
+);
+
+// ---------------------------------------------------------------------------
+// Search artifacts.
+//
+// Explore and the landing-page search no longer concatenate the ordered shards
+// to answer a keystroke: they query the postings index and hydrate the matched
+// rows from the display projection. Both are emitted from the same parsed rows
+// in the same pass, so a dataset regeneration regenerates them automatically
+// and the two cannot describe different datasets.
+//
+// The index is built from the fields `listingText` defines — the exact fields
+// `matchesQuery` reads — so the index and the build-time topic counts answer
+// with the same row set. `scripts/check-search-index.mjs` asserts that over the
+// real dataset for a query corpus, and re-emits to assert byte stability.
+// ---------------------------------------------------------------------------
+const SEARCH_INDEX_FILE = "catalog-search-index.bin.gz";
+const SEARCH_ROWS_FILE = "catalog-search-rows.bin.gz";
+
+const searchIndex = buildSearchIndex(rows);
+const searchIndexRaw = encodeContainer([
+  { kind: SECTION_INDEX, payload: encodeSearchIndex(searchIndex) },
+]);
+const searchIndexGz = gzipSync(searchIndexRaw, { level: 9 });
+writeFileSync(path.join(outDir, SEARCH_INDEX_FILE), searchIndexGz);
+
+const displayRows = buildDisplayRows(rows);
+const searchRowsRaw = encodeContainer([
+  { kind: SECTION_ROWS, payload: encodeDisplayRows(displayRows) },
+]);
+const searchRowsGz = gzipSync(searchRowsRaw, { level: 9 });
+writeFileSync(path.join(outDir, SEARCH_ROWS_FILE), searchRowsGz);
+
+const MiB = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MiB`;
+console.log(
+  `✔ search index: ${searchIndex.tokens.length.toLocaleString("en-US")} tokens, ` +
+    `${searchIndex.postingsCount.toLocaleString("en-US")} postings, ` +
+    `${MiB(searchIndexRaw.length)} raw / ${MiB(searchIndexGz.length)} gzip → ${SEARCH_INDEX_FILE}`,
+);
+console.log(
+  `✔ search rows: ${rows.length.toLocaleString("en-US")} rows, ` +
+    `${MiB(searchRowsRaw.length)} raw / ${MiB(searchRowsGz.length)} gzip → ${SEARCH_ROWS_FILE}`,
 );

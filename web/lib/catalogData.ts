@@ -5,29 +5,49 @@
 // The dataset (69,376 rows, ~52 MB) is NOT part of any JavaScript bundle: the
 // build-time pages prerender from `data/catalog.json` through a Server
 // Component (server bundles never reach the browser), and the browser fetches
-// the same rows only when a page actually needs the full set. The served
-// document at `/data/catalog.json` is a shard index emitted by
-// `scripts/emit-catalog-shards.mjs` from that same file at build time; the
-// rows themselves arrive as ordered shard files that this module concatenates.
+// a *display projection* of the same rows only when a page actually needs
+// them. The projection is emitted by `scripts/emit-catalog-shards.mjs` from
+// that same file at build time: `catalog-search-rows.bin.gz` carries exactly
+// what the cards render (name, summary capped at a display-visible length,
+// publisher, kind, category, runtime, transport, version, installability,
+// hosts, and the link key) plus the fields the search matcher reads. It is
+// 13.3 MiB raw / 5.0 MiB gzipped against the 42.78 MiB of ordered shards it
+// replaces — and it hydrates in ~140 ms instead of a ~45 MB `JSON.parse` plus
+// `withLinkKeys` re-keying.
 //
-// Timing is the point of the design. A first visit therefore downloads the
-// page's HTML and ~107 kB of First Load JS and nothing else; the dataset is
-// requested on the first interaction that needs it (typing in search, changing
-// a filter, opening an entry), and never on a passive visit. Until then the
-// prerendered rows are on screen and stay on screen — this module does not
-// replace them with a spinner.
+// The ordered shards are still emitted and are still the fallback: a browser
+// without `DecompressionStream`, or a projection that fails to load, gets
+// exactly the pre-2026-10-14 path through `/data/catalog.json` and its shards.
+// Nothing that reads a *full-fidelity* row (the product page's own bucket
+// lookup below) goes through the projection.
+//
+// Timing is the point of the design. A first visit downloads the page's HTML
+// and ~107 kB of First Load JS and nothing else; the dataset is requested on
+// the first interaction that needs it (typing in search, changing a filter,
+// opening an entry), and never on a passive visit. Until then the prerendered
+// rows are on screen and stay on screen — this module does not replace them
+// with a spinner.
 
 import { useCallback, useEffect, useState } from "react";
 import type { Listing } from "./telemetry";
 import { withLinkKeys } from "./catalog";
+import { fetchDisplayRows } from "./searchAssets";
 import bundledRelease from "../data/release.json";
 
 /**
  * Shard index as served: the build-time emitter writes it to
  * `web/public/data/catalog.json`; the rows arrive as the shard files it names
- * and are re-keyed with `withLinkKeys` once concatenated.
+ * and are re-keyed with `withLinkKeys` once concatenated. Since 2026-10-14 the
+ * primary row source is the display projection (`SEARCH_ROWS_URL`); this path
+ * is the fallback for browsers that cannot decompress it.
  */
 export const CATALOG_PATH = "/data/catalog.json";
+
+/** Display projection: every field a card renders, dictionary-encoded. */
+export const SEARCH_ROWS_PATH = "/data/catalog-search-rows.bin.gz";
+
+/** Postings index; fetched by `lib/search.worker.ts` (or in-thread fallback). */
+export const SEARCH_INDEX_PATH = "/data/catalog-search-index.bin.gz";
 
 /**
  * Cache-buster bound to the dataset itself, not to the deploy: `datasetDigest`
@@ -44,6 +64,8 @@ const DATASET_VERSION = (() => {
 })();
 
 export const CATALOG_URL = `${CATALOG_PATH}${DATASET_VERSION}`;
+export const SEARCH_ROWS_URL = `${SEARCH_ROWS_PATH}${DATASET_VERSION}`;
+export const SEARCH_INDEX_URL = `${SEARCH_INDEX_PATH}${DATASET_VERSION}`;
 
 /** Directory of the index; shards are its siblings (`/data/catalog-0000.json`). */
 const CATALOG_DATA_DIR = CATALOG_PATH.slice(0, CATALOG_PATH.lastIndexOf("/"));
@@ -100,14 +122,13 @@ function fetchRowsFromShards(index: CatalogIndex): Promise<Listing[]> {
       }
       rows.push(...(part as Listing[]));
     }
-    return rows;
+    return withLinkKeys(rows);
   });
 }
 
-function fetchCatalog(): Promise<Listing[]> {
-  if (cached) return Promise.resolve(cached);
-  if (inflight) return inflight;
-  inflight = fetch(CATALOG_URL, { cache: "no-cache" })
+/** The pre-projection path: index document, then the ordered shards. */
+function fetchShardRows(): Promise<Listing[]> {
+  return fetch(CATALOG_URL, { cache: "no-cache" })
     .then((res) => {
       if (!res.ok) throw new Error(`catalog fetch failed: HTTP ${res.status}`);
       return res.json();
@@ -115,17 +136,38 @@ function fetchCatalog(): Promise<Listing[]> {
     .then((data) => {
       // A plain array is a legacy single-file export; the sharded build serves
       // an index document that names the shard files to concatenate in order.
-      if (Array.isArray(data)) return data as unknown as Listing[];
+      if (Array.isArray(data)) return withLinkKeys(data as unknown as Listing[]);
       if (!isCatalogIndex(data)) {
         throw new Error("catalog document is neither a row array nor a shard index");
       }
       return fetchRowsFromShards(data);
-    })
+    });
+}
+
+/**
+ * The primary path: hydrate the display projection.
+ *
+ * `linkKey` arrives precomputed by the emitter over the *whole* dataset, which
+ * is where slug ambiguity can actually be resolved — `withLinkKeys` over a
+ * shard or bucket only sees its own slice.
+ */
+function fetchProjectionRows(): Promise<Listing[]> {
+  return fetchDisplayRows(SEARCH_ROWS_URL);
+}
+
+function fetchCatalog(): Promise<Listing[]> {
+  if (cached) return Promise.resolve(cached);
+  if (inflight) return inflight;
+  inflight = fetchProjectionRows()
+    // A projection that cannot be decompressed (old browser), decoded (foreign
+    // or corrupt bytes) or fetched (stale edge) degrades to the ordered shards,
+    // which are still emitted beside it. The reader gets the same rows; only
+    // the transport is slower.
+    .catch(() => fetchShardRows())
     .then((rows) => {
-      const items = withLinkKeys(rows);
-      cached = items;
+      cached = rows;
       inflight = null;
-      return items;
+      return rows;
     })
     .catch((err) => {
       inflight = null;

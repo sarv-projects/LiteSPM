@@ -2,10 +2,10 @@
 // Reject a `<SearchBar totalMatches=...>` that does not also pass `settled`.
 //
 // The result count in the search field is a *measurement*, and there is a real
-// window in which it has not happened yet: the catalog rows arrive with a lazy
-// fetch (~43 MB of shards), MiniSearch then indexes them off-thread, and the
-// search itself is debounced by 120 ms. Through all of that, `results` is `[]`
-// — because nothing has been searched, not because nothing matched.
+// window in which it has not happened yet: the search index arrives with a lazy
+// fetch (2.7 MiB gzipped), the display rows hydrate from the projection, and
+// the search itself is debounced by 120 ms. Through all of that, `results` is
+// `[]` — because nothing has been searched, not because nothing matched.
 //
 // `useCatalogSearch` exposes `settled` for exactly this, and its own doc
 // comment warns that "a UI that trusted those two rendered a confident 'No
