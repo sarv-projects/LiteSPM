@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`litespm skills` now does everything the reference skills CLI does, plus the parts it does not.**
+  Five gaps in the source format and the discovery walk meant a user could not simply swap one tool for
+  the other, and the fix is the point of this section:
+
+  **Sources.** `git@host:owner/repo.git` and `ssh://host/path` — the reference's documented private-repo
+  path — were refused by `ParseSkillSource`. They now parse. This required a second change to be worth
+  anything: git routes *both* spellings to its **ssh** transport, so with `GIT_ALLOW_PROTOCOL=https:git`
+  the clone died with `fatal: transport 'ssh' not allowed` before any network I/O. That list is now
+  `https:ssh:git` while `http`, `file:` and `ftp` stay refused, and a test asserts the allow-list can
+  never get wider than the parser. Azure Repos URLs are recognised, and the
+  `?path=/skills/x&version=GBmain` form is parsed rather than mangled: `GB`/`GT` prefixes were being
+  taken as a literal branch name (`--branch GBmain`, which is not a ref). Tree URLs with a `/` in the
+  ref are addressable via `?ref=` or a percent-escaped slash.
+
+  **Direct downloads.** A URL that is not a git repo — a bare `SKILL.md`, or `.zip`/`.tar`/`.tar.gz`/`.tgz`
+  — is now a source, and **the extension is not required**: the format is sniffed from the bytes. Caps are
+  10 MiB fetched / 25 MiB extracted / 1000 entries, overridable with the reference's exact env vars
+  (`SKILLS_DOWNLOAD_MAX_BYTES`, `SKILLS_EXTRACT_MAX_BYTES`, `SKILLS_EXTRACT_MAX_FILES`). Enforced *while
+  reading*, so a `Content-Length` is a hint and a decompression bomb is stopped by the extracted-byte
+  counter rather than by the archive's own advertised size. Entries with an absolute path, a `..`
+  component, a symlink or a non-regular file are rejected, and downloads are https-only.
+
+  **Discovery.** The walk stopped at depth 2, so a repo laying skills out as
+  `skills/<category>/<name>/SKILL.md` — the real `google/skills` layout — installed **zero** skills with a
+  generic "No installable skills found". Depth is now 3, `node_modules`/`dist`/`build`/`__pycache__` join
+  `.git` as skipped, a source that *is* a skill (root `SKILL.md`) works, a recursive search runs when the
+  bounded walk finds nothing, and `--full-depth` drops both bounds. `DiscoverSkillsIncludingRoot` is the
+  one exported entry point, so `add`, `use`, `update` and the browse-URL branch can no longer disagree.
+
+  **New commands.** `litespm skills use <source>[@<skill>]` resolves a source exactly like `add` and
+  installs **nothing**: it writes the one skill to a temp dir, prints the instruction body (frontmatter
+  stripped — that is discovery metadata, not instructions) to stdout for piping, and removes the scratch
+  dir. `litespm skills find [<query>] [--owner <org>]` searches the catalog for skills; `--owner` derives
+  the owner from the source URL path and is documented as inapplicable to rows whose source is not a repo
+  URL (measured against the compiled release tree: `--owner vercel-labs` → 59 rows, `--owner anthropics` →
+  416). `ls` and `rm` are aliases for `list` and `remove`.
+
+  **Bulk selection and filters**, matching the reference's documented invocations:
+  `--skill '*'`, `--agent '*'` (expands to all 77 ids with shared destinations de-duplicated: one skill
+  becomes 54 copies, not 77), `--all` implemented as *exactly* `--skill '*' --agent '*' --yes` so the
+  shorthand cannot drift, `-l` for `--list`, `update` with no arguments updating everything from each
+  ledger row's recorded source, `update -p`, `remove -a`/`-s`/`-y` and removal by exact source, and
+  `list -g`/`-a` filters. `list` previously **silently ignored** every argument but `--json`, so `ls -g`
+  listed everything without complaint; unrecognised arguments are now an error.
+
+  **`metadata.internal`.** The frontmatter `metadata` key was dropped entirely, so a skill marked
+  `internal: true` was always visible. It is now parsed (block and inline forms) and gated on
+  `INSTALL_INTERNAL_SKILLS=1` across `add`, `use` and `update` — an update that quietly installed what a
+  fresh install would refuse would have made the gate decorative. Hidden skills are *reported*, not
+  dropped, so asking for one by name explains itself.
+
+  **Agent ids.** `universal` and `warp` added; `grok` and `pi` added as ids alongside the existing
+  `grok-build` / `pi-agent` rows, so the reference's documented `--agent grok` works.
+
+- **`litespm init` scaffolds a `SKILL.md` that parses under the real loader.** `init` used to be a second
+  alias of the setup wizard; it is now the authoring entry point, and the wizard keeps `setup` and the
+  bare `litespm` invocation. `litespm init [name] [--dir <path>] [--force]` writes a skill with a real
+  `name`, a real one-sentence `description` (not `TODO`), and `## When to use` / `## How to run` sections
+  — valid as written, not a skeleton to fill in — then prints next steps using `skills add`'s actual flags.
+  A test feeds the generated file to `ParseSkillMD` and asserts it round-trips; another asserts
+  `skills.DiscoverSkills` finds it, so "the scaffolder produces an installable skill" is checked rather than
+  claimed. `skills add`'s own documentation is what caught a real subtlety here: `DiscoverSkills` skips a
+  source root's own `SKILL.md`, so the printed command names the *containing* directory — which is exactly
+  the bug fixed in the same release, and the reason `init`'s instructions are now correct in both
+  directions.
+
 ### Fixed
 
 - **Remote MCP servers could not be discovered or invoked at all — the modern streamable-http
@@ -104,6 +172,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The tree is gofmt/vet clean and `go test ./...` is 43/43** (also under `-race`).
 
+- **The published site told users to install skills with the competitor's CLI.** Three catalog rows
+  (`skill:anthropics:academy-guide`, `:claude-api`, `:discernment-nudge`) carried
+  `installHint: "npx skills add https://github.com/anthropics/skills --skill …"`, and the site renders
+  that field as a **copyable command** — so a live page offered a one-click copy of someone else's
+  installer. The generator had already been fixed to emit `litespm skills add <repo> --skill <name>`,
+  and the leak survived anyway, because `web/data/catalog.json` is a tracked generated artifact that
+  **no CI gate diff-checks**: the producer changed, the artifact did not, and nothing compared them.
+  Corrected by applying the generator's own output for those rows (verified by calling the generator's
+  `github_repo_facts` on the same input rather than hand-writing a replacement string), recomputing
+  `web/data/release.json`'s `datasetDigest` so the recorded digest does not become the next false
+  claim, and adding the missing gate: `scripts/check_catalog_coherence.py` now fails when any
+  `installHint` names another tool's installer. The gate is proven non-vacuous — reintroducing the
+  leak in a scratch copy makes it exit 1 with the row id. **Scoped to `installHint` only**: the twelve
+  upstream `summary` values that also mention `npx skills` are publisher-authored text, and rewriting
+  those would falsify the record rather than fix it. The site's labels followed the value: for a skill
+  the field is now *our* command, so "Upstream source repository" / "Host command" — which named the
+  wrong tool — became "Install it straight from the source repo" / "Install from source", while a
+  plugin's `/plugin install` keeps the host-command wording because that genuinely is the host's own
+  command, the one thing we cannot run. A full regeneration is still outstanding (upstream content has
+  moved on since the 2026-10-11 snapshot); that is a release action.
+
+- **`litespm uninstall` no longer lets you believe LiteSPM is gone when it is not.** It strips the
+  bridge entry and said "Still on disk", naming skill directories and backups — but never the MCP
+  servers `litespm install` had registered into every agent config. It now enumerates what remains
+  per kind, with the exact command for each (`litespm install remove <installId>`,
+  `litespm skills remove --all [--global]`), and says nothing when there is nothing. The removal
+  scope is deliberately unchanged: the per-install path restores a user entry the install replaced
+  and keeps user-edited nodes, semantics a bulk strip does not have.
+
+- **`litespm setup` accepts arguments, and `--help` means help.** It discarded them entirely, so
+  `litespm setup --help` launched the wizard and died with `Setup error: EOF`. Now: `--help` prints
+  the page, an unexpected argument is a usage error naming the accepted form, a no-TTY invocation
+  refuses with the alternatives instead of an EOF error, and `setup --agent <host-id>` is a
+  non-interactive form sharing `host setup`'s exact write path (a test asserts the two produce
+  byte-identical results, so they cannot drift). Several `help.go` claims were false and are
+  corrected, including setup "showing what will change before it changes it" — which is now true —
+  and `install`'s description of `--host`, which does not apply to skill listings.
+
+### Changed
+
+- **The interactive wizard is now the non-developer surface for setup *and* management, and it was
+  writing to the wrong file.** An audit of the wizard against the requirement that a non-developer
+  should be able to install, remove and manage from it found the flow was setup-only — no catalog, no
+  ledger, no install, no remove, no list — plus two verified bugs and several claims the code did not
+  support. The worst was a silent redirect: answering "no" to the detected path and typing your own
+  wrote to the adapter's derived default instead, printing only the path it actually wrote. The
+  invariant is now *the path written is the path the user agreed to, or nothing is written*: a new
+  optional `host.PathPlanner` / `host.PlanSetupAt` plans the merge against exactly the given path and
+  refuses, naming the file it would use instead, when an adapter cannot express one. The second bug
+  was an unbounded loop on end-of-input — `ReadString`'s error was ignored, so exhausted stdin
+  produced **32,081,826 lines of "Invalid option." in 120 seconds** (Ctrl-D did the same to a real
+  user); every prompt now checks its read and stops once with guidance, pinned by a test that asserts
+  an output-line bound so it cannot return. Beyond the fixes: the agent menu is derived from
+  `host.ListAdapters()` instead of a hand-written list of six that had already drifted (its Pi row
+  advertised a `config.json` no Pi release reads); "✓ Detected configuration file" no longer appears
+  for a file that does not exist, so the wizard and `host detect` stop disagreeing; the "use 'Adopt'
+  in /marketplace" line is gone, because `Adopt` has no handler and the repo forbids text claiming a
+  state the code lacks; and setup now shows the change it is about to make and asks before writing.
+  The gap itself is closed with a "what next" menu reachable after a fresh setup **and** on every
+  later bare `litespm` run (which previously just re-applied setup with no already-configured state):
+  update the catalog (the one explicit, opt-in network step, which fails loudly rather than printing
+  a success line), find and install, remove what LiteSPM installed, see what is installed, or repair
+  another agent. Every action calls the **same shared implementation** the CLI uses —
+  `authorizeHumanInstall` → `installSkillFromListing` / `installMCPFromListing`,
+  `removeInstalledPackage`, `executeSkillsRemove`, `runListTo` — because a wizard-only installer
+  would be a second copy of the riskiest code in the product. A non-developer can now remove what
+  they installed, which they could not before.
+
 ### Security
 
 - **Skill frontmatter was printed to the terminal unescaped.** A skill's `name`, `description`,
@@ -174,74 +310,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2026-10-11
 
 ### Added
-
-- **`litespm skills` now does everything the reference skills CLI does, plus the parts it does not.**
-  Five gaps in the source format and the discovery walk meant a user could not simply swap one tool for
-  the other, and the fix is the point of this section:
-
-  **Sources.** `git@host:owner/repo.git` and `ssh://host/path` — the reference's documented private-repo
-  path — were refused by `ParseSkillSource`. They now parse. This required a second change to be worth
-  anything: git routes *both* spellings to its **ssh** transport, so with `GIT_ALLOW_PROTOCOL=https:git`
-  the clone died with `fatal: transport 'ssh' not allowed` before any network I/O. That list is now
-  `https:ssh:git` while `http`, `file:` and `ftp` stay refused, and a test asserts the allow-list can
-  never get wider than the parser. Azure Repos URLs are recognised, and the
-  `?path=/skills/x&version=GBmain` form is parsed rather than mangled: `GB`/`GT` prefixes were being
-  taken as a literal branch name (`--branch GBmain`, which is not a ref). Tree URLs with a `/` in the
-  ref are addressable via `?ref=` or a percent-escaped slash.
-
-  **Direct downloads.** A URL that is not a git repo — a bare `SKILL.md`, or `.zip`/`.tar`/`.tar.gz`/`.tgz`
-  — is now a source, and **the extension is not required**: the format is sniffed from the bytes. Caps are
-  10 MiB fetched / 25 MiB extracted / 1000 entries, overridable with the reference's exact env vars
-  (`SKILLS_DOWNLOAD_MAX_BYTES`, `SKILLS_EXTRACT_MAX_BYTES`, `SKILLS_EXTRACT_MAX_FILES`). Enforced *while
-  reading*, so a `Content-Length` is a hint and a decompression bomb is stopped by the extracted-byte
-  counter rather than by the archive's own advertised size. Entries with an absolute path, a `..`
-  component, a symlink or a non-regular file are rejected, and downloads are https-only.
-
-  **Discovery.** The walk stopped at depth 2, so a repo laying skills out as
-  `skills/<category>/<name>/SKILL.md` — the real `google/skills` layout — installed **zero** skills with a
-  generic "No installable skills found". Depth is now 3, `node_modules`/`dist`/`build`/`__pycache__` join
-  `.git` as skipped, a source that *is* a skill (root `SKILL.md`) works, a recursive search runs when the
-  bounded walk finds nothing, and `--full-depth` drops both bounds. `DiscoverSkillsIncludingRoot` is the
-  one exported entry point, so `add`, `use`, `update` and the browse-URL branch can no longer disagree.
-
-  **New commands.** `litespm skills use <source>[@<skill>]` resolves a source exactly like `add` and
-  installs **nothing**: it writes the one skill to a temp dir, prints the instruction body (frontmatter
-  stripped — that is discovery metadata, not instructions) to stdout for piping, and removes the scratch
-  dir. `litespm skills find [<query>] [--owner <org>]` searches the catalog for skills; `--owner` derives
-  the owner from the source URL path and is documented as inapplicable to rows whose source is not a repo
-  URL (measured against the compiled release tree: `--owner vercel-labs` → 59 rows, `--owner anthropics` →
-  416). `ls` and `rm` are aliases for `list` and `remove`.
-
-  **Bulk selection and filters**, matching the reference's documented invocations:
-  `--skill '*'`, `--agent '*'` (expands to all 77 ids with shared destinations de-duplicated: one skill
-  becomes 54 copies, not 77), `--all` implemented as *exactly* `--skill '*' --agent '*' --yes` so the
-  shorthand cannot drift, `-l` for `--list`, `update` with no arguments updating everything from each
-  ledger row's recorded source, `update -p`, `remove -a`/`-s`/`-y` and removal by exact source, and
-  `list -g`/`-a` filters. `list` previously **silently ignored** every argument but `--json`, so `ls -g`
-  listed everything without complaint; unrecognised arguments are now an error.
-
-  **`metadata.internal`.** The frontmatter `metadata` key was dropped entirely, so a skill marked
-  `internal: true` was always visible. It is now parsed (block and inline forms) and gated on
-  `INSTALL_INTERNAL_SKILLS=1` across `add`, `use` and `update` — an update that quietly installed what a
-  fresh install would refuse would have made the gate decorative. Hidden skills are *reported*, not
-  dropped, so asking for one by name explains itself.
-
-  **Agent ids.** `universal` and `warp` added; `grok` and `pi` added as ids alongside the existing
-  `grok-build` / `pi-agent` rows, so the reference's documented `--agent grok` works.
-
-- **`litespm init` scaffolds a `SKILL.md` that parses under the real loader.** `init` used to be a second
-  alias of the setup wizard; it is now the authoring entry point, and the wizard keeps `setup` and the
-  bare `litespm` invocation. `litespm init [name] [--dir <path>] [--force]` writes a skill with a real
-  `name`, a real one-sentence `description` (not `TODO`), and `## When to use` / `## How to run` sections
-  — valid as written, not a skeleton to fill in — then prints next steps using `skills add`'s actual flags.
-  A test feeds the generated file to `ParseSkillMD` and asserts it round-trips; another asserts
-  `skills.DiscoverSkills` finds it, so "the scaffolder produces an installable skill" is checked rather than
-  claimed. `skills add`'s own documentation is what caught a real subtlety here: `DiscoverSkills` skips a
-  source root's own `SKILL.md`, so the printed command names the *containing* directory — which is exactly
-  the bug fixed in the same release, and the reason `init`'s instructions are now correct in both
-  directions.
-
-### Changed
 
 - **Release `rel-2026-10-11-01` (sequence 146) — 69,376 capabilities, and installs that actually work.**
   The headline is not the row count, it is that **25,401 MCP servers are `metadata_verified`** where the

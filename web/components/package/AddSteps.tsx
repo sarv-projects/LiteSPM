@@ -296,13 +296,19 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                     <div className="mt-2">
                       <p className="t-mono text-[10px] uppercase tracking-wider text-dark-ink-2">
                         {item.kind === "skill"
-                          ? "Upstream source repository"
+                          ? "Install it straight from the source repo"
                           : "The host's own plugin command"}
                       </p>
+                      {/* The label has to follow the value. For a skill this
+                          field holds a `litespm skills add …` command -- ours --
+                          so calling it the host's command (as this did before
+                          the dataset was corrected) named the wrong tool. For a
+                          plugin it is genuinely the host's own `/plugin install`
+                          command, which is the one thing we cannot run. */}
                       <DarkCmd
                         text={item.installHint}
-                        label="Copy host install command"
-                        message="Host command copied"
+                        label={item.kind === "skill" ? "Copy LiteSPM install command" : "Copy host install command"}
+                        message={item.kind === "skill" ? "LiteSPM command copied" : "Host command copied"}
                       />
                     </div>
                   )}

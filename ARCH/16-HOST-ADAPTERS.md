@@ -34,7 +34,7 @@ existing writer (`InstallServerEntry`) through the canonical IR defined in
 
 ## 1. Extensible HostAdapter Architecture
 
-LiteSPM connects to AI agent hosts through a strongly typed, compiled-in `HostAdapter` interface (`internal/host/types.go:58-66`).
+LiteSPM connects to AI agent hosts through a strongly typed, compiled-in `HostAdapter` interface (`internal/host/types.go:59-68`).
 
 ```go
 type HostAdapter interface {
@@ -62,25 +62,27 @@ type HostDescriptor struct {
 **Contract facts:**
 
 *   The seven methods above are the whole interface. There is no `Compile`, `Project`, `WriteInstruction`, or `RegisterCommand` method, so the "write instructions/skills/commands into the host" behaviour is **`DESIGNED`, not implemented** — see §5.
-*   `SupportsFormElicit`, `RequiresBootstrapSkill` and `SlashCommandTrigger` are descriptor metadata: each adapter sets them and `Descriptor()` returns them, but no setup, verify, detect, remove or wizard path branches on them. `RequiresBootstrapSkill` is declared `true` for `claude-code` and `codex`, and LiteSPM writes no companion skill for either.
+*   `SupportsFormElicit`, `RequiresBootstrapSkill` and `SlashCommandTrigger` are descriptor metadata: each adapter sets them and `Descriptor()` returns them. The wizard's next-step line reads `SlashCommandTrigger` (`cmd/litespm/wizard.go:551-561`); no setup, verify, detect or remove path branches on them. `RequiresBootstrapSkill` is declared `true` for `claude-code` and `codex`, and LiteSPM writes no companion skill for either.
 *   `PlanSetup` → `ApplySetup` writes exactly one server entry named `litespm` (the pre-rename `litepsm` entry is detected, deleted and replaced so only one bridge entry survives — `internal/host/target.go:99-105`).
-*   Removal is the inverse of merge: `stripBridgeEntry` (`internal/host/remove.go:170-185`) deletes **both** the `litespm` and the legacy `litepsm` entry and touches no sibling; for JSON configs the produced file must re-parse with both entries gone before anything is written (`remove.go:138-149`). `litespm host remove <id>` / `host remove --all` (`cmd/litespm/main.go:424-463`) and `litespm uninstall` all go through this path.
+*   `PathPlanner` is the optional second half of the contract (`internal/host/types.go:70-80`): an adapter that implements `PlanSetupAt` can plan the merge against a caller-supplied path, and `host.PlanSetupAt` (`:82-117`) refuses any plan whose `ConfigPath` differs from the named path. The wizard's manual-path write goes through it, so a typed path is either written or refused — never silently redirected to `DetectConfig`'s default.
+*   Removal is the inverse of merge: `stripBridgeEntry` (`internal/host/remove.go:170-185`) deletes **both** the `litespm` and the legacy `litepsm` entry and touches no sibling; for JSON configs the produced file must re-parse with both entries gone before anything is written (`remove.go:138-149`). `litespm host remove <id>` / `host remove --all` (`cmd/litespm/main.go:734-746`) and `litespm uninstall` all go through this path.
 *   `DetectPreExistingComponents` always returns `ReadOnly: true` components of kind `mcp`; no adapter emits `kind: "skill"` today.
 
 ---
 
 ## 2. Advisory & Metadata Discovery
 
-**Today this is offline.** When a user runs `litespm`, the wizard prints advisory
-metadata compiled into the binary — `cmd/litespm/wizard.go:138-143`
-(`verifyRuntimeAdvisories`) performs **no HTTP request at all**; it prints the
-protocol version and the string `✓ 6 Verified Host Adapters Compiled & Available`
-(the six bespoke adapters — `litespm host list` reports **50** adapters, §3.7).
+**Today this is offline.** When a user runs `litespm`, the wizard prints **no advisory
+metadata**: `printRuntimeSummary` (`cmd/litespm/wizard.go:154-162`) reports how many
+adapters are compiled in and claims no runtime check, and the setup flow performs **no
+HTTP request at all**. The one wizard step that touches the network is the action menu's
+*Update the capability catalog* — an explicit, confirmed `catalog sync` (`wizard.go:656-705`).
 
-*   **Where advisories actually exist:** the published release pointer
-    `GET /v1/current.json` does carry an `advisories` array of
-    `{hostId, status, minVersion}` (three entries in `web/public/v1/current.json`).
-    There is no separate `adapters.json` endpoint.
+*   **Where advisories were supposed to exist:** nothing publishes an `advisories` array today.
+    The Go-built pointer carries only `createdAt`/`itemCount`/`manifestDigest`/`releaseId`/
+    `schemaVersion`/`sequence`, the Python builder no longer writes the pointer, and the dead key
+    was removed from `web/data/release.json` (`LPSM-E006`). There is no separate `adapters.json`
+    endpoint.
 *   **Nobody parses it yet.** No Go code reads `advisories`; `catalog.SyncResult`
     (`internal/catalog/client.go:20-26`) decodes only `releaseId`, `sequence`,
     `itemCount` and `updated`. The only network fetch of `/v1/current.json` is
@@ -115,7 +117,7 @@ protocol version and the string `✓ 6 Verified Host Adapters Compiled & Availab
 *   **Project scope:** implemented through `ProjectConfigPath` — a project-scope install writes `<project>/.pi/mcp.json` under `mcpServers`, Pi's documented project file ("a project entry replaces a user-level entry with the same name", so a project file can override — or disable — the bridge for that repository). `DetectConfig` still resolves only the user file and never scans the working directory: setup and detection remain user-scope. Verified 2026-10-11 (`pi_project_scope_test.go`).
 *   **Format:** JSON (strict `JSON.parse` upstream; comments are tolerated on our side only — see `ARCH/30` §8.1).
 *   **Managed Injection:** Writes under `mcpServers` — the only container Pi reads — and creates `<agent-dir>/extensions/litespm.ts` if absent. Earlier revisions switched to `mcp` or `mcp.servers` whenever the file contained an unrelated top-level `mcp` object, which put the bridge where Pi never looks.
-*   **Companion extension:** the generated file registers a Pi command named **`litespm`** (not `/marketplace`) whose handler lists the bridge's connected `mcp__litespm__*` tools through `pi.getAllTools()` and shows them with `ctx.ui.notify` — Pi command handlers have no tool-invocation API (`pi.mcp.callTool` never existed; `ctx.executeTool` is tool-context-only, upstream `types.ts` §ExtensionToolContext). **It is never removed by `host remove` / `uninstall`** — removal only strips config entries (`internal/host/remove.go`).
+*   **Companion extension:** the generated file (`internal/host/pi_extension.ts`) registers two Pi commands: **`marketplace`** — a focused overlay (`ctx.ui.custom`) with a search line, an installed list and an inspector, installing/removing through the real CLI (`pi.exec(["install", …])` / `["install", "remove", …]`) — and **`litespm`**, which lists the bridge's connected `mcp__litespm__*` tools through `pi.getAllTools()` and shows them with `ctx.ui.notify` (Pi command handlers have no tool-invocation API: `pi.mcp.callTool` never existed; `ctx.executeTool` is tool-context-only, upstream `types.ts` §ExtensionToolContext). **It is never removed by `host remove` / `uninstall`** — removal only strips config entries (`internal/host/remove.go`).
 *   **Detected External Capabilities:** Detects external tools from the discovered config file in read-only mode.
 
 ### 3.3 Grok Build (`internal/host/grokbuild.go`)
@@ -382,12 +384,12 @@ The in-agent experience is architected as an abstract UX Model mapped to host-sp
 ### Tab 4: Installed & Detected External Capabilities
 The final tab provides situational visibility across the host environment:
 
-*   **Status lights are truthful, not decorative.** The renderer offers `● Ready`, `🟡 Needs Auth`, `○ Stopped` and `— Unknown` (`internal/bridge/shim.go:530-549`). The daemon's `tools.list` deliberately omits `Status` because it does not health-check installs (`cmd/litespm/main.go:1238-1243`), so **anything LiteSPM has not observed renders as `— Unknown`**; `Verified` is likewise false unless the data carries it. There is no simulated "active/connected" state.
+*   **Status lights are truthful, not decorative.** The renderer offers `● Ready`, `🟡 Needs Auth`, `○ Stopped` and `— Unknown` (`internal/bridge/shim.go:530-549`). The daemon's `tools.list` deliberately omits `Status` because it does not health-check installs (`cmd/litespm/main.go:2327-2375`), so **anything LiteSPM has not observed renders as `— Unknown`**; `Verified` is likewise false unless the data carries it. There is no simulated "active/connected" state.
 *   **Detected External Capabilities (Read-Only):**
-    *   `tools.list` unions ledger installs with components each adapter reports from its own documented config file (`main.go:1263-1276`).
+    *   `tools.list` unions ledger installs with components each adapter reports from its own documented config file (`main.go:2337-2369`).
     *   **Scope limitation:** detection is limited to documented on-disk config files known to the adapter; in-memory sessions, cloud-managed extensions, skills directories and undocumented registries are not scanned.
     *   **Read-only observation:** external tools are never toggled or edited by the status view.
-    *   **Adopt is `DESIGNED`, not implemented.** The panel renders the note `[External / Detected] (Adopt)` (`shim.go:551-556`) and the setup wizard prints `(use 'Adopt' in /marketplace to manage)` (`cmd/litespm/wizard.go:271`), but **no adopt handler, bridge tool or `InstallRecord` creation exists** — adoption needs the deployment ledger (`STATUS.md` §5). The label is a placeholder and must not be presented as a working action.
+    *   **Adopt is `DESIGNED`, not implemented.** The panel renders the note `[External / Detected] (Adopt)` (`shim.go:551-556`), but **no adopt handler, bridge tool or `InstallRecord` creation exists** — adoption needs the deployment ledger (`STATUS.md` §5). The label is a placeholder and must not be presented as a working action. The wizard no longer prints an adopt hint; its next-step line points at `/marketplace` and at its own menu (`cmd/litespm/wizard.go:551-561`).
 
 ```text
 FormatInstalledPanel output (format sample — the count is len(items), and
@@ -419,14 +421,15 @@ which are `mcp` today (§1). Skills managed by `litespm skills add` are listed b
 **What setup actually writes:** one `litespm` MCP entry in the host config
 (§1), plus — for Pi only — `~/.pi/agent/extensions/litespm.ts` (§3.2). The
 wizard ends by **printing** next-step instructions
-(`cmd/litespm/wizard.go:280-309`), e.g. "Type `/marketplace` in the prompt".
+(`cmd/litespm/wizard.go:551-561`), e.g. "Start <agent> and type `/marketplace` to
+browse and install capabilities".
 It writes no instruction file, no skill and no command hook, and it does not
 register `/marketplace` in any host.
 
 The following registrations are the intended design and do not exist yet:
 
 1.  **Cline:** register a custom prompt/workflow or workspace command triggering the LiteSPM MCP bridge.
-2.  **Pi Agent:** the extension exists (§3.2) but registers `/marketplace` rather than the current `litespm` command — `DESIGNED`.
+2.  **Pi Agent:** the extension exists (§3.2) and registers both `marketplace` and `litespm` — this one is shipped, not design.
 3.  **Claude Code & Codex:** install a companion bootstrap skill `litespm.skill.md` with trigger keyword `/marketplace`. `RequiresBootstrapSkill` is already declared `true` for both, and nothing consumes it.
 4.  **Grok Build:** register a companion command hook in `.grok/config.toml` (project scope).
 

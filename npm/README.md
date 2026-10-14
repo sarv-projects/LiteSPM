@@ -18,29 +18,48 @@ across Claude Code, OpenAI Codex, OpenCode, Cline, and many more.
 
 ```console
 $ litespm
-● Checking adapter advisory metadata...
-  ✓ Protocol Version: 2026-07-28
-  ✓ 6 Verified Host Adapters Compiled & Available
+LiteSPM can connect to 50 different agent hosts.
+Nothing on this machine has been changed yet.
 
-Select your primary AI Agent Host:
-  [1] Cline          (VS Code Extension - cline_mcp_settings.json)
-  [4] Claude Code    (Terminal CLI (claude) - ~/.claude.json (JSON))
-  ...                                          [q] Quit
-Enter choice [1-6, q]: 4
+Which AI coding agent do you use?
 
-Scanning filesystem for Claude Code configuration...
-✓ Detected configuration file: /home/you/.claude.json
+Found on this machine (1):
+  [1] Claude Code                    /home/you/.claude.json
+  [a] Show all 50 supported agents
+  [q] Quit
+Enter a number, an agent name, or 'a' [q]: 1
 
-Generating integration plan for Claude Code...
-● Performing safe atomic configuration merge...
-✓ Integration successfully applied!
-  • Backup created: /home/you/.claude.json.bak-…
-  • Config updated: /home/you/.claude.json
+Looking for Claude Code's configuration file...
+Found your existing configuration file:
+  /home/you/.claude.json
+LiteSPM will add one entry to this file. Everything else in it is left as it is, and a backup copy is saved first.
+Use this file? [Y/n]:
+
+About to make one change to /home/you/.claude.json:
+
+  +   "litespm": {
+  +     "command": "/usr/local/bin/litespm",
+  +     "args": ["bridge", "stdio", "--host", "claude-code"]
+  +   }
+
+Everything else in the file is left as it is.
+Write this change? [Y/n]:
+
+✓ Done. LiteSPM is registered with Claude Code.
+  • Backup of the previous file: …/backups/claude-code_20261014_120000_1a2b3c4d.bak
+  • File written: /home/you/.claude.json
+
+Next:
+  • Start Claude Code and type /marketplace to browse and install capabilities.
+  • Or stay here: this wizard can update the catalog, install and remove things too.
 ```
 
-Setup prints **no capability count**: the wizard performs no network fetch —
-advisories are compiled into the binary (`cmd/litespm/wizard.go:138-143`).
-`/marketplace` becomes available in the agent after the bridge entry lands.
+Setup prints **no capability count** and no advisory list: the wizard derives
+the host list from the compiled-in adapter registry (`cmd/litespm/wizard.go:154-162`)
+and the setup flow makes no network request. The one step that touches the
+network is the wizard's *Update the capability catalog* action — an explicit,
+confirmed `catalog sync` that names the origin first. `/marketplace` becomes
+available in the agent after the bridge entry lands.
 
 Stop hand-editing `~/.claude.json`, `config.toml`, and a dozen other files.
 Connect an agent **once**, then manage all of its capabilities from one local
@@ -60,16 +79,18 @@ for your platform, an unreadable manifest, or a digest mismatch all discard the 
 unverified is installed or executed. Downloads are HTTPS-only (an https→http redirect is refused).
 See [`SECURITY.md`](https://github.com/sarv-projects/LiteSPM/blob/main/SECURITY.md).
 
-> **Honest status.** The catalog is live end-to-end and skills install from it
-> (`litespm install <skill-id>` fetches the source and writes the skill files).
-> MCP and plugin installs are not end-to-end: the published catalog carries no
-> artifact locator for them, so they fail closed. See
+> **Honest status.** The catalog is live end-to-end: skills install from it
+> (`litespm install <skill-id>` fetches the source and writes the skill files),
+> and MCP servers install by registering their published launch descriptor in
+> each configured agent's config. Plugin installs are not end-to-end: the
+> catalog carries no plugin artifact locator, so they fail closed with
+> `LPSM-ARTIFACT-UNAVAILABLE`. See
 > [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
 
 ## Quickstart
 
 ```bash
-litespm                    # interactive setup wizard
+litespm                    # interactive setup and management wizard
 litespm search postgres    # search the federated catalog
 litespm install <id>       # install a capability (skills + MCP servers; plugins pending an artifact source)
 litespm host list          # show supported agents
@@ -86,8 +107,10 @@ Inside a configured agent, just type:
 ## Why litespm
 
 - **One bridge, zero config drift.** Each agent gets a single version-pinned
-  `litespm` entry. The host adapters perform an MCP-entry merge only; they do not
-  write instructions, skills, or command files.
+  `litespm` entry. The host adapters perform an MCP-entry merge only; they write
+  no instruction or skill files. (The Pi Agent adapter additionally writes its
+  companion extension — `<agent-dir>/extensions/litespm.ts`, a command file —
+  `internal/host/piagent.go`.)
 - **Secrets never leave your machine.** Downstream API keys and OAuth tokens
   live in your OS vault (Windows DPAPI-protected master key, macOS Keychain,
   Linux Secret Service). Nothing is proxied through a cloud.
@@ -120,14 +143,16 @@ Inside a configured agent, just type:
 
 | Command | What it does |
 |---|---|
-| `litespm` / `litespm setup` / `init` | Interactive agent selection and setup (no non-interactive form) |
+| `litespm` / `litespm setup` | Interactive setup and capability-management wizard |
+| `litespm setup --agent <host-id>` | Connect one agent without prompts (same write path as `host setup`) |
+| `litespm init [name]` | Scaffold a `SKILL.md` to author a skill |
 | `litespm search <query>` | Search MCP servers, skills, and plugins |
 | `litespm install <id>` | Install a capability (skills and MCP servers complete; plugins pending an artifact source) |
 | `litespm uninstall [--dry-run]` | Remove the bridge entry from every agent host config |
 | `litespm bridge stdio --host <id>` | MCP stdio bridge used by hosts |
 | `litespm host [list\|detect\|setup\|remove]` | Inspect and configure host adapters |
 | `litespm agent [list\|resolve <id>]` | List ACP agents / resolve a launch spec |
-| `litespm skills [add\|list\|update\|remove]` | Manage installed `SKILL.md` skills |
+| `litespm skills [add\|use\|find\|list\|update\|remove]` | Install, print (`use`, installs nothing), search (`find`) and manage `SKILL.md` skills |
 | `litespm doctor [--repair] [--yes]` | Health checks and repairs |
 | `litespm catalog sync` | Refresh the local catalog cache from the published release |
 | `litespm daemon serve` | Start the background supervisor and IPC engine |

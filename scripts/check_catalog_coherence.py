@@ -114,6 +114,47 @@ def main() -> int:
             f"names {release.get('sequence')}"
         )
 
+    # --- our own generated fields must not send the user to another tool ----
+    #
+    # `installHint` is a field WE write (`scripts/build_full_catalog.py`), so it
+    # is a statement of ours. When it named `npx skills add …` the site shipped a
+    # copyable command telling users to install with a competitor's CLI, and it
+    # survived a generator fix because the tracked artifact was stale -- the
+    # generator is not diff-gated, so nothing caught it. This check is the
+    # missing gate.
+    #
+    # Scoped deliberately to `installHint` ONLY. The 12 upstream `summary`
+    # values that also mention `npx skills` are publisher-authored text: quoting
+    # a publisher is provenance, and rewriting it would falsify the record. The
+    # distinction is whose sentence it is, so the check must not be widened.
+    FOREIGN_INSTALLERS = ("npx skills", "npx add-mcp", "claude plugin install")
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        hint = row.get("installHint")
+        if not isinstance(hint, str) or not hint:
+            continue
+        # A host's own plugin command is an honest fallback, not a leak: the
+        # marketplace is the host's, and LiteSPM cannot install plugins at all
+        # (it fails closed with LPSM-ARTIFACT-UNAVAILABLE), so handing over the
+        # upstream command is the correct behaviour -- provided the site says
+        # why, which AddSteps does.
+        if hint.startswith("/plugin install"):
+            continue
+        if any(foreign in hint.lower() for foreign in FOREIGN_INSTALLERS):
+            fail(
+                f"catalog.json item {index} ({row.get('id')}) has an installHint naming "
+                f"another tool's installer: {hint!r}. installHint is our own field and must "
+                f"install with LiteSPM itself -- fix the emitter in "
+                f"scripts/build_full_catalog.py and re-run the producer"
+            )
+            continue
+        if not hint.startswith("litespm "):
+            fail(
+                f"catalog.json item {index} ({row.get('id')}) has an installHint that is "
+                f"neither a `litespm …` command nor a host plugin command: {hint!r}"
+            )
+
     if PROBLEMS:
         print(f"FAIL catalog coherence — {len(PROBLEMS)} disagreement(s):")
         for problem in PROBLEMS:

@@ -144,15 +144,16 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 ### Phase G: Marketplace Federation, In-Agent `/marketplace` & CLI TUI
 *   **Deliverables:**
     *   Federated marketplace adapters for Claude Code, Codex, and Grok Build manifests (rejecting `command` sources) — `IMPLEMENTED`, test-only (STATUS §2).
-    *   Interactive setup wizard (`litespm` with no arguments opens `runInteractiveWizard`,
-        `cmd/litespm/main.go:50-54`; selector in `cmd/litespm/wizard.go`). The *first-class* TUI is
+    *   Interactive setup & management wizard (`litespm` with no arguments opens `runSetup`,
+        `cmd/litespm/main.go:53-61`; `litespm setup --agent <host-id>` is the non-interactive form,
+        `:537-578`; the wizard itself is `cmd/litespm/wizard.go`). The *first-class* TUI is
         a separate, `DESIGNED` deliverable ([ARCH/37](37-TUI-AND-COMPLETION.md)).
     *   In-agent `/marketplace` workflow over the 12-tool Bridge surface.
     *   `internal/doctor`: 10 checks, `--repair`, category exit codes — `WIRED` (STATUS §1).
 *   **Gate:** `litespm` allows agent selection and configuration; agents can invoke `/marketplace` to search and propose installations.
-*   **Current state:** search/plan/skill-read tools resolve and propose; **the install action does
-    not complete**, so the gate's second half is unmet (STATUS §3,
-    [ARCH/31 §4.1](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#41-the-agent-facing-install-path-cannot-complete--wired-is-false)).
+*   **Current state:** search/plan/skill-read tools resolve and propose; the install action
+    completes for skill and MCP-server listings (skills ledger / host-config registration) and
+    fails closed for plugins, which have no artifact source (STATUS §3).
 
 ### Phase H: Cross-Platform Build, Conformance & Packaging
 *   **Deliverables (matching `.github/workflows` as it exists):**

@@ -921925,7 +921925,7 @@
     "version": null,
     "installability": "metadata_verified",
     "skillSource": "https://github.com/anthropics/skills/tree/main/skills/academy-guide",
-    "installHint": "npx skills add https://github.com/anthropics/skills --skill academy-guide",
+    "installHint": "litespm skills add anthropics/skills --skill academy-guide",
     "source": "git:anthropics-skills"
   },
   {
@@ -921945,7 +921945,7 @@
     "version": null,
     "installability": "metadata_verified",
     "skillSource": "https://github.com/anthropics/skills/tree/main/skills/claude-api",
-    "installHint": "npx skills add https://github.com/anthropics/skills --skill claude-api",
+    "installHint": "litespm skills add anthropics/skills --skill claude-api",
     "source": "git:anthropics-skills"
   },
   {
@@ -921965,7 +921965,7 @@
     "version": null,
     "installability": "metadata_verified",
     "skillSource": "https://github.com/anthropics/skills/tree/main/skills/discernment-nudge",
-    "installHint": "npx skills add https://github.com/anthropics/skills --skill discernment-nudge",
+    "installHint": "litespm skills add anthropics/skills --skill discernment-nudge",
     "source": "git:anthropics-skills"
   },
   {

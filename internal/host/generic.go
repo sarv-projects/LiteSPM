@@ -80,6 +80,16 @@ func (a *GenericAdapter) PlanSetup(ctx context.Context, binaryPath, backupDir st
 	if err != nil {
 		return nil, err
 	}
+	return a.PlanSetupAt(ctx, binaryPath, backupDir, configPath)
+}
+
+// PlanSetupAt implements PathPlanner: it plans the same merge against an
+// explicit config path, so a user who names a file gets that file written (or
+// nothing at all).
+func (a *GenericAdapter) PlanSetupAt(ctx context.Context, binaryPath, backupDir, configPath string) (*HostChangePlan, error) {
+	if strings.TrimSpace(configPath) == "" {
+		return nil, fmt.Errorf("%s: no configuration path was given, refusing to plan a write", a.Target.Name)
+	}
 
 	orig := ""
 	if data, err := os.ReadFile(configPath); err == nil {

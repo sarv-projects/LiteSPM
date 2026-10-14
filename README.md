@@ -137,20 +137,37 @@ LiteSPM bifurcates system responsibilities between an untrusted public discovery
 
 ### 3.1 Global Installation & Interactive Setup (`litespm`)
 1.  **Installation:** Installed globally via npm (`npm install -g litespm`) or downloaded as a standalone native Go binary.
-2.  **Interactive TUI Wizard:** Running `litespm` launches an interactive terminal interface:
-    *   **Compiled-In Adapters:** The wizard prints advisory metadata from strings compiled into the
-        binary (`cmd/litespm/wizard.go:138-143`). It makes **no HTTP request** at setup time; the
-        `catalog sync` path is the only network fetch, and it succeeds against the live origin
-        ([STATUS.md](STATUS.md) §2).
-    *   **Agent Selector Dropdown:** Select your agent (Cline, Pi Agent, Grok Build, Claude Code, Codex, OpenCode).
+2.  **Interactive TUI Wizard:** Running `litespm` (or `litespm setup`) launches an interactive terminal interface; `litespm setup --agent <host-id>` answers the agent question up front and runs the same write without prompts (`cmd/litespm/main.go:537-578`). The setup flow itself makes **no HTTP request**:
+    *   **Adapter Registry, Not an Advisory Print:** the wizard derives the host list from the
+        compiled-in registry (`host.ListAdapters`) and says how many hosts it can connect to
+        (`cmd/litespm/wizard.go:154-162`). It prints no advisory metadata and claims no runtime
+        check — nothing on the machine has been inspected yet.
+    *   **Agent Selector:** the wizard lists the agents whose configuration file it found on this
+        machine, with `[a]` to show every supported adapter; no row names a config file the adapter
+        itself did not resolve.
     *   **Automated Config Discovery:** LiteSPM scans platform-standard paths across Windows, macOS, and Linux.
-    *   **Graceful Fallback:** If the file is not found, prompts the user to:
-        *   *Enter path manually*
-        *   *Print copy-paste snippet*
-        *   *Retry detection*
+    *   **Fallback Menu:** If the file is not found, the wizard offers:
+        *   *Type the full path of the configuration file*
+        *   *Print a snippet to paste into the file yourself*
+        *   *Look for the file again*
+        The path the wizard writes is the path the user agreed to, or nothing is written:
+        `host.PlanSetupAt` refuses a plan whose `ConfigPath` is not the named path
+        (`internal/host/types.go:82-117`; [TEST.md](TEST.md) Test Case 2).
+    *   **Preview, Then Write:** the wizard prints the changed lines (`changePreview`) and writes
+        only after `Write this change? [Y/n]` (`cmd/litespm/wizard.go:450-483`).
     *   **Safe Atomic Merge:** LiteSPM creates a timestamped backup in `DATA_ROOT/backups/`, preserves
         all existing comments/keys, and injects the single version-pinned Bridge entry. This is an
-        **MCP-entry merge only** — no instruction, skill, or command file is projected into the host.
+        **MCP-entry merge only** — no instruction, skill, or command file is projected into the host
+        — **with one exception:** the Pi Agent adapter also writes its companion extension
+        `<agent-dir>/extensions/litespm.ts`, which registers the `marketplace` panel and a
+        `litespm` tool-list command (`internal/host/pi_extension.ts`;
+        [TEST.md](TEST.md) Test Case 5).
+3.  **Management Menu:** on a machine that already has a bridge registered, a bare `litespm` starts
+    from what is connected and offers: update the capability catalog (an explicit, confirmed
+    `catalog sync` — the only step that touches the network), find and install a capability, remove
+    something LiteSPM installed, see what is installed, and set up or repair an agent connection
+    (`cmd/litespm/wizard.go:568-620`). Every action goes through the same plan, approval and ledger
+    paths as the CLI commands.
 
 ### 3.2 Skill Installer (`litespm skills add`)
 
@@ -201,11 +218,14 @@ imply a consent that was not given, and emit `--json` output on stdout.
 
 ### 3.3 Non-Destructive Update Checking (`DESIGNED`)
 
-There is **no passive update check today**. Running `litespm` or `/marketplace` does not fetch
-`/v1/current.json`, compare versions, or render a delta diff. Update checking is an explicit,
-user-initiated `litespm self-update`, which fetches the published release manifest, verifies the
-binary's SHA-256 checksum, and applies it only on request. Version-diff rendering for installed
-capabilities is designed and not implemented — see [STATUS.md](STATUS.md).
+There is **no passive update check today**. Neither `litespm` nor `/marketplace` fetches
+`/v1/current.json` on its own, compares versions, or renders a delta diff. The wizard's *Update the
+capability catalog* action is the one interactive fetch, and it is explicit: it names the origin,
+says it installs nothing, and asks before downloading (`cmd/litespm/wizard.go:656-705`). Update
+checking of the binary is the user-initiated `litespm self-update`, which fetches the published
+release manifest, verifies the binary's SHA-256 checksum, and applies it only on request.
+Version-diff rendering for installed capabilities is designed and not implemented — see
+[STATUS.md](STATUS.md).
 
 ### 3.4 The In-Agent `/marketplace` Experience
 Typing `/marketplace` in a configured agent invokes the Bridge's discovery tools. The portable
@@ -290,7 +310,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
   ├── cmd/
   │   └── litespm/                                      # Root CLI entrypoint
   │       ├── main.go                                   # Command dispatch + daemon/IPC handlers
-  │       ├── wizard.go                                 # Interactive agent setup wizard (compiled-in advisories)
+  │       ├── wizard.go                                 # Interactive setup + capability-management wizard
   │       ├── skills_add.go                             # `skills add` installer (clone, select, copy)
   │       ├── skills_update.go                          # `skills update` (atomic swap, dry-run, rollback)
   │       ├── skills_remove.go                          # `skills remove/list` ledger-backed removal
@@ -377,8 +397,13 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
 ### 5.1 Command-line surface
 
 ```text
-litespm                                  interactive setup wizard (no network fetch)
-litespm setup | init                     same as `litespm`
+litespm                                  interactive setup + management wizard
+                                          (the setup flow is offline; the menu's
+                                          catalog update names the origin and asks)
+litespm setup [--agent <host-id>]        the wizard, or connect one agent without prompts
+litespm init [name] [--dir <path>] [--force]
+                                          scaffold a SKILL.md that the real loader parses
+                                          (`init` no longer opens the wizard)
 litespm version                          version + protocol + build target
 litespm search <query>                   search the local catalog index
 litespm install <id> [--version <v>] [--scope user|project] [--workspace <dir>]
@@ -396,7 +421,11 @@ litespm bridge stdio [--host <id>] [--workspace <dir>]
                                           shim may also list — it widens reads only
 litespm host list|detect|setup|remove    host adapters (remove takes <host-id> or --all)
 litespm agent list|resolve <id>          ACP registry listing / launch-spec resolution [--registry|--file|--json]
-litespm skills add|list|update|remove    SKILL.md lifecycle (add: --skill/--agent/--scope/--yes/--json)
+litespm skills add|use|find|list|update|remove
+                                          SKILL.md lifecycle: add installs, `use` prints the
+                                          prompt and installs nothing, `find` searches the
+                                          local catalog index; `ls`/`rm` are aliases
+                                          (add: --skill/--agent/--scope/--yes/--json)
 litespm doctor [--repair] [--yes]        health checks and optional repair
 litespm self-update [--force]            fetch the release manifest and update the binary
 litespm help                             usage

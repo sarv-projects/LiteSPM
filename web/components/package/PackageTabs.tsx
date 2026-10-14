@@ -250,7 +250,7 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
         <SpecRow label="Launch line">
           {launch ? <span className="t-mono break-all text-[12px]!">{launch}</span> : <Absent text="unspecified" />}
         </SpecRow>
-        <SpecRow label="Host command">
+        <SpecRow label={item.kind === "skill" ? "Install from source" : "Host command"}>
           {item.installHint ? (
             <span className="t-mono break-all text-[12px]!">{item.installHint}</span>
           ) : (

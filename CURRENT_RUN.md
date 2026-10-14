@@ -192,13 +192,24 @@ reference: `internal/skills/agents.go:60-64` says so itself ("Source: vercel-lab
    `test/catalog_e2e_test.go` runs on main and would have caught `v0.4.0`; the tag simply did not
    contain it. CI tests branches, releases are tags, nothing gates the difference. Cut the tag inside
    the workflow, build from it, sync against a served tree, publish only then.
-2. **They own the authoring loop and LiteSPM does not attempt it.** Their `skills init` scaffolds a
-   SKILL.md and prints the publish commands in its own "Next steps". LiteSPM has no authoring path —
-   and its own catalog rows carry
-   `installHint: "npx skills add …"`, generated at `scripts/build_full_catalog.py:2650`, i.e. the
-   catalog tells users to install with the competitor's CLI. That is honest and it is also the
-   clearest possible statement of the gap. Being *indexed* is blocked on the ingestion adapters
-   (`ARCH/03:40`); the authoring surface need not wait.
+2. **They own the authoring loop; LiteSPM's authoring path has now landed.** Their `skills init`
+   scaffolds a SKILL.md and prints the publish commands in its own "Next steps"; `litespm init
+   [name] [--dir <path>] [--force]` now does the same and writes a skill the real loader parses
+   (`cmd/litespm/skills_init.go`). The catalog's own hint was the other half, and it is now closed
+   in the artifact as well as in source. The generator was fixed earlier
+   (`scripts/build_full_catalog.py:2666-2667` emits `litespm skills add <repo> --skill <name>`), but
+   the tracked dataset is **not diff-gated by CI**, so the stale artifact survived the fix: three
+   rows in `web/data/catalog.json` — and therefore in the served shards — still carried
+   `installHint: "npx skills add https://github.com/anthropics/skills --skill …"`, telling users to
+   install with the competitor's CLI on a live page. Corrected 2026-10-14 by applying the
+   **generator's own output** for those rows (verified by calling `github_repo_facts` on the same
+   input, not by hand-writing a string), recomputing `web/data/release.json`'s `datasetDigest` so
+   that field does not become the next false claim, and adding the missing gate:
+   `scripts/check_catalog_coherence.py` now fails if any `installHint` names another tool's
+   installer, proven non-vacuous by reintroducing the leak in a scratch copy. **A full regeneration
+   is still outstanding** — upstream content has moved on since the 2026-10-11 snapshot, so the
+   dataset is current-minus-one-patch rather than freshly built; that is a release action. Being
+   *indexed* is blocked on the ingestion adapters (`ARCH/03:40`).
 3. **Their universal-target prompt.** LiteSPM has the data (`agents.go:56`), the glyph
    (`skills_add.go:368-379`) and the destination dedup (`install.go:337-364`), but no locked
    "Universal (.agents/skills) — always included" group, and no warning that global scope means N

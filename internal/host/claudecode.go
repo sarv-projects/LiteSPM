@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/sarv-projects/litespm/internal/domain"
 )
@@ -46,6 +47,15 @@ func (a *ClaudeCodeAdapter) PlanSetup(ctx context.Context, binaryPath string, ba
 	configPath, err := a.DetectConfig(ctx, domain.ScopeUser)
 	if err != nil {
 		return nil, err
+	}
+	return a.PlanSetupAt(ctx, binaryPath, backupDir, configPath)
+}
+
+// PlanSetupAt implements PathPlanner: the merge is planned against the
+// caller's explicit path, so the file written is the file chosen.
+func (a *ClaudeCodeAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backupDir string, configPath string) (*HostChangePlan, error) {
+	if strings.TrimSpace(configPath) == "" {
+		return nil, fmt.Errorf("claude-code: no configuration path was given, refusing to plan a write")
 	}
 
 	origContent := "{}"

@@ -82,7 +82,7 @@ was sourced from them, it is re-derived from a verifiable first principle and ma
 |---|---|
 | "Dynamic MCP provisioning would be a unique LiteSPM innovation" | **False.** Docker MCP ships Dynamic MCP with exactly this shape. Not a differentiator. |
 | "Another connector architecture — wire the existing one" | **Half stale, half adopted.** The *package* cannot be wired: `internal/connector` was **deleted** under locked decision `D1` (9 files, 2,072 lines) for having zero importers, so there is no existing code to connect. The **direction is adopted** — [ARCH/29](29-CONNECTOR-SYSTEM-DESIGN.md) (D-021) records *resurrect this design and wire it*, with re-deciding `D1` as the prerequisite. Until that re-decision ARCH/29 stays a design record marked *not implemented* and no connector code ships. |
-| "A `48-command` CLI vocabulary" | Aspirational. The shipped surface is `version, setup/init, self-update, doctor, search, install/add, catalog, daemon, bridge, host, uninstall, agent, skills` (`cmd/litespm/main.go`). |
+| "A `48-command` CLI vocabulary" | Aspirational. The shipped surface is `version, setup, init (SKILL.md scaffold), self-update, doctor, search, install/add, catalog, daemon, bridge, host, uninstall, agent, skills` (`cmd/litespm/main.go`). |
 | "The repository has no LICENSE" | Was correct. `LICENSE` (Apache-2.0) and `NOTICE` were added during this pass. |
 
 ---
@@ -162,6 +162,14 @@ a config editor.
 > HTTPS-only, SSRF/DNS-range refusal, redirect cap, bounded spool, fail-closed digest verification;
 > end-to-end pinned by `test/archive_install_e2e_test.go`), with no production caller until the
 > catalog carries artifact locators.
+>
+> **Update (2026-10-06, MCP half).** MCP servers do not need the archive engine either: a server is
+> a registration, not an archive, so `install.execute` and `litespm install` route `kind=mcp`
+> through `installMCPFromListing` (`cmd/litespm/install_mcp.go`), which registers the published
+> runtime descriptor as a named entry in each target host's config (`internal/host/entry_install.go`;
+> verified on a JSON and a TOML host). The **plugin** half is what remains: plugins still fail
+> closed with `LPSM-ARTIFACT-UNAVAILABLE` until the catalog carries a plugin artifact locator
+> ([STATUS.md](../STATUS.md) §3; `TODO.md` `LPSM-D003`).
 
 ### 4.2 The published catalog and the client read different files — the sync path is dead at the origin
 

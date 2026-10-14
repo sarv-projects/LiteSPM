@@ -211,14 +211,14 @@ func buildHelpCatalog() map[string]commandHelp {
 			},
 			Does: []string{
 				"Resolves the listing in the local index, records a plan plus your approval, then installs: skills are copied as files into the agent's own skill directory, and MCP servers are registered as a named entry in each configured agent's config.",
-				"`--host` names the agents to register with (repeatable; default: every agent where `litespm host setup` has been run). `--env <VAR>` forwards an environment variable NAME as a reference the agent expands.",
+				"`--host` names the agents to register an MCP server with (repeatable; default: every agent where `litespm host setup` has been run). Skill listings pick their own agent trees by detection instead. `--env <VAR>` forwards an environment variable NAME as a reference the agent expands.",
 				"`--workspace <dir>` installs for one project (the current directory when omitted) and implies `--scope project`; that directory is the workspace identity, so an agent running in it can see the install with `list_installed`.",
 				"`install remove <installId>` strips only LiteSPM's entries and keeps any node you edited; `--frozen` installs exactly the version `litespm lock` recorded.",
 			},
 			DoesNot: []string{
 				"Never writes a secret value: `--env` records a name/reference only, so the credential stays where your agent was started.",
 				"Plugin listings fail closed with LPSM-ARTIFACT-UNAVAILABLE — there is no plugin artifact source yet, so no plugin is ever half-installed.",
-				"Does not touch an agent that has no LiteSPM bridge entry, and refuses a name collision instead of overwriting (unless you pass `--force`).",
+				"Without `--host`, does not touch an agent that has no LiteSPM bridge entry; `--host` names targets yourself, so it writes where you point it (and fails by name when the host cannot carry the entry). A name collision is refused instead of overwritten unless you pass `--force`.",
 			},
 			Examples: []string{
 				"litespm install <listing-id>",
@@ -405,9 +405,10 @@ func buildHelpCatalog() map[string]commandHelp {
 			Synopsis:  []string{"litespm uninstall [--dry-run]"},
 			Does: []string{
 				"Plans first with `--dry-run`, then strips the LiteSPM bridge entry from each agent config, keeping a pre-edit backup and leaving sibling entries untouched.",
-				"Prints what is still on disk afterwards, with the exact commands that deal with it.",
+				"Afterwards it reports what it deliberately left behind — the MCP servers registered by `litespm install` and the skill directories copied by `litespm skills add` — each with the exact command that removes it.",
 			},
 			DoesNot: []string{
+				"Does not remove the MCP server entries `litespm install` registered: each belongs to its own install record, so they are reported and removed with `litespm install remove <installId>`.",
 				"Does not delete skill directories — they may hold files you added, so they are reported, and `litespm skills remove` is the explicit opt-in.",
 				"Does not delete the backups it wrote; those are your restore points.",
 			},
@@ -415,25 +416,30 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm uninstall --dry-run",
 				"litespm uninstall",
 			},
-			SeeAlso: []string{"host", "skills", "restore"},
+			SeeAlso: []string{"host", "skills", "install", "restore"},
 		},
 		{
 			Canonical: "setup",
 			Group:     "CONFIGURE",
-			Purpose:   "Run the interactive setup wizard.",
-			Synopsis:  []string{"litespm setup"},
+			Purpose:   "Connect LiteSPM to an agent, interactively or by name.",
+			Synopsis: []string{
+				"litespm setup [--agent <host-id>]",
+				"litespm setup --help",
+			},
 			Does: []string{
-				"Walks you through choosing an agent, detects its configuration file, and registers the LiteSPM bridge entry — showing what will change before it changes it.",
-				"If the config file is not where detection expects, the wizard offers a manual path, a copy-paste snippet and a retry.",
+				"With no arguments it opens the interactive wizard. On a machine with nothing connected yet it asks which agent to connect, finds that agent's configuration file, and writes the LiteSPM bridge entry into it; any existing configuration file is backed up before the write.",
+				"On a machine that is already connected it starts from what is connected and offers the wizard's other actions — update the catalog, find and install a capability, remove something LiteSPM installed, see what is installed, connect another agent — all through the same plan, approval and ledger paths as the CLI commands.",
+				"`--agent <host-id>` skips the wizard and connects exactly that agent through the same plan-and-apply path `litespm host setup <host-id>` uses, so setup works in a script; `litespm host list` prints the host ids.",
 			},
 			DoesNot: []string{
-				"Does not run non-interactively: it has no flags and needs a terminal.",
-				"Does not install packages — it only wires the bridge. `litespm install` installs capabilities.",
+				"Without `--agent`, needs an interactive terminal: with nobody to answer it refuses and points at `litespm host setup <host-id>` instead of failing on end-of-input.",
+				"Does not guess a configuration path: when detection cannot find the file, the wizard offers to take a path you type, print a snippet to paste yourself, or look again.",
 				"`init` used to be an alias of this command; it is now `litespm init`, which scaffolds a SKILL.md. Only `setup` (and the bare `litespm`) opens the wizard.",
 			},
 			Examples: []string{
 				"litespm setup",
-				"litespm host detect",
+				"litespm setup --agent codex",
+				"litespm host setup codex   # the same write path",
 			},
 			SeeAlso: []string{"host", "daemon", "install"},
 		},

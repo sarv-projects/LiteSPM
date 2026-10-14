@@ -70,21 +70,60 @@ Install via npm or download the pre-compiled binary:
 npm install -g litespm
 ```
 
-### Step 2: Run the Interactive Setup
+### Step 2: Run the Interactive Setup and Manager
 ```bash
 litespm
 ```
-1.  **Compiled-In Advisories:** The wizard prints advisory metadata from strings compiled into the
-    binary (`cmd/litespm/wizard.go:138-143`). It performs **no** `/v1/current.json` fetch at setup
-    time; the only network fetch path is `catalog sync`, which succeeds against the live origin
-    ([STATUS.md](STATUS.md) §2).
-2.  **Select Your Agent:** Choose your agent from the interactive dropdown (for Claude Code, Codex, OpenCode, and many more).
-3.  **Auto-Detection:** LiteSPM scans your filesystem for the agent's configuration file.
-4.  **Fallback Options:** If the configuration file is not found (e.g., custom installation directory), LiteSPM prompts:
-    *   *Enter path manually*
-    *   *Print copy-paste snippet*
-    *   *Retry detection*
-5.  **Safe Atomic Merge:** LiteSPM creates a backup in `DATA_ROOT/backups/`, preserves all existing entries and comments, and injects a **single** version-pinned LiteSPM Bridge entry (`litespm bridge stdio --host <agent-id>`). This is an **MCP-entry merge only**: no instruction, skill, or command file is written into the host, and individual capabilities are resolved by the daemon at runtime, so no per-capability host snippets are generated.
+The wizard (`cmd/litespm/wizard.go`) is the non-developer surface for setup **and** management; every
+action it offers delegates to the same shared implementation the CLI uses.
+
+1.  **Machine check first.** Before anything is offered, the wizard reads each adapter's `VerifySetup`
+    (read-only) and lists the hosts that already carry the LiteSPM bridge. A machine with one
+    configured host does **not** re-apply setup: a second bare `litespm` prints `LiteSPM is already
+    set up for: … / Nothing was changed.` and goes straight to the "What next" menu. Setup runs only
+    when no bridge verifies, or when `[5] Set up or repair an agent connection` is chosen.
+2.  **Agent menu, derived from the registry.** The rows come from `host.ListAdapters()` — currently
+    50 hosts — so the menu cannot drift from the adapters. Agents whose config file is already on
+    disk are shown first; `[a]` prints the full list; a number, host id or display name is accepted.
+    No row names a file the adapter itself did not resolve.
+3.  **Honest config-target wording.** An existing file prints `Found your existing configuration
+    file: <path> / LiteSPM will add one entry to this file … a backup copy is saved first.` A missing
+    file prints `No configuration file exists yet for <name>. LiteSPM will create: <path>`. (This is
+    what `litespm host detect` means too: its `missing` **status** means "not registered", not "the
+    file is absent".)
+4.  **Fallback options.** If detection cannot produce a path — or the user answers `n` — the wizard
+    offers *Type the full path yourself*, *Print a copy-paste snippet*, *Look again*, and *Cancel*.
+    A typed path is honoured: `host.PlanSetupAt` plans the merge against exactly that path, and an
+    adapter that cannot write there is refused with the file it would use instead, with nothing
+    written. The invariant is *the path written is the path the user agreed to, or nothing is
+    written* — never a silent redirect to the detected default.
+5.  **The change is shown before it is made.** The wizard prints the changed lines (trimmed to the
+    touched region, capped with an honest "… and N more changed line(s)") and asks `Write this
+    change? [Y/n]`. Only after a yes does it back the file up into `DATA_ROOT/backups/` and apply
+    the adapter's surgical merge, which preserves all existing entries and comments and injects a
+    **single** version-pinned LiteSPM Bridge entry (`litespm bridge stdio --host <agent-id>`). The
+    setup step is an **MCP-entry merge only**: no instruction, skill, or command file is written
+    into the host by it.
+6.  **The "What next" menu** (reachable after a fresh setup and on every later bare `litespm` run):
+    *   `[1] Update the capability catalog` — the one step that touches the network, and an explicit
+        opt-in that says what it fetches and installs nothing. A failure prints `✗ Could not update
+        the catalog: …` and names `litespm catalog sync` (and the `npm install -g litespm` update
+        path when the local index is still empty); a failure never prints a success line. The
+        wizard performs no other HTTP at setup time.
+    *   `[2] Find and install a capability` — searches the local index and installs through the
+        **same plan → approval → policy gate** as `litespm install`: `authorizeHumanInstall`, then
+        `installSkillFromListing` (skills) or `installMCPFromListing` (MCP servers). There is no
+        wizard-only installer; plugin listings refuse honestly with `LPSM-ARTIFACT-UNAVAILABLE`.
+    *   `[3] Remove something LiteSPM installed` — lists what the install records and the skills
+        ledger hold, shows every destination, and removes through `removeInstalledPackage` (ledger
+        reconcile: only what LiteSPM wrote, user-edited nodes kept) or `executeSkillsRemove` for
+        ledger-only skills (`skills add`).
+    *   `[4] See what is installed` — renders the same `litespm list` inventory (`runListTo`).
+    *   `[5] Set up or repair an agent connection` — re-enters the setup sequence above.
+7.  **Input that ends stops the wizard.** Every prompt checks its read error: EOF / Ctrl-D / a closed
+    pipe prints one guidance line (`No more input could be read … Re-run litespm in a terminal to
+    continue.`) and exits cleanly with nothing further changed — never the old "Invalid option."
+    busy loop.
 
 ---
 

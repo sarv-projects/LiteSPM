@@ -52,7 +52,11 @@ const (
 
 func main() {
 	if len(os.Args) < 2 {
-		runInteractiveWizard()
+		// The bare invocation opens the same setup surface as `litespm setup`,
+		// so both get the same argument handling and the same refusal when
+		// there is no terminal to answer the wizard (instead of dying with a
+		// raw EOF from the first prompt).
+		runSetup(nil)
 		return
 	}
 
@@ -63,7 +67,7 @@ func main() {
 		fmt.Printf("LiteSPM v%s (Protocol %s, %s/%s, %s)\n", Version, ProtocolVersion, runtime.GOOS, runtime.GOARCH, runtime.Version())
 
 	case "setup":
-		runInteractiveWizard()
+		runSetup(os.Args[2:])
 
 	case "init":
 		if code := runSkillsInit(os.Args[2:]); code != 0 {
@@ -142,7 +146,9 @@ func main() {
 		runHostCommand(os.Args[2:])
 
 	case "uninstall":
-		runUninstall(context.Background(), os.Args[2:])
+		if code := runUninstall(context.Background(), os.Args[2:]); code != 0 {
+			os.Exit(code)
+		}
 	case "restore":
 		runRestore(context.Background(), os.Args[2:])
 
@@ -496,6 +502,117 @@ func runInteractiveWizard() {
 	}
 }
 
+// setupUsage prints the setup help page. It renders the same page `litespm help
+// setup` renders, so the two can never disagree about the accepted forms.
+func setupUsage(w io.Writer) {
+	if page, ok := helpCatalog["setup"]; ok {
+		renderHelp(w, page)
+		return
+	}
+	fmt.Fprintln(w, "Usage: litespm setup [--agent <host-id>] [--help]")
+}
+
+// setupUsageError reports a bad `litespm setup` invocation: the reason on
+// stderr, then the accepted forms, exit 2 (the ARCH/20 usage convention the
+// other commands follow).
+func setupUsageError(format string, a ...any) {
+	fmt.Fprintf(os.Stderr, "Setup error: "+format+"\n\n", a...)
+	setupUsage(os.Stderr)
+	os.Exit(2)
+}
+
+// runSetup implements `litespm setup [--agent <host-id>]` and the bare
+// `litespm` invocation, which opens the same wizard.
+//
+// Arguments are no longer discarded: `--help` prints the page and exits 0, and
+// anything else that is not `--agent <host-id>` is a usage error naming the
+// accepted forms. Without a terminal and without `--agent`, the interactive
+// path is refused with a plain message that names the non-interactive
+// alternatives, instead of starting the wizard and dying on the first prompt
+// with a raw "Setup error: EOF".
+//
+// The interactive wizard and the `--agent` form write through the same adapter
+// PlanSetup/ApplySetup pair as `litespm host setup <host-id>` (see
+// applyHostSetup), so the spellings cannot drift apart.
+func runSetup(args []string) {
+	agentID := ""
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--help", "-h":
+			setupUsage(os.Stdout)
+			return
+		case "--agent":
+			if i+1 >= len(args) {
+				setupUsageError("--agent requires a host id")
+			}
+			if agentID != "" {
+				setupUsageError("--agent given more than once")
+			}
+			agentID = strings.TrimSpace(args[i+1])
+			if agentID == "" || strings.HasPrefix(agentID, "-") {
+				setupUsageError("--agent requires a host id")
+			}
+			i++
+		default:
+			setupUsageError("unexpected argument %q", args[i])
+		}
+	}
+
+	if agentID != "" {
+		if code := applyHostSetup(context.Background(), agentID); code != 0 {
+			os.Exit(code)
+		}
+		return
+	}
+
+	if !stdinIsTerminal() {
+		fmt.Fprintln(os.Stderr, "litespm setup needs an interactive terminal to ask which agent to configure.")
+		fmt.Fprintln(os.Stderr, "Name the agent instead — the command then runs without prompts:")
+		fmt.Fprintln(os.Stderr, "    litespm setup --agent <host-id>")
+		fmt.Fprintln(os.Stderr, "    litespm host setup <host-id>")
+		fmt.Fprintln(os.Stderr, "Run `litespm host list` to see the host ids.")
+		os.Exit(1)
+	}
+
+	runInteractiveWizard()
+}
+
+// applyHostSetup plans and applies the LiteSPM bridge entry for one host and
+// prints where it wrote and what it backed up. The adapters keep their
+// backup-before-write, empty-content and compare-and-swap guards; this is the
+// single write path behind `litespm host setup <host-id>` and
+// `litespm setup --agent <host-id>`, so the two forms cannot drift apart. It
+// returns the exit code rather than exiting, so callers keep the ARCH/20
+// convention (0 success, 1 failed) without a second implementation.
+func applyHostSetup(ctx context.Context, hostID string) int {
+	adapter, err := host.GetAdapter(hostID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+
+	paths, _ := config.ResolvePlatformPaths()
+	execPath, _ := os.Executable()
+	plan, err := adapter.PlanSetup(ctx, execPath, paths.BackupsPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to plan setup: %v\n", err)
+		return 1
+	}
+
+	result, err := adapter.ApplySetup(ctx, plan)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to apply setup: %v\n", err)
+		return 1
+	}
+
+	fmt.Printf("✓ Successfully configured %s:\n", adapter.Descriptor().DisplayName)
+	fmt.Printf("  • Config File: %s\n", result.ConfigPath)
+	if result.BackupPath != "" {
+		fmt.Printf("  • Backup:      %s\n", result.BackupPath)
+	}
+	return 0
+}
+
 const bridgeUsage = "Usage: litespm bridge stdio [--host <host-id>] [--workspace <dir>]\n\n" +
 	"  --host      the agent host id this bridge serves (default: generic).\n" +
 	"  --workspace the project directory to report as this agent's project, when it\n" +
@@ -610,31 +727,8 @@ func runHostCommand(args []string) {
 			fmt.Println("Usage: litespm host setup <host-id>")
 			os.Exit(2)
 		}
-		hostID := args[1]
-		adapter, err := host.GetAdapter(hostID)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-
-		paths, _ := config.ResolvePlatformPaths()
-		execPath, _ := os.Executable()
-		plan, err := adapter.PlanSetup(ctx, execPath, paths.BackupsPath())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to plan setup: %v\n", err)
-			os.Exit(1)
-		}
-
-		result, err := adapter.ApplySetup(ctx, plan)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to apply setup: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Printf("✓ Successfully configured %s:\n", adapter.Descriptor().DisplayName)
-		fmt.Printf("  • Config File: %s\n", result.ConfigPath)
-		if result.BackupPath != "" {
-			fmt.Printf("  • Backup:      %s\n", result.BackupPath)
+		if code := applyHostSetup(ctx, args[1]); code != 0 {
+			os.Exit(code)
 		}
 
 	case "remove":
@@ -703,10 +797,14 @@ func runHostRemove(ctx context.Context, args []string) {
 	}
 }
 
-// runUninstall reverses everything LiteSPM wrote: the bridge entry in every
-// host config it touched. Skill directories are reported rather than deleted,
-// because a skills directory may contain files the user added alongside ours.
-func runUninstall(ctx context.Context, args []string) {
+// runUninstall reverses everything LiteSPM wrote in its own right: the bridge
+// entry in every host config it touched. Skill directories and the MCP server
+// entries registered by `litespm install` are reported rather than deleted:
+// skills because a directory may contain files the user added alongside ours,
+// MCP entries because each one belongs to its install record and is removed
+// through that record. It returns the exit code (0 success, 1 failed) instead
+// of exiting, so tests can drive the real path; main maps it to os.Exit.
+func runUninstall(ctx context.Context, args []string) int {
 	dryRun := false
 	for _, a := range args {
 		if a == "--dry-run" {
@@ -717,7 +815,7 @@ func runUninstall(ctx context.Context, args []string) {
 	paths, err := config.ResolvePlatformPaths()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error resolving paths: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	fmt.Println("Removing the LiteSPM bridge entry from every agent host config…")
@@ -759,18 +857,107 @@ func runUninstall(ctx context.Context, args []string) {
 		fmt.Printf("Dry run: %d host config(s) would be modified, %d had nothing to remove, %d could not be read.\n",
 			removed, untouched, failed)
 		fmt.Println("Re-run without --dry-run to apply.")
-		return
+		return 0
 	}
 	fmt.Printf("Done: %d host config(s) cleaned, %d had nothing to remove, %d could not be read.\n",
 		removed, untouched, failed)
 
 	fmt.Println()
+	reportUninstallRemainder(ctx, paths)
+	return 0
+}
+
+// uninstallRemainder is what `litespm uninstall` deliberately leaves behind,
+// read from the same records the removal commands themselves read: the install
+// table (MCP servers registered by `litespm install`) and the skills ledger
+// (directories copied by `litespm skills add`).
+type uninstallRemainder struct {
+	mcpInstallIDs []string
+	skillDirs     int
+	problems      []string
+}
+
+// readUninstallRemainder enumerates those records best-effort. An unreadable
+// store must not fail an uninstall that has already stripped the bridge, so
+// each failure is collected and reported rather than raised; a missing state
+// database or ledger means nothing was recorded, and neither is created just
+// to answer the question.
+func readUninstallRemainder(ctx context.Context, paths *config.PlatformPaths) uninstallRemainder {
+	var rem uninstallRemainder
+
+	if entries, err := loadSkillLedgerEntries(paths); err != nil {
+		rem.problems = append(rem.problems, fmt.Sprintf("skills ledger: %v", err))
+	} else {
+		rem.skillDirs = len(entries)
+	}
+
+	dbPath := paths.StateDBPath()
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return rem
+	} else if err != nil {
+		rem.problems = append(rem.problems, fmt.Sprintf("state database: %v", err))
+		return rem
+	}
+
+	db, err := state.Open(dbPath)
+	if err != nil {
+		rem.problems = append(rem.problems, fmt.Sprintf("state database: %v", err))
+		return rem
+	}
+	defer func() { _ = db.Close() }()
+
+	for _, scope := range []domain.InstallScope{domain.ScopeUser, domain.ScopeProject} {
+		recs, err := db.ListInstalls(ctx, scope, "")
+		if err != nil {
+			rem.problems = append(rem.problems, fmt.Sprintf("install records: %v", err))
+			return rem
+		}
+		for _, rec := range recs {
+			if rec.Kind == domain.KindMCP {
+				rem.mcpInstallIDs = append(rem.mcpInstallIDs, rec.InstallID)
+			}
+		}
+	}
+	return rem
+}
+
+// reportUninstallRemainder is the epilogue that names what remains, per kind,
+// and the exact command that removes each. Before it, the section named only
+// skill directories and backups: a user who ran `uninstall` believed LiteSPM
+// was gone while every MCP server `litespm install` had registered was still
+// in their agent configs — entries they never hand-wrote and may not
+// recognise. The counts come from the records; an unreadable store is reported
+// as unreadable, never guessed at.
+func reportUninstallRemainder(ctx context.Context, paths *config.PlatformPaths) {
 	fmt.Println("Still on disk:")
-	fmt.Println("  • Skill directories copied by `litespm skills add`. They live inside each")
-	fmt.Println("    agent's own skills tree and may hold files you added yourself, so this")
-	fmt.Println("    command does not delete them. See what is tracked, then remove it:")
-	fmt.Println("        litespm skills list")
-	fmt.Println("        litespm skills remove --all")
+
+	rem := readUninstallRemainder(ctx, paths)
+	if len(rem.problems) > 0 {
+		fmt.Printf("  • What remains could not be read: %s\n", strings.Join(rem.problems, "; "))
+		fmt.Println("    Run `litespm list` and `litespm skills list` to see what is tracked.")
+	} else {
+		if len(rem.mcpInstallIDs) > 0 {
+			fmt.Printf("  • `litespm install` still records %d MCP server install%s:\n",
+				len(rem.mcpInstallIDs), plural(len(rem.mcpInstallIDs)))
+			for _, id := range rem.mcpInstallIDs {
+				fmt.Printf("        litespm install remove %s\n", id)
+			}
+			fmt.Println("    Each command strips only LiteSPM's entry from the agent configs and")
+			fmt.Println("    keeps nodes you edited afterwards.")
+		}
+		if rem.skillDirs > 0 {
+			fmt.Printf("  • `litespm skills add` copied %d skill director%s into the agents' own skills trees.\n",
+				rem.skillDirs, pluralY(rem.skillDirs))
+			fmt.Println("    They may hold files you added yourself, so this command does not delete them.")
+			fmt.Println("    See what is tracked, then remove it:")
+			fmt.Println("        litespm skills list")
+			fmt.Println("        litespm skills remove --all            # project-scope entries")
+			fmt.Println("        litespm skills remove --all --global   # user-scope entries")
+		}
+		if len(rem.mcpInstallIDs) == 0 && rem.skillDirs == 0 {
+			fmt.Println("  • No MCP server installs or skill directories are recorded as remaining.")
+		}
+	}
 	fmt.Println("  • Backups written next to each config. They are your restore points;")
 	fmt.Println("    delete them yourself once you are satisfied.")
 }

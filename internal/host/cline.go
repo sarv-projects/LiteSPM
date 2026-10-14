@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/sarv-projects/litespm/internal/domain"
 )
@@ -138,6 +139,16 @@ func (a *ClineAdapter) PlanSetup(ctx context.Context, binaryPath string, backupD
 	configPath, err := a.DetectConfig(ctx, domain.ScopeUser)
 	if err != nil {
 		return nil, err
+	}
+	return a.PlanSetupAt(ctx, binaryPath, backupDir, configPath)
+}
+
+// PlanSetupAt implements PathPlanner: it plans the same merge against an
+// explicit config path, so a user who names a file gets that file written (or
+// nothing at all).
+func (a *ClineAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backupDir string, configPath string) (*HostChangePlan, error) {
+	if strings.TrimSpace(configPath) == "" {
+		return nil, fmt.Errorf("cline: no configuration path was given, refusing to plan a write")
 	}
 
 	origContent := "{}"

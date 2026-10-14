@@ -31,7 +31,7 @@ LiteSPM solves this by providing **centralized federated discovery** combined wi
 4.  **Preservation of Upstream Semantics:** Retain original package formats, upstream identifiers, and version digests. Normalization is a discovery projection, not an erasure of provenance.
 5.  **Multi-Stage Capability Verification:** Clearly report the independent operational status of every item (`listed`, `resolvable`, `installable`, `runnable`, `tested`).
 6.  **Fail-Closed User Approval:** Agents cannot self-authorize capabilities. Effectful actions (filesystem writes, command execution, network requests) require explicit user approval.
-7.  **Passive Freshness & Non-Destructive Invocations:** Invocations of `litespm` or in-agent `/marketplace` check for available catalog updates without mutating local installations or configuration unless explicitly confirmed. *(Target: today the wizard prints only compiled-in advisory metadata and in-agent reads resolve against the local catalog index — see §5.1 step 5.)*
+7.  **Passive Freshness & Non-Destructive Invocations:** Invocations of `litespm` or in-agent `/marketplace` check for available catalog updates without mutating local installations or configuration unless explicitly confirmed. *(Target: today no invocation checks for updates passively — in-agent reads resolve against the local catalog index, and the wizard's catalog action is an explicit, confirmed `catalog sync` — see §5.1 step 5.)*
 
 ### Non-Goals
 1.  **Cloud Tool Proxying:** LiteSPM hosted services will never proxy tool requests, execute plugin code in the cloud, or store downstream service credentials.
@@ -80,32 +80,33 @@ When a user installs LiteSPM (via `npm install -g litespm`, `curl`, or direct bi
 
 ```text
 $ litespm
-Select your primary AI Agent Host:
-  [1] Cline          (VS Code Extension - cline_mcp_settings.json)
-  [2] Pi Agent       (Terminal Coding Agent (pi) - mcp.json / config.json + TS Extension)
-  [3] Grok Build     (Terminal / IDE (grok) - config.toml (TOML))
-  [4] Claude Code    (Terminal CLI (claude) - ~/.claude.json (JSON))
-  [5] OpenAI Codex   (Terminal CLI (codex) - config.toml (TOML))
-  [6] OpenCode       (Open-source CLI (opencode) - opencode.json)
+LiteSPM can connect to 50 different agent hosts.
+Nothing on this machine has been changed yet.
+
+Which AI coding agent do you use?
+
+Found on this machine (1):
+  [1] Claude Code                    /home/you/.claude.json
+  [a] Show all 50 supported agents
   [q] Quit
 ```
 
-> Implementation note: the wizard lists only the 6 bespoke adapters (`cmd/litespm/wizard.go:supportedAgents`). The remaining 44 generic `BridgeTarget` rows are managed via `litespm host setup <id>` / `litespm host list` (50 total — see ARCH/30). There is no separate `Generic MCP Configuration (JSON export)` wizard entry.
+> Implementation note: the wizard derives its rows from the adapter registry (`host.ListAdapters`, `cmd/litespm/wizard.go:agentMenuRows`), so it covers all 50 bridge targets (6 bespoke + 44 generic, ARCH/30) — detected agents first, `[a]` for the full list — rather than a hand-maintained six-row list. There is no separate `Generic MCP Configuration (JSON export)` wizard entry.
 
-1.  **Agent Selection:** User selects their agent from the interactive terminal dropdown.
-2.  **Automated Path Discovery:** LiteSPM scans documented default paths across Windows, macOS, and Linux (e.g., `~/.claude.json`, `~/.codex/config.toml`; native Windows user scope is `%USERPROFILE%\.codex\config.toml` — `%APPDATA%\Codex\config.toml` is only a legacy fallback, `internal/host/codex.go:35-42`).
-3.  **Graceful Fallback:** If the configuration file is not found, LiteSPM provides clear feedback (`cmd/litespm/wizard.go:187-197`):
+1.  **Agent Selection:** User picks a detected agent, any of the 50 supported adapters by name or number, or `[q]` to quit.
+2.  **Automated Path Discovery:** LiteSPM scans documented default paths across Windows, macOS, and Linux (e.g., `~/.claude.json`, `$CODEX_HOME/config.toml`; native Windows user scope is `%USERPROFILE%\.codex\config.toml` — the adapter honours `$CODEX_HOME` and does not probe `%APPDATA%\Codex\config.toml`, `internal/host/codex.go:43-49`).
+3.  **Graceful Fallback:** If the configuration file is not found, LiteSPM provides clear feedback (`cmd/litespm/wizard.go:384-394`):
     ```text
-    ⚠ Configuration file not found in default locations for Claude Code.
+    Could not work out where Claude Code keeps its configuration file.
 
-    Choose a configuration option:
-      [1] Enter configuration path manually
-      [2] Print copy-paste snippet
-      [3] Retry auto-detection
+    What would you like to do?
+      [1] Type the full path of the configuration file
+      [2] Print a snippet to paste into the file yourself
+      [3] Look for the file again
       [q] Cancel setup
     ```
-4.  **Atomic Registration:** Upon locating or receiving the path, LiteSPM creates a timestamped pre-edit backup (`DATA_ROOT/backups/<host-id>_<timestamp>_<hash>.bak`), safely parses the file, injects a single `litespm` bridge entry (`<binary> bridge stdio --host <host-id>` — no version field and no per-capability snippets are written), and atomically replaces the file.
-5.  **Passive Advisory Notice (target — currently compiled-in only):** The intended flow queries the static catalog pointer (`/v1/current.json`) for capability updates without touching local state. Current `verifyRuntimeAdvisories` (`cmd/litespm/wizard.go:138-143`) prints only the compiled-in protocol version and adapter count with no network fetch; `litespm update` / `self-update` updates the LiteSPM binary itself (`internal/update`), not installed capabilities. Capability refresh is `litespm catalog sync` followed by reinstall until an update-notice lands:
+4.  **Preview and Atomic Registration:** Once a path is agreed — `host.PlanSetupAt` refuses any plan whose `ConfigPath` is not that path (`internal/host/types.go:82-117`) — the wizard prints the changed lines and asks `Write this change? [Y/n]` (`cmd/litespm/wizard.go:450-483`); on confirmation it creates a timestamped pre-edit backup (`DATA_ROOT/backups/<host-id>_<timestamp>_<hash>.bak`), safely parses the file, injects a single `litespm` bridge entry (`<binary> bridge stdio --host <host-id>` — no version field and no per-capability snippets are written), and atomically replaces the file.
+5.  **Advisory Notice — not implemented:** The wizard prints no advisory metadata: `printRuntimeSummary` (`cmd/litespm/wizard.go:154-162`) states how many hosts LiteSPM can connect to and that nothing has been changed, and claims no runtime check. The intended flow queries the static catalog pointer (`/v1/current.json`) for capability updates without touching local state; no `advisories` array is published today (`LPSM-E006`). `litespm update` / `self-update` updates the LiteSPM binary itself (`internal/update`), not installed capabilities. Capability refresh is `litespm catalog sync` followed by reinstall until an update-notice lands:
     ```text
     [*] 2 installed capabilities have updates available. Run 'litespm catalog sync' to refresh, then reinstall to inspect changes.
     ```
