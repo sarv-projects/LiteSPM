@@ -45,6 +45,15 @@ const TRY_CHIPS: Array<{ label: string; href: string }> = [
 
 const QUICKSTART = "npm install -g litespm";
 
+/**
+ * Kept in sync with the same constant in DeveloperZone.tsx — deliberately a
+ * literal in both files rather than a shared import, because this is the one
+ * status claim on the site and a shared module makes it easy to edit from a
+ * place nobody reads. Delete both when v0.4.1 ships (STATUS.md §2).
+ */
+const NPM_INSTALL_CAVEAT =
+  "Published 0.4.0 cannot read the published catalog yet — a fix is prepared and awaiting re-tag.";
+
 function ReleaseChip({ telemetry }: { telemetry: TelemetryState }) {
   const { status, data } = telemetry;
   const digest = shortDigest(data.manifestDigest);
@@ -186,6 +195,16 @@ export function LandingHero({
             {/* The "Install instructions" link that sat here pointed at the same
                 `#install` anchor as the header button, a third time. */}
           </div>
+
+          {/* The command above is the first thing on the page, so it must be
+              true. While the published npm package cannot read the published
+              catalog, say so directly beneath it rather than letting someone
+              paste a command that will install a binary which cannot sync.
+              Delete this (and NPM_INSTALL_CAVEAT's counterpart in
+              DeveloperZone) when v0.4.1 ships — see STATUS.md §2. */}
+          <p className="mt-2 max-w-[60ch] text-[13px] leading-relaxed text-dark-ink-2">
+            {NPM_INSTALL_CAVEAT}
+          </p>
 
           {/* "The package manager for AI agents." used to sit here as a second
               positioning statement. It is the headline now, so repeating it
