@@ -3,6 +3,7 @@ import type { Listing } from "../../lib/telemetry";
 import {
   agentFacets,
   categoryFacets,
+  deriveKindCounts,
   GRID_PAGE,
   hostUniverse,
   withLinkKeys,
@@ -36,6 +37,7 @@ export default function ExplorePage() {
 
   const props: ExploreViewProps = {
     total: items.length,
+    kindCounts: deriveKindCounts(items),
     categories: categoryFacets(items, 200),
     agents: agentFacets(items),
     hostCount: hostUniverse(items).length,

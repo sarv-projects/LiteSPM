@@ -28,10 +28,22 @@ func TestGitCloneEnvIsHardened(t *testing.T) {
 		t.Errorf("GIT_TERMINAL_PROMPT = %q, want \"0\" — git must never prompt", got["GIT_TERMINAL_PROMPT"])
 	}
 	// Narrower than the reference installer's https:http:ssh:git:file, because
-	// ParseSkillSource has already refused everything but https. Plain http and
-	// ssh are transports we never legitimately need.
-	if got["GIT_ALLOW_PROTOCOL"] != "https:git" {
-		t.Errorf("GIT_ALLOW_PROTOCOL = %q, want %q", got["GIT_ALLOW_PROTOCOL"], "https:git")
+	// plain http and file: are transports we never legitimately need.
+	// ssh is listed because ParseSkillSource admits `git@host:owner/repo.git`
+	// and `ssh://host/path`, and git routes both to its ssh transport: without
+	// it here the clone fails with "transport 'ssh' not allowed".
+	if got["GIT_ALLOW_PROTOCOL"] != "https:ssh:git" {
+		t.Errorf("GIT_ALLOW_PROTOCOL = %q, want %q", got["GIT_ALLOW_PROTOCOL"], "https:ssh:git")
+	}
+	// The transport list is an allow-list, so a protocol we never admitted
+	// cannot sneak in by being appended here. Pin the ones that must stay out:
+	// they are the exfiltration shapes (a file: clone reads the local disk).
+	for _, proto := range []string{"http", "file", "ftp"} {
+		for _, listed := range strings.Split(got["GIT_ALLOW_PROTOCOL"], ":") {
+			if listed == proto {
+				t.Errorf("GIT_ALLOW_PROTOCOL lists %q, which ParseSkillSource refuses; the git child must not be wider than the parser", proto)
+			}
+		}
 	}
 	// Two independent LFS kills: the skip flag for an installed git-lfs, and
 	// the filter overrides for the case where the filter is configured but

@@ -280,25 +280,32 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "skills",
 			Group:     "MANAGE",
-			Purpose:   "Add, list, update and remove SKILL.md skills through the skills ledger.",
+			Purpose:   "Add, use, find, list, update and remove SKILL.md skills through the skills ledger.",
 			Synopsis: []string{
-				"litespm skills add <source> [--skill <n>] [--agent <id>] [--global] [--yes]",
-				"litespm skills list [--json]",
-				"litespm skills update <name>... --source <src> [--ref <r>] [--dry-run]",
-				"litespm skills remove <name>|--all [--scope project|global] [--dry-run]",
+				"litespm skills add <source> [--skill <n>] [--agent <id>] [--global] [--yes] [--all] [--full-depth]",
+				"litespm skills use <source>[@<skill>] [--skill <n>] [--json]",
+				"litespm skills find [<query>] [--owner <org>]",
+				"litespm skills list|ls [-g] [-a <id>] [--json]",
+				"litespm skills update [<name>...] [--source <src>] [--ref <r>] [-g|-p] [-y] [--dry-run]",
+				"litespm skills remove|rm [<name>|<source>...] [--all] [-a <id>] [-s <name>] [--scope project|global] [--dry-run]",
 			},
 			Does: []string{
-				"`add` copies portable SKILL.md directories into each selected agent's own skills tree and records every directory it created in the skills ledger.",
-				"`list` prints that ledger (skill, host, directory); `update` re-copies a named skill from its source; `remove` deletes only directories the ledger names, and reports what it kept.",
+				"`add` copies portable SKILL.md directories into each selected agent's own skills tree and records every directory it created in the skills ledger. `--skill '*'` and `--agent '*'` select everything on that axis; `--all` is the same as `--skill '*' --agent '*' --yes`.",
+				"Sources are `owner/repo`, an https or ssh git URL, a local directory, a GitHub/GitLab browse URL, a direct `SKILL.md` URL, or a `.zip`/`.tar`/`.tar.gz` archive URL (the extension is sniffed from the bytes, not required).",
+				"`use` resolves a source exactly like `add` but installs nothing: it prints the skill's prompt to stdout for piping into an agent. `find` searches the catalog index for skills, by keyword or by `--owner <org>`.",
+				"`list` prints that ledger (skill, host, scope, directory); `update` re-copies from each row's recorded source when no source is named; `remove` deletes only directories the ledger names, and reports what it kept.",
 			},
 			DoesNot: []string{
 				"Never guesses a path: a directory the ledger does not name is never removed, and a directory holding files you added afterwards is kept unless you pass `--force`.",
 				"Does not audit skill safety: risk data is not collected, so a skill is reported unverified rather than shown as trusted.",
 				"Cross-scope removal is refused per entry instead of deleting silently (`remove --all` still respects `--scope`).",
+				"`use --agent <id>` is not wired: LiteSPM configures agent hosts, it does not launch them. Pipe the prompt instead.",
+				"A skill marked `metadata.internal` is hidden and refused unless `INSTALL_INTERNAL_SKILLS=1` is set.",
 			},
 			Examples: []string{
 				"litespm skills list",
-				"litespm skills add <source> --list",
+				"litespm skills use <source>@<skill> | claude",
+				"litespm skills find design --owner vercel-labs",
 				"litespm skills remove --all --dry-run",
 			},
 			SeeAlso: []string{"install", "list", "agent"},
@@ -412,10 +419,9 @@ func buildHelpCatalog() map[string]commandHelp {
 		},
 		{
 			Canonical: "setup",
-			Aliases:   []string{"init"},
 			Group:     "CONFIGURE",
 			Purpose:   "Run the interactive setup wizard.",
-			Synopsis:  []string{"litespm setup", "litespm init     # same command"},
+			Synopsis:  []string{"litespm setup"},
 			Does: []string{
 				"Walks you through choosing an agent, detects its configuration file, and registers the LiteSPM bridge entry — showing what will change before it changes it.",
 				"If the config file is not where detection expects, the wizard offers a manual path, a copy-paste snippet and a retry.",
@@ -423,6 +429,7 @@ func buildHelpCatalog() map[string]commandHelp {
 			DoesNot: []string{
 				"Does not run non-interactively: it has no flags and needs a terminal.",
 				"Does not install packages — it only wires the bridge. `litespm install` installs capabilities.",
+				"`init` used to be an alias of this command; it is now `litespm init`, which scaffolds a SKILL.md. Only `setup` (and the bare `litespm`) opens the wizard.",
 			},
 			Examples: []string{
 				"litespm setup",

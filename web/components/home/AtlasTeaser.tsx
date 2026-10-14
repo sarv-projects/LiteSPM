@@ -62,7 +62,7 @@ export function AtlasTeaser() {
           return (
             <li
               key={id}
-              className="flex flex-col rounded-card border border-rule bg-surface p-4 transition-[transform,border-color,box-shadow] duration-hover ease-out hover:-translate-y-0.5 hover:border-ink-3 hover:shadow-card"
+              className="flex flex-col rounded-card border border-rule bg-surface p-4 card-lift hover:border-ink-3 hover:shadow-card"
             >
               <div className="flex items-center gap-2">
                 <AgentLogo id={id} name={label} size={28} />

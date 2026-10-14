@@ -74,7 +74,7 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
 
   return (
     <article
-      className={`group relative flex flex-col rounded-card border border-rule bg-surface p-4 transition-[transform,border-color,box-shadow] duration-hover ease-out hover:-translate-y-0.5 hover:border-ink-3 hover:shadow-card focus-within:border-ink-3 ${className}`}
+      className={`group card-lift relative flex flex-col rounded-card border border-rule bg-surface p-4 hover:border-ink-3 hover:shadow-card focus-within:border-ink-3 ${className}`}
     >
       <div className="flex min-w-0 items-start gap-3">
         <span className="transition-transform duration-hover ease-out group-hover:scale-105">
@@ -108,7 +108,7 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
           className={`inline-flex items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
             avail.installable
               ? "border-rule-2 bg-surface text-ink-2"
-              : "border-dashed border-rule-2 bg-sunken text-ink-3"
+              : "border-dashed border-ink-3 bg-sunken text-ink-3"
           }`}
           title={avail.plain}
         >

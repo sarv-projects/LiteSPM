@@ -75,7 +75,7 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
           <Link
             key={card.kind}
             href={card.href}
-            className="group flex flex-col rounded-card border border-rule bg-surface p-5 transition-[transform,border-color,box-shadow] duration-hover ease-out hover:-translate-y-0.5 hover:border-ink-3 hover:shadow-card"
+            className="group card-lift flex flex-col rounded-card border border-rule bg-surface p-5 hover:border-ink-3 hover:shadow-card"
           >
             <div className="flex items-center justify-between gap-3">
               <span
@@ -115,7 +115,7 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
 
         <Link
           href="/agents/"
-          className="group flex flex-col rounded-card border border-dashed border-rule-2 bg-sunken p-5 transition-[transform,border-color,box-shadow] duration-hover ease-out hover:-translate-y-0.5 hover:border-ink-3 hover:shadow-card"
+          className="group card-lift flex flex-col rounded-card border border-dashed border-rule-2 bg-sunken p-5 hover:border-ink-3 hover:shadow-card"
         >
           <span className="kicker">The other half of &ldquo;what works with what&rdquo;</span>
           <h3 className="mt-4 text-[19px] font-semibold tracking-tight text-ink">Agents</h3>
@@ -135,7 +135,11 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
             The catalog names {formatCount(hostCount)} hosts in total; the rest are what publishers
             declared, and LiteSPM does not edit their config.
           </p>
-          <span className="mt-4 flex items-center gap-1.5 text-[12.5px] font-medium text-ink-3 transition-colors duration-state ease-out group-hover:text-accent-text">
+          {/* Inked, not accented, because this card sits on --sunken: that pair
+              measures 4.26:1 for --accent-text and misses AA for 12.5px text,
+              while --ink reaches 13.77:1. The other three cards stay on
+              --surface, where the accent clears at 5.31:1. */}
+          <span className="mt-4 flex items-center gap-1.5 text-[12.5px] font-medium text-ink-3 transition-colors duration-state ease-out group-hover:text-ink">
             Open the agent atlas
             <ArrowRight
               className="h-3.5 w-3.5 transition-transform duration-hover ease-out group-hover:translate-x-0.5"

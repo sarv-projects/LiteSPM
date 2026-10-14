@@ -72,6 +72,19 @@ type LedgerEntry struct {
 	// DestDir. Nil for legacy entries; used by Remove to detect user-added
 	// files.
 	Inventory []FileRecord `json:"inventory,omitempty"`
+	// PreImageDigest is the content digest of whatever this write REPLACED,
+	// captured before the overwrite, in the same digest vocabulary as
+	// ContentDigest (CaptureProvenance). Empty for fresh installs. This is
+	// the value the deployment ledger records as the mutation's pre-image
+	// for a skill-dir (lifecycle.OwnedWrite) and the one restore guards
+	// compare a current tree against; a forced overwrite that left it ""
+	// would erase the only record of what was in the way.
+	PreImageDigest string `json:"preImageDigest,omitempty"`
+	// PreImageBackup is the directory holding a byte-exact copy of the tree
+	// PreImageDigest describes, taken before the overwrite. Empty for fresh
+	// installs. The digest can prove what was there; only this backup can
+	// put it back.
+	PreImageBackup string `json:"preImageBackup,omitempty"`
 }
 
 // Ledger is a JSON file listing every directory this tool has created.

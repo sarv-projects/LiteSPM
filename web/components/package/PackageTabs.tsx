@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
@@ -8,6 +8,7 @@ import { kindLabel, listingHref } from "../../lib/catalog";
 import { hostsFor } from "../../lib/hosts";
 import { formatCount, shortDigest } from "../../lib/format";
 import { VerifiedMark } from "../catalog/PublisherMark";
+import { TabList } from "../ui/TabList";
 import { SITE_URL } from "../../lib/site";
 import bundledRelease from "../../data/release.json";
 
@@ -571,15 +572,13 @@ export interface PackageTabsProps {
 }
 
 /**
- * Six tabs, one record. ARIA tabs pattern with roving tabindex and
- * Left/Right/Home/End keys; the active tab carries the accent underline, the
- * inactive ones stay neutral. The state lives in the view so a link from the
- * questions above can open a specific tab — switching never fetches anything
- * (the row is already in memory).
+ * Six tabs, one record. The strip itself is `ui/TabList` (shared with the
+ * install panel's Command | Prompt choice); the active tab carries the accent
+ * underline, the inactive ones stay neutral. The state lives in the view so a
+ * link from the questions above can open a specific tab — switching never
+ * fetches anything (the row is already in memory).
  */
 export function PackageTabs({ item, agent, hostTotal, snapshot, active, onChange }: PackageTabsProps) {
-  const refs = useRef<Array<HTMLButtonElement | null>>([]);
-
   const renderPanel = (tab: PackageTabId): React.ReactNode => {
     switch (tab) {
       case "overview":
@@ -597,19 +596,6 @@ export function PackageTabs({ item, agent, hostTotal, snapshot, active, onChange
     }
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const i = TABS.findIndex((t) => t.id === active);
-    let next = -1;
-    if (e.key === "ArrowRight") next = (i + 1) % TABS.length;
-    else if (e.key === "ArrowLeft") next = (i - 1 + TABS.length) % TABS.length;
-    else if (e.key === "Home") next = 0;
-    else if (e.key === "End") next = TABS.length - 1;
-    if (next < 0) return;
-    e.preventDefault();
-    onChange(TABS[next].id);
-    refs.current[next]?.focus();
-  };
-
   return (
     <section aria-labelledby="pkg-details-title" className="mt-9">
       <div className="section-head">
@@ -617,35 +603,14 @@ export function PackageTabs({ item, agent, hostTotal, snapshot, active, onChange
         <span className="section-note">the full record, one level deeper</span>
       </div>
 
-      <div
-        role="tablist"
-        aria-label="Package details"
-        onKeyDown={onKeyDown}
-        className="no-scrollbar mt-1 flex gap-1 overflow-x-auto border-b border-rule"
-      >
-        {TABS.map((tab, i) => (
-          <button
-            key={tab.id}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            type="button"
-            role="tab"
-            id={`pkg-tab-${tab.id}`}
-            aria-controls={`pkg-panel-${tab.id}`}
-            aria-selected={active === tab.id}
-            tabIndex={active === tab.id ? 0 : -1}
-            onClick={() => onChange(tab.id)}
-            className={`relative min-h-[44px] shrink-0 px-3 text-[13px] font-medium transition-colors duration-state md:min-h-[38px] ${
-              active === tab.id
-                ? "text-ink after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-accent after:content-['']"
-                : "text-ink-3 hover:text-ink"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TabList
+        tabs={TABS}
+        active={active}
+        onChange={onChange}
+        label="Package details"
+        idPrefix="pkg"
+        className="mt-1"
+      />
 
       {TABS.map((tab) => (
         <div

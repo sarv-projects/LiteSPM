@@ -480,7 +480,7 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
                 className={`inline-flex items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
                   avail.installable
                     ? "border-rule-2 bg-surface text-ink-2"
-                    : "border-dashed border-rule-2 bg-sunken text-ink-3"
+                    : "border-dashed border-ink-3 bg-sunken text-ink-3"
                 }`}
                 title={avail.plain}
               >

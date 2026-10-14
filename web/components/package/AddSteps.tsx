@@ -1,13 +1,28 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Check } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
+import { availabilityOf } from "../../lib/availability";
+import { TabList } from "../ui/TabList";
 import { CopyButton } from "./CopyButton";
 import { ManualSetup } from "./ManualSetup";
 
 const INSTALL_COMMAND_PREFIX = "litespm install ";
+
+/**
+ * The two ways to take the third step. "Command" is the CLI line the reader
+ * types; "Prompt" is the same install handed to the agent through the bridge
+ * instead. Only shown for entries `litespm install` can actually complete
+ * (skills and MCP servers) — a plugin never reaches this panel, so the prompt
+ * can never promise a plugin install.
+ */
+const MODES = [
+  { id: "command", label: "Command" },
+  { id: "prompt", label: "Prompt" },
+] as const;
+type Mode = (typeof MODES)[number]["id"];
 
 /**
  * Scroll a section into view and hand it focus, without a `#hash` link —
@@ -61,6 +76,10 @@ export interface AddStepsProps {
  *   otherwise               → the CLI's fail-closed status, without an install
  *                             command for an entry it cannot install.
  *
+ * The installable state offers that third step two ways — the CLI command, or
+ * a prompt the reader pastes into the agent; both end in the same
+ * `request_install` with a human approval between the plan and the write.
+ *
  * The generic host-setup block (agent × OS config path + raw snippet) lives in
  * the single `ManualSetup` disclosure below the panel — never above the fold,
  * and nowhere else on the page.
@@ -80,13 +99,54 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
   const liteSPMInstallable =
     item.kind !== "plugin" && installabilityEstablished && hasLaunchLine;
   const targeted = liteSPMInstallable && agent !== null && agent.hosts.length > 0;
+  const avail = availabilityOf(item);
+
+  /**
+   * The prompt the Prompt tab copies. Every instruction in it is a thing the
+   * binary actually does, in the order it does them: `prepare_install` returns
+   * a plan carrying its own `planId`, a person runs `litespm approve <planId>`
+   * on a terminal (the command refuses a non-interactive caller precisely so
+   * an agent cannot approve for you), and `request_install` executes the plan
+   * with the single-use token that prints. The last line is the fail-closed
+   * instruction — no bridge, no install, no guessed fallback.
+   */
+  const prompt = [
+    `Install the LiteSPM catalog entry "${item.id}" into this agent.`,
+    "",
+    `1. Call the LiteSPM bridge tool prepare_install with id "${item.id}" and show me the full plan it returns.`,
+    "2. Stop and wait. I will run `litespm approve <planId>` in my terminal and give you the single-use token it prints.",
+    "3. Call request_install with that planId and token, then tell me exactly what was written.",
+    "",
+    "Do not install anything before I approve the plan. If the LiteSPM bridge is not connected to this agent, say so and stop.",
+  ].join("\n");
+
+  // Which of the two equivalent routes the reader is looking at. Local state
+  // only: both panels render from the row already in memory, nothing is
+  // fetched by switching.
+  const [mode, setMode] = useState<Mode>("command");
+
+  /**
+   * The CTA in the state strip always lands on the install command. When the
+   * reader is on the Prompt tab, "pkg-step-add" is not in the DOM yet, so the
+   * tab is switched first and the scroll happens on the frame after the
+   * commit — `scrollToSection` no-ops on a missing id, and a button that
+   * silently does nothing is worse than one that changes a tab.
+   */
+  const goToInstallCommand = () => {
+    if (mode === "command") {
+      scrollToSection("pkg-step-add");
+      return;
+    }
+    setMode("command");
+    window.requestAnimationFrame(() => scrollToSection("pkg-step-add"));
+  };
 
   return (
     <section id="pkg-add" aria-labelledby="pkg-add-title" tabIndex={-1} className="scroll-mt-16">
       <div className="section-head">
         <h2 id="pkg-add-title">How do I add it?</h2>
         <span className="section-note">
-          {liteSPMInstallable ? "three steps, in order" : "installability status"}
+          {liteSPMInstallable ? "three steps, or one prompt" : "installability status"}
         </span>
       </div>
 
@@ -120,7 +180,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             <button
               type="button"
               className="btn btn-solid btn-lg shrink-0"
-              onClick={() => scrollToSection("pkg-step-add")}
+              onClick={goToInstallCommand}
             >
               {/* Not "Add X to Y": this only moves the reader down to the steps.
                   The site cannot reach a locally installed LiteSPM, so it never
@@ -149,85 +209,149 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
 
         {/* ---- the guided flow is shown only for entries the CLI can install ---- */}
         {liteSPMInstallable && (
-          <ol className="mt-4 space-y-5">
-            <li>
-              <div className="flex items-baseline gap-3">
-                <span className="t-mono t-tabular shrink-0 text-[12px] font-medium text-dark-signal">
-                  01
-                </span>
-                <div className="min-w-0">
-                  <h3 className="text-[14px] font-semibold text-dark-ink">Install LiteSPM</h3>
-                  <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
-                    One CLI for every agent you use.
-                  </p>
-                </div>
-              </div>
-              <DarkCmd
-                text="npm install -g litespm"
-                label="Copy install command"
-                message="Install command copied"
-              />
-            </li>
+          <>
+            <TabList
+              tabs={MODES}
+              active={mode}
+              onChange={setMode}
+              label="How to run the install"
+              idPrefix="pkg-add"
+              variant="dark"
+              className="mt-3"
+            />
 
-            <li>
-              <div className="flex items-baseline gap-3">
-                <span className="t-mono t-tabular shrink-0 text-[12px] font-medium text-dark-signal">
-                  02
-                </span>
-                <div className="min-w-0">
-                  <h3 className="text-[14px] font-semibold text-dark-ink">
-                    Connect {targeted ? agent?.label : "your agent"}
-                  </h3>
-                  <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
-                    Run the setup wizard and pick your agent. It finds that agent&rsquo;s config file
-                    and adds the one LiteSPM entry, keeping a backup of what was there.
+            {/* Route one: the command, exactly as the CLI accepts it. */}
+            <div
+              role="tabpanel"
+              id="pkg-add-panel-command"
+              aria-labelledby="pkg-add-tab-command"
+              tabIndex={0}
+              hidden={mode !== "command"}
+              className="mt-4"
+            >
+              <ol className="space-y-5">
+                <li>
+                  <div className="flex items-baseline gap-3">
+                    <span className="t-mono t-tabular shrink-0 text-[12px] font-medium text-dark-signal">
+                      01
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-[14px] font-semibold text-dark-ink">Install LiteSPM</h3>
+                      <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
+                        One CLI for every agent you use.
+                      </p>
+                    </div>
+                  </div>
+                  <DarkCmd
+                    text="npm install -g litespm"
+                    label="Copy install command"
+                    message="Install command copied"
+                  />
+                </li>
+    
+                <li>
+                  <div className="flex items-baseline gap-3">
+                    <span className="t-mono t-tabular shrink-0 text-[12px] font-medium text-dark-signal">
+                      02
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-[14px] font-semibold text-dark-ink">
+                        Connect {targeted ? agent?.label : "your agent"}
+                      </h3>
+                      <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
+                        Run the setup wizard and pick your agent. It finds that agent&rsquo;s config file
+                        and adds the one LiteSPM entry, keeping a backup of what was there.
+                      </p>
+                    </div>
+                  </div>
+                  <DarkCmd text="litespm" label="Copy setup command" message="Setup command copied" />
+                </li>
+    
+                <li id="pkg-step-add" tabIndex={-1} className="scroll-mt-16">
+                  <div className="flex items-baseline gap-3">
+                    <span className="t-mono t-tabular shrink-0 text-[12px] font-medium text-dark-signal">
+                      03
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-[14px] font-semibold text-dark-ink">Add {item.name}</h3>
+                      <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
+                        {targeted
+                          ? `Installs this entry for ${agent?.label}.`
+                          : "Installs this entry for the agent you connected in step 2."}
+                      </p>
+                    </div>
+                  </div>
+                  <DarkCmd
+                    text={`${INSTALL_COMMAND_PREFIX}${item.id}`}
+                    label="Copy install command"
+                    message="Install command copied"
+                  />
+    
+                  <p className="mt-2 text-[12px] leading-relaxed text-dark-ink-2">
+                    Or run <code className="t-mono text-dark-ink">/marketplace</code> inside your agent and
+                    search for &ldquo;{item.name}&rdquo;.
                   </p>
-                </div>
-              </div>
-              <DarkCmd text="litespm" label="Copy setup command" message="Setup command copied" />
-            </li>
+    
+                  {item.installHint && (
+                    <div className="mt-2">
+                      <p className="t-mono text-[10px] uppercase tracking-wider text-dark-ink-2">
+                        {item.kind === "skill"
+                          ? "Upstream source repository"
+                          : "The host's own plugin command"}
+                      </p>
+                      <DarkCmd
+                        text={item.installHint}
+                        label="Copy host install command"
+                        message="Host command copied"
+                      />
+                    </div>
+                  )}
+                </li>
+              </ol>
+            </div>
 
-            <li id="pkg-step-add" tabIndex={-1} className="scroll-mt-16">
-              <div className="flex items-baseline gap-3">
-                <span className="t-mono t-tabular shrink-0 text-[12px] font-medium text-dark-signal">
-                  03
-                </span>
-                <div className="min-w-0">
-                  <h3 className="text-[14px] font-semibold text-dark-ink">Add {item.name}</h3>
-                  <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
-                    {targeted
-                      ? `Installs this entry for ${agent?.label}.`
-                      : "Installs this entry for the agent you connected in step 2."}
-                  </p>
-                </div>
-              </div>
-              <DarkCmd
-                text={`${INSTALL_COMMAND_PREFIX}${item.id}`}
-                label="Copy install command"
-                message="Install command copied"
-              />
-
-              <p className="mt-2 text-[12px] leading-relaxed text-dark-ink-2">
-                Or run <code className="t-mono text-dark-ink">/marketplace</code> inside your agent and
-                search for &ldquo;{item.name}&rdquo;.
+            {/* Route two: the same install, handed to the agent. This is the
+                panel's own differentiator — a package page that can tell a
+                reader's agent to install the entry it is looking at. It stays
+                inside what the binary enforces: plan first, a human approves
+                in a terminal, the token is single-use, and no bridge means no
+                install rather than a guessed one. */}
+            <div
+              role="tabpanel"
+              id="pkg-add-panel-prompt"
+              aria-labelledby="pkg-add-tab-prompt"
+              tabIndex={0}
+              hidden={mode !== "prompt"}
+              className="mt-4"
+            >
+              <h3 className="text-[14px] font-semibold text-dark-ink">Let your agent run it</h3>
+              <p className="mt-0.5 max-w-prose text-[13px] leading-relaxed text-dark-ink-2">
+                Paste this into {targeted ? agent?.label : "the agent you connected in step 2"}. It
+                works through the bridge already set up there — the steps 01 and 02 on the Command
+                tab still have to have happened once, or the bridge tools do not exist yet.
               </p>
 
-              {item.installHint && (
-                <div className="mt-2">
-                  <p className="t-mono text-[10px] uppercase tracking-wider text-dark-ink-2">
-                    {item.kind === "skill"
-                      ? "Upstream source repository"
-                      : "The host's own plugin command"}
-                  </p>
-                  <DarkCmd
-                    text={item.installHint}
-                    label="Copy host install command"
-                    message="Host command copied"
+              <div className="mt-2 border border-dark-rule bg-dark-2 px-3 py-2.5">
+                <div className="flex items-start gap-3">
+                  <pre className="t-mono min-w-0 flex-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-dark-ink select-all">
+                    {prompt}
+                  </pre>
+                  <CopyButton
+                    text={prompt}
+                    label="Copy the install prompt"
+                    message="Install prompt copied"
                   />
                 </div>
-              )}
-            </li>
-          </ol>
+              </div>
+
+              <p className="mt-2.5 max-w-prose text-[12px] leading-relaxed text-dark-ink-2">
+                What happens: LiteSPM builds the plan first and writes nothing until you approve it
+                in a terminal — <code className="t-mono text-dark-ink">litespm approve</code> refuses
+                to run without one, so an agent cannot approve for you, and the token it prints is
+                single-use. {avail.plain}
+              </p>
+            </div>
+          </>
         )}
 
         {!liteSPMInstallable && item.kind === "plugin" && (

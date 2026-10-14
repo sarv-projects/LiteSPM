@@ -23,6 +23,14 @@ type SkillPackage struct {
 	Instructions  string   `json:"instructions"`
 	TreePath      string   `json:"treePath,omitempty"`
 	RawContent    string   `json:"rawContent,omitempty"`
+	// Internal is the frontmatter `metadata.internal` flag: the skill is
+	// intended for the source maintainer's own use and must be hidden unless
+	// INSTALL_INTERNAL_SKILLS opts in. See SkillVisible.
+	Internal bool `json:"internal,omitempty"`
+	// Metadata carries the scalar entries of the frontmatter `metadata`
+	// mapping (the field agentskills.io reserves for implementation-defined
+	// data).
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // ParseSkillMD parses the contents of a SKILL.md document.
@@ -51,6 +59,8 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 	frontmatterDone := false
 	var bodyLines []string
 	var currentListKey string
+	inMetadata := false
+	metadataIndent := -1
 
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -65,6 +75,24 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 				inFrontmatter = false
 				frontmatterDone = true
 				continue
+			}
+
+			indent := len(line) - len(strings.TrimLeft(line, " \t"))
+
+			// The `metadata:` mapping is the one nested frontmatter block the
+			// parser understands. Its scalar children are collected while the
+			// indentation keeps them inside it; an unindented line ends it and
+			// is processed as an ordinary frontmatter key. Blank lines do not
+			// end the mapping.
+			if inMetadata {
+				if trimmed == "" {
+					continue
+				}
+				if indent > metadataIndent {
+					recordMetadataEntry(pkg, trimmed)
+					continue
+				}
+				inMetadata = false
 			}
 
 			// Check for list items
@@ -112,6 +140,15 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 					if val != "" && !strings.HasPrefix(val, "[") {
 						pkg.ToolsRequired = append(pkg.ToolsRequired, sanitizeForDisplay(val))
 					}
+				case "metadata":
+					currentListKey = ""
+					switch {
+					case val == "":
+						inMetadata = true
+						metadataIndent = indent
+					case strings.HasPrefix(val, "{"):
+						recordInlineMetadata(pkg, val)
+					}
 				default:
 					currentListKey = ""
 				}
@@ -122,6 +159,10 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 		if frontmatterDone || i > 0 {
 			bodyLines = append(bodyLines, line)
 		}
+	}
+
+	if v, ok := pkg.Metadata["internal"]; ok {
+		pkg.Internal = isTruthyMetadata(v)
 	}
 
 	pkg.Instructions = strings.TrimSpace(strings.Join(bodyLines, "\n"))
@@ -142,6 +183,43 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 	}
 
 	return pkg, nil
+}
+
+// recordMetadataEntry stores one scalar `key: value` pair from the frontmatter
+// metadata mapping. Lists and nested maps inside metadata are ignored: the
+// policy only reads scalar `internal`.
+func recordMetadataEntry(pkg *SkillPackage, line string) {
+	colon := strings.Index(line, ":")
+	if colon <= 0 {
+		return
+	}
+	key := strings.ToLower(strings.TrimSpace(line[:colon]))
+	val := strings.Trim(strings.TrimSpace(line[colon+1:]), "\"'`")
+	if key == "" || val == "" || strings.HasPrefix(val, "[") || strings.HasPrefix(val, "{") {
+		return
+	}
+	if pkg.Metadata == nil {
+		pkg.Metadata = map[string]string{}
+	}
+	pkg.Metadata[key] = sanitizeForDisplay(val)
+}
+
+// recordInlineMetadata parses the flow-map form `metadata: {internal: true}`.
+// Only scalar pairs are understood; anything nested is left alone.
+func recordInlineMetadata(pkg *SkillPackage, val string) {
+	for _, pair := range strings.Split(strings.Trim(val, "{}"), ",") {
+		recordMetadataEntry(pkg, pair)
+	}
+}
+
+// isTruthyMetadata interprets the scalar spellings a YAML boolean can arrive as
+// through this parser, which keeps frontmatter values as strings.
+func isTruthyMetadata(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "true", "1", "yes", "on":
+		return true
+	}
+	return false
 }
 
 // LoadSkillFromDirectory loads and parses SKILL.md from a target directory.

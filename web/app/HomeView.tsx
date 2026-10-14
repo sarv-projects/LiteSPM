@@ -169,9 +169,20 @@ export default function Home(props: HomeViewProps) {
         )}
 
         <HowItWorks />
-        <AtlasTeaser />
+        {/* Elevation rhythm: the page was one flat --paper field from the hero
+            to the footer, so every band read as the same band. These two carry
+            their own plane instead (--sunken), which separates the reader's
+            path into three readable stretches — action, reference, then the
+            developer/install close — without striping the page: the FAQ and
+            the cards between them stay on --paper. The dark install panel is
+            untouched and remains the highest-contrast surface on the page. */}
+        <div className="bg-sunken">
+          <AtlasTeaser />
+        </div>
         <FaqSection provenance={props.provenance} />
-        <DeveloperZone />
+        <div className="bg-sunken">
+          <DeveloperZone />
+        </div>
       </main>
 
       <SiteFooter />

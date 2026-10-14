@@ -62,8 +62,13 @@ func main() {
 	case "version", "--version", "-v":
 		fmt.Printf("LiteSPM v%s (Protocol %s, %s/%s, %s)\n", Version, ProtocolVersion, runtime.GOOS, runtime.GOARCH, runtime.Version())
 
-	case "setup", "init":
+	case "setup":
 		runInteractiveWizard()
+
+	case "init":
+		if code := runSkillsInit(os.Args[2:]); code != 0 {
+			os.Exit(code)
+		}
 
 	case "self-update", "update":
 		runSelfUpdate(os.Args[2:])
@@ -152,21 +157,33 @@ func main() {
 
 	case "skills":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: litespm skills [add <source> | list | update <name>... --source <src> | remove <name>|--all]")
+			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | --help]")
 			os.Exit(2)
 		}
 		switch os.Args[2] {
 		case "add":
 			runSkillsAdd(os.Args[3:])
-		case "list":
+		// `ls` and `rm` are aliases the reference installer ships and that
+		// muscle memory reaches for. They must dispatch to the same functions
+		// rather than to wrappers, so no behaviour can drift between the two
+		// spellings.
+		case "list", "ls":
 			runSkillsList(os.Args[3:])
 		case "update":
 			runSkillsUpdate(os.Args[3:])
-		case "remove":
+		case "remove", "rm":
 			runSkillsRemove(os.Args[3:])
+		case "use":
+			if code := runSkillsUse(os.Args[3:]); code != 0 {
+				os.Exit(code)
+			}
+		case "find":
+			if code := runSkillsFind(os.Args[3:]); code != 0 {
+				os.Exit(code)
+			}
 		default:
 			fmt.Printf("Unknown skills subcommand: %s\n", os.Args[2])
-			fmt.Println("Usage: litespm skills [add <source> | list | update <name>... --source <src> | remove <name>|--all]")
+			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | --help]")
 			os.Exit(2)
 		}
 

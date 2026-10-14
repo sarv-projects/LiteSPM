@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -28,16 +29,26 @@ func skillsAddUsage() {
 
 Install portable SKILL.md skills from a GitHub repository or local directory.
 
-  <source>                  owner/repo, https git URL, or local directory path
+  <source>                  owner/repo, https or ssh git URL, local directory,
+                            a direct SKILL.md URL, or a .zip/.tar/.tar.gz
+                            archive URL (no file extension required)
 
 Flags:
-  --skill <name>            Select a skill (repeatable; defaults to interactive)
-  --agent <host-id>         Target an agent host (repeatable; defaults to interactive)
+  --skill <name>            Select a skill (repeatable; "*" = every skill; defaults to interactive)
+  --agent <host-id>         Target an agent host (repeatable; "*" = every known agent; defaults to interactive)
   --global, -g              Install user-global (default: this repo only)
   --scope <project|global>  Explicit install scope
-  --list                    List discovered skills without installing
+  --list, -l                List discovered skills without installing
   --yes, -y                 Non-interactive: install all discovered skills
+  --all                     Every skill to every agent, no prompts (same as --skill '*' --agent '*' --yes)
+  --full-depth              Scan the whole tree, ignoring the depth bound and
+                            junk-directory skips (for a repo layout that does
+                            not follow the skills/<name> convention)
+  --force, -f               Overwrite an existing destination (keeps a backup)
   --json                    Machine-readable summary on stdout
+
+Skills marked metadata.internal are hidden and refused unless
+INSTALL_INTERNAL_SKILLS=1 is set.
 
 Each selected skill is copied into every selected agent's own skill
 directory: repo-local for project scope, or the user-global dir for global
@@ -64,6 +75,8 @@ type skillsAddOptions struct {
 	scopeGiven bool
 	list       bool
 	yes        bool
+	force      bool
+	fullDepth  bool
 	jsonOut    bool
 }
 
@@ -100,10 +113,27 @@ func parseSkillsAddArgs(args []string) (skillsAddOptions, error) {
 			}
 			opts.scope = strings.ToLower(v)
 			opts.scopeGiven = true
-		case "--list":
+		case "--list", "-l":
 			opts.list = true
 		case "--yes", "-y":
 			opts.yes = true
+		case "--all":
+			// The reference CLI's --all is shorthand for every skill to
+			// every agent with no prompts. It is implemented as exactly the
+			// wildcard pair plus --yes, so the shorthand and the wildcard
+			// path cannot drift apart.
+			opts.skills = append(opts.skills, "*")
+			opts.agents = append(opts.agents, "*")
+			opts.yes = true
+		case "--force", "-f":
+			opts.force = true
+		case "--full-depth":
+			// The reference CLI bounds its scan to a known list of skill
+			// container directories and offers this flag to escape it. Our
+			// scan is a whole-tree walk with a depth bound instead, so the
+			// escape here drops the bound and the junk-directory skips — the
+			// same situation: a repo the convention does not describe.
+			opts.fullDepth = true
 		case "--json":
 			opts.jsonOut = true
 		case "--help", "-h":
@@ -154,23 +184,43 @@ func runSkillsAdd(args []string) {
 		os.Exit(1)
 	}
 
-	src, err := skills.ParseSkillSource(opts.source)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	// A source that is not a git repo at all — a bare SKILL.md over https, or a
+	// .zip/.tar/.tar.gz/.tgz, extension optional — has to be decided BEFORE
+	// ParseSkillSource: that parser will happily describe any https URL as a
+	// git tree, and fetchSkillSourceTree then git-clones it and fails. The
+	// decision lives in internal/skills so `add` and `update` cannot disagree
+	// about what counts as a download.
+	isDownload := skills.IsDirectDownloadSource(opts.source)
 
+	var src skills.SkillSource
 	var workRoot string
 	var cleanup func()
-	if src.Kind == "local" {
-		workRoot = src.LocalDir
-		cleanup = func() {}
-	} else {
-		var fetchErr error
-		workRoot, cleanup, fetchErr = fetchSkillSourceTree(src)
+	if isDownload {
+		fetched, clean, fetchErr := skills.FetchSkillDownload(context.Background(), opts.source)
 		if fetchErr != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", fetchErr)
 			os.Exit(1)
+		}
+		workRoot, cleanup = fetched, clean
+		// There is no git tree, so there is no commit to record; the display
+		// label stays the URL the user gave.
+		src = skills.SkillSource{Kind: "download", Display: opts.source}
+	} else {
+		src, err = skills.ParseSkillSource(opts.source)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if src.Kind == "local" {
+			workRoot = src.LocalDir
+			cleanup = func() {}
+		} else {
+			var fetchErr error
+			workRoot, cleanup, fetchErr = fetchSkillSourceTree(src)
+			if fetchErr != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", fetchErr)
+				os.Exit(1)
+			}
 		}
 	}
 	defer cleanup()
@@ -187,20 +237,31 @@ func runSkillsAdd(args []string) {
 	if src.Subpath != "" {
 		scanRoot = filepath.Join(workRoot, filepath.FromSlash(src.Subpath))
 	}
+	// Root-inclusive in BOTH branches. The two cases the reference installer
+	// handles and we used to fail: a source directory that is itself a skill
+	// (SKILL.md at its root), and a repository whose skills sit three levels
+	// down (skills/<category>/<name>/SKILL.md). The scan is bounded by depth
+	// and skips junk directories; --full-depth drops both for a layout the
+	// convention does not describe.
+	discoveryOpts := skills.DiscoveryOptions{FullDepth: opts.fullDepth}
 	var found []skills.DiscoveredSkill
-	if src.Subpath != "" {
-		// A browse URL points at the skill directory itself, which may hold
-		// SKILL.md at its root; a repository scan deliberately skips a root
-		// SKILL.md, so use the root-inclusive discovery here.
-		found, err = discoverSkillsIncludingRoot(scanRoot)
-	} else {
-		found, err = skills.DiscoverSkills(scanRoot)
-	}
+	found, err = skills.DiscoverSkillsIncludingRoot(scanRoot, discoveryOpts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+	// A skill marked metadata.internal is hidden from listing and refused for
+	// install unless INSTALL_INTERNAL_SKILLS is set. FilterVisibleSkills hands
+	// back what it hid rather than dropping it, so a user who asked for that
+	// skill by name learns why it was not offered instead of seeing "not
+	// found".
+	found, hidden := skills.FilterVisibleSkills(found)
 	if len(found) == 0 {
+		if len(hidden) > 0 {
+			fmt.Fprintf(os.Stderr, "No installable skills found: %d skill(s) are marked internal. Set %s=1 to install them.\n",
+				len(hidden), skills.InternalSkillsEnvVar)
+			os.Exit(1)
+		}
 		fmt.Fprintln(os.Stderr, "No installable skills found (need SKILL.md with name and description).")
 		os.Exit(1)
 	}
@@ -238,20 +299,8 @@ func runSkillsAdd(args []string) {
 
 	var selected []skills.DiscoveredSkill
 	if len(opts.skills) > 0 {
-		want := map[string]bool{}
-		for _, s := range opts.skills {
-			want[strings.ToLower(s)] = true
-		}
 		var missing []string
-		for _, f := range found {
-			if want[strings.ToLower(f.Pkg.Name)] {
-				selected = append(selected, f)
-				delete(want, strings.ToLower(f.Pkg.Name))
-			}
-		}
-		for m := range want {
-			missing = append(missing, m)
-		}
+		selected, missing = selectSkillsByName(found, opts.skills)
 		if len(missing) > 0 {
 			fmt.Fprintf(os.Stderr, "Error: unknown skill(s): %s\nAvailable:", strings.Join(missing, ", "))
 			for _, f := range found {
@@ -289,23 +338,33 @@ func runSkillsAdd(args []string) {
 
 	// --- Agent selection ---
 	targets := skills.AgentTargets()
-	knownAgents := map[string]string{}
-	for _, a := range targets {
-		knownAgents[a.ID] = a.DisplayName
-	}
 	var agents []string
 	if len(opts.agents) > 0 {
-		for _, ag := range opts.agents {
-			if _, ok := knownAgents[ag]; !ok {
-				fmt.Fprintf(os.Stderr, "Error: unknown agent %q\nKnown agents: %s\n", ag, strings.Join(skills.AgentIDs(), " "))
-				os.Exit(1)
-			}
-			agents = append(agents, ag)
+		// "*" expands to the full table from internal/skills/agents.go.
+		// Expanding is NOT the destination de-duplication: agents that share
+		// one skill directory still collapse in PlanInstall, so this cannot
+		// produce duplicate copies of a skill.
+		expanded, err := expandAgentSelection(opts.agents)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
 		}
+		agents = expanded
 	}
 	if len(agents) == 0 && !interactive {
-		fmt.Fprintln(os.Stderr, "Error: no agents selected; re-run with --agent <host-id> (repeatable) in non-interactive mode.")
-		os.Exit(1)
+		// No live prompt is available to fall back on, so auto-detection
+		// decides the target set -- the same default the interactive picker
+		// offers for an empty answer. Only when nothing at all is detectable
+		// is this an error, and the message then names what could not be
+		// found rather than prescribing --agent blindly.
+		detected, _ := splitAgentsByDetection(targets, project, home)
+		for _, a := range detected {
+			agents = append(agents, a.ID)
+		}
+		if len(agents) == 0 {
+			fmt.Fprintln(os.Stderr, "Error: no agents selected and none detected; re-run with --agent <host-id> (repeatable) in non-interactive mode.")
+			os.Exit(1)
+		}
 	}
 
 	if len(selected) == 0 && interactive {
@@ -332,18 +391,14 @@ func runSkillsAdd(args []string) {
 		// Detected agents first (installed on this machine), then the rest.
 		// Popularity is NOT used to order agents: we have no measured usage
 		// data, so this is presence-first then alphabetical.
-		var detectedTargets, otherTargets []skills.AgentTarget
-		for _, a := range targets {
-			if skills.AgentInstalled(a, project, home) {
-				detectedTargets = append(detectedTargets, a)
-			} else {
-				otherTargets = append(otherTargets, a)
-			}
-		}
+		detectedTargets, otherTargets := splitAgentsByDetection(targets, project, home)
 		fmt.Fprintf(out, "◇  %d agents (%d detected)\n", len(targets), len(detectedTargets))
 		fmt.Fprintln(out, "◇  Which agents do you want to install to?")
 		ids := make([]string, 0, len(targets))
-		var detectedIDs []string
+		detectedIDs := make([]string, 0, len(detectedTargets))
+		for _, a := range detectedTargets {
+			detectedIDs = append(detectedIDs, a.ID)
+		}
 		i := 1
 		for _, group := range []struct {
 			label string
@@ -370,9 +425,6 @@ func runSkillsAdd(args []string) {
 				}
 				fmt.Fprintf(out, "│  %d) [%s] %-22s %s\n", i, mark, a.DisplayName, pathText)
 				ids = append(ids, a.ID)
-				if group.label == "Detected" {
-					detectedIDs = append(detectedIDs, a.ID)
-				}
 				i++
 			}
 		}
@@ -470,6 +522,8 @@ func runSkillsAdd(args []string) {
 			Source:      src,
 			Scope:       opts.scope,
 			ObservedRef: observedRef,
+			Force:       opts.force,
+			BackupRoot:  platformPaths.BackupsPath(),
 		}); err != nil {
 			var denied *skills.PolicyDeniedError
 			if errors.As(err, &denied) {
@@ -493,6 +547,94 @@ func runSkillsAdd(args []string) {
 	}
 
 	printCompletion(out, src, selected, done, home)
+}
+
+// selectSkillsByName resolves --skill values against the discovered skills.
+// "*" selects every discovered skill; every other value matches a skill name
+// case-insensitively. Values that genuinely match nothing -- including "*"
+// against an empty discovery -- are returned in missing, so the caller refuses
+// honestly instead of reporting an empty selection as success.
+func selectSkillsByName(found []skills.DiscoveredSkill, requested []string) (selected []skills.DiscoveredSkill, missing []string) {
+	if len(requested) == 0 {
+		return nil, nil
+	}
+	wildcard := false
+	want := map[string]bool{}
+	for _, v := range requested {
+		if v == "*" {
+			wildcard = true
+			continue
+		}
+		want[strings.ToLower(v)] = true
+	}
+	for _, f := range found {
+		name := strings.ToLower(f.Pkg.Name)
+		if wildcard || want[name] {
+			selected = append(selected, f)
+			delete(want, name)
+		}
+	}
+	for m := range want {
+		missing = append(missing, m)
+	}
+	if wildcard && len(found) == 0 {
+		missing = append(missing, "*")
+	}
+	sort.Strings(missing)
+	return selected, missing
+}
+
+// expandAgentSelection resolves --agent values into known agent ids. "*"
+// expands to the full skills.AgentTargets table; any other value must be a
+// known id or the error names the value and the known list, exactly as the
+// pre-wildcard lookup did. The result is de-duplicated by id, but destination
+// de-duplication (agents sharing one skill directory) is NOT done here: that
+// stays in PlanInstall, which is the single place destinations are collapsed.
+func expandAgentSelection(requested []string) ([]string, error) {
+	if len(requested) == 0 {
+		return nil, nil
+	}
+	known := map[string]bool{}
+	for _, id := range skills.AgentIDs() {
+		known[id] = true
+	}
+	var out []string
+	seen := map[string]bool{}
+	add := func(id string) {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	for _, ag := range requested {
+		if ag == "*" {
+			for _, id := range skills.AgentIDs() {
+				add(id)
+			}
+			continue
+		}
+		if !known[ag] {
+			return nil, fmt.Errorf("unknown agent %q\nKnown agents: %s", ag, strings.Join(skills.AgentIDs(), " "))
+		}
+		add(ag)
+	}
+	return out, nil
+}
+
+// splitAgentsByDetection partitions the agent table into the targets detected
+// as installed on this machine and the rest, preserving table order. It is
+// presence-first only: no usage or popularity data exists, so nothing here is
+// a ranking. The interactive picker and the non-interactive agent fallback
+// share it so both decide "detected" the same way.
+func splitAgentsByDetection(targets []skills.AgentTarget, project, home string) (detected, other []skills.AgentTarget) {
+	for _, a := range targets {
+		if skills.AgentInstalled(a, project, home) {
+			detected = append(detected, a)
+		} else {
+			other = append(other, a)
+		}
+	}
+	return detected, other
 }
 
 func plural(n int) string {

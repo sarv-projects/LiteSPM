@@ -127,6 +127,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TestTruncateRunesDoesNotCorruptUTF8` asserts the old behaviour really was invalid UTF-8 rather
   than taking that on trust.
 
+- **A skill named like a filesystem path can never become one.** `SaveProviderExec`-style trusting of a
+  third-party name is refused earlier than it needs to be: `validSkillName` rejects `__proto__`, `..`,
+  traversal, absolute paths, control characters and newlines *before* anything could create a directory,
+  write a ledger row or print the name. `internal/skills/namesafety_test.go` pins the whole set, so a future
+  relaxation of the regex cannot quietly reintroduce what the boundary refuses. `constructor` and
+  `prototype` are deliberately allowed — the JS prototype-pollution hazard that makes them interesting
+  elsewhere does not exist in a slice-of-records ledger, and refusing a legal name would break a user who
+  genuinely chose it. The test says so, so nobody re-adds them.
+
 ### Known issue
 
 - **`litespm@0.4.0` as published cannot read the published catalog.** The `v0.4.0` tag was cut at
@@ -165,6 +174,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2026-10-11
 
 ### Added
+
+- **`litespm skills` now does everything the reference skills CLI does, plus the parts it does not.**
+  Five gaps in the source format and the discovery walk meant a user could not simply swap one tool for
+  the other, and the fix is the point of this section:
+
+  **Sources.** `git@host:owner/repo.git` and `ssh://host/path` — the reference's documented private-repo
+  path — were refused by `ParseSkillSource`. They now parse. This required a second change to be worth
+  anything: git routes *both* spellings to its **ssh** transport, so with `GIT_ALLOW_PROTOCOL=https:git`
+  the clone died with `fatal: transport 'ssh' not allowed` before any network I/O. That list is now
+  `https:ssh:git` while `http`, `file:` and `ftp` stay refused, and a test asserts the allow-list can
+  never get wider than the parser. Azure Repos URLs are recognised, and the
+  `?path=/skills/x&version=GBmain` form is parsed rather than mangled: `GB`/`GT` prefixes were being
+  taken as a literal branch name (`--branch GBmain`, which is not a ref). Tree URLs with a `/` in the
+  ref are addressable via `?ref=` or a percent-escaped slash.
+
+  **Direct downloads.** A URL that is not a git repo — a bare `SKILL.md`, or `.zip`/`.tar`/`.tar.gz`/`.tgz`
+  — is now a source, and **the extension is not required**: the format is sniffed from the bytes. Caps are
+  10 MiB fetched / 25 MiB extracted / 1000 entries, overridable with the reference's exact env vars
+  (`SKILLS_DOWNLOAD_MAX_BYTES`, `SKILLS_EXTRACT_MAX_BYTES`, `SKILLS_EXTRACT_MAX_FILES`). Enforced *while
+  reading*, so a `Content-Length` is a hint and a decompression bomb is stopped by the extracted-byte
+  counter rather than by the archive's own advertised size. Entries with an absolute path, a `..`
+  component, a symlink or a non-regular file are rejected, and downloads are https-only.
+
+  **Discovery.** The walk stopped at depth 2, so a repo laying skills out as
+  `skills/<category>/<name>/SKILL.md` — the real `google/skills` layout — installed **zero** skills with a
+  generic "No installable skills found". Depth is now 3, `node_modules`/`dist`/`build`/`__pycache__` join
+  `.git` as skipped, a source that *is* a skill (root `SKILL.md`) works, a recursive search runs when the
+  bounded walk finds nothing, and `--full-depth` drops both bounds. `DiscoverSkillsIncludingRoot` is the
+  one exported entry point, so `add`, `use`, `update` and the browse-URL branch can no longer disagree.
+
+  **New commands.** `litespm skills use <source>[@<skill>]` resolves a source exactly like `add` and
+  installs **nothing**: it writes the one skill to a temp dir, prints the instruction body (frontmatter
+  stripped — that is discovery metadata, not instructions) to stdout for piping, and removes the scratch
+  dir. `litespm skills find [<query>] [--owner <org>]` searches the catalog for skills; `--owner` derives
+  the owner from the source URL path and is documented as inapplicable to rows whose source is not a repo
+  URL (measured against the compiled release tree: `--owner vercel-labs` → 59 rows, `--owner anthropics` →
+  416). `ls` and `rm` are aliases for `list` and `remove`.
+
+  **Bulk selection and filters**, matching the reference's documented invocations:
+  `--skill '*'`, `--agent '*'` (expands to all 77 ids with shared destinations de-duplicated: one skill
+  becomes 54 copies, not 77), `--all` implemented as *exactly* `--skill '*' --agent '*' --yes` so the
+  shorthand cannot drift, `-l` for `--list`, `update` with no arguments updating everything from each
+  ledger row's recorded source, `update -p`, `remove -a`/`-s`/`-y` and removal by exact source, and
+  `list -g`/`-a` filters. `list` previously **silently ignored** every argument but `--json`, so `ls -g`
+  listed everything without complaint; unrecognised arguments are now an error.
+
+  **`metadata.internal`.** The frontmatter `metadata` key was dropped entirely, so a skill marked
+  `internal: true` was always visible. It is now parsed (block and inline forms) and gated on
+  `INSTALL_INTERNAL_SKILLS=1` across `add`, `use` and `update` — an update that quietly installed what a
+  fresh install would refuse would have made the gate decorative. Hidden skills are *reported*, not
+  dropped, so asking for one by name explains itself.
+
+  **Agent ids.** `universal` and `warp` added; `grok` and `pi` added as ids alongside the existing
+  `grok-build` / `pi-agent` rows, so the reference's documented `--agent grok` works.
+
+- **`litespm init` scaffolds a `SKILL.md` that parses under the real loader.** `init` used to be a second
+  alias of the setup wizard; it is now the authoring entry point, and the wizard keeps `setup` and the
+  bare `litespm` invocation. `litespm init [name] [--dir <path>] [--force]` writes a skill with a real
+  `name`, a real one-sentence `description` (not `TODO`), and `## When to use` / `## How to run` sections
+  — valid as written, not a skeleton to fill in — then prints next steps using `skills add`'s actual flags.
+  A test feeds the generated file to `ParseSkillMD` and asserts it round-trips; another asserts
+  `skills.DiscoverSkills` finds it, so "the scaffolder produces an installable skill" is checked rather than
+  claimed. `skills add`'s own documentation is what caught a real subtlety here: `DiscoverSkills` skips a
+  source root's own `SKILL.md`, so the printed command names the *containing* directory — which is exactly
+  the bug fixed in the same release, and the reason `init`'s instructions are now correct in both
+  directions.
+
+### Changed
 
 - **Release `rel-2026-10-11-01` (sequence 146) — 69,376 capabilities, and installs that actually work.**
   The headline is not the row count, it is that **25,401 MCP servers are `metadata_verified`** where the

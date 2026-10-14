@@ -19,7 +19,8 @@ func TestParseSkillSource(t *testing.T) {
 		{"https://github.com/mattpocock/skills", "url", "https://github.com/mattpocock/skills.git", false},
 		{"not a source!!!", "", "", true},
 		{"http://example.com/x.git", "", "", true},
-		{"git@github.com:x/y.git", "", "", true},
+		{"file:///etc/skills", "", "", true},
+		{"ftp://example.com/x", "", "", true},
 	}
 	for _, c := range cases {
 		src, err := ParseSkillSource(c.raw)
@@ -62,7 +63,10 @@ func TestDiscoverSkills(t *testing.T) {
 	root := t.TempDir()
 	writeSkillTree(t, root, "frontend-design", "frontend-design", "Design pages")
 	writeSkillTree(t, root, "group/nested-skill", "nested-skill", "Nested ok")
-	writeSkillTree(t, root, "group/deep/too-deep", "too-deep", "Too deep")
+	// Depth 3 (skills/<cat>/<name>/SKILL.md) is found; depth 4 is outside the
+	// standard bound (and the recursive fallback stays off because shallower
+	// skills were found).
+	writeSkillTree(t, root, "group/deep/deeper/too-deep", "too-deep", "Too deep")
 	// Invalid: no description.
 	writeSkillTree(t, root, "bad-skill", "bad-skill", "")
 	// .git must not be descended into.

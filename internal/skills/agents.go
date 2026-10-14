@@ -139,6 +139,18 @@ var agentTargets = []AgentTarget{
 	{ID: "zed", DisplayName: "Zed", ProjectDir: ".agents/skills", GlobalDir: ".agents/skills", DetectPaths: []string{".config/zed", "AppData/Roaming/Zed"}, Universal: true},
 	{ID: "zencoder", DisplayName: "Zencoder", ProjectDir: ".zencoder/skills", GlobalDir: ".zencoder/skills", DetectPaths: []string{".zencoder"}},
 	{ID: "zenflow", DisplayName: "Zenflow", ProjectDir: ".zencoder/skills", GlobalDir: ".zencoder/skills", DetectPaths: []string{".zencoder"}},
+
+	// Reference-installer id parity (appended, never renumbered): the
+	// competitor spells our `pi-agent`/`grok-build` rows `pi`/`grok` and ships
+	// `universal`/`warp` targets we lacked. Aliases resolve to the same
+	// directories as their canonical rows; PlanInstall collapses two ids that
+	// resolve to one directory into a single write, so selecting both never
+	// copies twice. Source: vercel-labs/skills `src/agents.ts` (MIT), read
+	// 2026-10-14.
+	{ID: "grok", DisplayName: "Grok", ProjectDir: ".grok/skills", GlobalDir: "skills", Base: BaseEnv, EnvVar: "GROK_HOME", DefaultBase: ".grok", DetectPaths: []string{".grok"}},
+	{ID: "pi", DisplayName: "Pi", ProjectDir: ".agents/skills", GlobalDir: ".agents/skills", DetectPaths: []string{".pi"}, Universal: true},
+	{ID: "universal", DisplayName: "Universal", ProjectDir: ".agents/skills", GlobalDir: "agents/skills", Base: BaseXDG, DetectPaths: []string{".config/agents"}, Universal: true},
+	{ID: "warp", DisplayName: "Warp", ProjectDir: ".agents/skills", GlobalDir: ".agents/skills", DetectPaths: []string{".warp"}, Universal: true},
 }
 
 // openclawTarget resolves at runtime: the agent's home dir was renamed twice,

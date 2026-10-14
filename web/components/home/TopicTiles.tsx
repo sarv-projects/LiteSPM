@@ -41,7 +41,7 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
           <li key={topic.id}>
             <Link
               href={topic.href}
-              className="group flex h-full flex-col rounded-card border border-rule bg-surface p-4 transition-[transform,border-color,box-shadow] duration-hover ease-out hover:-translate-y-0.5 hover:border-ink-3 hover:shadow-card"
+              className="group card-lift flex h-full flex-col rounded-card border border-rule bg-surface p-4 hover:border-ink-3 hover:shadow-card"
             >
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-[15px] font-semibold tracking-tight text-ink">{topic.label}</h3>

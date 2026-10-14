@@ -12,6 +12,7 @@ import { useCatalog } from "../../lib/catalogData";
 import {
   agentFacets,
   categoryFacets,
+  deriveKindCounts,
   hostUniverse,
   kindLabel,
   matchesHost,
@@ -19,6 +20,7 @@ import {
   DEFAULT_SORT,
   SortMode,
 } from "../../lib/catalog";
+import { formatCount } from "../../lib/format";
 import { AGENT_STORAGE_KEY, findAgentChoice } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 
@@ -46,6 +48,8 @@ const SORTS_SET = new Set<string>(SORTS.map((s) => s.id));
  */
 export interface ExploreViewProps {
   total: number;
+  /** Per-kind totals for the kind rail, counted at build time — not fetched. */
+  kindCounts: { all: number; mcp: number; skill: number; plugin: number };
   categories: Array<{ name: string; count: number }>;
   agents: Array<{ name: string; slug: string; count: number }>;
   hostCount: number;
@@ -174,6 +178,7 @@ function ExploreContent(props: ExploreViewProps) {
     if (!full) return null;
     return {
       total: full.length,
+      kindCounts: deriveKindCounts(full),
       categories: categoryFacets(full, 200),
       agents: agentFacets(full),
       hostCount: hostUniverse(full).length,
@@ -181,6 +186,7 @@ function ExploreContent(props: ExploreViewProps) {
   }, [full]);
 
   const total = live ? live.total : props.total;
+  const kindCounts = live ? live.kindCounts : props.kindCounts;
   const categories = live ? live.categories : props.categories;
   const agents = live ? live.agents : props.agents;
   const hostCount = live ? live.hostCount : props.hostCount;
@@ -303,6 +309,19 @@ function ExploreContent(props: ExploreViewProps) {
                     />
                   )}
                   {k === "all" ? "All types" : kindLabel(k)}
+                  {/* Counts are whole-catalog figures, exactly like the
+                      Category and Works with selects below — never "matching
+                      your filters", which would take a per-filter derivation
+                      this rail does not have. Hidden under md: four counts
+                      make this rail wider than a phone, and the labels are
+                      what the control is for. */}
+                  <span
+                    className={`t-mono t-tabular hidden text-[11px] md:inline ${
+                      kind === k ? "text-surface/75" : "text-ink-3"
+                    }`}
+                  >
+                    {formatCount(kindCounts[k])}
+                  </span>
                 </button>
               ))}
             </div>

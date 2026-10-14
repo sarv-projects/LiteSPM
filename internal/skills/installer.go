@@ -109,12 +109,27 @@ type InstallRequest struct {
 	// ObservedRef is the commit SHA the caller resolved for the checkout, when
 	// available. It is recorded only when the source carries no explicit pin.
 	ObservedRef string
+	// Force allows Install to overwrite an existing destination — the same
+	// semantics and flag spelling as the MCP install's --force. Without it an
+	// existing destination is still refused (the refusal names the path);
+	// with it the replaced tree is disclosed ("overwrites: <path>", before
+	// any write), captured byte-for-byte into BackupRoot, its digest
+	// recorded as the ledger entry's pre-image, and only then replaced.
+	Force bool
+	// BackupRoot is the directory a forced overwrite preserves the replaced
+	// copy in. Required whenever Force is set: force with nowhere to keep the
+	// old bytes would be silent destruction — the opposite failure of the
+	// refusal this replaces.
+	BackupRoot string
 }
 
 // Install consults policy, copies one planned skill atomically, and records
-// provenance. The destination must not already exist; use Update for that.
-// On a ledger failure the freshly written directory is removed again so the
-// ledger remains the single source of truth.
+// provenance. The destination must not already exist unless Force is set (see
+// InstallRequest.Force); a forced overwrite captures the pre-image of the
+// tree it replaces — digest into the ledger entry, bytes into BackupRoot —
+// before the first destructive step. On a ledger failure the freshly written
+// directory is removed again (and a replaced copy restored) so the ledger
+// remains the single source of truth.
 func (in *Installer) Install(ctx context.Context, req InstallRequest) (LedgerEntry, error) {
 	if in == nil || in.Ledger == nil {
 		return LedgerEntry{}, fmt.Errorf("installer: a ledger is required")
@@ -126,36 +141,135 @@ func (in *Installer) Install(ctx context.Context, req InstallRequest) (LedgerEnt
 	if err := requireSkillFile(op.FromDir); err != nil {
 		return LedgerEntry{}, err
 	}
+	if req.Force && strings.TrimSpace(req.BackupRoot) == "" {
+		return LedgerEntry{}, fmt.Errorf("installer: force install of %s requires a BackupRoot to preserve the replaced copy", op.SkillName)
+	}
 
-	if err := in.checkPolicy(ctx, "install", req.Source, op.SkillName, req.Scope, op.ToDir); err != nil {
+	// A forced overwrite deletes the previous tree, so policy must see the
+	// delete effect alongside the write.
+	var effects []string
+	if req.Force {
+		effects = append(effects, "filesystem.delete")
+	}
+	if err := in.checkPolicy(ctx, "install", req.Source, op.SkillName, req.Scope, op.ToDir, effects...); err != nil {
 		return LedgerEntry{}, err
 	}
 
+	// An existing destination is disclosed BEFORE any write, then either
+	// refused (no force) or captured and replaced (force). The pre-image
+	// digest and the byte-exact backup are taken from the same pre-write
+	// state, so the overwrite line, the ledger's pre-image and the preserved
+	// bytes cannot disagree about what was there.
+	var preImageDigest, preImageBackup string
+	var priorRow *LedgerEntry
+	if info, lerr := os.Lstat(op.ToDir); lerr == nil {
+		overwriteNotice(op.ToDir) // PRE-ALWAYS: name what is in the way
+		switch {
+		case !req.Force:
+			return LedgerEntry{}, fmt.Errorf("destination already exists: %s (re-run with --force to overwrite it)", op.ToDir)
+		case info.Mode()&os.ModeSymlink != 0:
+			return LedgerEntry{}, fmt.Errorf("refusing to overwrite symlinked destination %s", op.ToDir)
+		case !info.IsDir():
+			return LedgerEntry{}, fmt.Errorf("refusing to overwrite %s: not a directory", op.ToDir)
+		}
+		// Fingerprint the tree being replaced BEFORE anything is touched: a
+		// destination that cannot be fingerprinted (a symlink inside, a
+		// non-regular file) is refused, never deleted blind.
+		prov, perr := CaptureProvenance(op.ToDir)
+		if perr != nil {
+			return LedgerEntry{}, fmt.Errorf("capturing the pre-image of %s: %w", op.ToDir, perr)
+		}
+		preImageDigest = prov.Digest
+		// An unreadable ledger stops the overwrite before it starts: without
+		// the current rows there is nothing to restore them to.
+		entries, aerr := in.Ledger.All()
+		if aerr != nil {
+			return LedgerEntry{}, fmt.Errorf("reading the skills ledger before overwriting %s: %w", op.ToDir, aerr)
+		}
+		for i := range entries {
+			if entries[i].DestDir == op.ToDir {
+				priorRow = &entries[i]
+				break
+			}
+		}
+		// Byte-exact backup of the replaced tree, under BackupRoot, before
+		// the first destructive step — the digest proves what was there,
+		// only these bytes can put it back.
+		name, serr := SanitizeSkillName(op.SkillName)
+		if serr != nil {
+			name = "skill"
+		}
+		backup := filepath.Join(req.BackupRoot, fmt.Sprintf("skill-%s-%d", name, time.Now().UnixNano()))
+		if err := CopySkillDir(op.ToDir, backup); err != nil {
+			return LedgerEntry{}, fmt.Errorf("backing up the existing %s before overwrite: %w", op.ToDir, err)
+		}
+		preImageBackup = backup
+		if err := os.RemoveAll(op.ToDir); err != nil {
+			return LedgerEntry{}, fmt.Errorf("removing the existing %s for overwrite: %w", op.ToDir, err)
+		}
+	} else if !os.IsNotExist(lerr) {
+		return LedgerEntry{}, fmt.Errorf("checking destination %s: %w", op.ToDir, lerr)
+	}
+
 	if err := CopySkillDir(op.FromDir, op.ToDir); err != nil {
-		return LedgerEntry{}, err
+		if preImageBackup == "" {
+			// CopySkillDir removes its own partial tree, and a copy that
+			// never started never owned dst: nothing of ours to clean up.
+			return LedgerEntry{}, err
+		}
+		return LedgerEntry{}, in.rollbackOverwrite(op.ToDir, preImageBackup, err)
 	}
 
 	prov, err := CaptureProvenance(op.ToDir)
 	if err != nil {
-		_ = os.RemoveAll(op.ToDir)
-		return LedgerEntry{}, fmt.Errorf("capturing provenance for %s: %w", op.ToDir, err)
+		return LedgerEntry{}, in.rollbackOverwrite(op.ToDir, preImageBackup,
+			fmt.Errorf("capturing provenance for %s: %w", op.ToDir, err))
 	}
 	entry := LedgerEntry{
-		SkillName:     op.SkillName,
-		AgentID:       op.HostLabel,
-		HostLabel:     op.HostLabel,
-		DestDir:       op.ToDir,
-		Source:        req.Source.Display,
-		Scope:         req.Scope,
-		ContentDigest: prov.Digest,
-		SourceRef:     req.Source.RecordedRef(req.ObservedRef),
-		Inventory:     prov.Inventory,
+		SkillName:      op.SkillName,
+		AgentID:        op.HostLabel,
+		HostLabel:      op.HostLabel,
+		DestDir:        op.ToDir,
+		Source:         req.Source.Display,
+		Scope:          req.Scope,
+		ContentDigest:  prov.Digest,
+		SourceRef:      req.Source.RecordedRef(req.ObservedRef),
+		Inventory:      prov.Inventory,
+		PreImageDigest: preImageDigest,
+		PreImageBackup: preImageBackup,
+	}
+	if priorRow != nil {
+		// A forced re-install replaces the existing row rather than being
+		// dropped by Add's dedupe: the ledger must describe the tree now on
+		// disk, and carry the pre-image of the one it replaced.
+		entry.InstalledAt = priorRow.InstalledAt
+		if err := in.Ledger.ReplaceEntry(op.ToDir, entry); err != nil {
+			return LedgerEntry{}, in.rollbackOverwrite(op.ToDir, preImageBackup,
+				fmt.Errorf("recording overwrite of %s: %w", op.SkillName, err))
+		}
+		return entry, nil
 	}
 	if err := in.Ledger.Add([]LedgerEntry{entry}); err != nil {
-		_ = os.RemoveAll(op.ToDir)
-		return LedgerEntry{}, fmt.Errorf("recording install of %s: %w", op.SkillName, err)
+		return LedgerEntry{}, in.rollbackOverwrite(op.ToDir, preImageBackup,
+			fmt.Errorf("recording install of %s: %w", op.SkillName, err))
 	}
 	return entry, nil
+}
+
+// rollbackOverwrite folds a failed install into the returned error: the
+// freshly written directory is removed and — when this install replaced an
+// existing tree — the byte-exact backup of the previous copy is put back.
+// backup is "" for a fresh install, where only the fresh copy needs removing.
+// The original cause is always preserved.
+func (in *Installer) rollbackOverwrite(dst, backup string, cause error) error {
+	_ = os.RemoveAll(dst)
+	if backup == "" {
+		return cause
+	}
+	if err := os.Rename(backup, dst); err != nil {
+		return fmt.Errorf("%w; and restoring the previous copy failed (%v) — it is preserved at %s", cause, err, backup)
+	}
+	return cause
 }
 
 // UpdateRequest describes one skill update. NewDir is the caller-fetched
@@ -289,7 +403,10 @@ func (in *Installer) Update(ctx context.Context, req UpdateRequest) (UpdateOutco
 	}, nil
 }
 
-func (in *Installer) checkPolicy(ctx context.Context, operation string, src SkillSource, skillName, scope, destDir string) error {
+// checkPolicy consults the policy checker before a write. extraEffects names
+// additional effects the operation entails (a forced overwrite declares
+// filesystem.delete alongside the write).
+func (in *Installer) checkPolicy(ctx context.Context, operation string, src SkillSource, skillName, scope, destDir string, extraEffects ...string) error {
 	if in.Policy == nil {
 		return nil
 	}
@@ -297,6 +414,7 @@ func (in *Installer) checkPolicy(ctx context.Context, operation string, src Skil
 	if operation == "update" {
 		effects = append(effects, "filesystem.delete")
 	}
+	effects = append(effects, extraEffects...)
 	req := PolicyRequest{
 		Operation: operation,
 		SkillName: skillName,

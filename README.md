@@ -161,16 +161,20 @@ directory, at a chosen scope.
 litespm skills add anthropics/skills                  # interactive
 litespm skills add anthropics/skills --list           # what is in the repo
 litespm skills add anthropics/skills --skill frontend-design --agent claude-code --agent codex --yes
+litespm skills add anthropics/skills --all            # every skill to every agent, no prompts
 litespm skills add ./my-skills --scope global -y --json
+litespm skills use anthropics/skills@frontend-design | claude   # prompt only, installs nothing
+litespm skills find design --owner vercel-labs        # search the catalog by keyword or owner
 ```
 
 | Step | Behaviour |
 |---|---|
-| Source | `owner/repo`, an `https` Git URL, or a local directory. Remote sources are fetched with a shallow `git clone` into a temp dir. Non-`https` schemes and path traversal in skill names are refused. |
-| Discovery | Walks the source tree up to depth 2 for directories containing `SKILL.md`/`skill.md` with both `name` and `description`. `.git` is never descended. A skill directory is never treated as a parent of another skill. |
+| Source | `owner/repo`, an `https` or `ssh`/`git@` Git URL, a local directory, a GitHub/GitLab browse URL, or a **direct download** — a bare `SKILL.md` or a `.zip`/`.tar`/`.tar.gz` archive URL, where the format is sniffed from the bytes and the extension is not required. Git sources are fetched with a shallow `git clone` into a temp dir; downloads are capped at 10 MiB fetched / 25 MiB extracted / 1000 files (`SKILLS_DOWNLOAD_MAX_BYTES`, `SKILLS_EXTRACT_MAX_BYTES`, `SKILLS_EXTRACT_MAX_FILES`). `http://` and `file:` remain refused, and a download is https-only. Archive entries with an absolute path, a `..` component or a symlink are rejected. |
+| Discovery | Walks the source tree up to depth 3 for directories containing `SKILL.md`/`skill.md` with both `name` and `description`, so the catalog layout `skills/<category>/<name>/SKILL.md` is found. `.git`, `node_modules`, `dist`, `build` and `__pycache__` are never descended; a root `SKILL.md` makes the source itself a skill; if the bounded walk finds nothing, a recursive search runs before reporting failure; `--full-depth` drops both bounds. A skill directory is never treated as a parent of another skill. |
+| Internal skills | A skill with `metadata.internal: true` is hidden and refused unless `INSTALL_INTERNAL_SKILLS=1` — on every path (`add`, `use`, `update`). |
 | Scope | `This repo only` (default) writes project-relative dirs; `Global (user-wide)` writes user dirs and honours `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `GROK_HOME`, `XDG_CONFIG_HOME`. |
-| Agents | Each selected skill is copied into every selected agent's own directory. Hosts without a dedicated dir (Cline, Pi Agent) share the universal `.agents/skills` tree. No universal copy is forced. |
-| Copy | Symlinks are refused, hidden VCS dirs are skipped, existing destinations are never overwritten, and each skill is bounded at 32 MiB. |
+| Agents | Each selected skill is copied into every selected agent's own directory. Hosts without a dedicated dir (Cline, Pi Agent) share the universal `.agents/skills` tree: `--agent '*'` expands to all 77 ids and the shared destinations are de-duplicated, so one skill becomes 54 copies, not 77. No universal copy is forced. |
+| Copy | Symlinks are refused, hidden VCS dirs are skipped, each skill is bounded at 32 MiB, and an existing destination is refused unless `--force` — which prints `overwrites: <path>`, records a pre-image digest and a byte-exact backup first, so a rollback can put the original bytes back. |
 | Risk panel | Always rendered. Without a real audit source it reports `unverified` per skill — a verdict is never invented. |
 
 Host skill directories are transcribed from `vercel-labs/skills` `src/agents.ts`

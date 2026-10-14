@@ -8,17 +8,26 @@ package main
 // done here (git clone or a local directory); the skills package performs the
 // policy consult and the atomic swap.
 //
+// With no arguments, update refreshes every installed skill, resolving each
+// row's source from that row's own ledger entry. --source remains as an
+// override for rows with no usable recorded source. A row whose source cannot
+// be resolved is reported per skill and the run continues; the exit code still
+// reflects that something failed.
+//
 // Honest results: an unchanged source reports "already current", a --dry-run
 // reports "would update" without touching disk, a scope mismatch is reported
 // and skipped, and a source that does not contain the named skill is an error,
 // never a silent no-op.
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,22 +36,29 @@ import (
 )
 
 func skillsUpdateUsage() {
-	fmt.Println(`Usage: litespm skills update <name>... --source <src> [flags]
+	fmt.Println(`Usage: litespm skills update [<name>...] [flags]
 
-Update one or more installed skills from a source. Each named skill is matched
-against the install ledger, then against the skills discovered in the source.
+Update installed skills from the source each one was installed from. With no
+names, every installed skill is updated. Each ledger row records its source;
+--source overrides that for every selected row.
 
-  <name>...                 one or more installed skill names
-  --source, -s <src>        owner/repo, https git URL, or local directory
+  <name>...                 installed skill names (default: every installed skill)
+  --source, -s <src>        override the recorded source (owner/repo, https git
+                            URL, or local directory)
   --ref, -r <r>             git branch/tag to fetch (remote sources only)
   --scope <project|global>  only update ledger entries in this scope
   --global, -g              shorthand for --scope global
+  --project, -p             shorthand for --scope project
   --force, -f               replace a directory even if it has user-added files
   --dry-run, -n             report what would change without writing
-  --yes, -y                 approve a policy "ask" non-interactively
+  --yes, -y                 non-interactive: auto-detect the scope (project when
+                            the working directory is inside a project-scope
+                            install, else global) and approve a policy "ask"
   --json                    machine-readable output on stdout
 
-Run ` + "`litespm skills list`" + ` to see what the ledger holds.`)
+Without a scope flag an interactive terminal is asked; without one (a pipe or
+CI) every scope is updated, which is the historical behaviour. Run
+` + "`litespm skills list`" + ` to see what the ledger holds.`)
 }
 
 type skillsUpdateOptions struct {
@@ -92,6 +108,9 @@ func parseSkillsUpdateArgs(args []string) (skillsUpdateOptions, error) {
 		case "--global", "-g":
 			opts.scope = "global"
 			opts.scopeGiven = true
+		case "--project", "-p":
+			opts.scope = "project"
+			opts.scopeGiven = true
 		case "--force", "-f":
 			opts.force = true
 		case "--dry-run", "-n":
@@ -126,6 +145,17 @@ type skillUpdateResult struct {
 	SourceRef     string `json:"sourceRef,omitempty"`
 }
 
+// loadSkillLedgerEntries reads every row of the install ledger at a data root.
+// Only scope auto-detection and the interactive picker use it; both must run
+// before executeSkillsUpdate opens the ledger for the actual work.
+func loadSkillLedgerEntries(paths *config.PlatformPaths) ([]skills.LedgerEntry, error) {
+	ledger, err := skills.OpenLedger(skills.LedgerPath(paths.DataRoot))
+	if err != nil {
+		return nil, err
+	}
+	return ledger.All()
+}
+
 func runSkillsUpdate(args []string) {
 	opts, err := parseSkillsUpdateArgs(args)
 	if err != nil {
@@ -137,21 +167,23 @@ func runSkillsUpdate(args []string) {
 		skillsUpdateUsage()
 		return
 	}
-	if strings.TrimSpace(opts.source) == "" {
-		fmt.Fprintln(os.Stderr, "Error: --source <src> is required")
-		skillsUpdateUsage()
-		os.Exit(2)
-	}
-	if len(opts.names) == 0 {
-		fmt.Fprintln(os.Stderr, "Error: at least one skill <name> is required")
-		skillsUpdateUsage()
-		os.Exit(2)
-	}
 
 	paths, err := config.ResolvePlatformPaths()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Settle the scope before doing any work: --yes auto-detects, a terminal
+	// is asked, and everything else keeps the historical all-scopes default.
+	// An unreadable ledger is not fatal here; executeSkillsUpdate reports it.
+	if entries, lerr := loadSkillLedgerEntries(paths); lerr == nil {
+		cwd, _ := os.Getwd()
+		hadScope := opts.scopeGiven
+		opts = resolveUpdateScope(opts, entries, cwd)
+		if !hadScope && opts.yes {
+			fmt.Fprintf(os.Stderr, "Scope: %s (auto-detected by --yes; pass --scope, -g or -p to choose)\n", scopeLabel(opts.scope))
+		}
 	}
 
 	results, err := executeSkillsUpdate(context.Background(), opts, paths)
@@ -176,10 +208,168 @@ func runSkillsUpdate(args []string) {
 	}
 }
 
+// resolveUpdateScope settles which scope this run targets when no scope flag
+// was given. Three paths, in order of explicitness:
+//
+//   - --yes never prompts: the scope is auto-detected from the ledger (project
+//     when the working directory belongs to a project-scope install, else
+//     global), so the run stays non-interactive. --yes keeps its original
+//     meaning too — the policy "ask" approval in newInteractivePolicyAsker;
+//     the two meanings are additive.
+//   - an interactive terminal is asked (project / global / every scope);
+//   - anything else (a pipe or CI) has no way to answer and keeps the
+//     historical behaviour of updating every scope.
+func resolveUpdateScope(opts skillsUpdateOptions, entries []skills.LedgerEntry, cwd string) skillsUpdateOptions {
+	if opts.scopeGiven {
+		return opts
+	}
+	if opts.yes {
+		opts.scope = detectUpdateScope(entries, cwd)
+		opts.scopeGiven = true
+		return opts
+	}
+	if !stdinIsTerminal() || opts.jsonOut {
+		return opts
+	}
+	return promptUpdateScope(opts, entries, cwd)
+}
+
+// promptUpdateScope is the interactive scope question for a bare update. The
+// auto-detected choice is the default a plain Enter accepts.
+func promptUpdateScope(opts skillsUpdateOptions, entries []skills.LedgerEntry, cwd string) skillsUpdateOptions {
+	auto := detectUpdateScope(entries, cwd)
+	fmt.Println("◇  Update scope")
+	fmt.Println("│  1) This project only")
+	fmt.Println("│  2) Global (user-wide)")
+	fmt.Println("│  3) Every scope")
+	fmt.Printf("│  Enter accepts the auto-detected scope (%s); or enter 1/2/3 > ", auto)
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "1", "project":
+		opts.scope, opts.scopeGiven = "project", true
+	case "2", "global":
+		opts.scope, opts.scopeGiven = "global", true
+	case "3", "all", "every":
+		opts.scope, opts.scopeGiven = "", false
+	default:
+		opts.scope, opts.scopeGiven = auto, true
+	}
+	if opts.scopeGiven {
+		fmt.Printf("│  Scope: %s\n", scopeLabel(opts.scope))
+	} else {
+		fmt.Println("│  Scope: every scope")
+	}
+	return opts
+}
+
+// detectUpdateScope implements --yes scope auto-detection: project when the
+// working directory belongs to a project-scope install, else global.
+//
+// The ledger records the installed directory, not the project root it was
+// laid under, so "belongs to" is answered three ways: cwd inside the installed
+// directory, the installed directory inside cwd (cwd is the project root), or
+// cwd inside the project root reconstructed from the entry's recorded agent
+// and that agent's documented project skill directory.
+func detectUpdateScope(entries []skills.LedgerEntry, cwd string) string {
+	if strings.TrimSpace(cwd) == "" {
+		return "global"
+	}
+	abs, err := filepath.Abs(cwd)
+	if err != nil {
+		return "global"
+	}
+	for _, e := range entries {
+		if e.Scope != "project" || strings.TrimSpace(e.DestDir) == "" {
+			continue
+		}
+		dest := filepath.Clean(e.DestDir)
+		if pathContains(abs, dest) || pathContains(dest, abs) {
+			return "project"
+		}
+		if root, ok := projectRootOfEntry(e); ok && pathContains(root, abs) {
+			return "project"
+		}
+	}
+	return "global"
+}
+
+// projectRootOfEntry reconstructs the project root an entry's destination was
+// laid under, using the skill name every install records and the per-agent
+// project directory from the agent table. The longest matching ProjectDir
+// wins, so a specific tree like "data/skills" cannot lose to the generic
+// "skills" that happens to be its suffix.
+func projectRootOfEntry(e skills.LedgerEntry) (string, bool) {
+	name, err := skills.SanitizeSkillName(e.SkillName)
+	if err != nil {
+		return "", false
+	}
+	dest := filepath.Clean(e.DestDir)
+	sep := string(filepath.Separator)
+	best := ""
+	bestLen := -1
+	for _, t := range skills.AgentTargets() {
+		pd := filepath.FromSlash(t.ProjectDir)
+		if pd == "" {
+			continue
+		}
+		root := strings.TrimSuffix(dest, sep+filepath.Join(pd, name))
+		if root == dest || root == "" || root == sep || !filepath.IsAbs(root) {
+			continue
+		}
+		if len(pd) > bestLen {
+			best, bestLen = root, len(pd)
+		}
+	}
+	if bestLen < 0 {
+		return "", false
+	}
+	return best, true
+}
+
+// pathContains reports whether child is parent itself or lives underneath it.
+func pathContains(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+// stdinIsTerminal reports whether stdin can actually answer an interactive
+// prompt. It is deliberately stricter than isTerminal (skills_add.go):
+// os/exec hands a child with no stdin the null device, which IS a character
+// device but answers every read with EOF, so a prompt that trusted
+// ModeCharDevice alone would present a picker nobody can answer. The null
+// device is detected explicitly and refused.
+func stdinIsTerminal() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+		return false
+	}
+	if devNull, err := os.Stat(os.DevNull); err == nil && os.SameFile(fi, devNull) {
+		return false
+	}
+	return true
+}
+
+// skillUpdateGroup is one fetched source plus every ledger entry that resolves
+// to it. Fetching once per group means updating ten skills from one repository
+// performs one clone, not ten.
+type skillUpdateGroup struct {
+	src     skills.SkillSource
+	entries []skills.LedgerEntry
+}
+
+func skillUpdateSourceKey(src skills.SkillSource) string {
+	return strings.Join([]string{src.Kind, src.CloneURL, src.LocalDir, src.Pin, src.Subpath}, "\x00")
+}
+
 // executeSkillsUpdate performs the work and returns one result per matched
 // ledger entry (plus a not_installed result per requested name with no entry).
-// A returned error is fatal (ledger/source cannot be read) and is distinct from
-// per-entry failures, which are reported in the results.
+// A returned error is fatal: the ledger cannot be read, or an explicitly named
+// --source cannot be parsed or fetched. Per-entry failures — including a row
+// whose recorded source is missing or unusable — are reported in the results
+// and never abort the remaining entries.
 func executeSkillsUpdate(ctx context.Context, opts skillsUpdateOptions, paths *config.PlatformPaths) ([]skillUpdateResult, error) {
 	ledger, err := skills.OpenLedger(skills.LedgerPath(paths.DataRoot))
 	if err != nil {
@@ -190,52 +380,26 @@ func executeSkillsUpdate(ctx context.Context, opts skillsUpdateOptions, paths *c
 		return nil, fmt.Errorf("reading the install ledger: %w", err)
 	}
 
-	src, err := skills.ParseSkillSource(opts.source)
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(opts.ref) != "" {
-		if src.Kind == "local" {
-			return nil, fmt.Errorf("--ref applies only to git sources; %s is a local directory", src.Display)
-		}
-		src.Pin = strings.TrimSpace(opts.ref)
-	}
-
-	workRoot, cleanup, err := fetchSkillSourceTree(src)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-
-	commit := ""
-	if src.Kind != "local" {
-		commit = gitHeadCommit(workRoot)
-	}
-	newRef := src.RecordedRef(commit)
-
-	found, err := discoverSkillsIncludingRoot(workRoot)
-	if err != nil {
-		return nil, err
-	}
-	byName := make(map[string]string, len(found))
-	for _, f := range found {
-		name, err := skills.SanitizeSkillName(f.Pkg.Name)
+	// The optional --source override: parsed once and applied to every
+	// selected row. Without it, every row resolves from its own recorded
+	// source (see recordedSkillSource).
+	var override *skills.SkillSource
+	if strings.TrimSpace(opts.source) != "" {
+		src, err := skills.ParseSkillSource(opts.source)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		if _, dup := byName[name]; !dup {
-			byName[name] = f.Dir
+		if strings.TrimSpace(opts.ref) != "" {
+			if src.Kind == "local" {
+				return nil, fmt.Errorf("--ref applies only to git sources; %s is a local directory", src.Display)
+			}
+			src.Pin = strings.TrimSpace(opts.ref)
 		}
+		override = &src
 	}
 
-	asker := newInteractivePolicyAsker(opts.yes)
-	policyEngine, closePolicy, policyErr := openCLIPolicyEngine(paths.DataRoot)
-	if policyErr != nil {
-		return nil, fmt.Errorf("load policy: %w", policyErr)
-	}
-	defer closePolicy()
-	installer := skills.NewInstaller(ledger, enginePolicyChecker(policyEngine, asker.resolve))
-
+	// Deduplicate and sanitize the requested names. No names means every
+	// installed skill (the update-all path).
 	wanted := make([]string, 0, len(opts.names))
 	seen := make(map[string]bool, len(opts.names))
 	for _, raw := range opts.names {
@@ -248,15 +412,19 @@ func executeSkillsUpdate(ctx context.Context, opts skillsUpdateOptions, paths *c
 			wanted = append(wanted, name)
 		}
 	}
+	updateAll := len(opts.names) == 0
 
 	var results []skillUpdateResult
 	matched := map[string]bool{}
+	groups := []*skillUpdateGroup{}
+	groupIndex := map[string]*skillUpdateGroup{}
 	for _, e := range entries {
-		if !seen[e.SkillName] {
+		if !updateAll && !seen[e.SkillName] {
 			continue
 		}
-		matched[e.SkillName] = true
-
+		if !updateAll {
+			matched[e.SkillName] = true
+		}
 		if opts.scopeGiven && e.Scope != opts.scope {
 			results = append(results, skillUpdateResult{
 				Name:   e.SkillName,
@@ -268,6 +436,240 @@ func executeSkillsUpdate(ctx context.Context, opts skillsUpdateOptions, paths *c
 			continue
 		}
 
+		src, err := updateSourceForEntry(e, override, opts.ref)
+		if err != nil {
+			results = append(results, skillUpdateResult{
+				Name:   e.SkillName,
+				Host:   e.HostLabel,
+				Dir:    e.DestDir,
+				Status: "error",
+				Reason: err.Error(),
+			})
+			continue
+		}
+		key := skillUpdateSourceKey(src)
+		g := groupIndex[key]
+		if g == nil {
+			g = &skillUpdateGroup{src: src}
+			groupIndex[key] = g
+			groups = append(groups, g)
+		}
+		g.entries = append(g.entries, e)
+	}
+
+	// The policy engine is only opened when there is something to write; a
+	// no-op run must not require a state database to exist.
+	if len(groups) > 0 {
+		asker := newInteractivePolicyAsker(opts.yes)
+		policyEngine, closePolicy, policyErr := openCLIPolicyEngine(paths.DataRoot)
+		if policyErr != nil {
+			return nil, fmt.Errorf("load policy: %w", policyErr)
+		}
+		defer closePolicy()
+		installer := skills.NewInstaller(ledger, enginePolicyChecker(policyEngine, asker.resolve))
+		for _, g := range groups {
+			groupResults, ferr := executeUpdateGroup(ctx, g, installer, opts, override != nil)
+			if ferr != nil {
+				return nil, ferr
+			}
+			results = append(results, groupResults...)
+		}
+	}
+
+	for _, name := range wanted {
+		if !matched[name] {
+			results = append(results, skillUpdateResult{
+				Name:   name,
+				Status: "not_installed",
+				Reason: fmt.Sprintf("no ledger entry for skill %q", name),
+			})
+		}
+	}
+	return results, nil
+}
+
+// updateSourceForEntry resolves the source one ledger row will be updated
+// from. An explicit --source overrides every row (the fallback for rows that
+// recorded no usable source); otherwise the row's own recorded source and ref
+// are used, and a row that recorded none is reported by the caller rather than
+// guessed at.
+func updateSourceForEntry(e skills.LedgerEntry, override *skills.SkillSource, refOverride string) (skills.SkillSource, error) {
+	if override != nil {
+		return *override, nil
+	}
+	src, err := recordedSkillSource(e)
+	if err != nil {
+		return src, err
+	}
+	if ref := strings.TrimSpace(refOverride); ref != "" {
+		if src.Kind == "local" {
+			return src, fmt.Errorf("--ref applies only to git sources; the source recorded for %s is a local directory", e.SkillName)
+		}
+		src.Pin = ref
+	}
+	return src, nil
+}
+
+// recordedSkillSource rebuilds a SkillSource from one ledger row.
+//
+// The row records the source label (Source) and a ref (SourceRef) but no
+// subpath. A source installed from a GitHub browse URL (…/tree/<ref>/<sub>)
+// records the subpath appended to the clone URL — a shape no other source can
+// produce — so it is split back into repository plus subpath here. Nothing
+// else is guessed: a row with no source, or a label that no longer parses, is
+// reported and skipped.
+func recordedSkillSource(e skills.LedgerEntry) (skills.SkillSource, error) {
+	raw := strings.TrimSpace(e.Source)
+	if raw == "" {
+		return skills.SkillSource{}, fmt.Errorf("no source recorded for %s in the ledger; re-run with --source <src>", e.SkillName)
+	}
+	src, err := skills.ParseSkillSource(raw)
+	if err != nil {
+		return skills.SkillSource{}, fmt.Errorf("the recorded source %q for %s is not usable: %w; re-run with --source <src>", raw, e.SkillName, err)
+	}
+	if clone, display, repo, sub, ok := splitGitHubBrowseDisplay(raw); ok {
+		src.Kind = "url"
+		src.CloneURL = clone
+		src.Display = display
+		src.RepoPath = repo
+		src.Subpath = sub
+		src.Git = true
+	}
+	if src.Pin == "" {
+		src.Pin = recordedPin(e.SourceRef)
+	}
+	return src, nil
+}
+
+// splitGitHubBrowseDisplay inverts the label an install from a GitHub browse
+// URL recorded: "https://github.com/<owner>/<repo>/<subpath>", with no ".git"
+// suffix and more than two path segments. ParseSkillSource turns that into a
+// clone URL that appends ".git" to the subpath, so it is rebuilt here. Hosts
+// other than GitHub are left alone because their repository paths can
+// legitimately contain extra segments (GitLab subgroups).
+func splitGitHubBrowseDisplay(raw string) (cloneURL, display, repoPath, subpath string, ok bool) {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Host != "github.com" && u.Host != "www.github.com") {
+		return "", "", "", "", false
+	}
+	path := strings.Trim(u.Path, "/")
+	if path == "" || strings.HasSuffix(path, ".git") {
+		return "", "", "", "", false
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) <= 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", "", "", false
+	}
+	repoPath = parts[0] + "/" + parts[1]
+	subpath = strings.Join(parts[2:], "/")
+	cloneURL = "https://" + u.Host + "/" + repoPath + ".git"
+	display = "https://" + u.Host + "/" + repoPath + "/" + subpath
+	return cloneURL, display, repoPath, subpath, true
+}
+
+// recordedPin decides whether a recorded SourceRef should be re-applied as a
+// pin. An unpinned install stores the observed commit SHA there
+// (SkillSource.RecordedRef), and `git clone --branch <sha>` only works for a
+// branch tip, so a bare commit is provenance rather than a pin: updates follow
+// the source's default branch. A named ref (tag or branch) is honoured. The
+// ledger records no separate "was this an explicit pin" flag, so a pin that
+// itself looks like a bare commit is treated as a commit; that is reported on
+// the source field's docs, not silently re-pinned.
+func recordedPin(ref string) string {
+	ref = strings.TrimSpace(ref)
+	if ref == "" || isBareCommit(ref) {
+		return ""
+	}
+	return ref
+}
+
+// isBareCommit reports whether ref looks like a git object id (7–40 lowercase
+// hex characters) rather than a human-named ref.
+func isBareCommit(ref string) bool {
+	if len(ref) < 7 || len(ref) > 40 {
+		return false
+	}
+	for _, r := range ref {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// executeUpdateGroup fetches one source and updates every entry resolved to
+// it. A fetch failure is per-entry only when the source came from the ledger:
+// an explicitly named --source is a single requested operation, so its failure
+// stays fatal, exactly as it was before update-all existed.
+func executeUpdateGroup(ctx context.Context, g *skillUpdateGroup, installer *skills.Installer, opts skillsUpdateOptions, explicitSource bool) ([]skillUpdateResult, error) {
+	var results []skillUpdateResult
+	appendErrors := func(err error) {
+		for _, e := range g.entries {
+			results = append(results, skillUpdateResult{
+				Name:   e.SkillName,
+				Host:   e.HostLabel,
+				Dir:    e.DestDir,
+				Status: "error",
+				Reason: err.Error(),
+			})
+		}
+	}
+
+	src := g.src
+	workRoot, cleanup, err := fetchSkillSourceTree(src)
+	if err != nil {
+		if explicitSource {
+			return nil, err
+		}
+		appendErrors(err)
+		return results, nil
+	}
+	defer cleanup()
+
+	commit := ""
+	if src.Kind != "local" {
+		commit = gitHeadCommit(workRoot)
+	}
+	newRef := src.RecordedRef(commit)
+
+	scanRoot := workRoot
+	if src.Subpath != "" {
+		scanRoot = filepath.Join(workRoot, filepath.FromSlash(src.Subpath))
+	}
+	found, err := discoverSkillsIncludingRoot(scanRoot)
+	if err != nil {
+		if explicitSource {
+			return nil, err
+		}
+		appendErrors(err)
+		return results, nil
+	}
+	// An update must not quietly install a skill that a fresh `add` would have
+	// refused: the internal-skill gate has to apply on both paths, or
+	// INSTALL_INTERNAL_SKILLS would only be enforced on first install.
+	visible, hidden := skills.FilterVisibleSkills(found)
+	if len(visible) == 0 && len(hidden) > 0 {
+		err := fmt.Errorf("%d skill(s) in %s are marked internal; set %s=1 to update them",
+			len(hidden), src.Display, skills.InternalSkillsEnvVar)
+		if explicitSource {
+			return nil, err
+		}
+		appendErrors(err)
+		return results, nil
+	}
+	found = visible
+	byName := make(map[string]string, len(found))
+	for _, f := range found {
+		name, err := skills.SanitizeSkillName(f.Pkg.Name)
+		if err != nil {
+			continue
+		}
+		if _, dup := byName[name]; !dup {
+			byName[name] = f.Dir
+		}
+	}
+
+	for _, e := range g.entries {
 		dir := byName[e.SkillName]
 		if dir == "" {
 			results = append(results, skillUpdateResult{
@@ -318,16 +720,6 @@ func executeSkillsUpdate(ctx context.Context, opts skillsUpdateOptions, paths *c
 			res.Status = "no_change"
 		}
 		results = append(results, res)
-	}
-
-	for _, name := range wanted {
-		if !matched[name] {
-			results = append(results, skillUpdateResult{
-				Name:   name,
-				Status: "not_installed",
-				Reason: "no ledger entry for this skill",
-			})
-		}
 	}
 	return results, nil
 }
@@ -387,13 +779,19 @@ func printUpdateResults(results []skillUpdateResult) {
 // overrides, which kill the filter even when git-lfs is absent — the case
 // GIT_LFS_SKIP_SMUDGE alone does not cover).
 //
-// https:git is deliberately narrower than the reference installer's
-// https:http:ssh:git:file: ParseSkillSource already refuses anything that is
-// not an https URL, so plain http and ssh are transports we never legitimately
-// need, and refusing them here is enforced even against a hostile global
-// config rather than only against our own input.
+// https:ssh:git is narrower than the reference installer's
+// https:http:ssh:git:file: plain http and file: are transports we never
+// legitimately need, and refusing them here is enforced even against a hostile
+// global config rather than only against our own input.
+//
+// ssh is required, not optional. git maps BOTH `git@host:owner/repo.git` and
+// `ssh://host/path` to its ssh transport, so while this read `https:git` a
+// clone of an admitted ssh source died with "fatal: transport 'ssh' not
+// allowed" before any network I/O — admitting ssh in ParseSkillSource without
+// listing it here would have been inert. GIT_TERMINAL_PROMPT=0 stays: ssh agent
+// auth is not a terminal prompt, so hardening and ssh sources coexist.
 var gitCloneEnv = []string{
-	"GIT_ALLOW_PROTOCOL=https:git",
+	"GIT_ALLOW_PROTOCOL=https:ssh:git",
 	"GIT_TERMINAL_PROMPT=0",
 	"GIT_LFS_SKIP_SMUDGE=1",
 	"filter.lfs.required=false",
@@ -417,6 +815,16 @@ var gitCloneTimeout = func() time.Duration {
 func fetchSkillSourceTree(src skills.SkillSource) (root string, cleanup func(), err error) {
 	if src.Kind == "local" {
 		return src.LocalDir, func() {}, nil
+	}
+	// A source that is not a git repo at all — a bare SKILL.md over https, or a
+	// .zip/.tar/.tar.gz, extension optional. This is checked here as well as at
+	// the `add` call site because `update` reaches this function from two more
+	// directions (a --source override and a source re-read from the ledger), and
+	// a download-sourced skill that could be installed but never updated would
+	// be a trap. The decision itself lives in internal/skills, so all three
+	// paths agree on what counts as a download.
+	if skills.IsDirectDownloadSource(src.Display) {
+		return skills.FetchSkillDownload(context.Background(), src.Display)
 	}
 	if _, lookErr := exec.LookPath("git"); lookErr != nil {
 		return "", nil, fmt.Errorf("git is required to fetch remote skill sources")
@@ -473,21 +881,13 @@ func gitHeadCommit(dir string) string {
 
 // discoverSkillsIncludingRoot discovers skills under root and also accepts a
 // source that is itself a single skill directory (SKILL.md at the root), which
-// DiscoverSkills intentionally skips.
+// a repository scan intentionally skips.
+//
+// This now delegates to the engine's exported discovery instead of re-scanning
+// twice here. That is not only deduplication: the local version could only find
+// a root SKILL.md when nothing else was found, so it missed the three-level
+// layout (skills/<category>/<name>/SKILL.md) that the engine's walk reaches.
+// `add` calls the exported helper directly for the same reason.
 func discoverSkillsIncludingRoot(root string) ([]skills.DiscoveredSkill, error) {
-	found, err := skills.DiscoverSkills(root)
-	if err != nil {
-		return nil, err
-	}
-	if len(found) > 0 {
-		return found, nil
-	}
-	pkg, loadErr := skills.LoadSkillFromDirectory(root)
-	if loadErr != nil {
-		return found, nil
-	}
-	if strings.TrimSpace(pkg.Name) == "" || strings.TrimSpace(pkg.Description) == "" {
-		return found, nil
-	}
-	return []skills.DiscoveredSkill{{Dir: root, Rel: ".", Pkg: pkg}}, nil
+	return skills.DiscoverSkillsIncludingRoot(root)
 }

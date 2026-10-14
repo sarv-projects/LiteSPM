@@ -9,6 +9,27 @@
 > [STATUS.md](STATUS.md) is the single source of truth for what each subsystem actually does; this
 > guide states the wiring, not the aspiration.
 
+## 0. The skills CLI (a first-class surface, not a bridge detail)
+
+`litespm skills` is a complete skills manager in its own right, and the table below is the whole of it.
+Anything an agent host does through the bridge is a second path to the same ledger — never a second
+implementation.
+
+| Command | What it does |
+|---|---|
+| `skills add <source>` | Plan, approve and copy skills into each target host's own skills tree. `--skill '*'`, `--agent '*'` and `--all` select in bulk; `--full-depth` escapes the discovery bounds; `--force` overwrites with a printed `overwrites: <path>`, a pre-image digest and a byte-exact backup |
+| `skills use <source>[@<skill>]` | Prints the skill's prompt to stdout and **installs nothing** — `litespm skills use <src> \| claude`. `--agent` is not wired and refuses with that reason: LiteSPM configures hosts, it does not launch them |
+| `skills find [<query>] [--owner <org>]` | Searches the local catalog index for skills |
+| `skills list` / `ls` | The ledger, filterable by `-g` and `-a <id>` |
+| `skills update [<name>...]` | Re-copies from each row's recorded source; no arguments updates everything. `-g`/`-p` scope, `-y` skips the scope prompt |
+| `skills remove` / `rm` | Ledger-scoped removal by name, by exact source, or `--all`; only directories the ledger names are ever deleted |
+| `litespm init [name]` | Scaffolds a `SKILL.md` that parses under the real loader |
+
+**Sources:** `owner/repo`, an `https` or `ssh`/`git@` git URL, a local directory, a GitHub/GitLab
+browse URL, or a direct download (a bare `SKILL.md` or a `.zip`/`.tar`/`.tar.gz` — the format is sniffed
+from the bytes, the extension is not required). `http://`, `file:` and `ftp://` are refused. A skill
+marked `metadata.internal: true` is hidden and refused unless `INSTALL_INTERNAL_SKILLS=1`.
+
 ```text
 ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
 │      Cline      │       │    Pi Agent     │       │   Grok Build    │

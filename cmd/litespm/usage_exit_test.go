@@ -24,7 +24,7 @@ func TestUsageExitCodes(t *testing.T) {
 		{"bare skills", []string{"skills"}, 2},
 		{"unknown skills subcommand", []string{"skills", "bogus"}, 2},
 		{"skills add parse error", []string{"skills", "add"}, 2},
-		{"skills update parse error", []string{"skills", "update"}, 2},
+		{"skills update parse error", []string{"skills", "update", "--bogus"}, 2},
 		{"skills remove no names", []string{"skills", "remove"}, 2},
 		{"restore unknown flag", []string{"restore", "--bogus"}, 2},
 		{"install remove without id", []string{"install", "remove"}, 2},

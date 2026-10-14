@@ -34,10 +34,15 @@
  *
  * Every text/background pair below was checked against WCAG 2.2:
  *
- *   light  --ink-3 #616e84 on --paper ............ 4.81:1
+ *   light  --ink #111827 on --paper .............. 14.98:1
+ *          --ink-2 #3c495e on --surface .......... 8.80:1
+ *          --ink-3 #55627a on --paper ............ 5.19:1
  *          white on --accent #3157f6 ............. 5.49:1
- *          --accent #3157f6 on --surface ......... 5.49:1
- *          --rule-2 #8794a1 on --surface ......... 3.10:1  (1.4.11)
+ *          --accent #3157f6 on --surface ......... 5.31:1
+ *          --rule-2 #79879c on --surface ......... 3.52:1  (1.4.11)
+ *          --ink-3 #55627a on --sunken ........... 4.77:1  (the dashed
+ *              "not installable" chip border; --rule-2 only reaches 2.83:1
+ *              against --sunken, so it no longer bounds that chip)
  *          each kind hue on its own wash ......... >= 5.26:1 (11px tile text)
  *   dark   --ink #edf1f7 on --paper #0b0e14 ...... 17.04:1
  *          --ink-3 #97a3b6 on --paper ............ 7.57:1
@@ -45,6 +50,17 @@
  *          --accent-text #8fa9ff on --surface .... 8.01:1
  *          --rule-2 #6a7690 on --surface ......... 3.97:1  (1.4.11)
  *          each kind hue on its dark wash ........ >= 6.07:1
+ *
+ * Surfaces (2026-10-14): the light theme was two near-whites stacked on each
+ * other — #ffffff cards on a #f5f7fb base, 1.07:1 apart, which reads as one
+ * flat field. The base and its recesses are now a visible step down from the
+ * cards (--paper #e8ecf4, --surface #fafbfe, --sunken #dde3ee, --sunken-2
+ * #d2dae8, --hover #e3e9f5) — the card/base pair measures 1.14:1, but the base
+ * itself dropped 7-13 points per RGB channel, which is what gives the page its
+ * planes. The ink triad was darkened to keep every text pair clearing AA
+ * without moving a single accent or kind hue. One measured exception: --accent
+ * as TEXT on --sunken is 4.26:1 (< 4.5:1), so nothing on a sunken plane uses
+ * --accent-text — those hovers ink up instead.
  *
  * Radius is assigned per element role, not globally:
  *   0px  table rows and ruled lists
@@ -63,22 +79,24 @@
     color-scheme: light;
     --site-header-height: 48px;
 
-    --paper: #f5f7fb;
-    --surface: #ffffff;
-    --sunken: #eef2f9;
-    --sunken-2: #e4eaf5;
-    --hover: #eef3fd;
-    --sel: #cfe0ff;
+    --paper: #e8ecf4;
+    --surface: #fafbfe;
+    --sunken: #dde3ee;
+    --sunken-2: #d2dae8;
+    --hover: #e3e9f5;
+    --sel: #c6d7fb;
 
-    --rule: #dfe5ef;
-    /* Clears 3:1 on --surface, so --rule-2 can bound anything that has to be
-       locatable rather than merely separated. */
-    --rule-2: #8794a1;
+    --rule: #d2d9e6;
+    /* Clears 3:1 on --surface (3.52:1) and on --paper (3.08:1), so --rule-2
+       can bound anything that has to be locatable rather than merely
+       separated — except a boundary drawn ON --sunken, which is what the
+       "not installable" chip's --ink-3 border exists for. */
+    --rule-2: #79879c;
 
-    --ink: #17202f;
-    --ink-2: #48566c;
-    /* 4.81:1 on --paper, so 11px meta text still clears AA. */
-    --ink-3: #616e84;
+    --ink: #111827;
+    --ink-2: #3c495e;
+    /* 5.19:1 on --paper, so 11px meta text still clears AA. */
+    --ink-3: #55627a;
 
     /* Brand indigo. `--accent` IS the brand token: solid CTAs, selected chips,
        the search focus ring and the active nav. White on it clears 5.49:1.
@@ -596,7 +614,10 @@
   .meta-avail-blocked {
     background-color: var(--sunken);
     color: var(--ink-3);
-    border: 1px dashed var(--rule-2);
+    /* Dashed AND bounded by --ink-3: the chip sits on --sunken, where
+       --rule-2 measures 2.83:1, below the 3:1 a boundary needs (1.4.11).
+       --ink-3 clears it at 4.77:1 and keeps the recessed dashed read. */
+    border: 1px dashed var(--ink-3);
   }
 
   .meta-spec {
@@ -630,6 +651,40 @@
     gap: 18px;
     justify-self: end;
     text-align: right;
+    /* The row is one link. On hover its trailing cluster (the host-coverage
+       chip) shifts 2px toward the edge — the same "this whole thing is the
+       target" gesture the discovery cards make with their lift, at the same
+       160ms. It is a state change, not an animation; see the reduced-motion
+       block below, which drops the displacement rather than just its
+       duration. */
+    transition: transform var(--t-hover) ease-out;
+  }
+  @media (hover: hover) {
+    .row:hover .row-side {
+      transform: translateX(2px);
+    }
+  }
+  .row:focus-visible .row-side {
+    transform: translateX(2px);
+  }
+
+  /* ---- discovery cards: the one hover gesture a card needs ----------- */
+  /* 2px up, plus whatever border/shadow the caller passes on hover.
+     Defined once here rather than as the same three-utility string on every
+     card so the reduced-motion block can drop the displacement itself:
+     collapsing a transition still lands the 2px, only instantly. --t-hover is
+     the motion scale's hover rung and --shadow-card-hover the card shadow —
+     no new values, and no second gesture. */
+  .card-lift {
+    transition:
+      transform var(--t-hover) ease-out,
+      border-color var(--t-hover) ease-out,
+      box-shadow var(--t-hover) ease-out;
+  }
+  @media (hover: hover) {
+    .card-lift:hover {
+      transform: translateY(-2px);
+    }
   }
 
   /* ---- letter tile: 2px, the stamped-chip radius -------------------- */
@@ -916,5 +971,19 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* The two hover gestures that MOVE anything — the discovery card's 2px lift
+     and the result row's 2px trailing shift — are positional changes, and the
+     rule above only collapses their duration: the offset would still land,
+     just instantly. Under reduced motion they are dropped outright and the
+     hover state is carried by border, shadow and background alone, which is
+     the same way `.enter-rise` is handled (it is never applied at all). */
+  .card-lift:hover {
+    transform: none;
+  }
+  .row:hover .row-side,
+  .row:focus-visible .row-side {
+    transform: none;
   }
 }

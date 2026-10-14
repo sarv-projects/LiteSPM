@@ -44,8 +44,11 @@ func TestParseSkillSourceURLForms(t *testing.T) {
 	}
 }
 
-func TestParseSkillSourceRejectsNonHTTPS(t *testing.T) {
-	for _, raw := range []string{"http://example.com/x.git", "git@github.com:x/y.git", "ftp://example.com/x"} {
+// TestParseSkillSourceRejectsInsecureSchemes keeps the deliberate refusals:
+// plain http is not a transport the installer fetches over, and file: would
+// read an arbitrary local path rather than a fetched source.
+func TestParseSkillSourceRejectsInsecureSchemes(t *testing.T) {
+	for _, raw := range []string{"http://example.com/x.git", "file:///etc/skills", "ftp://example.com/x"} {
 		if _, err := ParseSkillSource(raw); err == nil {
 			t.Errorf("%q should be rejected", raw)
 		}

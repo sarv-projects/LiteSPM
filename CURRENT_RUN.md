@@ -1667,3 +1667,51 @@ Caveat recorded by the scout: `mcpmarket.org` returned an empty document under h
 - `web/out` is from a build that has the static diagram but **not** the dropdowns. A rebuild is required before any visual verification of the dropdowns.
 - Static server: `ux-srv3` running `python3 -m http.server 8099` from `web/out`. Headless Chrome CDP on `127.0.0.1:9222`.
 - `go test -race ./...` still not re-run here — earlier 10-minute timeout is this WSL box, not a defect; CI passes the same command on Linux and macOS.
+
+---
+
+## 2026-10-14 (later) — closing the parity gap against `vercel-labs/skills`
+
+A capability audit of the reference CLI's **whole documented surface** (their README, command by
+command, against our parser, our walk and our flags) found **12 gaps** that meant a user could not
+simply swap one tool for the other. All 12 are closed. The audit also produced three findings that
+were worse than the brief assumed, and those are the interesting part of this record.
+
+**What was actually broken, not just missing**
+
+- `GIT_ALLOW_PROTOCOL=https:git` (`cmd/litespm/skills_update.go`) made ssh sources **inert**. git maps
+  both `git@host:owner/repo.git` and `ssh://host/path` to its ssh transport, so admitting ssh in the
+  parser without listing it here would have compiled, passed every test, and died with
+  `fatal: transport 'ssh' not allowed` before any network I/O. Proven locally, then fixed to
+  `https:ssh:git` with `http`/`file`/`ftp` pinned as refused by a test.
+- The depth bound was **2**, so `skills/<category>/<name>/SKILL.md` — the real `google/skills` layout —
+  installed **zero** skills with a generic error. This was the most damaging gap in the report.
+- `list` **silently ignored** every argument but `--json`: `ls -g` listed everything and said nothing.
+  Silently dropping a filter is worse than erroring, and it now errors.
+- The tree-URL comment claimed slash refs fell through to generic handling; the code actually took the
+  first segment as the ref, so `tree/feat/x/...` cloned `--branch feat`.
+- The ledger records no subpath, so an update of a browse-URL install reconstructs it by inverting the
+  recorded display shape (GitHub only). Non-GitHub nested displays cannot be inverted, and that is
+  reported rather than guessed.
+
+**Process**
+
+Six subagents on **disjoint file sets** — five in `cmd/litespm/` and `internal/skills/`, one owning
+`web/` — with `main.go` deliberately reserved to this session so no two writers could collide on the
+dispatch switch. Each was told which files it must not touch and why. Every agent reported the tests
+it ran and the ones it deliberately skipped.
+
+**The site**
+
+The reviewer's "too white" was structural, not a value: `#ffffff` cards on a `#f5f7fb` base meant ~95%
+of pixels were one of two near-whites, and none of five competitors ship that. The light neutrals moved
+to `--paper #e8ecf4` / `--surface #fafbfe` with the ink ramp darkened, every accent untouched, every
+pair re-measured (not copied) and still AA. Two bands take `bg-sunken` for elevation rhythm. A study of
+mcp.so, mcpservers.org, skills.sh, smithery.ai and glama.ai found the leaders carry **zero** entrance or
+scroll animation, so exactly two hover affordances were added (a 2 px card lift and a row trailing
+shift, both disabled under reduced motion) and nothing else moves.
+
+**Still open, and recorded rather than hidden** (`TODO.md`): `.claude-plugin` manifest discovery, the
+private-repo auth chain beyond the git credential helper, GitHub API tree lookups. Two of their
+behaviours are deliberate exclusions — symlink installation, and `skills use --agent`, where we refuse
+with the reason instead of inventing an exec path.

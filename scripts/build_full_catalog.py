@@ -2635,6 +2635,19 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                     seen_ids.add(skill_id)
                     seen_slugs.add(skill_slug)
                     skill_tree = f"{src['repo']}/tree/main/{rel}"
+                    # The hint must install with LiteSPM itself: `litespm
+                    # skills add <source>` (source forms parsed at
+                    # internal/skills/install.go:74-181: owner/repo
+                    # shorthand, https git URL including /tree/ browse URLs,
+                    # or a local directory) with `--skill <name>` as the
+                    # selector (cmd/litespm/skills_add.go:82-87). The
+                    # owner/repo shorthand is derived from the repo URL; a
+                    # URL that is not a plain GitHub repository yields no
+                    # shorthand, and then the optional field is omitted
+                    # rather than filled with another tool's command
+                    # (every consumer renders it conditionally;
+                    # internal/catalogbuild does not model it at all).
+                    hint_repo = github_repo_facts(src["repo"])
                     row = {
                         "id": skill_id,
                         "name": skill.replace("-", " ").title(),
@@ -2648,9 +2661,11 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                         "version": None,
                         "installability": DISCOVERY_ONLY,
                         "skillSource": skill_tree,
-                        "installHint": f"npx skills add {src['repo']} --skill {skill}",
-                        "source": src["source_id"],
                     }
+                    if hint_repo:
+                        row["installHint"] = (
+                            f"litespm skills add {hint_repo[0]} --skill {skill}")
+                    row["source"] = src["source_id"]
                     items.append(row)
                     # A manifest entry names a path, not a verified file:
                     # promote only if this run read SKILL.md at that path.
