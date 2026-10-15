@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.1] - 2026-10-15
+
 ### Added
 
 - **`litespm skills` now does everything the reference skills CLI does, plus the parts it does not.**
