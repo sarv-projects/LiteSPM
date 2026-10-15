@@ -1,58 +1,106 @@
-# LiteSPM Market & Client: Technical Architecture & System Specification
+# LiteSPM
 
 **The package manager for AI agents.**
 
-LiteSPM is an open-source, provider-neutral package manager, federated catalog, and local control plane for AI agent capabilities: **Plugins, Skills, and MCP (Model Context Protocol) Servers**. 
+One command installs MCP servers, agent skills and plugins into the agents you already use — Claude Code, Codex, OpenCode, Cursor, Cline and 45 more. It shows you the exact change before it touches a config file, backs that file up first, and can undo it.
 
-It eliminates the need to manually configure, update, and manage capabilities across fragmented AI developer tools (for Claude Code, Codex, OpenCode, and many more). By registering a lightweight, version-pinned LiteSPM Bridge once per agent, users can discover, install, update, and supervise capabilities centrally from a single local control plane.
+```bash
+npm install -g litespm
+litespm
+```
 
-> **Foundational Security Invariant:** Credentials and execution remain strictly on the user's workstation or directly with the selected upstream provider. LiteSPM's hosted public catalog does not store credentials, execute plugin scripts, or proxy tool calls. The client-side control plane operates entirely within the local user's operating system privileges and enforces local, fail-closed authorization policies.
+The wizard finds the agents on your machine, previews the change it is about to make, and waits for a yes. Nothing is sent anywhere: no account, no telemetry, no analytics, no cookies.
+
+**[Browse the catalog](https://litespm.sarveshbh-2022.workers.dev/)** · **[STATUS.md](STATUS.md)** — what each subsystem actually does · **[Architecture](ARCH/)** · **[CHANGELOG](CHANGELOG.md)**
+
+---
+
+## Why this exists
+
+Setting up an AI agent's capabilities is still manual, per agent, per machine. You paste JSON into `~/.claude.json`, TOML into `~/.codex/config.toml`, a different JSON again for Cline — and each format has its own idea of where a server goes and how it is spelled. Nothing tells you what you already have, nothing updates it, and nothing cleans up when you remove it.
+
+LiteSPM connects once to each agent, then manages capabilities from a single local control plane. **The catalog is a snapshot of named upstream sources; everything is resolved locally by the daemon.**
+
+| | |
+|---|---|
+| **69,376** capabilities | 48,418 MCP servers · 20,320 skills · 638 plugins |
+| **50** compiled adapters | plus 90 named agent hosts |
+| **Release** | `rel-2026-10-15-01`, sequence 148 |
+| **Licence** | open source · no account required |
+
+Counts are from the release named above and are printed by `litespm catalog status`. They are a **snapshot**, not a live count, and listing an entry is not an endorsement of it.
+
+## What it does
+
+```bash
+litespm                      # setup + management wizard, safe by default
+litespm search github        # search the locally synced catalog
+litespm install <id>         # plan → approve → write, with a backup
+litespm list                 # what LiteSPM has installed, and where
+litespm skills add <source>  # skills from a repo, git URL, directory or .zip
+litespm doctor               # environment check: daemon, bridge, adapters, vault
+```
+
+- **Reversible by construction.** Every write is previewed, backed up, and recorded in an install ledger. `litespm install remove` reconciles only what LiteSPM wrote and leaves your own edits alone.
+- **Explainable.** Every claim traces to a named source. Each row says where its record came from — the publisher's own manifest, or a specific directory — and whether LiteSPM can install it or only found it.
+- **Local.** Credentials never leave your machine and the hosted catalog never proxies tool calls. Release artifacts are signed with keyless cosign, and `self-update` verifies that signature before replacing the binary.
+
+## What works today — and what does not
+
+Stated plainly, because a README that oversells is worse than a short one. [STATUS.md](STATUS.md) is the source of truth per subsystem.
+
+| | |
+|---|---|
+| ✅ **Installs** | Skills install as real files through the skills ledger. MCP servers are registered into each target agent's own config format. |
+| ✅ **Removal** | Ledger-scoped, with pre-images kept so a removal can be reconciled rather than guessed. |
+| ⛔ **Plugins cannot be installed** | There is no plugin artifact source, so a plugin install **fails closed** with `LPSM-ARTIFACT-UNAVAILABLE` rather than half-applying a bundle. Plugin rows are labelled not installable, everywhere they appear. |
+| ⚠️ **61% of the catalog is discovery-only** | 42,573 of 69,376 rows are entries LiteSPM found and can describe, but has no install method for. They are marked as such. |
+| ⚠️ **Not tested, and not claimed** | Provider autostart, npm package signatures, and any isolation beyond process supervision. "Official", "publisher manifest" and agent-compatibility badges mean *where the record came from* — never that LiteSPM has audited or tested the entry. |
+
+## Supported agents
+
+Six bespoke adapters handle the agents whose config formats need real care, each with its own documented path and merge rules:
+
+| Agent | Config | Written by LiteSPM |
+|---|---|---|
+| **Claude Code** | `~/.claude.json` (+ `.mcp.json` for project scope) | `mcpServers` |
+| **OpenAI Codex** | `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`) | `[mcp_servers.litespm]` |
+| **Cline** | `~/.cline/data/settings/cline_mcp_settings.json` | `mcpServers` |
+| **OpenCode** | `$OPENCODE_CONFIG_DIR/opencode.jsonc` else `~/.config/opencode/` | `mcp.servers` |
+| **Pi Agent** | `~/.pi/agent/mcp.json` | `mcpServers` |
+| **Grok Build** | `$GROK_HOME/config.toml` (default `~/.grok/config.toml`) | `[mcp_servers.litespm]` |
+
+The full registry is **50 bridge targets** (those six plus 44 generic adapters) and **81 skill targets**. `litespm host list` prints what your build actually supports; `litespm host detect` says what is on this machine. Legacy paths that no current release of an agent reads are not probed — see [ARCH/16](ARCH/16-HOST-ADAPTERS.md).
+
+## In your agent: `/marketplace`
+
+Once configured, type `/marketplace` in your agent. Terminal hosts (`claude`, `codex`, `grok`, `opencode`) get 12 bridge tools over stdio MCP; hosts with rich panels get the capability browser. Searches, previews and installs resolve against the local daemon — the agent never talks to the network on LiteSPM's behalf.
+
+## Documentation
+
+| | |
+|---|---|
+| **[STATUS.md](STATUS.md)** | What each subsystem actually does — the source of truth, not the aspiration |
+| **[ARCH/](ARCH/)** | Architecture decisions, numbered and referenced from the code |
+| **[TODO.md](TODO.md)** | Open work, with acceptance evidence per row |
+| **[CURRENT_RUN.md](CURRENT_RUN.md)** | Release procedure and current handoff state |
+| **[AGENTS.md](AGENTS.md)** | Supported-agent integration guide |
+
+## Contributing
+
+Issues and pull requests are welcome. The repository's own invariants are enforced in CI — Go tests on Linux, macOS and Windows, `gofmt` and `go vet` against the pinned toolchain, a catalog-coherence gate, and a generated-data drift gate. Run `npm run lint` in `web/` before opening a PR that touches the site.
+
+**Two rules that are not negotiable in review:** no user-facing text may claim a state the code does not have, and no generated field may point users at a third-party installer.
+
+## License
+
+See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ---
 
-## 1. Project Status & In-Progress Roadmap
+# Architecture & System Specification
 
-> **How to read this table.** Status is an *evidence state*, not a feeling. These six states are
-> distinct and are defined in [ARCH/31 §2](ARCH/31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#2-evidence-vocabulary-binding-repo-wide):
-> `DESIGNED` → `IMPLEMENTED` → `WIRED` → `TESTED` → `VERIFIED` → `SHIPPED`.
-> "Files exist" is at most `IMPLEMENTED`; "tests exist" is at most `TESTED`. A component whose only
-> caller is a test is `IMPLEMENTED`, not `WIRED`.
-> The authoritative defect tracker is [REMEDIATION-PLAN.md](REMEDIATION-PLAN.md); the ordered
-> forward backlog is [ARCH/31 §12](ARCH/31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#12-ordered-backlog).
->
-> **[STATUS.md](STATUS.md) is the single source of truth for per-subsystem state.** Where this
-> table and STATUS.md disagree, STATUS.md wins.
-
-| Phase | Description | State | Evidence / what is missing |
-|---|---|---|---|
-| **Phase A** | **Architecture Freeze & LLD Specifications** | `DESIGNED` | `ARCH/00`–`ARCH/38` exist. `ARCH/24` is an aspirational inventory, not a compiled one; `ARCH/18` specifies an output tree (`index.json`, `shards/`, `items/`) that the compiler does not emit (those outputs are labelled `DESIGNED`) |
-| **Phase B** | **Foundations, Storage & Local IPC** | `TESTED` | `internal/domain`, `internal/config`, `internal/state` (SQLite WAL, 22 tables), `internal/ipc` (named pipes / Unix sockets). Contract tests bind; see [STATUS.md](STATUS.md) §1 |
-| **Phase C** | **Static Catalog & Discovery Plane** | `SHIPPED` in source · **the published `v0.4.0` binary is broken** | `internal/catalogbuild` + `litespm catalog build` are `TESTED` (real-dataset + end-to-end build→serve→sync→search tests, green 2026-10-13); the release tree **is published** and the live origin serves it. The current release is **`rel-2026-10-11-02`, sequence 147, 69,376 items**, named by both the committed pointer `web/public/v1/current.json` and the live origin (probe 2026-10-13), sharded into `listings-0000…0003` / `versions-0000…0001`. A binary built from current `main` syncs it and reports `69376 capabilities indexed`. **However `npm install -g litespm` (v0.4.0) cannot:** that tag was cut at 21:24:01 on 2026-10-11, 2h29m before the shard-aware client landed, so it looks for a `listings.json` that the release does not contain and fails with `manifest missing listings.json entry`. `search`, `install` and `/marketplace` all depend on that sync. **Re-cut the release to use the npm package.** `ARCH/18` §1–§2's `index.json`/`shards`/`items` remain un-emitted; **transport sharding is `IMPLEMENTED`** |
-| **Phase D** | **Safe Extraction & Skill Store** | `WIRED` (resolver, skills); `IMPLEMENTED` (install engine); `TESTED` (artifact) | `internal/resolver` and `internal/skills` are reached from production paths and `internal/artifact` is test-covered ([STATUS.md](STATUS.md) §1/§3); skills and MCP servers install end to end (verified against the live catalog). Only **plugins** still need an artifact source — [ARCH/31 §4.1](ARCH/31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#41-the-agent-facing-install-path-cannot-complete--wired-is-false) |
-| **Phase E** | **Process Supervision, Bridge & Host Adapters** | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | 6 bespoke adapters + 44 generic BridgeTargets (50 total, `ARCH/30`) + 81 skill targets are registered. Provider rows are written at install time (`m4` closed 2026-10-13), but nothing starts a provider at boot: `autostart` stays `0`. See [STATUS.md](STATUS.md) §1/§4 |
-| **Phase F** | **MCP Protocol Dual-Profile, Secrets & OAuth** | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | Dual-profile client, native OS keystores, OAuth PKCE loopback exist; the secrets vault is opened before serving (`WIRED`), but secrets are not injected at provider launch, `mcpclient`'s first production importer is `internal/discover`, and `auth` still has zero production importers — the `AuthBroker` currently has no consumer (finding 99), [STATUS.md](STATUS.md) §1/§4 |
-| **Phase G** | **In-Agent `/marketplace` Panel & Web UI** | `SHIPPED` (static web marketplace); panel `WIRED` | The Next.js static export and Bridge tool surface exist and the static marketplace is published ([STATUS.md](STATUS.md) §1); the panel's install action completes for skills and MCP servers. Plugins remain blocked by Phase D. See [STATUS.md](STATUS.md) §1 |
-| **Phase H** | **Release Engineering & Packaging** | `IMPLEMENTED` | Cross-platform builds, npm wrapper, CI checks, and keyless cosign signing of every release artifact plus a CycloneDX SBOM (`release.yml`). `self-update` fetches the published `litespm-*` assets and verifies their keyless Sigstore bundle; `v0.4.0` (2026-10-11) was the first tag to publish them. The npm installer still verifies the checksum only |
-| **Phase I** | **Golden Fixtures, Self-Update & Migrations** | `TESTED` for fixtures and migrations; self-update `WIRED` (signed) | Fixtures corpus and migration engine (forward apply + downgrade guard) are tested; `self-update` is fail-closed on SHA-256 with rollback and verifies the release's keyless signature bundle (required via `LITESPM_REQUIRE_SIGNED_UPDATE=1`). The first signed release is cut on the next `v*` tag — see [SECURITY.md](SECURITY.md). Per-row detail: [TODO.md](TODO.md) Phase I |
-
-**Not yet true of LiteSPM, and not claimed anywhere:** provider autostart (a provider row is now
-written at install time, but nothing starts it at boot), npm package signatures, plugin installation,
-and any isolation level beyond process supervision. **And one live regression you should know about
-before installing from npm:** the published `litespm@0.4.0` binary **cannot sync the published
-catalog** — it was tagged 2h29m before the shard-aware catalog client landed, so `catalog sync`
-fails with `manifest missing listings.json entry` and `search`, `install` and `/marketplace` are all
-unavailable with it. A build from current `main` syncs 69,376 capabilities correctly; see
-[STATUS.md](STATUS.md) §2 for the provenance. **The re-cut is staged but not done:** `npm/package.json`
-and the CHANGELOG already say `0.4.1`, the `v0.4.1` tag has not been pushed, and npm still serves
-`0.4.0`. (By contrast: a project manifest + lockfile **is**
-implemented — `litespm lock`/`install --frozen` (`ARCH/32` §2–§4, [STATUS.md](STATUS.md) §5); release
-**signing** is implemented — every artifact gets a keyless cosign bundle the updater verifies, and
-the catalog pointer is signed and checked on sync; runtime policy **is** enforced at invocation:
-`provider.invoke` runs the policy engine and ungranted tools fail closed until an interactive
-`litespm grant`; every install attempt and invocation is written to the audit log; and
-`request_install` **does** complete an agent-driven install for skill and MCP-server listings.)
-
----
+The rest of this document is the internal specification: system topology, storage, workflows and invariants, referenced from the code and from `ARCH/`. It is written for contributors and reviewers rather than for first-time users.
 
 ## 2. System Architecture: "What Is What"
 

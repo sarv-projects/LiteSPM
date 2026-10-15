@@ -11,7 +11,9 @@ To ensure stability and prevent architectural regressions, LiteSPM follows a **9
 
 **Phase-count reconciliation.** The count is nine — Phase A through Phase I — and that is what
 [ARCH/00 §2](00-INDEX.md#2-document-registry) records for this document and what
-[README §1](../README.md#1-project-status--in-progress-roadmap) tabulates. There is no second,
+[TODO.md](../TODO.md) tabulates, phase by phase, with acceptance evidence per row. (The README
+used to carry that table; it is now a public-facing document and defers to `STATUS.md` for
+per-subsystem state and `TODO.md` for the phase backlog.) There is no second,
 differently-numbered phase scheme in the architecture set; the *ordered forward backlog*
 ([ARCH/31 §12](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#12-ordered-backlog), phases 0–9) is a
 separate, later ordering of future work and does not renumber these phases.

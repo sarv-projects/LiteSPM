@@ -17,21 +17,6 @@ import { ARCHITECTURE_URL, DOCS_URL, REPO_URL } from "../../lib/site";
  * `litespm list`, `litespm copy` and `litespm sync` are backlog rows
  * (`LPSM-J010`, `LPSM-J011`), so they are not advertised here.
  */
-/**
- * Delete this the moment `v0.4.1` ships; it is deliberately one line to remove.
- *
- * `npm install -g litespm` installs the published `0.4.0`, which fails
- * `catalog sync` with `manifest missing listings.json entry` — the tag was cut
- * 2h29m before the shard-aware client landed, so search, install and
- * `/marketplace` are all unavailable with it. A build from `main` works.
- *
- * Advertising a command that does not work is the one thing this site must not
- * do, and it is the first thing a visitor reads. STATUS.md §2 carries the
- * provenance; CURRENT_RUN.md carries the re-tag procedure.
- */
-const NPM_INSTALL_CAVEAT =
-  "The current npm release (0.4.0) can't read the published catalog yet. A fix is built and waiting on a release.";
-
 const SNIPPETS: Array<{ cmd: string; note: string }> = [
   { cmd: "npm install -g litespm", note: "Install the CLI (npm wrapper around the native binary)" },
   { cmd: "litespm setup", note: "Interactive wizard: pick a host, merge one bridge entry safely" },
@@ -111,15 +96,6 @@ function Snippet({ cmd, note }: { cmd: string; note: string }) {
           {cmd}
         </code>
         <p className="text-[12px] text-ink-3">{note}</p>
-        {/*
-          Only on the install snippet, and only while the published package
-          cannot read the published catalog. The note above describes what the
-          command is meant to do; this says whether it currently does it, which
-          is a different and more urgent fact for someone about to paste it.
-        */}
-        {cmd.startsWith("npm install") && NPM_INSTALL_CAVEAT ? (
-          <p className="text-[12px] text-ink">{NPM_INSTALL_CAVEAT}</p>
-        ) : null}
       </div>
       <button
         type="button"
