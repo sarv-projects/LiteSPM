@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState } from "react";
+import type { ReactNode } from "react";
 import { HOSTS } from "../../lib/hosts";
 import type { ProvenanceStats } from "../../lib/landing";
 import { formatCount } from "../../lib/format";
@@ -21,9 +19,18 @@ const HOST_NAMES = `${HOSTS.slice(0, -1).map((h) => h.name).join(", ")}, and ${H
  * Every number below is passed in from a build-time derivation over the real
  * rows (`deriveProvenance`), never typed. Where the honest answer is "not
  * published", the entry says so in those words.
+ *
+ * Native `<details>`/`<summary>`, not a hand-rolled button: the previous
+ * markup was a `<dl>` whose `<dd>` only mounted while open, so before any
+ * interaction the document carried ten `<dt>`s and zero `<dd>`s — an invalid
+ * list that strips the term/definition relationship — and an answer could not
+ * be reached by in-page find until its row was clicked. `name="faq"` keeps
+ * the one-open-at-a-time behaviour the old state implemented; the expanded
+ * state is exposed by `<summary>` itself, and the marker CSS lives in
+ * globals.css.
  */
 export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
-  const FAQS: Array<{ q: string; a: React.ReactNode }> = [
+  const FAQS: Array<{ q: string; a: ReactNode }> = [
     {
       q: "What is LiteSPM?",
       a: (
@@ -150,8 +157,6 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
     },
   ];
 
-  const [open, setOpen] = useState<string | null>(null);
-
   return (
     <section className="shell band" aria-labelledby="faq-title">
       <p className="kicker">Trust</p>
@@ -163,32 +168,23 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
         number here is counted from the rows at build time.
       </p>
 
-      <dl className="mt-7 grid gap-x-10 md:grid-cols-2">
-        {FAQS.map((item) => {
-          const isOpen = open === item.q;
-          return (
-            <div key={item.q} className="border-b border-rule py-4">
-              <dt>
-                <button
-                  type="button"
-                  aria-expanded={isOpen}
-                  onClick={() => setOpen(isOpen ? null : item.q)}
-                  className="flex min-h-[44px] w-full items-start justify-between gap-4 text-left"
-                >
-                  <span className="text-[13px] font-semibold leading-snug text-ink">{item.q}</span>
-                  <span
-                    aria-hidden="true"
-                    className="t-mono mt-px shrink-0 text-[11px] text-ink-3 tabular-nums"
-                  >
-                    {isOpen ? "−" : "+"}
-                  </span>
-                </button>
-              </dt>
-              {isOpen && <dd className="mt-2 text-[13px] leading-relaxed text-ink-2">{item.a}</dd>}
-            </div>
-          );
-        })}
-      </dl>
+      <div className="mt-7 grid gap-x-10 md:grid-cols-2">
+        {FAQS.map((item) => (
+          <details key={item.q} name="faq" className="group border-b border-rule py-4">
+            <summary className="flex min-h-[44px] w-full cursor-pointer items-start justify-between gap-4 text-left">
+              <span className="text-[13px] font-semibold leading-snug text-ink">{item.q}</span>
+              <span
+                aria-hidden="true"
+                className="t-mono mt-px shrink-0 text-[11px] text-ink-3 tabular-nums"
+              >
+                <span className="group-open:hidden">+</span>
+                <span className="hidden group-open:inline">−</span>
+              </span>
+            </summary>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{item.a}</p>
+          </details>
+        ))}
+      </div>
     </section>
   );
 }

@@ -35,15 +35,20 @@ import { gzipSync } from "node:zlib";
 import ts from "typescript";
 import {
   buildDisplayRows,
+  buildDisplayShards,
   buildSearchIndex,
   decodeContainer,
+  decodeDisplayRows,
   decodeSearchIndex,
   encodeContainer,
   encodeDisplayRows,
   encodeSearchIndex,
   listingText,
   querySearchIndex,
+  searchShardRange,
   tokenizeText,
+  SEARCH_RESULT_WINDOW,
+  SEARCH_SHARD_ROWS,
   SECTION_INDEX,
   SECTION_ROWS,
 } from "../lib/searchFormat.mjs";
@@ -62,6 +67,17 @@ const INDEX_RAW_BUDGET = 4.5 * 1024 * 1024; // measured 4.19 MiB
 const INDEX_GZ_BUDGET = 3.0 * 1024 * 1024; // measured 2.68 MiB
 const ROWS_RAW_BUDGET = 14.0 * 1024 * 1024; // measured 13.34 MiB
 const ROWS_GZ_BUDGET = 5.5 * 1024 * 1024; // measured 4.98 MiB
+// The sharded projection is the search path's transport; its total size only
+// matters when a fallback loads everything, so the budget is loose — the
+// window budget below is the one the reader feels.
+const SHARD_GZ_BUDGET = 6.5 * 1024 * 1024; // measured 5.90 MiB across 1,024 shards
+const SHARD_MAX_BUDGET = 32 * 1024; // measured largest ~6 KiB
+// The first window is what a first search costs on top of the index. Measured
+// over the corpus below: `postgres` 120 KiB in 22 shards, worst 223 KiB in 41.
+// This is the regression the whole layout exists to prevent — if a change ever
+// makes the first search fetch the full projection again, it fails here.
+const WINDOW_GZ_BUDGET = 512 * 1024;
+const WINDOW_SHARD_BUDGET = 64;
 
 const QUERIES = [
   "playwright", // single token
@@ -76,6 +92,11 @@ const QUERIES = [
   "figma",
   "CODESIGN", // case folding
   "streamable-http", // punctuation splits into two tokens
+  // The two heaviest first-window queries measured over a wider corpus (they
+  // scatter body-only matches across the most shards), so the window budget
+  // below is pinned by the worst case, not by the friendliest query.
+  "weather",
+  "memory",
 ];
 
 function fail(message) {
@@ -114,12 +135,15 @@ function buildArtifacts(rows) {
   const indexRaw = encodeContainer([{ kind: SECTION_INDEX, payload: encodeSearchIndex(index) }]);
   const display = buildDisplayRows(rows);
   const rowsRaw = encodeContainer([{ kind: SECTION_ROWS, payload: encodeDisplayRows(display) }]);
+  const shardsRaw = buildDisplayShards(rows);
   return {
     index,
     indexRaw,
     indexGz: gzipSync(indexRaw, { level: 9 }),
     rowsRaw,
     rowsGz: gzipSync(rowsRaw, { level: 9 }),
+    shardsRaw,
+    shardsGz: shardsRaw.map((raw) => gzipSync(raw, { level: 9 })),
   };
 }
 
@@ -135,6 +159,29 @@ async function main() {
   const decoded = decodeSearchIndex(decodeContainer(first.indexRaw, SECTION_INDEX));
   if (decoded.rowCount !== rows.length) {
     fail(`index rowCount ${decoded.rowCount} != dataset ${rows.length}`);
+  }
+
+  // The sharded projection must be the full projection, in pieces: same rows,
+  // same order, same link keys. A shard that resolved slug ambiguity locally
+  // would send a card to the wrong entry, which no size budget would catch.
+  const fullDisplay = decodeDisplayRows(decodeContainer(first.rowsRaw, SECTION_ROWS));
+  const shardCount = first.shardsRaw.length;
+  if (shardCount !== Math.ceil(rows.length / SEARCH_SHARD_ROWS)) {
+    fail(`expected ${Math.ceil(rows.length / SEARCH_SHARD_ROWS)} shards, built ${shardCount}`);
+  }
+  for (let shard = 0; shard < shardCount; shard += 1) {
+    const [start, end] = searchShardRange(rows.length, shard);
+    const decodedShard = decodeDisplayRows(decodeContainer(first.shardsRaw[shard], SECTION_ROWS));
+    if (decodedShard.rowCount !== end - start) {
+      fail(`shard ${shard} holds ${decodedShard.rowCount} rows, expected ${end - start}`);
+    }
+    for (let local = 0; local < decodedShard.rowCount; local += 1) {
+      const fromShard = JSON.stringify(decodedShard.rowAt(local));
+      const fromFull = JSON.stringify(fullDisplay.rowAt(start + local));
+      if (fromShard !== fromFull) {
+        fail(`shard ${shard} row ${local} (global ${start + local}) differs from the full projection`);
+      }
+    }
   }
 
   const disagreements = [];
@@ -191,21 +238,32 @@ async function main() {
   const sameRows = Buffer.from(first.rowsRaw).equals(Buffer.from(second.rowsRaw));
   const sameIndexGz = first.indexGz.equals(second.indexGz);
   const sameRowsGz = first.rowsGz.equals(second.rowsGz);
-  if (!sameIndex || !sameRows || !sameIndexGz || !sameRowsGz) {
+  const sameShards =
+    first.shardsRaw.length === second.shardsRaw.length &&
+    first.shardsRaw.every((raw, i) => Buffer.from(raw).equals(Buffer.from(second.shardsRaw[i])));
+  const sameShardsGz =
+    first.shardsGz.length === second.shardsGz.length &&
+    first.shardsGz.every((gz, i) => gz.equals(second.shardsGz[i]));
+  if (!sameIndex || !sameRows || !sameIndexGz || !sameRowsGz || !sameShards || !sameShardsGz) {
     fail(
       `a second build differs (index raw ${sameIndex ? "ok" : "DIFFERS"}, ` +
         `rows raw ${sameRows ? "ok" : "DIFFERS"}, index gz ${sameIndexGz ? "ok" : "DIFFERS"}, ` +
-        `rows gz ${sameRowsGz ? "ok" : "DIFFERS"})`
+        `rows gz ${sameRowsGz ? "ok" : "DIFFERS"}, shards raw ${sameShards ? "ok" : "DIFFERS"}, ` +
+        `shards gz ${sameShardsGz ? "ok" : "DIFFERS"})`
     );
   }
 
   // -- 3. Budgets -----------------------------------------------------------
+  const shardGzTotal = first.shardsGz.reduce((sum, gz) => sum + gz.length, 0);
+  const shardGzMax = first.shardsGz.reduce((max, gz) => Math.max(max, gz.length), 0);
   const overBudget = [];
   const budgets = [
     ["index raw", first.indexRaw.length, INDEX_RAW_BUDGET],
     ["index gzip", first.indexGz.length, INDEX_GZ_BUDGET],
     ["rows raw", first.rowsRaw.length, ROWS_RAW_BUDGET],
     ["rows gzip", first.rowsGz.length, ROWS_GZ_BUDGET],
+    ["shards gzip total", shardGzTotal, SHARD_GZ_BUDGET],
+    ["largest shard gzip", shardGzMax, SHARD_MAX_BUDGET],
   ];
   for (const [name, actual, budget] of budgets) {
     if (actual > budget) overBudget.push(`${name} is ${fmt(actual)}, budget ${fmt(budget)}`);
@@ -214,6 +272,38 @@ async function main() {
     console.error(`FAIL search index — ${overBudget.length} size budget(s) exceeded:`);
     for (const line of overBudget) console.error(`  - ${line}`);
     process.exit(1);
+  }
+
+  // -- 3b. First-window wire cost -------------------------------------------
+  // What a first search fetches on top of the index: the shards holding the
+  // first `SEARCH_RESULT_WINDOW` matches. This is the number the reader feels
+  // on a slow connection, so it is budgeted directly, over the corpus.
+  const shardGzSizes = first.shardsGz.map((gz) => gz.length);
+  let worstWindow = { query: "", bytes: 0, shards: 0 };
+  for (const query of QUERIES) {
+    if (query === "") continue;
+    const indices = querySearchIndex(decoded, query);
+    if (indices.length === 0) continue;
+    const shards = new Set();
+    for (const index of indices.slice(0, SEARCH_RESULT_WINDOW)) {
+      shards.add(Math.floor(index / SEARCH_SHARD_ROWS));
+    }
+    const bytes = [...shards].reduce((sum, shard) => sum + shardGzSizes[shard], 0);
+    if (bytes > worstWindow.bytes) {
+      worstWindow = { query, bytes, shards: shards.size };
+    }
+  }
+  if (worstWindow.bytes > WINDOW_GZ_BUDGET) {
+    fail(
+      `the first window costs ${fmt(worstWindow.bytes)} for ${JSON.stringify(worstWindow.query)}, ` +
+        `budget ${fmt(WINDOW_GZ_BUDGET)} — the search path is paying for rows it does not render`
+    );
+  }
+  if (worstWindow.shards > WINDOW_SHARD_BUDGET) {
+    fail(
+      `the first window spans ${worstWindow.shards} shards for ${JSON.stringify(worstWindow.query)}, ` +
+        `budget ${WINDOW_SHARD_BUDGET}`
+    );
   }
 
   // -- 4. Served bytes match a fresh build ----------------------------------
@@ -229,6 +319,23 @@ async function main() {
     if (!existsSync(file)) continue;
     if (!readFileSync(file).equals(expected)) stale.push(name);
   }
+  const shardDir = path.join(
+    webRoot,
+    "public",
+    "data",
+    "search-shards",
+    `r${SEARCH_SHARD_ROWS}`
+  );
+  if (existsSync(shardDir)) {
+    for (let shard = 0; shard < first.shardsGz.length; shard += 1) {
+      const name = `search-shards/r${SEARCH_SHARD_ROWS}/${String(shard).padStart(4, "0")}.bin.gz`;
+      const file = path.join(webRoot, "public", "data", name);
+      if (!existsSync(file) || !readFileSync(file).equals(first.shardsGz[shard])) {
+        stale.push(name);
+        if (stale.length > 8) break;
+      }
+    }
+  }
   if (stale.length > 0) {
     console.error(`FAIL search index — served artifact(s) are stale: ${stale.join(", ")}`);
     console.error("Re-run the emitter (`npm run prebuild` or `npm run predev`) against the current dataset.");
@@ -239,7 +346,11 @@ async function main() {
     `OK search index — ${first.index.tokens.length.toLocaleString("en-US")} tokens, ` +
       `${first.index.postingsCount.toLocaleString("en-US")} postings; ` +
       `index ${fmt(first.indexRaw.length)} raw / ${fmt(first.indexGz.length)} gzip, ` +
-      `rows ${fmt(first.rowsRaw.length)} raw / ${fmt(first.rowsGz.length)} gzip; ` +
+      `rows ${fmt(first.rowsRaw.length)} raw / ${fmt(first.rowsGz.length)} gzip, ` +
+      `${first.shardsGz.length.toLocaleString("en-US")} shards ${fmt(shardGzTotal)} gzip ` +
+      `(largest ${(shardGzMax / 1024).toFixed(1)} KiB); ` +
+      `first window (${SEARCH_RESULT_WINDOW} rows) worst ${fmt(worstWindow.bytes)} in ` +
+      `${worstWindow.shards} shard(s) for ${JSON.stringify(worstWindow.query)}; ` +
       `${QUERIES.length} queries agree with matchesQuery over all ` +
       `${rows.length.toLocaleString("en-US")} rows; a second build is byte-identical`
   );

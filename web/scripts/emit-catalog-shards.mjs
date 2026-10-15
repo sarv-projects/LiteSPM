@@ -42,10 +42,12 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import {
   buildDisplayRows,
+  buildDisplayShards,
   buildSearchIndex,
   encodeContainer,
   encodeDisplayRows,
   encodeSearchIndex,
+  SEARCH_SHARD_ROWS,
   SECTION_INDEX,
   SECTION_ROWS,
 } from "../lib/searchFormat.mjs";
@@ -273,6 +275,32 @@ const searchRowsRaw = encodeContainer([
 const searchRowsGz = gzipSync(searchRowsRaw, { level: 9 });
 writeFileSync(path.join(outDir, SEARCH_ROWS_FILE), searchRowsGz);
 
+// The same projection, sharded by row-id range, so a search fetches only the
+// shards holding the results it is about to render instead of all 4.98 MiB of
+// it. The full projection above stays the facet path's artifact: a count over
+// every row genuinely needs every row, and Explore's filters derive those.
+//
+// The shard directory names the shard size (`r68`), so a layout change writes
+// a new path rather than letting a cached file answer with rows from the old
+// one. Each shard is a complete container with its own dictionaries — one
+// fetch is one complete answer, no shared table to load first.
+const SEARCH_SHARD_DIR = path.join(outDir, "search-shards", `r${SEARCH_SHARD_ROWS}`);
+rmSync(path.join(outDir, "search-shards"), { recursive: true, force: true });
+mkdirSync(SEARCH_SHARD_DIR, { recursive: true });
+
+const shardRaws = buildDisplayShards(rows);
+let shardGzBytes = 0;
+let shardGzMax = 0;
+shardRaws.forEach((raw, index) => {
+  const gz = gzipSync(raw, { level: 9 });
+  writeFileSync(
+    path.join(SEARCH_SHARD_DIR, `${String(index).padStart(4, "0")}.bin.gz`),
+    gz
+  );
+  shardGzBytes += gz.length;
+  shardGzMax = Math.max(shardGzMax, gz.length);
+});
+
 const MiB = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MiB`;
 console.log(
   `✔ search index: ${searchIndex.tokens.length.toLocaleString("en-US")} tokens, ` +
@@ -282,4 +310,9 @@ console.log(
 console.log(
   `✔ search rows: ${rows.length.toLocaleString("en-US")} rows, ` +
     `${MiB(searchRowsRaw.length)} raw / ${MiB(searchRowsGz.length)} gzip → ${SEARCH_ROWS_FILE}`,
+);
+console.log(
+  `✔ search shards: ${shardRaws.length.toLocaleString("en-US")} shard(s) of ${SEARCH_SHARD_ROWS} rows, ` +
+    `${MiB(shardGzBytes)} gzip total, largest ${(shardGzMax / 1024).toFixed(1)} KiB → ` +
+    `${path.relative(process.cwd(), SEARCH_SHARD_DIR)}`,
 );

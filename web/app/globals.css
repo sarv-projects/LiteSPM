@@ -78,6 +78,14 @@
   :root {
     color-scheme: light;
     --site-header-height: 48px;
+    /*
+     * Height of Explore's sticky results head (`.section-head.sticky`, pinned
+     * at `top: var(--stack-top)`), measured in a real browser at 1280×800.
+     * Only `scroll-padding-top` reads it; the head itself is owned by
+     * `components/catalog/ExtensionGrid.tsx` and sized by its contents. The
+     * mobile block below carries its own measurement.
+     */
+    --sticky-head-height: 45px;
 
     --paper: #e8ecf4;
     --surface: #fafbfe;
@@ -120,6 +128,15 @@
     --pop: #9a5b08;
     --pop-wash: #fdf1e0;
 
+    /*
+     * Dark-surface tokens. These are only legible on the dark planes they were
+     * chosen for — `.panel-dark`, `.on-dark`, `.cmd` (and the accent chip's
+     * count) — and CSS cannot stop a utility from using them anywhere else.
+     * --dark-ink-2 on --paper measures 1.62:1, which is how the hero's install
+     * caveat shipped invisible in light mode (fixed 2026-10-15). If you are
+     * reaching for a `dark-*` token outside one of those subtrees, you want
+     * the ink scale instead.
+     */
     --dark: #1b2436;
     --dark-2: #243049;
     --dark-rule: #34415c;
@@ -152,6 +169,9 @@
   @media (max-width: 767px) {
     :root {
       --site-header-height: 92px;
+      /* Measured at 375×667: the results head wraps to two rows and its
+         `.field` control takes the touch 44px floor. */
+      --sticky-head-height: 93px;
     }
   }
 
@@ -260,6 +280,26 @@
     scrollbar-gutter: stable;
   }
 
+  /*
+   * Focus Not Obscured (WCAG 2.2 2.4.11). The header is sticky and opaque, and
+   * on Explore the results head (`.section-head.sticky`) pins beneath it, so a
+   * control scrolled to the viewport top — which is where the browser puts a
+   * focused element that was above the fold — is painted under both. The
+   * scroll-into-view algorithm honours `scroll-padding-top`, so the focused
+   * box lands at the padding edge instead: below the header, below the pinned
+   * head on the routes that render one.
+   *
+   * The 4px is the focus ring's own geometry: `outline: 2px` at
+   * `outline-offset: 2px` extends 4px past the box, and the ring has to clear
+   * the sticky edge too, not just the box.
+   */
+  html {
+    scroll-padding-top: calc(var(--site-header-height) + 4px);
+  }
+  html:has(.section-head.sticky) {
+    scroll-padding-top: calc(var(--site-header-height) + var(--sticky-head-height) + 4px);
+  }
+
   body {
     background-color: var(--paper);
     color: var(--ink);
@@ -349,6 +389,22 @@
   ::-webkit-scrollbar-thumb:hover {
     background: var(--ink-3);
   }
+}
+
+/*
+ * Unlayered on purpose: `scroll-mt-16` is a Tailwind utility (utilities layer)
+ * and a layered rule could never override it.
+ *
+ * The in-page targets (`#install`, `#pkg-*`) carry that class from when a 64px
+ * margin was the only offset. Scroll margins are *added* to scroll padding, so
+ * with `scroll-padding-top` above they would land 64px past the header — and
+ * ~156px down on a phone, where the header alone is 92px. The margin is the
+ * duplicate now; the padding is sized from the real header, so the targets
+ * land flush under it. Drop this override and the class together if the
+ * targets ever stop carrying it.
+ */
+.scroll-mt-16 {
+  scroll-margin-top: 0;
 }
 
 @layer components {

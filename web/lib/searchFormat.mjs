@@ -534,6 +534,51 @@ export function querySearchIndex(index, query) {
  *  ~13.5 MiB — the single dominant cost, and the cap is what keeps it there. */
 export const SUMMARY_CAP = 200;
 
+/**
+ * Rows per search shard.
+ *
+ * The display projection is also emitted as a sharded set, one self-contained
+ * ROWS container per `SEARCH_SHARD_ROWS` rows, so a search can fetch only the
+ * shards that hold the results it is about to render instead of the whole
+ * 4.98 MiB gzipped projection. Measured over a 25-query corpus on the real
+ * dataset (69,376 rows): 68 rows per shard puts the first 48 results at
+ * 120 KiB / 22 requests for `postgres` and at most 223 KiB / 41 requests for
+ * any query in the corpus — against 4.98 MiB for the whole projection.
+ *
+ * This constant is the layout: the emitter writes shard files under a path
+ * that names it, and the browser derives shard indices from it, so the two
+ * cannot disagree. The value is a wire-cost trade-off, not a byte-layout
+ * change: smaller shards cut bytes per fetch and add per-shard dictionary
+ * overhead and requests.
+ */
+export const SEARCH_SHARD_ROWS = 68;
+
+/**
+ * How many matched rows a windowed search hydrates up front.
+ *
+ * The landing page renders 24 result cards and pages them 24 at a time, so a
+ * 48-row window covers the first two pages with one shard fetch; `requestMore`
+ * grows it. The gate pins the wire cost of this window over its query corpus.
+ */
+export const SEARCH_RESULT_WINDOW = 48;
+
+/** How many shards cover `rowCount` rows. */
+export function searchShardCount(rowCount) {
+  return Math.ceil(rowCount / SEARCH_SHARD_ROWS);
+}
+
+/**
+ * The global row range `[start, end)` of one shard.
+ *
+ * @param {number} rowCount
+ * @param {number} shardIndex
+ * @returns {[number, number]}
+ */
+export function searchShardRange(rowCount, shardIndex) {
+  const start = shardIndex * SEARCH_SHARD_ROWS;
+  return [start, Math.min(rowCount, start + SEARCH_SHARD_ROWS)];
+}
+
 /** Dictionary slot order inside the ROWS section. */
 const DICT_CATEGORIES = 0;
 const DICT_PUBLISHERS = 1;
@@ -585,10 +630,17 @@ function idSuffixOf(id) {
  * and `hostsFor` actually read, plus the fields `matchesQuery` reads so the
  * hydrated row is a faithful `Listing` for the matcher.
  *
+ * `options.linkKeyIsId` exists for the sharded emission: a shard only sees its
+ * own slice, but slug ambiguity is a fact about the *whole* dataset, so the
+ * shard builder resolves it once globally and hands the answer in. Omitting it
+ * resolves the link key from `rows` itself, which is what the full projection
+ * wants.
+ *
  * @param {any[]} rows
+ * @param {{ linkKeyIsId?: (row: any, index: number) => boolean }} [options]
  * @returns {{ rowCount: number, dicts: string[][], records: (string | number)[][] }}
  */
-export function buildDisplayRows(rows) {
+export function buildDisplayRows(rows, options = {}) {
   /** @type {Map<string, number>[]} */
   const dictIndex = Array.from({ length: DICT_COUNT }, () => new Map());
   /** @type {string[][]} */
@@ -611,13 +663,19 @@ export function buildDisplayRows(rows) {
 
   // Ambiguous slugs fall back to the id for the link key, exactly as
   // `withLinkKeys` does at runtime — resolved once here, over the whole set,
-  // where the counts are actually global.
-  /** @type {Map<string, number>} */
-  const slugCounts = new Map();
-  for (const row of rows) slugCounts.set(row.slug, (slugCounts.get(row.slug) ?? 0) + 1);
+  // where the counts are actually global. A shard builder passes the global
+  // answer in because its own slice cannot see it.
+  const linkKeyIsId = options.linkKeyIsId;
+  /** @type {Map<string, number> | null} */
+  let slugCounts = null;
+  if (!linkKeyIsId) {
+    slugCounts = new Map();
+    for (const row of rows) slugCounts.set(row.slug, (slugCounts.get(row.slug) ?? 0) + 1);
+  }
 
   const records = [];
-  for (const row of rows) {
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
     const id = String(row.id ?? "");
     const slug = String(row.slug ?? "");
     records.push([
@@ -629,7 +687,13 @@ export function buildDisplayRows(rows) {
       intern(DICT_CATEGORIES, String(row.category ?? "")),
       intern(DICT_PUBLISHERS, String(row.publisher?.name ?? "")),
       row.publisher?.verified ? 1 : 0,
-      slugCounts.get(row.slug) === 1 ? 0 : 1,
+      linkKeyIsId
+        ? linkKeyIsId(row, i)
+          ? 1
+          : 0
+        : slugCounts.get(row.slug) === 1
+          ? 0
+          : 1,
       intern(DICT_KINDS, String(row.kind ?? "")),
       intern(DICT_PROVENANCE, row.publisher?.provenance == null ? "" : String(row.publisher.provenance)),
       intern(DICT_RUNTIMES, row.runtime == null ? "" : String(row.runtime)),
@@ -640,6 +704,40 @@ export function buildDisplayRows(rows) {
     ]);
   }
   return { rowCount: rows.length, dicts, records };
+}
+
+/**
+ * Build the sharded display projection: one self-contained ROWS container per
+ * `SEARCH_SHARD_ROWS` rows, in row order.
+ *
+ * Each shard carries its own dictionaries, so a shard fetch is a complete
+ * answer — no shared dictionary block to fetch first, no cross-file state to
+ * keep coherent. The duplicated publisher names cost a few KiB per shard and
+ * only on the shards actually fetched; the alternative (a global dictionary)
+ * would make every window pay for a 30,269-entry table it mostly does not
+ * need.
+ *
+ * Deterministic by construction: shard boundaries are a pure function of the
+ * row count, and the link-key decision is resolved over the whole set first.
+ *
+ * @param {any[]} rows
+ * @returns {Uint8Array[]} one encoded container per shard, in order
+ */
+export function buildDisplayShards(rows) {
+  const slugCounts = new Map();
+  for (const row of rows) slugCounts.set(row.slug, (slugCounts.get(row.slug) ?? 0) + 1);
+  const shardCount = searchShardCount(rows.length);
+  const shards = [];
+  for (let shard = 0; shard < shardCount; shard += 1) {
+    const [start, end] = searchShardRange(rows.length, shard);
+    const display = buildDisplayRows(rows.slice(start, end), {
+      linkKeyIsId: (row) => slugCounts.get(row.slug) !== 1,
+    });
+    shards.push(
+      encodeContainer([{ kind: SECTION_ROWS, payload: encodeDisplayRows(display) }])
+    );
+  }
+  return shards;
 }
 
 /**

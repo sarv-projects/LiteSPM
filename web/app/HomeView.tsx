@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useDeferredValue, useMemo, useState, useEffect } from "react";
+import React, { useDeferredValue, useState, useEffect } from "react";
 import { Header } from "../components/navigation/Header";
 import { SiteFooter } from "../components/layout/SiteFooter";
 import { LandingHero } from "../components/home/LandingHero";
@@ -14,10 +14,8 @@ import { FaqSection } from "../components/home/FaqSection";
 import { DeveloperZone } from "../components/home/DeveloperZone";
 import { SearchResults } from "../components/home/SearchResults";
 import { Listing, useTelemetry } from "../lib/telemetry";
-import { useCatalog } from "../lib/catalogData";
 import { useCatalogSearch } from "../lib/useCatalogSearch";
-import { deriveKindCounts, hostUniverse } from "../lib/catalog";
-import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice, rowWorksWithAgent } from "../lib/landing";
+import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice } from "../lib/landing";
 import type { ProvenanceStats, TopicStat } from "../lib/landing";
 
 /**
@@ -46,11 +44,17 @@ export interface HomeViewProps {
   start: Listing[];
   officialCount: number;
   vendorCount: number;
+  /**
+   * Catalog-wide counts per agent choice, counted at build time from the same
+   * rows the client used to count them from. The landing page no longer loads
+   * the full row set, so these must arrive as props or the strip loses its
+   * numbers.
+   */
+  agentCounts: Array<{ id: string; count: number }>;
 }
 
 
 export default function Home(props: HomeViewProps) {
-  const { status, items: full, request } = useCatalog();
   const [searchQuery, setSearchQuery] = useState("");
   const deferredQuery = useDeferredValue(searchQuery);
 
@@ -73,47 +77,31 @@ export default function Home(props: HomeViewProps) {
     }
   };
 
-  const live = useMemo(() => {
-    if (!full) return null;
-    return {
-      total: full.length,
-      kindCounts: deriveKindCounts(full),
-      hostCount: hostUniverse(full).length,
-    };
-  }, [full]);
-
-  const total = live ? live.total : props.total;
-  const kindCounts = live ? live.kindCounts : props.kindCounts;
-  const hostCount = live ? live.hostCount : props.hostCount;
+  const total = props.total;
+  const kindCounts = props.kindCounts;
+  const hostCount = props.hostCount;
   const telemetry = useTelemetry(kindCounts);
 
   const setQuery = (q: string) => {
-    // The one fetch on this route: a reader asking for rows.
-    if (q.trim() !== "") request();
+    // The search hydrates from the sharded projection; the full row set stays
+    // unloaded on this route. The counts above are the prerendered ones.
     setSearchQuery(q);
   };
 
-  const { results, searching, settled } = useCatalogSearch(full ?? [], deferredQuery, {
-    kind: null,
-    category: null,
-  });
+  const { results, totalMatches, requestMore, error, retry, searching, settled } = useCatalogSearch(
+    [],
+    deferredQuery,
+    { kind: null, category: null },
+    { windowed: true }
+  );
 
   const agent = findAgentChoice(agentId);
 
-  // Counts are only honest over rows that are actually loaded. Until the
-  // snapshot lands the strip speaks qualitatively rather than printing a
-  // number derived from twelve curated cards.
-  const agentCounts = useMemo(() => {
-    if (!full) return null;
-    return AGENT_CHOICES.map((choice) => ({
-      id: choice.id,
-      count: full.filter((item) => rowWorksWithAgent(item, choice)).length,
-    }));
-  }, [full]);
+  // Counts come from the prerender now (props.agentCounts): the row set is no
+  // longer loaded on this route, and a count must not need it to be.
+  const agentCounts = props.agentCounts;
 
   const hasQuery = searchQuery.trim() !== "";
-  const awaiting = status === "loading";
-  const error = status === "error";
 
   return (
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
@@ -127,20 +115,21 @@ export default function Home(props: HomeViewProps) {
           telemetry={telemetry}
           query={searchQuery}
           setQuery={setQuery}
-          totalMatches={deferredQuery && full ? results.length : undefined}
+          totalMatches={deferredQuery ? totalMatches : undefined}
           settled={settled}
         />
 
         {hasQuery ? (
           <SearchResults
-            items={full ? results : []}
+            items={results}
             query={searchQuery}
-            count={full ? results.length : undefined}
+            count={totalMatches}
             loading={searching}
             settled={settled}
-            awaiting={awaiting}
+            awaiting={searching && results.length === 0}
             error={error}
-            onRetry={request}
+            onRetry={retry}
+            onShowMore={requestMore}
             onClear={() => setSearchQuery("")}
             agent={agent}
             total={total}

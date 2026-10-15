@@ -201,8 +201,14 @@ export function LandingHero({
               catalog, say so directly beneath it rather than letting someone
               paste a command that will install a binary which cannot sync.
               Delete this (and NPM_INSTALL_CAVEAT's counterpart in
-              DeveloperZone) when v0.4.1 ships — see STATUS.md §2. */}
-          <p className="mt-2 max-w-[60ch] text-[13px] leading-relaxed text-dark-ink-2">
+              DeveloperZone) when v0.4.1 ships — see STATUS.md §2.
+
+              `text-ink-2`, not a `--dark-*` token. This paragraph sits on the
+              light hero, and --dark-ink-2 on --paper measured 1.62:1 — the
+              dark tokens are only legible on the dark surfaces they were
+              chosen for (`.panel-dark` / `.on-dark` / `.cmd`). text-ink-2 on
+              --paper measures 7.68:1. */}
+          <p className="mt-2 max-w-[60ch] text-[13px] leading-relaxed text-ink-2">
             {NPM_INSTALL_CAVEAT}
           </p>
 

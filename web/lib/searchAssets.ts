@@ -1,14 +1,19 @@
-// Transport and decode for the two search artifacts emitted at build time.
+// Transport and decode for the search artifacts emitted at build time.
 //
 //   /data/catalog-search-index.bin.gz — vocabulary + delta-varint postings
 //   /data/catalog-search-rows.bin.gz  — the display projection for every row
+//   /data/search-shards/r68/NNNN.bin.gz — the same projection in 68-row pieces
 //
-// Both are gzipped binary containers (see `lib/searchFormat.mjs` for the byte
+// All are gzipped binary containers (see `lib/searchFormat.mjs` for the byte
 // layout). Compression is applied here, at build time, rather than left to the
 // CDN: the existing catalog shards rely on Cloudflare's brotli, but a
 // binary `application/octet-stream` asset is on Cloudflare's list of types it
 // does *not* compress, so a `.bin` served raw would be larger on the wire than
 // the bytes it replaces. Gzip keeps the transport independent of the CDN.
+//
+// The full projection is the facet path's transport (a count over every row
+// needs every row); the sharded one is the search path's, so a first search
+// fetches only the shards holding the results it is about to render.
 //
 // The gzip is sniffed, not assumed: if an edge or a future `_headers` rule
 // serves the asset with `Content-Encoding: gzip`, the browser has already
@@ -20,11 +25,13 @@ import {
   decodeContainer,
   decodeDisplayRows,
   decodeSearchIndex,
+  SEARCH_SHARD_ROWS,
   SECTION_INDEX,
   SECTION_ROWS,
 } from "./searchFormat.mjs";
 
 export type DecodedSearchIndex = ReturnType<typeof decodeSearchIndex>;
+export type DecodedDisplayShard = ReturnType<typeof decodeDisplayRows>;
 
 export interface LoadedSearchIndex {
   rowCount: number;
@@ -77,6 +84,71 @@ export async function fetchDisplayRows(url: string): Promise<Listing[]> {
   const rows: Listing[] = new Array(display.rowCount);
   for (let i = 0; i < display.rowCount; i += 1) {
     rows[i] = display.rowAt(i) as Listing;
+  }
+  return rows;
+}
+
+/**
+ * Fetch and decode one shard of the display projection.
+ *
+ * A shard is a complete ROWS container for a contiguous `SEARCH_SHARD_ROWS`
+ * run of rows, so it decodes exactly like the full projection and its `rowAt`
+ * takes a shard-local index. Cached per URL for the session: paging a search
+ * back and forth, or re-running a query, must not re-fetch a shard the page
+ * already holds. A failed fetch is dropped from the cache so a retry can
+ * actually retry.
+ */
+const shardCache = new Map<string, Promise<DecodedDisplayShard>>();
+
+export function fetchDisplayShard(url: string): Promise<DecodedDisplayShard> {
+  const hit = shardCache.get(url);
+  if (hit) return hit;
+  const pending = fetchAsset(url).then((bytes) => {
+    const payload = decodeContainer(bytes, SECTION_ROWS);
+    return decodeDisplayRows(payload);
+  });
+  shardCache.set(url, pending);
+  pending.catch(() => shardCache.delete(url));
+  return pending;
+}
+
+/**
+ * Hydrate global row indices from the sharded projection.
+ *
+ * Every shard that holds at least one requested row is fetched once, in
+ * parallel; rows come back in the order the indices were given, so the caller
+ * keeps the index's ranking. `shardUrl` is injected rather than imported so
+ * this module stays free of the dataset's cache-busting policy (which lives in
+ * `catalogData.ts`).
+ *
+ * @param indices global row indices, most relevant first
+ * @param rowCount total rows the indices address, for bounds
+ * @param shardUrl builds the URL of one shard
+ */
+export async function hydrateDisplayRows(
+  indices: readonly number[],
+  rowCount: number,
+  shardUrl: (shardIndex: number) => string,
+): Promise<Listing[]> {
+  const shardIndices = new Set<number>();
+  for (const index of indices) {
+    if (index >= 0 && index < rowCount) shardIndices.add(Math.floor(index / SEARCH_SHARD_ROWS));
+  }
+  const shards = new Map<number, DecodedDisplayShard>();
+  await Promise.all(
+    [...shardIndices].map(async (shard) => {
+      shards.set(shard, await fetchDisplayShard(shardUrl(shard)));
+    }),
+  );
+  const rows: Listing[] = [];
+  for (const index of indices) {
+    if (index < 0 || index >= rowCount) continue;
+    const shard = Math.floor(index / SEARCH_SHARD_ROWS);
+    const decoded = shards.get(shard);
+    if (!decoded) continue;
+    const local = index - shard * SEARCH_SHARD_ROWS;
+    if (local < 0 || local >= decoded.rowCount) continue;
+    rows.push(decoded.rowAt(local) as Listing);
   }
   return rows;
 }

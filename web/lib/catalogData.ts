@@ -32,6 +32,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Listing } from "./telemetry";
 import { withLinkKeys } from "./catalog";
 import { fetchDisplayRows } from "./searchAssets";
+import { SEARCH_SHARD_ROWS } from "./searchFormat.mjs";
 import bundledRelease from "../data/release.json";
 
 /**
@@ -50,6 +51,13 @@ export const SEARCH_ROWS_PATH = "/data/catalog-search-rows.bin.gz";
 export const SEARCH_INDEX_PATH = "/data/catalog-search-index.bin.gz";
 
 /**
+ * Sharded display projection: one self-contained container per
+ * `SEARCH_SHARD_ROWS` rows, under a path that names the shard size so a layout
+ * change can never be answered by a cached file from the previous layout.
+ */
+export const SEARCH_SHARDS_DIR = "/data/search-shards";
+
+/**
  * Cache-buster bound to the dataset itself, not to the deploy: `datasetDigest`
  * is the sha256 the release pointer publishes over these rows, so a digest
  * change means the bytes changed. It keeps a CDN that cached the previous
@@ -66,6 +74,11 @@ const DATASET_VERSION = (() => {
 export const CATALOG_URL = `${CATALOG_PATH}${DATASET_VERSION}`;
 export const SEARCH_ROWS_URL = `${SEARCH_ROWS_PATH}${DATASET_VERSION}`;
 export const SEARCH_INDEX_URL = `${SEARCH_INDEX_PATH}${DATASET_VERSION}`;
+
+/** URL of one shard of the sharded display projection. */
+export function searchShardUrl(shardIndex: number): string {
+  return `${SEARCH_SHARDS_DIR}/r${SEARCH_SHARD_ROWS}/${String(shardIndex).padStart(4, "0")}.bin.gz${DATASET_VERSION}`;
+}
 
 /** Directory of the index; shards are its siblings (`/data/catalog-0000.json`). */
 const CATALOG_DATA_DIR = CATALOG_PATH.slice(0, CATALOG_PATH.lastIndexOf("/"));

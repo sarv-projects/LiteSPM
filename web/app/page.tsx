@@ -2,10 +2,12 @@ import catalogData from "../data/catalog.json";
 import type { Listing } from "../lib/telemetry";
 import { deriveKindCounts, hostUniverse, withLinkKeys } from "../lib/catalog";
 import {
+  AGENT_CHOICES,
   deriveProvenance,
   deriveStart,
   deriveTopics,
   OFFICIAL_SKILLS_CATEGORY,
+  rowWorksWithAgent,
 } from "../lib/landing";
 import { HOSTS } from "../lib/hosts";
 import type { HomeViewProps } from "./HomeView";
@@ -44,6 +46,12 @@ export default function Home() {
     start: deriveStart(items),
     officialCount: items.filter((i) => i.category === OFFICIAL_SKILLS_CATEGORY).length,
     vendorCount: items.filter((i) => i.publisher?.verified === true).length,
+    // Counted here, over the same rows the strip's numbers used to come from,
+    // so the landing page can print them without loading the row set.
+    agentCounts: AGENT_CHOICES.map((choice) => ({
+      id: choice.id,
+      count: items.filter((item) => rowWorksWithAgent(item, choice)).length,
+    })),
   };
 
   return <HomeRoute {...props} />;

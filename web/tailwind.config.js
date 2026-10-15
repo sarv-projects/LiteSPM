@@ -25,11 +25,20 @@ const tokens = {
   "accent-hover": "var(--accent-hover)",
   pop: "var(--pop)",
   "pop-wash": "var(--pop-wash)",
+  // Dark-surface only: these are legible on --dark/--dark-2 planes (`.panel-dark`,
+  // `.on-dark`, `.cmd`), not on --paper/--surface. --dark-ink-2 on --paper is
+  // 1.62:1; use the ink scale off those planes. See globals.css.
   dark: "var(--dark)",
   "dark-2": "var(--dark-2)",
   "dark-rule": "var(--dark-rule)",
   "dark-ink": "var(--dark-ink)",
   "dark-ink-2": "var(--dark-ink-2)",
+  // The install panel's step numerals and its "you chose…" tick were written
+  // against `text-dark-signal` from the start, but the token was never mapped
+  // here, so the utility compiled to nothing and those four elements silently
+  // inherited --dark-ink — the panel lost its only hierarchy cue and looked
+  // flat. Mapped 2026-10-15. On the dark planes only, like the tokens above.
+  "dark-signal": "var(--dark-signal)",
 };
 module.exports = {
   content: [

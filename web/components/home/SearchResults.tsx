@@ -33,6 +33,10 @@ export interface SearchResultsProps {
   awaiting: boolean;
   error: boolean;
   onRetry: () => void;
+  /** Hydrate more results. Windowed search: `items` holds only what has been
+   *  fetched, and the count comes from `count`, so paging past the hydrated
+   *  rows has to ask for more. */
+  onShowMore?: () => void;
   onClear: () => void;
   agent: AgentChoice | null;
   total: number;
@@ -47,6 +51,7 @@ export function SearchResults({
   awaiting,
   error,
   onRetry,
+  onShowMore,
   onClear,
   agent,
   total,
@@ -61,7 +66,10 @@ export function SearchResults({
   // page immediately, without waiting for an effect to reset component state.
   const visibleLimit = page.query === query ? page.limit : RESULTS_PAGE_SIZE;
   const visibleItems = items.slice(0, visibleLimit);
-  const remaining = Math.max(0, items.length - visibleItems.length);
+  // The count is the whole measured match set, not the hydrated window: a
+  // windowed search holds only the rows it has fetched, so `items.length`
+  // would end pagination early and understate the result count.
+  const remaining = Math.max(0, reported - visibleItems.length);
 
   return (
     <section className="shell band" aria-labelledby="results-title">
@@ -183,13 +191,14 @@ export function SearchResults({
         <div className="mt-6 flex justify-center">
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
               setPage((current) => ({
                 query,
                 limit:
                   (current.query === query ? current.limit : RESULTS_PAGE_SIZE) + RESULTS_PAGE_SIZE,
-              }))
-            }
+              }));
+              onShowMore?.();
+            }}
             className="btn"
           >
             Show {formatCount(Math.min(RESULTS_PAGE_SIZE, remaining))} more
