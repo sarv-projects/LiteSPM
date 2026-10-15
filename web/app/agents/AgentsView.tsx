@@ -33,9 +33,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          An entry&rsquo;s compatibility list is what its publisher declared. LiteSPM adds a bridge entry to
-          the hosts it has compiled-in adapters for; the remaining hosts are indexed because publishers list
-          them, not because LiteSPM can edit their configuration.
+          Compatibility follows from what an entry is: MCP servers install into any host with a
+          bridge adapter, skills into any host with a skills directory, and plugins only into the
+          hosts their publisher lists. LiteSPM can edit the config of hosts with a compiled-in
+          adapter; the others are indexed, not configured.
         </p>
 
         <div className="mt-7 border-b border-ink pb-2">
@@ -127,7 +128,8 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         </ul>
 
         <p className="mt-6 max-w-prose text-[12px] leading-relaxed text-ink-3">
-          Compatibility is publisher-declared. It is not a test result, and this site does not run these
+          Compatibility comes from LiteSPM&rsquo;s adapter registries, or from a publisher&rsquo;s
+          own list for plugins. It is not a test result, and this site does not run these
           capabilities.
         </p>
       </main>

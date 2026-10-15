@@ -9,7 +9,7 @@ import { isDiscontinued } from "../../lib/lifecycle";
 import { AgentLogo } from "../AgentLogo";
 
 /**
- * Agent Atlas teaser: five cards built strictly from the two generated
+ * Agent hosts teaser: five cards built strictly from the two generated
  * registries (`data/hosts.json`, `data/skill-targets.json`), which are emitted
  * from the same Go tables the binary writes with. Every chip is a fact one of
  * those tables states — config format, a compiled-in adapter, a skills
@@ -37,17 +37,17 @@ export function AtlasTeaser() {
     <section className="shell band" aria-labelledby="atlas-title">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="kicker">Agent atlas</p>
+          <p className="kicker">Agent hosts</p>
           <h2 id="atlas-title" className="band-title mt-2">
             Works with the agent you already use
           </h2>
           <p className="band-sub">
-            LiteSPM writes one bridge entry into a host&rsquo;s own config file. Which hosts it can
-            write, and where, is a fact in the adapter registry — here are five of them.
+            LiteSPM adds one bridge entry to each agent&rsquo;s own config file. Here are five of
+            the hosts it can set up, with the file each one uses.
           </p>
         </div>
         <Link href="/agents/" className="btn">
-          Explore all agents
+          Explore all agent hosts
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </div>
@@ -62,11 +62,22 @@ export function AtlasTeaser() {
           return (
             <li
               key={id}
-              className="flex flex-col rounded-card border border-rule bg-surface p-4 card-lift hover:border-ink-3 hover:shadow-card"
+              className="relative flex flex-col rounded-card border border-rule bg-surface p-4 card-lift hover:border-ink-3 hover:shadow-card focus-within:border-ink-3"
             >
               <div className="flex items-center gap-2">
                 <AgentLogo id={id} name={label} size={28} />
-                <h3 className="text-[15px] font-semibold tracking-tight text-ink">{label}</h3>
+                <h3 className="text-[15px] font-semibold tracking-tight text-ink">
+                  {/* Stretched anchor, the pattern `CapabilityCard` uses: the
+                      card is one target, so a click anywhere on the tile lands
+                      on the agent page rather than only the name. */}
+                  <Link
+                    href={`/agents/${id}/`}
+                    aria-label={`${label} — config file and bridge entry`}
+                    className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  >
+                    {label}
+                  </Link>
+                </h3>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-1.5">

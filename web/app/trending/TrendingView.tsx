@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { formatCount } from "../../lib/format";
+import { categoryLabel } from "../categories/categoryLabel";
 
 /** One board's worth of precomputed rows — see `app/trending/page.tsx`. */
 export interface TrendingBoards {
@@ -55,7 +56,9 @@ function CountBoard({
 }: {
   title: string;
   note?: string;
-  rows: Array<{ label: string; count: number; href?: string }>;
+  /** `display` overrides `label` for the printed row only; `label` stays the
+   *  raw value any `href` needs (category names are also filter values). */
+  rows: Array<{ label: string; count: number; href?: string; display?: string }>;
   href?: (label: string) => string;
   tone?: string;
 }) {
@@ -81,7 +84,7 @@ function CountBoard({
               </span>
               <span className="min-w-0">
                 <span className="t-cond block truncate text-[14px] font-medium text-ink">
-                  {row.label}
+                  {row.display ?? row.label}
                 </span>
                 <Bar value={row.count} max={max} tone={tone} />
               </span>
@@ -123,26 +126,26 @@ export default function CoveragePage({ total, boards }: TrendingViewProps) {
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          These boards describe the shape of the snapshot: how many entries each source, publisher,
-          category and agent host accounts for. They are counts, not rankings — LiteSPM publishes no
-          star, download or install figures, because the upstream sources do not expose any.
+          These boards describe the shape of the snapshot: how many entries fall under each
+          capability kind, agent host, category and publisher. Nothing here is ranked by popularity
+          — the upstream sources publish no star, download or install figures.
         </p>
 
         <div className="mt-7 grid gap-x-10 gap-y-9 lg:grid-cols-2">
           <CountBoard
             title="By capability kind"
-            note="Three kinds are in the v1 taxonomy."
+            note="Every entry is an MCP server, an agent skill or a plugin."
             rows={boards.kinds}
           />
           <CountBoard
-            title="Agent hosts by declared coverage"
-            note="How many entries list each host as compatible. Publisher-declared, not a test result."
+            title="Agent hosts by coverage"
+            note="How many entries are compatible with each host. MCP servers and skills come from LiteSPM's adapter registries; plugins from the publisher's own list — not a test result."
             rows={boards.hosts}
           />
           <CountBoard
             title="Categories by entry count"
-            note="Normalised from the category string each source publishes."
-            rows={boards.categories}
+            note="Using the category string each source publishes."
+            rows={boards.categories.map((c) => ({ ...c, display: categoryLabel(c.label) }))}
             href={(label) => `/explore/?category=${encodeURIComponent(label)}`}
           />
           <CountBoard

@@ -102,7 +102,7 @@ export function SearchResults({
                 of <span className="t-mono t-tabular text-ink">{formatCount(reported)}</span> results
                 · <span className="t-mono t-tabular">{formatCount(total)}</span> entries
                 {loading && " · updating results…"}
-                {error && " · the snapshot could not be loaded"}
+                {error && " · the catalog could not be loaded"}
               </>
             ) : settled ? (
               error ? (

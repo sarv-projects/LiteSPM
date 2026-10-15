@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ToastViewport } from "../components/ui/Toast";
-import { SITE_URL } from "../lib/site";
+import { DOCS_URL, SITE_URL } from "../lib/site";
 
 /**
  * IBM Plex: an engineered grotesque with squared terminals, which reads as
@@ -72,9 +72,12 @@ export const metadata: Metadata = {
     url: SITE_URL,
   },
   twitter: {
-    card: "summary",
+    // The card upgrades to the large image only because an image now exists;
+    // a `summary` card would letterbox the 1200×630 asset.
+    card: "summary_large_image",
     title: "LiteSPM Market",
     description: "A static capability index for coding agents.",
+    images: ["/og.png"],
   },
   robots: { index: true, follow: true },
   // app/icon.svg supplies the icon; a separate /favicon.ico request 404s.
@@ -131,6 +134,23 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-paper text-ink">
+        {/*
+         * The social image, rendered rather than declared. Next merges
+         * metadata per top-level key, so every page that names its own
+         * `openGraph` block (`/agents/[id]`, `/explore`, `/package`, …)
+         * replaces the layout's whole `openGraph` — including `images` — and
+         * a page-level declaration here would not reach them. React 19 hoists
+         * a rendered <meta> into <head> regardless, so this one tag is what
+         * makes the card universal. `twitter.images` above covers the other
+         * card, and no page overrides `twitter`.
+         */}
+        <meta property="og:image" content={`${SITE_URL}/og.png`} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta
+          property="og:image:alt"
+          content="LiteSPM Market — the lightweight skill & package manager for AI agents"
+        />
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         <script
           type="application/ld+json"
@@ -144,6 +164,36 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           Skip to content
         </a>
+        {/*
+         * Readers without JavaScript. Every route is fully prerendered, but
+         * Next's static export parks that HTML inside a hidden streaming shell
+         * (`<div hidden id="S:0">`) and a bootstrap script swaps it into place
+         * — so with scripting off the page is blank except for the skip link.
+         * The stylesheet below does that swap for them, scoped to `<noscript>`
+         * so it cannot apply (and cannot flash content mid-hydration) when
+         * scripting is on. The note then says what genuinely needs scripting:
+         * search, filters, sorting, the theme toggle, and resolving an
+         * individual `/package/?slug=…` entry. Nothing here claims the site
+         * does more than it does.
+         */}
+        <noscript>
+          {/*
+           * `@layer base` because Tailwind v4's preflight parks
+           * `[hidden]{display:none!important}` there, and a layered
+           * `!important` beats an unlayered one — the rule has to join the
+           * same layer to outrank it, where the extra specificity wins.
+           */}
+          <style>{`@layer base{div[id^="S:"][hidden]{display:block!important}}`}</style>
+          <div className="border-b border-rule bg-sunken px-4 py-2.5 text-center text-[12.5px] leading-relaxed text-ink-2">
+            JavaScript is off. The pages are pre-rendered, so everything below still displays;
+            search, filtering, sorting, the theme toggle and opening an individual catalog entry
+            need JavaScript. Install steps are in the{" "}
+            <a href={DOCS_URL} className="link">
+              README
+            </a>
+            .
+          </div>
+        </noscript>
         {children}
         <ToastViewport />
       </body>

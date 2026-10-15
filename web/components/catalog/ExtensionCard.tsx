@@ -7,6 +7,7 @@ import { kindLabel, listingHref } from "../../lib/catalog";
 import { PublisherTile, VerifiedMark } from "./PublisherMark";
 import { availabilityOf } from "../../lib/availability";
 import { hostsFor } from "../../lib/hosts";
+import { categoryLabel } from "../../app/categories/categoryLabel";
 
 export type ExtensionItem = Listing;
 
@@ -53,17 +54,17 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
               : "no hosts declared",
           title:
             hosts.length > 0
-              ? `This publisher declares compatibility with ${hosts.length} host${hosts.length === 1 ? "" : "s"}. Publisher-declared, not a test result.`
-              : "This publisher's manifest declares no compatible hosts.",
+              ? `The publisher declares compatibility with ${hosts.length} host${hosts.length === 1 ? "" : "s"}. Not a test result.`
+              : "The publisher's manifest declares no compatible hosts.",
         }
       : item.kind === "skill"
         ? {
             label: "any skills host",
-            title: `Installs into any of the ${hosts.length} agent hosts that register a skills directory — derived from the capability's kind, not a per-row test result.`,
+            title: `Every skill installs into any of the ${hosts.length} agent hosts with a skills directory. Not a per-row test result.`,
           }
         : {
             label: "any bridge host",
-            title: `Installs into any of the ${hosts.length} agent hosts with a compiled-in adapter — derived from the capability's kind, not a per-row test result.`,
+            title: `Every MCP server installs into any of the ${hosts.length} agent hosts with a compiled-in adapter. Not a per-row test result.`,
           };
   const detail = [
     kindLabel(item.kind),
@@ -73,7 +74,13 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
     // whether the page behind the link can install anything.
     avail.plain,
     item.summary,
-  ].join(". ");
+  ]
+    // Each part is its own sentence and may already end in a period; the join
+    // supplies one, so strip the part's own first — "locally.. Manage …" is
+    // what the accessible name used to read.
+    .filter((part): part is string => Boolean(part))
+    .map((part) => part.replace(/\.+$/, ""))
+    .join(". ");
 
   return (
     <Link
@@ -100,7 +107,7 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
           </span>
           {item.transport && <span className="meta-spec">{item.transport}</span>}
           {item.runtime && <span className="meta-spec">{item.runtime}</span>}
-          <span className="meta-category truncate">{item.category}</span>
+          <span className="meta-category truncate">{categoryLabel(item.category)}</span>
         </span>
       </span>
 

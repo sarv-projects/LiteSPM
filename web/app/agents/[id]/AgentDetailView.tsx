@@ -194,8 +194,7 @@ export default function AgentDetailView({
                 </a>
               </>
             )}
-            . Everything below is from LiteSPM&rsquo;s adapter registry: where this agent&rsquo;s
-            config lives, and what LiteSPM puts in it.
+            : where this agent&rsquo;s config lives, and what LiteSPM puts in it.
           </p>
         )}
 
@@ -214,7 +213,7 @@ export default function AgentDetailView({
 
         {summary && source && (
           <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
-            What this agent is and what it does was read from{" "}
+            The summary and capabilities above were read from{" "}
             <a
               href={source}
               target="_blank"
@@ -223,7 +222,8 @@ export default function AgentDetailView({
             >
               {websiteLabel(source)}
             </a>
-            . Everything below it is ours.
+            . Everything else on this page comes from LiteSPM&rsquo;s registries and the catalog
+            snapshot.
           </p>
         )}
 
@@ -246,7 +246,7 @@ export default function AgentDetailView({
               <dd>{format === "toml" ? "TOML" : "JSON"}</dd>
             </div>
             <div>
-              <dt>This project too</dt>
+              <dt>Project config</dt>
               <dd>
                 {projectPath ? (
                   <code className="t-mono text-[11.5px] break-all">{projectPath}</code>

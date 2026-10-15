@@ -1,0 +1,20 @@
+# LiteSPM Market
+#
+# Served as-is from web/public/. The origin named below is the deployed one
+# (the default in web/lib/site.ts); keep the two in step when a custom domain
+# replaces it.
+
+User-agent: *
+Allow: /
+
+# /package/ resolves an entry from ?slug= in the browser and answers every
+# unknown slug with HTTP 200, so it presents a crawler with an unbounded set of
+# identical pages and no prerendered content to index. The route's own title is
+# generic for the same reason. Individual agent pages are NOT disallowed.
+Disallow: /package/
+
+# Machine-readable release data and catalog shards, not pages.
+Disallow: /data/
+Disallow: /v1/
+
+Sitemap: https://litespm.sarveshbh-2022.workers.dev/sitemap.xml

@@ -18,6 +18,7 @@ import type { AgentChoice } from "../../lib/landing";
 import { AddSteps, scrollToSection } from "../../components/package/AddSteps";
 import { PackageTabs } from "../../components/package/PackageTabs";
 import type { PackageTabId } from "../../components/package/PackageTabs";
+import { categoryLabel } from "../categories/categoryLabel";
 
 /** Same key the home strip writes; one preference, one storage slot. */
 
@@ -74,14 +75,12 @@ function PackageIndexShell({
       <div className="max-w-prose">
         <p className="t-mono text-[11px] text-ink-3">Entry detail</p>
         <h1 className="t-cond mt-2 text-[24px] font-semibold tracking-tight text-ink">
-          Package pages resolve one entry at a time
+          Find a package
         </h1>
         <p className="mt-2.5 text-[13px] leading-relaxed text-ink-2">
-          A detail page is requested as <code className="t-mono">/package/?slug=&lt;key&gt;</code> against a
-          single catalog snapshot of {formatCount(total)} entries. Emitting one static file per entry
-          would mean {formatCount(total)} files, so instead the index ships as one page and the entry
-          resolves in the browser from the rows it fetches on demand. The key is the entry&rsquo;s slug,
-          or its catalog id where the slug is shared by more than one entry.
+          Open any entry for its full record: what it does, which agent hosts it works with, and how
+          to add it. Below is the start of this snapshot&rsquo;s {formatCount(total)} entries — search
+          the full set if what you want isn&rsquo;t here.
         </p>
 
         {/*
@@ -104,7 +103,7 @@ function PackageIndexShell({
         <div className="mt-6 min-h-[44px]">{note}</div>
 
         <div className="section-head mt-9">
-          <h2>Start of the catalog snapshot</h2>
+          <h2>Start of the catalog</h2>
           <Link href="/explore/" className="t-mono shrink-0 text-[12px] text-ink-2 hover:text-ink hover:underline">
             search all
           </Link>
@@ -126,7 +125,7 @@ function PackageIndexShell({
                     <span className="row-meta">
                       <span>{item.publisher?.name || "unspecified"}</span>
                       <span className="t-mono">{item.kind}</span>
-                      <span className="truncate">{item.category}</span>
+                      <span className="truncate">{categoryLabel(item.category)}</span>
                     </span>
                   </span>
                 </Link>
@@ -144,11 +143,11 @@ function NotFound({ total }: { total: number }) {
       <div className="flex max-w-prose flex-col items-start gap-3">
         <SearchX className="h-6 w-6 text-ink-3" aria-hidden="true" />
         <h1 className="t-cond text-[22px] font-semibold tracking-tight text-ink">
-          That entry is not in this catalog snapshot
+          We couldn&rsquo;t find that entry
         </h1>
         <p className="text-[13px] leading-relaxed text-ink-2">
-          Package pages resolve from a single catalog snapshot of {formatCount(total)} entries. This
-          slug is not in it — it may have been renamed, withdrawn, or published after this build.
+          Nothing in this snapshot&rsquo;s {formatCount(total)} entries matches this address. It may
+          have been renamed or withdrawn, or published after this snapshot was built.
         </p>
         <Link href="/explore/" className="btn btn-solid mt-2">
           Search the catalog
@@ -222,6 +221,31 @@ function useSlugParam(): { slug: string | null; resolved: boolean } {
   return state;
 }
 
+/** Meta descriptions are truncated by search engines and previews around 155
+ *  characters; cutting at a word boundary beats a hard slice mid-word. */
+function clamp(text: string, max = 155): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 60 ? cut.slice(0, space) : cut).replace(/[,;:.]$/, "")}…`;
+}
+
+/**
+ * Rewrite one `<meta property="…">` and return a restore function. The tag is
+ * written by the layout's `openGraph` block, so it is edited in place and put
+ * back rather than duplicated — two `og:title` tags would be invalid.
+ */
+function setMetaProperty(property: string, content: string): () => void {
+  const el = document.head.querySelector<HTMLMetaElement>(`meta[property="${property}"]`);
+  if (!el) return () => {};
+  const previous = el.getAttribute("content");
+  el.setAttribute("content", content);
+  return () => {
+    if (previous === null) el.removeAttribute("content");
+    else el.setAttribute("content", previous);
+  };
+}
+
 function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
   const { slug, resolved } = useSlugParam();
   // One product row, two counts and the sibling list come from ~170 KB of
@@ -275,7 +299,9 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
   /**
    * The tab, the history entry and any bookmark read `document.title`, and
    * every product page shipped the site's generic one — so browsing ten
-   * products gave ten identical tabs.
+   * products gave ten identical tabs. Once an entry resolves, the same rewrite
+   * applies to `og:title` and `og:description`, for anything that reads the
+   * live DOM rather than the original HTML.
    *
    * This hook runs *before* the early returns below, on purpose: placing it
    * after them changed the number of hooks between the unresolved and resolved
@@ -284,22 +310,68 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
    * instead of a guard.
    *
    * Client-side only, and not dressed up as more than it is: this fixes what
-   * the reader sees, not what a crawler or a link preview sees. Those need HTML
-   * rendered per entry, which the static export cannot produce — 69,376 pages
-   * against Cloudflare Pages' 20,000-file deployment cap (100,000 on a paid
-   * plan, at roughly 2 GB of HTML). The real fix for previews is per-slug
-   * server rendering, which contradicts this site's documented static-only
-   * architecture, so it is a decision rather than a patch.
+   * the reader sees, not what a crawler or a link preview fetches before any
+   * script runs. Those need HTML rendered per entry, which the static export
+   * cannot produce — 69,376 pages against Cloudflare Pages' 20,000-file
+   * deployment cap (100,000 on a paid plan, at roughly 2 GB of HTML). The real
+   * fix for previews is per-slug server rendering, which contradicts this
+   * site's documented static-only architecture, so it is a decision rather
+   * than a patch.
    */
   const docTitle = item?.name ?? null;
+  const docSummary = item?.summary ?? null;
   useEffect(() => {
     if (!docTitle) return;
     const previous = document.title;
     document.title = `${docTitle} · LiteSPM Market`;
+    const restoreOgTitle = setMetaProperty("og:title", `${docTitle} · LiteSPM Market`);
+    const restoreOgDescription = setMetaProperty(
+      "og:description",
+      clamp(
+        docSummary?.trim() ||
+          `${docTitle} from the LiteSPM catalog: what it is, which agent hosts it works with, and how to add it.`
+      )
+    );
     return () => {
       document.title = previous;
+      restoreOgTitle();
+      restoreOgDescription();
     };
-  }, [docTitle]);
+  }, [docTitle, docSummary]);
+
+  /**
+   * `/package/<slug>` is served by a 200 proxy rule, so an address that names
+   * no entry still answers 200 with this shell. Nothing here can change the
+   * status code — the file is prerendered — so the unresolved state carries
+   * `noindex` instead: a crawler that renders the page learns the entry does
+   * not exist, and a resolved entry never gets the tag. (A crawler that runs
+   * no JavaScript sees neither; that is the static-export limit this route
+   * already lives with, not something a client-side tag can fix.)
+   */
+  const missing = resolved && status === "ready" && !item;
+  useEffect(() => {
+    if (!missing) return;
+    // The layout's `robots: { index, follow }` is already on the page, so that
+    // tag is rewritten rather than joined by a second one (crawlers combine
+    // conflicting tags by taking the most restrictive, but one tag is
+    // unambiguous). A build without it gets a fresh tag, removed on cleanup.
+    const existing = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (existing) {
+      const previous = existing.getAttribute("content");
+      existing.setAttribute("content", "noindex");
+      return () => {
+        if (previous === null) existing.removeAttribute("content");
+        else existing.setAttribute("content", previous);
+      };
+    }
+    const meta = document.createElement("meta");
+    meta.name = "robots";
+    meta.content = "noindex";
+    document.head.appendChild(meta);
+    return () => {
+      meta.remove();
+    };
+  }, [missing]);
 
   if (!resolved || !slug) {
     return (
@@ -335,12 +407,13 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
           note={
             pending ? (
               <p className="t-mono text-[12px] text-ink-3" role="status">
-                Loading “{slug}”…
+                Looking up “{slug}”…
               </p>
             ) : (
               <div className="border border-rule-2 bg-sunken px-4 py-3">
                 <p className="text-[13px] text-ink-2">
-                  The catalog rows could not be fetched, so this key cannot be resolved either way.
+                  The catalog data didn&rsquo;t load, so we can&rsquo;t tell whether this entry
+                  exists. Check your connection and try again.
                 </p>
                 <button type="button" onClick={retry} className="btn btn-solid mt-2">
                   Try again
@@ -374,7 +447,7 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
       {
         "@type": "ListItem",
         position: 3,
-        name: item.category,
+        name: categoryLabel(item.category),
         item: `${SITE_URL}/explore/?category=${encodeURIComponent(item.category)}`,
       },
       { "@type": "ListItem", position: 4, name: item.name },
@@ -405,28 +478,31 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
       />
 
       <nav aria-label="Breadcrumb" className="border-b border-rule bg-sunken">
+        {/* Each separator lives inside the item it follows: an `<ol>` may only
+            contain `<li>` children, and the chevrons used to sit between them
+            as bare SVGs. */}
         <ol className="t-mono shell flex items-center gap-1.5 overflow-x-auto py-2 text-[11px] text-ink-3">
-          <li>
+          <li className="flex shrink-0 items-center gap-1.5">
             <Link href="/" className="hover:text-ink hover:underline">
               Index
             </Link>
+            <ChevronRight className="h-3 w-3 shrink-0 text-rule-2" aria-hidden="true" />
           </li>
-          <ChevronRight className="h-3 w-3 shrink-0 text-rule-2" aria-hidden="true" />
-          <li>
+          <li className="flex shrink-0 items-center gap-1.5">
             <Link href={`/explore/?kind=${item.kind}`} className="hover:text-ink hover:underline">
               {kindLabel(item.kind)}s
             </Link>
+            <ChevronRight className="h-3 w-3 shrink-0 text-rule-2" aria-hidden="true" />
           </li>
-          <ChevronRight className="h-3 w-3 shrink-0 text-rule-2" aria-hidden="true" />
-          <li className="truncate">
+          <li className="flex min-w-0 items-center gap-1.5">
             <Link
               href={`/explore/?category=${encodeURIComponent(item.category)}`}
-              className="hover:text-ink hover:underline"
+              className="truncate hover:text-ink hover:underline"
             >
-              {item.category}
+              {categoryLabel(item.category)}
             </Link>
+            <ChevronRight className="h-3 w-3 shrink-0 text-rule-2" aria-hidden="true" />
           </li>
-          <ChevronRight className="h-3 w-3 shrink-0 text-rule-2" aria-hidden="true" />
           <li aria-current="page" className="truncate text-ink">
             {item.name}
           </li>
@@ -448,7 +524,7 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
                 />
                 {kindLabel(item.kind)}
               </span>
-              <span className="chip pointer-events-none">{item.category}</span>
+              <span className="chip pointer-events-none">{categoryLabel(item.category)}</span>
             </div>
 
             <h1
@@ -543,44 +619,37 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {!agent ? (
                 <p className="max-w-prose text-[13.5px] leading-relaxed text-ink-2">
-                  Pick the agent you use above and this entry answers immediately, from rows already
-                  on this page — no download is needed to say it.
+                  Choose your agent above and this page answers for it.
                 </p>
               ) : agent.hosts.length === 0 ? (
                 <p className="max-w-prose text-[13.5px] leading-relaxed text-ink-2">
-                  Nothing is measured against &ldquo;{agent.label}&rdquo;, so this entry makes no
-                  compatibility claim about it either way.
+                  This catalog carries no compatibility data for &ldquo;{agent.label}&rdquo;, so this
+                  entry neither claims nor denies support.
                 </p>
               ) : (
-                <>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-[11px] font-medium ${
-                      worksWith
-                        ? "border-accent/30 bg-accent-wash text-accent-text"
-                        : "border-rule bg-sunken text-ink-3"
-                    }`}
-                    title={
-                      worksWith
-                        ? "Derived from the capability's kind: MCP servers install through the bridge into any host with an adapter, skills into any host with a skills directory, plugins list their own hosts. A declaration, not a test result."
-                        : "This entry does not list that agent among its compatible hosts. An absence of a declaration, not a test result."
-                    }
-                  >
-                    {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
-                    {worksWith ? `Works with ${agent.label}` : `Not declared for ${agent.label}`}
-                  </span>
-                  <span className="max-w-prose text-[13px] leading-relaxed text-ink-3">
-                    {worksWith
-                      ? "from this entry's declared or kind-derived host list — a declaration, not a test run."
-                      : "an absence of a claim, not evidence of failure."}
-                  </span>
-                </>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-[11px] font-medium ${
+                    worksWith
+                      ? "border-accent/30 bg-accent-wash text-accent-text"
+                      : "border-rule bg-sunken text-ink-3"
+                  }`}
+                  title={
+                    worksWith
+                      ? "This entry's host list includes this agent — declared by the publisher or derived from the entry's kind. A declaration, not a test result."
+                      : "This entry's host list doesn't include this agent. An absence of a claim, not evidence it fails."
+                  }
+                >
+                  {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
+                  {worksWith ? `Works with ${agent.label}` : `Not declared for ${agent.label}`}
+                </span>
               )}
             </div>
 
             <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
-              Compatibility is either declared by the publisher or derived from the entry&rsquo;s kind
-              (MCP servers run through the bridge, skills into any skills directory). This site does
-              not execute capabilities, so none of it is a test result.
+              Compatibility comes from the publisher&rsquo;s declaration or from the entry&rsquo;s
+              kind — MCP servers run through the LiteSPM bridge, skills go into any host with a
+              skills directory. This site doesn&rsquo;t run what it lists, so none of it is a test
+              result.
             </p>
 
             <button
@@ -599,21 +668,19 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
           <section aria-labelledby="pkg-access-title" className="mt-9">
             <div className="section-head">
               <h2 id="pkg-access-title">What access does it need?</h2>
-              <span className="section-note">what the catalog carries</span>
+              <span className="section-note">from the catalog record</span>
             </div>
 
             <p className="mt-3 max-w-prose text-[14px] leading-relaxed text-ink-2">
-              A per-entry list of the files, sites or credentials this capability can reach is
-              designed for the catalog but not published yet, so this is{" "}
-              <span className="absent">not published</span>. What you do get: the config file
-              LiteSPM would touch (one bridge entry, backed up first), and — where a server needs a
-              credential — an environment variable you name at install time, recorded as a name
-              rather than a value.
+              Nothing in the catalog says which files, sites or credentials this entry can reach —
+              that per-entry list isn&rsquo;t published yet, so this page doesn&rsquo;t guess. Where
+              a server needs a credential, LiteSPM records the variable&rsquo;s name at install time,
+              never its value.
             </p>
 
             <details className="group mt-2 border-t border-rule">
               <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-[12.5px] font-medium text-ink-2 transition-colors duration-state ease-out hover:text-ink md:min-h-[36px]">
-                Where access would be declared
+                The raw record fields
                 <span
                   aria-hidden="true"
                   className="text-ink-3 transition-transform duration-panel ease-out group-open:rotate-90"
@@ -625,8 +692,8 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
                 <div>
                   <dt>effects</dt>
                   <dd className="text-[12.5px]!">
-                    <span className="absent">designed, not yet published</span> — the per-entry access
-                    declaration this page would quote
+                    <span className="absent">not yet published</span> — the per-entry access list
+                    this page would show
                   </dd>
                 </div>
                 <div>

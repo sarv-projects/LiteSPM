@@ -127,6 +127,13 @@ echo "● Writing Cloudflare Pages _redirects..."
 # `window.location.search` is empty at the client — `useSlugParam` reads the
 # pathname for exactly this reason, and canonicalises the legacy query form.
 #
+# The rule cannot know which slugs exist, so a slug that names no entry answers
+# 200 with the same shell. The honesty lives in the page: once the snapshot
+# arrives and the key is absent, `PackageView` injects a `noindex` meta tag, so
+# a crawler that renders the page does not index an unlimited supply of
+# non-existent addresses. Removing this rule to avoid that would 404 every real
+# entry too, which is the worse trade.
+#
 # The destination must be the DIRECTORY (`/package/`), not `/package/index.html`.
 # Verified against a local Workers runtime: the explicit-file form returns
 # **307** rather than serving, because Workers Static Assets normalises an

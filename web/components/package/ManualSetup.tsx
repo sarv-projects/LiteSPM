@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import { HOSTS, PlatformOS, bridgeSnippet, hostPath } from "../../lib/hosts";
 import { CopyButton } from "./CopyButton";
+import { usePlatformOs } from "./usePlatformOs";
 
 /**
  * "Manual setup" — the generic host × platform block that used to render as a
@@ -21,12 +22,11 @@ import { CopyButton } from "./CopyButton";
  */
 export function ManualSetup() {
   const [activeHost, setActiveHost] = useState(HOSTS[0].id);
-  const [platformOs, setPlatformOs] = useState<PlatformOS>("linux");
-
-  useEffect(() => {
-    const ua = typeof navigator !== "undefined" ? navigator.userAgent.toLowerCase() : "";
-    setPlatformOs(ua.includes("mac") ? "mac" : ua.includes("linux") ? "linux" : "win");
-  }, []);
+  const [pickedOs, setPickedOs] = useState<PlatformOS | null>(null);
+  const detectedOs = usePlatformOs();
+  // The detected platform is the starting point, never a lock: a reader whose
+  // user agent guessed wrong can still pick the one they are on.
+  const platformOs = pickedOs ?? detectedOs;
 
   const host = HOSTS.find((h) => h.id === activeHost) ?? HOSTS[0];
   const snippet = bridgeSnippet(host, "litespm", platformOs);
@@ -36,7 +36,7 @@ export function ManualSetup() {
       <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-[13px] font-medium text-ink-2 transition-colors duration-state ease-out hover:text-ink md:min-h-[40px]">
         Manual setup
         <span className="flex items-center gap-2 text-[12px] font-normal text-ink-3">
-          write the bridge entry yourself
+          add the entry yourself
           <ChevronDown
             className="h-3.5 w-3.5 transition-transform duration-panel ease-out group-open:rotate-180"
             aria-hidden="true"
@@ -46,9 +46,9 @@ export function ManualSetup() {
 
       <div className="pb-2">
         <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Skip the guided setup and edit the file yourself. LiteSPM writes one{" "}
-          <code className="t-mono text-ink">litespm</code> entry into the host&rsquo;s config — pick
-          the agent and your platform to see the exact file and the entry it holds.
+          Skip the guided setup and edit the file yourself. Pick your agent and platform to see the
+          exact file and the one <code className="t-mono text-ink">litespm</code> entry LiteSPM adds
+          to it.
         </p>
 
         <div className="section-head mt-5">
@@ -56,14 +56,14 @@ export function ManualSetup() {
             <h3 className="text-[13px] font-semibold tracking-tight text-ink">Config file</h3>
             <p className="section-note mt-0.5">One bridge entry per host.</p>
           </div>
-          <div className="flex shrink-0 items-center gap-0.5 border border-ink-3 bg-sunken p-0.5">
+          <div className="flex shrink-0 items-center gap-1.5 border border-ink-3 bg-sunken p-0.5">
             {(["win", "mac", "linux"] as PlatformOS[]).map((o) => (
               <button
                 key={o}
                 type="button"
                 aria-pressed={platformOs === o}
-                onClick={() => setPlatformOs(o)}
-                className={`h-6 rounded-[3px] px-2.5 text-[11px] font-medium transition-colors ${
+                onClick={() => setPickedOs(o)}
+                className={`min-h-[44px] rounded-[3px] px-2.5 text-[11px] font-medium transition-colors md:min-h-6 ${
                   platformOs === o ? "bg-ink text-surface" : "text-ink-2 hover:text-ink"
                 }`}
               >
@@ -137,11 +137,11 @@ export function ManualSetup() {
           <p className="mt-2.5 flex items-start gap-2 text-[12px] leading-relaxed text-ink-3">
             <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>
-              Running <code className="t-mono text-ink-2">litespm</code> backs up the target file and
-              injects this single entry, preserving existing entries —{" "}
+              Running <code className="t-mono text-ink-2">litespm</code> backs up the file and adds
+              this one entry, leaving everything else in place.{" "}
               <code className="t-mono text-ink-2">litespm host setup {host.id}</code> does the same
-              thing from the CLI, and{" "}
-              <code className="t-mono text-ink-2">litespm restore</code> puts the original file back.
+              from the CLI; <code className="t-mono text-ink-2">litespm restore</code> puts the
+              original back.
             </span>
           </p>
         </div>

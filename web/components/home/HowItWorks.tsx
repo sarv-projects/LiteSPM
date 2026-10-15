@@ -63,7 +63,7 @@ const STEPS: Step[] = [
   {
     n: "03",
     title: "Check",
-    plain: "See what it is, who published it, and what it would be able to reach.",
+    plain: "See what it is, who published it, and what it can reach.",
     technical: (
       <>
         <p>
@@ -127,7 +127,7 @@ export function HowItWorks() {
       <div className="border-t border-rule pt-8">
         <p className="kicker">How LiteSPM works</p>
         <h2 id="how-title" className="band-title mt-2">
-          Five steps, in that order
+          Five steps, start to finish
         </h2>
       </div>
 

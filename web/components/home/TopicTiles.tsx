@@ -26,9 +26,8 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
             What are you trying to get done?
           </h2>
           <p className="band-sub">
-            Pick the one that sounds like your week. Each opens a real slice of the catalog — the
-            count and the examples below each tile are pulled from the rows that link actually
-            returns, so a tile can never advertise something it wouldn&rsquo;t show you.
+            Pick the one that sounds like your week. Each tile opens a live search of the catalog;
+            the count and the sample names are what that search returns.
           </p>
         </div>
         <Link href="/categories/" className="touch-link text-[13px] text-ink-2 hover:text-accent-text hover:underline">

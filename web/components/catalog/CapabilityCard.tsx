@@ -10,6 +10,7 @@ import type { AgentChoice } from "../../lib/landing";
 import { rowWorksWithAgent } from "../../lib/landing";
 import { availabilityOf } from "../../lib/availability";
 import { PublisherTile, VerifiedMark } from "./PublisherMark";
+import { categoryLabel } from "../../app/categories/categoryLabel";
 
 /**
  * `CapabilityCard` is the DISCOVERY density — home, ecosystem, collections.
@@ -70,7 +71,26 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
     item.publisher?.name ? `by ${item.publisher.name}` : "publisher unspecified",
     avail.plain,
     item.summary,
-  ].join(". ");
+  ]
+    // `avail.plain` and summaries may carry their own trailing period; the
+    // join supplies one, so strip the part's first.
+    .filter((part): part is string => Boolean(part))
+    .map((part) => part.replace(/\.+$/, ""))
+    .join(". ");
+  /**
+   * What the "hosts" count under Technical details is. `hostsFor` derives MCP
+   * and skill coverage from the kind — every bridge adapter, every skill
+   * target — so calling those "declared" would credit the publisher with a
+   * list it never wrote. Only a plugin carries a publisher-declared list.
+   */
+  const hostsValue =
+    hosts.length === 0
+      ? null
+      : item.kind === "plugin"
+        ? `${hosts.length} declared`
+        : item.kind === "skill"
+          ? `${hosts.length} skill targets`
+          : `${hosts.length} bridge adapters`;
 
   return (
     <article
@@ -114,7 +134,7 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
         >
           {avail.label}
         </span>
-        {item.category && <span className="text-[11.5px] text-ink-3">{item.category}</span>}
+        {item.category && <span className="text-[11.5px] text-ink-3">{categoryLabel(item.category)}</span>}
         {item.publisher?.verified && <VerifiedMark />}
         {agent && agent.hosts.length > 0 && (
           <span
@@ -125,8 +145,8 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
             }`}
             title={
               worksWith
-                ? "Derived from the capability's kind: MCP servers install through the bridge into any host with an adapter, skills into any host with a skills directory, plugins list their own hosts. A declaration, not a test result."
-                : "This capability does not list that agent among its compatible hosts. Publisher-declared, not a test result."
+                ? "MCP servers install into any host with an adapter, skills into any host with a skills directory, and plugins only into the hosts their publisher lists. Not a per-row test result."
+                : "This entry does not list that agent among its compatible hosts. Publisher-declared, not a test result."
             }
           >
             {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
@@ -149,11 +169,10 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
           <TechRow label="transport" value={item.transport} />
           <TechRow label="version" value={item.version} />
           <TechRow label="source" value={item.publisher?.provenance} />
-          <TechRow label="hosts" value={hosts.length ? `${hosts.length} declared` : null} />
+          <TechRow label="hosts" value={hostsValue} />
         </dl>
         <p className="mt-2 text-[11.5px] leading-relaxed text-ink-3">
-          Only what the publisher published. A field it did not provide is left out rather than
-          guessed.
+          Only what the publisher published; a field it did not provide is left out, not guessed.
         </p>
       </details>
     </article>

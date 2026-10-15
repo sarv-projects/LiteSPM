@@ -1,24 +1,24 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { HOSTS } from "../../lib/hosts";
 import type { ProvenanceStats } from "../../lib/landing";
 import { formatCount } from "../../lib/format";
-
-/** Derived from the adapter table, so the copy cannot drift from the data. */
-const HOST_NAMES = `${HOSTS.slice(0, -1).map((h) => h.name).join(", ")}, and ${HOSTS[HOSTS.length - 1].name}`;
 
 /**
  * The questions the catalog can actually answer, asked in the order a person
  * asks them: what is this, will it work with my agent, what is it touching, can
  * I undo it, and how do I check any of that myself.
  *
- * This absorbed the separate "Know what you're adding" strip, which printed the
- * same five answers as five dense cards on the landing page. Collapsed behind a
- * question, the same content costs one line until someone wants it — which is
- * the difference between showing your evidence and making a visitor read it.
+ * Two audiences, two depths. Each answer leads with the plain version anyone
+ * can use; the one answer that used to open with `publisher.provenance` and
+ * Sigstore bundles keeps that detail behind its own `<details>`, labelled as
+ * the reviewer's view. Every fact survives — only the first sentence changed
+ * audience.
  *
  * Every number below is passed in from a build-time derivation over the real
- * rows (`deriveProvenance`), never typed. Where the honest answer is "not
- * published", the entry says so in those words.
+ * rows (`deriveProvenance`) or read from the compiled-in host registry
+ * (`HOSTS`), never typed. Where the honest answer is "not published", the
+ * entry says so in those words.
  *
  * Native `<details>`/`<summary>`, not a hand-rolled button: the previous
  * markup was a `<dl>` whose `<dd>` only mounted while open, so before any
@@ -35,9 +35,9 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "What is LiteSPM?",
       a: (
         <>
-          A local package manager and federated catalog for agent capabilities. It connects to each
-          agent host once, writes a single version-pinned bridge entry into that host&rsquo;s config,
-          and resolves individual capabilities at runtime.
+          A package manager for AI agents, and the catalog it installs from. It connects to an
+          agent host once, writes a single version-pinned entry into that host&rsquo;s config, and
+          resolves individual capabilities through that entry.
         </>
       ),
     },
@@ -45,9 +45,13 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "Which agents are supported?",
       a: (
         <>
-          {HOST_NAMES} have compiled-in config adapters that LiteSPM can write directly. The catalog
-          names more hosts than that, because publishers declare compatibility themselves; those
-          entries are indexed but LiteSPM will not edit that host&rsquo;s config for you.
+          <Link href="/agents/" className="link">
+            {formatCount(HOSTS.length)} agent hosts
+          </Link>{" "}
+          have built-in config adapters that LiteSPM can write directly; each host&rsquo;s page
+          names the file it reads. The catalog lists more hosts than that — publishers declare
+          which agents their own tools work with, and those entries are indexed as that claim.
+          LiteSPM will not edit the config of a host it has no adapter for.
         </>
       ),
     },
@@ -55,11 +59,10 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "Where did a listing come from?",
       a: (
         <>
-          Two kinds of source, and it&rsquo;s worth not confusing them: we read it from the
-          publisher&rsquo;s own listing, or it turned up in a community list. Right now that&rsquo;s{" "}
-          {formatCount(provenance.vendorManifest)} from publishers and{" "}
-          {formatCount(provenance.awesomeList)} from community lists. Both are worth having — you just
-          shouldn&rsquo;t mistake one for the other.
+          One of two places: the publisher&rsquo;s own listing, or a community list. Right now
+          that&rsquo;s {formatCount(provenance.vendorManifest)} from publishers and{" "}
+          {formatCount(provenance.awesomeList)} from community lists. Both are useful, but they
+          are not the same kind of evidence, so every row says which one it came from.
         </>
       ),
     },
@@ -67,10 +70,10 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "Who publishes it, and did you check them?",
       a: (
         <>
-          The publisher&rsquo;s own name and a link to them. A{" "}
-          <em>from publisher manifest</em> badge means the row was parsed from that publisher&rsquo;s
-          own listing — it records where the data came from, not that anyone reviewed the software.
-          Nobody audited them, and we didn&rsquo;t either.
+          The publisher&rsquo;s own name and a link to them. A <em>from publisher manifest</em>{" "}
+          badge means the row was parsed from that publisher&rsquo;s own listing — it records
+          where the data came from, not that anyone reviewed the software. Nobody audited them,
+          and we didn&rsquo;t either.
         </>
       ),
     },
@@ -79,8 +82,8 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       a: (
         <>
           You get the exact command it runs and the file LiteSPM would change, before anything is
-          written. What it can reach once it&rsquo;s running is something no catalog can see — so we
-          don&rsquo;t pretend to tell you.
+          written. What it can reach once it&rsquo;s running is something no catalog can see — so
+          we don&rsquo;t pretend to tell you.
         </>
       ),
     },
@@ -88,9 +91,10 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "How far was it actually checked?",
       a: (
         <>
-          The catalog grades how much was read: <em>Discovery only</em> or <em>LiteSPM-parsed</em>.
-          Most entries are still Discovery only — {formatCount(provenance.discoveryOnly)} of{" "}
-          {formatCount(provenance.total)} — and every entry says which it is rather than rounding up.
+          The catalog records how much was read: <em>Discovery only</em> or{" "}
+          <em>LiteSPM-parsed</em>. Most entries are still Discovery only —{" "}
+          {formatCount(provenance.discoveryOnly)} of {formatCount(provenance.total)} — and every
+          entry says which it is rather than rounding up.
         </>
       ),
     },
@@ -108,26 +112,53 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "How can I verify any of this myself?",
       a: (
         <>
-          Every claim above is a field you can look at. Provenance is{" "}
-          <code className="t-mono">publisher.provenance</code>; identity is{" "}
-          <code className="t-mono">publisher.name</code>,{" "}
-          <code className="t-mono">publisher.url</code> and{" "}
-          <code className="t-mono">publisher.verified</code> — a provenance flag, not a security
-          review. What it runs is <code className="t-mono">command</code>,{" "}
-          <code className="t-mono">args</code> and <code className="t-mono">installHint</code>; how
-          far we got is <code className="t-mono">installability</code>; and{" "}
-          <code className="t-mono">version</code> is the publisher&rsquo;s own.
-          <br />
-          <br />
-          The release itself is chained: the pointer at{" "}
-          <code className="t-mono">/v1/current.json</code> is signed with a keyless Sigstore bundle,
-          and the client verifies pointer → <code className="t-mono">manifest.json</code> → listings
-          before it trusts a row. The digest this build shipped with is in{" "}
-          <code className="t-mono">data/release.json</code> and stamped on the lazy row request as{" "}
-          <code className="t-mono">?v=…</code>, so a CDN cannot answer a newer build with older rows
-          than the HTML beside them. This page does not verify signatures — it is static HTML — and{" "}
-          <code className="t-mono">litespm catalog sync</code> is what does, refusing an unsigned
-          origin under <code className="t-mono">LITESPM_REQUIRE_CATALOG_SIGNATURE=1</code>.
+          <p>
+            Every claim above is a field on the entry&rsquo;s own record. Open any entry and you
+            can see where it came from, what command it runs, how far the reading went, and which
+            version the publisher gave — and where a field is missing, the entry says{" "}
+            <span className="absent">not published</span> instead of filling it in.
+          </p>
+          <details className="group mt-3 border-t border-rule pt-3">
+            <summary className="flex min-h-[32px] w-full cursor-pointer items-start justify-between gap-4 text-left">
+              <span className="text-[12.5px] font-medium text-ink-2 group-open:text-ink">
+                The reviewer&rsquo;s view: exact field names and the signed release chain
+              </span>
+              <span
+                aria-hidden="true"
+                className="t-mono mt-px shrink-0 text-[11px] text-ink-3 tabular-nums"
+              >
+                <span className="group-open:hidden">+</span>
+                <span className="hidden group-open:inline">−</span>
+              </span>
+            </summary>
+            <div className="mt-2 space-y-2 text-[12.5px]">
+              <p>
+                Provenance is <code className="t-mono">publisher.provenance</code>; identity is{" "}
+                <code className="t-mono">publisher.name</code>,{" "}
+                <code className="t-mono">publisher.url</code> and{" "}
+                <code className="t-mono">publisher.verified</code> — a provenance flag, not a
+                security review. What it runs is <code className="t-mono">command</code>,{" "}
+                <code className="t-mono">args</code> and{" "}
+                <code className="t-mono">installHint</code>; how far we got is{" "}
+                <code className="t-mono">installability</code>; and{" "}
+                <code className="t-mono">version</code> is the publisher&rsquo;s own.
+              </p>
+              <p>
+                The release itself is chained: the pointer at{" "}
+                <code className="t-mono">/v1/current.json</code> is signed with a keyless Sigstore
+                bundle, and the client verifies pointer →{" "}
+                <code className="t-mono">manifest.json</code> → listings before it trusts a row.
+                The digest this build shipped with is in{" "}
+                <code className="t-mono">data/release.json</code> and stamped on the lazy row
+                request as <code className="t-mono">?v=…</code>, so a CDN cannot answer a newer
+                build with older rows than the HTML beside them. This page does not verify
+                signatures — it is static HTML — and{" "}
+                <code className="t-mono">litespm catalog sync</code> is what does, refusing an
+                unsigned origin under{" "}
+                <code className="t-mono">LITESPM_REQUIRE_CATALOG_SIGNATURE=1</code>.
+              </p>
+            </div>
+          </details>
         </>
       ),
     },
@@ -135,11 +166,9 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "Do my API keys leave my machine?",
       a: (
         <>
-          No. Credentials are held in your operating system&rsquo;s native vault. This site is a
-          static export — it fetches the release manifest{" "}
-          <code className="t-mono">/v1/current.json</code>, and the catalog rows{" "}
-          <code className="t-mono">/data/catalog.json</code> only once you search, filter or open an
-          entry. Both are same-origin public files, and search runs entirely in your browser.
+          No. Credentials stay in your operating system&rsquo;s native vault, and this site reads
+          only public files from its own origin: the release manifest on load, and the catalog
+          rows once you search, filter or open an entry. Search runs entirely in your browser.
         </>
       ),
     },
@@ -147,11 +176,12 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "Is this page's data live?",
       a: (
         <>
-          The listings are a fixed catalog snapshot baked into the build, so every listing is
-          pre-rendered and reachable without JavaScript. Only the release manifest is fetched on load
-          — and the header states plainly whether that fetch succeeded. The rows themselves arrive on
-          demand, never as a script on first paint, which is why this page stays a few hundred
-          kilobytes instead of megabytes.
+          The listings are a fixed catalog snapshot baked into the build. The index pages and the{" "}
+          {formatCount(HOSTS.length)} agent pages are pre-rendered, so they read with JavaScript
+          off; opening one entry is the exception, because that lookup runs in your browser. Only
+          the release manifest is fetched on load — and the header states plainly whether that
+          fetch succeeded. The rows themselves arrive on demand, never as a script on first paint,
+          which is why this page stays a few hundred kilobytes instead of megabytes.
         </>
       ),
     },
@@ -164,7 +194,7 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
         Questions about the catalog
       </h2>
       <p className="band-sub">
-        Ten answers, including the ones whose honest answer is &ldquo;not published yet&rdquo;. Every
+        Where the data comes from, how far it was checked, and what happens on your machine. Every
         number here is counted from the rows at build time.
       </p>
 
@@ -181,7 +211,7 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
                 <span className="hidden group-open:inline">−</span>
               </span>
             </summary>
-            <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{item.a}</p>
+            <div className="mt-2 text-[13px] leading-relaxed text-ink-2">{item.a}</div>
           </details>
         ))}
       </div>

@@ -36,7 +36,7 @@ export function StartSection({ items, officialCount, vendorCount, agent }: Start
         <div>
           <p className="kicker">Good places to start</p>
           <h2 id="start-title" className="band-title mt-2">
-            Twelve entries worth opening first
+            {formatCount(items.length)} entries worth opening first
           </h2>
         </div>
       </div>
@@ -51,9 +51,10 @@ export function StartSection({ items, officialCount, vendorCount, agent }: Start
 
       <div className="mt-5 flex flex-col gap-2 border-t border-rule pt-4">
         <p className="text-[13px] leading-relaxed text-ink-2">
-          Selected because they come from official publishers — not a popularity ranking.{" "}
+          Selected on provenance, not popularity: skills the publisher itself ships, and entries
+          read from a publisher&rsquo;s own repository manifest.{" "}
           <span className="text-ink-3">
-            The catalog publishes no star, download or install figures, so no ranking exists to show.
+            No star, download or install figures exist in the catalog.
           </span>
         </p>
         <p className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[12.5px] text-ink-3">

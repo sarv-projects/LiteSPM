@@ -34,6 +34,23 @@ interface ExtensionGridProps {
    * asked for more, which is the interaction that justifies the fetch.
    */
   onShowMore?: () => void;
+  /**
+   * Fired when the reader picks one of the empty-state suggestions. When the
+   * caller does not pass it the suggestions are not rendered at all: the same
+   * chip shape is a link in the hero, so a chip here that did nothing would be
+   * read as broken rather than as absent.
+   */
+  onSuggestion?: (term: string) => void;
+  /** True when a kind, category, agent or provenance filter narrows the list. */
+  filtersActive?: boolean;
+  /**
+   * Whether the current query has been measured (see `useCatalogSearch`). A
+   * row set already on screen is kept as-is while a search runs; with nothing
+   * on screen, `settled === false` renders as loading instead of as the empty
+   * state, which would be a claim that the search found nothing before any
+   * search had happened.
+   */
+  settled?: boolean;
   /** Rendered above the rows; the caller owns the sort control. */
   toolbar?: React.ReactNode;
 }
@@ -53,11 +70,11 @@ function CatalogError({ onRetry, inline }: { onRetry?: () => void; inline?: bool
     <div className={inline ? "mb-4 border border-rule-2 bg-sunken px-4 py-3" : "border-b border-rule py-14"}>
       <div className="flex max-w-prose flex-col items-start gap-3">
         <RotateCw className="h-6 w-6 text-ink-3" aria-hidden="true" />
-        <h3 className="text-[15px] font-semibold">The catalog rows could not be loaded</h3>
+        <h3 className="text-[15px] font-semibold">The catalog could not be loaded</h3>
         <p className="text-[13px] text-ink-2">
           {inline
-            ? "Search, filters and “show more” need the full snapshot, and that request failed — so they are unavailable right now. The rows below are the prerendered page, and their links still work."
-            : "Filtering and search need the full snapshot, and that request failed. Nothing has been searched, so this is not a “no matches” answer."}
+            ? "Search, filters and “show more” need the full catalog, and that request failed, so they are unavailable right now. The rows below loaded with the page, and their links still work."
+            : "Search and filtering need the full catalog, and that request failed. Nothing has been searched yet, so this is not an empty result."}
         </p>
         {onRetry && (
           <button type="button" onClick={onRetry} className="btn btn-solid mt-2">
@@ -79,6 +96,9 @@ export function ExtensionGrid({
   onRetry,
   onClearFilters,
   onShowMore,
+  onSuggestion,
+  filtersActive,
+  settled,
   toolbar,
 }: ExtensionGridProps) {
   const [visible, setVisible] = useState(GRID_PAGE);
@@ -91,9 +111,11 @@ export function ExtensionGrid({
     setVisible(GRID_PAGE);
   }, [query]);
 
-  // A slow *search* keeps the previous rows for 180ms before skeletonising (a
-  // fast search must never flash a loading state); a dataset fetch has no rows
-  // to keep, so it skeletonises on the same frame it starts.
+  // With rows on screen, a slow search keeps them (a fast search must never
+  // flash a loading state) until the results replace them. With nothing on
+  // screen there is nothing to keep: `settled === false` already says the
+  // query is unmeasured, and this timer is the fallback for a caller that does
+  // not pass `settled` and has only `loading` to go on.
   const [searchSkeleton, setSearchSkeleton] = useState(false);
   useEffect(() => {
     if (!loading) {
@@ -107,7 +129,22 @@ export function ExtensionGrid({
   const reported = count ?? items.length;
   const shown = useMemo(() => items.slice(0, visible), [items, visible]);
   const remaining = reported - shown.length;
-  const showSkeleton = shown.length === 0 && (Boolean(awaiting) || searchSkeleton);
+  /**
+   * Until the full row set arrives, `items` is a window of `reported` — the
+   * prerendered page, or the previous query's rows. Growing `visible` past the
+   * end of that array cannot put a row on screen, so "Show more" must not
+   * pretend it did: while the fetch it triggers is in flight the button says
+   * what is happening instead of offering the same page again.
+   */
+  const rowsPending = items.length < reported;
+  const loadingMore = rowsPending && Boolean(awaiting);
+  /**
+   * Nothing on screen and the current query unmeasured: show the loading rows,
+   * not "Nothing matches". The empty state is a claim about a search, and it
+   * may only appear once that search has actually run.
+   */
+  const showSkeleton =
+    shown.length === 0 && !error && (settled === false || Boolean(awaiting) || searchSkeleton);
   const showMore = () => {
     setVisible((v) => v + GRID_PAGE);
     onShowMore?.();
@@ -149,8 +186,19 @@ export function ExtensionGrid({
 
           {remaining > 0 && (
             <div className="flex items-center justify-center gap-3 pt-6">
-              <button type="button" onClick={showMore} className="btn">
-                Show {formatCount(Math.min(GRID_PAGE, remaining))} more
+              {/* aria-disabled rather than `disabled`: the reader who just
+                  clicked this keeps their focus while the fetch runs, and the
+                  label change is announced instead of being cut off by the
+                  browser dropping focus to the body. */}
+              <button
+                type="button"
+                onClick={loadingMore ? undefined : showMore}
+                aria-disabled={loadingMore || undefined}
+                className={`btn${loadingMore ? " pointer-events-none opacity-60" : ""}`}
+              >
+                {loadingMore
+                  ? "Loading the catalog…"
+                  : `Show ${formatCount(Math.min(GRID_PAGE, remaining))} more`}
               </button>
               <span className="t-mono t-tabular text-[11px] text-ink-3">
                 {formatCount(shown.length)} of {formatCount(reported)}
@@ -180,26 +228,28 @@ export function ExtensionGrid({
         <div className="border-b border-rule py-14">
           <div className="flex max-w-prose flex-col items-start gap-3">
             <SearchX className="h-6 w-6 text-ink-3" aria-hidden="true" />
-            <h3 className="text-[15px] font-semibold">Nothing matches that search</h3>
+            <h3 className="text-[15px] font-semibold">Nothing matches</h3>
             <p className="text-[13px] text-ink-2">
               {query ? (
                 <>
-                  No entry in the bundled catalog contains “{query}”. Search covers names, summaries,
-                  publishers, categories, runtimes and transports.
+                  No entry matches “{query}”{filtersActive ? " with the current filters" : ""}. Search
+                  covers names, summaries, publishers, categories, runtimes, transports and tool names.
                 </>
               ) : (
-                <>No entry matches the current filters. Widen the kind, category or agent filter.</>
+                <>No entry matches these filters. Try a wider kind, category or agent.</>
               )}
             </p>
 
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="text-[12px] text-ink-3">Try</span>
-              {SUGGESTIONS.map((s) => (
-                <span key={s} className="chip pointer-events-none">
-                  {s}
-                </span>
-              ))}
-            </div>
+            {query && onSuggestion && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-[12px] text-ink-3">Try</span>
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} type="button" onClick={() => onSuggestion(s)} className="chip">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {onClearFilters && (
               <button type="button" onClick={onClearFilters} className="btn btn-solid mt-2">

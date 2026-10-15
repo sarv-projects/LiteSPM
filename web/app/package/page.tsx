@@ -3,6 +3,25 @@ import type { Listing } from "../../lib/telemetry";
 import { hostUniverse, sortListings, withLinkKeys } from "../../lib/catalog";
 import type { PackageViewProps } from "./PackageView";
 import PackageRoute from "./PackageRoute";
+import type { Metadata } from "next";
+
+/**
+ * The route's own title, description and canonical.
+ *
+ * Every product page used to inherit the layout's metadata, so all 69,376
+ * addresses shared one `<title>`, one description and one `og:url`, and none
+ * declared a canonical. The entry itself cannot be named here — the slug lives
+ * in the URL and this file is prerendered once — so the shell describes the
+ * route honestly; the resolved entry's name and summary are written into the
+ * document (and its og tags) once the browser has resolved the slug.
+ */
+export const metadata: Metadata = {
+  title: "Entry detail",
+  description:
+    "One entry from the LiteSPM catalog: what it does, which agent hosts it works with, and how to add it.",
+  alternates: { canonical: "/package/" },
+  openGraph: { title: "Entry detail · LiteSPM Market", url: "/package/" },
+};
 
 /**
  * Server Component: `/package/` prerenders the route index (a described frame

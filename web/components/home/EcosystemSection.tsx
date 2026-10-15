@@ -64,8 +64,8 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
             Explore the ecosystem
           </h2>
           <p className="band-sub">
-            Everything in the catalog is one of three kinds. The kind tells you how it installs and
-            what it can reach — not how good it is, which no catalog can measure.
+            Everything in the catalog is one of three kinds. The kind decides how it installs and
+            what it can reach.
           </p>
         </div>
       </div>
@@ -117,11 +117,11 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
           href="/agents/"
           className="group card-lift flex flex-col rounded-card border border-dashed border-rule-2 bg-sunken p-5 hover:border-ink-3 hover:shadow-card"
         >
-          <span className="kicker">The other half of &ldquo;what works with what&rdquo;</span>
-          <h3 className="mt-4 text-[19px] font-semibold tracking-tight text-ink">Agents</h3>
+          <span className="kicker">Compatibility</span>
+          <h3 className="mt-4 text-[19px] font-semibold tracking-tight text-ink">Agent hosts</h3>
           <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-2">
-            Which agent hosts LiteSPM can configure itself, which are only declared by publishers,
-            and the config file each one reads.
+            Which hosts LiteSPM can configure itself, which are only declared by publishers, and
+            the config file each one reads.
           </p>
           <p className="mt-5 flex items-baseline gap-2">
             <span className="t-mono t-tabular text-[28px] font-medium leading-none text-ink">
@@ -132,15 +132,15 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
             </span>
           </p>
           <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
-            The catalog names {formatCount(hostCount)} hosts in total; the rest are what publishers
-            declared, and LiteSPM does not edit their config.
+            The catalog names {formatCount(hostCount)} hosts in total. The rest are declared by
+            publishers, and LiteSPM does not edit their config.
           </p>
           {/* Inked, not accented, because this card sits on --sunken: that pair
               measures 4.26:1 for --accent-text and misses AA for 12.5px text,
               while --ink reaches 13.77:1. The other three cards stay on
               --surface, where the accent clears at 5.31:1. */}
           <span className="mt-4 flex items-center gap-1.5 text-[12.5px] font-medium text-ink-3 transition-colors duration-state ease-out group-hover:text-ink">
-            Open the agent atlas
+            Browse agent hosts
             <ArrowRight
               className="h-3.5 w-3.5 transition-transform duration-hover ease-out group-hover:translate-x-0.5"
               aria-hidden="true"

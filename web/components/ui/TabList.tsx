@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 /**
  * The house tab strip, extracted from `PackageTabs` so the package page's
@@ -18,12 +18,19 @@ import React, { useRef } from "react";
  * (the panel's highest-contrast neutral) and the labels come from the
  * `--dark-ink` pair.
  *
- * `--dark-signal` would be the panel's natural signal colour, but the token is
- * not in tailwind.config.js's map, so `text-dark-signal`/`bg-dark-signal`
- * resolve to nothing anywhere in this tree — the step numbers in `AddSteps`
- * have been silently inheriting `--dark-ink` since they were written. That is
- * a pre-existing defect, reported rather than fixed here, because the fix
- * would repaint existing elements the palette change was not asked to touch.
+ * `--dark-signal` is the panel's natural signal colour. It was missing from
+ * tailwind.config.js's map until 2026-10-15, so `text-dark-signal` resolved to
+ * nothing and the step numbers in `AddSteps` silently inherited `--dark-ink`;
+ * the token is mapped now, so the step numerals and the "you chose…" tick
+ * carry it as written.
+ *
+ * On a 360px viewport the six-tab rail overflows (318px visible of 509px) and
+ * the hidden tabs gave no sign they existed: `no-scrollbar` removes the only
+ * native affordance, and nothing replaced it. The strip now measures itself and
+ * fades the edge it can still be scrolled toward — a gradient over the last
+ * 40px, coloured by the surface the variant sits on (`--paper` for `line`,
+ * `--dark` for `dark`). The ARIA widget is untouched: same roving tabindex,
+ * same Arrow/Home/End handling, same `aria-controls`.
  */
 export interface TabItem<T extends string> {
   id: T;
@@ -57,7 +64,31 @@ export function TabList<T extends string>({
   className = "",
 }: TabListProps<T>) {
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const isDark = variant === "dark";
+
+  /** Which edges of the rail have content beyond them right now. */
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const left = el.scrollLeft > 1;
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setEdges((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+    };
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      el.removeEventListener("scroll", measure);
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [tabs]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const i = tabs.findIndex((t) => t.id === active);
@@ -78,34 +109,56 @@ export function TabList<T extends string>({
   const idleClasses = isDark ? "text-dark-ink-2 hover:text-dark-ink" : "text-ink-3 hover:text-ink";
 
   return (
-    <div
-      role="tablist"
-      aria-label={label}
-      onKeyDown={onKeyDown}
-      className={`no-scrollbar flex gap-1 overflow-x-auto border-b ${
-        isDark ? "border-dark-rule" : "border-rule"
-      } ${className}`}
-    >
-      {tabs.map((tab, i) => (
-        <button
-          key={tab.id}
-          ref={(el) => {
-            refs.current[i] = el;
-          }}
-          type="button"
-          role="tab"
-          id={`${idPrefix}-tab-${tab.id}`}
-          aria-controls={`${idPrefix}-panel-${tab.id}`}
-          aria-selected={active === tab.id}
-          tabIndex={active === tab.id ? 0 : -1}
-          onClick={() => onChange(tab.id)}
-          className={`relative min-h-[44px] shrink-0 px-3 text-[13px] font-medium transition-colors duration-state md:min-h-[38px] ${
-            active === tab.id ? activeClasses : idleClasses
+    <div className={`relative ${className}`}>
+      <div
+        ref={scrollerRef}
+        role="tablist"
+        aria-label={label}
+        onKeyDown={onKeyDown}
+        className={`no-scrollbar flex gap-1 overflow-x-auto border-b ${
+          isDark ? "border-dark-rule" : "border-rule"
+        }`}
+      >
+        {tabs.map((tab, i) => (
+          <button
+            key={tab.id}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="tab"
+            id={`${idPrefix}-tab-${tab.id}`}
+            aria-controls={`${idPrefix}-panel-${tab.id}`}
+            aria-selected={active === tab.id}
+            tabIndex={active === tab.id ? 0 : -1}
+            onClick={() => onChange(tab.id)}
+            className={`relative min-h-[44px] shrink-0 px-3 text-[13px] font-medium transition-colors duration-state md:min-h-[38px] ${
+              active === tab.id ? activeClasses : idleClasses
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Decorative only: the tabs themselves are the affordance for keyboard
+          and screen-reader readers, and the fade is pointer-transparent. */}
+      {edges.left && (
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute bottom-px left-0 top-0 w-10 bg-gradient-to-r to-transparent ${
+            isDark ? "from-dark via-dark/70" : "from-paper via-paper/70"
           }`}
-        >
-          {tab.label}
-        </button>
-      ))}
+        />
+      )}
+      {edges.right && (
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute bottom-px right-0 top-0 w-10 bg-gradient-to-l to-transparent ${
+            isDark ? "from-dark via-dark/70" : "from-paper via-paper/70"
+          }`}
+        />
+      )}
     </div>
   );
 }

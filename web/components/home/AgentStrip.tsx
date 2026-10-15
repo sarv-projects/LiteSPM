@@ -16,9 +16,8 @@ import { AgentLogo } from "../AgentLogo";
  * 3.8 MB of rows down, and the E1 contract puts every dataset request behind an
  * explicit interaction with the data itself.
  *
- * Counts appear only over rows that are actually loaded. Until then the copy is
- * qualitative, because a count over the twelve rows in "Good places to start"
- * would read as a catalog-wide claim it is not.
+ * Counts arrive as build-time props over the full snapshot, so the strip can
+ * print a catalog-wide number without the row set ever being requested.
  */
 export interface AgentStripProps {
   choice: AgentChoice | null;
@@ -35,16 +34,16 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
   if (!choice) {
     status = (
       <>
-        Choose one and the cards below mark themselves against it. This stays on your machine — we
-        read it back out of this browser, and nothing about you leaves it.
+        Choose one and the cards below mark themselves against it. The choice stays in this
+        browser — nothing is sent anywhere.
       </>
     );
   } else if (choice.hosts.length === 0) {
     status = (
       <>
-        Noted, and we won&rsquo;t pad it. Nothing in this catalog has been tested against{" "}
-        <strong className="font-medium text-ink-2">&ldquo;{choice.label}&rdquo;</strong>, so nothing
-        here claims to work with you. That&rsquo;s an honest blank, not a rejection.
+        Nothing in the catalog claims to work with{" "}
+        <strong className="font-medium text-ink-2">&ldquo;{choice.label}&rdquo;</strong>, so no
+        badges will show. Pick a named agent to see its matches.
       </>
     );
   } else if (countFor !== null) {
@@ -52,8 +51,8 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
       <>
         <span className="t-mono t-tabular text-ink">{countFor.toLocaleString("en-US")}</span> of{" "}
         <span className="t-mono t-tabular text-ink">{total.toLocaleString("en-US")}</span> entries
-        name <strong className="font-medium text-ink-2">{choice.label}</strong> as a compatible host.
-        That is the publisher&rsquo;s declaration — we have not run any of them.
+        install into <strong className="font-medium text-ink-2">{choice.label}</strong>, derived
+        from the adapter registries and publisher declarations. We have not run any of them.
       </>
     );
   } else {
@@ -61,7 +60,7 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
       <>
         The cards below are marked against{" "}
         <strong className="font-medium text-ink-2">{choice.label}</strong> from the rows already on
-        this page. Open one for its full host list.
+        this page. Open any card for its full host list.
       </>
     );
   }
@@ -99,8 +98,8 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
         <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-ink-2">{status}</p>
 
         <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
-          What the badge means: if something works with your agent, it&rsquo;s because it can run
-          there, not because it was tested there.
+          A badge means the entry installs into your agent, based on the adapter registries or the
+          publisher&rsquo;s own list. It is not a test result.
         </p>
       </div>
     </section>

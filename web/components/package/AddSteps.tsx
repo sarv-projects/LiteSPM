@@ -146,7 +146,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
       <div className="section-head">
         <h2 id="pkg-add-title">How do I add it?</h2>
         <span className="section-note">
-          {liteSPMInstallable ? "three steps, or one prompt" : "installability status"}
+          {liteSPMInstallable ? "three steps, or one prompt" : "install status"}
         </span>
       </div>
 
@@ -156,15 +156,15 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
           <p className="border-b border-dark-rule pb-3.5 text-[13px] leading-relaxed text-dark-ink">
             {item.kind === "plugin" && installabilityEstablished ? (
               <>
-                LiteSPM cannot complete plugin installs yet and fails closed with{" "}
+                LiteSPM can&rsquo;t install plugins yet — there is no artifact source. Rather than
+                installing half a bundle, the CLI stops with{" "}
                 <code className="t-mono text-dark-ink">LPSM-ARTIFACT-UNAVAILABLE</code>.
               </>
             ) : (
               <>
-                The catalog has not established that this entry is installable. The CLI refuses
-                discovery-only or unclassified entries with{" "}
-                <code className="t-mono text-dark-ink">LPSM-NOT-INSTALLABLE</code>; no LiteSPM install
-                command is shown.
+                This entry&rsquo;s metadata doesn&rsquo;t establish that it&rsquo;s installable, so
+                no install command is shown. The CLI refuses it with{" "}
+                <code className="t-mono text-dark-ink">LPSM-NOT-INSTALLABLE</code>.
               </>
             )}
           </p>
@@ -173,8 +173,8 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             <p className="flex min-w-0 items-start gap-2 text-[13px] leading-relaxed text-dark-ink">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-dark-signal" aria-hidden="true" />
               <span>
-                You chose <strong className="font-medium">{agent?.label}</strong> — your pick, stored
-                in this browser only.
+                You chose <strong className="font-medium">{agent?.label}</strong> — a pick stored in
+                this browser only.
               </span>
             </p>
             <button
@@ -194,11 +194,11 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             <p className="min-w-0 text-[13px] leading-relaxed text-dark-ink">
               {agent ? (
                 <>
-                  You chose <strong className="font-medium text-dark-ink">&ldquo;{agent.label}&rdquo;</strong>,
-                  which doesn&rsquo;t name an install target — so the steps below stay general.
+                  You chose <strong className="font-medium text-dark-ink">&ldquo;{agent.label}&rdquo;</strong>.
+                  That doesn&rsquo;t name an install target, so the steps below stay general.
                 </>
               ) : (
-                <>No agent selected yet. Pick one and these steps target it; until then they work for any agent.</>
+                <>No agent selected yet. Pick one and the steps below target it; until then they work for any agent.</>
               )}
             </p>
             <button type="button" className="btn btn-solid btn-lg shrink-0" onClick={onChooseAgent}>
@@ -259,8 +259,8 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                         Connect {targeted ? agent?.label : "your agent"}
                       </h3>
                       <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
-                        Run the setup wizard and pick your agent. It finds that agent&rsquo;s config file
-                        and adds the one LiteSPM entry, keeping a backup of what was there.
+                        Run the setup wizard and pick your agent. It finds that agent&rsquo;s config
+                        file, adds the one LiteSPM entry, and keeps a backup of what was there.
                       </p>
                     </div>
                   </div>
@@ -297,14 +297,15 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                       <p className="t-mono text-[10px] uppercase tracking-wider text-dark-ink-2">
                         {item.kind === "skill"
                           ? "Install it straight from the source repo"
-                          : "The host's own plugin command"}
+                          : "The host's own command"}
                       </p>
                       {/* The label has to follow the value. For a skill this
                           field holds a `litespm skills add …` command -- ours --
                           so calling it the host's command (as this did before
-                          the dataset was corrected) named the wrong tool. For a
-                          plugin it is genuinely the host's own `/plugin install`
-                          command, which is the one thing we cannot run. */}
+                          the dataset was corrected) named the wrong tool. Only
+                          skills carry this field on an installable row (443
+                          plugins carry one too, but plugins never reach this
+                          panel), so the fallback label stays generic. */}
                       <DarkCmd
                         text={item.installHint}
                         label={item.kind === "skill" ? "Copy LiteSPM install command" : "Copy host install command"}
@@ -332,9 +333,9 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             >
               <h3 className="text-[14px] font-semibold text-dark-ink">Let your agent run it</h3>
               <p className="mt-0.5 max-w-prose text-[13px] leading-relaxed text-dark-ink-2">
-                Paste this into {targeted ? agent?.label : "the agent you connected in step 2"}. It
-                works through the bridge already set up there — the steps 01 and 02 on the Command
-                tab still have to have happened once, or the bridge tools do not exist yet.
+                Paste this into {targeted ? agent?.label : "the agent you connected in step 2"}. The
+                bridge tools it calls exist only after steps 01 and 02 on the Command tab have been
+                done once.
               </p>
 
               <div className="mt-2 border border-dark-rule bg-dark-2 px-3 py-2.5">
@@ -351,10 +352,10 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
               </div>
 
               <p className="mt-2.5 max-w-prose text-[12px] leading-relaxed text-dark-ink-2">
-                What happens: LiteSPM builds the plan first and writes nothing until you approve it
-                in a terminal — <code className="t-mono text-dark-ink">litespm approve</code> refuses
-                to run without one, so an agent cannot approve for you, and the token it prints is
-                single-use. {avail.plain}
+                LiteSPM builds the plan first and writes nothing until you approve it in a terminal.{" "}
+                <code className="t-mono text-dark-ink">litespm approve</code> refuses to run without
+                one, so an agent can&rsquo;t approve for you, and the token it prints is single-use.{" "}
+                {avail.plain}
               </p>
             </div>
           </>
@@ -365,7 +366,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             {item.installHint ? (
               <>
                 <p className="t-mono text-[10px] uppercase tracking-wider text-dark-ink-2">
-                  The catalog&rsquo;s host command (outside LiteSPM)
+                  The host&rsquo;s own command (outside LiteSPM)
                 </p>
                 <DarkCmd
                   text={item.installHint}
@@ -375,15 +376,15 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
               </>
             ) : (
               <p className="text-[12px] leading-relaxed text-dark-ink-2">
-                The catalog does not publish a host install command for this entry.
+                The catalog doesn&rsquo;t publish a host install command for this entry.
               </p>
             )}
           </div>
         )}
 
         <p className="mt-5 border-t border-dark-rule pt-3 text-[12px] leading-relaxed text-dark-ink-2">
-          This page is static: it cannot tell whether LiteSPM is installed on your machine. Catalog
-          installability is not a local status check.
+          One thing this page can&rsquo;t do: tell whether LiteSPM is installed on your machine. It
+          is static, and catalog installability is not a local check.
         </p>
       </div>
 

@@ -5,6 +5,7 @@ import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { CategoryFacet, kindLabel } from "../../lib/catalog";
 import { formatCount } from "../../lib/format";
+import { categoryLabel } from "./categoryLabel";
 
 const KIND_ORDER = ["mcp", "skill", "plugin"] as const;
 
@@ -33,9 +34,9 @@ export default function CategoriesPage({ total, categories }: CategoriesViewProp
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Categories are the upstream registry&rsquo;s own labels, not a curated taxonomy, so a few of them
-          describe a language or a collection rather than a domain. The bar shows each category&rsquo;s share
-          of the largest one.
+          Categories are the upstream sources&rsquo; own labels, not a curated taxonomy, so a few
+          describe a language or a collection rather than a domain. The bar shows each
+          category&rsquo;s share of the largest one.
         </p>
 
         {/* Column headers are a real table header, not an ALL-CAPS eyebrow. */}
@@ -56,7 +57,9 @@ export default function CategoriesPage({ total, categories }: CategoriesViewProp
                 href={`/explore/?category=${encodeURIComponent(cat.name)}`}
                 className="grid grid-cols-[minmax(0,1fr)_56px] items-center gap-4 border-b border-rule py-2.5 transition-colors hover:bg-hover md:grid-cols-[260px_64px_170px_minmax(120px,1fr)]"
               >
-                <span className="t-cond truncate text-[14px] font-medium text-ink">{cat.name}</span>
+                <span className="t-cond truncate text-[14px] font-medium text-ink">
+                  {categoryLabel(cat.name)}
+                </span>
 
                 <span className="t-mono t-tabular text-right text-[12px] text-ink-2">
                   {formatCount(cat.count)}
@@ -76,6 +79,7 @@ export default function CategoriesPage({ total, categories }: CategoriesViewProp
                           style={{ backgroundColor: `var(--${kind})` }}
                         />
                         <span className="t-mono t-tabular text-[11px] text-ink-3">
+                          <span className="sr-only">{kindLabel(kind)}: </span>
                           {formatCount(cat.byKind[kind])}
                         </span>
                       </span>
@@ -93,6 +97,7 @@ export default function CategoriesPage({ total, categories }: CategoriesViewProp
                     />
                   </span>
                   <span className="t-mono t-tabular w-9 shrink-0 text-right text-[10px] text-ink-3">
+                    <span className="sr-only">share of the largest category: </span>
                     {Math.round(cat.share * 100)}%
                   </span>
                 </span>

@@ -45,8 +45,8 @@ const FEATURES: Array<{ title: string; body: React.ReactNode }> = [
     title: "Everything stays on your machine",
     body: (
       <>
-        No account, no analytics, no install telemetry. Your configs, your catalog and your history
-        are files on your disk, and nowhere else.
+        No account, no analytics, no install telemetry. Your configs, catalog and history are files
+        on your disk — nowhere else.
       </>
     ),
   },
@@ -151,11 +151,11 @@ export function DeveloperZone() {
           <div>
             <p className="kicker">For developers</p>
             <h2 id="dev-title" className="band-title mt-2">
-              Built for developers too.
+              Install and manage from the terminal
             </h2>
             <p className="band-sub">
-              The website is one surface. The CLI is where installs, approvals, restores and
-              diagnostics actually happen.
+              This site is a window onto the catalog. Installs, approvals, restores and diagnostics
+              all happen in the CLI.
             </p>
           </div>
         </div>

@@ -23,6 +23,7 @@ import {
 import { formatCount } from "../../lib/format";
 import { AGENT_STORAGE_KEY, findAgentChoice } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
+import { categoryLabel } from "../categories/categoryLabel";
 
 const KINDS = ["all", "mcp", "skill", "plugin"] as const;
 const SORTS: Array<{ id: SortMode; label: string }> = [
@@ -208,6 +209,10 @@ function ExploreContent(props: ExploreViewProps) {
   const hasFilters =
     query !== "" || kind !== "all" || category !== "all" || agent !== "all" || verifiedOnly || sort !== DEFAULT_SORT;
 
+  /** A filter that narrows the row set — the sort does not, and the query is
+   *  not a filter for the grid's empty-state wording. */
+  const narrowing = kind !== "all" || category !== "all" || agent !== "all" || verifiedOnly;
+
   /**
    * Only offered when it would actually do something: no filter is set yet, the
    * reader has not dismissed it, and the remembered agent names a host this
@@ -244,10 +249,16 @@ function ExploreContent(props: ExploreViewProps) {
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <h1 className="text-[24px] font-semibold tracking-tight text-ink">Explore</h1>
             <p className="t-mono text-[11px] text-ink-3">
-              {total.toLocaleString("en-US")} entries · {categories.length} categories ·{" "}
-              {hostCount} hosts
+              {formatCount(total)} entries · {formatCount(categories.length)} categories ·{" "}
+              {formatCount(hostCount)} agent hosts
             </p>
           </div>
+
+          <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
+            Every entry in the snapshot is searchable: Works with narrows to one agent host,
+            Installable first puts the rows LiteSPM can install on top, and Only rows from publisher
+            manifests excludes rows taken from third-party lists.
+          </p>
 
           {savedTarget && savedAgent && (
             <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-rule bg-sunken px-4 py-3">
@@ -336,7 +347,7 @@ function ExploreContent(props: ExploreViewProps) {
                 <option value="all">All categories</option>
                 {categories.map((c) => (
                   <option key={c.name} value={c.name}>
-                    {c.name} ({c.count})
+                    {categoryLabel(c.name)} ({c.count})
                   </option>
                 ))}
               </select>
@@ -361,7 +372,7 @@ function ExploreContent(props: ExploreViewProps) {
                 onChange={(e) => setVerifiedOnly(e.target.checked)}
                 className="h-3.5 w-3.5 accent-ink"
               />
-              Vendor-listed publishers only
+              Only rows from publisher manifests
             </label>
 
             {hasFilters && (
@@ -384,6 +395,9 @@ function ExploreContent(props: ExploreViewProps) {
             onRetry={request}
             onShowMore={request}
             onClearFilters={clear}
+            onSuggestion={setQuery}
+            filtersActive={narrowing}
+            settled={settled}
 
             toolbar={
               <div className="flex shrink-0 items-center gap-2">
