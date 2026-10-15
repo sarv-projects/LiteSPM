@@ -98,7 +98,7 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
     <DiscoveryCard as="article" interactive className={className}>
       <div className="flex min-w-0 items-start gap-3">
         <span className="card-tile">
-          <PublisherTile name={item.publisher?.name} kind={item.kind} />
+          <PublisherTile item={item} size={40} />
         </span>
 
         <div className="min-w-0 flex-1">

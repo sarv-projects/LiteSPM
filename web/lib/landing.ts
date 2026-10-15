@@ -241,40 +241,12 @@ export function rowWorksWithAgent(item: Listing, choice: AgentChoice | null): bo
 }
 
 /* ------------------------------------------------------------------ *
- * Source labels — the display names behind `domain.SourceID` values
+ * Source labels — re-exported from `lib/catalog.ts`, where `rowProvenance`
+ * renders them. Kept exported from here because that is where the Explore
+ * source filter and the shelf headings have always imported them from.
  * ------------------------------------------------------------------ */
 
-/**
- * Where each ingested row came from, in the words the Go source registry
- * already uses (`internal/source/sources.go` `KnownSources`). Only ids that
- * appear in `data/catalog.json` are listed; an unknown id falls back to the
- * raw id rather than a guessed name, so a renamed or new source shows as
- * itself and never as a label it does not have.
- *
- * Used for the shelf headings' provenance claims and the Explore source
- * filter chip — never as a per-row claim the row does not carry.
- */
-export const SOURCE_LABELS: Record<string, string> = {
-  "builtin:mcp-registry": "Official MCP Registry",
-  "builtin:agent-skills": "Agent Skills",
-  "feed:skills-sh": "skills.sh directory",
-  "feed:mcpservers-org": "MCPServers.org directory",
-  "feed:mcpmarket-com": "MCP Market directory",
-  "feed:punkpeye-awesome-mcp-servers": "awesome-mcp-servers list",
-  "feed:voltagent-awesome-agent-skills": "awesome-agent-skills list",
-  "git:anthropics-skills": "Anthropic Agent Skills",
-  "git:claude-plugins-official": "Claude Code Plugins Directory",
-  "git:knowledge-work-plugins": "Knowledge Work Plugins",
-  "git:openai-plugins": "OpenAI Codex Plugins",
-  "git:cursor-plugins": "Cursor Plugins",
-  "git:xai-plugin-marketplace": "xAI Plugin Marketplace",
-};
-
-/** The Go registry's own display name for the source, or the raw id. */
-export function sourceLabel(id: string | null | undefined): string {
-  if (!id) return "";
-  return SOURCE_LABELS[id] ?? id;
-}
+export { SOURCE_LABELS, sourceLabel } from "./catalog";
 
 /** The source id the Official MCP Registry rows carry. */
 export const MCP_REGISTRY_SOURCE = "builtin:mcp-registry";

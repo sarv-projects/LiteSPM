@@ -171,13 +171,11 @@ export function ExtensionGrid({
 
       {shown.length > 0 ? (
         <>
-          <div className="t-mono hidden border-b border-rule px-3 py-2 text-[10.5px] font-medium uppercase tracking-wider text-ink-3 lg:grid lg:grid-cols-[3px_22px_minmax(0,1fr)_auto] lg:gap-x-3 items-center">
+          <div className="t-mono hidden border-b border-rule py-2 pr-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-2 lg:grid lg:grid-cols-[3px_28px_minmax(0,1fr)_200px] lg:items-center lg:gap-x-3">
             <span />
             <span />
-            <span>Capability &amp; Specifications</span>
-            <span className="text-right pr-1">
-              <span>Agent Compatibility</span>
-            </span>
+            <span>Capability</span>
+            <span className="text-right">Availability &amp; source</span>
           </div>
 
           {shown.map((item) => (
@@ -211,15 +209,20 @@ export function ExtensionGrid({
       ) : showSkeleton ? (
         <ul className="pt-px" aria-hidden="true">
           {Array.from({ length: 8 }).map((_, i) => (
-            <li key={i} className="row">
-              <span className="row-spine bg-rule" />
-              <span className="tile bg-sunken-2" />
-              <span className="min-w-0">
-                <span className="block h-3 w-2/5 animate-pulse bg-sunken-2" />
+            <li
+              key={i}
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule bg-surface py-3 pr-3"
+            >
+              <span className="self-stretch rounded-[1px] bg-rule" style={{ width: 3 }} />
+              <span className="h-7 w-7 shrink-0 rounded-[6px] border border-rule bg-sunken-2" />
+              <span className="min-w-0 flex-1 basis-[60%]">
+                <span className="block h-3.5 w-2/5 animate-pulse bg-sunken-2" />
+                <span className="mt-2 block h-2.5 w-2/3 animate-pulse bg-sunken" />
                 <span className="mt-2 block h-2.5 w-1/3 animate-pulse bg-sunken" />
               </span>
-              <span className="row-side">
-                <span className="block h-2.5 w-12 animate-pulse bg-sunken" />
+              <span className="flex w-full shrink-0 flex-wrap gap-x-2 gap-y-1 lg:ml-auto lg:w-[200px] lg:flex-col lg:items-end">
+                <span className="block h-4 w-24 animate-pulse bg-sunken" />
+                <span className="block h-2.5 w-32 animate-pulse bg-sunken" />
               </span>
             </li>
           ))}

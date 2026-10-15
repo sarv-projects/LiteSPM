@@ -308,3 +308,352 @@ export function matchesSource(item: Listing, source: string | null): boolean {
 export function isInstallable(item: Listing): boolean {
   return availabilityOf(item).installable;
 }
+
+/* ------------------------------------------------------------------ *
+ * Publisher marks — the real identity a row's own record names
+ * ------------------------------------------------------------------ *
+ *
+ * Every discovery surface used to stamp a single grey letter on each row. A
+ * letter is not identity: six rows by six vendors read as six identical
+ * placeholders, which is exactly the "project page" impression this module
+ * exists to remove.
+ *
+ * There is no logo field in the dataset (`publisher.avatarUrl` is empty on all
+ * 69,376 rows). What the rows DO carry is identity the publisher itself
+ * published, and this module derives a mark from that and nothing else:
+ *
+ *   1. A github.com URL on the row (`publisher.url`, `skillSource`) names an
+ *      account — `github.com/<account>.png` is that account's own avatar, the
+ *      same publicly served mark mcpmarket.com renders. No name guessing: the
+ *      account comes from the row's own link. 27,695 rows.
+ *   2. A row whose link points at a GitHub mirror (`skills.sh/…`) names the
+ *      account in its first path segment, used only when that segment is the
+ *      row's own publisher name. 19,208 rows.
+ *   3. The MCP registry namespace convention is reverse-DNS: the publisher
+ *      `com.notion` proved it owns `notion.com`, so the host is the name
+ *      reversed — never an inference from the display name's spelling. 12,982
+ *      rows.
+ *   4. A row whose `publisher.url` points at a host of its own (not a
+ *      directory, not a PaaS) may take that site's own icon. The favicon of
+ *      neon.com is Neon's mark by definition — it is served by the thing the
+ *      row names. 8,754 rows.
+ *
+ * That is 68,639 of 69,376 rows (98.9%) asking for a mark the row itself
+ * names; the remaining 737 rows return `null` and draw a letter.
+ *
+ * `null` is a first-class answer throughout: a wrong logo is worse than a
+ * letter, so no rule reaches for a mark the row does not name, and a rule that
+ * cannot name one (a `co.uk` parent, a `vercel.app` apex, a directory host)
+ * yields the letter. Site icons resolve through Google's favicon endpoint
+ * because most vendors (notion.com, supabase.com) declare their icon in HTML
+ * and serve no `/favicon.ico`: on a 900-row sample of the tier-3/4 hosts, 84%
+ * resolved to a real icon and the rest answered the service's 16×16 "no icon"
+ * placeholder, which `PublisherTile` detects by size and turns into the
+ * letter rather than showing a glyph that is not the publisher's.
+ */
+
+export interface PublisherMark {
+  /** `github`: an account avatar. `site`: a host's own icon. */
+  kind: "github" | "site";
+  /** The account login or the host the mark belongs to, for the tile's title. */
+  label: string;
+  /**
+   * Image candidates in order. The tile walks the list and draws its letter
+   * fallback when the last one fails, so a host that serves no icon stays a
+   * letter rather than a broken-image glyph. Empty is a valid answer from
+   * `siteCandidates` (a PaaS apex, a `co.uk` registry) and turns the row into
+   * a letter row rather than a row wearing somebody else's logo.
+   */
+  srcs: string[];
+}
+
+/**
+ * Top-level labels the reverse-DNS namespace convention uses (`com.notion`,
+ * `io.usewire`, `ai.thetickeris`). Only a name whose FIRST label is one of
+ * these is read as a namespace: `jongalloway` and `nevse` are accounts, not
+ * domains, and are left alone.
+ */
+const NAMESPACE_TLDS = new Set([
+  "com", "org", "net", "io", "ai", "dev", "app", "co", "sh", "xyz", "info", "biz",
+  "me", "site", "online", "store", "tech", "cloud", "pro", "us", "uk", "de", "fr",
+  "ru", "cn", "jp", "kr", "in", "br", "au", "ca", "nl", "se", "no", "fi", "dk",
+  "it", "es", "ch", "at", "be", "pl", "cz", "ua", "tr", "tw", "hk", "sg", "mx",
+  "za", "ar", "cl", "pt", "gr", "il", "ee", "lv", "lt", "by", "am", "az", "ge",
+  "uz", "kz", "one", "live", "gg", "to", "ws", "fm", "tools", "media", "studio",
+  "space", "zone", "cs", "sk", "is", "ly", "tv",
+]);
+
+/**
+ * Hosts whose URLs mirror a GitHub repository (`<host>/<account>/<repo>/…`).
+ *
+ * skills.sh and officialskills.sh index skills straight out of GitHub: the
+ * first path segment is the GitHub account. That is the directory's own URL
+ * convention, and it is checked against the row's `publisher.name` before it
+ * is used — all 19,206 skills.sh rows carry the handle as their publisher, and
+ * a spot check of 42 sampled `<handle>/<repo>` pairs resolved to GitHub
+ * repositories of exactly those names. A handle that is not the publisher is
+ * never used, and a handle with no GitHub account 404s into the letter.
+ */
+const GITHUB_MIRROR_HOSTS = new Set([
+  "skills.sh",
+  "www.skills.sh",
+  "officialskills.sh",
+  "www.officialskills.sh",
+]);
+
+/**
+ * Hosts that are directories or listings, not publishers. The row's URL points
+ * at a catalogue page there, so the site's icon would be the directory's mark
+ * (or one icon repeated across thousands of rows), not this row's.
+ */
+const DIRECTORY_HOSTS = new Set([
+  "skills.sh",
+  "www.skills.sh",
+  "officialskills.sh",
+  "www.officialskills.sh",
+  "mcpservers.org",
+  "www.mcpservers.org",
+  "mcpmarket.com",
+  "www.mcpmarket.com",
+  "github.com",
+  "gist.github.com",
+  "awesome-mcp-servers.com",
+]);
+
+/** Parsed hostname of a URL, lowercased and stripped of `www.`, or null. */
+function hostOf(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (!host.includes(".") || host === "localhost") return null;
+    return host;
+  } catch {
+    return null;
+  }
+}
+
+function firstSegment(raw: string | undefined | null): string | null {
+  const host = hostOf(raw);
+  if (!host) return null;
+  try {
+    const segment = new URL(raw!).pathname.split("/").filter(Boolean)[0] ?? "";
+    return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(segment) ? segment : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `com.notion` → `notion.com`; null when the name is not a namespace. */
+function namespaceHost(name: string): string | null {
+  const labels = name.trim().toLowerCase().split(".");
+  if (labels.length < 2 || labels.length > 6) return null;
+  if (!NAMESPACE_TLDS.has(labels[0])) return null;
+  if (!labels.every((label) => /^[a-z0-9-]+$/.test(label))) return null;
+  return [...labels].reverse().join(".");
+}
+
+/** Google's favicon endpoint: the one resolver that reads declared icons. */
+function siteIcon(host: string): string {
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`;
+}
+
+/**
+ * Second-level tokens that mean the label above them is not a registrable
+ * domain: `notion.co.uk`'s parent is `notion.co.uk`, never `co.uk`, whose icon
+ * is the registry's and would be a wrong mark on the row. A token missing from
+ * this list costs a fallback candidate, not a wrong logo, because the parent
+ * is only ever tried after the host's own icon has failed.
+ */
+const SECOND_LEVEL_LABELS = new Set([
+  "co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go", "in", "id",
+  "mil", "sch", "gen", "nom", "web", "arts", "rec", "info", "biz", "med", "pub",
+  "res", "asn", "gouv", "gub", "gv", "k12", "cc", "jj", "ltd", "plc",
+]);
+
+/**
+ * Shared hosting and PaaS apexes. A row whose link lives on `x.vercel.app` or
+ * `x.onrender.com` names the app, not the platform; the platform's icon is
+ * somebody else's logo, and `github.io` is excluded for the same reason. These
+ * hosts are never a candidate nor a parent candidate, so the tile draws its
+ * letter — the honest answer for "a site whose own icon we cannot name".
+ */
+const SHARED_HOSTING_HOSTS = new Set([
+  "github.io", "gitlab.io", "vercel.app", "netlify.app", "pages.dev", "workers.dev",
+  "onrender.com", "herokuapp.com", "fly.dev", "deno.dev", "glitch.me", "replit.app",
+  "replit.dev", "surge.sh", "web.app", "firebaseapp.com", "azurewebsites.net",
+  "appspot.com", "ngrok.app", "ngrok-free.app", "localtunnel.me", "notion.site",
+  "wixsite.com", "weebly.com", "wordpress.com", "medium.com", "substack.com",
+  "hashnode.dev", "blogspot.com", "tumblr.com", "bubbleapps.io", "lovable.app",
+  "streamlit.app", "shinyapps.io", "zapier.app", "readthedocs.io",
+]);
+
+/**
+ * Two hosts for a subdomain: the host itself, then its registrable parent
+ * (`mcp.figma.com` → `figma.com`), because vendors publish the icon on the
+ * root. The parent is only tried when it is plausibly registrable: exactly
+ * three labels, the middle one not a second-level token (`co.uk`, `com.br`)
+ * and not a shared-hosting apex (`vercel.app`), whose icon belongs to the
+ * platform rather than to the row. A wrong logo is worse than a letter, so
+ * every one of these checks fails towards the letter.
+ */
+function siteCandidates(host: string): string[] {
+  const labels = host.split(".");
+  if (SHARED_HOSTING_HOSTS.has(host)) return [];
+  const srcs = [siteIcon(host)];
+  const parent = labels.slice(1).join(".");
+  if (labels.length === 3 && !SECOND_LEVEL_LABELS.has(labels[1].toLowerCase()) && !SHARED_HOSTING_HOSTS.has(parent)) {
+    srcs.push(siteIcon(parent));
+  }
+  return srcs;
+}
+
+/** The pubisher's own GitHub account when the row's own link names one. */
+function githubAccount(raw: string | undefined | null): string | null {
+  if (hostOf(raw) !== "github.com") return null;
+  return firstSegment(raw);
+}
+
+/**
+ * The real mark for a row, or null when its record names neither an account
+ * nor a domain. Pure over one row; safe on the server and in the browser.
+ */
+export function publisherMark(item: Listing): PublisherMark | null {
+  const name = (item.publisher?.name ?? "").trim();
+
+  // 1. A GitHub account the row's own link names.
+  for (const raw of [item.publisher?.url, item.skillSource]) {
+    const account = githubAccount(raw);
+    if (account) {
+      return {
+        kind: "github",
+        label: account,
+        srcs: [`https://github.com/${account}.png?size=64`],
+      };
+    }
+  }
+
+  // 2. A mirror host, only when the handle it names is the publisher's own.
+  for (const raw of [item.publisher?.url, item.skillSource]) {
+    const host = hostOf(raw);
+    if (!host || !GITHUB_MIRROR_HOSTS.has(host)) continue;
+    const account = firstSegment(raw);
+    if (account && account.toLowerCase() === name.toLowerCase()) {
+      return {
+        kind: "github",
+        label: account,
+        srcs: [`https://github.com/${account}.png?size=64`],
+      };
+    }
+  }
+
+  // 3. The reverse-DNS namespace is the publisher's own domain.
+  const namespace = namespaceHost(name);
+  if (namespace) {
+    const srcs = siteCandidates(namespace);
+    if (srcs.length) return { kind: "site", label: namespace, srcs };
+  }
+
+  // 4. The row's own link, when it points at a site rather than a directory.
+  const host = hostOf(item.publisher?.url);
+  if (host && !DIRECTORY_HOSTS.has(host) && !host.endsWith(".github.com")) {
+    const srcs = siteCandidates(host);
+    if (srcs.length) return { kind: "site", label: host, srcs };
+  }
+
+  return null;
+}
+
+/* ------------------------------------------------------------------ *
+ * Row signal — the strongest true claim a row can make
+ * ------------------------------------------------------------------ */
+
+export type RowSignalTier = "official" | "installable" | "discovery";
+
+export interface RowSignal {
+  tier: RowSignalTier;
+  /** Chip text. Short; the note carries the reasoning. */
+  label: string;
+  /** The fact behind the label, in one sentence, for the chip's title. */
+  note: string;
+}
+
+/**
+ * The one claim a row leads with, strongest first:
+ *
+ *   1. **Official** — the row's own category is the upstream directory's
+ *      “Official Skills by …” section, carried verbatim. Nothing in the data
+ *      outranks a directory's own statement that a vendor published the skill,
+ *      and the chip's note names it as that directory's classification rather
+ *      than LiteSPM's finding. 285 rows.
+ *   2. **Can be installed now** — the same predicate `litespm install` runs
+ *      (`lib/availability`). The reader's actual question.
+ *   3. **Discovery only** — listed but not installable. Stated so a click is
+ *      not a surprise, never dressed up.
+ *
+ * The catalog publishes no star, download or install count, so no tier here is
+ * a popularity figure — each is a field the reader can check on the row.
+ */
+export function rowSignal(item: Listing): RowSignal {
+  if (item.category === OFFICIAL_SKILLS_CATEGORY) {
+    return {
+      tier: "official",
+      label: "Official",
+      note: "This row's own category is the upstream directory's “Official Skills by …” section — that directory's classification of a vendor-published skill, carried verbatim. LiteSPM has not audited it, and it is not a security verdict.",
+    };
+  }
+  const avail = availabilityOf(item);
+  return {
+    tier: avail.installable ? "installable" : "discovery",
+    label: avail.label,
+    note: avail.plain,
+  };
+}
+
+/**
+ * Where a row came from, as one quiet line: the publisher's own manifest when
+ * the row was read from one, else the directory or list it was ingested from
+ * (`sourceLabel`). Never a guess — an unknown source id renders as itself.
+ */
+export function rowProvenance(item: Listing): string {
+  if (item.publisher?.verified) return "From the publisher's manifest";
+  return item.source ? sourceLabel(item.source) : "Origin not stated";
+}
+
+/* ------------------------------------------------------------------ *
+ * Source labels — the display names behind `domain.SourceID` values
+ * ------------------------------------------------------------------ */
+
+/**
+ * Where each ingested row came from, in the words the Go source registry
+ * already uses (`internal/source/sources.go` `KnownSources`). Only ids that
+ * appear in `data/catalog.json` are listed; an unknown id falls back to the
+ * raw id rather than a guessed name, so a renamed or new source shows as
+ * itself and never as a label it does not have.
+ *
+ * Defined here beside `rowProvenance`, the function that renders it, and
+ * re-exported by `landing.ts` where the Explore source filter and the shelf
+ * headings have always imported it from.
+ */
+export const SOURCE_LABELS: Record<string, string> = {
+  "builtin:mcp-registry": "Official MCP Registry",
+  "builtin:agent-skills": "Agent Skills",
+  "feed:skills-sh": "skills.sh directory",
+  "feed:mcpservers-org": "MCPServers.org directory",
+  "feed:mcpmarket-com": "MCP Market directory",
+  "feed:punkpeye-awesome-mcp-servers": "awesome-mcp-servers list",
+  "feed:voltagent-awesome-agent-skills": "awesome-agent-skills list",
+  "git:anthropics-skills": "Anthropic Agent Skills",
+  "git:claude-plugins-official": "Claude Code Plugins Directory",
+  "git:knowledge-work-plugins": "Knowledge Work Plugins",
+  "git:openai-plugins": "OpenAI Codex Plugins",
+  "git:cursor-plugins": "Cursor Plugins",
+  "git:xai-plugin-marketplace": "xAI Plugin Marketplace",
+};
+
+/** The Go registry's own display name for the source, or the raw id. */
+export function sourceLabel(id: string | null | undefined): string {
+  if (!id) return "";
+  return SOURCE_LABELS[id] ?? id;
+}

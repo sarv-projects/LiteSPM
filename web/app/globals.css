@@ -738,17 +738,46 @@
      card so the reduced-motion block can drop the displacement itself:
      collapsing a transition still lands the 2px, only instantly. --t-hover is
      the motion scale's hover rung and --shadow-card-hover the card shadow —
-     no new values, and no second gesture. */
+     no new values, and no second gesture.
+     `::after` is the part that answers the pointer: a 1px accent rule that
+     fades in along the card's top edge as the card lifts, so the card
+     *responds* to the pointer instead of only recolouring its border. It is
+     opacity on a pseudo-element — no box moves, nothing reflows — and it
+     inherits the card's radius, so it cannot escape a rounded corner. */
   .card-lift {
+    position: relative;
     transition:
       transform var(--t-hover) ease-out,
       border-color var(--t-hover) ease-out,
       box-shadow var(--t-hover) ease-out;
   }
+  .card-lift::after {
+    content: "";
+    position: absolute;
+    inset: -1px -1px auto -1px;
+    height: 2px;
+    border-radius: var(--r-card) var(--r-card) 0 0;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      var(--accent) 18%,
+      var(--accent) 82%,
+      transparent
+    );
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-hover) ease-out;
+  }
   @media (hover: hover) {
     .card-lift:hover {
       transform: translateY(-2px);
     }
+    .card-lift:hover::after {
+      opacity: 1;
+    }
+  }
+  .card-lift:focus-within::after {
+    opacity: 1;
   }
 
   /* The two secondary gestures an interactive discovery card adds: the
@@ -826,6 +855,13 @@
     border-color: var(--ink-2);
     background-color: var(--hover);
     color: var(--ink);
+  }
+  /* Press feedback: the same 1px displacement the cards use, downward, at the
+     scale's state rung. A click that lands in under 150ms should not have to
+     wait for its own acknowledgement, so this is --t-state, not --t-hover. */
+  .chip:active,
+  .btn:active {
+    transform: translateY(1px);
   }
   .chip[aria-pressed="true"],
   .chip[aria-current="true"] {
@@ -1040,12 +1076,625 @@
     }
   }
 
-  /* ---- the one-bridge diagram ---------------------------------------- */
-  /* Deliberately static. The earlier version animated 36 connectors (a draw-on
-     plus an infinite travelling highlight on each) and rendered as a spiderweb
-     of crossing strokes. The diagram now draws nine straight lines with no
-     crossings and no animation at all; see components/home/BridgeDiagram.tsx.
-     Nothing here is gated on reduced-motion because nothing moves. */
+  /* ==== the bridge figure ============================================ */
+  /*
+   * Laid out entirely from the custom properties below, so the whole figure is
+   * one set of numbers. Four bands stack from `--dg-pad`, each separated by a
+   * named gap; every trace, the bus and both packets are placed off those
+   * properties, which is what lets the packet travel with `transform` alone —
+   * a vertical leg is always a *known* pixel height, never a measured one.
+   *
+   * Nothing in the figure animates a layout property. The moving parts are
+   * `transform` (both packets, the tile lift) and `opacity` / `background-color`
+   * / `border-color` (the highlight state), all of which the compositor can
+   * carry without dirtying style or layout.
+   *
+   * The stage is `--paper` inside a `--surface` card: one plane in front of
+   * another, which is the whole depth story, plus the dot ground and the
+   * brand's own glow at the top edge.
+   */
+  .dg {
+    margin: 0;
+  }
+  .dg-stage {
+    --dg-pad: 14px;
+    --dg-tile-h: 62px;
+    --dg-row-gap: 8px;
+    --dg-agents-h: var(--dg-tile-h);
+    --dg-gap-a: 42px;
+    --dg-band-h: 92px;
+    --dg-gap-b: 42px;
+    --dg-kind-h: 56px;
+    --dg-bus-inset: 20px;
+    --dg-hub-h: 48px;
+    /* Inset of the hub (and therefore of the two side taps) from each edge. */
+    --dg-hub-in: 22%;
+    --dg-bus-x0: 0.083333;
+    --dg-bus-x1: 0.916667;
+
+    --dg-agents-y: var(--dg-pad);
+    --dg-agents-b: calc(var(--dg-agents-y) + var(--dg-agents-h));
+    --dg-band-y: calc(var(--dg-agents-b) + var(--dg-gap-a));
+    --dg-band-b: calc(var(--dg-band-y) + var(--dg-band-h));
+    --dg-kind-y: calc(var(--dg-band-b) + var(--dg-gap-b));
+    --dg-kind-b: calc(var(--dg-kind-y) + var(--dg-kind-h));
+    --dg-h: calc(var(--dg-kind-b) + var(--dg-pad));
+    --dg-bus-y: calc(var(--dg-band-y) + var(--dg-bus-inset));
+    --dg-hub-y: calc(var(--dg-bus-y) + 12px);
+    /* Distance a packet covers on each of its two legs. */
+    --dg-leg-in: var(--dg-gap-b);
+    --dg-leg-out: calc(var(--dg-gap-a) + var(--dg-bus-inset));
+    /* The grid's content width: column centres are fractions of this. */
+    --dg-xw: calc(100% - 2 * var(--dg-pad));
+
+    position: relative;
+    height: var(--dg-h);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-hero);
+    background-color: var(--paper);
+    background-image:
+      radial-gradient(
+        120% 76% at 50% -8%,
+        color-mix(in srgb, var(--accent) 8%, transparent),
+        transparent 62%
+      ),
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 0);
+    background-size: auto, 18px 18px;
+  }
+
+  @media (max-width: 639px) {
+    .dg-stage {
+      --dg-pad: 12px;
+      --dg-tile-h: 60px;
+      /* Two rows of tiles, so the whole agent block is taller and the first
+         gap carries less of the height. */
+      --dg-agents-h: calc(2 * var(--dg-tile-h) + var(--dg-row-gap));
+      --dg-gap-a: 30px;
+      --dg-gap-b: 36px;
+      --dg-hub-in: 11%;
+      --dg-bus-x0: 0.34;
+      --dg-bus-x1: 0.66;
+    }
+  }
+
+  /* The device plane. Decorative: it bounds the region the bridge serves, and
+     carries no text that is not also in the hub chip drawn on top of it. */
+  .dg-band {
+    position: absolute;
+    left: var(--dg-pad);
+    right: var(--dg-pad);
+    top: var(--dg-band-y);
+    height: var(--dg-band-h);
+    border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+    border-radius: var(--r-hero);
+    background-color: color-mix(in srgb, var(--accent) 5%, transparent);
+    transition:
+      opacity var(--t-hover) ease-out,
+      border-color var(--t-hover) ease-out,
+      background-color var(--t-hover) ease-out;
+  }
+
+  /*
+   * Traces. Full `--accent-text`, not a wash of it: at 40% opacity the old
+   * connectors measured ~1.8:1 against the page, and a line that states which
+   * agent reaches which capability is meaningful graphics, which WCAG 1.4.11
+   * holds to 3:1. `--accent-text` is the theme-aware accent that already
+   * clears AA as text (4.64:1 light, 8.53:1 dark), so the path is legible in
+   * both themes without a second colour to maintain.
+   */
+  .dg-trace {
+    position: absolute;
+    z-index: 1;
+    width: 2px;
+    margin-left: -1px;
+    left: calc(var(--dg-pad) + var(--dg-xw) * var(--dg-x, 0.5));
+    border-radius: 1px;
+    background-color: var(--accent-text);
+    transition:
+      opacity var(--t-hover) ease-out,
+      box-shadow var(--t-hover) ease-out;
+  }
+  .dg-trace-in {
+    top: var(--dg-agents-b);
+    height: var(--dg-leg-out);
+  }
+  .dg-trace-out {
+    top: var(--dg-band-b);
+    height: var(--dg-leg-in);
+  }
+  /*
+   * The pin where a trace meets the device: a 6px node, drawn as a
+   * pseudo-element so the junction costs no DOM. `background: inherit` takes
+   * the trace's own colour, so a pin can never drift from its wire.
+   */
+  .dg-trace::after {
+    content: "";
+    position: absolute;
+    left: -2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: inherit;
+  }
+  .dg-trace-in::after {
+    bottom: -3px;
+  }
+  .dg-trace-out::after {
+    top: -3px;
+  }
+  /* The single collector that stands in for six traces once the tiles wrap. */
+  .dg-trace-join {
+    display: none;
+    --dg-x: 0.5;
+  }
+  @media (max-width: 639px) {
+    .dg-trace-in:not(.dg-trace-join) {
+      display: none;
+    }
+    .dg-trace-join {
+      display: block;
+    }
+  }
+
+  /* The bus: one shared run every agent taps, so the convergence is drawn. */
+  .dg-bus {
+    position: absolute;
+    z-index: 2;
+    top: var(--dg-bus-y);
+    left: calc(var(--dg-pad) + var(--dg-xw) * var(--dg-bus-x0));
+    right: calc(var(--dg-pad) + var(--dg-xw) * (1 - var(--dg-bus-x1)));
+    height: 2px;
+    border-radius: 1px;
+    background-color: var(--accent-text);
+    transition: opacity var(--t-hover) ease-out;
+  }
+
+  .dg-hub {
+    position: absolute;
+    z-index: 3;
+    top: var(--dg-hub-y);
+    left: var(--dg-hub-in);
+    right: var(--dg-hub-in);
+    height: var(--dg-hub-h);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+    border-radius: var(--r-ctl);
+    background-color: var(--surface);
+    box-shadow:
+      0 1px 0 color-mix(in srgb, var(--ink) 6%, transparent) inset,
+      0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);
+    transition:
+      border-color var(--t-hover) ease-out,
+      box-shadow var(--t-panel) ease-out,
+      background-color var(--t-hover) ease-out;
+  }
+  .dg-hub-title {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: var(--accent-text);
+  }
+  .dg-hub-verbs {
+    font-size: 10px;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    color: var(--ink-3);
+  }
+  @media (min-width: 768px) {
+    .dg-hub-verbs {
+      font-size: 10.5px;
+    }
+  }
+
+  /* The traveling packet: 10px, in the kind's own hue, with a comet tail. */
+  .dg-packet {
+    position: absolute;
+    z-index: 4;
+    left: calc(var(--dg-pad) + var(--dg-xw) * var(--dg-x, 0.5));
+    width: 10px;
+    height: 10px;
+    margin-left: -5px;
+    margin-top: -5px;
+    border-radius: 50%;
+    opacity: 0;
+    background-color: var(--dg-packet-hue, var(--accent));
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--dg-packet-hue, var(--accent)) 18%, transparent),
+      0 0 10px 2px color-mix(in srgb, var(--dg-packet-hue, var(--accent)) 45%, transparent);
+    transition:
+      transform 620ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      opacity 160ms linear;
+  }
+  .dg-packet-in {
+    top: var(--dg-kind-y);
+  }
+  .dg-packet-out {
+    top: var(--dg-bus-y);
+  }
+  .dg-packet[data-kind="mcp"] {
+    --dg-packet-hue: var(--mcp);
+  }
+  .dg-packet[data-kind="skill"] {
+    --dg-packet-hue: var(--skill);
+  }
+  .dg-packet[data-kind="plugin"] {
+    --dg-packet-hue: var(--plugin);
+  }
+  /* The out-packet has no kind of its own — it leaves the bridge for an
+     agent, so it carries the brand. */
+  .dg-packet-out {
+    --dg-packet-hue: var(--accent);
+  }
+
+  /*
+   * The phase machine, expressed where it belongs. `up` and `out` move a
+   * packet; `hub` fades it out at the bus and pulses the device; `idle` parks
+   * both packets invisibly at their starts. The reset needs no second
+   * animation: when a phase stops matching, the transform simply transitions
+   * back to zero.
+   *
+   * That reset is not free, though. Reusing the rise's ease-out in reverse
+   * front-loads the retreat: the packet retraced ~60% of its leg in the
+   * 160 ms it took to fade, which measured on a real cycle as the dot
+   * arriving at the bus and then visibly sliding back down as it died —
+   * "accepted by the bridge" read as "bounced". So the return leg gets an
+   * ease-in: its first 160 ms is near-stationary, the whole retrace happens
+   * after the packet is gone, and the rise keeps its own curve.
+   */
+  .dg-stage:not([data-phase="up"]) .dg-packet-in,
+  .dg-stage:not([data-phase="out"]) .dg-packet-out {
+    transition-timing-function: cubic-bezier(0.7, 0, 0.84, 0), linear;
+  }
+  .dg-stage[data-phase="up"] .dg-packet-in {
+    opacity: 1;
+    transform: translateY(calc(-1 * var(--dg-leg-in)));
+  }
+  .dg-stage[data-phase="hub"] .dg-packet-in {
+    opacity: 0;
+  }
+  .dg-stage[data-phase="out"] .dg-packet-out {
+    opacity: 1;
+    transform: translateY(calc(-1 * var(--dg-leg-out)));
+  }
+  .dg-stage[data-phase="hub"] .dg-hub {
+    border-color: color-mix(in srgb, var(--accent) 78%, transparent);
+    background-color: color-mix(in srgb, var(--accent) 7%, var(--surface));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+      0 2px 8px -2px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  /* Below `sm` the tiles are three across, so the outgoing packet leaves from
+     the centre of the block rather than from a column that no longer exists. */
+  @media (max-width: 639px) {
+    .dg-packet-out {
+      left: calc(var(--dg-pad) + var(--dg-xw) * 0.5);
+    }
+  }
+
+  /* ---- the agent tiles ---------------------------------------------- */
+  .dg-agents,
+  .dg-kinds {
+    position: absolute;
+    left: var(--dg-pad);
+    right: var(--dg-pad);
+    display: grid;
+    z-index: 5;
+    gap: 6px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .dg-agents {
+    top: var(--dg-agents-y);
+    height: var(--dg-agents-h);
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  @media (max-width: 639px) {
+    .dg-agents {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: repeat(2, var(--dg-tile-h));
+      row-gap: var(--dg-row-gap);
+    }
+  }
+
+  .dg-agent-link,
+  .dg-agent-still {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 100%;
+    width: 100%;
+    padding: 0 2px;
+    /* A control boundary: 3:1, which is what --rule-2 is for. */
+    border: 1px solid var(--rule-2);
+    border-radius: var(--r-panel);
+    background-color: var(--surface);
+    transition:
+      border-color var(--t-hover) ease-out,
+      background-color var(--t-hover) ease-out,
+      box-shadow var(--t-hover) ease-out,
+      opacity var(--t-hover) ease-out;
+  }
+  .dg-agent-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10.5px;
+    line-height: 1.2;
+    color: var(--ink-3);
+    transition: color var(--t-hover) ease-out;
+  }
+  /* The logo does the work, so the logo is what moves: 6% on hover, the same
+     160ms rung as every other hover gesture on the site. `AgentLogo` takes the
+     class rather than being selected structurally, so a change to its internals
+     cannot silently stop this gesture from firing. The plate itself is a
+     mounted chip: 4px, a hairline and one shadow step, so the mark sits on the
+     tile rather than floating in the middle of it. */
+  .dg-agent-plate {
+    border-radius: var(--r-ctl);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 10%, transparent);
+    transition:
+      transform var(--t-hover) ease-out,
+      box-shadow var(--t-hover) ease-out;
+  }
+  @media (hover: hover) {
+    .dg-agent:hover .dg-agent-plate,
+    .dg-agent:hover .dg-agent-mark {
+      transform: scale(1.06);
+    }
+  }
+  .dg-agent-link:focus-visible .dg-agent-plate {
+    transform: scale(1.06);
+  }
+
+  /* The honest sixth: no mark, because there is no mark we could attribute. */
+  .dg-agent-other .dg-agent-still {
+    border-style: dashed;
+    background-color: var(--sunken);
+  }
+  .dg-agent-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r-ctl);
+    border: 1px dashed var(--rule-2);
+    color: var(--ink-3);
+    font-size: 15px;
+    line-height: 1;
+    transition: transform var(--t-hover) ease-out;
+  }
+
+  /* ---- the three kinds ---------------------------------------------- */
+  .dg-kinds {
+    top: var(--dg-kind-y);
+    height: var(--dg-kind-h);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .dg-kind-link {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2px;
+    height: 100%;
+    padding: 0 8px;
+    border: 1px solid color-mix(in srgb, var(--dg-hue) 40%, transparent);
+    border-left: 3px solid var(--dg-hue);
+    border-radius: var(--r-hero);
+    background-color: var(--dg-hue-wash);
+    transition:
+      border-color var(--t-hover) ease-out,
+      background-color var(--t-hover) ease-out,
+      opacity var(--t-hover) ease-out,
+      box-shadow var(--t-hover) ease-out;
+  }
+  @media (min-width: 768px) {
+    .dg-kind-link {
+      padding: 0 10px;
+    }
+  }
+  .dg-kind[data-kind="mcp"] {
+    --dg-hue: var(--mcp);
+    --dg-hue-wash: var(--mcp-wash);
+  }
+  .dg-kind[data-kind="skill"] {
+    --dg-hue: var(--skill);
+    --dg-hue-wash: var(--skill-wash);
+  }
+  .dg-kind[data-kind="plugin"] {
+    --dg-hue: var(--plugin);
+    --dg-hue-wash: var(--plugin-wash);
+  }
+  /*
+   * Both lines carry the kind hue at full strength. The previous figure drew
+   * the note at 85% opacity on the wash, which measures ~4.3:1 — under AA for
+   * 11px text. Size and family separate the two lines instead of opacity.
+   */
+  .dg-kind-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.005em;
+    color: var(--dg-hue);
+  }
+  .dg-kind-note {
+    font-size: 10px;
+    line-height: 1.2;
+    color: var(--dg-hue);
+  }
+  @media (min-width: 768px) {
+    .dg-kind-label {
+      font-size: 13px;
+    }
+    .dg-kind-note {
+      font-size: 10.5px;
+    }
+  }
+
+  /* ---- the highlight: hovering a tile lights the whole path --------- */
+  /*
+   * One attribute on the stage decides the state, so the pointer handlers
+   * write one value and the stylesheet holds every rule. Interaction timings
+   * are the site's 160ms hover rung, ease-out, and only `opacity`,
+   * `background-color`, `border-color`, `color` and `box-shadow` change — no
+   * element moves, so holding a highlight can never trigger a layout.
+   */
+  .dg-stage[data-hot-agent],
+  .dg-stage[data-hot-kind] {
+    cursor: default;
+  }
+  .dg-stage[data-hot-agent] .dg-agent,
+  .dg-stage[data-hot-agent] .dg-kind,
+  .dg-stage[data-hot-kind] .dg-agent,
+  .dg-stage[data-hot-kind] .dg-kind {
+    opacity: 0.45;
+  }
+  .dg-stage[data-hot-agent] .dg-trace,
+  .dg-stage[data-hot-kind] .dg-trace {
+    opacity: 0.4;
+  }
+  .dg-stage[data-hot-agent] .dg-band,
+  .dg-stage[data-hot-agent] .dg-bus,
+  .dg-stage[data-hot-kind] .dg-band,
+  .dg-stage[data-hot-kind] .dg-bus {
+    opacity: 0.6;
+  }
+
+  /* An agent: its own trace, the bus, the device, and all three exits — the
+     whole reach of the one agent the reader is pointing at. Note what is NOT
+     in this list: the other five tiles. They stay dimmed, so exactly one path
+     is drawn through the figure. */
+  .dg-stage[data-hot-agent] .dg-hub,
+  .dg-stage[data-hot-agent] .dg-trace-out,
+  .dg-stage[data-hot-agent] .dg-kind {
+    opacity: 1;
+  }
+  .dg-stage[data-hot-agent] .dg-trace-in,
+  .dg-stage[data-hot-agent] .dg-bus {
+    opacity: 1;
+  }
+  .dg-stage[data-hot-agent="0"] .dg-agent[data-i="0"],
+  .dg-stage[data-hot-agent="1"] .dg-agent[data-i="1"],
+  .dg-stage[data-hot-agent="2"] .dg-agent[data-i="2"],
+  .dg-stage[data-hot-agent="3"] .dg-agent[data-i="3"],
+  .dg-stage[data-hot-agent="4"] .dg-agent[data-i="4"],
+  .dg-stage[data-hot-agent="5"] .dg-agent[data-i="5"] {
+    opacity: 1;
+  }
+  .dg-stage[data-hot-agent="0"] .dg-agent[data-i="0"] .dg-agent-link,
+  .dg-stage[data-hot-agent="1"] .dg-agent[data-i="1"] .dg-agent-link,
+  .dg-stage[data-hot-agent="2"] .dg-agent[data-i="2"] .dg-agent-link,
+  .dg-stage[data-hot-agent="3"] .dg-agent[data-i="3"] .dg-agent-link,
+  .dg-stage[data-hot-agent="4"] .dg-agent[data-i="4"] .dg-agent-link,
+  .dg-stage[data-hot-agent="5"] .dg-agent[data-i="5"] .dg-agent-still,
+  .dg-agent:hover .dg-agent-link,
+  .dg-agent:hover .dg-agent-still,
+  .dg-agent-link:focus-visible {
+    border-color: var(--accent);
+    background-color: var(--accent-wash);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  /* Every other agent's trace dims, so exactly one path is drawn. */
+  .dg-stage[data-hot-agent="0"] .dg-trace-in[data-i="0"],
+  .dg-stage[data-hot-agent="1"] .dg-trace-in[data-i="1"],
+  .dg-stage[data-hot-agent="2"] .dg-trace-in[data-i="2"],
+  .dg-stage[data-hot-agent="3"] .dg-trace-in[data-i="3"],
+  .dg-stage[data-hot-agent="4"] .dg-trace-in[data-i="4"],
+  .dg-stage[data-hot-agent="5"] .dg-trace-in[data-i="5"] {
+    opacity: 1;
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--accent) 34%, transparent);
+  }
+  .dg-stage[data-hot-agent] .dg-kind-label,
+  .dg-stage[data-hot-agent] .dg-kind-note {
+    color: var(--dg-hue);
+  }
+
+  /* A kind: its own exit and box, the device, the bus, and all six agents —
+     because the claim runs both ways, and this is the direction that proves
+     it. The other two kinds stay dimmed. */
+  .dg-stage[data-hot-kind] .dg-agent,
+  .dg-stage[data-hot-kind] .dg-hub,
+  .dg-stage[data-hot-kind] .dg-trace-in,
+  .dg-stage[data-hot-kind] .dg-trace-out,
+  .dg-stage[data-hot-kind] .dg-bus {
+    opacity: 1;
+  }
+  .dg-stage[data-hot-kind="mcp"] .dg-kind[data-kind="mcp"],
+  .dg-stage[data-hot-kind="skill"] .dg-kind[data-kind="skill"],
+  .dg-stage[data-hot-kind="plugin"] .dg-kind[data-kind="plugin"] {
+    opacity: 1;
+  }
+  .dg-stage[data-hot-kind] .dg-agent-link,
+  .dg-stage[data-hot-kind] .dg-agent-still {
+    border-color: var(--accent);
+  }
+  .dg-stage[data-hot-kind="mcp"] .dg-trace-out[data-kind="mcp"],
+  .dg-stage[data-hot-kind="skill"] .dg-trace-out[data-kind="skill"],
+  .dg-stage[data-hot-kind="plugin"] .dg-trace-out[data-kind="plugin"] {
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--accent) 34%, transparent);
+  }
+  .dg-stage[data-hot-kind="mcp"] .dg-kind[data-kind="mcp"] .dg-kind-link,
+  .dg-stage[data-hot-kind="skill"] .dg-kind[data-kind="skill"] .dg-kind-link,
+  .dg-stage[data-hot-kind="plugin"] .dg-kind[data-kind="plugin"] .dg-kind-link {
+    border-color: var(--dg-hue);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--dg-hue) 16%, transparent);
+  }
+
+  /* ---- section entrance, on the scroll, with no JavaScript ---------- */
+  /*
+   * `animation-timeline: view()` runs the reveal off the element's own
+   * position in the viewport, so there is no IntersectionObserver, no scroll
+   * listener, no rAF loop and no work on the main thread while scrolling —
+   * which is the only version of a scroll entrance that belongs on a page
+   * whose argument is that it loads in 166 ms.
+   *
+   * Two deliberate limits:
+   *
+   *  - **Transform only, never opacity.** A section caught mid-entry at load
+   *    (there is always one at the fold) would otherwise render at whatever
+   *    fraction of its fade it happened to be at, and a half-transparent
+   *    section reads as a broken page. A section sitting 12px low reads as
+   *    nothing at all.
+   *  - **Wrappers only, never cards.** `.reveal` is applied to section
+   *    wrappers, because a finished animation that holds `transform` beats a
+   *    hover transition on the same element in the cascade — putting this on
+   *    `.card-lift` would land every card permanently unable to respond.
+   *
+   * Unsupported browsers (Firefox, Safari at the time of writing) never enter
+   * the `@supports` block, so they render the page exactly as it is today.
+   */
+  @keyframes band-rise {
+    from {
+      transform: translateY(12px);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .band {
+        animation: band-rise linear both;
+        animation-timeline: view();
+        /* Completes 45% of the way through the entry, so a section has
+           settled before its content is anywhere near the reading position. */
+        animation-range: entry 0% entry 45%;
+      }
+    }
+  }
+
+  /* ---- the one-bridge figure (see components/home/BridgeDiagram.tsx) -- */
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1059,13 +1708,15 @@
   }
 
   /* The hover gestures that MOVE anything — the discovery card's 2px lift,
-     the publisher tile's 1.05 scale, the arrow's 2px slide, and the result
-     row's 2px trailing shift — are positional changes, and the rule above
-     only collapses their duration: the offset would still land, just
-     instantly. Under reduced motion they are dropped outright and the hover
-     state is carried by border, shadow and background alone, which is the
-     same way `.enter-rise` is handled (it is never applied at all). The
-     arrow's opacity reveal stays: an instant cut is not motion. */
+     the publisher tile's 1.05 scale, the arrow's 2px slide, the result
+     row's 2px trailing shift, a control's 1px press and the bridge figure's
+     logo scale — are positional changes, and the rule above only collapses
+     their duration: the offset would still land, just instantly. Under
+     reduced motion they are dropped outright and the hover state is carried
+     by border, shadow and background alone, which is the same way
+     `.enter-rise` is handled (it is never applied at all). The arrow's
+     opacity reveal stays: an instant cut is not motion, and neither is the
+     card's accent hairline. */
   .card-lift:hover {
     transform: none;
   }
@@ -1075,6 +1726,15 @@
   }
   .row:hover .row-side,
   .row:focus-visible .row-side {
+    transform: none;
+  }
+  .chip:active,
+  .btn:active {
+    transform: none;
+  }
+  .dg-agent:hover .dg-agent-plate,
+  .dg-agent:hover .dg-agent-mark,
+  .dg-agent-link:focus-visible .dg-agent-plate {
     transform: none;
   }
 }
