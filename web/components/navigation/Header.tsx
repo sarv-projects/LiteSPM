@@ -44,7 +44,7 @@ export function Header({ onNavigate, onSearchClick }: HeaderProps) {
       {/* The header is opaque, not glassy. A blur layer over a ruled table
           costs paint on every scroll frame and buys nothing here. */}
       <div className="shell grid h-[92px] grid-cols-[auto_minmax(0,1fr)] grid-rows-[48px_44px] items-center gap-x-3 md:flex md:h-12 md:gap-4">
-        <Link href="/" className="col-start-1 row-start-1 flex min-h-[44px] shrink-0 items-center gap-2" aria-label="LiteSPM Market home">
+        <Link href="/" className="col-start-1 row-start-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center gap-2" aria-label="LiteSPM Market home">
           {/* The logo tile is one of the six places the brand indigo is allowed. */}
           <span className="flex h-7 w-7 items-center justify-center rounded-chip bg-accent">
             <SquareTerminal className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden="true" />

@@ -144,6 +144,27 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                         your pick
                       </span>
                     )}
+                    {/* The page's whole point is which hosts LiteSPM can
+                        configure itself, and on a phone that distinction used to
+                        be hidden with the column that carries it — a mobile
+                        reader saw a name and a count and nothing else. Same
+                        `host` value as the desktop column below, so the two
+                        cannot disagree; icon-only here, with a label, because a
+                        bare glyph would be unreadable to a screen reader. */}
+                    <span
+                      className="inline-flex shrink-0 items-center gap-1 text-[10.5px] md:hidden"
+                      aria-label={
+                        host
+                          ? "LiteSPM can write this host's config file"
+                          : "No adapter — compatibility is publisher-declared"
+                      }
+                    >
+                      {host ? (
+                        <Check className="h-3 w-3 text-ink" aria-hidden="true" />
+                      ) : (
+                        <span aria-hidden="true" className="h-px w-2.5 bg-ink-3" />
+                      )}
+                    </span>
                   </div>
 
                   <Link

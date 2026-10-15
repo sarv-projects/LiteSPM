@@ -158,7 +158,14 @@ export function SearchBar({
           {query ? (
             <span className="flex shrink-0 items-center gap-2">
               {totalMatches !== undefined && (
-                <span id={`${labelId}-count`} className="t-mono t-tabular text-[11px] text-ink-3" aria-live="polite">
+                // No aria-live here on purpose. The results panel below (or
+                // Explore's grid) owns the announcement, and two polite regions
+                // updating on the same keystroke made a screen reader read the
+                // count twice — and on Explore the two disagreed ("searching…"
+                // beside "0 entries"). This span is visually adjacent to the
+                // input, so it needs no announcement of its own. The `settled`
+                // contract still governs what it prints.
+                <span id={`${labelId}-count`} className="t-mono t-tabular text-[11px] text-ink-3">
                   {settled === false ? "searching…" : `${formatCount(totalMatches)} found`}
                 </span>
               )}
