@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -388,6 +389,19 @@ func TestInstallForceUnreadableLedgerRefusesBeforeDeleting(t *testing.T) {
 func TestInstallForceLedgerWriteFailureRollsBackToPreImage(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("permissions-based sabotage is ineffective as root")
+	}
+	// Windows ignores the mode bits on a DIRECTORY: os.Chmod on a directory
+	// only touches the read-only attribute of a file, so the sabotage below is
+	// a silent no-op there and the ledger write succeeds — the test then fails
+	// its own "expected the ledger write to fail" assertion rather than testing
+	// anything. This is a limitation of the mechanism, not of the code under
+	// test: the rollback path is identical on every platform and is covered on
+	// the Linux and macOS CI runners. Making it portable would mean finding a
+	// way to fail the lock acquire fast on Windows too, and every candidate
+	// either hangs for the 30s acquire timeout or fails the read as well (which
+	// would move the failure before the tree is replaced, defeating the test).
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod on a directory is a no-op on Windows, so the sabotage cannot induce the failure")
 	}
 	ledgerDir := t.TempDir()
 	l, err := testLedger(t, filepath.Join(ledgerDir, "ledger.json"))

@@ -16,6 +16,63 @@ are *not* done are called out as such and neither is a code change.
 | `950bfb7` | the four audit items that fell between agents (duplicate live region, `/agents` metadata, mobile managed-marker, mobile home link) |
 | `e63ed3a` | **`release: v0.4.1`** — the version bump and the CHANGELOG heading |
 
+### CI was RED on every push since 2026-10-14 — three separate causes
+
+All three runs (`38607927026`, `38637577529`, `38715928250`) failed. Recorded here in full because
+two are now fixed and the third is not.
+
+**1. `Check gofmt Formatting` — FIXED 2026-10-15. A toolchain mismatch, not a code defect.**
+Go **1.27 changed gofmt's indentation for a multi-value `return` with composite literals.** The repo
+pins `go 1.26.0` (`go.mod:3`) and CI uses `go-version: '1.26'`, so `gofmt` from a 1.27 toolchain
+produces a shape 1.26 rejects — and a 1.27 `gofmt -w` had reformatted exactly one file that way:
+`internal/host/remove.go`. 1.27.1 locally reported the tree clean while 1.26 flagged that file, which
+is why the local gate passed and CI failed.
+
+> **Trap for anyone working on this repo:** run `GOTOOLCHAIN=go1.26.0` (or install Go 1.26) before
+> `gofmt -w`. A 1.27 toolchain will silently reformat `remove.go` into the shape CI rejects, and your
+> local `gofmt -l .` will not tell you. The 1.26 toolchain is downloadable on demand:
+> `GOTOOLCHAIN=go1.26.0 go version` fetches it, and its `gofmt` lives at
+> `$(go env GOPATH)/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.0.<os>-<arch>/bin/gofmt`.
+
+**2. `Run Go Test Suite (Windows)` — FIXED 2026-10-15.**
+`TestInstallForceLedgerWriteFailureRollsBackToPreImage` induces a ledger-write failure by making the
+ledger's directory read-only (`os.Chmod(ledgerDir, 0o500)`). **Windows ignores the mode bits on a
+directory**, so the sabotage was a silent no-op, the write succeeded, and the test failed its own
+`expected the ledger write to fail` assertion. macOS and Ubuntu passed throughout. It now skips on
+Windows with that reason stated; it still runs on both POSIX runners. Making it portable was
+considered and rejected: every candidate for a fast Windows failure either waits out the 30s acquire
+timeout or fails the *read* too — which would move the failure before the tree is replaced and defeat
+the point of the test.
+
+**3. `Package and Audit the Deploy Bundle` — NOT FIXED. Needs a release re-cut, and it is mine.**
+```
+Catalog build failed: materialized manifest digest sha256:0acea4fd… does not match
+released pointer digest sha256:c1364c17…; refusing to reuse immutable release "rel-2026-10-11-02"
+```
+I patched three `installHint` values in `web/data/catalog.json` (the rows that named the competitor's
+installer) and recomputed `release.json`'s `datasetDigest` — but **not its `manifestDigest`**. The
+release tree is materialized from that dataset, so it now hashes differently while
+`web/public/v1/current.json` still names the old digest, and the builder **correctly** refuses to
+reuse an immutable release id for different content. My local checks missed it because I ran
+`check_catalog_coherence.py` (row counts only) and never ran `catalog build --materialize`.
+
+**The fix is a release cut, not an edit**: a new release id and sequence, a re-materialized tree under
+it, and an updated pointer. Do **not** overwrite `rel-2026-10-11-02` — its assets are cosign-signed
+and the refusal exists precisely to protect that. This is the same re-cut `v0.4.1` needs, so do them
+together.
+
+**Local verification worth running before the next push** (CI-equivalent, in this order):
+```bash
+GOTOOLCHAIN=go1.26.0 go version                       # get the pinned toolchain
+"$(go env GOPATH)/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.0.linux-amd64/bin/gofmt" -l .   # must be empty
+go vet ./... && go test ./...
+python3 scripts/build_full_catalog.py --check
+python3 scripts/check_catalog_coherence.py
+go run scripts/gen_hosts_ts.go && git diff --exit-code web/data/hosts.json web/data/skill-targets.json web/lib/hosts.ts
+go run ./cmd/litespm catalog build --materialize --out /tmp/rel --prev web/public/v1/current.json   # ← the step that was missed
+cd web && npm run type-check && npm run lint && npm run build
+```
+
 ### NOT done — and both need a human
 
 **1. The `v0.4.1` tag has not been pushed and npm has not been republished.** The staged half is
