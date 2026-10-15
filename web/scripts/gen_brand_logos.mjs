@@ -30,6 +30,13 @@ const ALLOWED = new Set(["svg", "png", "webp"]);
 const SQUARE_MIN = 0.6;
 const SQUARE_MAX = 1.75;
 
+/** A mark is drawn between 16 px and 44 px (44 px on `/agents/<id>/`, at most
+ *  a 2–3× device pixel ratio). An asset past this budget is bytes the reader
+ *  pays for nothing — re-export it at ~128 px before committing, rather than
+ *  shipping the vendor's 1024 px original. Warning, not an error: a vendor
+ *  asset that genuinely needs more is a conversation, not a broken build. */
+const ASSET_BUDGET = 16 * 1024;
+
 function pngSize(buf) {
   // PNG stores width/height big-endian in the IHDR chunk at offset 16.
   if (buf.length < 24 || buf.toString("ascii", 1, 4) !== "PNG") return null;
@@ -66,6 +73,8 @@ function measure(file, buffer) {
 }
 
 const logos = {};
+let totalBytes = 0;
+const oversized = [];
 if (existsSync(brandsDir)) {
   for (const file of readdirSync(brandsDir).sort()) {
     // `<host-id>.<ext>` — host ids are the registry's lowercase kebab ids, so
@@ -83,6 +92,10 @@ if (existsSync(brandsDir)) {
     }
 
     const buffer = readFileSync(join(brandsDir, file));
+    totalBytes += buffer.length;
+    if (buffer.length > ASSET_BUDGET) {
+      oversized.push(`${file} (${Math.round(buffer.length / 1024)} KB)`);
+    }
     const size = measure(file, buffer);
     const aspect = size && size.height > 0 ? Number((size.width / size.height).toFixed(3)) : null;
 
@@ -101,5 +114,14 @@ writeFileSync(outFile, `${JSON.stringify(logos, null, 2)}\n`);
 
 const entries = Object.entries(logos);
 const words = entries.filter(([, v]) => !v.square).map(([k]) => k);
-console.log(`brand logos: ${entries.length} (${words.length} wordmark/not-square)`);
+console.log(
+  `brand logos: ${entries.length} (${words.length} wordmark/not-square), ` +
+    `${Math.round(totalBytes / 1024)} KB total`
+);
 if (words.length) console.log(`  not square: ${words.join(", ")}`);
+if (oversized.length) {
+  console.warn(
+    `gen_brand_logos: over the ${ASSET_BUDGET / 1024} KB budget, but drawn at 16–44 px: ` +
+      oversized.join(", ")
+  );
+}

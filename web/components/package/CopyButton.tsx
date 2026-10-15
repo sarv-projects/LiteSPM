@@ -9,6 +9,11 @@ import { copyText } from "../../lib/clipboard";
  * install panel, the manual-setup disclosure and the detail body can share it
  * without three identical implementations. Feedback is a label swap plus the
  * existing toast bus (`lib/clipboard`), never a modal.
+ *
+ * The accessible name follows the visible label: while the button reads
+ * "Copied" it is named "Copied" too, so voice control can target the control
+ * in either state. A fixed `aria-label` kept naming the idle action while the
+ * button showed the result.
  */
 export function CopyButton({
   text,
@@ -31,7 +36,7 @@ export function CopyButton({
           window.setTimeout(() => setCopied(false), 2000);
         }
       }}
-      aria-label={label}
+      aria-label={copied ? "Copied" : label}
       className={className}
     >
       {copied ? (

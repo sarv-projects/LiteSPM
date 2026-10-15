@@ -73,6 +73,14 @@
  *
  * Motion scale (J001): 120ms state / 160ms hover / 200ms panel / 240ms
  * entrance, ease-out. The previous 90ms linear read as a terminal redraw.
+ *
+ * Type scale decision (2026-10-15): explanatory prose is 13px, and the single
+ * lead paragraph of a record page — the summary directly under the title — is
+ * 14px. The 13.5px rung is retired; it sat between those two without belonging
+ * to either, and the pages that used it for prose disagreed with each other.
+ * Metadata, controls and small print keep their own smaller rungs (10-12.5px);
+ * those are labels, not prose. `.btn-lg` carries 14px as its control label —
+ * the only non-prose use of that rung.
  */
 @layer base {
   :root {
@@ -743,6 +751,27 @@
     }
   }
 
+  /* The two secondary gestures an interactive discovery card adds: the
+     publisher tile scales 1.05 and the trailing arrow slides 2px, both on
+     hover. Named here for the same reason `.card-lift` is — the reduced-motion
+     block drops the displacement itself, and a Tailwind `group-hover:`
+     utility can only have its duration collapsed, which still lands the
+     offset. */
+  .card-tile {
+    transition: transform var(--t-hover) ease-out;
+  }
+  .card-arrow {
+    transition: transform var(--t-hover) ease-out;
+  }
+  @media (hover: hover) {
+    .card-lift:hover .card-tile {
+      transform: scale(1.05);
+    }
+    .card-lift:hover .card-arrow {
+      transform: translateX(2px);
+    }
+  }
+
   /* ---- letter tile: 2px, the stamped-chip radius -------------------- */
   .tile {
     display: inline-flex;
@@ -853,7 +882,7 @@
   .btn-lg {
     min-height: var(--h-ctl-lg);
     padding: 0 18px;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 500;
   }
   /* Square icon control (theme toggle, search affordance). */
@@ -1029,13 +1058,19 @@
     scroll-behavior: auto !important;
   }
 
-  /* The two hover gestures that MOVE anything — the discovery card's 2px lift
-     and the result row's 2px trailing shift — are positional changes, and the
-     rule above only collapses their duration: the offset would still land,
-     just instantly. Under reduced motion they are dropped outright and the
-     hover state is carried by border, shadow and background alone, which is
-     the same way `.enter-rise` is handled (it is never applied at all). */
+  /* The hover gestures that MOVE anything — the discovery card's 2px lift,
+     the publisher tile's 1.05 scale, the arrow's 2px slide, and the result
+     row's 2px trailing shift — are positional changes, and the rule above
+     only collapses their duration: the offset would still land, just
+     instantly. Under reduced motion they are dropped outright and the hover
+     state is carried by border, shadow and background alone, which is the
+     same way `.enter-rise` is handled (it is never applied at all). The
+     arrow's opacity reveal stays: an instant cut is not motion. */
   .card-lift:hover {
+    transform: none;
+  }
+  .card-lift:hover .card-tile,
+  .card-lift:hover .card-arrow {
     transform: none;
   }
   .row:hover .row-side,

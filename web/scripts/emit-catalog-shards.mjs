@@ -51,6 +51,7 @@ import {
   SECTION_INDEX,
   SECTION_ROWS,
 } from "../lib/searchFormat.mjs";
+import { categorySlug, SIBLING_CATEGORY_MAX } from "../lib/categoryFiles.mjs";
 
 const webRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sourcePath = path.join(webRoot, "data", "catalog.json");
@@ -210,7 +211,10 @@ for (let i = 0; i < BUCKETS; i += 1) {
 // largest hold 45,373 and 19,209 rows, where twelve arbitrary entries are noise
 // and the existing "see all" link is the honest answer. The rest total a few
 // thousand rows and cost ~3 MB across the set.
-const SIBLING_CATEGORY_MAX = 500;
+//
+// `lib/categoryFiles.mjs` owns the rule, because `app/package/page.tsx` has to
+// compute the same set at build time and hand it to the page — a category
+// without a file must never be requested at all.
 const CAT_DIR = path.join(PKG_DIR, "cat");
 mkdirSync(CAT_DIR, { recursive: true });
 
@@ -221,12 +225,6 @@ for (const row of rows) {
   if (!byCategory.has(key)) byCategory.set(key, []);
   byCategory.get(key).push(row);
 }
-
-const categorySlug = (name) =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
 
 let categoryFiles = 0;
 for (const [name, group] of byCategory) {

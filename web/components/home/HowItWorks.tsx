@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { DiscoveryCard } from "../ui/DiscoveryCard";
 
 /**
  * Point → Find → Check → Add → Manage: five steps, one plain sentence each, with the
@@ -133,15 +134,12 @@ export function HowItWorks() {
 
       <ol className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {STEPS.map((step) => (
-          <li
-            key={step.n}
-            className="flex flex-col rounded-card border border-rule bg-surface p-5"
-          >
+          <DiscoveryCard as="li" key={step.n} density="roomy">
             <span className="t-mono text-[12px] font-medium tracking-wider text-accent-text">
               {step.n}
             </span>
             <h3 className="mt-2 text-[18px] font-semibold tracking-tight text-ink">{step.title}</h3>
-            <p className="mt-1.5 flex-1 text-[13.5px] leading-relaxed text-ink-2">{step.plain}</p>
+            <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-ink-2">{step.plain}</p>
 
             <details className="group mt-4 border-t border-rule pt-2">
               <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-[12.5px] font-medium text-ink-2 transition-colors duration-state ease-out hover:text-ink md:min-h-[36px]">
@@ -152,7 +150,7 @@ export function HowItWorks() {
               </summary>
               <div className="pb-1 text-[12.5px] leading-relaxed text-ink-3">{step.technical}</div>
             </details>
-          </li>
+          </DiscoveryCard>
         ))}
       </ol>
     </section>

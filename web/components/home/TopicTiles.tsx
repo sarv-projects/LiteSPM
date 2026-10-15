@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { TopicStat } from "../../lib/landing";
 import { formatCount } from "../../lib/format";
+import { DiscoveryCard } from "../ui/DiscoveryCard";
 
 /**
  * The normalized "what do you want your AI to do?" taxonomy.
@@ -38,10 +39,7 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
       <ul className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {topics.map((topic) => (
           <li key={topic.id}>
-            <Link
-              href={topic.href}
-              className="group card-lift flex h-full flex-col rounded-card border border-rule bg-surface p-4 hover:border-ink-3 hover:shadow-card"
-            >
+            <DiscoveryCard href={topic.href} className="h-full">
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-[15px] font-semibold tracking-tight text-ink">{topic.label}</h3>
                 <span className="t-mono t-tabular shrink-0 text-[12px] text-ink-3">
@@ -65,11 +63,11 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
               <span className="mt-4 flex items-center gap-1.5 text-[12.5px] font-medium text-ink-3 transition-colors duration-state ease-out group-hover:text-accent-text">
                 Explore
                 <ArrowRight
-                  className="h-3.5 w-3.5 transition-transform duration-hover ease-out group-hover:translate-x-0.5"
+                  className="card-arrow h-3.5 w-3.5"
                   aria-hidden="true"
                 />
               </span>
-            </Link>
+            </DiscoveryCard>
           </li>
         ))}
       </ul>

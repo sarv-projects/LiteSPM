@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { formatCount } from "../../lib/format";
 
 /**
  * A small count-up figure.
@@ -90,7 +91,7 @@ export function CountUp({
     };
   }, [value, durationMs]);
 
-  const finalText = value.toLocaleString("en-US");
+  const finalText = formatCount(value);
 
   return (
     <span
@@ -99,7 +100,7 @@ export function CountUp({
       // Reserve the final width so the roll-up cannot reflow its line.
       style={{ minWidth: `${finalText.length}ch`, display: "inline-block" }}
     >
-      {display.toLocaleString("en-US")}
+      {formatCount(display)}
     </span>
   );
 }

@@ -37,6 +37,14 @@ export interface PackageViewProps {
   hostTotal: number;
   /** First twelve rows in index order: the list the static shell renders. */
   indexRows: Listing[];
+  /**
+   * Category slugs this build wrote a sibling file for
+   * (`/data/pkg/cat/<slug>.json`), computed by the page from the same rule the
+   * emitter uses (`lib/categoryFiles.mjs`). A category outside this set has no
+   * file — the two largest hold most of the catalog and never get one — so
+   * the page answers it without a request instead of a guaranteed 404.
+   */
+  siblingCategories: string[];
 }
 
 /**
@@ -246,7 +254,7 @@ function setMetaProperty(property: string, content: string): () => void {
   };
 }
 
-function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
+function PackageContent({ total, hostTotal, indexRows, siblingCategories }: PackageViewProps) {
   const { slug, resolved } = useSlugParam();
   // One product row, two counts and the sibling list come from ~170 KB of
   // hash-partitioned rows rather than the 44.5 MB full catalog this route used
@@ -618,11 +626,11 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {!agent ? (
-                <p className="max-w-prose text-[13.5px] leading-relaxed text-ink-2">
+                <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
                   Choose your agent above and this page answers for it.
                 </p>
               ) : agent.hosts.length === 0 ? (
-                <p className="max-w-prose text-[13.5px] leading-relaxed text-ink-2">
+                <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
                   This catalog carries no compatibility data for &ldquo;{agent.label}&rdquo;, so this
                   entry neither claims nor denies support.
                 </p>
@@ -746,7 +754,7 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
           </div>
 
           {/* ---- related ---- */}
-          <RelatedRow item={item} />
+          <RelatedRow item={item} siblingCategories={siblingCategories} />
         </div>
       </main>
 
@@ -761,15 +769,17 @@ function PackageContent({ total, hostTotal, indexRows }: PackageViewProps) {
  * The siblings arrive as their own ~50 KB file. Two categories hold most of the
  * catalog (45,373 and 19,209 rows) and deliberately have no file: twelve
  * arbitrary entries out of forty-five thousand is noise, and the "see all"
- * link below is the honest answer there. A missing file renders nothing.
+ * link below is the honest answer there. The build hands this component the
+ * set of categories that *do* have a file, so the two that don't are answered
+ * without a request — and a missing file still renders nothing.
  */
-function RelatedRow({ item }: { item: Listing }) {
+function RelatedRow({ item, siblingCategories }: { item: Listing; siblingCategories: string[] }) {
   const [siblings, setSiblings] = useState<Listing[] | null>(null);
 
   useEffect(() => {
     let alive = true;
     setSiblings(null);
-    fetchCategorySiblings(item.category)
+    fetchCategorySiblings(item.category, siblingCategories)
       .then((rows) => {
         if (alive) setSiblings(rows ?? []);
       })
@@ -779,7 +789,7 @@ function RelatedRow({ item }: { item: Listing }) {
     return () => {
       alive = false;
     };
-  }, [item.category]);
+  }, [item.category, siblingCategories]);
 
   const related = useMemo(() => {
     if (!siblings) return [];

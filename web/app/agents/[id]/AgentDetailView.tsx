@@ -176,9 +176,9 @@ export default function AgentDetailView({
         )}
 
         {summary ? (
-          <p className="mt-5 max-w-[62ch] text-[16px] leading-[1.6] text-ink-2">{summary}</p>
+          <p className="mt-5 max-w-[62ch] text-[14px] leading-relaxed text-ink-2">{summary}</p>
         ) : (
-          <p className="mt-5 max-w-prose text-[15px] leading-relaxed text-ink-2">
+          <p className="mt-5 max-w-prose text-[14px] leading-relaxed text-ink-2">
             No write-up for {name} yet — everything below comes from LiteSPM&rsquo;s adapter
             registry
             {docsUrl && (
@@ -342,7 +342,7 @@ export default function AgentDetailView({
             <span className="t-cond t-tabular text-[26px] font-semibold leading-none text-ink">
               {formatCount(count)}
             </span>
-            <span className="max-w-prose text-[14px] leading-relaxed text-ink-2">
+            <span className="max-w-prose text-[13px] leading-relaxed text-ink-2">
               catalog entries install into {name}.
             </span>
           </p>

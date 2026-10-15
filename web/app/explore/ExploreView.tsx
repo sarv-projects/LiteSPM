@@ -255,9 +255,9 @@ function ExploreContent(props: ExploreViewProps) {
           </div>
 
           <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            Every entry in the snapshot is searchable: Works with narrows to one agent host,
+            Search every entry in the catalog. Works with narrows the list to one agent host,
             Installable first puts the rows LiteSPM can install on top, and Only rows from publisher
-            manifests excludes rows taken from third-party lists.
+            manifests leaves out rows taken from third-party lists.
           </p>
 
           {savedTarget && savedAgent && (
@@ -347,7 +347,7 @@ function ExploreContent(props: ExploreViewProps) {
                 <option value="all">All categories</option>
                 {categories.map((c) => (
                   <option key={c.name} value={c.name}>
-                    {categoryLabel(c.name)} ({c.count})
+                    {categoryLabel(c.name)} ({formatCount(c.count)})
                   </option>
                 ))}
               </select>
@@ -359,7 +359,7 @@ function ExploreContent(props: ExploreViewProps) {
                 <option value="all">Any agent</option>
                 {agents.map((a) => (
                   <option key={a.slug} value={a.name}>
-                    {a.name} ({a.count})
+                    {a.name} ({formatCount(a.count)})
                   </option>
                 ))}
               </select>

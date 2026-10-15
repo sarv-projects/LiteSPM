@@ -33,6 +33,7 @@ import type { Listing } from "./telemetry";
 import { withLinkKeys } from "./catalog";
 import { fetchDisplayRows } from "./searchAssets";
 import { SEARCH_SHARD_ROWS } from "./searchFormat.mjs";
+import { categorySlug } from "./categoryFiles.mjs";
 import bundledRelease from "../data/release.json";
 
 /**
@@ -265,20 +266,29 @@ export function fetchProductPayload(slug: string): Promise<ProductPayload> {
 }
 
 /**
- * Same-category siblings, or `null` when the category is one of the two that
- * hold most of the catalog — there, twelve arbitrary entries say nothing and
- * the "see all" link is the honest answer.
+ * Same-category siblings, or `null` when this build wrote no file for the
+ * category — the two that hold most of the catalog have none by design, where
+ * twelve arbitrary entries say nothing and the "see all" link is the honest
+ * answer.
+ *
+ * `siblingCategories` is the build-time set the page was given (from
+ * `lib/categoryFiles.mjs`). A category outside it is answered without a
+ * request: the file does not exist on a static host, so asking for it was a
+ * guaranteed 404 round trip and a console error on every visit to an entry in
+ * one of those categories. The 404 branch below stays as the fallback for a
+ * page rendered against an older build's set.
  */
 const siblingCache = new Map<string, Listing[]>();
 const siblingInflight = new Map<string, Promise<Listing[] | null>>();
 
 /** `null` result = no sibling file exists for this category (by design). */
-export function fetchCategorySiblings(category: string): Promise<Listing[] | null> {
-  const slug = category
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+export function fetchCategorySiblings(
+  category: string,
+  siblingCategories: readonly string[],
+): Promise<Listing[] | null> {
+  const slug = categorySlug(category);
   if (!slug) return Promise.resolve(null);
+  if (!siblingCategories.includes(slug)) return Promise.resolve(null);
   const hit = siblingCache.get(slug);
   if (hit) return Promise.resolve(hit);
   const running = siblingInflight.get(slug);

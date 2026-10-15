@@ -7,6 +7,7 @@ import { HOSTS, SKILL_TARGETS } from "../../lib/hosts";
 import type { HostAdapter } from "../../lib/hosts";
 import { isDiscontinued } from "../../lib/lifecycle";
 import { AgentLogo } from "../AgentLogo";
+import { DiscoveryCard } from "../ui/DiscoveryCard";
 
 /**
  * Agent hosts teaser: five cards built strictly from the two generated
@@ -60,10 +61,7 @@ export function AtlasTeaser() {
           const label = skill?.displayName ?? host?.name ?? id;
 
           return (
-            <li
-              key={id}
-              className="relative flex flex-col rounded-card border border-rule bg-surface p-4 card-lift hover:border-ink-3 hover:shadow-card focus-within:border-ink-3"
-            >
+            <DiscoveryCard as="li" key={id} interactive>
               <div className="flex items-center gap-2">
                 <AgentLogo id={id} name={label} size={28} />
                 <h3 className="text-[15px] font-semibold tracking-tight text-ink">
@@ -122,7 +120,7 @@ export function AtlasTeaser() {
                   {host?.userPath || "path not published"}
                 </code>
               </p>
-            </li>
+            </DiscoveryCard>
           );
         })}
       </ul>

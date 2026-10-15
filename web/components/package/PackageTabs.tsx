@@ -125,7 +125,7 @@ function OverviewPanel({ item }: { item: Listing }) {
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div>
-        <p className="max-w-prose text-[13.5px] leading-relaxed text-ink-2">
+        <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
           The catalog&rsquo;s record for {item.name}, exactly as this snapshot carries it. Fields
           the publisher never provided are marked <span className="absent">not published</span> —
           nothing here is guessed.
@@ -202,7 +202,7 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div>
-        <p className="max-w-prose text-[13.5px] leading-relaxed text-ink-2">
+        <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
           {item.kind === "mcp" && (
             <>
               The catalog doesn&rsquo;t list this server&rsquo;s tools. Your agent discovers them
@@ -309,7 +309,7 @@ function CompatibilityPanel({
         </span>
       </div>
 
-      <p className="mt-3 max-w-prose text-[13.5px] leading-relaxed text-ink-2">{source.plain}</p>
+      <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">{source.plain}</p>
 
       {hosts.length ? (
         <div className="mt-4">
@@ -556,7 +556,7 @@ function SourcePanel({ item }: { item: Listing }) {
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div>
-        <p className="max-w-prose text-[13.5px] leading-relaxed text-ink-2">
+        <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
           Where this record came from, and where to go upstream.
         </p>
         <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">

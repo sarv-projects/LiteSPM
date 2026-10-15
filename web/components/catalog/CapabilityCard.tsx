@@ -11,6 +11,8 @@ import { rowWorksWithAgent } from "../../lib/landing";
 import { availabilityOf } from "../../lib/availability";
 import { PublisherTile, VerifiedMark } from "./PublisherMark";
 import { categoryLabel } from "../../app/categories/categoryLabel";
+import { DiscoveryCard } from "../ui/DiscoveryCard";
+import { formatCount } from "../../lib/format";
 
 /**
  * `CapabilityCard` is the DISCOVERY density — home, ecosystem, collections.
@@ -87,17 +89,15 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
     hosts.length === 0
       ? null
       : item.kind === "plugin"
-        ? `${hosts.length} declared`
+        ? `${formatCount(hosts.length)} declared`
         : item.kind === "skill"
-          ? `${hosts.length} skill targets`
-          : `${hosts.length} bridge adapters`;
+          ? `${formatCount(hosts.length)} skill targets`
+          : `${formatCount(hosts.length)} bridge adapters`;
 
   return (
-    <article
-      className={`group card-lift relative flex flex-col rounded-card border border-rule bg-surface p-4 hover:border-ink-3 hover:shadow-card focus-within:border-ink-3 ${className}`}
-    >
+    <DiscoveryCard as="article" interactive className={className}>
       <div className="flex min-w-0 items-start gap-3">
-        <span className="transition-transform duration-hover ease-out group-hover:scale-105">
+        <span className="card-tile">
           <PublisherTile name={item.publisher?.name} kind={item.kind} />
         </span>
 
@@ -111,7 +111,7 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
               {item.name}
             </Link>
             <ArrowUpRight
-              className="ml-1 inline h-3.5 w-3.5 align-baseline text-ink-3 opacity-0 transition-transform duration-hover ease-out group-hover:translate-x-0.5 group-hover:opacity-100"
+              className="card-arrow ml-1 inline h-3.5 w-3.5 align-baseline text-ink-3 opacity-0 group-hover:opacity-100"
               aria-hidden="true"
             />
           </h3>
@@ -175,6 +175,6 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
           Only what the publisher published; a field it did not provide is left out, not guessed.
         </p>
       </details>
-    </article>
+    </DiscoveryCard>
   );
 }

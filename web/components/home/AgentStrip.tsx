@@ -5,6 +5,8 @@ import { AGENT_CHOICES } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { HOSTS } from "../../lib/hosts";
 import { AgentLogo } from "../AgentLogo";
+import { DiscoveryCard } from "../ui/DiscoveryCard";
+import { formatCount } from "../../lib/format";
 
 /**
  * "What do you use?" — a preference, not a filter engine.
@@ -34,8 +36,8 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
   if (!choice) {
     status = (
       <>
-        Choose one and the cards below mark themselves against it. The choice stays in this
-        browser — nothing is sent anywhere.
+        Choose one, and the cards below will show whether they work with it. The choice stays in
+        this browser — nothing is sent anywhere.
       </>
     );
   } else if (choice.hosts.length === 0) {
@@ -49,8 +51,8 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
   } else if (countFor !== null) {
     status = (
       <>
-        <span className="t-mono t-tabular text-ink">{countFor.toLocaleString("en-US")}</span> of{" "}
-        <span className="t-mono t-tabular text-ink">{total.toLocaleString("en-US")}</span> entries
+        <span className="t-mono t-tabular text-ink">{formatCount(countFor)}</span> of{" "}
+        <span className="t-mono t-tabular text-ink">{formatCount(total)}</span> entries
         install into <strong className="font-medium text-ink-2">{choice.label}</strong>, derived
         from the adapter registries and publisher declarations. We have not run any of them.
       </>
@@ -67,7 +69,7 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
 
   return (
     <section className="shell band" aria-labelledby="agent-strip-title">
-      <div className="rounded-card border border-rule bg-surface p-5 sm:p-6">
+      <DiscoveryCard density="panel">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 id="agent-strip-title" className="text-[17px] font-semibold tracking-tight text-ink">
             What do you use?
@@ -101,7 +103,7 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
           A badge means the entry installs into your agent, based on the adapter registries or the
           publisher&rsquo;s own list. It is not a test result.
         </p>
-      </div>
+      </DiscoveryCard>
     </section>
   );
 }

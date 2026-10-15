@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { SearchX, RotateCw } from "lucide-react";
 import { CapabilityCard } from "../catalog/CapabilityCard";
+import { DiscoveryCard } from "../ui/DiscoveryCard";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
 import { formatCount } from "../../lib/format";
@@ -165,12 +166,12 @@ export function SearchResults({
       ) : showSkeleton ? (
         <ul className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-hidden="true">
           {Array.from({ length: 6 }).map((_, i) => (
-            <li key={i} className="rounded-card border border-rule bg-surface p-4">
+            <DiscoveryCard as="li" key={i}>
               <span className="block h-3.5 w-1/2 animate-pulse rounded-chip bg-sunken-2" />
               <span className="mt-3 block h-2.5 w-full animate-pulse bg-sunken" />
               <span className="mt-2 block h-2.5 w-4/5 animate-pulse bg-sunken" />
               <span className="mt-4 block h-4 w-24 animate-pulse rounded-chip bg-sunken" />
-            </li>
+            </DiscoveryCard>
           ))}
         </ul>
       ) : !error && settled ? (

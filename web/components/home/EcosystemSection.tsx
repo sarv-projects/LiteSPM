@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { formatCount } from "../../lib/format";
+import { DiscoveryCard } from "../ui/DiscoveryCard";
 
 /**
  * Explore the ecosystem: three kind cards and the agents entry point.
@@ -72,11 +72,7 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
 
       <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {KIND_CARDS.map((card) => (
-          <Link
-            key={card.kind}
-            href={card.href}
-            className="group card-lift flex flex-col rounded-card border border-rule bg-surface p-5 hover:border-ink-3 hover:shadow-card"
-          >
+          <DiscoveryCard key={card.kind} href={card.href} density="roomy">
             <div className="flex items-center justify-between gap-3">
               <span
                 className={`meta-kind meta-kind-${card.kind}`}
@@ -92,7 +88,7 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
             </div>
 
             <h3 className="mt-4 text-[19px] font-semibold tracking-tight text-ink">{card.title}</h3>
-            <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-2">{card.blurb}</p>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">{card.blurb}</p>
 
             <p className="mt-5 flex items-baseline gap-2">
               <span className="t-mono t-tabular text-[28px] font-medium leading-none text-ink">
@@ -106,20 +102,17 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
             <span className="mt-4 flex items-center gap-1.5 text-[12.5px] font-medium text-ink-3 transition-colors duration-state ease-out group-hover:text-accent-text">
               {card.cta}
               <ArrowRight
-                className="h-3.5 w-3.5 transition-transform duration-hover ease-out group-hover:translate-x-0.5"
+                className="card-arrow h-3.5 w-3.5"
                 aria-hidden="true"
               />
             </span>
-          </Link>
+          </DiscoveryCard>
         ))}
 
-        <Link
-          href="/agents/"
-          className="group card-lift flex flex-col rounded-card border border-dashed border-rule-2 bg-sunken p-5 hover:border-ink-3 hover:shadow-card"
-        >
+        <DiscoveryCard href="/agents/" density="roomy" plane="sunken">
           <span className="kicker">Compatibility</span>
           <h3 className="mt-4 text-[19px] font-semibold tracking-tight text-ink">Agent hosts</h3>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-2">
+          <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
             Which hosts LiteSPM can configure itself, which are only declared by publishers, and
             the config file each one reads.
           </p>
@@ -142,11 +135,11 @@ export function EcosystemSection({ kindCounts, hostCount, adapterCount }: Ecosys
           <span className="mt-4 flex items-center gap-1.5 text-[12.5px] font-medium text-ink-3 transition-colors duration-state ease-out group-hover:text-ink">
             Browse agent hosts
             <ArrowRight
-              className="h-3.5 w-3.5 transition-transform duration-hover ease-out group-hover:translate-x-0.5"
+              className="card-arrow h-3.5 w-3.5"
               aria-hidden="true"
             />
           </span>
-        </Link>
+        </DiscoveryCard>
       </div>
     </section>
   );

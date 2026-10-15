@@ -52,7 +52,7 @@ const QUICKSTART = "npm install -g litespm";
  * place nobody reads. Delete both when v0.4.1 ships (STATUS.md §2).
  */
 const NPM_INSTALL_CAVEAT =
-  "Published 0.4.0 cannot read the published catalog yet — a fix is prepared and awaiting re-tag.";
+  "The current npm release (0.4.0) can't read the published catalog yet. A fix is built and waiting on a release.";
 
 function ReleaseChip({ telemetry }: { telemetry: TelemetryState }) {
   const { status, data } = telemetry;
@@ -176,7 +176,7 @@ export function LandingHero({
               <button
                 type="button"
                 onClick={onCopy}
-                aria-label="Copy the install command"
+                aria-label={copied ? "Copied" : "Copy the install command"}
                 className="btn shrink-0 border-dark-rule! bg-dark-2! text-dark-ink!"
               >
                 {copied ? (

@@ -30,7 +30,7 @@ import { ARCHITECTURE_URL, DOCS_URL, REPO_URL } from "../../lib/site";
  * provenance; CURRENT_RUN.md carries the re-tag procedure.
  */
 const NPM_INSTALL_CAVEAT =
-  "Published 0.4.0 cannot read the published catalog yet — a fix is prepared and awaiting re-tag.";
+  "The current npm release (0.4.0) can't read the published catalog yet. A fix is built and waiting on a release.";
 
 const SNIPPETS: Array<{ cmd: string; note: string }> = [
   { cmd: "npm install -g litespm", note: "Install the CLI (npm wrapper around the native binary)" },
@@ -124,7 +124,7 @@ function Snippet({ cmd, note }: { cmd: string; note: string }) {
       <button
         type="button"
         onClick={onCopy}
-        aria-label={`Copy: ${cmd}`}
+        aria-label={copied ? "Copied" : `Copy: ${cmd}`}
         className="btn shrink-0 self-start sm:self-auto"
       >
         {copied ? (

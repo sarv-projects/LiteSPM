@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SquareTerminal, Check } from "lucide-react";
 import { Header } from "../../components/navigation/Header";
@@ -8,6 +9,8 @@ import { AgentLogo } from "../../components/AgentLogo";
 import { HOSTS, resolveHost } from "../../lib/hosts";
 import { vendorName } from "../../lib/vendorNames";
 import { formatCount } from "../../lib/format";
+import { AGENT_STORAGE_KEY, findAgentChoice } from "../../lib/landing";
+import type { AgentChoice } from "../../lib/landing";
 
 /**
  * Host coverage is an aggregate: `app/agents/page.tsx` derives it from the
@@ -20,6 +23,39 @@ export interface AgentsViewProps {
 }
 
 export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
+  /**
+   * The agent chosen in the home page's "What do you use?" strip, remembered
+   * in `localStorage` under the same key Explore reads. This page only marks
+   * the row it names — a "your pick" chip, never a filter. The preference is
+   * recognition, and silently narrowing a host index would hide the other
+   * hosts on the one page whose job is to list them.
+   *
+   * Read after mount, so the server and the first client render agree; the
+   * chip simply appears once the stored choice is known.
+   */
+  const [savedAgent, setSavedAgent] = useState<AgentChoice | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(AGENT_STORAGE_KEY);
+      if (stored) setSavedAgent(findAgentChoice(stored));
+    } catch {
+      /* storage can be unavailable (private mode, policy) */
+    }
+  }, []);
+
+  /**
+   * The one row the remembered choice names. Adapter id first — the row whose
+   * config LiteSPM can write is the row a reader means — then the catalog's
+   * own host spellings, which is the match Explore uses. "Other" and "I'm not
+   * sure" carry no hosts, so they mark nothing.
+   */
+  const pickedSlug = savedAgent
+    ? agents.find((agent) => resolveHost(agent.name)?.id === savedAgent.id)?.slug ??
+      agents.find((agent) => savedAgent.hosts.includes(agent.name))?.slug ??
+      null
+    : null;
+
   return (
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
       <Header />
@@ -28,7 +64,8 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Agent hosts</h1>
           <p className="t-mono text-[11px] text-ink-3">
-            {formatCount(hostCount)} hosts named · {HOSTS.length} with compiled-in adapters
+            {formatCount(hostCount)} hosts named · {formatCount(HOSTS.length)} with compiled-in
+            adapters
           </p>
         </div>
 
@@ -61,35 +98,53 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                     config, and the count keeps the Explore filter this row
                     already had — two targets, so no nested anchors. */}
                 <div className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-rule py-3 transition-colors hover:bg-hover md:grid-cols-[minmax(0,1fr)_92px_84px_minmax(0,1fr)]">
-                  <Link
-                    href={
-                      host
-                        ? `/agents/${host.id}/`
-                        : `/explore/?host=${encodeURIComponent(agent.name)}`
-                    }
-                    className="flex min-h-[44px] min-w-0 items-center gap-2.5 md:min-h-0"
-                  >
-                    {/* The agent's own mark where we have one; the generic
-                        terminal tile only for catalog hosts with no adapter
-                        (and therefore no registry id to look a logo up by). */}
-                    {host ? (
-                      <AgentLogo id={host.id} name={agent.name} size={22} />
-                    ) : (
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Link
+                      href={
+                        host
+                          ? `/agents/${host.id}/`
+                          : `/explore/?host=${encodeURIComponent(agent.name)}`
+                      }
+                      // Measured: each scroll-past row is a ~9.5 KB speculative
+                      // RSC download, so a full read cost 456,794 B (83%) and a
+                      // passive load 173,281 B (66%) in prefetch alone. Next
+                      // still prefetches on hover and touchstart with this set,
+                      // so pointer and touch readers keep the fast click; only
+                      // keyboard-through readers pay the ~250 ms cold commit on
+                      // a slow link. See the measurement note in CURRENT_RUN.
+                      prefetch={false}
+                      className="flex min-h-[44px] min-w-0 items-center gap-2.5 md:min-h-0"
+                    >
+                      {/* The agent's own mark where we have one; the generic
+                          terminal tile only for catalog hosts with no adapter
+                          (and therefore no registry id to look a logo up by). */}
+                      {host ? (
+                        <AgentLogo id={host.id} name={agent.name} size={22} />
+                      ) : (
+                        <span
+                          aria-hidden="true"
+                          className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-chip bg-sunken-2"
+                        >
+                          <SquareTerminal className="h-3 w-3 text-ink-2" />
+                        </span>
+                      )}
+                      <span className="t-cond truncate text-[14px] font-medium text-ink transition-colors duration-hover group-hover:text-accent-text">
+                        {/* The vendor's own spelling — the catalog's host string
+                            is not always what the product calls itself. The link
+                            above still carries the catalog string, which is what
+                            Explore filters on. */}
+                        {host ? vendorName(host.id, agent.name) : agent.name}
+                      </span>
+                    </Link>
+                    {agent.slug === pickedSlug && (
                       <span
-                        aria-hidden="true"
-                        className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-chip bg-sunken-2"
+                        className="inline-flex shrink-0 items-center rounded-chip border border-accent/30 bg-accent-wash px-1.5 py-0.5 text-[10.5px] font-medium text-accent-text"
+                        title="Remembered from the home page — saved in this browser only"
                       >
-                        <SquareTerminal className="h-3 w-3 text-ink-2" />
+                        your pick
                       </span>
                     )}
-                    <span className="t-cond truncate text-[14px] font-medium text-ink transition-colors duration-hover group-hover:text-accent-text">
-                      {/* The vendor's own spelling — the catalog's host string
-                          is not always what the product calls itself. The link
-                          above still carries the catalog string, which is what
-                          Explore filters on. */}
-                      {host ? vendorName(host.id, agent.name) : agent.name}
-                    </span>
-                  </Link>
+                  </div>
 
                   <Link
                     href={`/explore/?host=${encodeURIComponent(agent.name)}`}

@@ -1,6 +1,7 @@
 import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import { hostUniverse, sortListings, withLinkKeys } from "../../lib/catalog";
+import { categorySiblingSlugs } from "../../lib/categoryFiles.mjs";
 import type { PackageViewProps } from "./PackageView";
 import PackageRoute from "./PackageRoute";
 import type { Metadata } from "next";
@@ -38,6 +39,11 @@ export default function PackagePage() {
     total: items.length,
     hostTotal: hostUniverse(items).length,
     indexRows: sortListings(items, "index").slice(0, 12),
+    // Which categories this build wrote a sibling file for, from the same
+    // rows and the same rule the emitter used (`lib/categoryFiles.mjs`). The
+    // product page skips the request for every other category — the two
+    // largest — instead of paying a guaranteed 404 on each visit.
+    siblingCategories: categorySiblingSlugs(items),
   };
 
   return <PackageRoute {...props} />;

@@ -80,8 +80,15 @@ export const metadata: Metadata = {
     images: ["/og.png"],
   },
   robots: { index: true, follow: true },
-  // app/icon.svg supplies the icon; a separate /favicon.ico request 404s.
-  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }] },
+  // The SVG is the icon every current browser uses. The .ico beside it answers
+  // the bare /favicon.ico request that older browsers, feed readers and
+  // bookmark tools still make — which used to 404 because only the SVG existed.
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "16x16 32x32", type: "image/x-icon" },
+    ],
+  },
 };
 
 export const viewport = {
