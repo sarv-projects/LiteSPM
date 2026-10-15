@@ -1,5 +1,109 @@
 # Current Run Handover
 
+## Session 2026-10-14/15 — parity, the wizard, the leak, and the site
+
+**Read this first if you are picking the repo up.** Everything below is committed; the two things that
+are *not* done are called out as such and neither is a code change.
+
+### The five commits that are ahead of `origin/main`
+
+| commit | what it does |
+|---|---|
+| `4c2ce95` | the prebuilt search index (a postings index + display projection emitted at build time), and the wizard/CLI work that preceded it |
+| `bc75f1c` | first search **7.03 → 2.80 MiB** wire and **1,113 ms → 0 ms** main-thread blocking; the light-mode contrast failure I had introduced; focus-under-sticky-header; the FAQ's malformed `<dl>`; the hero's unkept "Press Enter" |
+| `cfe9494` | dead affordances, SEO (sitemap / robots / OG image / `/package/` metadata), one page-one-name, the Coverage page's wrong provenance, `/categories` colour-only counts, breadcrumb `<ol>`, 24px touch targets, tab-rail cue, no-JS rendering (15 → 11,975 chars), and ~90 strings rewritten out of machine voice |
+| `009716b` | one `DiscoveryCard`, one type scale (13.5px retired), one `formatCount`, reduced motion handled properly, logos **275 → 131 KB**, `/agents` prefetch cut, the `cat/` 404 gone, `date-fns` removed, favicon added |
+| `950bfb7` | the four audit items that fell between agents (duplicate live region, `/agents` metadata, mobile managed-marker, mobile home link) |
+| `e63ed3a` | **`release: v0.4.1`** — the version bump and the CHANGELOG heading |
+
+### NOT done — and both need a human
+
+**1. The `v0.4.1` tag has not been pushed and npm has not been republished.** The staged half is
+committed: `npm/package.json` says `0.4.1`, the CHANGELOG's `[Unreleased]` content is under
+`## [0.4.1] - 2026-10-15`, and `git merge-base --is-ancestor 547d230 HEAD` passes so the shard-aware
+client is in the tree you would tag. The order is forced — `release.yml:104-112` fails the whole
+release if the npm version disagrees with the tag — so the tree briefly claims 0.4.1 with no tag, which
+is the only sequence the workflow permits. See "How to cut `v0.4.1`" below for the exact commands, and
+**check `NPM_TOKEN` is set**: without it the release still builds and publishes to GitHub while npm
+stays on `0.4.0`, silently.
+
+**2. The dataset has not been regenerated.** It was attempted twice and killed both times — once by a
+30-minute timeout, once by an environment restart that also took `/tmp/opencode/` with it. The script
+writes `web/data/catalog.json` **once, at the end**, so both kills were harmless: `git diff
+web/data/catalog.json` is empty and the coherence check passes against the committed dataset. The
+regeneration is **optional** — it only picks up rows upstream published since the 2026-10-11 snapshot,
+and the current dataset is coherent, published and served. If it is wanted, run it somewhere that will
+not be interrupted (the release workflow or a scheduled job) rather than by hand; 20+ minutes is normal
+and it is network-bound on upstream verification probes. When it does land,
+`check_catalog_coherence.py` **will fail** until the release tree is re-materialized and the site
+rebuilt — that is expected, not a break.
+
+### What this session changed, by area
+
+**Skills CLI — full parity with the reference installer.** An audit of their entire documented surface
+against ours found **12 gaps**; all 12 are closed. `skills use` (prompt to stdout, installs nothing),
+`skills find` incl. `--owner`, direct-download sources (bare `SKILL.md`, `.zip`/`.tar`/`.tar.gz`,
+format sniffed from the bytes so no extension is required, caps enforced *while reading*), `git@` and
+`ssh://` sources, Azure Repos incl. the `?path=&version=` form, depth-3 discovery, a root-`SKILL.md`
+source, the recursive fallback, `--full-depth`, `metadata.internal` + `INSTALL_INTERNAL_SKILLS`,
+`--skill '*'` / `--agent '*'` / `--all` / `-l`, `update` with no arguments (source resolved from each
+ledger row), `update -p`, `remove -a`/`-s`/`-y` and removal by exact source, `list -g`/`-a`, the `ls`
+and `rm` aliases, and the `universal`/`warp`/`grok`/`pi` agent ids. `litespm init` scaffolds a
+`SKILL.md`. `AGENTS.md` §0 is the authoritative table.
+
+Three findings were worse than "missing" and are worth remembering: `GIT_ALLOW_PROTOCOL=https:git` made
+admitted ssh sources **inert** (git routes both spellings to its ssh transport, so the clone died with
+`fatal: transport 'ssh' not allowed` before any network I/O); the discovery depth bound of 2 meant
+`skills/<category>/<name>/SKILL.md` — the real `google/skills` layout — installed **zero** skills behind
+a generic error; and `skills list` **silently ignored** every argument but `--json`.
+
+**The interactive wizard was setup-only and wrote to the wrong file.** Answering "no" to the detected
+path and typing your own wrote to the adapter's derived default instead, printing only the path it
+actually wrote — the worst class of bug in this product. It now honours the path via
+`host.PlanSetupAt` (or refuses, naming the file it would use). It also busy-looped on end-of-input
+(**32,081,826 lines of "Invalid option." in 120 seconds**); every prompt now checks its read. And it
+gained a "what next" menu — update the catalog, find and install, **remove what LiteSPM installed**,
+see what is installed, repair a host — every action calling the same shared implementation the CLI
+uses. A non-developer could not previously undo anything from it.
+
+**One leak, and the reason it survived a fix.** Three catalog rows carried
+`installHint: "npx skills add https://github.com/anthropics/skills --skill …"` — the competitor's
+installer, rendered on a live page as a copyable command. The generator had already been corrected;
+the leak survived because `web/data/catalog.json` is a tracked generated artifact that **no CI gate
+diff-checks**. Fixed by applying the generator's own output for those rows, recomputing
+`release.json`'s `datasetDigest`, and adding the gate: `scripts/check_catalog_coherence.py` now fails
+if any `installHint` names another tool's installer. Scoped to `installHint` only — the twelve upstream
+`summary` values that also mention `npx skills` are publisher-authored text and rewriting them would
+falsify the record.
+
+**The site.** Measured, not asserted: first search **7.03 → 2.80 MiB** wire and **1,113 ms → 0 ms**
+main-thread blocking (a postings index plus 68-row display shards, fetched by row-id range, instead of
+the whole 42.78 MiB dataset); logos **275 → 131 KB**; home page live regions 2 → 1; light-mode contrast
+failures 1 → 0; with JavaScript off, visible text **15 → 11,975 characters**. Plus sitemap, robots, a
+real 1200×630 OG image, `/package/` metadata, one `DiscoveryCard` instead of four hand-rolled ones, one
+type scale, one `formatCount`, and ~90 strings rewritten out of machine voice. The audits' full findings
+are in this session's two audit reports; the only item left undone by choice is the server/client
+boundary (47 files carry `"use client"`; the home page ships 485 KiB of JS to hydrate content already in
+its HTML) — that is a project, not a patch, and it is documented rather than half-done.
+
+**Also:** the stray `~/.pi/agent/extensions/litespm.ts` was deleted — it was byte-identical to the
+embedded `internal/host/pi_extension.ts` with **no `mcp.json` beside it**, i.e. the extension half of a
+Pi setup whose bridge entry was never written. And `web/data/skill-targets.json` was **stale** (77 rows
+while the registry emits 81, which failed the CI "generated host data is current" gate); the generator
+has been re-run and the file now lists all 81.
+
+### Still open, and deliberately
+
+- The server/client boundary (above).
+- Three parity gaps, each recorded in `TODO.md` with the reason: `.claude-plugin` manifest discovery,
+  the private-repo auth chain beyond the git credential helper (`gh repo clone`, `GITHUB_TOKEN`), and
+  GitHub API tree lookups.
+- `skills use --agent` **refuses on purpose** — LiteSPM configures hosts, it does not launch them. The
+  command says so rather than inventing an exec path.
+- `DisplayWidth`/`PadRight` have no production caller yet; only `TruncateToWidth` does (in `skills use`).
+  The pickers still use `%-22s`.
+
+
 ## Session 2026-10-13 — Hands-On Validation + Four Defects Closed
 
 A validation session ran the product for real rather than reading it, then fixed what it found.
@@ -267,6 +371,12 @@ cosign-signed, so replacing them would break every signature check already made 
 
 ## Active Goal
 
+> **Superseded 2026-10-15.** This section describes the 2026-10-08 agent-host lane, which is
+> committed and pushed. The current goal, the two things still outstanding, and the exact state of the
+> tree are in **Session 2026-10-14/15** at the top of this file. The producer-owned paths and the
+> guarded `feed:skills-sh` replay it asks you to leave alone were superseded by later work; run
+> `git status` and trust it over this paragraph.
+
 Website work on the agent-host surfaces: every agent host now carries a description and capabilities **read from that vendor's own documentation** (never composed), its **own official logo**, and its **exact vendor name** where the registry row differs. Agents whose vendors have ended the product were removed from the landing-page chooser, the agent atlas and the `/agents/` index. The previous guarded `feed:skills-sh` replay and defect-remediation work is unchanged and still open below.
 
 Preserve producer-owned data, source snapshots, the pre-session stash, and the CLI sandbox. The agent-host work described below is committed and pushed as `e2038e2`. The guarded `feed:skills-sh` replay and the defect-remediation lanes further down remain open and uncommitted; leave the producer-owned dirty paths alone.
@@ -368,6 +478,12 @@ final web build) + this handover update. A **pre-session stash** `stash@{0} "WIP
 commit"` (yesterday 04:29, zero session markers) exists and was deliberately left untouched.
 
 ## Final Next Steps
+
+> **Superseded 2026-10-15.** The detached producer PID below no longer exists and the release it
+> describes has since been cut (the live pointer is `rel-2026-10-11-02`, sequence 147, 69,376 rows).
+> The current next steps are in **Session 2026-10-14/15** at the top of this file: push the `v0.4.1`
+> tag and publish to npm, and optionally regenerate the dataset somewhere that will not be
+> interrupted. Kept as a dated record of that lane, not as instructions.
 
 1. **Producer rebuild is running** as detached PID `2456`; log: `/tmp/opencode/rebuild.log`. Last observed in replay mode at `skills.sh: 500/19,388 processed (384 added)`, after 764/1,114 skill rows had been verified/promoted. The process may have progressed since that observation. It will then enrich remaining feeds and crawl mcpmarket (≤2,000 pages/run, 1 s crawl delay, robots-permitted paths only). Wait for the completion notification from watcher `sh_11cf03444001V0ABq3JIDQxSHo`; then inspect final ingestion completeness/stale status, skill verification totals, endpoint-drop counts, and source rows before cutting a release.
 2. **Release cut** (explicitly authorized): `go run ./cmd/litespm catalog build` from the completed producer dataset; verify the resulting release ID/sequence/digests and synced `web/data/release.json` + `web/public/v1/current.json`, then run `go run ./cmd/litespm catalog build --verify web/public`. Expected next sequence is 146 from the current 145 pointer, but confirm the pointer at execution time rather than assume it.

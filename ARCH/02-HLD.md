@@ -3,7 +3,7 @@
 ## 1. System Topology & Architecture
 
 LiteSPM is bifurcated into two strictly isolated environments:
-1.  **Public Discovery Plane (Cloud):** A static, read-only distribution. The deployed catalog data is produced by `scripts/build_full_catalog.py` (the Python builder is the deployed producer; CI does not run it — [STATUS.md](../STATUS.md) §6) and served from a static origin: `/v1/current.json` **and** the immutable `/v1/releases/<id>/…` trees are live today (probe 2026-10-05: all four files `200`, byte-identical to the committed release).
+1.  **Public Discovery Plane (Cloud):** A static, read-only distribution. The deployed catalog data is produced by `scripts/build_full_catalog.py` (the Python builder is the deployed producer; CI does not run it — [STATUS.md](../STATUS.md) §6) and served from a static origin: `/v1/current.json` **and** the immutable `/v1/releases/<id>/…` trees are live today — the current release is `rel-2026-10-11-02` (sequence 147, 69,376 items; probe 2026-10-13), whose manifest and six shard files all return `200` ([STATUS.md](../STATUS.md) §2).
 2.  **Local Control Plane (Workstation):** A client-side system consisting of thin, host-specific **Bridge Shims** communicating via secure local IPC with a persistent, single-writer **LiteSPM Daemon**.
 
 ```text
@@ -64,7 +64,7 @@ LiteSPM is bifurcated into two strictly isolated environments:
                       └───────────────────────┘                 └───────────────────────┘
 ```
 
-> **Discovery-plane status.** The compiler (`internal/catalogbuild/compiler.go:101,117,150,172`) and the client (`internal/catalog/client.go:73,124,160`) agree on the `/v1/current.json` + `/v1/releases/<id>/{listings,versions,manifest}.json` layout, pinned by `TestReleasePathContractPinsDocumentedLayout` (`internal/catalog/catalog_test.go:217`). The live origin serves the **whole tree** (probe 2026-10-05: `/v1/current.json` and `/v1/releases/rel-2026-10-05-01/{manifest,listings,versions}.json` all 200, byte-identical to the committed release), so `litespm catalog sync` is `SHIPPED` ([STATUS.md](../STATUS.md) §2). The compiler emits exactly four files — there are no shards.
+> **Discovery-plane status.** The compiler (`internal/catalogbuild/compiler.go:101,117,150,172`) and the client (`internal/catalog/client.go:73,124,160`) agree on the `/v1/current.json` + `/v1/releases/<id>/{listings,versions,manifest}.json` layout, pinned by `TestReleasePathContractPinsDocumentedLayout` (`internal/catalog/catalog_test.go:217`). The live origin serves the **whole tree** (probe 2026-10-05: `/v1/current.json` and `/v1/releases/rel-2026-10-05-01/{manifest,listings,versions}.json` all 200, byte-identical to the committed release), so `litespm catalog sync` is `SHIPPED` ([STATUS.md](../STATUS.md) §2). The compiler emits the pointer plus `manifest.json` and the listings/versions files, **split into `-NNNN` shards when a kind exceeds 20 MiB** — transport sharding, `ARCH/18` §2.1, not the logical `index.json`/`shards/`/`items/` tree, which remains `DESIGNED`.
 
 ---
 
@@ -140,7 +140,7 @@ sequenceDiagram
     Shim-->>Host: MCP ToolResult: InstallPlan summary + planId
 ```
 
-> **Status of §4.1.** `search_catalog` → `catalog.search` (local index) and `prepare_install` → `resolver.prepare_plan` (persisted plan + `planHash`) are `WIRED`. `litespm catalog sync` is `SHIPPED` — it succeeds against the live origin (verified 2026-10-05). No shard/`index.json` path exists — shards are `DESIGNED` ([STATUS.md](../STATUS.md) §2; `ARCH/18`).
+> **Status of §4.1.** `search_catalog` → `catalog.search` (local index) and `prepare_install` → `resolver.prepare_plan` (persisted plan + `planHash`) are `WIRED`. `litespm catalog sync` is `SHIPPED` — it succeeds against the live origin (verified 2026-10-05). Transport sharding of oversized listings/versions files exists (`ARCH/18` §2.1); the logical `index.json`/`shards/`/`items/` path does not — that design is `DESIGNED` ([STATUS.md](../STATUS.md) §2; `ARCH/18`).
 
 ### 4.2 Plan Approval & Transactional Installation
 
@@ -259,17 +259,17 @@ sequenceDiagram
 
 ## 6. Control-Plane Extensions (`DESIGNED`)
 
-[STATUS.md](../STATUS.md) decomposes the product into five working planes — **control**, **catalog & source**, **install**, **provider & invocation runtime**, and **governance & evidence** (plus interfaces & packaging) — and `ARCH/31` proposal #1 keeps that 5-plane decomposition. The next-generation control-plane capabilities live in `ARCH/32`–`ARCH/38`; every one of them is `DESIGNED` and none has code:
+[STATUS.md](../STATUS.md) decomposes the product into five working planes — **control**, **catalog & source**, **install**, **provider & invocation runtime**, and **governance & evidence** (plus interfaces & packaging) — and `ARCH/31` proposal #1 keeps that 5-plane decomposition. The next-generation control-plane capabilities live in `ARCH/32`–`ARCH/38`; several of them have since landed, so each row states its own state rather than the original blanket `DESIGNED` (STATUS.md wins):
 
 | Plane (STATUS.md) | Extension | Design record | State |
 |---|---|---|---|
-| Install + governance | Project manifest (`litespm.yml`) + lockfile (`litespm.lock`), frozen resolve, SBOM/verify verbs, interop import/export, canonical identity/alias graph | `ARCH/32` | `DESIGNED` |
-| Install + governance | Deployment mutation ledger, three-way reconciliation, ownership-aware uninstall/update | `ARCH/33` | `DESIGNED` |
-| Provider & invocation runtime | Capability registry, real `provider.invoke` / `invocation.get` / `invocation.cancel`, invocation engine, tamper-evident receipts | `ARCH/34` | `DESIGNED` |
-| Provider & invocation runtime (+ governance leases) | Runtime profiles with OCI distribution; time/scope-bounded capability leases | `ARCH/35` | `DESIGNED` |
-| Governance & evidence | Tighten-only policy hierarchy + `policy explain`, `audit --ci`/SARIF, advisories/quarantine, TUF-style signed catalog, SBOM/Sigstore/SLSA, air-gapped bundles | `ARCH/36` | `DESIGNED` |
+| Install + governance | Project manifest (`litespm.yml`) + lockfile (`litespm.lock`), frozen resolve, SBOM/verify verbs, interop import/export, canonical identity/alias graph | `ARCH/32` | **§2–§4 `WIRED`** (manifest, lockfile, lock verbs, `install --frozen`); four §5 importers `WIRED`; identity graph/export `DESIGNED` |
+| Install + governance | Deployment mutation ledger, three-way reconciliation, ownership-aware uninstall/update | `ARCH/33` | **Install/reconcile/uninstall `IMPLEMENTED`**; §6 update routing `DESIGNED` |
+| Provider & invocation runtime | Capability registry, real `provider.invoke` / `invocation.get` / `invocation.cancel`, invocation engine, tamper-evident receipts | `ARCH/34` | `provider.invoke` is `WIRED` (synchronous); `get`/`cancel` return `-32601`; registry/engine/receipts `DESIGNED` |
+| Provider & invocation runtime (+ governance leases) | Runtime profiles with OCI distribution; time/scope-bounded capability leases | `ARCH/35` | `DESIGNED` (library `IMPLEMENTED`, unwired) |
+| Governance & evidence | Tighten-only policy hierarchy + `policy explain`, `audit --ci`/SARIF, advisories/quarantine, TUF-style signed catalog, SBOM/Sigstore/SLSA, air-gapped bundles | `ARCH/36` | Policy hierarchy/advisories/TUF/air-gap `DESIGNED`; release SBOM + Sigstore bundles `SHIPPED` (`v0.4.0`) |
 | Interfaces & packaging | TUI, local dashboard, shell completion, `why` | `ARCH/37` | `DESIGNED` |
-| Control + interfaces | Cross-agent porting (`litespm copy` via a canonical IR), `list`/`inventory`, the `help` system, orient commands (`status`/`diff`/`why`/`outdated`) | `ARCH/38` | `DESIGNED` |
-| Control + interfaces | Web product redesign: three visual densities (DISCOVER/EVALUATE/OPERATE), design-system tokens, landing page, Agent Atlas, compare, palette | `ARCH/25` §5–§8 | `DESIGNED` |
+| Control + interfaces | Cross-agent porting (`litespm copy` via a canonical IR), `list`/`inventory`, the `help` system, orient commands (`status`/`diff`/`why`/`outdated`) | `ARCH/38` | `copy`, `list`/`inventory` and the `help` system `IMPLEMENTED`; orient commands/profiles/spine `DESIGNED` |
+| Control + interfaces | Web product redesign: three visual densities (DISCOVER/EVALUATE/OPERATE), design-system tokens, landing page, Agent Atlas, compare, palette | `ARCH/25` §5–§8 | Tokens/landing page/package restructure `IMPLEMENTED`; Agent Atlas, compare, ⌘K palette `DESIGNED` |
 
 Today's control plane — the 12-tool bridge shim, the single-writer daemon, policy/skills gates, `doctor`, `self-update` (SHA-256 fail-closed plus keyless signature verification when a release publishes a bundle), host MCP-entry merge, and local catalog search — is `WIRED`; see [STATUS.md](../STATUS.md) §1 for the per-subsystem evidence.

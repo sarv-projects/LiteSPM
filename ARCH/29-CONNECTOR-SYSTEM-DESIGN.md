@@ -296,8 +296,8 @@ was removed as unreachable code — zero production importers, no wiring path �
 and is recorded only as a tombstone in [24](24-FUNCTION-INVENTORY.md) §1
 ("Removed / non-existent packages"). Local proxy execution with vault-backed
 grants is unbuilt; this document remains a design record. Catalog promotion is
-also deferred: no portable `connector` rows ship in the catalog (5814 rows carry
-only `mcp`/`skill`/`plugin` — `mcp` 4079, `skill` 1103, `plugin` 632), and no
+also deferred: no portable `connector` rows ship in the catalog (69,376 rows carry
+only `mcp`/`skill`/`plugin` — `mcp` 48,418, `skill` 20,320, `plugin` 638), and no
 ingestion adapter produces them (ARCH/26 §3.4.1, §7 bar: portable format +
 ingestion adapter + real data).
 

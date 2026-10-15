@@ -1,6 +1,6 @@
 # `web/scripts/` — build steps and lint gates for the marketplace site
 
-Five Node scripts run against `web/`. Two are **build steps** (`prebuild` / `predev`), and three are
+Six Node scripts run against `web/`. Two are **build steps** (`prebuild` / `predev`), and four are
 the whole of `npm run lint`. Nothing here adds a dependency: `typescript` is already the site's only
 compiler devDependency, and the gates use its API rather than an ESLint plugin tree.
 

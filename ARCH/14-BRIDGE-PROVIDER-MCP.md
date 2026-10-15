@@ -44,7 +44,7 @@ IPC client (`ipc.Client.Call(ctx, method, params, &out)`), not through a typed
 per-method wrapper:
 
 ```go
-toolResult := s.DispatchTool(ctx, callParams.Name, callParams.Arguments)   // shim.go:243
+toolResult := s.DispatchTool(ctx, callParams.Name, callParams.Arguments)   // shim.go:297
 
 func (s *Shim) DispatchTool(ctx context.Context, name string, args json.RawMessage) MCPToolResult {
         if !s.knownTool(name) {                      // one of the 12 advertised tools? else LPSM error
@@ -54,15 +54,15 @@ func (s *Shim) DispatchTool(ctx context.Context, name string, args json.RawMessa
                 return standaloneError(name)
         }
         switch name {
-        case "search_catalog":                       // shim.go:282-304
+        case "search_catalog":                       // shim.go:365
                 err := s.client.Call(ctx, "catalog.search", map[string]any{
                         "query": req.Query, "kinds": req.Kinds, "limit": req.Limit,
                 }, &resp)
-        case "request_install":                      // shim.go:341-358
+        case "request_install":                      // shim.go:430
                 err := s.client.Call(ctx, "install.execute", map[string]any{
                         "planId": req.PlanID, "approvalToken": req.ApprovalToken,
                 }, &resp)
-        case "invoke_capability":                    // shim.go:452-474
+        case "invoke_capability":                    // shim.go:551
                 err := s.client.Call(ctx, "provider.invoke", map[string]any{
                         "capabilityId": req.CapabilityID, "arguments": req.Arguments,
                 }, &resp)
@@ -82,7 +82,7 @@ Two consequences worth stating precisely:
     The full mapping is §1.2.
 *   **Error rendering.** A daemon `-32601` reaches the host as an MCP *tool*
     result, not a JSON-RPC error object: `FormatErrorResult`
-    (`shim.go:590-605`) only passes through `*domain.LPSMError`, so a raw
+    (`shim.go:718`) only passes through `*domain.LPSMError`, so a raw
     `*ipc.RPCError` is wrapped in an `LPSM-CORE-INTERNAL` envelope
     (`internal/domain/errors.go:296-306`) whose message text still carries the
     daemon's `rpc error: code=-32601 message=not implemented: …` reason, with
@@ -90,26 +90,26 @@ Two consequences worth stating precisely:
 
 ### 1.2 The 12 tools and what each resolves to today
 
-`tools/list` advertises exactly 12 tools (`internal/bridge/shim.go:111-156`);
-`knownTool` rejects anything else (`shim.go:658-666`).
+`tools/list` advertises exactly 12 tools (`internal/bridge/shim.go:112-174`);
+`knownTool` rejects anything else (`shim.go:694`).
 
 | # | MCP tool | Daemon method (`internal/bridge/shim.go`) | Status |
 |---|---|---|---|
-| 1 | `search_catalog` | `catalog.search` (`:345`) | `WIRED` — real index search |
-| 2 | `get_extension` | `catalog.get_item` (`:366`) | `WIRED` |
-| 3 | `prepare_install` | `resolver.prepare_plan` (`:386`) | `WIRED` — plan persisted with `planHash`; a project-scope call must name its `projectRoot` |
-| 4 | `request_install` | `install.execute` (`:406`) | `WIRED` **for skills and MCP servers** (installs files through the skills ledger / registers the server in each target host's config, both behind the plan + approval gate), `LPSM-ARTIFACT-UNAVAILABLE` for plugins ([STATUS.md](../STATUS.md) §3) |
-| 5 | `list_installed` | `tools.list` (`:421`) | `WIRED` — installs + read-only detected external tools; sends `projectRoot` so the agent also sees the workspace's project-scope installs, each labelled with its scope |
-| 6 | `search_capabilities` | `capabilities.search` (`:437`) | Resolves — searches the tools **discovered on this machine**, which is a different question from `search_catalog`'s registry search |
-| 7 | `describe_capability` | `capabilities.describe` (`:456`) | Resolves — returns the real input schema, fingerprint and the command behind it |
-| 8 | `load_skill` | `skills.load_body` (`:478`) | `WIRED` — `projectRoot` as tool 5; user scope wins a name collision |
-| 9 | `read_skill_resource` | `skills.read_resource` (`:508`) | `WIRED` — path-traversal checked (`main.go:2951-2958`); `projectRoot` as tool 5 |
-| 10 | `invoke_capability` | `provider.invoke` (`:530`) | Resolves — spawns the installed server and calls the discovered tool; refuses on schema drift |
-| 11 | `get_invocation` | `invocation.get` (`:551`) | **`-32601`** — the async registry is ARCH/34 (`DESIGNED`); `provider.invoke` is synchronous by contract |
-| 12 | `cancel_invocation` | `invocation.cancel` (`:571`) | **`-32601`** — as tool 11 |
+| 1 | `search_catalog` | `catalog.search` (`:379`) | `WIRED` — real index search |
+| 2 | `get_extension` | `catalog.get_item` (`:400`) | `WIRED` |
+| 3 | `prepare_install` | `resolver.prepare_plan` (`:420`) | `WIRED` — plan persisted with `planHash`; a project-scope call must name its `projectRoot` |
+| 4 | `request_install` | `install.execute` (`:440`) | `WIRED` **for skills and MCP servers** (installs files through the skills ledger / registers the server in each target host's config, both behind the plan + approval gate), `LPSM-ARTIFACT-UNAVAILABLE` for plugins ([STATUS.md](../STATUS.md) §3) |
+| 5 | `list_installed` | `tools.list` (`:455`) | `WIRED` — installs + read-only detected external tools; sends `projectRoot` so the agent also sees the workspace's project-scope installs, each labelled with its scope |
+| 6 | `search_capabilities` | `capabilities.search` (`:471`) | Resolves — searches the tools **discovered on this machine**, which is a different question from `search_catalog`'s registry search |
+| 7 | `describe_capability` | `capabilities.describe` (`:490`) | Resolves — returns the real input schema, fingerprint and the command behind it |
+| 8 | `load_skill` | `skills.load_body` (`:512`) | `WIRED` — `projectRoot` as tool 5; user scope wins a name collision |
+| 9 | `read_skill_resource` | `skills.read_resource` (`:542`) | `WIRED` — path-traversal checked (`main.go:2951-2958`); `projectRoot` as tool 5 |
+| 10 | `invoke_capability` | `provider.invoke` (`:564`) | Resolves — spawns the installed server and calls the discovered tool; refuses on schema drift |
+| 11 | `get_invocation` | `invocation.get` (`:585`) | **`-32601`** — the async registry is ARCH/34 (`DESIGNED`); `provider.invoke` is synchronous by contract |
+| 12 | `cancel_invocation` | `invocation.cancel` (`:605`) | **`-32601`** — as tool 11 |
 
 > Line numbers in the table are the `s.client.Call` sites inside `DispatchTool`
-> (`shim.go:294-580`). `litespm bridge stdio [--workspace <dir>]` sets the project
+> (`shim.go:328-620`). `litespm bridge stdio [--workspace <dir>]` sets the project
 > root the shim forwards (default: the process working directory); it widens reads
 > only, and the daemon treats it as a selection key rather than an authorization
 > boundary (ARCH/06 §4).
@@ -136,13 +136,15 @@ skills and MCP servers, stopping only at the missing artifact source for plugins
 two — `get_invocation` and `cancel_invocation` — fail closed with an explicit `-32601` reason
 rather than fabricated data. Standalone mode (no daemon
 connection) fails **all** twelve with `LPSM-IPC-DAEMON-UNREACHABLE`
-(`shim.go:274-280`, `:579-587`), and `ping` reports `{"connected": false}`
-truthfully (`shim.go:206-214`).
+(`shim.go:707-716`), and `ping` reports `{"connected": false}`
+truthfully (`shim.go:258-267`).
 
-**Protocol note.** `initialize` answers `protocolVersion: "2026-07-28"` with a
-hard-coded `serverInfo.version` of `"0.1.0"` (`shim.go:189-204`), while the CLI
-binary version is `Version = "0.3.0"` (`cmd/litespm/main.go:44`) — the shim does
-not read the build version.
+**Protocol note.** `initialize` answers `protocolVersion: "2026-07-28"` (negotiated
+against the client's supported list) and `serverInfo.version` from
+`buildinfo.Version` (`shim.go:246`), which `cmd/litespm` sets to its own `Version`
+(`cmd/litespm/buildinfo.go`; the source default is `0.3.0` and release builds
+override it with `-ldflags -X main.Version=…`). The shim therefore reports the
+real build version, not a hard-coded one.
 
 ---
 
@@ -234,9 +236,9 @@ remote endpoint, dials that endpoint over `ConnectStreamableHTTP` or
 `ConnectLegacy` instead (`dialRemote`, `internal/discover/discover.go:673-692`),
 probes its tools and calls one ([STATUS.md](../STATUS.md) §4). Both HTTP
 constructors are built through the shared egress guard (`egress.WrapClient`,
-`client_2026.go:66`, `client_legacy.go:50`; policy `ARCH/05` §3.1). What no
-*published* listing reaches yet is the remote half: no dataset row carries a
-`url`.
+`client_2026.go:66`, `client_legacy.go:50`; policy `ARCH/05` §3.1). Published
+listings now reach the remote half too: 25,401 dataset rows carry a non-null
+`url` (checked 2026-10-15).
 
 ### 3.1 Constructors and probes (exact signatures)
 
@@ -337,10 +339,15 @@ These tuples are exactly the columns of `domain.CapabilityGrant`
 ([ARCH/10 §2.8](10-DOMAIN-MODEL.md)) and the inputs to
 `mcpclient.DetectDrift` (`probe.go:67`), which classifies `schema` / `code` /
 `endpoint` drift and returns a `LPSM` error (e.g.
-`CodeProviderSchemaDrift`). **State today:** the drift checker and the grant
-struct/writer are `IMPLEMENTED`, but `capability_grants` is never written in
-production ([STATUS.md](../STATUS.md) §4) and no dispatch consumes
-`DetectDrift`, so no execution is ever accepted or rejected on this basis.
+`CodeProviderSchemaDrift`). **State today:** the grant writer is `WIRED` —
+`litespm grant <capabilityId>` records a `capability_grants` row bound to the
+capability's current schema fingerprint, and `internal/policy` Tier 3 reads it
+before an effectful invocation. `internal/discover.Invoke` re-checks the
+fingerprint before each call and refuses a changed one (the gate
+`DetectDrift` exists for, applied directly rather than by calling it), and
+`grant revoke` sets `revoked`. What no code path produces is the automatic
+invalidated/`changed` state: nothing flips a grant when a re-probe sees a new
+fingerprint ([STATUS.md](../STATUS.md) §4).
 
 ## 5. Provider health, circuit breaking, fallback — `DESIGNED`
 
@@ -353,4 +360,4 @@ supervisor snapshot behind `provider.probe` (§2). Do not describe a provider as
 healthy, unhealthy, or circuit-broken: LiteSPM can only report
 `starting`/`running`/`unresponsive`/`stopped`/`error` for a process it
 supervises (`supervisor.go:81-89`), and `— Unknown` for anything it does not
-(`internal/bridge/shim.go:513-562`, `FormatInstalledPanel`).
+(`internal/bridge/shim.go:635-693`, `FormatInstalledPanel`).

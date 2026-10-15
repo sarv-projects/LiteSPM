@@ -158,7 +158,7 @@ HTTP request at all**. The one wizard step that touches the network is the actio
 ### 3.7 Data-driven targets: 44 generic + 6 bespoke = 50 total (`internal/host/target.go`, `ARCH/30`)
 *   The six adapters above are hand-written and retained (they carry behaviour the generic path does not model: Cline's legacy-path fallback and shared-settings overrides, and the Pi extension file).
 *   All other agents are data rows (`verifiedBridgeTargets` in `internal/host/targets_data.go`, **44 rows**) served by the single `GenericAdapter` (`internal/host/generic.go`). Bespoke IDs always win name collisions (`TestBridgeTargetTableDoesNotShadowBespokeAdapters`).
-*   **Counts:** `litespm host list` prints `Registered Agent Host Adapters (50)`. Skill installation targets are a separate set of **77** rows in `internal/skills/agents.go` (`ARCH/30` §10); the two sets overlap but are not equal, and `host list` reports bridge adapters only.
+*   **Counts:** `litespm host list` prints `Registered Agent Host Adapters (50)`. Skill installation targets are a separate set of **81** targets in `internal/skills/agents.go` (`AgentTargets()` — the 77 transcribed rows plus `universal`/`warp`/`grok`/`pi`, appended 2026-10-14; `ARCH/30` §10); the two sets overlap but are not equal, and `host list` reports bridge adapters only.
 *   **Scope:** only `GenericAdapter.DetectConfig` honours `domain.ScopeProject`; every other `DetectConfig` ignores the `scope` argument and all production callers pass `ScopeUser`.
 *   Surgical merge (`internal/host/jsonc_merge.go` + TOML merger) preserves comments/key order. See ARCH/30 for the honesty contract, exclusion table (23 unverified agents), and integrity tests.
 
@@ -389,7 +389,7 @@ The final tab provides situational visibility across the host environment:
     *   `tools.list` unions ledger installs with components each adapter reports from its own documented config file (`main.go:2337-2369`).
     *   **Scope limitation:** detection is limited to documented on-disk config files known to the adapter; in-memory sessions, cloud-managed extensions, skills directories and undocumented registries are not scanned.
     *   **Read-only observation:** external tools are never toggled or edited by the status view.
-    *   **Adopt is `DESIGNED`, not implemented.** The panel renders the note `[External / Detected] (Adopt)` (`shim.go:551-556`), but **no adopt handler, bridge tool or `InstallRecord` creation exists** — adoption needs the deployment ledger (`STATUS.md` §5). The label is a placeholder and must not be presented as a working action. The wizard no longer prints an adopt hint; its next-step line points at `/marketplace` and at its own menu (`cmd/litespm/wizard.go:551-561`).
+    *   **Adopt is `DESIGNED`, not implemented.** The panel renders the note `[External / Detected] (Adopt)` (`shim.go` `FormatInstalledPanel`), but **no adopt handler, bridge tool or `InstallRecord` creation exists** — adoption needs the deployment ledger (`STATUS.md` §5). The label is a placeholder and must not be presented as a working action. The wizard no longer prints an adopt hint; its next-step line points at `/marketplace` and at its own menu (`cmd/litespm/wizard.go:551-561`).
 
 ```text
 FormatInstalledPanel output (format sample — the count is len(items), and

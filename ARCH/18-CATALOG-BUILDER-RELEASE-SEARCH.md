@@ -1,11 +1,13 @@
 # Catalog Builder, Release Architecture & Search
 
-> **Honesty note (updated 2026-10-05).** Sections 1 and 2 describe a target output shape that the
-> builder only partially produces; the live origin serves the four-file tree they specify.
+> **Honesty note (updated 2026-10-15).** Sections 1 and 2 describe a target output shape that the
+> builder only partially produces; the live origin serves the emitted tree (pointer, manifest,
+> listings and versions — sharded when a kind exceeds 20 MiB, §2.1).
 >
-> *   `CompileRelease` emits exactly four files: `v1/current.json` and
+> *   `CompileRelease` emits `v1/current.json` and
 >     `v1/releases/<id>/{listings,versions,manifest}.json`
->     (`internal/catalogbuild/compiler.go`). It does **not** emit `index.json`,
+>     (`internal/catalogbuild/compiler.go`), splitting a listings or versions kind across
+>     `-NNNN` shards when it exceeds 20 MiB (§2.1). It does **not** emit `index.json`,
 >     `shards/<kind>/<category>.json`, `items/`, or `metadata.json` as drawn in §1 and §2.
 > *   The publisher has landed as `litespm catalog build` (`cmd/litespm/main.go`), which cuts the
 >     release from the dataset, owns the pointer, and — via `-materialize`, invoked by
@@ -106,15 +108,17 @@ problem rather than an exhausted budget. `scripts/check_pages_limits.py` now mea
 bundle against Cloudflare's published limits and `scripts/audit-pages-dist.sh` runs it on the
 real one before upload:
 
-| Free-plan limit | Value | This bundle (2026-10-13) |
+| Free-plan limit | Value | This bundle (2026-10-15) |
 | --- | --- | --- |
-| Files per site | 20,000 | **533** — 2.7% of the budget |
-| Single asset | 25 MiB | **20.00 MiB** (`listings-0002.json`) — 80% |
+| Files per site | 20,000 | **1,553** — 7.8% of the budget (the site export `web/out`; the packaged bundle adds the release tree's few files) |
+| Single asset | 25 MiB | **20.00 MiB** (`data/catalog-0001.json`; the release shards are capped at 20 MiB too) — 80% |
 | Build timeout | 20 minutes | ~2 minutes locally |
 
 The per-asset cap is the tightest at 80%, and `ReleaseShardMaxBytes` is 20 MiB precisely to
 leave that headroom — raising it means re-checking Cloudflare's limit first. File count has
-97% of its budget free.
+92% of its budget free, but it is no longer the number it was before the search shards: the
+site now emits 1,021 search shards plus 318 product/category buckets, so a future change that
+adds per-row files has less room than the 2026-10-13 figure suggested.
 
 That table also rules out a tempting design: one static page per catalog entry. 69,376 pages
 would fit the *paid* file count (100,000, with `PAGES_WRANGLER_MAJOR_VERSION=4`) but not the

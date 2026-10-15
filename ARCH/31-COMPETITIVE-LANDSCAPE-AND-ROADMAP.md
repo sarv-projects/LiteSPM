@@ -236,7 +236,11 @@ is amended. Leaving both while calling the Go one canonical means the canonical 
 > `canonical_id()`; its `LITESPM_RELEASE_ID` override was removed with the pointer write). The
 > Python builder is no longer a second *release* builder and no longer
 > writes `web/public/v1/*`. **D4 itself is still unadjudicated** — the split needs to be accepted
-> or overruled (`STATUS.md` §2).
+> or overruled (`STATUS.md` §2). The dataset is also no longer "a ~3.4 MB blob the web app
+> bundles": it is 69,376 rows served as build-time artifacts (shard index + fallback shards,
+> product-page buckets, postings index, 68-row display shards — §9), and the compiler now splits
+> an oversized listings/versions kind into transport shards (`ARCH/18` §2.1), so "emits exactly
+> four files" describes the comparison-time state, not the current one.
 
 ### 4.4 `ARCH/18` specifies an output tree the compiler does not produce
 
@@ -266,7 +270,7 @@ Verdicts: **ADOPT** (build it) · **ADAPT** (build it, changed) · **DEFER** (ri
 | # | Proposal | Verdict | Evidence / reason |
 |---|---|---|---|
 | 1 | Reframe as 5-plane control plane | ADAPT | The 5 planes are the right decomposition and largely match `ARCH/02`. Do **not** rebrand in `README.md` before §4.1–4.4 close; the current one-line description is the more honest claim. |
-| 2 | Five structural holes (install path, catalog pipeline, runtime router, connectors, docs) | ADOPT | Holes 1, 2, 5 confirmed and quantified in §4.1, §4.2, §4.3, §6. **Hole 4 was mis-stated as an unwired package** — `internal/connector` was deleted under D1, so the connector gap is tracked as a resurrection ([ARCH/29](29-CONNECTOR-SYSTEM-DESIGN.md), re-decide `D1` first), not as existing code awaiting a wire. Hole 3 confirmed: zero non-test `INSERT INTO providers` in the tree. |
+| 2 | Five structural holes (install path, catalog pipeline, runtime router, connectors, docs) | ADOPT | Holes 1, 2, 5 confirmed and quantified in §4.1, §4.2, §4.3, §6. **Hole 4 was mis-stated as an unwired package** — `internal/connector` was deleted under D1, so the connector gap is tracked as a resurrection ([ARCH/29](29-CONNECTOR-SYSTEM-DESIGN.md), re-decide `D1` first), not as existing code awaiting a wire. Hole 3 confirmed at the time: zero non-test `INSERT INTO providers` in the tree *(now closed — provider rows are written at install time since 2026-10-13, `m4`)*. |
 | 3 | APM is the package/governance benchmark | ADOPT | Verified §3.1. Steal scratch-replay audit; do not compete on manifest ergonomics. |
 | 4 | Support OpenAPM rather than compete | ADOPT | Spec issue #1502 is real. Import/export is cheap and de-risks the ecosystem bet. |
 | 5 | Dynamic Capabilities + capability leases | DEFER | Dynamic MCP is **not** a differentiator (§3.3). Leases are genuinely novel and cheap *after* §4.1/§4.2. |
@@ -282,12 +286,12 @@ Verdicts: **ADOPT** (build it) · **ADAPT** (build it, changed) · **DEFER** (ri
 | 15 | Token cost as a first-class resource + context budget | DEFER | Real, and LiteSPM can measure it better than AgentMods because it owns the runtime. But it is analytics until §4.1 lands. |
 | 16 | Two-surface management bridge (READ / MUTATING) with plan-bound approval | ADOPT | LiteSPM's existing plan/approval architecture already exceeds AAM's `--allow-write` global switch. Mostly a matter of splitting the current 12 Bridge tools along the read/write line. |
 | 17 | Vercel `skills-lock.json` import/export | ADOPT | Verified §3.1. `internal/skills` already has atomic update, dry-run and provenance (§REMEDIATION-PLAN finding 118). Import/export is the small half. |
-| 18 | Data-driven target capability registry for all 77 agents | ADOPT | **Partly done**: `ARCH/30` + `internal/host/targets_data.go` already do this for 44 generic BridgeTargets. Extend the same table to skills/instructions rather than building a new mechanism. |
+| 18 | Data-driven target capability registry for all 77 agents | ADOPT | **Partly done**: `ARCH/30` + `internal/host/targets_data.go` already do this for 44 generic BridgeTargets, and `internal/skills/agents.go` is itself an 81-row data table (the four reference ids were appended 2026-10-14). Extend the same table with `instruction`/`command`/`hook` component kinds rather than building a new mechanism. |
 | 19 | Official MCP Registry as high-confidence identity source | ADOPT | Already an adapter (`internal/source/mcp_registry.go`). Upgrade is preserving its namespace-verification assertions through normalization instead of flattening them. |
 | 20 | Bidirectional plugin import/export (Agent Plugins, Claude plugins) | DEFER | Genuine interop gap, but a large surface. Phase 4. |
 | 21 | Connector model + corrected secret terminology | ADOPT (terminology) / DEFER (implementation) | The **terminology correction is the valuable half** and is adopted now. See §8 for the exact README/ARCH/26 wording to fix. Implementation is deferred **pending re-deciding `D1`**: the recorded direction is to resurrect [ARCH/29](29-CONNECTOR-SYSTEM-DESIGN.md) and wire it (D-021), so the gap is a missing prerequisite decision, not a rejected design. |
 | 22 | Sandbox tiers 0–3 | ADOPT (tier declaration) / DEFER (tier 3) | LiteSPM is weaker than Docker here, and `ARCH/08` §3 already refuses OS-sandbox claims. Declaring the true tier is honest and cheap; tier 3 is a Phase-5 project. |
-| 23 | Unified invocation engine | ADOPT | This is the runtime moat and it is the largest single build. `providers` is never populated (§2 of #2), so the router has nothing to route. |
+| 23 | Unified invocation engine | ADOPT | This is the runtime moat and it is the largest single build. At the time of the comparison `providers` was never populated, so the router had nothing to route; **provider rows are now written at install time** (`m4` closed 2026-10-13), but the async registry/engine itself is still `DESIGNED` ([ARCH/34](34-RUNTIME-INVOCATION-RECEIPTS.md)). |
 | 24 | Restart/retry yes, blind semantic fallback no | ADOPT | The rejection is correct and should be recorded in `ARCH/15`. Automatically substituting a `send_email` for a failed `send_email`-alike is unacceptable. |
 | 25 | Circuit breakers + health scoring | ADOPT | Depends on #23. Pairs naturally with the 6-state provider health model already implied by `ARCH/14`. |
 | 26 | Bounded output protection, never pipe provider stderr to the model | ADOPT | Bounded ring buffer is already built (finding 118/E001). The missing half is the rule that stderr never reaches model context. |
@@ -297,7 +301,7 @@ Verdicts: **ADOPT** (build it) · **ADAPT** (build it, changed) · **DEFER** (ri
 | 30 | `litespm audit --ci` incl. scratch replay | ADOPT | Replay is the single best idea in the whole proposal set. Requires #9 to have something to replay. |
 | 31 | Private registry / federation | DEFER | Enterprise Phase 6. |
 | 32 | Air-gapped signed bundle | DEFER | Enterprise Phase 6, and it is a legitimate differentiator worth stating in positioning once it exists. |
-| 33 | Provenance: SLSA, Sigstore/cosign, SBOM, signed tags | ADOPT (releases) / DEFER (packages) | `SECURITY.md` already documents the unsigned-release gap. Signed *releases* are cheap and unblock `self-update`; signed *packages* is Phase 5. |
+| 33 | Provenance: SLSA, Sigstore/cosign, SBOM, signed tags | ADOPT (releases) / DEFER (packages) | `SECURITY.md` already documents the unsigned-release gap. Signed *releases* are cheap and unblock `self-update`; signed *packages* is Phase 5. **Update 2026-10-11: the release half is done** — `v0.4.0` publishes a keyless bundle for every asset and `self-update` verifies it; signed *packages* remains Phase 5. |
 | 34 | TUF-style catalog signing | DEFER | Correct in principle. Depends on #30 and on the catalog existing at all (§4.2). |
 | 35 | Revocation / quarantine | DEFER | Depends on signed advisories (#33). Must not silently remove user software. |
 | 36 | Static security scanning, labelled *scan* not *verification* | ADOPT | `internal/doctor` already has a canary mechanism to build on. AgentMods' discipline (exact reason, explicit "this is a scan") is the part to copy. |
@@ -306,7 +310,7 @@ Verdicts: **ADOPT** (build it) · **ADAPT** (build it, changed) · **DEFER** (ri
 | 39 | Mock / record / replay | DEFER | High value for CI, but strictly downstream of #23. |
 | 40 | Semantic update diffs | ADOPT | Genuinely better than semver, and mostly a rendering problem over data that will exist post-#23. |
 | 41 | Compatibility evidence as first-class metadata | ADOPT | Directly fixes `ARCH/26` §4.2's `testedHosts` complaint. "Never infer compatibility from config-file location" is the right rule. |
-| 42 | Sharded search index; SQLite FTS client-side | DEFER | Real at scale; 3.4 MB is not yet a measured failure. Should be an explicit, measured trigger, not a guess. |
+| 42 | Sharded search index; SQLite FTS client-side | DEFER (as adjudicated) — the *site* half has since been built | The 2026-10-13 reason ("3.4 MB is not yet a measured failure") was overtaken by a measurement that was worse: the browser paid **7.03 MiB gzip** on the first search and blocked the main thread for **1,113 ms**. The site now ships a build-time postings index plus 68-row display shards (`web/scripts/emit-catalog-shards.mjs`, layout in `web/lib/searchFormat.mjs`) — **2.80 MiB and 0 long tasks** measured on the built export (commit `bc75f1c`, 2026-10-15). SQLite FTS client-side remains unimplemented and is not needed for this path. |
 | 43 | Catalog deltas | DEFER | Same trigger condition as #42. |
 | 44 | Evidence-based ranking, no single magic score | ADOPT | Reinforces §12.4. Also the concrete home for #14's Evidence Card. |
 | 45 | First-class TUI | DEFER | Phase 8, after the core works. Non-negotiable constraint: **zero TUI business logic** — every action must call the same daemon operation as the CLI. |
@@ -364,7 +368,7 @@ any of these is to be built** — the proposal set explicitly says so, and the t
 
 | Subsystem | Current state | Upgrade to |
 |---|---|---|
-| `internal/host/targets_data.go` + `ARCH/30` | 44 generic BridgeTargets, data-driven | Extend the same table with `skill` / `instruction` / `command` / `hook` component kinds so all 77 agents come from one registry (#18) |
+| `internal/host/targets_data.go` + `ARCH/30` | 44 generic BridgeTargets, data-driven | Extend the same table with `instruction` / `command` / `hook` component kinds so all 81 skill targets come from one registry (#18) |
 | `internal/policy` | flat `Evaluate`, injected deny rules, no hierarchy, no provenance | Layered tighten-only inheritance with per-decision rule provenance (#28, #29) |
 | `internal/catalog/search.go` | lexical tiers + a dormant verification bonus (`security_audited` +10, `signature_verified` +5) that no adapter can produce | Separate, individually sortable dimensions — relevance, publisher trust, compatibility, freshness, security findings, originality, reliability. Never one magic score (#44) |
 | `internal/doctor` | diagnostics + `--repair`; already runs a synthetic secret canary round-trip | Add security-scan findings, deployment-ownership drift, and three-way conflict detection to the repair plan |
@@ -400,7 +404,7 @@ Corrections to existing documents. Each is a factually wrong statement today, no
 
 | Target | Current | Optimization |
 |---|---|---|
-| `web/data/catalog.json` | one ~3.4 MB blob bundled into the static export, hydrated into browser JS | Split into a small search-metadata index + lazy detail records, with a **measured** trigger for sharding (not a guess) (#42, #43) |
+| `web/data/catalog.json` | **Done for the site, on the measured trigger** — the 69,376-row dataset is no longer hydrated into browser JS: the build emits a shard index + ordered fallback shards, a 256-way product-page partition, a postings index and 68-row display shards, and a first search now costs **2.80 MiB gzip with 0 long tasks** (was 7.03 MiB / 1,113 ms; commit `bc75f1c`, 2026-10-15) | The remaining half is the **binary** client's catalog: `catalog sync` still downloads the full release and local search is `internal/catalog/search.go`; deltas (#43) remain deferred |
 | Catalog sync | full release re-download per sequence bump | Delta releases with immutable full snapshots retained for recovery (#43) |
 | Provider stderr | bounded ring buffer exists | Add rate limiting, ANSI stripping, binary detection, UTF-8 validation, secret redaction — and the hard rule that stderr never enters model context (#26) |
 | Resolver | pure DFS, cycle detection | Keep the pure property. Add lockfile-driven resolution so a frozen install skips solving entirely (#8) |

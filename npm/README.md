@@ -86,6 +86,16 @@ See [`SECURITY.md`](https://github.com/sarv-projects/LiteSPM/blob/main/SECURITY.
 > catalog carries no plugin artifact locator, so they fail closed with
 > `LPSM-ARTIFACT-UNAVAILABLE`. See
 > [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
+>
+> **And the published npm package is still broken, so read this before
+> installing.** `litespm@0.4.0` was tagged 2h29m before the shard-aware catalog
+> client landed, so its `catalog sync` fails with `manifest missing listings.json
+> entry` — which takes `search`, `install` and `/marketplace` with it. The
+> repository is prepared for the re-cut (`npm/package.json` and the CHANGELOG
+> already say `0.4.1`), but the `v0.4.1` tag has **not** been pushed and this
+> package has **not** been republished: `npm install -g litespm` still gives you
+> `0.4.0`. The fix is the tag, not a code change — a build from current `main`
+> syncs the same tree and reports 69,376 capabilities indexed.
 
 ## Quickstart
 
@@ -124,9 +134,14 @@ Inside a configured agent, just type:
   `LPSM-ARTIFACT-UNAVAILABLE`, and `get_invocation` / `cancel_invocation` (`-32601`)
   have no invocation registry behind them —
   the wiring is tracked in [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
-- **Drift-bound approvals** (`IMPLEMENTED`, not yet wired). Approvals are designed
-  to bind to a tool's schema fingerprint and content digest, so a change forces
-  re-confirmation; the grant store is not yet reachable from a user workflow.
+- **Drift-bound approvals.** The check half is real: the installed server is
+  re-probed before every call and one whose schema fingerprint no longer matches
+  what was discovered is refused, and the policy engine runs before the server is
+  spawned. The grant half is wired: `litespm grant <capabilityId>` writes one
+  `capability_grants` row per capability and `internal/policy` Tier 3 reads it
+  before an effectful invocation. What no code path produces yet is the automatic
+  invalidation state — `grant revoke` sets `revoked`, but nothing flips a grant to
+  `changed` when a re-probe sees a new fingerprint (see the status note above).
 
 ## Supported hosts
 
@@ -185,9 +200,11 @@ processes. Injecting stored secrets into a provider's environment at launch is
 - Credentials stored only in the OS vault — never in the database or logs.
 - Archive extraction is bounded and rejects traversal, absolute paths,
   symlinks, device files, and case-fold collisions.
-- Capability approvals are designed to bind to `(capability, schema fingerprint,
-  content digest)`, forcing re-approval on upstream changes — `IMPLEMENTED`, not
-  yet reachable from a workflow (see the status note above).
+- Capability approvals bind to a tool's schema fingerprint: the server is
+  re-probed before each call and a changed schema is refused; grants are recorded
+  by `litespm grant` and enforced by the policy engine before the server is
+  spawned. Automatic re-invalidation to `changed` on drift is not implemented
+  (see the status note above).
 
 ### Installing a local build
 

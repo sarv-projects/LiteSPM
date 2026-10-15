@@ -81,8 +81,8 @@ and polls with exponential backoff) **does not exist**. What actually happens:
     (`main.go:346`).
 3.  In standalone mode every tool fails closed with
     `LPSM-IPC-DAEMON-UNREACHABLE` — no inventory, status, or result is fabricated
-    (`internal/bridge/shim.go:274-280`, `:575-587`); `ping` honestly reports
-    `{"connected": false}` (`shim.go:206-214`).
+    (`internal/bridge/shim.go:707-716`); `ping` honestly reports
+    `{"connected": false}` (`shim.go:258-267`).
 
 There is no spawn, no connect retry, and no backoff for the daemon endpoint
 anywhere in the tree (the only `exec.Command` uses in the CLI are `git` in

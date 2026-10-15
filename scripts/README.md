@@ -1,6 +1,6 @@
 # `scripts/` — repository scripts
 
-Twenty-two scripts live in this directory. **Three of them are executed on a push or pull request.**
+Twenty-three scripts live in this directory. **Four of them are executed on a push or pull request.**
 `.github/workflows/ci.yml` *checks the syntax* of every script (`bash -n scripts/*.sh`,
 `python3 -m py_compile scripts/*.py`) and **executes** `gen_hosts_ts.go` (regeneration gate),
 `deploy-pages.sh` (in its `build-web` job, so the staged bundle is packaged and leak-audited on
@@ -30,7 +30,7 @@ history is in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md).
 | `parse_skills.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
 | `sample_voltagent.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
 | `audit-pages-dist.sh` | bash | **CI** — called by `deploy-pages.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — `set -euo pipefail` + explicit leak/digest `exit 1`; usage error exits 2. Also runs `check_pages_limits.py` on the bundle |
-| `check_catalog_coherence.py` | Python | **CI** (`ci.yml`, `build-web` job, before the build) and **manual** | Yes — exit 1 naming every disagreement; exit 2 on a bad `--root` |
+| `check_catalog_coherence.py` | Python | **CI** (`ci.yml`, `build-web` job, before the build) and **manual** | Yes — exit 1 naming every disagreement (row count / per-kind counts across `catalog.json`, `release.json` and the pointer), including any `installHint` that names another tool's installer or is not a `litespm …`/host-plugin command; exit 2 on a bad `--root` |
 | `check_pages_limits.py` | Python | **CI** — called by `audit-pages-dist.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — exit 1 on a files/asset-size limit breach *or* when a limit is within `--headroom` (default 0.90) of being spent, exit 2 on a bad directory or a headroom outside `(0, 1]`. Prints the budget spent as well as the verdict. `--headroom 1.0` restores over-the-line-only |
 | `migrate_dataset_transport.py` | Python | **Manual** — one-time historical migration (its header warns against re-running) | Yes, but it is historical: see the header before running it |
 | `test_snapshot_lifecycle.py` | Python (test) | **Manual** — **not wired into CI** | Yes — exits non-zero on a failed check |
@@ -55,8 +55,9 @@ proves they parse, not that they pass. Run them by hand before touching the prod
 ## `build-release.sh` — cross-platform release binaries
 
 - **Purpose.** Compile the CLI for six targets and write a checksum file.
-- **Invocation.** `VERSION=0.3.0 ./scripts/build-release.sh` (from the repo root; `VERSION` defaults
-  to `0.3.0` and must match `npm/package.json`, which the release workflow asserts separately).
+- **Invocation.** `VERSION=0.4.1 ./scripts/build-release.sh` (from the repo root; the script's own
+  default is `0.3.0`, and the release workflow always passes the tag's version, then asserts it
+  equals `npm/package.json`).
 - **Inputs.** `./cmd/litespm` source, the Go toolchain.
 - **Outputs.** `dist/litespm-windows-{amd64,arm64}.exe`, `dist/litespm-linux-{amd64,arm64}`,
   `dist/litespm-darwin-{amd64,arm64}`, `dist/SHA256SUMS.txt` (from `sha256sum` or `shasum -a 256`),
@@ -123,7 +124,7 @@ proves they parse, not that they pass. Run them by hand before touching the prod
   manifests, and the two registries `web/data/hosts.json` + `web/data/skill-targets.json` (run
   `gen_hosts_ts.go` first — if they are unreadable the script warns and publishes **empty** host
   lists).
-- **Outputs.** `web/data/catalog.json` (**46,166 rows** as committed; every listing id passes through
+- **Outputs.** `web/data/catalog.json` (**69,376 rows** as committed; every listing id passes through
   fail-closed `canonical_id()`, which strips query junk/apostrophes and maps everything outside
   `[A-Za-z0-9_.~%+-]` to `-` — an earlier revision shipped six ids the domain grammar rejects) and
   the dataset stats in `web/data/release.json` (`itemCount`, per-kind counts, `hostCompatibility`,
@@ -161,7 +162,8 @@ proves they parse, not that they pass. Run them by hand before touching the prod
 - **Inputs.** `host.ListAdapters()` (bridge adapters) and `skills.AgentTargets()` (skill install
   targets). It fakes `HOME` to `/tmp/__litespm_home__` so no maintainer path leaks into the output.
 - **Outputs.** `web/data/hosts.json` (**50** bridge hosts) and `web/data/skill-targets.json`
-  (**77** skill targets).
+  (**77** as committed; the generator now emits **81** from `skills.AgentTargets()`, so the
+  committed file is stale — see the drift note under "Coverage summary").
 - **Who runs it.** Manual, whenever an adapter or skill target is added/renamed, and **before**
   `build_full_catalog.py`.
 - **Truthfulness gaps.** No workflow runs it, so the committed JSON can lag the registry until
@@ -204,18 +206,25 @@ not ingestion: the ingestion path they informed is `build_full_catalog.py`.
 
 ## Coverage summary (what is actually enforced)
 
-- **Executed by CI on every push/PR:** `deploy-pages.sh` (the `build-web` job's
-  `Package and Audit the Deploy Bundle` step, so the export, the byte-for-byte release
-  materialization and the leak audit run on each change) — which in turn runs
-  `audit-pages-dist.sh` — in addition to the syntax steps `bash -n scripts/*.sh` (syntax) and
-  `python3 -m py_compile scripts/*.py` (byte-compile, which does not execute anything).
+- **Executed by CI on every push/PR:** `gen_hosts_ts.go` (the `static-checks` regeneration gate,
+  followed by `git diff --exit-code` over the generated files), `deploy-pages.sh` (the `build-web`
+  job's `Package and Audit the Deploy Bundle` step, so the export, the byte-for-byte release
+  materialization, the leak audit and the Pages budget check run on each change) — which in turn
+  runs `audit-pages-dist.sh` and `check_pages_limits.py` — and `check_catalog_coherence.py` (its own
+  `build-web` step, before the build), in addition to the syntax steps `bash -n scripts/*.sh` and
+  `python3 -m py_compile scripts/*.py` (byte-compile, which does not execute anything) and the npm
+  wrapper tests (`cd npm && npm test`, a `static-checks` step).
 - **Executed by the release workflow:** `build-release.sh`.
 - **Manual-only:** `build_full_catalog.py`, `snapshot_store.py` (its self-test),
-  `gen_hosts_ts.go`, `check_ci.py`, the six research probes, the six `scripts/test_*.py`
+  `check_ci.py`, the six research probes, the six `scripts/test_*.py`
   suites, `migrate_dataset_transport.py`, and `audit-pages-dist.sh` (when run directly).
   (Not a script, but the same workflow: the release/publication step
   `go run ./cmd/litespm catalog build --out web/public` is also manual, and `deploy-pages.sh` runs
   its `-materialize` form on every packaging run.)
+- **Known drift:** `gen_hosts_ts.go` emits **81** skill targets from `skills.AgentTargets()`, but
+  the committed `web/data/skill-targets.json` still lists **77** — the four ids appended on
+  2026-10-14 were never regenerated — so the CI regeneration gate fails until the generator is
+  re-run and committed.
 - **Assertion-less (never fail on bad content):** `build_full_catalog.py` (no row/schema checks of
   its own — validation happens fail-closed later in `catalogbuild.ParseDataset` at release build
   time), `fetch_test.py` (always exits 0), and the six research probes.

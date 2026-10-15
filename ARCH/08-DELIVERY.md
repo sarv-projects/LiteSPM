@@ -50,21 +50,24 @@ Highest honest state per phase, with the subsystem rows that back it in [STATUS.
 
 | Phase | Highest honest state | Blocking gap (STATUS citation) |
 |---|---|---|
-| A — Architecture Freeze & Schemas | `DESIGNED` | `ARCH/00`–`ARCH/37` exist; the specification is written, not verified |
+| A — Architecture Freeze & Schemas | `DESIGNED` | `ARCH/00`–`ARCH/38` exist; the specification is written, not verified |
 | B — Foundations, Storage & IPC | `TESTED` | `domain` / `state` / `ipc` tests bind; no independent falsification pass yet (STATUS §1) |
 | C — Static Catalog & Discovery | `SHIPPED` for the compiler, `catalog build` and `catalog sync` | the release tree is published and `catalog sync` was verified against the live origin; the origin now names **`rel-2026-10-11-02`** (sequence 147, 69,376 items, sharded — probe 2026-10-13), and the `rel-2026-10-05-01` tree the 2026-10-05 probe cited has since been replaced. `index.json`/`shards/` remain `DESIGNED`; transport sharding is `IMPLEMENTED` (STATUS §2) |
 | D — Extraction, Resolver & Skills | `WIRED` (resolver, skills); `IMPLEMENTED` (install engine); `TESTED` (artifact) | skills and MCP servers install end to end through `/marketplace`; `install.execute` still has no artifact source for plugins (STATUS §3) |
-| E — Supervision, Bridge & Hosts | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | `providers` table never populated by non-test code → autostart inert (STATUS §4) |
+| E — Supervision, Bridge & Hosts | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | provider rows are written at install time (`m4` closed 2026-10-13, `state.SaveProviderExec` inside the install transaction); `autostart` stays `0`, so nothing starts a provider at boot (STATUS §4) |
 | F — MCP profiles, Secrets & OAuth | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | `mcpclient`'s first production importer is `internal/discover`; `auth` still has zero production importers (STATUS §1, §4) |
 | G — Marketplace, `/marketplace`, wizard | `WIRED` for read tools and the web marketplace | `request_install` completes for skills and MCP servers; plugins need artifact ingestion; two bridge tools (`get_invocation`, `cancel_invocation`) answer `-32601` (STATUS §3, §4) |
-| H — Build, Conformance & Packaging | `IMPLEMENTED` | npm wrapper warns and proceeds on a missing checksum entry; `LICENSE`/`NOTICE` are listed in the npm `files` allowlist and staged by `release.yml` before publish, but no publish has occurred yet (STATUS §1) |
+| H — Build, Conformance & Packaging | `IMPLEMENTED` | the npm installer is fail-closed on every checksum path (missing manifest/entry, unreadable manifest, mismatch); `LICENSE`/`NOTICE` are listed in the npm `files` allowlist and staged by `release.yml` before publish, but no npm publish has happened yet — `npm/package.json` says `0.4.1` and the tag is not pushed (STATUS §1) |
 | I — Fixtures, Self-Update & Migrations | `WIRED` (self-update) / `TESTED` (state) | self-update verifies SHA-256 fail-closed and then the release's keyless Sigstore bundle when one is published; `v0.4.0` (2026-10-11) is the first tag to publish one for every asset; earlier tags are checksum-only with a stated note (STATUS §1) |
 
-**Not yet true, and not claimed here:** a published catalog release tree with a succeeding
-`catalog sync`; an end-to-end agent-driven install; provider autostart; a project manifest +
-lockfile; signed releases or packages; runtime policy enforcement; a working
-`invoke`/`get`/`cancel`; and any isolation level beyond process supervision
-([STATUS.md](../STATUS.md), "Not yet true, and not claimed").
+**Not yet true, and not claimed here:** provider autostart; plugin installation (no artifact
+source); an async invocation registry (`get`/`cancel` return `-32601`); TUF-style catalog signing;
+bundle verification in the npm installer; and any isolation level beyond process supervision.
+Several items this paragraph used to list are now true and are stated as such above: the release
+tree is published and `catalog sync` succeeds against the live origin; an agent-driven install
+completes for skills and MCP servers; provider rows are written at install time; a project
+manifest + lockfile exist; releases are signed (`v0.4.0`, 2026-10-11); and runtime policy is
+enforced at invocation ([STATUS.md](../STATUS.md), "Not yet true, and not claimed").
 
 ---
 
@@ -123,16 +126,17 @@ that is not met is **not** met, regardless of how much of the deliverable exists
     *   `internal/provider`: process supervisor — Windows Job Object (kill-on-close only), Unix process group + `PR_SET_PDEATHSIG` / watchdog pipe. No cgroups and no resource caps ([ARCH/05 §1](05-SECURITY.md#1-core-security-invariant)).
     *   `internal/policy`: 17-action effect taxonomy and approval engine with effect provenance.
     *   `internal/bridge`: stdio MCP shim exposing the 12 core Bridge tools.
-    *   `internal/host`: adapter framework with automated config discovery — 6 bespoke + 44 generic `BridgeTarget`s (50 total) plus 77 skill targets, **MCP-entry merge only** (STATUS §1).
+    *   `internal/host`: adapter framework with automated config discovery — 6 bespoke + 44 generic `BridgeTarget`s (50 total) plus 81 skill targets, **MCP-entry merge only** (STATUS §1).
 *   **Gate:** terminating the daemon terminates all child provider processes; host adapters merge Bridge entries into golden fixtures without altering unrelated keys.
 *   **Current state:** host merge is `WIRED` and backup/inverse (`host remove`) exist; provider
-    lifecycle is `IMPLEMENTED` — the `providers` table is never written by non-test code, so there is
-    no production child process for the daemon-termination gate to observe (STATUS §4, finding `m4`).
+    lifecycle is `IMPLEMENTED` — provider rows are now written at install time (`m4` closed
+    2026-10-13), but `autostart` stays `0` and nothing starts a provider at boot, so the
+    daemon-termination gate has no production child process to observe (STATUS §4).
 
 ### Phase F: MCP Protocol Profiles, Secrets & OAuth
 *   **Deliverables:**
     *   `internal/mcpclient`: dual-protocol client (2026-07-28 Streamable HTTP; 2025-11-25 legacy) — `WIRED`; its first production importer is `internal/discover` (STATUS §4).
-    *   Capability schema fingerprinting and drift invalidation — `IMPLEMENTED` and now reachable: `litespm grant` writes `capability_grants` and `internal/discover` writes provider/capability rows, so a real invocation can trigger a drift denial ([ARCH/05 §5](05-SECURITY.md#5-capability-schema-drift-defense)); the `audit_events` row that would record the denial still has no production writer.
+    *   Capability schema fingerprinting and drift invalidation — `IMPLEMENTED` and reachable: `litespm grant` writes `capability_grants` and `internal/discover` writes provider/capability rows, so a real invocation can trigger a drift refusal ([ARCH/05 §5](05-SECURITY.md#5-capability-schema-drift-defense)); the denial is recorded to `audit_events` by `recordAudit` (wired 2026-10-13, STATUS §1).
     *   `internal/secrets`: native OS keystore backends (DPAPI `master.key`, macOS Keychain, `secret-tool`), fail-closed open — `WIRED` (STATUS §1).
     *   `internal/auth`: OAuth 2.0 PKCE loopback broker — `IMPLEMENTED`, zero production importers (STATUS §4).
 *   **Gate:** dual-protocol conformance passes against mock MCP servers; synthetic canary tokens confirm zero secret leaks in logs, database dumps, or error responses.
@@ -158,16 +162,17 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 ### Phase H: Cross-Platform Build, Conformance & Packaging
 *   **Deliverables (matching `.github/workflows` as it exists):**
     *   **`scripts/build-release.sh` cross-compiles six targets** — `windows/amd64`, `windows/arm64`, `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64` — and emits `SHA256SUMS.txt`.
-    *   **`.github/workflows/ci.yml`** (push/PR to `main`): static checks (gofmt, `go vet ./...`, `bash -n scripts/*.sh`, `py_compile` of Python scripts, `node --check` of the two npm entry points); `go test -race ./...` on Ubuntu and macOS and `go test ./...` on Windows; web job (Node 20, `tsc --noEmit`, `next` build, `web/out/index.html` assertion). Go version: 1.26.
+    *   **`.github/workflows/ci.yml`** (push/PR to `main`): `static-checks` (gofmt, `go vet ./...`, `bash -n scripts/*.sh`, `py_compile` of Python scripts, `node --check` of the two npm entry points, `npm test`, the dataset-reproduces-the-released-tree check, and the generated-host-data gate); `test-go` (`go test -race ./...` on Ubuntu and macOS, `go test ./...` on Windows); `build-web` (catalog coherence, Node 20, `npm ci`, `tsc --noEmit`, the four lint gates, `next build`, `web/out/index.html` assertion, then `deploy-pages.sh` packaging + leak audit + Pages budget). Go version: 1.26.
     *   **`.github/workflows/release.yml`** (tags `v*`, Ubuntu only): `go test ./...`, `scripts/build-release.sh`, web static build, GitHub Release with `release-assets/*` (binaries + `SHA256SUMS.txt` + `litespm-web-static.tar.gz`), npm version/tag equality check, staging `LICENSE`/`NOTICE` into `npm/`, then `npm publish --provenance` only when `NPM_TOKEN` is set.
     *   npm distribution package (`litespm`) with the platform-binary `postinstall` installer.
 *   **Gate:** full CI matrix green across Windows, Ubuntu, and macOS runners; npm package boots via `npx litespm`.
 *   **Current state:** the CI matrix above is the matrix — there is no separate macOS/Windows
     *release* build job (release binaries come from the Ubuntu cross-compile script). Packaging
-    caveats remain open: a missing checksum entry in the npm installer warns and proceeds
-    unverified, and no npm publish has happened yet — `LICENSE`/`NOTICE` are in the `files`
+    caveats that remain open: the npm installer verifies only the checksum, not the release's
+    Sigstore bundle, and no npm publish has happened yet — `LICENSE`/`NOTICE` are in the `files`
     allowlist and staged by `release.yml`, but the published tarball listing is unproven
-    (STATUS §1).
+    (STATUS §1). A missing checksum entry is **not** a caveat: `verifyDownloadedBinary` refuses it
+    (`npm/scripts/install-binary.js:258`).
 
 ### Phase I: Golden Fixtures, Self-Update & Migrations
 *   **Deliverables:**
@@ -175,9 +180,10 @@ that is not met is **not** met, regardless of how much of the deliverable exists
     *   `self-update` with fail-closed SHA-256 verification, Sigstore bundle verification when the release publishes one (`cmd/litespm/main.go:391-438`), downgrade guard, and atomic replace (`internal/update`) — `WIRED`. **`v0.4.0` is the first tag to publish one** (8 bundles, one per asset), so the checksum-only branch with a stated note now applies only to older tags.
     *   Transactional migrations with downgrade prevention (`internal/state/migrations.go:57` → `LPSM-STATE-VERSION-INCOMPATIBLE`).
 *   **Gate:** fixture-backed adapter tests pass offline; update without a published checksum is refused; higher-schema databases halt.
-*   **Current state:** the three stated checks hold. The phase does **not** include signed releases —
-  that is `DESIGNED` in [ARCH/36 §4](36-ENTERPRISE-POLICY-AND-AUDIT.md) and tracked in
-  [SECURITY.md](../SECURITY.md).
+*   **Current state:** the three stated checks hold. Signed releases **are** shipped — `v0.4.0`
+  (2026-10-11) published a keyless bundle for every asset and the updater verifies it; what remains
+  `DESIGNED` is the TUF-style catalog envelope ([ARCH/36 §4](36-ENTERPRISE-POLICY-AND-AUDIT.md)),
+  and the npm installer still verifies the checksum only ([SECURITY.md](../SECURITY.md)).
 
 ---
 

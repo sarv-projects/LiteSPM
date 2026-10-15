@@ -29,10 +29,10 @@ It eliminates the need to manually configure, update, and manage capabilities ac
 | **Phase B** | **Foundations, Storage & Local IPC** | `TESTED` | `internal/domain`, `internal/config`, `internal/state` (SQLite WAL, 22 tables), `internal/ipc` (named pipes / Unix sockets). Contract tests bind; see [STATUS.md](STATUS.md) §1 |
 | **Phase C** | **Static Catalog & Discovery Plane** | `SHIPPED` in source · **the published `v0.4.0` binary is broken** | `internal/catalogbuild` + `litespm catalog build` are `TESTED` (real-dataset + end-to-end build→serve→sync→search tests, green 2026-10-13); the release tree **is published** and the live origin serves it. The current release is **`rel-2026-10-11-02`, sequence 147, 69,376 items**, named by both the committed pointer `web/public/v1/current.json` and the live origin (probe 2026-10-13), sharded into `listings-0000…0003` / `versions-0000…0001`. A binary built from current `main` syncs it and reports `69376 capabilities indexed`. **However `npm install -g litespm` (v0.4.0) cannot:** that tag was cut at 21:24:01 on 2026-10-11, 2h29m before the shard-aware client landed, so it looks for a `listings.json` that the release does not contain and fails with `manifest missing listings.json entry`. `search`, `install` and `/marketplace` all depend on that sync. **Re-cut the release to use the npm package.** `ARCH/18` §1–§2's `index.json`/`shards`/`items` remain un-emitted; **transport sharding is `IMPLEMENTED`** |
 | **Phase D** | **Safe Extraction & Skill Store** | `WIRED` (resolver, skills); `IMPLEMENTED` (install engine); `TESTED` (artifact) | `internal/resolver` and `internal/skills` are reached from production paths and `internal/artifact` is test-covered ([STATUS.md](STATUS.md) §1/§3); skills and MCP servers install end to end (verified against the live catalog). Only **plugins** still need an artifact source — [ARCH/31 §4.1](ARCH/31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#41-the-agent-facing-install-path-cannot-complete--wired-is-false) |
-| **Phase E** | **Process Supervision, Bridge & Host Adapters** | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | 6 bespoke adapters + 44 generic BridgeTargets (50 total, `ARCH/30`) + 77 skill targets are registered. Provider autostart is inert: the `providers` table is never populated by non-test code (finding `m4`). See [STATUS.md](STATUS.md) §1/§4 |
+| **Phase E** | **Process Supervision, Bridge & Host Adapters** | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | 6 bespoke adapters + 44 generic BridgeTargets (50 total, `ARCH/30`) + 81 skill targets are registered. Provider rows are written at install time (`m4` closed 2026-10-13), but nothing starts a provider at boot: `autostart` stays `0`. See [STATUS.md](STATUS.md) §1/§4 |
 | **Phase F** | **MCP Protocol Dual-Profile, Secrets & OAuth** | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | Dual-profile client, native OS keystores, OAuth PKCE loopback exist; the secrets vault is opened before serving (`WIRED`), but secrets are not injected at provider launch, `mcpclient`'s first production importer is `internal/discover`, and `auth` still has zero production importers — the `AuthBroker` currently has no consumer (finding 99), [STATUS.md](STATUS.md) §1/§4 |
 | **Phase G** | **In-Agent `/marketplace` Panel & Web UI** | `SHIPPED` (static web marketplace); panel `WIRED` | The Next.js static export and Bridge tool surface exist and the static marketplace is published ([STATUS.md](STATUS.md) §1); the panel's install action completes for skills and MCP servers. Plugins remain blocked by Phase D. See [STATUS.md](STATUS.md) §1 |
-| **Phase H** | **Release Engineering & Packaging** | `IMPLEMENTED` | Cross-platform builds, npm wrapper, CI checks, and keyless cosign signing of every release artifact plus a CycloneDX SBOM (`release.yml`). `self-update` completes only once a release publishes `litespm-*` assets (packaging P7) |
+| **Phase H** | **Release Engineering & Packaging** | `IMPLEMENTED` | Cross-platform builds, npm wrapper, CI checks, and keyless cosign signing of every release artifact plus a CycloneDX SBOM (`release.yml`). `self-update` fetches the published `litespm-*` assets and verifies their keyless Sigstore bundle; `v0.4.0` (2026-10-11) was the first tag to publish them. The npm installer still verifies the checksum only |
 | **Phase I** | **Golden Fixtures, Self-Update & Migrations** | `TESTED` for fixtures and migrations; self-update `WIRED` (signed) | Fixtures corpus and migration engine (forward apply + downgrade guard) are tested; `self-update` is fail-closed on SHA-256 with rollback and verifies the release's keyless signature bundle (required via `LITESPM_REQUIRE_SIGNED_UPDATE=1`). The first signed release is cut on the next `v*` tag — see [SECURITY.md](SECURITY.md). Per-row detail: [TODO.md](TODO.md) Phase I |
 
 **Not yet true of LiteSPM, and not claimed anywhere:** provider autostart (a provider row is now
@@ -42,7 +42,9 @@ before installing from npm:** the published `litespm@0.4.0` binary **cannot sync
 catalog** — it was tagged 2h29m before the shard-aware catalog client landed, so `catalog sync`
 fails with `manifest missing listings.json entry` and `search`, `install` and `/marketplace` are all
 unavailable with it. A build from current `main` syncs 69,376 capabilities correctly; see
-[STATUS.md](STATUS.md) §2 for the provenance. (By contrast: a project manifest + lockfile **is**
+[STATUS.md](STATUS.md) §2 for the provenance. **The re-cut is staged but not done:** `npm/package.json`
+and the CHANGELOG already say `0.4.1`, the `v0.4.1` tag has not been pushed, and npm still serves
+`0.4.0`. (By contrast: a project manifest + lockfile **is**
 implemented — `litespm lock`/`install --frozen` (`ARCH/32` §2–§4, [STATUS.md](STATUS.md) §5); release
 **signing** is implemented — every artifact gets a keyless cosign bundle the updater verifies, and
 the catalog pointer is signed and checked on sync; runtime policy **is** enforced at invocation:
@@ -190,13 +192,14 @@ litespm skills find design --owner vercel-labs        # search the catalog by ke
 | Discovery | Walks the source tree up to depth 3 for directories containing `SKILL.md`/`skill.md` with both `name` and `description`, so the catalog layout `skills/<category>/<name>/SKILL.md` is found. `.git`, `node_modules`, `dist`, `build` and `__pycache__` are never descended; a root `SKILL.md` makes the source itself a skill; if the bounded walk finds nothing, a recursive search runs before reporting failure; `--full-depth` drops both bounds. A skill directory is never treated as a parent of another skill. |
 | Internal skills | A skill with `metadata.internal: true` is hidden and refused unless `INSTALL_INTERNAL_SKILLS=1` — on every path (`add`, `use`, `update`). |
 | Scope | `This repo only` (default) writes project-relative dirs; `Global (user-wide)` writes user dirs and honours `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `GROK_HOME`, `XDG_CONFIG_HOME`. |
-| Agents | Each selected skill is copied into every selected agent's own directory. Hosts without a dedicated dir (Cline, Pi Agent) share the universal `.agents/skills` tree: `--agent '*'` expands to all 77 ids and the shared destinations are de-duplicated, so one skill becomes 54 copies, not 77. No universal copy is forced. |
+| Agents | Each selected skill is copied into every selected agent's own directory. Hosts without a dedicated dir (Cline, Pi Agent) share the universal `.agents/skills` tree: `--agent '*'` expands to all 81 ids and the shared destinations are de-duplicated, so one skill becomes 54 copies, not 81. No universal copy is forced. |
 | Copy | Symlinks are refused, hidden VCS dirs are skipped, each skill is bounded at 32 MiB, and an existing destination is refused unless `--force` — which prints `overwrites: <path>`, records a pre-image digest and a byte-exact backup first, so a rollback can put the original bytes back. |
 | Risk panel | Always rendered. Without a real audit source it reports `unverified` per skill — a verdict is never invented. |
 
 Host skill directories are transcribed from `vercel-labs/skills` `src/agents.ts`
 (MIT) — the ecosystem's de-facto map of where each agent reads `SKILL.md` from.
-LiteSPM tracks **77 agents**. Selected examples:
+LiteSPM's registry tracks **81 agents** — the 77 rows transcribed from the reference table plus
+`universal`, `warp`, `grok` and `pi`, appended on 2026-10-14. Selected examples:
 
 | Agent | This repo only | Global |
 |---|---|---|
@@ -213,8 +216,11 @@ single write, so installing for several of them never collides. Agents detected
 on the machine are listed first; **popularity is not used to order them**,
 because no measured usage data exists — presence then alphabetical.
 
-Non-interactive runs require `--agent` and `--yes`; they never prompt, never
-imply a consent that was not given, and emit `--json` output on stdout.
+A non-interactive run needs `--yes`: without it the command refuses rather than assuming consent
+(`cmd/litespm/skills_add.go:459`). `--agent` may be omitted when agents are detected on the machine;
+otherwise it is required, and the error names what could not be found rather than prescribing a
+flag blindly. `--json` switches stdout to a machine-readable document; without it stdout is the
+human install summary.
 
 ### 3.3 Non-Destructive Update Checking (`DESIGNED`)
 
@@ -328,7 +334,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
   │   ├── artifact/                                     # Safe archive extraction (256 MiB/1 GiB/case-fold limits)
   │   ├── resolver/                                     # Pure DFS resolver + semver constraints
   │   ├── install/                                      # Atomic CAS staging + SQLite commit
-  │   ├── skills/                                       # Skill loader, 77-agent installer, ledger
+  │   ├── skills/                                       # Skill loader, 81-agent installer, ledger
   │   ├── agent/                                        # ACP registry + launch-spec resolution + overrides
   │   ├── bridge/                                       # Stdio Bridge shim (12 tools)
   │   ├── provider/                                     # Supervisor (Job Objects/watchdog) + isolation
@@ -486,7 +492,8 @@ NEXT_PUBLIC_SITE_URL=https://litespm.market npm run build   # or ./scripts/deplo
 `npm/scripts/install-binary.js` downloads `litespm-<os>-<arch>` from the `v<version>` GitHub release during `postinstall`. Publishing the package before those assets exist ships a wrapper whose binary download 404s, so `release.yml` fixes the order: it builds the six-platform matrix plus `SHA256SUMS.txt`, creates the GitHub release, verifies that `npm/package.json` matches the tag, and only then publishes to npm with `--provenance` (skipped unless the `NPM_TOKEN` repository secret is set). [`scripts/README.md`](scripts/README.md) is the inventory of every repository script and which workflow — if any — runs it.
 
 ```bash
-git tag v0.3.0 && git push --tags           # 1. tag -> workflow builds assets and creates the release
+git tag v0.4.1 && git push --tags           # 1. tag -> workflow builds assets and creates the release
+                                            #    (v0.4.1 is the pending re-cut; not pushed yet)
 npm deprecate litepsm "Renamed to LiteSPM"   # 2. retire the previous package name afterwards
 ```
 

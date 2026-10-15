@@ -117,9 +117,11 @@ should adopt as they gain categorized failures.
 
 ## 3. Local Audit Log & Redaction
 
-Security-relevant actions are recorded in the `audit_events` table in SQLite:
-*   **Logged Events:** Source addition, package installation/update/removal, host bridge registration, capability approval grants/revocations, provider process starts/stops.
-*   **Redaction Filters:** Before logging, all metadata objects pass through a redaction filter that strips authorization headers, token values, passwords, and private SSH keys.
+`audit_events` rows are written by `recordAudit` (`cmd/litespm/main.go:3145`) for:
+*   **Package install attempts** — both paths (`install.execute` for agents, `auditCLIInstall` for the CLI), success **and** refusal, with `decision` allow/deny and the authorizing `approval_id`.
+*   **Capability invocations** — allow and deny, with the capability id.
+
+Writes are best-effort by design: a failed audit write goes to stderr and never changes the outcome of the operation being logged. **Not logged today:** source addition, package removal, host bridge registration, grant creation/revocation, and provider process start/stop. **No redaction filter exists** — the only metadata stored is a `{"detail": …}` string built by the caller, and nothing strips credential-looking text from it; the callers today pass listing ids, decisions and error text, never a secret value, but that is a property of the call sites, not of the log.
 
 ---
 

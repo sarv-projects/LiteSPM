@@ -172,6 +172,11 @@
     "hasGlobal": true
   },
   {
+    "id": "grok",
+    "displayName": "Grok",
+    "hasGlobal": true
+  },
+  {
     "id": "grok-build",
     "displayName": "Grok Build",
     "hasGlobal": true
@@ -291,6 +296,12 @@
     "hasGlobal": true
   },
   {
+    "id": "pi",
+    "displayName": "Pi",
+    "universal": true,
+    "hasGlobal": true
+  },
+  {
     "id": "pi-agent",
     "displayName": "Pi Agent",
     "universal": true,
@@ -377,6 +388,18 @@
   {
     "id": "trae-cn",
     "displayName": "Trae CN",
+    "hasGlobal": true
+  },
+  {
+    "id": "universal",
+    "displayName": "Universal",
+    "universal": true,
+    "hasGlobal": true
+  },
+  {
+    "id": "warp",
+    "displayName": "Warp",
+    "universal": true,
     "hasGlobal": true
   },
   {

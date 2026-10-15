@@ -38,12 +38,12 @@ LiteSPM provides both an interactive terminal interface for humans and a structu
 │     ├── request_install(planId, approvalToken)       — completes for    │
 │     │     skills (files), MCP (host entry); plugins need a locator       │
 │     └── search_capabilities / describe_capability /                    │
-│           invoke_capability / get_invocation /                         │
-│           cancel_invocation                      — JSON-RPC -32601     │
+│           invoke_capability                       — resolve            │
+│         get_invocation / cancel_invocation        — JSON-RPC -32601    │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-> Command notes (`cmd/litespm/main.go:65-210`): there is **no** `info` or `update` subcommand —
+> Command notes (`cmd/litespm/main.go:65-216`): there is **no** `info` or `update` subcommand —
 > `update` is an alias of `self-update` (binary update only). Removal is `uninstall` (bridge
 > entries in host configs), `host remove <host-id>` (one host), or `skills remove` (skills);
 > `litespm setup` (and the bare `litespm`) opens the interactive wizard, and

@@ -31,7 +31,7 @@ stated plainly.
 | **Host config adapters** | Write one `litespm` entry into an agent's config file | The file is backed up first; only the `litespm` member is touched; comments, key order and formatting elsewhere survive byte-for-byte; the result is re-parsed and asserted before anything is written; every write has an inverse (`litespm host remove`) |
 | **Bridge shim** | Proxy MCP traffic between an agent and the daemon over stdio | It holds no credentials and makes no network calls of its own |
 | **Daemon** | Supervise provider processes, enforce policy, broker secrets | Single writer to its own database; secrets go through the OS vault (Keychain / DPAPI / Secret Service), never to a config file |
-| **Skill installer** | Copy a `SKILL.md` directory into an agent's skills tree | Refuses symlinks, non-https sources and overwrites; caps a skill at 32 MiB |
+| **Skill installer** | Copy a `SKILL.md` directory into an agent's skills tree | Refuses symlinks, non-regular files, `http://`/`file:`/`ftp://` sources (https, `ssh://` and `git@` are accepted) and overwrites unless `--force`, which prints `overwrites: <path>` and records a pre-image digest and a byte-exact backup first; caps a skill at 32 MiB |
 | **Self-update** | Replace its own binary | Fails closed on a missing checksum, and verifies the release's keyless signature bundle when the release publishes one (see below) |
 | **Connector executor** (design only) | Not implemented: `internal/connector` was deleted under decision D1 for having zero production importers, and no connector executor ships | The credential-custody design — the agent supplies a connection handle rather than a secret, the target host is pinned by the connector manifest, private/loopback/link-local addresses are refused after DNS resolution, and caller-supplied `Authorization`, `Cookie` and `Proxy-Authorization` headers are stripped — is recorded in [29 — Connector System Design](ARCH/29-CONNECTOR-SYSTEM-DESIGN.md) and carries no shipped guarantee |
 
@@ -73,10 +73,10 @@ is trustworthy: the certificate binds artifacts to *this repository's release
 workflow running on a tag*, so someone who compromised only the artifact
 store cannot mint a matching signature — but someone who can edit this
 repository's release workflow can sign whatever that workflow signs. The
-trust root is therefore GitHub plus this repository's write controls. Until
-a signed release has actually shipped (the first one is cut on the next
-`v*` tag), the practical mitigation for the binaries themselves is still to
-build from source (`go build ./cmd/litespm`) or pin a commit.
+trust root is therefore GitHub plus this repository's write controls. Signed releases **have**
+shipped: `v0.4.0` (2026-10-11) published a keyless bundle for every asset, and every tag before it
+published none — so the practical mitigation for those older binaries remains to build from source
+(`go build ./cmd/litespm`) or pin a commit.
 
 The catalog pointer is signed the same way: `scripts/deploy-pages.sh` signs
 `/v1/current.json` when a signing identity exists, and `catalog sync`
@@ -122,5 +122,7 @@ non-https origins.
   an index; LiteSPM is not the publisher of those entries.
 - Anything requiring an attacker who already has write access to your user
   account or your vault.
-- The absence of signed releases, which is a known and documented gap rather
-  than an undisclosed vulnerability.
+- The npm installer's checksum-only verification (the release artifacts
+  themselves are signed — `v0.4.0` was the first tag to publish a bundle for
+  every asset — but the `postinstall` path does not yet verify that bundle;
+  see "Supply chain").

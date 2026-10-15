@@ -51,8 +51,8 @@ Nothing yet.
   416). `ls` and `rm` are aliases for `list` and `remove`.
 
   **Bulk selection and filters**, matching the reference's documented invocations:
-  `--skill '*'`, `--agent '*'` (expands to all 77 ids with shared destinations de-duplicated: one skill
-  becomes 54 copies, not 77), `--all` implemented as *exactly* `--skill '*' --agent '*' --yes` so the
+  `--skill '*'`, `--agent '*'` (expands to all 81 ids with shared destinations de-duplicated: one skill
+  becomes 54 copies, not 81), `--all` implemented as *exactly* `--skill '*' --agent '*' --yes` so the
   shorthand cannot drift, `-l` for `--list`, `update` with no arguments updating everything from each
   ledger row's recorded source, `update -p`, `remove -a`/`-s`/`-y` and removal by exact source, and
   `list -g`/`-a` filters. `list` previously **silently ignored** every argument but `--json`, so `ls -g`

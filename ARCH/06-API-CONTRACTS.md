@@ -54,13 +54,15 @@ Shape as typed by `catalogbuild.CurrentPointer` (`internal/catalogbuild/compiler
 ```json
 {
   "schemaVersion": 1,
-  "releaseId": "rel-2026-09-30-01",
-  "sequence": 142,
-  "manifestDigest": "sha256:736a31e6eac4a2910a187e1c834dc4d342d3201d4adc1b9961ad3c4a96af6715",
-  "itemCount": 5814,
-  "createdAt": "2026-10-01T17:22:45Z"
+  "releaseId": "rel-2026-10-11-02",
+  "sequence": 147,
+  "manifestDigest": "sha256:c1364c17618db41d03c10781d316d014410a34d90acebab538a2d28c35a45009",
+  "itemCount": 69376,
+  "createdAt": "2026-10-11T23:10:05Z"
 }
 ```
+
+*(The values above are the committed pointer `web/public/v1/current.json`, 2026-10-15.)*
 
 *   **Cache Policy:** `Cache-Control: public, no-cache, must-revalidate`, written into a deploy-time
     `_headers` file by `scripts/deploy-pages.sh:31-42` — implemented, not aspirational.
@@ -306,15 +308,15 @@ When an agent host boots the LiteSPM Bridge via stdio, the shim advertises **12*
 
 Dispatch status (per [STATUS.md](../STATUS.md) §1/§4):
 
-*   **Resolve:** `search_catalog` (`shim.go:331`), `get_extension` (`:356`), `prepare_install`
-    (`:376`), `list_installed` (`:416`), `load_skill` (`:465`), `read_skill_resource` (`:496`).
+*   **Resolve:** `search_catalog` (`shim.go:379`), `get_extension` (`:400`), `prepare_install`
+    (`:420`), `list_installed` (`:455`), `load_skill` (`:512`), `read_skill_resource` (`:542`).
     `list_installed`, `load_skill` and `read_skill_resource` also forward the shim's project root
     (`bridge stdio --workspace <dir>`, else the process working directory) as `projectRoot`, so the
     daemon includes that workspace's project-scope installs alongside the user-scope ones. The root
     is a *selection* key, not an authorization boundary: the IPC peer is already authenticated as the
     same uid, and these three tools only choose which database rows to read — they never read the
     filesystem at the supplied path.
-*   **Resolves, but only two kinds complete:** `request_install` (`shim.go:341`) forwards to
+*   **Resolves, but only two kinds complete:** `request_install` (`shim.go:440`) forwards to
     `install.execute`, which is gated by `install_authz.go` (a persisted, hash-verified plan plus a
     human approval recorded for that plan's hash). With both present, `kind=skill` installs real
     files through the skills ledger and `kind=mcp` registers the server in each target host's
@@ -326,7 +328,7 @@ Dispatch status (per [STATUS.md](../STATUS.md) §1/§4):
     (`invocation.cancel`) only — the shim forwards, the daemon rejects with the reasons in §3.2,
     because the asynchronous registry they name is `ARCH/34` (`DESIGNED`).
 *   **Standalone (no daemon) mode:** every tool fails closed with an explicit error rather than
-    fabricating results (`internal/bridge/shim.go:274-280`).
+    fabricating results (`internal/bridge/shim.go:707-716`).
 
 Two behavioural rules survive any status change:
 
@@ -375,7 +377,7 @@ Errors surfaced by the CLI, and the payloads Bridge MCP tools place in their err
     (`internal/ipc/protocol.go:45-50`); reserved codes include `-32601` (method not found),
     `-32001` unauthorized, `-32002` plan stale, `-32003` schema drift, `-32004` rate limited.
     Bridge tools re-serialize `LPSMError` into the MCP error result
-    (`internal/bridge/shim.go:590-605`).
+    (`internal/bridge/shim.go:718-733`).
 *   CLI process exit codes are `0` (success), `1` (failure), `2` (usage error, e.g.
     `cmd/litespm/main.go:818`), plus the per-category `doctor` codes `10/20/30/40/50/60/70`
     (`cmd/litespm/main.go:925-982`) — owned by [ARCH/20](20-ERRORS-AUDIT-DOCTOR.md).

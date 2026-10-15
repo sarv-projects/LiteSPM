@@ -9,7 +9,7 @@ Inspired by the design of `mcpmarket.com`, LiteSPM Market is a static web applic
 │   Next.js 15 / React 19 Static Export (Tailwind CSS, local primitives)│
 │                               │                                        │
 │   Static Client Search ◄──────┴──────► Immutable Static Releases       │
-│   (MiniSearch in Web Worker)           (Cloudflare Pages /v1/releases/)│
+│   (postings index in Web Worker)       (Cloudflare Pages /v1/releases/)│
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -20,7 +20,7 @@ Inspired by the design of `mcpmarket.com`, LiteSPM Market is a static web applic
 LiteSPM Market adheres to an engineering-focused, high-performance aesthetic:
 *   **Typography:** IBM Plex Sans for UI, Plex Condensed for dense table names, Plex Mono for machine-readable content (commands, counts, slugs). Theme is system/light/dark: one control cycles the choice (`web/components/navigation/ThemeToggle.tsx`), it persists in `localStorage` under `litespm-theme`, and a pre-paint inline script writes `data-theme` on `<html>` (`web/app/layout.tsx`) so CSS resolves `system` through `prefers-color-scheme` (`web/app/globals.css`). The default choice is `system`, which follows the OS preference.
 *   **Header:** Opaque sticky bar (no blur layer — blur over ruled tables costs paint on scroll). Skip link for keyboard users.
-*   **Instant Responsiveness:** Client-side filtering with deferred query values; MiniSearch index owned by a Web Worker (`web/lib/search.worker.ts`) with in-thread fallback (`web/lib/useCatalogSearch.ts`).
+*   **Instant Responsiveness:** Client-side filtering with deferred query values; the build-time postings index is owned by a Web Worker (`web/lib/search.worker.ts`) with in-thread fallback (`web/lib/useCatalogSearch.ts`), and results hydrate from the 68-row display shards.
 *   **Keyboard-First Navigation:** `Cmd+K`/`Ctrl+K` or `/` focuses search (`web/components/navigation/SearchBar.tsx`); cards are single focusable links with visible focus rings.
 
 ---
@@ -30,39 +30,33 @@ LiteSPM Market adheres to an engineering-focused, high-performance aesthetic:
 ```text
 web/
   ├── components/
-  │   ├── navigation/
-  │   │   ├── Header.tsx              # Sticky opaque nav: wordmark, Explore/Agents/Categories/Coverage rail, search affordance, theme toggle, Install CTA
-  │   │   └── SearchBar.tsx           # Omni-search with Cmd+K and `/` shortcuts, clear button
-  │   ├── hero/
-  │   │   ├── HeroSection.tsx         # Telemetry badge, headline, quickstart copy
-  │   │   ├── CategoryRail.tsx        # Wrapped category chips with inline counts (dynamic facets)
-  │   │   └── ProportionBar.tsx       # Kind share bar (mcp/skill/plugin)
-  │   ├── catalog/
-  │   │   ├── ExtensionGrid.tsx       # Responsive grid (1 to 3 columns)
-  │   │   ├── ExtensionCard.tsx       # Card with type+category tags, host chips, no stars
-  │   │   ├── PublisherMark.tsx       # Registry-flag verified mark with not-an-audit disclaimer
-  │   │   └── SectionRow.tsx          # Curated home rows with view-all links
-  │   ├── home/
-  │   │   ├── ClientGrid.tsx          # Agent client grid
-  │   │   └── FaqSection.tsx          # Honesty FAQ (stars not published, verified meaning)
-  │   ├── layout/
-  │   │   └── SiteFooter.tsx          # Footer with honesty notes + adapter evidence links
-  │   └── ui/
-  │       ├── CountUp.tsx             # Animated count-up telemetry
-  │       └── Toast.tsx               # Copy-feedback toasts
+  │   ├── navigation/  Header.tsx (sticky opaque nav) · SearchBar.tsx · ThemeToggle.tsx
+  │   ├── home/        LandingHero.tsx · BridgeDiagram.tsx · AgentStrip.tsx · TopicTiles.tsx ·
+  │   │                EcosystemSection.tsx · StartSection.tsx · HowItWorks.tsx · AtlasTeaser.tsx ·
+  │   │                DeveloperZone.tsx · SearchResults.tsx · FaqSection.tsx
+  │   ├── catalog/     ExtensionGrid.tsx · ExtensionCard.tsx · CapabilityCard.tsx · PublisherMark.tsx
+  │   ├── package/     PackageTabs.tsx · AddSteps.tsx · ManualSetup.tsx · CopyButton.tsx
+  │   ├── layout/      SiteFooter.tsx
+  │   └── ui/          DiscoveryCard.tsx (the one discovery-card primitive) · TabList.tsx ·
+  │                    CountUp.tsx · Toast.tsx
   └── app/ (App Router, `output: 'export'`, `trailingSlash: true`)
-      ├── layout.tsx                  # IBM Plex Sans/Condensed/Mono, site JSON-LD, skip link
+      ├── layout.tsx                  # IBM Plex Sans/Condensed/Mono, site JSON-LD, skip link, OG image, <noscript> content
+      ├── sitemap.ts                  # /sitemap.xml: the five index pages + one page per host
       ├── page.tsx                    # Server Component: build-time home slice → HomeRoute → HomeView
       ├── HomeRoute.tsx / HomeView.tsx # client `dynamic()` half / Search-first home with curated rows + catalog grid
       ├── explore/page.tsx            # Server Component: facets + one page of rows → ExploreRoute → ExploreView.tsx (power-filter surface: kind/category/agent/verified/sort)
-      ├── package/page.tsx            # Server Component → PackageRoute → PackageView.tsx (detail via `/package/?slug=<key>`, slug or id)
+      ├── package/page.tsx            # Server Component → PackageRoute → PackageView.tsx (detail via the canonical `/package/<slug>` path, or `?slug=<key>`; slug or id)
       ├── agents/page.tsx             # Server Component → AgentsRoute → AgentsView.tsx (supported consumer hosts with readiness)
+      ├── agents/[id]/page.tsx        # Server Component → AgentDetailRoute → AgentDetailView.tsx (one static page per bridge host; generateStaticParams over HOSTS)
       ├── categories/page.tsx         # Server Component → CategoriesRoute → CategoriesView.tsx (category index with per-kind breakdown)
-      ├── trending/page.tsx           # Server Component → TrendingRoute → TrendingView.tsx (coverage/count ranking — counts, not stars)
-      └── data/catalog.json/route.ts  # static export of the site-shaped dataset (byte-identical to web/data/catalog.json)
+      └── trending/page.tsx           # Server Component → TrendingRoute → TrendingView.tsx (coverage/count ranking — counts, not stars)
+
+`public/robots.txt` (disallows `/package/`, `/data/` and `/v1/`, names the sitemap) and
+`public/og.png` (the 1200×630 social card `app/layout.tsx` points `og:image` at) are static
+assets, not routes.
 
 Each `page.tsx` is a **Server Component** that reads `data/catalog.json`
-(≈3.8 MB) at build time and derives exactly the slice its route shows —
+(53,969,379 bytes pretty-printed) at build time and derives exactly the slice its route shows —
 counts, facets, one page of rows — so the dataset itself never enters a
 client chunk; only that slice is serialized into the HTML as props. The view
 loads through a thin client `*Route.tsx` wrapper whose only job is route-level
@@ -70,12 +64,14 @@ code splitting (`next/dynamic`, `ssr: true`). Placing `dynamic()` in the
 Server Component does **not** split — the view is inlined into the route chunk
 (measured: 129 kB First Load) — while the client wrapper keeps every route at
 the 107 kB shared baseline. Rows beyond the prerendered page are fetched at
-runtime from `/data/catalog.json` with `?v=<datasetDigest>` (from
+runtime from the build-time artifacts, versioned with `?v=<datasetDigest>` (from
 `web/data/release.json`, so a cached copy cannot disagree with the HTML beside
 it), and only when an interaction needs them: search, filter, sort,
-"Show more", or a `/package/?slug=` deep link. Categories, Agents, Trending
-and a bare `/package/` never fetch it — a first visit downloads the page, not
-rows it has not asked for.
+"Show more", or a `/package/<slug>` deep link. Search queries the prebuilt
+postings index and hydrates the matched rows from 68-row display shards; the
+facet path loads the full display projection, and the ordered `catalog-*.json`
+shards are the fallback. Categories, Agents and a bare `/package/` never fetch
+rows — a first visit downloads the page, not rows it has not asked for.
 ```
 
 ---
@@ -84,14 +80,14 @@ rows it has not asked for.
 
 ### 3.1 Header & Dynamic Telemetry Badge
 *   **Sticky Header:** One 48 px bar on every route (`web/components/navigation/Header.tsx`): the LiteSPM wordmark, the primary navigation links (**Explore**, **Agents**, **Categories**, **Coverage** → `/trending/`), a search affordance that deep-links to `/explore/?focus=search`, the theme toggle, and the **Install LiteSPM** CTA. There are no kind tabs and no GitHub link in the header — kind filtering is what `/explore` is for (`--stack-top`, the sticky offset used by the filter bars, is keyed to this 48 px height).
-*   **Release Stamp (`web/components/hero/HeroSection.tsx` → `ReleaseStamp`):** a status pill in the hero whose text is the *observed* state of a real `GET /v1/current.json`, never a hard-coded liveness claim:
-    *   **`loading`** (the first render, prerendered HTML included): `Checking release…` — the bundled manifest proves what this build shipped, not that the origin still serves it.
-    *   **`ready`** (the fetch answered 2xx): `Live catalog · Updated {relativeAge(createdAt)}`, with `releaseId · seq · manifestDigest` in the `title`. `relativeAge` reads the client clock, so it is computed after mount rather than during render (a `Date.now()` in render would hydrate to a different string than the server printed).
-    *   **`offline`** (the fetch failed): `Bundled catalog` — the counts on screen are the build's own snapshot.
+*   **Release chip (`web/components/home/LandingHero.tsx` → `ReleaseChip`, data from `useTelemetry` in `web/lib/telemetry.ts`):** a status pill in the hero whose text is the *observed* state of a real `GET /v1/current.json`, never a hard-coded liveness claim:
+    *   **`loading`** (the first render, prerendered HTML included): `Checking the catalog…` — the bundled manifest proves what this build shipped, not that the origin still serves it.
+    *   **`ready`** (the fetch answered 2xx): `Catalog is current`, with `releaseId · seq · manifestDigest` in the `title`.
+    *   **`offline`** (the fetch failed): `Bundled catalog snapshot` — the counts on screen are the build's own snapshot.
 *   **Dynamic counts:** `itemCount` and the per-kind counts come from `current.json` once it answers, falling back to counts derived from the bundled listings; the hero never prints a zero placeholder while the data is still loading.
 
 ### 3.2 Dynamic Omni-Search & Category Rail
-*   **Search Form:** Centered input with glassmorphism blur, leading search icon, trailing keyboard shortcut pill (`⌘K`), and clear button.
+*   **Search Form:** A ruled input (`border-2 border-ink bg-surface`), leading search icon, trailing keyboard-shortcut pill (`⌘K`), and a clear button — there is no blur or glass layer. It is a real `<form>` (`action="/explore/"`, `name="q"`), so Enter works with JavaScript disabled; on `/explore/` it merges into the existing params without a second navigation.
 *   **Category Rail:** A wrapped chip group (not a fixed list) rendered from the live facets. `categoryFacets(listings, limit = 16)` (`web/lib/telemetry.ts`) returns the **top 16 categories by frequency**, each chip carrying its inline count, plus a leading *All categories* chip. The label header reports `{facets.length} most common of {total} entries`. There is no hard-coded category list: the chips are data-driven, so the set changes with the dataset. (Earlier drafts listed a fixed set of labels; those were illustrative, not a contract.)
 
 ### 3.3 Extension Cards
@@ -100,12 +96,17 @@ Each capability is rendered as a clean card:
 *   **Description:** Concise 2-line summary.
 *   **Metadata Badges:**
     *   Exactly two tags: type + category.
-    *   Host-compatibility chips derived from registries (MCP → all 50 bridge adapters; skill → all 77 skill targets; plugin → publisher-declared).
+    *   Host-compatibility chips derived from registries (MCP → all 50 bridge adapters; skill → all 81 skill targets; plugin → publisher-declared).
     *   No stars: the catalog publishes no popularity figures. `publisher.verified` is a registry flag with a not-a-security-audit disclaimer (`PublisherMark.tsx`, `SiteFooter.tsx`).
-*   **One-Click Copy Command:** Button that copies `litespm install <id>` to clipboard with toast feedback. Package names and commands render in monospace.
+*   **One-Click Copy Command:** Button that copies `litespm install <id>` to clipboard with toast feedback. A row that carries an `installHint` gets a second copyable line, and the label follows whose command it is: a skill's hint is *our* `litespm skills add …` ("Install it straight from the source repo"), a plugin's is the host's own `/plugin install` ("The host's own command"), because LiteSPM cannot install plugins at all (`AddSteps.tsx`). Package names and commands render in monospace.
 
-### 3.4 Package Detail Page (`/package/?slug=<key>`)
-Clicking any card opens the canonical detail page (query route; `slug` when globally unique, else full `id` — see `listingHref()` in `web/lib/catalog.ts`). Sections (single scrolling page, not a modal):
+### 3.4 Package Detail Page (`/package/<slug>`)
+Clicking any card opens the canonical detail page. The canonical URL is the **path** form
+`/package/<slug>`, served through a `_redirects` proxy written by `scripts/deploy-pages.sh`
+(`/package/:slug /package/ 200`); the client reads the pathname as well as `?slug=`, and a
+legacy `?slug=` visit is canonicalised with `replaceState`. The key is the `slug` when globally
+unique, else the full `id` — see `listingHref()` in `web/lib/catalog.ts`. Sections (single
+scrolling page, not a modal):
 1.  **Identity block:** Icon, canonical name (monospace), publisher, type + category tags, summary, `Available from` source, version.
 2.  **Install with LiteSPM + Install with your agent:** The correct `litespm install <id>` command plus the one host bridge snippet for the selected host/OS (never a per-package native config as the primary path).
 3.  **Agent compatibility:** Matrix with per-host status and the disclaimer that compatibility is publisher-declared or technically derivable — not a test result.
@@ -117,11 +118,11 @@ Clicking any card opens the canonical detail page (query route; `slug` when glob
 ## 4. Technical Stack & Deployment
 
 *   **Framework (Frozen):** **Next.js 15.5.27 (App Router with `output: 'export'`, `trailingSlash: true`, `images.unoptimized`)** and React 19.
-*   **Static Generation:** Query-route detail pages (`/package/?slug=`); no per-item `generateStaticParams` (the committed dataset `web/data/catalog.json` holds 69,376 rows, far past the 20k-file Pages limit — see ARCH/18 §2.1 and ARCH/26 §6.3).
+*   **Static Generation:** Query-route detail pages (`/package/<slug>`, canonicalised from `?slug=`); no per-item `generateStaticParams` (the committed dataset `web/data/catalog.json` holds 69,376 rows, far past the 20k-file Pages limit — see ARCH/18 §2.1 and ARCH/26 §6.3). The one exception is `/agents/<id>/`, where the 50 bridge hosts are a closed registry and each gets a static page.
 *   **Styling:** Tailwind CSS 4, consumed through the legacy `@config` bridge in `web/app/globals.css` (`@config "../tailwind.config.js"`), with CSS variables for the light palette plus the dark overrides keyed to `data-theme`/`prefers-color-scheme`; `tailwind-merge` + `clsx` for class composition.
-*   **Component Primitives:** Local primitives only (`CountUp`, `Toast`); no Radix dependency (`web/package.json`).
+*   **Component Primitives:** Local primitives only (`DiscoveryCard`, `TabList`, `CountUp`, `Toast`); no Radix dependency (`web/package.json`).
 *   **Icons:** Lucide React.
-*   **Search Engine:** MiniSearch 7.2 in a dedicated Web Worker over the static catalog, with in-thread fallback; `date-fns` for relative recency.
+*   **Search Engine:** A build-time postings index (`catalog-search-index.bin.gz`; vocabulary + delta-varint postings) queried in a dedicated Web Worker with an in-thread fallback, hydrated from the 68-row display shards; query semantics live in `lib/searchFormat.mjs` and `scripts/check-search-index.mjs` pins them against the in-repo matcher over the real dataset. `minisearch` is still listed in `web/package.json` but no shipped module imports it.
 *   **Zero Server Infrastructure:** The web application is 100% static. Telemetry binds to `/v1/current.json` with offline/fallback state (never a fake live indicator). Deployed alongside the static catalog on Cloudflare Pages.
 
 ---
@@ -130,7 +131,7 @@ Clicking any card opens the canonical detail page (query route; `slug` when glob
 
 > **Status (per [TODO.md](../TODO.md) `LPSM-J001`–`J009`):** `J001`, `J002`,
 > `J003` and `J005` are `IMPLEMENTED` — the tokens/type roles/theme system in
-> `web/app/globals.css`, the landing page (`web/app/`, `web/components/{hero,home}/`),
+> `web/app/globals.css`, the landing page (`web/app/`, `web/components/home/`),
 > the `CapabilityCard`/`CatalogRow` split (`web/components/catalog/CapabilityCard.tsx`,
 > `web/components/home/SearchResults.tsx`) and the package-page restructure are in
 > the tree. `J004`, `J006`, `J007`, `J008` and `J009` remain `DESIGNED`; the
@@ -156,7 +157,7 @@ re-styled beyond tokens, sizes and motion.
 |---|---|---|
 | `--brand` (primary) | `#3157F6` (indigo) | logo, hero graphic, primary CTAs, search focus ring, active nav, one subtle blue→violet glow behind the hero — **marketing surfaces only** |
 | kind hues | MCP = electric blue, Skill = teal, Plugin = violet (the current `--mcp`/`--skill`/`--plugin` hues, unchanged) | kind badges, cards, diagram nodes — the semantic layer, never replaced by brand |
-| neutrals | slightly warmer slate than today's blue-gray; rules/hairlines preserved | everything else; the catalog body stays calm — the contrast with the brand surfaces is what reads premium |
+| neutrals | light: `--paper #e8ecf4`, `--surface #fafbfe`, `--sunken #dde3ee`, ink ramp `#111827` / `#3c495e` / `#55627a`, `--rule-2 #79879c` (every pair measured, AA floor — `web/app/globals.css`) | everything else; the catalog body stays calm — the contrast with the brand surfaces is what reads premium |
 
 Dark theme (system / light / dark, persisted in `localStorage`, default
 system; applied as `data-theme` with `prefers-color-scheme` when `system`):
@@ -192,7 +193,7 @@ a 6.6:1 check for the old accent).
 | metadata text | may stay small — **actions** may not |
 
 Motion: **120 ms** state · **160 ms** hover · **200 ms** panel/drawer ·
-**240 ms** entrance, mostly ease-out (today's 90 ms linear is mechanical).
+**240 ms** entrance, mostly ease-out (the previous 90 ms linear was retired — `web/app/globals.css`).
 `prefers-reduced-motion` disables all of it except opacity instant cuts.
 Forbidden outright: logo marquees, parallax, particles, floating blobs,
 per-reload typing animations.

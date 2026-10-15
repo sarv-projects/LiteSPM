@@ -58,7 +58,7 @@ marked `metadata.internal: true` is hidden and refused unless `INSTALL_INTERNAL_
 | **OpenAI Codex** | Terminal CLI (`codex`) | TOML (`config.toml`) | `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`; Windows `%USERPROFILE%\.codex\config.toml`) — the adapter **does** honour `$CODEX_HOME`. Project `.codex/config.toml` is host-documented but not scanned; `%APPDATA%\Codex\config.toml` was **removed** as a fallback (`internal/host/codex.go`) |
 | **OpenCode** | Open-source CLI (`opencode`) | JSON (`opencode.jsonc` preferred, else `opencode.json`) | `$OPENCODE_CONFIG_DIR/{opencode.jsonc,opencode.json}` when set, else `$XDG_CONFIG_HOME/opencode/` (default `~/.config/opencode/`), `.jsonc` first — on every OS, because OpenCode resolves the directory through xdg-basedir. Project scope and `%APPDATA%\OpenCode\opencode.json` are **not** read by any release and are no longer probed. One layout only: servers are direct members of `mcp` (`internal/host/opencode.go`) |
 
-> Six bespoke adapters above. The full registry is 50 bridge targets (6 bespoke + 44 generic `BridgeTarget` rows) plus 77 skill targets — see `ARCH/30-DATA-DRIVEN-BRIDGE-TARGETS.md` and `litespm host list`.
+> Six bespoke adapters above. The full registry is 50 bridge targets (6 bespoke + 44 generic `BridgeTarget` rows) plus 81 skill targets — the 77 transcribed rows plus the `universal`/`warp`/`grok`/`pi` ids appended 2026-10-14; the generated `web/data/skill-targets.json` still lists the old 77 until the generator is re-run — see `ARCH/30-DATA-DRIVEN-BRIDGE-TARGETS.md` and `litespm host list`.
 
 ---
 
@@ -147,7 +147,7 @@ Once configured, simply launch your agent and type:
 ```
 
 `n` is a placeholder: the renderer prints the live item count,
-`fmt.Sprintf("…[INSTALLED (%d)]…", len(items))` (`internal/bridge/shim.go:520`), so the header
+`fmt.Sprintf("…[INSTALLED (%d)]…", len(items))` (`internal/bridge/shim.go` `FormatInstalledPanel`), so the header
 reads `[INSTALLED (0)]` on an empty install and grows with the ledger plus detected externals.
 
 ### Tab 1: MCP Servers
@@ -169,7 +169,7 @@ own config file. It does **not** assert runtime health:
 1.  **No health light is fabricated.** LiteSPM does not health-check installed capabilities, so a
     capability whose status was not observed renders as `— Unknown`. The `● Ready` / `🟡 Needs Auth`
     / `○ Stopped` lights exist in the renderer but are only shown for a status the daemon can
-    actually observe (`internal/bridge/shim.go:514-560`).
+    actually observe (`internal/bridge/shim.go` `FormatInstalledPanel`).
 2.  **Project-scope installs are visible in their own project.** The Bridge treats the directory the
     agent host starts it in as the project it belongs to (`bridge stdio --workspace <dir>` overrides
     it), and the daemon includes that workspace's project-scope installs alongside the user-scope
@@ -184,7 +184,7 @@ own config file. It does **not** assert runtime health:
     *   Pre-existing items are rendered with an `[External / Detected]` badge in **read-only mode**
         (no toggle controls).
     *   **`Adopt` is not implemented.** The panel renders an `(Adopt)` label
-        (`internal/bridge/shim.go:552-553`), but no adopt handler or tool exists; bringing an
+        (`internal/bridge/shim.go` `FormatInstalledPanel`), but no adopt handler or tool exists; bringing an
         external tool under management is `DESIGNED` ([STATUS.md](STATUS.md) §5).
 
 ---

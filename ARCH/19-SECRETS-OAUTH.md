@@ -168,7 +168,7 @@ linking non-sensitive profile state to the secure vault handle:
 *   **Database record:** `auth_profiles (profile_id, provider_id, profile_type, secret_ref, status, metadata_json, created_at, updated_at)` — `internal/state/repositories.go:553`. `profile_type` is `oauth2` or `api_key` (`internal/auth/types.go:14-15`); `status` starts `valid` (`broker.go:182`) and is set `revoked` on revoke (`broker.go:211`).
 *   **Decoupled secrets:** tokens and API keys live only in `SecretStore`; the row carries an opaque `secret_ref`.
 *   **Revocation:** `AuthBroker.RevokeAuth(profileID)` (`internal/auth/broker.go:198`) purges the secret from the vault and sets the row status to `revoked`. It runs only if something calls it — today nothing does (§3).
-*   **Provider linkage:** `providers.auth_profile_id` exists in the schema (`internal/state/repositories.go:377,415-416`) but provider rows are never written by non-test code (`STATUS.md` §4), so the link is currently inert.
+*   **Provider linkage:** `providers.auth_profile_id` exists in the schema (`internal/state/repositories.go:377,415-416`) but nothing populates it yet, so the link is inert — provider rows themselves **are** written by non-test code since 2026-10-13 (`installMCPFromListing` → `state.SaveProviderExec`; `m4` closed, `STATUS.md` §4).
 
 ---
 

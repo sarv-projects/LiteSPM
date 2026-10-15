@@ -195,21 +195,24 @@ The current implementation is a v1 discovery catalog. The gaps below are factual
 
 | Concern | v1 reality | Evidence | Gap vs target |
 |---|---|---|---|
-| Top-level classification | Nine-value enum: `{plugin, mcp, skill, connector, agent, rule, hook, tool, lsp}` | `internal/domain/models.go` (`KindPlugin`, `KindMCP`, `KindSkill`, `KindConnector`, `KindAgent`, `KindRule`, `KindHook`, `KindTool`, `KindLSP`) | Target `type` enum of eight v1 values (§3.4), with deferred values in §3.4.1; `connector` exists in Go but is a deferred v2 value and never appears in the shipped dataset (5814 rows carry only `mcp`/`skill`/`plugin`) |
+| Top-level classification | Nine-value enum: `{plugin, mcp, skill, connector, agent, rule, hook, tool, lsp}` | `internal/domain/models.go` (`KindPlugin`, `KindMCP`, `KindSkill`, `KindConnector`, `KindAgent`, `KindRule`, `KindHook`, `KindTool`, `KindLSP`) | Target `type` enum of eight v1 values (§3.4), with deferred values in §3.4.1; `connector` exists in Go but is a deferred v2 value and never appears in the shipped dataset (all 69,376 rows carry only `mcp`/`skill`/`plugin`) |
 | Web kind set | Three values: `"mcp" \| "skill" \| "plugin"` | `web/lib/telemetry.ts` (`Listing["kind"]`) | Web drops `connector` and the five zero-row v1 types; must align to the type taxonomy |
 | Shipped dataset kinds | 48,418 `mcp`, 20,320 `skill`, 638 `plugin` (69,376 total, probe 2026-10-13) | `web/data/catalog.json` | No rows for the other v1 types (`agent`, `rule`, `hook`, `tool`, `lsp`) despite `ComponentKind` supporting some; deferred values (§3.4.1) are not tracked in v1 |
 | Component kinds | `skill, mcp-provider, hook, command, agent-definition, agent, rule, tool, lsp, asset` | `internal/domain/models.go` (`ComponentKind`) | Component kinds cover all eight v1 types plus legacy `command`/`agent-definition`/`asset`, but are not surfaced to web |
 
 ### 4.2 Dataset fields vs target
 
-`web/data/catalog.json` rows carry exactly (5,814 rows verified 2026-10-02):
+`web/data/catalog.json` rows carry exactly (69,376 rows, checked 2026-10-15):
 
 ```text
 id, name, slug, kind, summary, category, publisher{name,verified,url},
 stars (present on all rows, null on all rows — no popularity signal),
 version, command, args, transport, runtime (mcp rows),
 skillSource (skill rows), compatibleHosts (plugin rows),
-installHint (441 rows)
+source (the producing SourceID, on all 69,376 rows),
+installability (all rows; "metadata_verified" on 26,803: 25,401 mcp, 764 skill, 638 plugin),
+url (present on 40,083 rows, non-null on 25,401), upstreamTransportHint (1,665 rows),
+installHint (446 rows)
 ```
 
 | Signal | v1 present? | Evidence | Required treatment |
@@ -220,9 +223,9 @@ installHint (441 rows)
 | usage / installs | **No** | no field in dataset or domain | `Not published` until a real telemetry source exists |
 | `updatedAt` / maintenance | **No** — only `version`; no dates at all | `catalog.json` keys | `Not published`; do not infer from stars |
 | security | **No** dedicated signal | `catalog.json` keys | Separate provenance signals (§7.4), not one score |
-| stars | **Absent as a signal** — `stars` key is present on all 5,814 rows but `null` on all rows; 0 non-null values | `web/data/catalog.json` key-frequency scan; `scripts/build_full_catalog.py` (sets `"stars": None`, no popularity ranking) | Keep as **not published**; never present stars as a trust/usage signal (§12.4) |
-| `categories` | Single flat `category` string, 63 distinct values | `catalog.json`; `web/lib/telemetry.ts` (`categoryFacets`) | Replace with hierarchical categories + tags |
-| `testedHosts` | String array of display names (6–7 values, identical for many rows) | `catalog.json`; `scripts/build_full_catalog.py` | Replace with per-host compatibility facts carrying evidence level |
+| stars | **Absent as a signal** — `stars` key is present on all 69,376 rows but `null` on all rows; 0 non-null values | `web/data/catalog.json` key-frequency scan; `scripts/build_full_catalog.py` (sets `"stars": None`, no popularity ranking) | Keep as **not published**; never present stars as a trust/usage signal (§12.4) |
+| `categories` | Single flat `category` string, 64 distinct values | `catalog.json`; `web/lib/telemetry.ts` (`categoryFacets`) | Replace with hierarchical categories + tags |
+| `testedHosts` | **No longer a field.** The former string array of display names was dropped from the dataset; compatibility is `compatibleHosts` (plugin rows) plus the registry-derived chips | `catalog.json` key scan (2026-10-15) | Replace with per-host compatibility facts carrying evidence level |
 | `publisher.verified` | Boolean, set by the builder | `catalog.json` | Replace with separate source-verified / publisher-verified signals |
 
 ### 4.3 Trust signal status (fixed — verify, do not regress)
@@ -327,15 +330,16 @@ Explore · Agents · Categories · Collections · Trending · Docs
 
 ### 6.3 Detail-page serving model
 
-The site is a static export (`web/next.config.ts`: `output: "export"`, `trailingSlash: true`). Detail pages are served as **query routes**:
+The site is a static export (`web/next.config.ts`: `output: "export"`, `trailingSlash: true`). Detail pages are served from one HTML shell with the key read client-side:
 
 ```text
-/package/?slug=<canonical-slug>
+/package/<canonical-slug>      # canonical path form; served by a `_redirects` proxy
+/package/?slug=<canonical-slug>  # legacy form; canonicalised with replaceState
 ```
 
-The HTML shell is one static file; the client resolves `slug` (via `useSearchParams`) against the catalog. This is the current `/package/?slug=` mechanism in `web/app/package/page.tsx` and keeps the export file count flat.
+`scripts/deploy-pages.sh` writes the `_redirects` rule (`/package/:slug /package/ 200`), and `web/app/package/page.tsx` reads the pathname as well as the query, because the 200 proxy leaves `window.location.search` empty for a path visit. The client resolves the key (`slug` when globally unique, else the full `id`) against the catalog, which keeps the export file count flat.
 
-**Build-size risk (explicit):** the shipped dataset has **5,814 items**. Per-item static pages (`generateStaticParams` over all items) would add at least one HTML file per item, plus assets. The catalog builder is expected to grow. Cloudflare Pages is limited to **20,000 files per project** ([09 — Research](09-RESEARCH.md) §7). Per-item static pages are therefore **not adopted** unless a static-param budget is explicitly approved (e.g. prerender only the top N by a real signal, with the rest served via the query route). This document rejects unbounded `generateStaticParams` for the full catalog.
+**Build-size risk (explicit):** the shipped dataset has **69,376 items**. Per-item static pages (`generateStaticParams` over all items) would add at least one HTML file per item, plus assets. The catalog builder is expected to grow. Cloudflare Pages is limited to **20,000 files per project** ([09 — Research](09-RESEARCH.md) §7). Per-item static pages are therefore **not adopted** unless a static-param budget is explicitly approved (e.g. prerender only the top N by a real signal, with the rest served via the query route). This document rejects unbounded `generateStaticParams` for the full catalog; the one bounded exception is `/agents/<id>/`, whose 50 bridge hosts are a closed registry.
 
 Identity note: `slug` must be globally unique. v1 `slug` values are derived per-source and may collide. The target contract uses a canonical slug (or the full package `id`) as the lookup key and validates uniqueness at build time.
 
@@ -480,8 +484,8 @@ Organised by change class. Each row: **item · why · target milestone** (M1 web
 | Adopt neutral `Package`/`Capability` with `type`/`source`/`compatibility` axes | Ecosystem is many-to-many; avoids another breaking reshape | M2 (model), M1 (vocabulary) |
 | Compatibility-first card and detail layout | The one durable differentiator | M1 |
 | Separate provenance signals instead of one score | Honest, auditable trust UX | M3 |
-| Hierarchical categories + tags | 63 flat categories are unusable as navigation | M1 (route), M2 (data) |
-| Query-route detail pages instead of per-item static pages | 5,814 items vs 20k file limit | M1 |
+| Hierarchical categories + tags | 64 flat categories are unusable as navigation | M1 (route), M2 (data) |
+| Query-route detail pages instead of per-item static pages | 69,376 items vs 20k file limit | M1 |
 | Website and TUI as distinct surfaces | Different state models and audiences | M1/M5 |
 
 ### 11.2 Add
@@ -518,7 +522,7 @@ Organised by change class. Each row: **item · why · target milestone** (M1 web
 | Catalog builder output to emit v2 shape (`type`/`source`/`compatibility`) | Data must lead UI | M2 |
 | `ARCH/25` navigation and detail references to match this document | Doc drift | M1 |
 | `ARCH/00-INDEX` to register this document | Discoverability | Done (registered with 26–30) |
-| Stars absent: render `Not published` | `stars` is `null` on all 5,814 rows; no popularity signal exists | M3 |
+| Stars absent: render `Not published` | `stars` is `null` on all 69,376 rows; no popularity signal exists | M3 |
 | `VerificationSummary` stays `unverified` unless evidenced | Fixed — all 8 adapters emit `unverified`; regression-pinned, do not regress | M3 |
 
 ### 11.5 Remove
@@ -595,7 +599,7 @@ No surface may display, sort by, or rank on a usage, install-count, download, se
 *   omit the facet, or
 *   render an explicit `Not published` / `Unknown` empty state.
 
-The v1 dataset contains **no popularity signal**: `stars` is present on all 5,814 rows but `null` on every row, and the builder hard-codes `"stars": null`. Stars MUST therefore render as `Not published` — never as illustrative, estimated, or seeded values, and never as a trust or usage signal. Review counts, "verified" checkmarks, and security grades are forbidden until a real source exists.
+The v1 dataset contains **no popularity signal**: `stars` is present on all 69,376 rows but `null` on every row, and the builder hard-codes `"stars": null`. Stars MUST therefore render as `Not published` — never as illustrative, estimated, or seeded values, and never as a trust or usage signal. Review counts, "verified" checkmarks, and security grades are forbidden until a real source exists.
 
 ---
 
