@@ -120,7 +120,14 @@ func TestSupervisor_ParentEnvCanaryNeverReachesChild(t *testing.T) {
 	}
 	for _, want := range []string{"LITESPM_FROM_SPEC=spec-value", "LITESPM_FROM_SECRET=secret-value"} {
 		if !strings.Contains(got, want) {
-			t.Errorf("child env missing %q:\n%s", want, got)
+			// The byte count and line count are here because a CI occurrence of
+			// this failure on macos-latest printed an env that was neither the
+			// expected one nor obviously truncated, and GitHub's log masking
+			// replaced part of it with "***" — so the captured output was not by
+			// itself enough to tell a short read from a wrong environment. These
+			// two numbers settle that on the next occurrence. See CURRENT_RUN.md.
+			t.Errorf("child env missing %q (got %d bytes, %d lines):\n%s",
+				want, len(got), strings.Count(got, "\n"), got)
 		}
 	}
 }

@@ -556,14 +556,48 @@ const SHARED_HOSTING_HOSTS = new Set([
  * platform rather than to the row. A wrong logo is worse than a letter, so
  * every one of these checks fails towards the letter.
  */
+/**
+ * Labels that name a *service* rather than a brand.
+ *
+ * A vendor that serves an MCP endpoint at `mcp.figma.com` publishes its icon at
+ * `figma.com`, not at the endpoint subdomain — so for these the registrable
+ * parent is asked for first. This is not only about a better logo: asking for
+ * the subdomain first produces a real 404 from the favicon service, which the
+ * browser logs as a console error. Two tiles on the home page did exactly that
+ * (`mcp.figma.com`, `mcp.cloudflare.com`), which is the kind of thing that makes
+ * a page look broken in devtools while the user sees nothing wrong with it.
+ */
+const SERVICE_LABELS = new Set([
+  "mcp",
+  "api",
+  "www",
+  "www2",
+  "app",
+  "docs",
+  "developer",
+  "developers",
+  "portal",
+  "console",
+  "dashboard",
+  "cloud",
+  "server",
+]);
+
 function siteCandidates(host: string): string[] {
   const labels = host.split(".");
   if (SHARED_HOSTING_HOSTS.has(host)) return [];
-  const srcs = [siteIcon(host)];
   const parent = labels.slice(1).join(".");
-  if (labels.length === 3 && !SECOND_LEVEL_LABELS.has(labels[1].toLowerCase()) && !SHARED_HOSTING_HOSTS.has(parent)) {
-    srcs.push(siteIcon(parent));
+  const parentUsable =
+    labels.length === 3 && !SECOND_LEVEL_LABELS.has(labels[1].toLowerCase()) && !SHARED_HOSTING_HOSTS.has(parent);
+
+  // A service subdomain: the brand's own domain is the better first question,
+  // and asking the endpoint first is what produced the 404.
+  if (parentUsable && SERVICE_LABELS.has(labels[0].toLowerCase())) {
+    return [siteIcon(parent), siteIcon(host)];
   }
+
+  const srcs = [siteIcon(host)];
+  if (parentUsable) srcs.push(siteIcon(parent));
   return srcs;
 }
 
