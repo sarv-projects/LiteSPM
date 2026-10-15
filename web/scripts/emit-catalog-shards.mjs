@@ -17,7 +17,8 @@
 // The same pass also emits the two search artifacts the browser actually
 // searches with (`lib/searchFormat.mjs` owns their byte layout):
 //
-//   catalog-search-index.bin.gz  vocabulary + delta-varint postings
+//   catalog-search-index.bin.gz  vocabulary + delta-varint postings, each
+//                                carrying the match class it was found in
 //   catalog-search-rows.bin.gz   the display projection for every row
 //
 // Both are gzipped at build time rather than left to the CDN, because a

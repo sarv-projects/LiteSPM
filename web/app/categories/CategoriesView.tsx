@@ -4,22 +4,64 @@ import Link from "next/link";
 import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { CategoryFacet, kindLabel } from "../../lib/catalog";
+import type { GoalFacet, TaxonomyIndex } from "../../lib/taxonomy";
 import { formatCount } from "../../lib/format";
 import { categoryLabel } from "./categoryLabel";
+import { DiscoveryCard } from "../../components/ui/DiscoveryCard";
 
 const KIND_ORDER = ["mcp", "skill", "plugin"] as const;
 
 /**
- * The category index is pure aggregation, so `app/categories/page.tsx` derives
- * it from the full row set at build time and passes it in. Nothing here needs
- * the rows themselves: this route never fetches the dataset at all.
+ * Two browse axes, in the order they are useful.
+ *
+ *   1. **Goals** — LiteSPM's editorial grouping (lib/taxonomy.ts). The
+ *      sources' own labels put 65.4% of this catalog in one bucket
+ *      ("Developer Tools") and the next-largest in a format ("Agent Skills"),
+ *      so the source vocabulary is a poor front door. The goal cards lead.
+ *   2. **Source categories** — the upstream labels, kept verbatim as
+ *      provenance. They still link into Explore, still appear on every entry,
+ *      and the table is unchanged apart from its heading.
+ *
+ * Everything on this page is derived at build time from `data/catalog.json` by
+ * `app/categories/page.tsx`; the route never fetches the row set in the
+ * browser.
  */
 export interface CategoriesViewProps {
   total: number;
   categories: CategoryFacet[];
+  taxonomy: TaxonomyIndex;
 }
 
-export default function CategoriesPage({ total, categories }: CategoriesViewProps) {
+function KindMix({ facet }: { facet: GoalFacet }) {
+  return (
+    <span className="flex items-center gap-2">
+      {KIND_ORDER.map((kind) =>
+        facet.byKind[kind] > 0 ? (
+          <span
+            key={kind}
+            className="flex items-center gap-1"
+            title={`${formatCount(facet.byKind[kind])} ${kindLabel(kind).toLowerCase()}${facet.byKind[kind] === 1 ? "" : "s"}`}
+          >
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-[3px] rounded-[1px]"
+              style={{ backgroundColor: `var(--${kind})` }}
+            />
+            <span className="t-mono t-tabular text-[11px] text-ink-3">
+              <span className="sr-only">{kindLabel(kind)}: </span>
+              {formatCount(facet.byKind[kind])}
+            </span>
+          </span>
+        ) : null
+      )}
+    </span>
+  );
+}
+
+export default function CategoriesPage({ total, categories, taxonomy }: CategoriesViewProps) {
+  const { facets, coverage } = taxonomy;
+  const goals = facets.filter((facet) => facet.id !== "other");
+  const other = facets.find((facet) => facet.id === "other");
 
   return (
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
@@ -29,19 +71,118 @@ export default function CategoriesPage({ total, categories }: CategoriesViewProp
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Categories</h1>
           <p className="t-mono text-[11px] text-ink-3">
-            {formatCount(categories.length)} categories across {formatCount(total)} entries
+            {formatCount(goals.length)} goals · {formatCount(categories.length)} source categories ·{" "}
+            {formatCount(total)} entries
           </p>
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Categories are the upstream sources&rsquo; own labels, not a curated taxonomy, so a few
-          describe a language or a collection rather than a domain. The bar shows each
-          category&rsquo;s share of the largest one.
+          <strong className="font-medium text-ink">Goals are LiteSPM&rsquo;s editorial grouping</strong>,
+          not a publisher&rsquo;s or a source&rsquo;s label. The upstream vocabulary puts 65% of this
+          catalog in one bucket (&ldquo;Developer Tools&rdquo;) and the next-largest in a format
+          (&ldquo;Agent Skills&rdquo;), so this page leads with a small set of task-shaped goals
+          instead. The source category is kept as provenance on every entry and in the table below.
         </p>
 
+        <h2 className="mt-8 band-title">Browse by goal</h2>
+        <p className="band-sub mt-2">
+          Each card opens Explore filtered to that goal. The rules behind the grouping are in{" "}
+          <span className="t-mono text-[12px]">web/lib/taxonomy.ts</span> — deterministic keyword
+          rules over the record&rsquo;s own text, no model call at run time.
+        </p>
+
+        <ul className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {goals.map((facet) => (
+            <li key={facet.id}>
+              <DiscoveryCard href={`/explore/?goal=${encodeURIComponent(facet.id)}`} className="h-full">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="text-[15px] font-semibold tracking-tight text-ink">{facet.label}</h3>
+                  <span className="t-mono t-tabular shrink-0 text-[12px] text-ink-3">
+                    {formatCount(facet.count)}
+                  </span>
+                </div>
+
+                <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">{facet.blurb}</p>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                  <KindMix facet={facet} />
+                  <span className="t-mono t-tabular text-[10.5px] text-ink-3">
+                    {Math.round(facet.share * 100)}% of catalog
+                  </span>
+                </div>
+
+                {facet.topCategories.length > 0 && (
+                  <p className="mt-3 text-[11.5px] leading-relaxed text-ink-3">
+                    Mostly from{" "}
+                    {facet.topCategories
+                      .map((category) => `${categoryLabel(category.name)} (${formatCount(category.count)})`)
+                      .join(", ")}
+                  </p>
+                )}
+              </DiscoveryCard>
+            </li>
+          ))}
+
+          {/* The remainder is shown as a card of its own, dashed and last: it
+              is a reported fact, not a goal, and hiding it would make the
+              coverage claim unverifiable. */}
+          {other && other.count > 0 && (
+            <li key="other">
+              <DiscoveryCard
+                href="/explore/?goal=other"
+                plane="sunken"
+                className="h-full"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="text-[15px] font-semibold tracking-tight text-ink">
+                    {other.label}
+                  </h3>
+                  <span className="t-mono t-tabular shrink-0 text-[12px] text-ink-3">
+                    {formatCount(other.count)}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">{other.blurb}</p>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                  <KindMix facet={other} />
+                  <span className="t-mono t-tabular text-[10.5px] text-ink-3">
+                    {Math.round(other.share * 100)}% of catalog
+                  </span>
+                </div>
+              </DiscoveryCard>
+            </li>
+          )}
+        </ul>
+
+        <p className="mt-4 max-w-prose text-[12.5px] leading-relaxed text-ink-3">
+          Coverage: the map places <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.mapped)}</span>{" "}
+          of <span className="t-mono t-tabular text-ink-2">{formatCount(total)}</span> rows (
+          {Math.round(coverage.coverage * 100)}%) into a goal.{" "}
+          <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.other)}</span> rows (
+          {Math.round((1 - coverage.coverage) * 100)}%) name no goal these rules can place and stay
+          in Other rather than being force-fitted. Largest goal:{" "}
+          <span className="text-ink-2">{coverage.largest.label}</span>,{" "}
+          <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.largest.count)}</span>{" "}
+          rows ({Math.round(coverage.largest.share * 100)}% of the catalog).
+        </p>
+
+        <div className="mt-10 border-b border-ink pb-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="band-title">Source categories</h2>
+            <p className="t-mono text-[11px] text-ink-3">
+              {formatCount(categories.length)} upstream labels
+            </p>
+          </div>
+          <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
+            These are the upstream sources&rsquo; own labels, carried verbatim and kept as
+            provenance — the same value every entry page and the Explore filter show. A few describe
+            a language or a collection rather than a domain. The bar shows each category&rsquo;s
+            share of the largest one.
+          </p>
+        </div>
+
         {/* Column headers are a real table header, not an ALL-CAPS eyebrow. */}
-        <div className="mt-7 border-b border-ink pb-2">
-          <h2 className="sr-only">All categories with entry counts</h2>
+        <div className="mt-5 border-b border-ink pb-2">
+          <h3 className="sr-only">All source categories with entry counts</h3>
           <div className="t-mono grid grid-cols-[minmax(0,1fr)_56px] items-center gap-4 text-[10px] text-ink-3 md:grid-cols-[260px_64px_170px_minmax(120px,1fr)]">
             <span>Category</span>
             <span className="text-right">Entries</span>

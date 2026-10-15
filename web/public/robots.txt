@@ -7,14 +7,22 @@
 User-agent: *
 Allow: /
 
-# /package/ resolves an entry from ?slug= in the browser and answers every
-# unknown slug with HTTP 200, so it presents a crawler with an unbounded set of
-# identical pages and no prerendered content to index. The route's own title is
-# generic for the same reason. Individual agent pages are NOT disallowed.
-Disallow: /package/
+# /package/ has two shapes now. The pre-rendered entry pages at
+# /package/<key>/ are real static pages — one per entry in a bounded set,
+# listed exactly at /package/entries/sitemap.xml — so the subtree can no
+# longer be disallowed wholesale. The client form /package/?slug=… resolves in
+# the browser and declares /package/ as its canonical; an unknown
+# /package/<slug> still answers 200 with the same shell, which the page marks
+# noindex once it has resolved. A blanket ban would hide the real pages, and
+# blocking only the query form would leave the thousands of entry links that
+# use it "indexed, though blocked" — so the page's own canonical and noindex
+# rules do the work instead.
 
 # Machine-readable release data and catalog shards, not pages.
 Disallow: /data/
 Disallow: /v1/
 
 Sitemap: https://litespm.sarveshbh-2022.workers.dev/sitemap.xml
+# The bounded set of pre-rendered entry pages, and nothing else.
+Sitemap: https://litespm.sarveshbh-2022.workers.dev/package/entries/sitemap.xml
+

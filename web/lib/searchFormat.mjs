@@ -24,9 +24,24 @@
 // No dependencies, no `node:` imports, no DOM-only APIs: `TextEncoder` /
 // `TextDecoder` are global in Node and in browsers, so this module runs
 // unchanged in the emitter, the worker, the page and the gate.
+//
+// **Format v2 — where a match happened is part of the index.** v1 stored one
+// bit per posting: "did this token appear in name+slug+id". That bit could not
+// tell an entry *named* GitHub from one that merely mentioned it, and the
+// catalog id's registry namespace (`io.github.<publisher>`) made every one of
+// those rows score as a title match, so a query for `github` led with rows
+// whose only connection to GitHub was their id. v2 stores a 3-bit **match
+// class** per posting — name (exact / first token / later token), publisher,
+// slug, body, id — and the ranking sums those classes. The class is the
+// ranking; it is also what `explainMatch` renders beside a result.
+//
+// The per-row tie-break signals (installable, publisher-manifest verified,
+// upstream Official Skills classification) are a 3-bit table appended to the
+// payload. No stars, downloads or install counts exist in the dataset, so no
+// popularity term exists here either.
 
 /** Bumped when the byte layout changes; every reader refuses a mismatch. */
-export const SEARCH_FORMAT_VERSION = 1;
+export const SEARCH_FORMAT_VERSION = 2;
 
 /** ASCII magic at the head of both artifacts. */
 const MAGIC = "LSPMSRCH";
@@ -95,16 +110,159 @@ export function listingText(item) {
   return parts.filter(Boolean).join(" ");
 }
 
+/* ------------------------------------------------------------------ *
+ * Match classes — where a query token was found, and how well
+ * ------------------------------------------------------------------ *
+ *
+ * Every posting carries one 3-bit class. The order below is the ranking
+ * order, strongest first, and it is the whole explanation of why a result
+ * ranks where it does:
+ *
+ *   name, exactly the query        an entry *named* GitHub
+ *   name, first token starts with  GitHub MCP Server
+ *   name, a later token starts with  Awesome GitHub Tools
+ *   publisher                      published by `github`
+ *   slug                           the URL key names it
+ *   body                           summary, category, runtime, transport,
+ *                                  tool names and descriptions
+ *   catalog id                     the registry identifier. Last on purpose:
+ *                                  `io.github.<publisher>` is a namespace, not
+ *                                  content, and it matched ~60% of the rows a
+ *                                  `github` query returned under v1.
+ *
+ * A later token that starts with the query token counts as a name match even
+ * when it is a prefix (`github30`), because token-prefix is the matcher's
+ * semantics everywhere else too.
+ */
+
+/** Query token found in the body: summary, category, runtime, transport, tools. */
+export const MATCH_BODY = 0;
+/** Query token found only in the catalog id. Lowest class. */
+export const MATCH_ID = 1;
+/** Query token found in the slug. */
+export const MATCH_SLUG = 2;
+/** Query token found in the publisher name. */
+export const MATCH_PUBLISHER = 3;
+/** Query token found in a name token other than the first. */
+export const MATCH_NAME_TOKEN = 4;
+/** Query token is a prefix of the first name token. */
+export const MATCH_NAME_PREFIX = 5;
+/** The name is exactly one token and the query token is that token. */
+export const MATCH_NAME_EXACT = 6;
+
 /**
- * The text that names a listing, for ranking only: a hit here means the query
- * names the thing itself rather than mentioning it. Never part of the match
- * set — only of its order.
+ * Score of each class, indexed by class. Body (1) beats id (0): a summary that
+ * mentions GitHub is a claim about the row, while an id that contains
+ * `io.github.` is a registry namespace shared by tens of thousands of rows.
+ */
+export const MATCH_SCORES = [1, 0, 2, 3, 4, 5, 6];
+
+/**
+ * The fields a row exposes to search, tokenized, in ranking order.
+ *
+ * The token sets are what `buildSearchIndex` classifies each document token
+ * against. `body` is the same field set `listingText` covers beyond
+ * name/publisher/slug/id, so every token `listingText` produces has a class
+ * and the index still matches exactly the rows `matchesQuery` matches.
  *
  * @param {any} item
- * @returns {string}
+ * @returns {{ name: string[], publisher: string[], slug: string[], body: string[], id: string[] }}
  */
-export function listingTitleText(item) {
-  return [item.name, item.slug, item.id].filter(Boolean).join(" ");
+export function matchFieldTokens(item) {
+  const bodyParts = [item.summary, item.category, item.runtime, item.transport];
+  for (const tool of item.tools ?? []) {
+    if (tool?.name) bodyParts.push(tool.name);
+    if (tool?.description) bodyParts.push(tool.description);
+  }
+  return {
+    name: tokenizeText(item.name ?? ""),
+    publisher: tokenizeText(item.publisher?.name ?? ""),
+    slug: tokenizeText(item.slug ?? ""),
+    body: [...new Set(tokenizeText(bodyParts.filter(Boolean).join(" ")))],
+    id: [...new Set(tokenizeText(item.id ?? ""))],
+  };
+}
+
+/**
+ * The strongest class at which `token` matches the row's fields.
+ *
+ * This is the one classifier: `buildSearchIndex` calls it per document token,
+ * and `explainMatch` re-derives the same answer from a hydrated row. A field
+ * added here is added to both, and the class the index ranks by is the class
+ * the page explains.
+ *
+ * @param {string} token
+ * @param {ReturnType<typeof matchFieldTokens>} fields
+ * @returns {number} a MATCH_* class, or -1 when nothing matches
+ */
+export function matchClassOfToken(token, fields) {
+  const name = fields.name;
+  if (name.length === 1 && name[0] === token) return MATCH_NAME_EXACT;
+  if (name.length > 0 && name[0].startsWith(token)) return MATCH_NAME_PREFIX;
+  for (let i = 1; i < name.length; i += 1) {
+    if (name[i].startsWith(token)) return MATCH_NAME_TOKEN;
+  }
+  if (fields.publisher.some((t) => t.startsWith(token))) return MATCH_PUBLISHER;
+  if (fields.slug.some((t) => t.startsWith(token))) return MATCH_SLUG;
+  if (fields.body.some((t) => t.startsWith(token))) return MATCH_BODY;
+  if (fields.id.some((t) => t.startsWith(token))) return MATCH_ID;
+  return -1;
+}
+
+/* ------------------------------------------------------------------ *
+ * Tie-break signals — the only quality facts the dataset carries
+ * ------------------------------------------------------------------ *
+ *
+ * Equal match classes are common on a large result set, so ties break on the
+ * three facts a reader can check on any row. There is deliberately no
+ * popularity term: the catalog publishes no stars, downloads or install
+ * counts, so none is invented. `verified` is exactly
+ * `publisher.provenance === "vendor-manifest"` over this dataset (40,724 of
+ * 69,376 rows; the other 28,652 are `awesome-list-claim`), which is why
+ * provenance is not a separate bit. The third signal is the upstream
+ * directory's own "Official Skills by …" classification.
+ */
+
+const SIGNAL_INSTALLABLE = 4;
+const SIGNAL_VERIFIED = 2;
+const SIGNAL_OFFICIAL = 1;
+
+/**
+ * The installability predicate, mirroring `lib/availability.ts` `availabilityOf`
+ * (which mirrors `domain.Listing.IsInstallable()` + the launch-line rule):
+ * plugins never install, a row must carry established installability, and an
+ * MCP row additionally needs a transport. Duplicated in plain JS because the
+ * index is built by Node scripts that cannot import TypeScript; if
+ * `availability.ts` changes its rule, this must change with it.
+ *
+ * @param {any} item
+ * @returns {boolean}
+ */
+function rowInstalls(item) {
+  if (item.kind === "plugin") return false;
+  const established =
+    item.installability === "metadata_verified" ||
+    item.installability === "runtime_verified" ||
+    item.installability === "litespm_tested";
+  if (!established) return false;
+  if (item.kind === "mcp" && !item.transport) return false;
+  return true;
+}
+
+/**
+ * The 3-bit tie-break signal for one row: installable (4) > verified
+ * publisher (2) > upstream Official Skills classification (1). Higher sorts
+ * first among equal match scores.
+ *
+ * @param {any} item
+ * @returns {number} 0..7
+ */
+export function rankSignalOf(item) {
+  let signal = 0;
+  if (item.category === "Official Skills by") signal |= SIGNAL_OFFICIAL;
+  if (item.publisher?.verified) signal |= SIGNAL_VERIFIED;
+  if (rowInstalls(item)) signal |= SIGNAL_INSTALLABLE;
+  return signal;
 }
 
 /**
@@ -228,32 +386,38 @@ function utf8(s) {
  * artifact. Indices are also what the browser needs to hydrate a result from
  * the display projection, so the two artifacts share one coordinate system.
  *
- * Each posting carries one flag bit: did this token appear in the row's
- * *title* (`name`, `slug`, `id`)? That is the whole ranking signal, and it
- * rides inside the delta so it costs nothing extra for small deltas.
+ * Each posting carries its **match class** (see the MATCH_* block above): the
+ * strongest field in which this token was found in this row. That class is the
+ * ranking, and it is what `explainMatch` renders. The per-row tie-break signals
+ * are computed in the same pass.
  *
  * @param {any[]} rows
- * @returns {{ tokens: string[], tokenBytes: Uint8Array[], postings: number[][], titleFlags: Uint8Array[], rowCount: number, postingsCount: number }}
+ * @returns {{ tokens: string[], tokenBytes: Uint8Array[], postings: number[][], postingClasses: number[][], signals: Uint8Array, rowCount: number, postingsCount: number }}
  */
 export function buildSearchIndex(rows) {
   /** @type {Map<string, number[]>} */
   const all = new Map();
-  /** @type {Map<string, Set<number>>} */
-  const title = new Map();
+  /** @type {Map<string, number[]>} */
+  const classes = new Map();
+  const signals = new Uint8Array(rows.length);
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
+    signals[i] = rankSignalOf(row);
+    const fields = matchFieldTokens(row);
     const docTokens = new Set(tokenizeText(listingText(row)));
     for (const token of docTokens) {
       let list = all.get(token);
       if (!list) all.set(token, (list = []));
       list.push(i);
-    }
-    const titleTokens = new Set(tokenizeText(listingTitleText(row)));
-    for (const token of titleTokens) {
-      let flags = title.get(token);
-      if (!flags) title.set(token, (flags = new Set()));
-      flags.add(i);
+      let classList = classes.get(token);
+      if (!classList) classes.set(token, (classList = []));
+      // `matchClassOfToken` returns -1 only if `listingText` grows a field that
+      // `matchFieldTokens` does not classify — a drift the agreement gate would
+      // catch on the next build. Clamp to the lowest class so a hypothetical
+      // drift cannot promote a row, and never write an unscoreable class.
+      const matchClass = matchClassOfToken(token, fields);
+      classList.push(matchClass === -1 ? MATCH_ID : matchClass);
     }
   }
 
@@ -265,7 +429,7 @@ export function buildSearchIndex(rows) {
   const sortedTokens = order.map((i) => tokens[i]);
   const sortedBytes = order.map((i) => tokenBytes[i]);
   const sortedPostings = order.map((i) => all.get(tokens[i]));
-  const sortedFlags = order.map((i) => title.get(tokens[i]) ?? new Set());
+  const sortedClasses = order.map((i) => classes.get(tokens[i]));
 
   let postingsCount = 0;
   for (const list of sortedPostings) postingsCount += list.length;
@@ -274,14 +438,35 @@ export function buildSearchIndex(rows) {
     tokens: sortedTokens,
     tokenBytes: sortedBytes,
     postings: /** @type {number[][]} */ (sortedPostings),
-    titleFlags: /** @type {Set<number>[]} */ (sortedFlags),
+    postingClasses: /** @type {number[][]} */ (sortedClasses),
+    signals,
     rowCount: rows.length,
     postingsCount,
   };
 }
 
 /**
- * Encode a built index into the INDEX section payload.
+ * Encode a built index into the INDEX section payload (format v2).
+ *
+ * Layout, little-endian:
+ *
+ *   u32 rowCount, u32 tokenCount, u32 postingsCount, u32 reserved
+ *   varint vocabLength[tokenCount]     byte length of each vocabulary token
+ *   varint blockLength[tokenCount]     byte length of each token's block
+ *   vocab bytes                        the tokens, in byte order
+ *   blocks                             per token:
+ *                                        varint classBytes length
+ *                                        class bits, 3 per non-body posting
+ *                                        delta-varint postings, `delta << 1 |
+ *                                        (class !== body)`
+ *   signals                            3 bits per row, rowCount*3 bits total
+ *
+ * Length tables rather than absolute u32 offsets: two u32 tables cost 8 bytes
+ * per token (0.76 MiB at 99,483 tokens), while the lengths are one varint each
+ * and the decoder accumulates them into offsets in one linear pass. The class
+ * bits ride in a separate stream per token instead of widening every delta to
+ * three low bits, which keeps the common one-byte delta (and its compression)
+ * intact — measured 3.94 MiB raw / 2.41 MiB gzip against v1's 4.19 / 2.68.
  *
  * Deterministic: every byte is a pure function of the row order and the
  * tokenizer, and no map iteration order leaks in (the vocabulary is sorted by
@@ -293,49 +478,115 @@ export function buildSearchIndex(rows) {
 export function encodeSearchIndex(index) {
   const T = index.tokens.length;
   const header = 16;
-  const vocabOffsets = new Uint32Array(T + 1);
-  const postingsOffsets = new Uint32Array(T + 1);
+
+  // Pass 1: measure. Class bytes per token, then the block length that holds
+  // the class-length varint, the class bits and the postings.
+  const vocabLengths = new Uint32Array(T);
+  const blockLengths = new Uint32Array(T);
+  for (let i = 0; i < T; i += 1) {
+    vocabLengths[i] = index.tokenBytes[i].length;
+    const list = index.postings[i];
+    const classes = index.postingClasses[i];
+    let specials = 0;
+    let postingBytes = 0;
+    let previous = 0;
+    for (let k = 0; k < list.length; k += 1) {
+      const delta = list[k] - previous;
+      previous = list[k];
+      postingBytes += varintLength((delta << 1) | (classes[k] === MATCH_BODY ? 0 : 1));
+      if (classes[k] !== MATCH_BODY) specials += 1;
+    }
+    const classBytes = Math.ceil((specials * 3) / 8);
+    blockLengths[i] = varintLength(classBytes) + classBytes + postingBytes;
+  }
 
   let vocabLength = 0;
-  for (let i = 0; i < T; i += 1) {
-    vocabOffsets[i] = vocabLength;
-    vocabLength += index.tokenBytes[i].length;
-  }
-  vocabOffsets[T] = vocabLength;
+  for (let i = 0; i < T; i += 1) vocabLength += vocabLengths[i];
+  let tableLength = 0;
+  for (let i = 0; i < T; i += 1) tableLength += varintLength(vocabLengths[i]);
+  for (let i = 0; i < T; i += 1) tableLength += varintLength(blockLengths[i]);
+  let blocksLength = 0;
+  for (let i = 0; i < T; i += 1) blocksLength += blockLengths[i];
+  const signalBytes = Math.ceil((index.rowCount * 3) / 8);
 
-  /** @type {number[]} */
-  const postingBytes = [];
-  for (let i = 0; i < T; i += 1) {
-    postingsOffsets[i] = postingBytes.length;
-    const list = index.postings[i];
-    const flags = index.titleFlags[i];
-    let previous = 0;
-    for (const row of list) {
-      const delta = row - previous;
-      previous = row;
-      writeVarint((delta << 1) | (flags && flags.has(row) ? 1 : 0), postingBytes);
-    }
-  }
-  postingsOffsets[T] = postingBytes.length;
-
-  const vocabStart = header + 4 * (T + 1) + 4 * (T + 1);
-  const postingsStart = vocabStart + vocabLength;
-  const out = new Uint8Array(postingsStart + postingBytes.length);
+  const vocabStart = header + tableLength;
+  const blocksStart = vocabStart + vocabLength;
+  const signalsStart = blocksStart + blocksLength;
+  const out = new Uint8Array(signalsStart + signalBytes);
   const view = new DataView(out.buffer);
   view.setUint32(0, index.rowCount, true);
   view.setUint32(4, T, true);
   view.setUint32(8, index.postingsCount, true);
   view.setUint32(12, 0, true);
-  for (let i = 0; i <= T; i += 1) {
-    view.setUint32(header + 4 * i, vocabOffsets[i], true);
-    view.setUint32(header + 4 * (T + 1) + 4 * i, postingsOffsets[i], true);
-  }
+
+  // Pass 2: write.
+  const table = [];
+  for (let i = 0; i < T; i += 1) writeVarint(vocabLengths[i], table);
+  for (let i = 0; i < T; i += 1) writeVarint(blockLengths[i], table);
+  out.set(table, header);
+
   let at = vocabStart;
   for (let i = 0; i < T; i += 1) {
     out.set(index.tokenBytes[i], at);
-    at += index.tokenBytes[i].length;
+    at += vocabLengths[i];
   }
-  out.set(postingBytes, postingsStart);
+
+  at = blocksStart;
+  for (let i = 0; i < T; i += 1) {
+    const list = index.postings[i];
+    const classes = index.postingClasses[i];
+    let specials = 0;
+    for (let k = 0; k < list.length; k += 1) if (classes[k] !== MATCH_BODY) specials += 1;
+    const classBytes = Math.ceil((specials * 3) / 8);
+    const classStart = at + varintLength(classBytes);
+    const postingStart = classStart + classBytes;
+
+    const lengthBytes = [];
+    writeVarint(classBytes, lengthBytes);
+    out.set(lengthBytes, at);
+
+    let bitBuffer = 0;
+    let bitCount = 0;
+    let classAt = classStart;
+    let postAt = postingStart;
+    let previous = 0;
+    for (let k = 0; k < list.length; k += 1) {
+      const delta = list[k] - previous;
+      previous = list[k];
+      const special = classes[k] !== MATCH_BODY;
+      const postingBytes = [];
+      writeVarint((delta << 1) | (special ? 1 : 0), postingBytes);
+      out.set(postingBytes, postAt);
+      postAt += postingBytes.length;
+      if (special) {
+        bitBuffer |= classes[k] << bitCount;
+        bitCount += 3;
+        while (bitCount >= 8) {
+          out[classAt] = bitBuffer & 0xff;
+          classAt += 1;
+          bitBuffer >>>= 8;
+          bitCount -= 8;
+        }
+      }
+    }
+    if (bitCount > 0) out[classAt] = bitBuffer & 0xff;
+    at += blockLengths[i];
+  }
+
+  let signalBuffer = 0;
+  let signalCount = 0;
+  let signalAt = signalsStart;
+  for (let i = 0; i < index.rowCount; i += 1) {
+    signalBuffer |= index.signals[i] << signalCount;
+    signalCount += 3;
+    while (signalCount >= 8) {
+      out[signalAt] = signalBuffer & 0xff;
+      signalAt += 1;
+      signalBuffer >>>= 8;
+      signalCount -= 8;
+    }
+  }
+  if (signalCount > 0) out[signalAt] = signalBuffer & 0xff;
   return out;
 }
 
@@ -344,33 +595,70 @@ export function encodeSearchIndex(index) {
  *
  * The vocabulary stays as bytes plus offsets: prefix search is a byte-range
  * binary search, and decoding 100k strings up front would allocate more memory
- * than the artifact itself.
+ * than the artifact itself. The length tables are accumulated into absolute
+ * offsets here, once, so the hot path is unchanged.
  *
  * @param {Uint8Array} payload
- * @returns {{ rowCount: number, tokenCount: number, postingsCount: number, vocabOffsets: Uint32Array, postingsOffsets: Uint32Array, vocab: Uint8Array, postings: Uint8Array }}
+ * @returns {{ rowCount: number, tokenCount: number, postingsCount: number, vocabOffsets: Uint32Array, blockOffsets: Uint32Array, vocab: Uint8Array, blocks: Uint8Array, signals: Uint8Array }}
  */
 export function decodeSearchIndex(payload) {
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
   const rowCount = view.getUint32(0, true);
   const tokenCount = view.getUint32(4, true);
   const postingsCount = view.getUint32(8, true);
-  const header = 16;
-  const vocabOffsets = new Uint32Array(tokenCount + 1);
-  const postingsOffsets = new Uint32Array(tokenCount + 1);
-  for (let i = 0; i <= tokenCount; i += 1) {
-    vocabOffsets[i] = view.getUint32(header + 4 * i, true);
-    postingsOffsets[i] = view.getUint32(header + 4 * (tokenCount + 1) + 4 * i, true);
+
+  let at = 16;
+  const vocabLengths = new Uint32Array(tokenCount);
+  const blockLengths = new Uint32Array(tokenCount);
+  for (let i = 0; i < tokenCount; i += 1) {
+    const [length, next] = readVarint(payload, at);
+    at = next;
+    vocabLengths[i] = length;
   }
-  const vocabStart = header + 8 * (tokenCount + 1);
-  const vocabLength = vocabOffsets[tokenCount];
+  for (let i = 0; i < tokenCount; i += 1) {
+    const [length, next] = readVarint(payload, at);
+    at = next;
+    blockLengths[i] = length;
+  }
+
+  const vocabOffsets = new Uint32Array(tokenCount + 1);
+  const blockOffsets = new Uint32Array(tokenCount + 1);
+  let vocabLength = 0;
+  let blocksLength = 0;
+  for (let i = 0; i < tokenCount; i += 1) {
+    vocabOffsets[i] = vocabLength;
+    vocabLength += vocabLengths[i];
+    blockOffsets[i] = blocksLength;
+    blocksLength += blockLengths[i];
+  }
+  vocabOffsets[tokenCount] = vocabLength;
+  blockOffsets[tokenCount] = blocksLength;
+
+  const vocabStart = at;
+  const vocab = payload.subarray(vocabStart, vocabStart + vocabLength);
+  const blocks = payload.subarray(vocabStart + vocabLength, vocabStart + vocabLength + blocksLength);
+
+  // Unpack the 3-bit per-row signals once; queries read them per candidate row.
+  const signalsStart = vocabStart + vocabLength + blocksLength;
+  const signals = new Uint8Array(rowCount);
+  for (let i = 0; i < rowCount; i += 1) {
+    const bit = i * 3;
+    const byteAt = signalsStart + (bit >> 3);
+    const shift = bit & 7;
+    let value = payload[byteAt] >> shift;
+    if (shift > 5) value |= payload[byteAt + 1] << (8 - shift);
+    signals[i] = value & 7;
+  }
+
   return {
     rowCount,
     tokenCount,
     postingsCount,
     vocabOffsets,
-    postingsOffsets,
-    vocab: payload.subarray(vocabStart, vocabStart + vocabLength),
-    postings: payload.subarray(vocabStart + vocabLength),
+    blockOffsets,
+    vocab,
+    blocks,
+    signals,
   };
 }
 
@@ -423,35 +711,64 @@ function prefixRange(index, prefix) {
 }
 
 /**
- * Read one token's postings, deltas decoded, into `out`.
+ * Read one token's postings, deltas decoded, into `out`, with each posting's
+ * match class in `classes`.
+ *
+ * The block layout is [varint classBytes][class bits][postings]; the class bit
+ * stream is read in the same order the special postings appear, so one cursor
+ * per token is enough.
  *
  * @param {ReturnType<typeof decodeSearchIndex>} index
  * @param {number} tokenIndex
  * @param {number[]} out
- * @param {Uint8Array | null} [titleFlags] receives a 0/1 flag per posting
+ * @param {number[]} classes
  */
-function readPostings(index, tokenIndex, out, titleFlags) {
-  let at = index.postingsOffsets[tokenIndex];
-  const end = index.postingsOffsets[tokenIndex + 1];
+function readPostings(index, tokenIndex, out, classes) {
+  const start = index.blockOffsets[tokenIndex];
+  const end = index.blockOffsets[tokenIndex + 1];
+  const [classBytes, afterLength] = readVarint(index.blocks, start);
+  const classStart = afterLength;
+  let classBit = 0;
+  let at = afterLength + classBytes;
   let previous = 0;
   while (at < end) {
-    const [value, next] = readVarint(index.postings, at);
+    const [value, next] = readVarint(index.blocks, at);
     at = next;
-    const delta = value >>> 1;
-    previous += delta;
+    const special = value & 1;
+    previous += value >>> 1;
     out.push(previous);
-    if (titleFlags) titleFlags.push(value & 1);
+    let code = MATCH_BODY;
+    if (special) {
+      const byteAt = classStart + (classBit >> 3);
+      const shift = classBit & 7;
+      let packed = index.blocks[byteAt] >> shift;
+      if (shift > 5) packed |= index.blocks[byteAt + 1] << (8 - shift);
+      code = packed & 7;
+      classBit += 3;
+    }
+    classes.push(code);
   }
 }
 
 /**
  * Query the index: every row matching every query token as a prefix, ranked.
  *
- * Ranking is deterministic and explainable: a token that appears in the row's
- * title scores 4 when the query token is the whole token and 3 when it is only
- * a prefix; a token elsewhere scores 2 or 1. Ties break by row index, which is
- * the dataset's own order. Nothing here can consult popularity — the dataset
- * carries none.
+ * Ranking is deterministic and explainable, and it is the sum of the per-token
+ * match classes (see the MATCH_* block): a row named exactly `GitHub` scores 6
+ * for that token, `GitHub MCP Server` 5, `Awesome GitHub Tools` 4, a row
+ * published by `github` 3, one that only says GitHub in its summary 1, and one
+ * whose registry id contains `io.github.` 0. Every query token must match and
+ * the scores accumulate, so a multi-token query rewards the row that names
+ * more of it. Equal scores break on the row's tie-break signal (installable,
+ * verified publisher, upstream Official Skills classification) and finally on
+ * row index, the dataset's own order. Nothing here can consult popularity —
+ * the dataset carries none.
+ *
+ * One adjustment is query-aware: the index's MATCH_NAME_EXACT means "the
+ * document token is the whole name", but for a query token that is a *prefix*
+ * of a longer name (`postgres` against a row named `PostgreSQL`) the same
+ * posting is a name-prefix match, not an exact one. Postings read from a
+ * vocabulary token longer than the query token are downgraded accordingly.
  *
  * @param {ReturnType<typeof decodeSearchIndex>} index
  * @param {string} query
@@ -472,32 +789,20 @@ export function querySearchIndex(index, query) {
     const [start, end] = prefixRange(index, bytes);
     if (start === end) return []; // this token matches nothing: so does the query
 
-    /** @type {number[]} */
-    const exact = [];
-    /** @type {number[]} */
-    const exactFlags = [];
-    const exactIndex = lowerBoundToken(index, bytes);
-    const exactExists =
-      exactIndex < index.tokenCount &&
-      index.vocabOffsets[exactIndex + 1] - index.vocabOffsets[exactIndex] === bytes.length &&
-      compareBytes(index.vocab.subarray(index.vocabOffsets[exactIndex], index.vocabOffsets[exactIndex + 1]), bytes) === 0;
-    if (exactExists) readPostings(index, exactIndex, exact, exactFlags);
-
     /** @type {Map<number, number>} */
     const tokenScores = new Map();
-    for (let i = 0; i < exact.length; i += 1) {
-      tokenScores.set(exact[i], exactFlags[i] ? 4 : 2);
-    }
     for (let t = start; t < end; t += 1) {
-      if (exactExists && t === exactIndex) continue;
+      const exactToken = index.vocabOffsets[t + 1] - index.vocabOffsets[t] === bytes.length;
       /** @type {number[]} */
       const rows = [];
       /** @type {number[]} */
-      const flags = [];
-      readPostings(index, t, rows, flags);
+      const classes = [];
+      readPostings(index, t, rows, classes);
       for (let i = 0; i < rows.length; i += 1) {
+        let code = classes[i];
+        if (!exactToken && code === MATCH_NAME_EXACT) code = MATCH_NAME_PREFIX;
+        const score = MATCH_SCORES[code] ?? 0;
         const current = tokenScores.get(rows[i]);
-        const score = flags[i] ? 3 : 1;
         if (current === undefined || score > current) tokenScores.set(rows[i], score);
       }
     }
@@ -518,9 +823,142 @@ export function querySearchIndex(index, query) {
     if (result.size === 0) return [];
   }
 
+  const signals = index.signals;
   return [...(result ?? new Map()).entries()]
-    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .sort((a, b) => b[1] - a[1] || signals[b[0]] - signals[a[0]] || a[0] - b[0])
     .map(([row]) => row);
+}
+
+/* ------------------------------------------------------------------ *
+ * Match explanation — why a row is in the result set, and where
+ * ------------------------------------------------------------------ */
+
+/**
+ * One query token's match in one row, with a fragment around the matched text.
+ *
+ * `field` names the field the match was found in; `fragment` is a window of
+ * that field's text around the match, or null when the match can only be in
+ * text this projection does not carry (a tool description, or a summary past
+ * the display cap).
+ *
+ * @typedef {{
+ *   token: string,
+ *   className: number,
+ *   score: number,
+ *   field: string,
+ *   fragment: { text: string, start: number, end: number } | null,
+ * }} MatchExplanation
+ */
+
+/** The first token-boundary occurrence of `token` in `text`, with offsets. */
+function tokenAt(text, token) {
+  const source = String(text ?? "");
+  const lower = source.toLowerCase();
+  const re = /[\p{L}\p{N}]+/gu;
+  let match;
+  while ((match = re.exec(lower))) {
+    if (match[0].startsWith(token)) return { start: match.index, end: match.index + token.length };
+  }
+  return null;
+}
+
+/** The same scan as `tokenAt`, but for the name, where position decides class. */
+function nameAt(text, token) {
+  const source = String(text ?? "");
+  const lower = source.toLowerCase();
+  const re = /[\p{L}\p{N}]+/gu;
+  /** @type {RegExpExecArray[]} */
+  const matches = [];
+  let match;
+  while ((match = re.exec(lower))) matches.push(match);
+  for (let i = 0; i < matches.length; i += 1) {
+    if (!matches[i][0].startsWith(token)) continue;
+    const className =
+      matches.length === 1 && matches[i][0] === token
+        ? MATCH_NAME_EXACT
+        : i === 0
+          ? MATCH_NAME_PREFIX
+          : MATCH_NAME_TOKEN;
+    return { className, start: matches[i].index, end: matches[i].index + token.length };
+  }
+  return null;
+}
+
+/** A window of `text` around [start, end), with ellipses where it was cut. */
+function fragmentAround(text, start, end) {
+  const source = String(text);
+  const radius = 42;
+  const from = Math.max(0, start - radius);
+  const to = Math.min(source.length, end + radius);
+  const lead = from > 0 ? "…" : "";
+  const trail = to < source.length ? "…" : "";
+  return {
+    text: `${lead}${source.slice(from, to)}${trail}`,
+    start: lead.length + (start - from),
+    end: lead.length + (end - from),
+  };
+}
+
+/** @param {string} token @param {any} item @returns {MatchExplanation} */
+function explainToken(item, token) {
+  const name = nameAt(item.name, token);
+  if (name) {
+    return {
+      token,
+      className: name.className,
+      score: MATCH_SCORES[name.className],
+      field: "name",
+      fragment: fragmentAround(item.name, name.start, name.end),
+    };
+  }
+
+  /** @type {Array<[string, string, number]>} field id, text, class */
+  const candidates = [
+    ["publisher", item.publisher?.name ?? "", MATCH_PUBLISHER],
+    ["slug", item.slug ?? "", MATCH_SLUG],
+    ["summary", item.summary ?? "", MATCH_BODY],
+    ["category", item.category ?? "", MATCH_BODY],
+    ["runtime", item.runtime ?? "", MATCH_BODY],
+    ["transport", item.transport ?? "", MATCH_BODY],
+    ["id", item.id ?? "", MATCH_ID],
+  ];
+  for (const [field, text, className] of candidates) {
+    if (!text) continue;
+    const at = tokenAt(text, token);
+    if (at) {
+      return {
+        token,
+        className,
+        score: MATCH_SCORES[className],
+        field,
+        fragment: fragmentAround(text, at.start, at.end),
+      };
+    }
+  }
+
+  // The row is a result, so the token is in `listingText` somewhere — but the
+  // display projection carries no tool names or descriptions, and summaries
+  // are capped. The honest answer is the field family, not a guessed fragment.
+  return { token, className: MATCH_BODY, score: MATCH_SCORES[MATCH_BODY], field: "tool", fragment: null };
+}
+
+/**
+ * Explain why `item` matched `query`: one entry per query token, plus the
+ * strongest of them. Computed from the hydrated row with the same classifier
+ * the index was built from, so a row's explanation and its rank cannot
+ * disagree.
+ *
+ * @param {any} item a row hydrated from the display projection
+ * @param {string} query
+ * @returns {{ tokens: MatchExplanation[], best: MatchExplanation } | null}
+ */
+export function explainMatch(item, query) {
+  const tokens = queryTokens(query);
+  if (tokens.length === 0) return null;
+  const parts = tokens.map((token) => explainToken(item, token));
+  let best = parts[0];
+  for (const part of parts) if (part.score > best.score) best = part;
+  return { tokens: parts, best };
 }
 
 /* ------------------------------------------------------------------ *

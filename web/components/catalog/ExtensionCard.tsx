@@ -11,6 +11,17 @@ export type ExtensionItem = Listing;
 
 interface ExtensionCardProps {
   item: Listing;
+  /**
+   * Constant-value suppression. A result set where every row carries the same
+   * chip tells the reader nothing per row, so the caller that knows the whole
+   * set (`ExtensionGrid`) omits the constant here and states it once above the
+   * rows. The value stays in this card's accessible name and on the entry's
+   * own page, so nothing is lost — only the repetition.
+   */
+  omitKind?: boolean;
+  omitSignal?: boolean;
+  omitProvenance?: boolean;
+  omitCategory?: boolean;
 }
 
 const KIND_TAG: Record<Listing["kind"], string> = {
@@ -50,7 +61,13 @@ const KIND_TAG: Record<Listing["kind"], string> = {
  * the record came from, which also distinguishes two rows that install the
  * same way.
  */
-export function ExtensionCard({ item }: ExtensionCardProps) {
+export function ExtensionCard({
+  item,
+  omitKind = false,
+  omitSignal = false,
+  omitProvenance = false,
+  omitCategory = false,
+}: ExtensionCardProps) {
   const signal = rowSignal(item);
   const provenance = rowProvenance(item);
   const detail = [
@@ -101,8 +118,8 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
           <span className="max-w-[24ch] truncate font-medium text-ink-2">
             {item.publisher?.name || "publisher unspecified"}
           </span>
-          <span className={`meta-kind meta-kind-${item.kind}`}>{KIND_TAG[item.kind]}</span>
-          <span className="truncate">{categoryLabel(item.category)}</span>
+          {!omitKind && <span className={`meta-kind meta-kind-${item.kind}`}>{KIND_TAG[item.kind]}</span>}
+          {!omitCategory && <span className="truncate">{categoryLabel(item.category)}</span>}
           {item.transport && <span className="meta-spec">{item.transport}</span>}
           {item.runtime && <span className="meta-spec">{item.runtime}</span>}
           {item.version && <span className="t-mono t-tabular">v{item.version}</span>}
@@ -117,24 +134,34 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
           floated at the far edge with ~450px of empty paper between it and the
           text it describes, so the row read as two unrelated things. The rule
           gives the whitespace a boundary, which is what makes it read as a
-          column instead of a gap. */}
-      <span className="flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-1 lg:ml-auto lg:w-[240px] lg:flex-col lg:items-end lg:gap-y-1.5 lg:border-l lg:border-rule lg:pl-4 lg:text-right">
-        <span
-          className={`inline-flex shrink-0 items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
-            signal.tier === "official"
-              ? "border-accent/40 bg-accent-wash text-accent-text"
-              : signal.tier === "installable"
-                ? "border-rule-2 bg-surface text-ink-2"
-                : "border-dashed border-ink-3 bg-sunken text-ink-3"
-          }`}
-          title={signal.note}
-        >
-          {signal.label}
+          column instead of a gap.
+
+          When both values are constant across the result set the rail is not
+          rendered at all — `ExtensionGrid` states the one value above the
+          rows instead of printing it once per row. */}
+      {!(omitSignal && omitProvenance) && (
+        <span className="flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-1 lg:ml-auto lg:w-[240px] lg:flex-col lg:items-end lg:gap-y-1.5 lg:border-l lg:border-rule lg:pl-4 lg:text-right">
+          {!omitSignal && (
+            <span
+              className={`inline-flex shrink-0 items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
+                signal.tier === "official"
+                  ? "border-accent/40 bg-accent-wash text-accent-text"
+                  : signal.tier === "installable"
+                    ? "border-rule-2 bg-surface text-ink-2"
+                    : "border-dashed border-ink-3 bg-sunken text-ink-3"
+              }`}
+              title={signal.note}
+            >
+              {signal.label}
+            </span>
+          )}
+          {!omitProvenance && (
+            <span className="t-mono min-w-0 truncate text-[10.5px] text-ink-3" title={provenance}>
+              {provenance}
+            </span>
+          )}
         </span>
-        <span className="t-mono min-w-0 truncate text-[10.5px] text-ink-3" title={provenance}>
-          {provenance}
-        </span>
-      </span>
+      )}
     </Link>
   );
 }

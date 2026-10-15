@@ -36,6 +36,14 @@ export function CountUp({
   // Before first paint on the client, drop to zero so the roll-up is visible.
   // useLayoutEffect (not useEffect) so this happens before the browser paints
   // and there is no flash of the final number.
+  //
+  // Only when the figure is actually on screen: zeroing an off-screen figure
+  // painted 0 into every hydrated frame the reader had not scrolled to yet
+  // (and into full-page screenshots), which is exactly the "the HTML is real
+  // but the page shows zero" defect this component exists to avoid. Off
+  // screen, the true value stays rendered; the observer below drops it to
+  // zero at the moment the animation starts, so the roll-up is unchanged for
+  // anyone who looks at it.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -46,7 +54,9 @@ export function CountUp({
       setDisplay(value);
       return;
     }
-    setDisplay(0);
+    const rect = el.getBoundingClientRect();
+    const onScreen = rect.top < window.innerHeight && rect.bottom > 0;
+    setDisplay(onScreen ? 0 : value);
   }, [value]);
 
   useEffect(() => {
@@ -76,6 +86,9 @@ export function CountUp({
         for (const entry of entries) {
           if (entry.isIntersecting && !started.current) {
             started.current = true;
+            // The roll-up starts here, in view: drop to zero and animate up
+            // from it. Off-screen figures kept the true value until now.
+            setDisplay(0);
             raf = requestAnimationFrame(run);
             observer.disconnect();
           }

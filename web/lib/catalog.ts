@@ -50,6 +50,20 @@ export function kindLabel(kind: string): string {
   }
 }
 
+/** The plural form, for a sentence that covers a whole shelf or result set. */
+export function kindPlural(kind: string): string {
+  switch (kind) {
+    case "mcp":
+      return "MCP servers";
+    case "skill":
+      return "agent skills";
+    case "plugin":
+      return "plugins";
+    default:
+      return kind;
+  }
+}
+
 /**
  * Sort modes are limited to axes the data actually carries.
  *
@@ -57,11 +71,17 @@ export function kindLabel(kind: string): string {
  * upstream sources do not expose them) and carries no publish timestamps, so
  * both modes were ordering by nothing while their labels claimed otherwise.
  *
- * "curated" is the default, and it is the only order this catalog can honestly
- * put first. "installable first" was the old default: true, but useless as a
- * front door, because the block of installable rows it led with is ordered by
- * name and that opened the catalog on `00Widget`. Curated orders by three
- * facts the dataset carries and the reader can check on any row:
+ * "relevance" is the search order: the match class the index recorded for each
+ * posting (exact name, name prefix, name token, publisher, slug, summary or
+ * tool text, catalog id), then the row's own signals. It only means anything
+ * over rows a search already ranked — `sortListings` preserves the order it is
+ * handed — and Explore uses it as the default while a query is active.
+ *
+ * "curated" is the browse default, and it is the only order this catalog can
+ * honestly put first. "installable first" was the old default: true, but
+ * useless as a front door, because the block of installable rows it led with
+ * is ordered by name and that opened the catalog on `00Widget`. Curated orders
+ * by three facts the dataset carries and the reader can check on any row:
  *
  *   1. skills the publisher itself ships (the upstream "Official Skills by"
  *      section),
@@ -72,13 +92,13 @@ export function kindLabel(kind: string): string {
  * stated in the UI next to the control, and every step of it is a field the
  * reader can see on the row's own page.
  */
-export type SortMode = "curated" | "installable" | "index" | "name" | "publisher";
+export type SortMode = "relevance" | "curated" | "installable" | "index" | "name" | "publisher";
 
 export const DEFAULT_SORT: SortMode = "curated";
 
 /** The default order's rule, stated once in the UI where the sort control is. */
 export const CURATED_NOTE =
-  "Official publisher skills first, then rows read from publisher manifests, then rows that install.";
+  "Curated first ranks rows by facts this catalog carries — never by popularity, which it does not publish: the upstream directory's “Official Skills by …” section first, then rows read from the publisher's own manifest, then rows LiteSPM can install.";
 
 /** How strongly the curated order prefers a row. Higher sorts first. */
 export function curatedScore(item: Listing): number {
@@ -105,6 +125,11 @@ function nameKey(name: string): string {
 
 export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[] {
   const copy = [...items];
+  if (mode === "relevance") {
+    // The caller's order *is* the relevance order — `useCatalogSearch` returns
+    // results in the index's ranking — so this mode only freezes it.
+    return copy;
+  }
   if (mode === "name") {
     return copy.sort((a, b) => nameKey(a.name).localeCompare(nameKey(b.name)));
   }
@@ -132,6 +157,39 @@ export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[]
   // "index" is the builder's own order: verified publishers first, then kind,
   // then name. Deterministic and identical to the release artifact.
   return copy;
+}
+
+/**
+ * A stable partition: rows that work with one of `agentNames` first, the rest
+ * after, each group keeping the order it arrived in.
+ *
+ * Compatibility here is exactly what `hostsFor` derives, no stronger: every
+ * MCP server works with every bridge adapter and every skill with every skill
+ * target, because that is a property of the kind; only plugins carry their own
+ * `compatibleHosts` list. That is the only compatibility data this catalog
+ * has, so it is the only data used — no per-row host field is invented.
+ *
+ * More than one spelling is accepted because one agent answers to several:
+ * an MCP row names the bridge adapter ("OpenAI Codex") while a plugin row
+ * declares the directory name ("Codex"), and the reader picked one agent, not
+ * two. Used as a ranking *preference* over an already-ranked result list (the
+ * reader's agent first, everything else still present below), never as a
+ * second filter. An explicit sort choice is not overridden by it.
+ */
+export function sortByCompatibility<T extends Listing>(
+  items: T[],
+  agentNames: readonly string[] | null
+): T[] {
+  if (!agentNames || agentNames.length === 0) return [...items];
+  const wanted = new Set(agentNames.map((name) => name.trim().toLowerCase()).filter(Boolean));
+  if (wanted.size === 0) return [...items];
+  const compatible: T[] = [];
+  const rest: T[] = [];
+  for (const item of items) {
+    const works = hostsFor(item).some((host) => wanted.has(host.toLowerCase()));
+    (works ? compatible : rest).push(item);
+  }
+  return [...compatible, ...rest];
 }
 
 /** Distinct agents this catalog can install into, with compatible package counts. */

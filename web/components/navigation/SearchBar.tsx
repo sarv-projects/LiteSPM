@@ -126,8 +126,8 @@ export function SearchBar({
     <div className={className}>
       <form action="/explore/" method="get" onSubmit={onSubmit}>
         <label htmlFor={labelId} className="sr-only">
-          Search the capability catalog by name, summary, publisher, category, runtime, transport or
-          tool name
+          Search the capability catalog by name, summary, publisher, category, runtime, transport,
+          tool name or catalog id
         </label>
         {/*
           The search field is the primary control on the site, so it keeps the

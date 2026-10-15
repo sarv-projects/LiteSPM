@@ -10,6 +10,7 @@ import {
   sortListings,
   DEFAULT_SORT,
 } from "../../lib/catalog";
+import { taxonomyFacets } from "../../lib/taxonomy";
 import type { ExploreViewProps } from "./ExploreView";
 import type { Metadata } from "next";
 import ExploreRoute from "./ExploreRoute";
@@ -17,7 +18,7 @@ import ExploreRoute from "./ExploreRoute";
 export const metadata: Metadata = {
   title: "Explore the catalog",
   description:
-    "Search the whole catalog snapshot by name, summary, publisher, category, runtime, transport or tool name, and filter to what installs into the agent you actually use.",
+    "Search the whole catalog snapshot by name, summary, publisher, category, runtime, transport or tool name, filter by task-shaped goal or the source's own category, and narrow to what installs into the agent you actually use.",
   alternates: { canonical: "/explore/" },
   openGraph: { title: "Explore the catalog · LiteSPM Market", url: "/explore/" },
 };
@@ -39,6 +40,13 @@ export default function ExplorePage() {
     total: items.length,
     kindCounts: deriveKindCounts(items),
     categories: categoryFacets(items, 200),
+    // The editorial goal facets, from the same rules the browser re-runs over
+    // the fetched rows (`lib/taxonomy`), so the two cannot disagree.
+    goals: taxonomyFacets(items).map((facet) => ({
+      id: facet.id,
+      label: facet.label,
+      count: facet.count,
+    })),
     agents: agentFacets(items),
     hostCount: hostUniverse(items).length,
     // Sorted with the same function and the same default the browser uses, so

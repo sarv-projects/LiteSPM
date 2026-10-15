@@ -16,9 +16,16 @@ import { SITE_URL } from "../../lib/site";
 import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice, rowWorksWithAgent } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { AddSteps, scrollToSection } from "../../components/package/AddSteps";
+import { PlainSummary } from "../../components/package/PlainSummary";
+import { TryItPrompts } from "../../components/package/TryItPrompts";
 import { PackageTabs } from "../../components/package/PackageTabs";
 import type { PackageTabId } from "../../components/package/PackageTabs";
 import { categoryLabel } from "../categories/categoryLabel";
+import {
+  clampMeta,
+  entryBreadcrumbJsonLd,
+  entryJsonLd,
+} from "../../lib/packageEntries";
 
 /** Same key the home strip writes; one preference, one storage slot. */
 
@@ -45,6 +52,20 @@ export interface PackageViewProps {
    * the page answers it without a request instead of a guaranteed 404.
    */
   siblingCategories: string[];
+  /**
+   * The entry, resolved at build time. Present only on the pre-rendered
+   * `/package/<key>/` pages: it makes the server-rendered HTML carry the
+   * entry's own facts (and its metadata) instead of the generic shell, and it
+   * tells the view that no bucket fetch is needed. The `/package/` route
+   * leaves it unset and keeps resolving `?slug=` in the browser.
+   */
+  initialItem?: Listing;
+  /**
+   * Whole-snapshot counts. The server pages compute these from the full row
+   * set at build time; without them the view falls back to the bucket payload
+   * (or zeros on a page that never fetched).
+   */
+  snapshot?: { total: number; versioned: number };
 }
 
 /**
@@ -229,15 +250,6 @@ function useSlugParam(): { slug: string | null; resolved: boolean } {
   return state;
 }
 
-/** Meta descriptions are truncated by search engines and previews around 155
- *  characters; cutting at a word boundary beats a hard slice mid-word. */
-function clamp(text: string, max = 155): string {
-  if (text.length <= max) return text;
-  const cut = text.slice(0, max);
-  const space = cut.lastIndexOf(" ");
-  return `${(space > 60 ? cut.slice(0, space) : cut).replace(/[,;:.]$/, "")}…`;
-}
-
 /**
  * Rewrite one `<meta property="…">` and return a restore function. The tag is
  * written by the layout's `openGraph` block, so it is edited in place and put
@@ -254,16 +266,27 @@ function setMetaProperty(property: string, content: string): () => void {
   };
 }
 
-function PackageContent({ total, hostTotal, indexRows, siblingCategories }: PackageViewProps) {
+function PackageContent({
+  total,
+  hostTotal,
+  indexRows,
+  siblingCategories,
+  initialItem,
+  snapshot: snapshotProp,
+}: PackageViewProps) {
   const { slug, resolved } = useSlugParam();
   // One product row, two counts and the sibling list come from ~170 KB of
   // hash-partitioned rows rather than the 44.5 MB full catalog this route used
-  // to concatenate on every visit.
-  const { status, payload, retry } = useProductRow(slug);
+  // to concatenate on every visit. A pre-rendered page already has its row, so
+  // it asks for nothing.
+  const { status, payload, retry } = useProductRow(initialItem ? null : slug);
   // The same lookup the full set used: ids always resolve, ambiguous slugs are
   // not registered. Only the input shrank from 69,376 rows to ~270.
   const lookup = useMemo(() => (payload ? buildLookup(payload.rows) : null), [payload]);
-  const item = useMemo(() => (slug && lookup ? lookup.get(slug) ?? null : null), [slug, lookup]);
+  const item = useMemo(
+    () => initialItem ?? (slug && lookup ? lookup.get(slug) ?? null : null),
+    [initialItem, slug, lookup]
+  );
 
   // The agent preference. Reading it is enough to personalize the page;
   // changing it writes the same `litespm-agent` key the home strip uses and
@@ -293,17 +316,14 @@ function PackageContent({ total, hostTotal, indexRows, siblingCategories }: Pack
   const [tab, setTab] = useState<PackageTabId>("overview");
 
   // Version coverage over the loaded row set — a count only because this route
-  // has the rows in memory once a slug resolved.
-  // The bucket carries the whole-snapshot counts, so this stays a real count
-  // without the page holding 69,376 rows to derive it.
+  // has the rows in memory once a slug resolved. The pre-rendered pages pass
+  // the same whole-snapshot counts their server page computed from the full
+  // row set, so a page that never fetches a bucket still reports a real count.
   const snapshot = useMemo(
-    () => payload?.counts ?? { total: 0, versioned: 0 },
-    [payload]
+    () => snapshotProp ?? payload?.counts ?? { total: 0, versioned: 0 },
+    [snapshotProp, payload]
   );
 
-  // Pre-hydration, and when the route is visited bare, we cannot know which
-  // entry is wanted. Both cases get the route index: a described frame with
-  // real links, not a spinner and not a false "not found".
   /**
    * The tab, the history entry and any bookmark read `document.title`, and
    * every product page shipped the site's generic one — so browsing ten
@@ -319,12 +339,11 @@ function PackageContent({ total, hostTotal, indexRows, siblingCategories }: Pack
    *
    * Client-side only, and not dressed up as more than it is: this fixes what
    * the reader sees, not what a crawler or a link preview fetches before any
-   * script runs. Those need HTML rendered per entry, which the static export
-   * cannot produce — 69,376 pages against Cloudflare Pages' 20,000-file
-   * deployment cap (100,000 on a paid plan, at roughly 2 GB of HTML). The real
-   * fix for previews is per-slug server rendering, which contradicts this
-   * site's documented static-only architecture, so it is a decision rather
-   * than a patch.
+   * script runs. For the bounded set of entries that have one, that is what
+   * `/package/<key>/` is for: a real pre-rendered page with its own title,
+   * description, canonical and JSON-LD. This effect still runs there (and
+   * rewrites the same values it already shipped), and it is still the only
+   * per-entry metadata the client-resolved pages can offer.
    */
   const docTitle = item?.name ?? null;
   const docSummary = item?.summary ?? null;
@@ -335,7 +354,7 @@ function PackageContent({ total, hostTotal, indexRows, siblingCategories }: Pack
     const restoreOgTitle = setMetaProperty("og:title", `${docTitle} · LiteSPM Market`);
     const restoreOgDescription = setMetaProperty(
       "og:description",
-      clamp(
+      clampMeta(
         docSummary?.trim() ||
           `${docTitle} from the LiteSPM catalog: what it is, which agent hosts it works with, and how to add it.`
       )
@@ -381,7 +400,11 @@ function PackageContent({ total, hostTotal, indexRows, siblingCategories }: Pack
     };
   }, [missing]);
 
-  if (!resolved || !slug) {
+  if (!item && (!resolved || !slug)) {
+    // Pre-hydration, and when the route is visited bare, we cannot know which
+    // entry is wanted. Both cases get the route index: a described frame with
+    // real links, not a spinner and not a false "not found". A pre-rendered
+    // page never takes this branch — its entry arrived with the HTML.
     return (
       <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
         <Header />
@@ -439,51 +462,30 @@ function PackageContent({ total, hostTotal, indexRows, siblingCategories }: Pack
   const worksWith = rowWorksWithAgent(item, agent);
   const avail = availabilityOf(item);
 
-  // Rendered client-side because the entry is keyed off `?slug=`. Every field
-  // here comes straight from the bundled record; nothing is inferred.
-  const breadcrumb = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Index", item: `${SITE_URL}/` },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: kindLabel(item.kind) + "s",
-        item: `${SITE_URL}/explore/?kind=${item.kind}`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: categoryLabel(item.category),
-        item: `${SITE_URL}/explore/?category=${encodeURIComponent(item.category)}`,
-      },
-      { "@type": "ListItem", position: 4, name: item.name },
-    ],
-  };
-
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareSourceCode",
-    name: item.name,
-    description: item.summary,
-    url: `${SITE_URL}${listingHref(item)}`,
-    version: item.version || undefined,
-    author: { "@type": "Organization", name: item.publisher?.name || "Unknown" },
-    ...(item.publisher?.url ? { sameAs: item.publisher.url } : {}),
-  };
+  // Emitted by the client only on the client-resolved route. A pre-rendered
+  // `/package/<key>/` page carries the same structured data in its own HTML
+  // (from the server page), and rendering it here as well would put two
+  // SoftwareApplication blocks for one entry in the document.
+  const jsonLd = entryJsonLd(
+    item,
+    `${SITE_URL}${listingHref(item)}`,
+    categoryLabel(item.category)
+  );
+  const breadcrumb = entryBreadcrumbJsonLd(item, SITE_URL, categoryLabel(item.category));
 
   /** Question two — plain first, exact fields one disclosure deeper. */
   return (
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
       <Header />
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify([jsonLd, breadcrumb]).replace(/</g, "\\u003c"),
-        }}
-      />
+      {!initialItem && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify([jsonLd, breadcrumb]).replace(/</g, "\\u003c"),
+          }}
+        />
+      )}
 
       <nav aria-label="Breadcrumb" className="border-b border-rule bg-sunken">
         {/* Each separator lives inside the item it follows: an `<ol>` may only
@@ -575,6 +577,24 @@ function PackageContent({ total, hostTotal, indexRows, siblingCategories }: Pack
             <p className="mt-2.5 max-w-prose text-[14px] leading-relaxed text-ink-2">{item.summary}</p>
           </header>
 
+          {/* ---- 1b. The short version -------------------------------- */}
+          {/*
+           * The plain layer (ARCH/25 §7.1: "nontechnical text is the default;
+           * the technical layer sits behind disclosure"). The header above
+           * states the identity; this block answers the five questions a
+           * non-developer arrives with, each pointing at the tab that holds
+           * the exact field. It sits before the action so a reader knows what
+           * they are looking at before being told how to add it.
+           */}
+          <PlainSummary
+            item={item}
+            hostTotal={hostTotal}
+            onOpenTab={(nextTab) => {
+              setTab(nextTab);
+              scrollToSection("pkg-details");
+            }}
+          />
+
           {/* ---- 2. How do I add it? ----------------------------------- */}
           {/*
            * The action comes second, immediately after "what is this?".
@@ -594,6 +614,16 @@ function PackageContent({ total, hostTotal, indexRows, siblingCategories }: Pack
               onChooseAgent={() => scrollToSection("will-it-work")}
             />
           </div>
+
+          {/* ---- 2b. What to try once it's installed ------------------- */}
+          {/*
+           * Prompts come after the install panel because they only make sense
+           * after it: a non-developer who just installed the entry needs to
+           * know what to say next, and the record's own words are the only
+           * honest source for that (see lib/tryPrompts). Nothing renders for
+           * entries the CLI cannot install.
+           */}
+          <TryItPrompts item={item} />
 
           {/* ---- 3. Will it work with what I use? ---------------------- */}
           <section

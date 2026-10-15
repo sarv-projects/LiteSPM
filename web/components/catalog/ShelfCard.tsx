@@ -34,9 +34,26 @@ export interface ShelfCardProps {
   item: Listing;
   /** Chosen in the "What do you use?" strip; renders the Works-with chip. */
   agent?: AgentChoice | null;
+  /**
+   * Constant-value suppression, computed by `Shelves` over the whole shelf:
+   * a chip or meta word that is identical on every card of a shelf tells the
+   * reader nothing per card, so it is stated once in the shelf's own line
+   * instead. The accessible name below still carries every value.
+   */
+  omitKind?: boolean;
+  omitSignal?: boolean;
+  omitCategory?: boolean;
+  omitWorksWith?: boolean;
 }
 
-export function ShelfCard({ item, agent }: ShelfCardProps) {
+export function ShelfCard({
+  item,
+  agent,
+  omitKind = false,
+  omitSignal = false,
+  omitCategory = false,
+  omitWorksWith = false,
+}: ShelfCardProps) {
   const signal = rowSignal(item);
   const worksWith = rowWorksWithAgent(item, agent ?? null);
   const detail = [
@@ -48,6 +65,19 @@ export function ShelfCard({ item, agent }: ShelfCardProps) {
     .filter((part): part is string => Boolean(part))
     .map((part) => part.replace(/\.+$/, ""))
     .join(". ");
+
+  const meta = [
+    item.publisher?.name || "publisher unspecified",
+    omitKind ? null : kindLabel(item.kind),
+    omitCategory ? null : categoryLabel(item.category),
+  ].filter((part): part is string => Boolean(part));
+
+  const showSignal = !omitSignal;
+  const showWorks = !omitWorksWith && Boolean(agent && agent.hosts.length > 0);
+  const showKind = !omitKind;
+  // The trailing chip is pushed to the right edge; when the signal chip is
+  // omitted (constant across the shelf) the works chip takes that slot.
+  const firstTrailing = showSignal ? "signal" : showWorks ? "works" : null;
 
   return (
     <DiscoveryCard as="li" interactive className="h-full">
@@ -65,10 +95,7 @@ export function ShelfCard({ item, agent }: ShelfCardProps) {
               {item.name}
             </Link>
           </h3>
-          <p className="mt-0.5 truncate text-[11.5px] text-ink-3">
-            {item.publisher?.name || "publisher unspecified"} · {kindLabel(item.kind)} ·{" "}
-            {categoryLabel(item.category)}
-          </p>
+          <p className="mt-0.5 truncate text-[11.5px] text-ink-3">{meta.join(" · ")}</p>
         </div>
       </div>
 
@@ -78,40 +105,44 @@ export function ShelfCard({ item, agent }: ShelfCardProps) {
         {item.summary || "No summary was published for this entry."}
       </p>
 
-      <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-3">
-        <span className={`meta-kind meta-kind-${item.kind}`}>{kindLabel(item.kind)}</span>
-        <span
-          className={`ml-auto inline-flex shrink-0 items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
-            signal.tier === "official"
-              ? "border-accent/40 bg-accent-wash text-accent-text"
-              : signal.tier === "installable"
-                ? "border-rule-2 bg-surface text-ink-2"
-                : "border-dashed border-ink-3 bg-sunken text-ink-3"
-          }`}
-          title={signal.note}
-        >
-          {signal.label}
-        </span>
-        {agent && agent.hosts.length > 0 && (
-          <span
-            className={`inline-flex min-w-0 items-center gap-1 truncate rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
-              worksWith
-                ? "border-accent/40 bg-accent-wash text-accent-text"
-                : "border-rule bg-sunken text-ink-3"
-            }`}
-            title={
-              worksWith
-                ? "Installs into this agent, from the adapter registries or the publisher's own list. Not a test result."
-                : "This entry does not declare that agent among its compatible hosts."
-            }
-          >
-            {worksWith && <Check className="h-3 w-3 shrink-0" aria-hidden="true" />}
-            <span className="truncate">
-              {worksWith ? `Works with ${agent.label}` : `Not declared for ${agent.label}`}
+      {(showKind || showSignal || showWorks) && (
+        <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-3">
+          {showKind && <span className={`meta-kind meta-kind-${item.kind}`}>{kindLabel(item.kind)}</span>}
+          {showSignal && (
+            <span
+              className={`${firstTrailing === "signal" ? "ml-auto " : ""}inline-flex shrink-0 items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
+                signal.tier === "official"
+                  ? "border-accent/40 bg-accent-wash text-accent-text"
+                  : signal.tier === "installable"
+                    ? "border-rule-2 bg-surface text-ink-2"
+                    : "border-dashed border-ink-3 bg-sunken text-ink-3"
+              }`}
+              title={signal.note}
+            >
+              {signal.label}
             </span>
-          </span>
-        )}
-      </div>
+          )}
+          {showWorks && agent && (
+            <span
+              className={`${firstTrailing === "works" ? "ml-auto " : ""}inline-flex min-w-0 items-center gap-1 truncate rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
+                worksWith
+                  ? "border-accent/40 bg-accent-wash text-accent-text"
+                  : "border-rule bg-sunken text-ink-3"
+              }`}
+              title={
+                worksWith
+                  ? "Installs into this agent, from the adapter registries or the publisher's own list. Not a test result."
+                  : "This entry does not declare that agent among its compatible hosts."
+              }
+            >
+              {worksWith && <Check className="h-3 w-3 shrink-0" aria-hidden="true" />}
+              <span className="truncate">
+                {worksWith ? `Works with ${agent.label}` : `Not declared for ${agent.label}`}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
     </DiscoveryCard>
   );
 }

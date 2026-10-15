@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
 import { availabilityOf } from "../../lib/availability";
 import { TabList } from "../ui/TabList";
 import { CopyButton } from "./CopyButton";
+import { DarkCmd } from "./DarkCmd";
+import { ManageInstall, installMarkKey } from "./ManageInstall";
 import { ManualSetup } from "./ManualSetup";
 
 const INSTALL_COMMAND_PREFIX = "litespm install ";
@@ -39,18 +41,8 @@ export function scrollToSection(id: string): void {
   el.focus({ preventScroll: true });
 }
 
-/** A command line on the dark surface: monospaced, selectable, copyable. */
-function DarkCmd({ text, label, message }: { text: string; label: string; message: string }) {
-  return (
-    <div className="mt-2 flex items-center gap-2 border border-dark-rule bg-dark-2 px-3 py-2.5">
-      <span className="t-mono shrink-0 text-[12px] text-dark-ink-2" aria-hidden="true">
-        $
-      </span>
-      <code className="t-mono min-w-0 flex-1 break-all text-[12px] text-dark-ink select-all">{text}</code>
-      <CopyButton text={text} label={label} message={message} />
-    </div>
-  );
-}
+/** A command line on the dark surface now lives in `./DarkCmd`, shared with
+ *  the management panel. */
 
 export interface AddStepsProps {
   item: Listing;
@@ -102,6 +94,52 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
   const avail = availabilityOf(item);
 
   /**
+   * The install → manage transition (VS Code's extension button, as far as a
+   * static page can honestly take it).
+   *
+   * Once the reader says the install ran, the panel's primary state becomes
+   * management instead of installation: the guided flow collapses and the
+   * management panel (`ManageInstall`) opens with the exact CLI commands and a
+   * bridge prompt that can read the real ledger. The mark is read from
+   * localStorage after mount — never during render — so the pre-rendered HTML
+   * and the first client frame agree, and it is explicitly a note to self, not
+   * a claim that anything was installed. The page cannot read LiteSPM's
+   * ledger, so it does not pretend to; `ManageInstall` says why.
+   */
+  const [marked, setMarked] = useState(false);
+  const [showSteps, setShowSteps] = useState(false);
+  useEffect(() => {
+    try {
+      setMarked(Boolean(window.localStorage.getItem(installMarkKey(item.id))));
+    } catch {
+      // Storage can be unavailable (private mode, policy); the panel still
+      // works, it just cannot remember the choice.
+    }
+  }, [item.id]);
+
+  const markInstalled = () => {
+    try {
+      window.localStorage.setItem(installMarkKey(item.id), String(Date.now()));
+    } catch {
+      /* best-effort, same as the agent preference */
+    }
+    setMarked(true);
+    setShowSteps(false);
+    window.requestAnimationFrame(() => scrollToSection("pkg-manage"));
+  };
+
+  const clearMark = () => {
+    try {
+      window.localStorage.removeItem(installMarkKey(item.id));
+    } catch {
+      /* best-effort */
+    }
+    setMarked(false);
+    setShowSteps(false);
+  };
+
+
+  /**
    * The prompt the Prompt tab copies. Every instruction in it is a thing the
    * binary actually does, in the order it does them: `prepare_install` returns
    * a plan carrying its own `planId`, a person runs `litespm approve <planId>`
@@ -146,13 +184,34 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
       <div className="section-head">
         <h2 id="pkg-add-title">How do I add it?</h2>
         <span className="section-note">
-          {liteSPMInstallable ? "three steps, or one prompt" : "install status"}
+          {liteSPMInstallable
+            ? marked
+              ? "manage the install"
+              : "three steps, or one prompt"
+            : "install status"}
         </span>
       </div>
 
       <div className="on-dark panel-dark mt-3">
         {/* ---- state: what this page can actually know ---- */}
-        {!liteSPMInstallable ? (
+        {liteSPMInstallable && marked ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-dark-rule pb-3.5">
+            <p className="flex min-w-0 items-start gap-2 text-[13px] leading-relaxed text-dark-ink">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-dark-signal" aria-hidden="true" />
+              <span>
+                You marked this as installed in this browser. LiteSPM&rsquo;s own ledger, on your
+                machine, is the source of truth — this page can&rsquo;t read it.
+              </span>
+            </p>
+            <button
+              type="button"
+              className="btn shrink-0"
+              onClick={() => setShowSteps((shown) => !shown)}
+            >
+              {showSteps ? "Hide the install steps" : "Show the install steps"}
+            </button>
+          </div>
+        ) : !liteSPMInstallable ? (
           <p className="border-b border-dark-rule pb-3.5 text-[13px] leading-relaxed text-dark-ink">
             {item.kind === "plugin" && installabilityEstablished ? (
               <>
@@ -207,8 +266,9 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
           </div>
         )}
 
-        {/* ---- the guided flow is shown only for entries the CLI can install ---- */}
-        {liteSPMInstallable && (
+        {/* ---- the guided flow is shown only for entries the CLI can install,
+             and collapses once the reader has marked the install as run ---- */}
+        {liteSPMInstallable && (!marked || showSteps) && (
           <>
             <TabList
               tabs={MODES}
@@ -358,6 +418,20 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                 {avail.plain}
               </p>
             </div>
+
+            {/* The install → manage hand-off. It appears under both routes, so
+                whichever way the reader installed, the next step is the same
+                button. It is not "Mark as installed": the page cannot know
+                that, and the wording says exactly what the click does. */}
+            <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-dark-rule pt-3.5">
+              <button type="button" className="btn btn-solid" onClick={markInstalled}>
+                I ran this — show me how to manage it
+              </button>
+              <p className="max-w-prose text-[12px] leading-relaxed text-dark-ink-2">
+                This doesn&rsquo;t check your machine. It switches this page to its management
+                view and remembers the choice in this browser only.
+              </p>
+            </div>
           </>
         )}
 
@@ -387,6 +461,8 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
           is static, and catalog installability is not a local check.
         </p>
       </div>
+
+      {liteSPMInstallable && marked && <ManageInstall item={item} onClear={clearMark} />}
 
       <ManualSetup />
     </section>

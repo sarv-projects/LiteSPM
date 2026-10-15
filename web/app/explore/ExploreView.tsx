@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import Link from "next/link";
+import { RotateCw, X } from "lucide-react";
 import { Header } from "../../components/navigation/Header";
 import { SearchBar } from "../../components/navigation/SearchBar";
 import { ExtensionGrid } from "../../components/catalog/ExtensionGrid";
@@ -17,23 +18,41 @@ import {
   hostUniverse,
   isInstallable,
   kindLabel,
+  listingHref,
   matchesHost,
   matchesSource,
+  OFFICIAL_SKILLS_CATEGORY,
+  sortByCompatibility,
   sortListings,
   DEFAULT_SORT,
   SortMode,
 } from "../../lib/catalog";
+import { availabilityOf } from "../../lib/availability";
+import {
+  explainMatch,
+  MATCH_BODY,
+  MATCH_ID,
+  MATCH_NAME_EXACT,
+  MATCH_NAME_PREFIX,
+  MATCH_NAME_TOKEN,
+  MATCH_PUBLISHER,
+  MATCH_SLUG,
+} from "../../lib/searchFormat.mjs";
 import { formatCount } from "../../lib/format";
+import { classifyListing, taxonomyFacets } from "../../lib/taxonomy";
 import { AGENT_STORAGE_KEY, findAgentChoice, sourceLabel } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { categoryLabel } from "../categories/categoryLabel";
 
 const KINDS = ["all", "mcp", "skill", "plugin"] as const;
 const SORTS: Array<{ id: SortMode; label: string }> = [
-  // Default first: curated is the front door — official publisher skills,
-  // then rows read from publisher manifests, then what installs. "Installable
-  // first" stays as an explicit choice, and "Catalog order" reaches every row
-  // in the release artifact's own order.
+  // "Best match" is the order the search itself produces: the field the query
+  // matched in (exact name, name prefix, a name word, publisher, slug,
+  // summary/tools, catalog id), then installability, publisher-manifest
+  // verified, and the upstream official-skills classification. "Curated first"
+  // stays the browse default and stays selectable during a search; its rule is
+  // stated under the filter row whenever it is the active order.
+  { id: "relevance", label: "Best match" },
   { id: DEFAULT_SORT, label: "Curated first" },
   { id: "installable", label: "Installable first" },
   { id: "name", label: "Name A–Z" },
@@ -56,6 +75,8 @@ export interface ExploreViewProps {
   /** Per-kind totals for the kind rail, counted at build time — not fetched. */
   kindCounts: { all: number; mcp: number; skill: number; plugin: number };
   categories: Array<{ name: string; count: number }>;
+  /** The editorial goal facets (`lib/taxonomy`), largest first. */
+  goals: Array<{ id: string; label: string; count: number }>;
   agents: Array<{ name: string; slug: string; count: number }>;
   hostCount: number;
   gridRows: Listing[];
@@ -71,11 +92,17 @@ export interface ExploreViewProps {
  * A deep link that carries a filter is also the moment the full row set is
  * requested: the reader asked for a filtered view, so the fetch is not idle
  * speculation.
+ *
+ * `urlSortPinned` reports whether the URL named a sort explicitly. An explicit
+ * sort is the reader's order and is never second-guessed; the search default
+ * (`Best match` while a query is active) applies only when they have not
+ * chosen one.
  */
 function useQueryFilters(request: () => void) {
   const [filters, setFilters] = useState({
     query: "",
     kind: "all",
+    goal: "all",
     category: "all",
     agent: "all",
     source: "",
@@ -83,6 +110,7 @@ function useQueryFilters(request: () => void) {
     installableOnly: false,
     sort: DEFAULT_SORT,
   });
+  const [urlSortPinned, setUrlSortPinned] = useState(false);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -90,6 +118,7 @@ function useQueryFilters(request: () => void) {
     const next = {
       query: p.get("q") ?? "",
       kind: KINDS_SET.has(p.get("kind") ?? "") ? (p.get("kind") as string) : "all",
+      goal: p.get("goal") ?? "",
       category: p.get("category") ?? "",
       agent: p.get("host") ?? "",
       source: p.get("source") ?? "",
@@ -100,6 +129,7 @@ function useQueryFilters(request: () => void) {
     const seeded =
       next.query !== "" ||
       next.kind !== "all" ||
+      next.goal !== "" ||
       next.category !== "" ||
       next.agent !== "" ||
       next.source !== "" ||
@@ -109,6 +139,7 @@ function useQueryFilters(request: () => void) {
     setFilters({
       query: next.query,
       kind: next.kind,
+      goal: next.goal || "all",
       category: next.category || "all",
       agent: next.agent || "all",
       source: next.source,
@@ -116,16 +147,195 @@ function useQueryFilters(request: () => void) {
       installableOnly: next.installableOnly,
       sort: next.sort,
     });
+    setUrlSortPinned(sort !== "");
     if (seeded) request();
   }, [request]);
 
-  return [filters, setFilters] as const;
+  return [filters, setFilters, urlSortPinned] as const;
+}
+
+/** Human names for the fields `explainMatch` reports. */
+const EXPLAIN_FIELD_LABELS: Record<string, string> = {
+  name: "name",
+  publisher: "publisher",
+  slug: "slug",
+  summary: "summary",
+  category: "category",
+  runtime: "runtime",
+  transport: "transport",
+  id: "catalog id",
+  tool: "tool name or description",
+};
+
+/** The class behind each explanation, in words. */
+const EXPLAIN_CLASS_LABELS: Record<number, string> = {
+  [MATCH_NAME_EXACT]: "exact name",
+  [MATCH_NAME_PREFIX]: "name starts with the query",
+  [MATCH_NAME_TOKEN]: "name word",
+  [MATCH_PUBLISHER]: "publisher name",
+  [MATCH_SLUG]: "slug",
+  [MATCH_BODY]: "summary or tool text",
+  [MATCH_ID]: "catalog id — the lowest class",
+};
+
+/**
+ * Why the leading results are the leading results.
+ *
+ * The result cards themselves are shared with other surfaces and carry no
+ * per-query explanation, so the evidence for the *ordering* lives here, above
+ * the grid: each of the first results, the field the query was found in, the
+ * fragment around the match, and the class that rank came from. The rule line
+ * states the whole order, so the explanation also covers the rows further down
+ * without a sentence per row.
+ */
+function MatchExplanationPanel({
+  entries,
+  host,
+}: {
+  entries: Array<{ item: Listing; reason: ReturnType<typeof explainMatch> }>;
+  host: string | null;
+}) {
+  return (
+    <details open className="mt-4 border border-rule bg-sunken px-4 py-3">
+      <summary className="cursor-pointer text-[13px] font-medium text-ink">
+        Why these results?
+      </summary>
+      <p className="mt-2 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
+        Results are ordered by where the query matched: an exact name first, then a name that
+        starts with it, a word inside the name, the publisher, the slug, the summary or tool text,
+        and last the catalog id — registry names like{" "}
+        <span className="t-mono text-[11.5px]">io.github.…</span> are identifiers, not content.
+        Equal match classes break on what can be installed, whether the row comes from the
+        publisher's own manifest, and the upstream directory's official-skills classification.
+        {host && (
+          <>
+            {" "}
+            Rows that work with <strong className="font-medium text-ink">{host}</strong> are ranked
+            first.
+          </>
+        )}
+      </p>
+      <ol className="mt-3 space-y-1.5">
+        {entries.map(({ item, reason }, index) => (
+          <li key={item.id} className="flex flex-wrap items-baseline gap-x-1.5 text-[12.5px]">
+            <span className="t-mono t-tabular w-4 shrink-0 text-right text-[11px] text-ink-3">
+              {index + 1}
+            </span>
+            <Link
+              href={listingHref(item)}
+              className="font-medium text-ink hover:text-accent-text hover:underline"
+            >
+              {item.name}
+            </Link>
+            <span className="text-ink-3">—</span>
+            {reason ? (
+              reason.tokens.map((part, partIndex) => (
+                <React.Fragment key={`${part.token}-${partIndex}`}>
+                  {partIndex > 0 && <span className="text-ink-3">+</span>}
+                  <span className="text-ink-2">
+                    {EXPLAIN_FIELD_LABELS[part.field] ?? part.field}
+                    {part.fragment ? (
+                      <>
+                        {" “"}
+                        <span className="t-mono text-[11.5px]">
+                          {part.fragment.text.slice(0, part.fragment.start)}
+                          <mark className="bg-transparent font-semibold text-ink underline decoration-accent decoration-2 underline-offset-2">
+                            {part.fragment.text.slice(part.fragment.start, part.fragment.end)}
+                          </mark>
+                          {part.fragment.text.slice(part.fragment.end)}
+                        </span>
+                        {"”"}
+                      </>
+                    ) : (
+                      " (text the result view does not carry)"
+                    )}
+                  </span>
+                  <span className="text-ink-3">
+                    {EXPLAIN_CLASS_LABELS[part.className] ?? ""}
+                  </span>
+                </React.Fragment>
+              ))
+            ) : (
+              <span className="text-ink-3">matched</span>
+            )}
+            {/* Why this row beat the next one at the same class: the tie-break
+                signals, strongest first, exactly as the index weighed them. */}
+            <span className="t-mono text-[10.5px] text-ink-3">
+              {[
+                availabilityOf(item).installable ? "installable" : null,
+                item.publisher?.verified ? "publisher manifest" : null,
+                item.category === OFFICIAL_SKILLS_CATEGORY ? "official skills" : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-[11.5px] text-ink-3">
+        The same rule orders every result below; these are the first {entries.length}.
+      </p>
+    </details>
+  );
+}
+
+/**
+ * The full row set is being fetched for a search or filter. The grid cannot
+ * render yet — and must not print a count, because there is no measurement to
+ * print. (It used to fall back to the catalog total here, which read as
+ * “search returned everything” on a page that had not searched anything yet.)
+ */
+function ExploreSearchSkeleton() {
+  return (
+    <section className="shell pb-16">
+      <p className="sr-only" role="status">
+        Searching the catalog…
+      </p>
+      <ul aria-hidden="true" className="pt-px">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <li
+            key={i}
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule bg-surface py-3 pr-3"
+          >
+            <span className="self-stretch rounded-[1px] bg-rule" style={{ width: 3 }} />
+            <span className="h-7 w-7 shrink-0 rounded-[6px] border border-rule bg-sunken-2" />
+            <span className="min-w-0 flex-1 basis-[60%]">
+              <span className="block h-3.5 w-2/5 animate-pulse bg-sunken-2" />
+              <span className="mt-2 block h-2.5 w-2/3 animate-pulse bg-sunken" />
+              <span className="mt-2 block h-2.5 w-1/3 animate-pulse bg-sunken" />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** The row-set fetch failed before any count existed; say so, offer a retry. */
+function ExploreLoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <section className="shell pb-16">
+      <div className="border-b border-rule py-14">
+        <div className="flex max-w-prose flex-col items-start gap-3">
+          <RotateCw className="h-6 w-6 text-ink-3" aria-hidden="true" />
+          <h3 className="text-[15px] font-semibold">The catalog could not be loaded</h3>
+          <p className="text-[13px] text-ink-2">
+            Search and filtering need the full catalog, and that request failed. Nothing has been
+            searched yet, so this is not an empty result.
+          </p>
+          <button type="button" onClick={onRetry} className="btn btn-solid mt-2">
+            Try again
+          </button>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function ExploreContent(props: ExploreViewProps) {
   const { status, items: full, request } = useCatalog();
-  const [filters, setFilters] = useQueryFilters(request);
-  const { query, kind, category, agent, source, verifiedOnly, installableOnly, sort } = filters;
+  const [filters, setFilters, urlSortPinned] = useQueryFilters(request);
+  const { query, kind, goal, category, agent, source, verifiedOnly, installableOnly, sort } = filters;
 
   /**
    * `?focus=search` is what the header's search affordance deep-links to. It
@@ -160,6 +370,17 @@ function ExploreContent(props: ExploreViewProps) {
     if (p.get("focus") === "search") setFocusSearch(true);
   }, []);
 
+  /**
+   * The sort actually applied. Curated is the browse front door; while a query
+   * is active the search's own order (Best match) is the honest default,
+   * because relevance — not curation — is what a search result list promises.
+   * An explicit choice from the URL or the select always wins.
+   */
+  const [sortTouched, setSortTouched] = useState(false);
+  const sortPinned = sortTouched || urlSortPinned;
+  const effectiveSort: SortMode =
+    !sortPinned && query.trim() !== "" && sort === DEFAULT_SORT ? "relevance" : sort;
+
   const setQuery = (q: string) => {
     request();
     setFilters((f) => ({ ...f, query: q }));
@@ -167,6 +388,10 @@ function ExploreContent(props: ExploreViewProps) {
   const setKind = (k: string) => {
     request();
     setFilters((f) => ({ ...f, kind: k }));
+  };
+  const setGoal = (g: string) => {
+    request();
+    setFilters((f) => ({ ...f, goal: g }));
   };
   const setCategory = (c: string) => {
     request();
@@ -190,6 +415,7 @@ function ExploreContent(props: ExploreViewProps) {
   };
   const setSort = (s: SortMode) => {
     request();
+    setSortTouched(true);
     setFilters((f) => ({ ...f, sort: s }));
   };
 
@@ -201,6 +427,11 @@ function ExploreContent(props: ExploreViewProps) {
       total: full.length,
       kindCounts: deriveKindCounts(full),
       categories: categoryFacets(full, 200),
+      goals: taxonomyFacets(full).map((facet) => ({
+        id: facet.id,
+        label: facet.label,
+        count: facet.count,
+      })),
       agents: agentFacets(full),
       hostCount: hostUniverse(full).length,
     };
@@ -209,6 +440,7 @@ function ExploreContent(props: ExploreViewProps) {
   const total = live ? live.total : props.total;
   const kindCounts = live ? live.kindCounts : props.kindCounts;
   const categories = live ? live.categories : props.categories;
+  const goals = live ? live.goals : props.goals;
   const agents = live ? live.agents : props.agents;
   const hostCount = live ? live.hostCount : props.hostCount;
 
@@ -217,20 +449,64 @@ function ExploreContent(props: ExploreViewProps) {
     category: category === "all" ? null : category,
   });
 
+  /**
+   * The agent whose compatibility ranks first.
+   *
+   * A selected `Works with` value is the reader's explicit target. Otherwise
+   * the agent remembered from the home page is a ranking preference — it
+   * reorders results (compatible first, everything else still below), it never
+   * narrows them; narrowing stays the banner button's job. Compatibility comes
+   * from `hostsFor`: every MCP server works with every bridge adapter and every
+   * skill with every skill target (a property of the kind), and only plugins
+   * carry their own declared host list. That is the only compatibility data the
+   * catalog has, and the only data used. One agent answers to several host
+   * spellings (`OpenAI Codex` for the bridge, `Codex` for a plugin's own
+   * manifest), so the remembered agent ranks against all of them.
+   */
+  const rankAgent = useMemo(() => {
+    if (agent !== "all") return { names: [agent], label: agent };
+    if (!savedAgent || savedAgent.hosts.length === 0) return null;
+    const known = savedAgent.hosts.filter((h) => agents.some((a) => a.name === h));
+    if (known.length === 0) return null;
+    return { names: known, label: savedAgent.label };
+  }, [agent, savedAgent, agents]);
+
   const filtered = useMemo(() => {
     const scoped = results.filter((item) => {
+      // The editorial goal is filtered here, after the search, rather than
+      // inside `useCatalogSearch`: the search's index and ranking are not
+      // touched, and the goal is a property of the row's text that the same
+      // pure rule derives on both sides of the wire (`lib/taxonomy`).
+      if (goal !== "all" && classifyListing(item) !== goal) return false;
       if (agent !== "all" && !matchesHost(item, agent)) return false;
       if (source && !matchesSource(item, source)) return false;
       if (verifiedOnly && !item.publisher?.verified) return false;
       if (installableOnly && !isInstallable(item)) return false;
       return true;
     });
-    return sortListings(scoped, sort);
-  }, [results, agent, source, verifiedOnly, installableOnly, sort]);
+    const ordered = sortListings(scoped, effectiveSort);
+    // Compatibility is a ranking preference over the search order, not a
+    // filter and not an override of an explicitly chosen sort.
+    return effectiveSort === "relevance" ? sortByCompatibility(ordered, rankAgent?.names ?? null) : ordered;
+  }, [results, goal, agent, source, verifiedOnly, installableOnly, effectiveSort, rankAgent]);
+
+  /**
+   * Match evidence for the first results, computed from the hydrated rows with
+   * the same classifier the index was built from. Eight rows is enough to show
+   * the classes at work; the panel states the rule that covers the rest. Only
+   * shown under "Best match" — under an explicit sort the order is that sort's,
+   * and the curated note (or the sort's own label) is the explanation.
+   */
+  const explanation = useMemo(() => {
+    if (effectiveSort !== "relevance") return null;
+    if (!full || !deferredQuery || !settled || filtered.length === 0) return null;
+    return filtered.slice(0, 8).map((item) => ({ item, reason: explainMatch(item, deferredQuery) }));
+  }, [effectiveSort, full, deferredQuery, settled, filtered]);
 
   const hasFilters =
     query !== "" ||
     kind !== "all" ||
+    goal !== "all" ||
     category !== "all" ||
     agent !== "all" ||
     source !== "" ||
@@ -241,7 +517,13 @@ function ExploreContent(props: ExploreViewProps) {
   /** A filter that narrows the row set — the sort does not, and the query is
    *  not a filter for the grid's empty-state wording. */
   const narrowing =
-    kind !== "all" || category !== "all" || agent !== "all" || source !== "" || verifiedOnly || installableOnly;
+    kind !== "all" ||
+    goal !== "all" ||
+    category !== "all" ||
+    agent !== "all" ||
+    source !== "" ||
+    verifiedOnly ||
+    installableOnly;
 
   /**
    * Only offered when it would actually do something: no filter is set yet, the
@@ -256,16 +538,19 @@ function ExploreContent(props: ExploreViewProps) {
   // Same rule as Home: rows from the prerender until the dataset lands, an
   // empty set (skeleton) for a filter that has nothing to run against yet.
   const gridItems = full ? filtered : hasFilters ? [] : props.gridRows;
+  const gridPending = !full && hasFilters;
 
   const clear = () => {
     setQuery("");
     setKind("all");
+    setGoal("all");
     setCategory("all");
     setAgent("all");
     setSource("");
     setVerifiedOnly(false);
     setInstallableOnly(false);
-    setSort(DEFAULT_SORT);
+    setSortTouched(false);
+    setFilters((f) => ({ ...f, sort: DEFAULT_SORT }));
   };
 
   return (
@@ -280,9 +565,18 @@ function ExploreContent(props: ExploreViewProps) {
         <div className="shell pt-8">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <h1 className="text-[24px] font-semibold tracking-tight text-ink">Explore</h1>
+            {/*
+              The catalog total is labelled as the catalog total. It used to
+              read "{n} entries" beside the result count, which is two
+              "entries" numbers on one page with nothing saying which one the
+              search produced — a reviewer read it as "search returned
+              everything". The result count now appears exactly once, in the
+              results header below, and this line says "in catalog".
+            */}
             <p className="t-mono text-[11px] text-ink-3">
-              {formatCount(total)} entries · {formatCount(categories.length)} categories ·{" "}
-              {formatCount(hostCount)} agent hosts
+              {formatCount(total)} in catalog · {formatCount(goals.filter((g) => g.id !== "other").length)}{" "}
+              goals · {formatCount(categories.length)} source categories · {formatCount(hostCount)} agent
+              hosts
             </p>
           </div>
 
@@ -320,8 +614,11 @@ function ExploreContent(props: ExploreViewProps) {
             />
           </div>
 
-          {/* Filters are a single ruled row. Kind is segmented; category and
-              agent are selects because 63 and 9 options do not fit as chips. */}
+          {/* Filters are a single ruled row. Kind is segmented; goal, source
+              category and agent are selects because 12, 64 and 9 options do
+              not fit as chips. The goal is the editorial browse axis
+              (`lib/taxonomy`); the source category is the upstream label,
+              kept beside it as provenance rather than replaced. */}
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-rule py-3">
             <div
               className="flex items-center gap-0.5 border border-ink-3 bg-sunken p-0.5"
@@ -346,12 +643,12 @@ function ExploreContent(props: ExploreViewProps) {
                     />
                   )}
                   {k === "all" ? "All types" : kindLabel(k)}
-                  {/* Counts are whole-catalog figures, exactly like the
-                      Category and Works with selects below — never "matching
-                      your filters", which would take a per-filter derivation
-                      this rail does not have. Hidden under md: four counts
-                      make this rail wider than a phone, and the labels are
-                      what the control is for. */}
+                  {/* Counts are whole-catalog figures, exactly like the Goal,
+                      Source category and Works with selects below — never
+                      "matching your filters", which would take a per-filter
+                      derivation this rail does not have. Hidden under md: four
+                      counts make this rail wider than a phone, and the labels
+                      are what the control is for. */}
                   <span
                     className={`t-mono t-tabular hidden text-[11px] md:inline ${
                       kind === k ? "text-surface/75" : "text-ink-3"
@@ -364,13 +661,40 @@ function ExploreContent(props: ExploreViewProps) {
             </div>
 
             <label className="flex items-center gap-2 text-[12px] text-ink-2">
-              Category
+              Goal
+              <select
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                title="LiteSPM's editorial grouping, derived from each record's own text by the rules in web/lib/taxonomy.ts. Not a publisher's label."
+                className="field"
+              >
+                <option value="all">All goals</option>
+                {goals
+                  .filter((g) => g.id !== "other")
+                  .map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.label} ({formatCount(g.count)})
+                    </option>
+                  ))}
+                {goals
+                  .filter((g) => g.id === "other")
+                  .map((g) => (
+                    <option key={g.id} value={g.id}>
+                      Other — no goal placed ({formatCount(g.count)})
+                    </option>
+                  ))}
+              </select>
+            </label>
+
+            <label className="flex items-center gap-2 text-[12px] text-ink-2">
+              Source category
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
+                title="The upstream source's own category label, carried verbatim. The goals are LiteSPM's grouping; this is the source's."
                 className="field"
               >
-                <option value="all">All categories</option>
+                <option value="all">All source categories</option>
                 {categories.map((c) => (
                   <option key={c.name} value={c.name}>
                     {categoryLabel(c.name)} ({formatCount(c.count)})
@@ -436,48 +760,65 @@ function ExploreContent(props: ExploreViewProps) {
             )}
           </div>
 
-          {/* The curated default's rule, stated once where the ordering is
-              chosen — a ranking has to say what it ranks by. */}
-          {sort === "curated" && !query && (
+          {/* The curated order's rule, stated wherever that order is active —
+              browsing or searching. It used to hide during a search, which is
+              exactly when a reader asks why an entry they did not search for
+              is first. */}
+          {effectiveSort === "curated" && (
             <p className="mt-2 text-[12px] leading-relaxed text-ink-3">{CURATED_NOTE}</p>
           )}
+
+          {explanation && <MatchExplanationPanel entries={explanation} host={rankAgent?.label ?? null} />}
         </div>
 
         <div className="pt-7">
-          <ExtensionGrid
-            items={gridItems}
-            query={deferredQuery}
-            count={full ? filtered.length : total}
-            loading={searching}
-            awaiting={status === "loading"}
-            error={status === "error"}
-            onRetry={request}
-            onShowMore={request}
-            onClearFilters={clear}
-            onSuggestion={setQuery}
-            filtersActive={narrowing}
-            settled={settled}
+          {gridPending ? (
+            status === "error" ? (
+              <ExploreLoadError onRetry={request} />
+            ) : (
+              <ExploreSearchSkeleton />
+            )
+          ) : (
+            <ExtensionGrid
+              items={gridItems}
+              query={deferredQuery}
+              count={full ? filtered.length : total}
+              loading={searching}
+              awaiting={status === "loading"}
+              error={status === "error"}
+              onRetry={request}
+              onShowMore={request}
+              onClearFilters={clear}
+              onSuggestion={setQuery}
+              filtersActive={narrowing}
+              settled={settled}
 
-            toolbar={
-              <div className="flex shrink-0 items-center gap-2">
-                <label htmlFor="explore-sort" className="t-mono text-[11px] text-ink-3">
-                  Sort
-                </label>
-                <select
-                  id="explore-sort"
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as SortMode)}
-                  className="field py-0! text-[12px]"
-                >
-                  {SORTS.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            }
-          />
+              toolbar={
+                <div className="flex shrink-0 items-center gap-2">
+                  <label htmlFor="explore-sort" className="t-mono text-[11px] text-ink-3">
+                    Sort
+                  </label>
+                  <select
+                    id="explore-sort"
+                    value={effectiveSort}
+                    onChange={(e) => setSort(e.target.value as SortMode)}
+                    title={
+                      effectiveSort === "curated"
+                        ? CURATED_NOTE
+                        : "Best match orders by where the query matched; the other orders are explicit."
+                    }
+                    className="field py-0! text-[12px]"
+                  >
+                    {SORTS.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              }
+            />
+          )}
         </div>
       </main>
 

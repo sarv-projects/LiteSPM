@@ -1,20 +1,18 @@
-import catalogData from "../../data/catalog.json";
-import type { Listing } from "../../lib/telemetry";
-import { hostUniverse, sortListings, withLinkKeys } from "../../lib/catalog";
-import { categorySiblingSlugs } from "../../lib/categoryFiles.mjs";
 import type { PackageViewProps } from "./PackageView";
 import PackageRoute from "./PackageRoute";
+import { catalogContext } from "../../lib/packageServer";
 import type { Metadata } from "next";
 
 /**
  * The route's own title, description and canonical.
  *
- * Every product page used to inherit the layout's metadata, so all 69,376
- * addresses shared one `<title>`, one description and one `og:url`, and none
- * declared a canonical. The entry itself cannot be named here — the slug lives
- * in the URL and this file is prerendered once — so the shell describes the
- * route honestly; the resolved entry's name and summary are written into the
- * document (and its og tags) once the browser has resolved the slug.
+ * The bare `/package/` route is the index of the entry route: it resolves an
+ * entry from `?slug=` in the browser, so this file is prerendered once and
+ * cannot name an entry. The pre-rendered entry pages live at
+ * `/package/<key>/` (`app/package/[slug]/page.tsx`) and each carries its own
+ * title, description, canonical and structured data; the set that gets one is
+ * chosen in `lib/packageEntries.ts` and listed at
+ * `/package/entries/sitemap.xml`.
  */
 export const metadata: Metadata = {
   title: "Entry detail",
@@ -25,25 +23,20 @@ export const metadata: Metadata = {
 };
 
 /**
- * Server Component: `/package/` prerenders the route index (a described frame
- * plus the first twelve rows) and nothing else — the entry itself is keyed off
- * `?slug=`, which only the browser can read. That is also why this route is
- * the one place the dataset is requested eagerly: resolving a slug needs the
- * rows, so a deep link fetches them on its first client frame, while a bare
- * `/package/` visit fetches nothing.
+ * Server Component: the index shell plus the first twelve rows. The whole
+ * snapshot context is computed once per build in `lib/packageServer.ts` and
+ * shared with the entry pages and the sitemap, so this route, the pages it
+ * links to and the pages advertised to crawlers all read the same numbers.
  */
 export default function PackagePage() {
-  const items = withLinkKeys(catalogData as unknown as Listing[]);
+  const { total, hostTotal, indexRows, siblingCategories, versioned } = catalogContext();
 
   const props: PackageViewProps = {
-    total: items.length,
-    hostTotal: hostUniverse(items).length,
-    indexRows: sortListings(items, "index").slice(0, 12),
-    // Which categories this build wrote a sibling file for, from the same
-    // rows and the same rule the emitter used (`lib/categoryFiles.mjs`). The
-    // product page skips the request for every other category — the two
-    // largest — instead of paying a guaranteed 404 on each visit.
-    siblingCategories: categorySiblingSlugs(items),
+    total,
+    hostTotal,
+    indexRows,
+    siblingCategories,
+    snapshot: { total, versioned },
   };
 
   return <PackageRoute {...props} />;

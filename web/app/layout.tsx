@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { ToastViewport } from "../components/ui/Toast";
 import { DOCS_URL, SITE_URL } from "../lib/site";
+import { MAX_STATIC_ENTRIES } from "../lib/packageEntries";
+import { formatCount } from "../lib/format";
 
 /**
  * IBM Plex: an engineered grotesque with squared terminals, which reads as
@@ -180,8 +182,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
          * so it cannot apply (and cannot flash content mid-hydration) when
          * scripting is on. The note then says what genuinely needs scripting:
          * search, filters, sorting, the theme toggle, and resolving an
-         * individual `/package/?slug=…` entry. Nothing here claims the site
-         * does more than it does.
+         * individual `/package/?slug=…` entry. The bounded set of entries that
+         * have their own pre-rendered page (`/package/<key>/`, see
+         * `lib/packageEntries.ts`) does NOT need it — their summaries and
+         * try-it prompts are in the raw HTML — so the note names the exception
+         * instead of claiming every entry needs JavaScript. Nothing here
+         * claims the site does more than it does.
          */}
         <noscript>
           {/*
@@ -194,7 +200,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <div className="border-b border-rule bg-sunken px-4 py-2.5 text-center text-[12.5px] leading-relaxed text-ink-2">
             JavaScript is off. The pages are pre-rendered, so everything below still displays;
             search, filtering, sorting, the theme toggle and opening an individual catalog entry
-            need JavaScript. Install steps are in the{" "}
+            outside the {formatCount(MAX_STATIC_ENTRIES)} entries that have their own pre-rendered
+            page need JavaScript. Those pages carry the entry&rsquo;s plain summary and try-it
+            prompts. Install steps are in the{" "}
             <a href={DOCS_URL} className="link">
               README
             </a>
