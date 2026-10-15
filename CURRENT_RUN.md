@@ -619,6 +619,16 @@ User selected ALL five open limitations (docs drift, release cut, installability
 - **Redirect cap is now 3 hops**: the code previously refused at 3 (`>= 3`) while `ARCH/03 §5` documents a cap of 3; the fix aligns code with the documented bound, so one extra redirect is permitted versus HEAD.
 - **`internal/catalogbuild/dataset_test.go`**: only HEAD's synthetic-snapshot assertions (`snap-deadbeef`) were updated; the producer's K002 `source`-provenance hunk is intact.
 - **The pre-existing `TestSyncUnavailableVerifierRespectsRequireFlag` flake**: `pointerFor` and `signedReleaseFiles` compile the same fixture independently, `CompileRelease` stamps `createdAt` at RFC3339 *second* precision, so a wall-clock second tick between the two compiles made the digest chain fail once during a full-suite run. Fixture time is now pinned; `-count=10` passes.
+- **A second, still-open flake — `TestSupervisor_ParentEnvCanaryNeverReachesChild` on macOS.** Observed 2026-10-15 on CI run `38784739457` (`macos-latest` only; ubuntu and windows passed): the child env was reported missing both `LITESPM_FROM_SPEC=spec-value` and `LITESPM_FROM_SECRET=secret-value`, while the canary assertion that precedes them passed — so the canary was correctly stripped and the spec/secret layers were absent. The `t.Errorf` output that CI captured is the whole evidence available:
+
+  ```
+  TMPDIR=/var/folders/36/…/T/
+  LC_ALL=en_US.UTF-8
+  PATH=/Users/runner/…
+  ***
+  ```
+
+  Three allow-listed base vars and a redaction marker. It is **not** a regression from that commit — the commit changed **zero** Go files (`git show --stat 408c8cb`), and the immediately following run (`38786460352`) passed `macos-latest` in 6m39s with no code change. It is **not** reproducible here: `-count=40` on Linux is green, and `BuildChildEnv` has no darwin branch (`internal/provider/env.go:33` differs only for windows, `internal/provider/supervisor.go:219` is platform-independent). Two things are unexplained and should be settled before anyone "fixes" it: the observed env is not in `buildChildEnv`'s sort order (it sorts by key, so `LC_ALL` would lead), and the `***` line is almost certainly GitHub's log masking rather than child output, which means the captured env may be truncated evidence rather than a truncated env. A fix cannot be verified from Linux, so none was attempted; the next occurrence should be read with `-v` and the raw `len(got)`.
 - Nothing was staged or committed; producer-owned `web/data/*`, `web/lib/telemetry.ts`, and their hunks in `scripts/build_full_catalog.py` are untouched by closeout.
 
 ### Not changed (open by decision, not by oversight)
