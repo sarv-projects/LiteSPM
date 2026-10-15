@@ -53,7 +53,7 @@ export function ShelfCard({ item, agent }: ShelfCardProps) {
     <DiscoveryCard as="li" interactive className="h-full">
       <div className="flex min-w-0 items-start gap-3">
         <span className="card-tile">
-          <PublisherTile item={item} size={32} />
+          <PublisherTile item={item} size={40} />
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[15px] font-semibold leading-snug tracking-tight text-ink">

@@ -82,14 +82,18 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
         style={{ width: 3 }}
       />
 
-      <PublisherTile item={item} size={28} />
+      {/* 40px, not 28. Measured against mcpservers.org, whose mark is ~44px on
+          a white plate and is the focal point of the card: at 28px a real
+          vendor logo reads as decoration rather than identity, which was the
+          remaining half of "they have very good logos". */}
+      <PublisherTile item={item} size={40} />
 
       <span className="min-w-0 flex-1 basis-[60%]">
         <span className="block truncate text-[15px] font-semibold leading-snug tracking-tight text-ink underline-offset-2 group-hover:underline">
           {item.name}
         </span>
         {item.summary && (
-          <span className="mt-0.5 line-clamp-2 min-h-[42px] max-w-[92ch] text-[13px] leading-relaxed text-ink-2">
+          <span className="mt-0.5 line-clamp-2 min-h-[42px] max-w-[110ch] text-[13px] leading-relaxed text-ink-2">
             {item.summary}
           </span>
         )}
@@ -107,8 +111,14 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
 
       {/* The right rail: the row's own claim, and where the record came from.
           On narrow viewports it wraps to its own full-width line rather than
-          squeezing the name column. */}
-      <span className="flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-1 lg:ml-auto lg:w-[200px] lg:flex-col lg:items-end lg:gap-y-1.5 lg:text-right">
+          squeezing the name column.
+
+          The left hairline is the fix for a real defect: at 1440px the rail
+          floated at the far edge with ~450px of empty paper between it and the
+          text it describes, so the row read as two unrelated things. The rule
+          gives the whitespace a boundary, which is what makes it read as a
+          column instead of a gap. */}
+      <span className="flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-1 lg:ml-auto lg:w-[240px] lg:flex-col lg:items-end lg:gap-y-1.5 lg:border-l lg:border-rule lg:pl-4 lg:text-right">
         <span
           className={`inline-flex shrink-0 items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
             signal.tier === "official"
