@@ -21,11 +21,21 @@ import { availabilityOf } from "./availability";
 
 export const KIND_ORDER: Listing["kind"][] = ["mcp", "skill", "plugin"];
 
+/**
+ * The catalog's own category for skills the publisher itself ships.
+ *
+ * The trailing preposition is the upstream section name, and it is the exact
+ * value Explore filters on — it must stay untouched in every URL and
+ * comparison. It is only wrong on screen, where `categoryLabel` normalises it.
+ *
+ * Defined here rather than in `landing.ts` because it is a dataset value: the
+ * curated sort below reads it, and `landing.ts` re-exports it so the label
+ * module and the landing page keep importing it from one place.
+ */
+export const OFFICIAL_SKILLS_CATEGORY = "Official Skills by";
+
 /** Rows rendered per page by ExtensionGrid; also the prerendered slice. */
 export const GRID_PAGE = 48;
-
-/** Rows per discovery section on the home page. */
-export const SECTION_SIZE = 8;
 
 export function kindLabel(kind: string): string {
   switch (kind) {
@@ -47,16 +57,37 @@ export function kindLabel(kind: string): string {
  * upstream sources do not expose them) and carries no publish timestamps, so
  * both modes were ordering by nothing while their labels claimed otherwise.
  *
- * "installable" is the default. The artifact's own order led with whatever
- * sorted first by name among verified publishers, and because names that begin
- * with punctuation sort ahead of every letter that meant a Solana token was the
- * first row of a package manager. Ordering by a property the catalog can prove
- * — whether the row has a transport, or is a skill with a source — is both a
- * better front door and a claim we can stand behind.
+ * "curated" is the default, and it is the only order this catalog can honestly
+ * put first. "installable first" was the old default: true, but useless as a
+ * front door, because the block of installable rows it led with is ordered by
+ * name and that opened the catalog on `00Widget`. Curated orders by three
+ * facts the dataset carries and the reader can check on any row:
+ *
+ *   1. skills the publisher itself ships (the upstream "Official Skills by"
+ *      section),
+ *   2. rows read from the publisher's own manifest (`publisher.verified`),
+ *   3. rows LiteSPM can actually install (`availabilityOf`).
+ *
+ * No popularity figure exists in the data, so none is used — the rule is
+ * stated in the UI next to the control, and every step of it is a field the
+ * reader can see on the row's own page.
  */
-export type SortMode = "installable" | "index" | "name" | "publisher";
+export type SortMode = "curated" | "installable" | "index" | "name" | "publisher";
 
-export const DEFAULT_SORT: SortMode = "installable";
+export const DEFAULT_SORT: SortMode = "curated";
+
+/** The default order's rule, stated once in the UI where the sort control is. */
+export const CURATED_NOTE =
+  "Official publisher skills first, then rows read from publisher manifests, then rows that install.";
+
+/** How strongly the curated order prefers a row. Higher sorts first. */
+export function curatedScore(item: Listing): number {
+  let score = 0;
+  if (item.category === OFFICIAL_SKILLS_CATEGORY) score += 4;
+  if (item.publisher?.verified) score += 2;
+  if (availabilityOf(item).installable) score += 1;
+  return score;
+}
 
 /**
  * Compare names on their first alphanumeric run.
@@ -90,6 +121,12 @@ export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[]
         Number(availabilityOf(b).installable) - Number(availabilityOf(a).installable) ||
         Number(Boolean(b.publisher?.verified)) - Number(Boolean(a.publisher?.verified)) ||
         nameKey(a.name).localeCompare(nameKey(b.name))
+    );
+  }
+  if (mode === "curated") {
+    return copy.sort(
+      (a, b) =>
+        curatedScore(b) - curatedScore(a) || nameKey(a.name).localeCompare(nameKey(b.name))
     );
   }
   // "index" is the builder's own order: verified publishers first, then kind,
@@ -258,25 +295,16 @@ export function categoryIndex(items: Listing[]): CategoryFacet[] {
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
+/** Does this row come from the given `domain.SourceID`? */
+export function matchesSource(item: Listing, source: string | null): boolean {
+  if (!source) return true;
+  return item.source === source;
+}
+
 /**
- * The four discovery sections on the home page.
- *
- * No popularity ordering exists: the catalog publishes no star, download or
- * install figures. Each section is alphabetical, which is a fact, and the tail
- * is the manifest's own last rows — the dataset carries no publish timestamps,
- * so "new" is not derivable.
+ * Whether `litespm install` can complete for this row — the same predicate the
+ * Explore "installable only" filter and the home shelves use.
  */
-export function homeSections(items: Listing[], size = SECTION_SIZE): {
-  official: Listing[];
-  skills: Listing[];
-  plugins: Listing[];
-  tail: Listing[];
-} {
-  const byName = (list: Listing[]) => [...list].sort((a, b) => a.name.localeCompare(b.name));
-  return {
-    official: byName(verifiedItems(items.filter((i) => i.kind === "mcp"))).slice(0, size),
-    skills: byName(items.filter((i) => i.kind === "skill")).slice(0, size),
-    plugins: byName(items.filter((i) => i.kind === "plugin")).slice(0, size),
-    tail: items.slice(-size).reverse(),
-  };
+export function isInstallable(item: Listing): boolean {
+  return availabilityOf(item).installable;
 }

@@ -1,15 +1,13 @@
 import catalogData from "../data/catalog.json";
 import type { Listing } from "../lib/telemetry";
-import { deriveKindCounts, hostUniverse, withLinkKeys } from "../lib/catalog";
+import { deriveKindCounts, withLinkKeys } from "../lib/catalog";
 import {
   AGENT_CHOICES,
   deriveProvenance,
-  deriveStart,
+  deriveShelves,
   deriveTopics,
-  OFFICIAL_SKILLS_CATEGORY,
   rowWorksWithAgent,
 } from "../lib/landing";
-import { HOSTS } from "../lib/hosts";
 import type { HomeViewProps } from "./HomeView";
 import HomeRoute from "./HomeRoute";
 
@@ -20,8 +18,8 @@ import HomeRoute from "./HomeRoute";
  * is ever imported from: server code runs at build time during static export,
  * so its import lands in the server bundle and never in a browser chunk. What
  * crosses the boundary is `HomeViewProps` — counts, the topic taxonomy with
- * its example names, the provenance totals and twelve curated rows — serialized
- * beside the prerendered HTML it describes.
+ * its example names, the provenance totals and the labelled shelves —
+ * serialized beside the prerendered HTML it describes.
  *
  * The view itself is loaded through `HomeRoute`, a thin client wrapper that
  * owns the `next/dynamic` import, so the landing UI stays in an async chunk and
@@ -39,13 +37,9 @@ export default function Home() {
   const props: HomeViewProps = {
     total: items.length,
     kindCounts: deriveKindCounts(items),
-    hostCount: hostUniverse(items).length,
-    adapterCount: HOSTS.length,
     provenance: deriveProvenance(items),
     topics: deriveTopics(items),
-    start: deriveStart(items),
-    officialCount: items.filter((i) => i.category === OFFICIAL_SKILLS_CATEGORY).length,
-    vendorCount: items.filter((i) => i.publisher?.verified === true).length,
+    shelves: deriveShelves(items),
     // Counted here, over the same rows the strip's numbers used to come from,
     // so the landing page can print them without loading the row set.
     agentCounts: AGENT_CHOICES.map((choice) => ({

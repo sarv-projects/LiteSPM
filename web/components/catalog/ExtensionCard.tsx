@@ -6,7 +6,6 @@ import { Listing } from "../../lib/telemetry";
 import { kindLabel, listingHref } from "../../lib/catalog";
 import { PublisherTile, VerifiedMark } from "./PublisherMark";
 import { availabilityOf } from "../../lib/availability";
-import { hostsFor } from "../../lib/hosts";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 
 export type ExtensionItem = Listing;
@@ -34,38 +33,7 @@ const KIND_TAG: Record<Listing["kind"], string> = {
  * on every one of 5,814 rows was noise.
  */
 export function ExtensionCard({ item }: ExtensionCardProps) {
-  const hosts = hostsFor(item);
   const avail = availabilityOf(item);
-  /**
-   * How this row's host coverage reads.
-   *
-   * `hostsFor` derives MCP and skill compatibility from the capability's KIND,
-   * so every MCP row printed the same "50/86 hosts" and every skill row the
-   * same figure. A column of identical numbers reads as machine output and
-   * trains the eye to skip it. The kind-derived rows now state the rule; only
-   * publisher-declared rows (plugins) carry a genuine per-row number.
-   */
-  const coverage =
-    item.kind === "plugin"
-      ? {
-          label:
-            hosts.length > 0
-              ? `${hosts.length} host${hosts.length === 1 ? "" : "s"}`
-              : "no hosts declared",
-          title:
-            hosts.length > 0
-              ? `The publisher declares compatibility with ${hosts.length} host${hosts.length === 1 ? "" : "s"}. Not a test result.`
-              : "The publisher's manifest declares no compatible hosts.",
-        }
-      : item.kind === "skill"
-        ? {
-            label: "any skills host",
-            title: `Every skill installs into any of the ${hosts.length} agent hosts with a skills directory. Not a per-row test result.`,
-          }
-        : {
-            label: "any bridge host",
-            title: `Every MCP server installs into any of the ${hosts.length} agent hosts with a compiled-in adapter. Not a per-row test result.`,
-          };
   const detail = [
     kindLabel(item.kind),
     item.publisher?.name ? `by ${item.publisher.name}` : "publisher unspecified",
@@ -99,24 +67,24 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
           <span className="meta-publisher">{item.publisher?.name || "unspecified"}</span>
           {item.publisher?.verified && <VerifiedMark />}
           <span className={`meta-kind meta-kind-${item.kind}`}>{KIND_TAG[item.kind]}</span>
-          <span
-            className={`meta-avail meta-avail-${avail.installable ? "installable" : "blocked"}`}
-            title={avail.plain}
-          >
-            {avail.label}
-          </span>
           {item.transport && <span className="meta-spec">{item.transport}</span>}
           {item.runtime && <span className="meta-spec">{item.runtime}</span>}
           <span className="meta-category truncate">{categoryLabel(item.category)}</span>
         </span>
       </span>
 
+      {/* The reason to open this row rather than the next one, in the one
+          place the eye lands when scanning a list: the same installability
+          predicate `litespm install` applies. The host-coverage chip that sat
+          here printed a constant for MCP rows ("any bridge host") and a
+          single "1 host" for plugins — a column of identical values trains
+          the eye to skip it, so it was removed rather than padded. */}
       <span className="row-side">
         <span
-          className="t-mono t-tabular rounded-[3px] bg-sunken px-2 py-0.5 text-[11px] font-medium text-ink-2 border border-rule"
-          title={coverage.title}
+          className={`meta-avail meta-avail-${avail.installable ? "installable" : "blocked"}`}
+          title={avail.plain}
         >
-          {coverage.label}
+          {avail.label}
         </span>
       </span>
     </Link>

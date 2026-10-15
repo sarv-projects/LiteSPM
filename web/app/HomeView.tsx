@@ -5,9 +5,8 @@ import { Header } from "../components/navigation/Header";
 import { SiteFooter } from "../components/layout/SiteFooter";
 import { LandingHero } from "../components/home/LandingHero";
 import { AgentStrip } from "../components/home/AgentStrip";
+import { Shelves } from "../components/home/Shelves";
 import { TopicTiles } from "../components/home/TopicTiles";
-import { EcosystemSection } from "../components/home/EcosystemSection";
-import { StartSection } from "../components/home/StartSection";
 import { HowItWorks } from "../components/home/HowItWorks";
 import { AtlasTeaser } from "../components/home/AtlasTeaser";
 import { FaqSection } from "../components/home/FaqSection";
@@ -16,7 +15,7 @@ import { SearchResults } from "../components/home/SearchResults";
 import { Listing, useTelemetry } from "../lib/telemetry";
 import { useCatalogSearch } from "../lib/useCatalogSearch";
 import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice } from "../lib/landing";
-import type { ProvenanceStats, TopicStat } from "../lib/landing";
+import type { ProvenanceStats, Shelf, TopicStat } from "../lib/landing";
 
 /**
  * The landing page. Every field here is computed by `app/page.tsx` — a Server
@@ -26,24 +25,19 @@ import type { ProvenanceStats, TopicStat } from "../lib/landing";
  * sees the whole page before any dataset request happens.
  *
  * Exactly one interaction asks for the full row set: typing in the hero
- * search. Everything else — the agent preference, the topic tiles, the kind
- * cards, the curated grid — runs off the server slice or off `hostsFor`, which
- * is a property of the row's kind. A passive visit therefore fetches
- * `/v1/current.json` (release liveness, bundled-snapshot fallback) and nothing
- * else; `/data/catalog.json` waits for a keystroke.
+ * search. Everything else — the agent preference, the topic tiles, the
+ * shelves — runs off the server slice or off `hostsFor`, which is a property
+ * of the row's kind. A passive visit therefore fetches `/v1/current.json`
+ * (release liveness, bundled-snapshot fallback) and nothing else;
+ * `/data/catalog.json` waits for a keystroke.
  */
 export interface HomeViewProps {
   total: number;
   kindCounts: { all: number; mcp: number; skill: number; plugin: number };
-  hostCount: number;
-  /** Compiled-in bridge adapters (data/hosts.json), for the agents card. */
-  adapterCount: number;
   provenance: ProvenanceStats;
   topics: TopicStat[];
-  /** The curated "Good places to start" rows, resolved at build time. */
-  start: Listing[];
-  officialCount: number;
-  vendorCount: number;
+  /** The labelled shelves, resolved at build time from their own rules. */
+  shelves: Shelf[];
   /**
    * Catalog-wide counts per agent choice, counted at build time from the same
    * rows the client used to count them from. The landing page no longer loads
@@ -79,7 +73,6 @@ export default function Home(props: HomeViewProps) {
 
   const total = props.total;
   const kindCounts = props.kindCounts;
-  const hostCount = props.hostCount;
   const telemetry = useTelemetry(kindCounts);
 
   const setQuery = (q: string) => {
@@ -111,7 +104,6 @@ export default function Home(props: HomeViewProps) {
         <LandingHero
           total={total}
           kindCounts={kindCounts}
-          hostCount={hostCount}
           telemetry={telemetry}
           query={searchQuery}
           setQuery={setQuery}
@@ -142,18 +134,8 @@ export default function Home(props: HomeViewProps) {
               counts={agentCounts}
               total={total}
             />
+            <Shelves shelves={props.shelves} agent={agent} />
             <TopicTiles topics={props.topics} />
-            <EcosystemSection
-              kindCounts={kindCounts}
-              hostCount={hostCount}
-              adapterCount={props.adapterCount}
-            />
-            <StartSection
-              items={props.start}
-              officialCount={props.officialCount}
-              vendorCount={props.vendorCount}
-              agent={agent}
-            />
           </>
         )}
 

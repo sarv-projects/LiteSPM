@@ -12,28 +12,32 @@ import { useCatalog } from "../../lib/catalogData";
 import {
   agentFacets,
   categoryFacets,
+  CURATED_NOTE,
   deriveKindCounts,
   hostUniverse,
+  isInstallable,
   kindLabel,
   matchesHost,
+  matchesSource,
   sortListings,
   DEFAULT_SORT,
   SortMode,
 } from "../../lib/catalog";
 import { formatCount } from "../../lib/format";
-import { AGENT_STORAGE_KEY, findAgentChoice } from "../../lib/landing";
+import { AGENT_STORAGE_KEY, findAgentChoice, sourceLabel } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { categoryLabel } from "../categories/categoryLabel";
 
 const KINDS = ["all", "mcp", "skill", "plugin"] as const;
 const SORTS: Array<{ id: SortMode; label: string }> = [
-  // Default first: this is what a visitor who touches nothing sees, and it is
-  // the only order that reflects whether the row can actually be installed.
-  { id: DEFAULT_SORT, label: "Installable first" },
-  { id: "name", label: "Name" },
+  // Default first: curated is the front door — official publisher skills,
+  // then rows read from publisher manifests, then what installs. "Installable
+  // first" stays as an explicit choice, and "Catalog order" reaches every row
+  // in the release artifact's own order.
+  { id: DEFAULT_SORT, label: "Curated first" },
+  { id: "installable", label: "Installable first" },
+  { id: "name", label: "Name A–Z" },
   { id: "publisher", label: "Publisher" },
-  // The release artifact's own order, kept as an explicit choice rather than
-  // the silent default it used to be.
   { id: "index", label: "Catalog order" },
 ];
 
@@ -74,7 +78,9 @@ function useQueryFilters(request: () => void) {
     kind: "all",
     category: "all",
     agent: "all",
+    source: "",
     verifiedOnly: false,
+    installableOnly: false,
     sort: DEFAULT_SORT,
   });
 
@@ -86,7 +92,9 @@ function useQueryFilters(request: () => void) {
       kind: KINDS_SET.has(p.get("kind") ?? "") ? (p.get("kind") as string) : "all",
       category: p.get("category") ?? "",
       agent: p.get("host") ?? "",
+      source: p.get("source") ?? "",
       verifiedOnly: p.get("verified") === "1",
+      installableOnly: p.get("installable") === "1",
       sort: SORTS_SET.has(sort) ? (sort as SortMode) : DEFAULT_SORT,
     };
     const seeded =
@@ -94,14 +102,18 @@ function useQueryFilters(request: () => void) {
       next.kind !== "all" ||
       next.category !== "" ||
       next.agent !== "" ||
+      next.source !== "" ||
       next.verifiedOnly ||
+      next.installableOnly ||
       next.sort !== DEFAULT_SORT;
     setFilters({
       query: next.query,
       kind: next.kind,
       category: next.category || "all",
       agent: next.agent || "all",
+      source: next.source,
       verifiedOnly: next.verifiedOnly,
+      installableOnly: next.installableOnly,
       sort: next.sort,
     });
     if (seeded) request();
@@ -113,7 +125,7 @@ function useQueryFilters(request: () => void) {
 function ExploreContent(props: ExploreViewProps) {
   const { status, items: full, request } = useCatalog();
   const [filters, setFilters] = useQueryFilters(request);
-  const { query, kind, category, agent, verifiedOnly, sort } = filters;
+  const { query, kind, category, agent, source, verifiedOnly, installableOnly, sort } = filters;
 
   /**
    * `?focus=search` is what the header's search affordance deep-links to. It
@@ -168,6 +180,14 @@ function ExploreContent(props: ExploreViewProps) {
     request();
     setFilters((f) => ({ ...f, verifiedOnly: v }));
   };
+  const setInstallableOnly = (v: boolean) => {
+    request();
+    setFilters((f) => ({ ...f, installableOnly: v }));
+  };
+  const setSource = (s: string) => {
+    request();
+    setFilters((f) => ({ ...f, source: s }));
+  };
   const setSort = (s: SortMode) => {
     request();
     setFilters((f) => ({ ...f, sort: s }));
@@ -200,18 +220,28 @@ function ExploreContent(props: ExploreViewProps) {
   const filtered = useMemo(() => {
     const scoped = results.filter((item) => {
       if (agent !== "all" && !matchesHost(item, agent)) return false;
+      if (source && !matchesSource(item, source)) return false;
       if (verifiedOnly && !item.publisher?.verified) return false;
+      if (installableOnly && !isInstallable(item)) return false;
       return true;
     });
     return sortListings(scoped, sort);
-  }, [results, agent, verifiedOnly, sort]);
+  }, [results, agent, source, verifiedOnly, installableOnly, sort]);
 
   const hasFilters =
-    query !== "" || kind !== "all" || category !== "all" || agent !== "all" || verifiedOnly || sort !== DEFAULT_SORT;
+    query !== "" ||
+    kind !== "all" ||
+    category !== "all" ||
+    agent !== "all" ||
+    source !== "" ||
+    verifiedOnly ||
+    installableOnly ||
+    sort !== DEFAULT_SORT;
 
   /** A filter that narrows the row set — the sort does not, and the query is
    *  not a filter for the grid's empty-state wording. */
-  const narrowing = kind !== "all" || category !== "all" || agent !== "all" || verifiedOnly;
+  const narrowing =
+    kind !== "all" || category !== "all" || agent !== "all" || source !== "" || verifiedOnly || installableOnly;
 
   /**
    * Only offered when it would actually do something: no filter is set yet, the
@@ -232,7 +262,9 @@ function ExploreContent(props: ExploreViewProps) {
     setKind("all");
     setCategory("all");
     setAgent("all");
+    setSource("");
     setVerifiedOnly(false);
+    setInstallableOnly(false);
     setSort(DEFAULT_SORT);
   };
 
@@ -253,12 +285,6 @@ function ExploreContent(props: ExploreViewProps) {
               {formatCount(hostCount)} agent hosts
             </p>
           </div>
-
-          <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            Search every entry in the catalog. Works with narrows the list to one agent host,
-            Installable first puts the rows LiteSPM can install on top, and Only rows from publisher
-            manifests leaves out rows taken from third-party lists.
-          </p>
 
           {savedTarget && savedAgent && (
             <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-rule bg-sunken px-4 py-3">
@@ -375,6 +401,33 @@ function ExploreContent(props: ExploreViewProps) {
               Only rows from publisher manifests
             </label>
 
+            <label className="flex min-h-[44px] items-center gap-2 text-[12px] text-ink-2 md:min-h-0">
+              <input
+                type="checkbox"
+                checked={installableOnly}
+                onChange={(e) => setInstallableOnly(e.target.checked)}
+                className="h-3.5 w-3.5 accent-ink"
+              />
+              Only rows LiteSPM can install
+            </label>
+
+            {/* A source set from a shelf's "View all" link. Shown as a chip so
+                the filter is visible and clearable like every other one. */}
+            {source && (
+              <span className="inline-flex items-center gap-1.5 rounded-chip border border-rule bg-sunken px-2 py-1 text-[12px] text-ink-2">
+                <span className="t-mono text-[11px] text-ink-3">source</span>
+                {sourceLabel(source)}
+                <button
+                  type="button"
+                  onClick={() => setSource("")}
+                  aria-label={`Clear the ${sourceLabel(source)} source filter`}
+                  className="btn h-5 min-h-0 px-1! py-0!"
+                >
+                  <X className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </span>
+            )}
+
             {hasFilters && (
               <button type="button" onClick={clear} className="btn ml-auto">
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -382,6 +435,12 @@ function ExploreContent(props: ExploreViewProps) {
               </button>
             )}
           </div>
+
+          {/* The curated default's rule, stated once where the ordering is
+              chosen — a ranking has to say what it ranks by. */}
+          {sort === "curated" && !query && (
+            <p className="mt-2 text-[12px] leading-relaxed text-ink-3">{CURATED_NOTE}</p>
+          )}
         </div>
 
         <div className="pt-7">

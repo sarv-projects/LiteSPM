@@ -1,6 +1,6 @@
 // Landing-page structures: the "what do you want your AI to do?" taxonomy, the
-// "what do you use?" agent strip, the honest selection rule behind "good places
-// to start", and the provenance counts the trust section prints.
+// "what do you use?" agent strip, the labelled shelves the home page is built
+// from, and the provenance counts the trust section prints.
 //
 // Everything here is a pure function over a row set handed in from above, or a
 // table of constants. No JSON import, no `"use client"`, no fetch: the Server
@@ -18,6 +18,14 @@ import type { Listing } from "./telemetry";
 import { matchesQuery } from "./query";
 import { HOSTS, SKILL_TARGETS, hostsFor } from "./hosts";
 import { isDiscontinued } from "./lifecycle";
+import { OFFICIAL_SKILLS_CATEGORY, sortListings } from "./catalog";
+import { availabilityOf } from "./availability";
+
+/**
+ * Re-exported from `lib/catalog.ts`, where the constant lives beside the
+ * curated sort that reads it. Every other module keeps importing it from here.
+ */
+export { OFFICIAL_SKILLS_CATEGORY };
 
 export interface Topic {
   id: string;
@@ -233,82 +241,206 @@ export function rowWorksWithAgent(item: Listing, choice: AgentChoice | null): bo
 }
 
 /* ------------------------------------------------------------------ *
- * Good places to start — one honest selection rule, stated out loud
+ * Source labels — the display names behind `domain.SourceID` values
  * ------------------------------------------------------------------ */
 
-/** The catalog's own category for skills published by the organization itself. */
-export const OFFICIAL_SKILLS_CATEGORY = "Official Skills by";
+/**
+ * Where each ingested row came from, in the words the Go source registry
+ * already uses (`internal/source/sources.go` `KnownSources`). Only ids that
+ * appear in `data/catalog.json` are listed; an unknown id falls back to the
+ * raw id rather than a guessed name, so a renamed or new source shows as
+ * itself and never as a label it does not have.
+ *
+ * Used for the shelf headings' provenance claims and the Explore source
+ * filter chip — never as a per-row claim the row does not carry.
+ */
+export const SOURCE_LABELS: Record<string, string> = {
+  "builtin:mcp-registry": "Official MCP Registry",
+  "builtin:agent-skills": "Agent Skills",
+  "feed:skills-sh": "skills.sh directory",
+  "feed:mcpservers-org": "MCPServers.org directory",
+  "feed:mcpmarket-com": "MCP Market directory",
+  "feed:punkpeye-awesome-mcp-servers": "awesome-mcp-servers list",
+  "feed:voltagent-awesome-agent-skills": "awesome-agent-skills list",
+  "git:anthropics-skills": "Anthropic Agent Skills",
+  "git:claude-plugins-official": "Claude Code Plugins Directory",
+  "git:knowledge-work-plugins": "Knowledge Work Plugins",
+  "git:openai-plugins": "OpenAI Codex Plugins",
+  "git:cursor-plugins": "Cursor Plugins",
+  "git:xai-plugin-marketplace": "xAI Plugin Marketplace",
+};
+
+/** The Go registry's own display name for the source, or the raw id. */
+export function sourceLabel(id: string | null | undefined): string {
+  if (!id) return "";
+  return SOURCE_LABELS[id] ?? id;
+}
+
+/** The source id the Official MCP Registry rows carry. */
+export const MCP_REGISTRY_SOURCE = "builtin:mcp-registry";
+
+/* ------------------------------------------------------------------ *
+ * Shelves — labelled sections, each a real Explore query
+ * ------------------------------------------------------------------ */
 
 /**
- * Two sources, both of which the catalog can actually filter on — and both of
- * which are a fact about where a row came from, not about how popular it is:
+ * One shelf: a heading, a count, a "view all" link, and a handful of rows.
  *
- *   1. `category = "Official Skills by"` — skills the publisher itself ships.
- *   2. `publisher.verified` (`provenance = "vendor-manifest"`) — read out of the
- *      publisher's own repository manifest rather than a third-party list.
- *
- * No star, download or install figure exists in the dataset, so none of this
- * can be, or is presented as, a ranking.
+ * The shelf is the structure the home page is built from (mcpmarket.com's
+ * model: six labelled shelves, each with a view-all). What makes it honest
+ * here is the pairing: `matches` is the rule, `href` opens an Explore view
+ * that applies the *same* rule, and `preferred` only decides which of the
+ * matching rows lead — verified against the shelf's own rows at build time,
+ * so a name that no longer matches is dropped rather than advertised.
  */
-const START_PREFERRED: string[] = [
-  // category 1: org-published skills
-  "Docx",
-  "Frontend Design",
-  "Cloudflare",
-  "Gemini Api Dev",
-  "Building Secure Contracts",
-  "Clickhouse Best Practices",
-  // category 2: publisher's own marketplace manifest
-  "figma",
-  "mongodb",
-  "notion",
-  "sentry",
-  "canva",
-  "supabase",
+export interface ShelfSpec {
+  id: string;
+  title: string;
+  /** Explore link that returns exactly the rows `matches` selects. */
+  href: string;
+  matches: (item: Listing) => boolean;
+  /**
+   * Preferred example names, in display order. A name that is not in the
+   * shelf's result set is dropped and the head is backfilled from real rows
+   * in the curated order, so a regenerated dataset cannot put a stranger's
+   * name on a shelf that no longer contains it.
+   */
+  preferred: string[];
+}
+
+export interface Shelf extends Omit<ShelfSpec, "matches" | "preferred"> {
+  count: number;
+  items: Listing[];
+}
+
+/** Rows shown per shelf: two rows of three on wide screens, like mcpmarket's. */
+export const SHELF_SIZE = 6;
+
+export const SHELVES: ShelfSpec[] = [
+  {
+    id: "installable",
+    title: "Installable right now",
+    href: "/explore/?installable=1",
+    matches: (item) => {
+      // The same predicate `litespm install` applies (see lib/availability).
+      return availabilityOf(item).installable;
+    },
+    preferred: [
+      "GitHub",
+      "Context7",
+      "Figma MCP Server",
+      "Canva MCP",
+      "Supabase",
+      "Linear",
+      "Neon",
+      "Firecrawl MCP Server",
+      "io.github.getsentry/sentry-mcp",
+    ],
+  },
+  {
+    id: "official-mcp",
+    title: "From the Official MCP Registry",
+    href: `/explore/?source=${encodeURIComponent(MCP_REGISTRY_SOURCE)}`,
+    matches: (item) => item.source === MCP_REGISTRY_SOURCE,
+    preferred: [
+      "Neon",
+      "Firecrawl MCP Server",
+      "com.notion/mcp",
+      "com.stripe/mcp",
+      "io.github.getsentry/sentry-mcp",
+      "com.cloudflare.mcp/mcp",
+      "io.github.zoom/zoom-meetings",
+      "Supabase",
+    ],
+  },
+  {
+    id: "official-skills",
+    title: "Official agent skills",
+    href: `/explore/?category=${encodeURIComponent(OFFICIAL_SKILLS_CATEGORY)}`,
+    matches: (item) => item.category === OFFICIAL_SKILLS_CATEGORY,
+    preferred: [
+      "Brand Guidelines",
+      "Frontend Design",
+      "Docx",
+      "Cloudflare",
+      "Clickhouse Best Practices",
+      "Building Secure Contracts",
+      "Agents Sdk",
+      "Canvas Design",
+    ],
+  },
+  {
+    id: "skills",
+    title: "Agent skills",
+    href: "/explore/?kind=skill",
+    matches: (item) => item.kind === "skill",
+    preferred: [
+      "Figma",
+      "Linear",
+      "Sentry",
+      "Gemini Api Dev",
+      "Expo Api Routes",
+      "Hugging Face Datasets",
+      "Netlify Ai Gateway",
+      "Cloudflare Deploy",
+    ],
+  },
+  {
+    id: "plugins",
+    title: "Plugins",
+    href: "/explore/?kind=plugin",
+    matches: (item) => item.kind === "plugin",
+    preferred: [
+      "github",
+      "linear",
+      "notion",
+      "stripe",
+      "datadog",
+      "figma",
+      "playwright",
+      "hubspot",
+      "shopify",
+      "chrome-devtools",
+    ],
+  },
 ];
 
-export const START_SIZE = 12;
+/**
+ * Count and fill each shelf against the full row set. Runs at build time in
+ * `app/page.tsx`, so the numbers beside the headings are the same numbers
+ * Explore reports after it applies the shelf's own `href` — both come from
+ * this rule over these rows.
+ */
+export function deriveShelves(items: Listing[], size = SHELF_SIZE): Shelf[] {
+  const shelves: Shelf[] = [];
+  for (const spec of SHELVES) {
+    const matches = items.filter(spec.matches);
+    if (matches.length === 0) continue;
 
-export function deriveStart(items: Listing[]): Listing[] {
-  const inRule = items.filter(
-    (item) => item.category === OFFICIAL_SKILLS_CATEGORY || item.publisher?.verified === true
-  );
-  const byName = new Map<string, Listing[]>();
-  for (const item of inRule) {
-    const bucket = byName.get(item.name);
-    if (bucket) bucket.push(item);
-    else byName.set(item.name, [item]);
-  }
-
-  const chosen: Listing[] = [];
-  const taken = new Set<string>();
-  for (const name of START_PREFERRED) {
-    if (chosen.length >= START_SIZE) break;
-    const bucket = byName.get(name);
-    if (bucket && bucket.length > 0 && !taken.has(name)) {
-      chosen.push(bucket[0]);
-      taken.add(name);
+    const present = new Set(matches.map((m) => m.name));
+    const items_: Listing[] = [];
+    const taken = new Set<string>();
+    for (const name of spec.preferred) {
+      if (items_.length >= size) break;
+      if (!present.has(name) || taken.has(name)) continue;
+      const row = matches.find((m) => m.name === name);
+      if (row) {
+        items_.push(row);
+        taken.add(name);
+      }
     }
-  }
-  // Backfill in index order (verified publishers first, then kind, then name —
-  // the builder's own deterministic order) if a regenerated dataset dropped a
-  // preferred name.
-  for (const item of inRule) {
-    if (chosen.length >= START_SIZE) break;
-    if (taken.has(item.name)) continue;
-    chosen.push(item);
-    taken.add(item.name);
-  }
+    // Backfill in the curated order — the same order Explore's default uses —
+    // so the tail of a shelf is deterministic and cannot be a random slice.
+    for (const row of sortListings(matches, "curated")) {
+      if (items_.length >= size) break;
+      if (taken.has(row.name)) continue;
+      items_.push(row);
+      taken.add(row.name);
+    }
 
-  // Interleave the two sources so the grid is not six of one kind in a row.
-  const skills = chosen.filter((c) => c.kind === "skill");
-  const rest = chosen.filter((c) => c.kind !== "skill");
-  const out: Listing[] = [];
-  for (let i = 0; i < Math.max(skills.length, rest.length); i += 1) {
-    if (skills[i]) out.push(skills[i]);
-    if (rest[i]) out.push(rest[i]);
+    shelves.push({ id: spec.id, title: spec.title, href: spec.href, count: matches.length, items: items_ });
   }
-  return out;
+  return shelves;
 }
 
 /* ------------------------------------------------------------------ *
