@@ -122,6 +122,22 @@ export function SearchBar({
       ? `Search ${formatCount(totalCount)} capabilities`
       : `Search ${formatCount(totalCount)} capabilities — postgres, github, playwright…`);
 
+  /**
+   * Clearing the field is also a URL change on Explore: the query lives in
+   * `?q=`, and leaving it behind meant a refresh re-ran a search the reader
+   * had cleared. Enter already keeps the URL in step; this is the other
+   * explicit action, and it preserves whatever filters are also applied.
+   */
+  const clearQuery = () => {
+    setQuery("");
+    if (window.location.pathname.startsWith("/explore")) {
+      const params = new URLSearchParams(window.location.search);
+      params.delete("q");
+      const rest = params.toString();
+      router.replace(rest ? `/explore/?${rest}` : "/explore/", { scroll: false });
+    }
+  };
+
   return (
     <div className={className}>
       <form action="/explore/" method="get" onSubmit={onSubmit}>
@@ -169,7 +185,7 @@ export function SearchBar({
                   {settled === false ? "searching…" : `${formatCount(totalMatches)} found`}
                 </span>
               )}
-              <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="btn px-2!">
+              <button type="button" onClick={clearQuery} aria-label="Clear search" className="btn px-2!">
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </span>

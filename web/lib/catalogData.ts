@@ -223,11 +223,14 @@ function bucketForSlug(slug: string): number {
 export interface ProductPayload {
   counts: { total: number; versioned: number };
   /**
-   * The ~270 rows sharing this bucket, as an array.
+   * The rows sharing this bucket, as an array.
    *
-   * Not a slug-keyed map: 121 slugs in this catalog belong to more than one
-   * row, and the view's `buildLookup` resolves that by keying ids always and
-   * slugs only when unambiguous. Keying by slug here would drop a row.
+   * Not a slug-keyed map: 5,217 slugs in this catalog belong to more than one
+   * row (17,481 rows in total), and the view's `buildLookup` resolves that by
+   * keying ids always and registering a slug only when the emitter stamped it
+   * as the row's whole-dataset `linkKey`. The rows arrive with that key
+   * already resolved; re-deriving it over the bucket would call a globally
+   * shared slug unique in the one bucket that happened to hold its first row.
    */
   rows: Listing[];
 }
@@ -251,7 +254,11 @@ export function fetchProductPayload(slug: string): Promise<ProductPayload> {
     .then((doc: ProductPayload) => {
       const payload: ProductPayload = {
         counts: doc.counts ?? { total: 0, versioned: 0 },
-        rows: withLinkKeys(Array.isArray(doc.rows) ? doc.rows : []),
+        // The rows already carry the `linkKey` the emitter resolved over the
+        // whole dataset; nothing is re-keyed over this bucket. (An artifact
+        // old enough to lack the field resolves by id only — never by a slug
+        // this route cannot vouch for.)
+        rows: Array.isArray(doc.rows) ? doc.rows : [],
       };
       productCache.set(slug, payload);
       productInflight.delete(slug);
@@ -303,7 +310,7 @@ export function fetchCategorySiblings(
       return res.json();
     })
     .then((rows: Listing[] | null) => {
-      const out = rows ? withLinkKeys(rows) : null;
+      const out = rows ?? null;
       if (out) siblingCache.set(slug, out);
       siblingInflight.delete(slug);
       return out;

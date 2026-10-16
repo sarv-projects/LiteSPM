@@ -11,12 +11,14 @@ Allow: /
 # /package/<key>/ are real static pages — one per entry in a bounded set,
 # listed exactly at /package/entries/sitemap.xml — so the subtree can no
 # longer be disallowed wholesale. The client form /package/?slug=… resolves in
-# the browser and declares /package/ as its canonical; an unknown
-# /package/<slug> still answers 200 with the same shell, which the page marks
-# noindex once it has resolved. A blanket ban would hide the real pages, and
-# blocking only the query form would leave the thousands of entry links that
-# use it "indexed, though blocked" — so the page's own canonical and noindex
-# rules do the work instead.
+# the browser and declares /package/ as its canonical; the no-slash form
+# /package/<slug> is proxied to the same shell and still answers 200 for an
+# unknown key, which the page marks noindex once it has resolved. The
+# trailing-slash form is NOT proxied: /package/<key>/ exists only for the
+# pre-rendered set, so /package/<unknown>/ is a real 404. A blanket ban would
+# hide the real pages, and blocking only the query form would leave the
+# thousands of entry links that use it "indexed, though blocked" — so the
+# page's own canonical and noindex rules do the work instead.
 
 # Machine-readable release data and catalog shards, not pages.
 Disallow: /data/

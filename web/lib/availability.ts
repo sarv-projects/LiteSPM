@@ -21,7 +21,7 @@ import type { Listing } from "./telemetry";
  *   4. **skill** → installs through the content-addressed skills ledger from the
  *      source it was published in.
  *
- * Measured against the 2026-10-11 release (69,376 rows):
+ * Measured against the 2026-10-15 release (69,376 rows):
  *
  *   remote       25,401  MCP, metadata_verified, with an endpoint
  *   source          764  skills that are metadata_verified

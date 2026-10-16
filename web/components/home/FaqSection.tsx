@@ -166,9 +166,11 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "Do my API keys leave my machine?",
       a: (
         <>
-          No. Credentials stay in your operating system&rsquo;s native vault, and this site reads
-          only public files from its own origin: the release manifest on load, and the catalog
-          rows once you search, filter or open an entry. Search runs entirely in your browser.
+          No. Credentials stay in your operating system&rsquo;s native vault, and search runs
+          entirely in your browser. The site fetches only public files: the release manifest and
+          the catalog rows from its own origin, and the publisher marks a row displays — GitHub
+          avatars and site favicons, loaded from GitHub&rsquo;s and Google&rsquo;s icon services.
+          Nothing you type is sent anywhere.
         </>
       ),
     },

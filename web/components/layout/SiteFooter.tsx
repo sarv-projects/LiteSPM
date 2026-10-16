@@ -38,8 +38,10 @@ export function SiteFooter() {
           </p>
         </div>
 
-        <div>
-          <h2 className="t-mono text-[11px] font-medium text-ink">Indexed</h2>
+        <nav aria-labelledby="footer-indexed-title">
+          <p id="footer-indexed-title" className="t-mono text-[11px] font-medium text-ink">
+            Indexed
+          </p>
           <ul className="mt-2 space-y-1.5 text-[13px] text-ink-2">
             <li>
               <Link href="/explore/" className="link touch-link">
@@ -67,7 +69,7 @@ export function SiteFooter() {
               </a>
             </li>
           </ul>
-        </div>
+        </nav>
       </div>
 
       <div className="border-t border-rule bg-sunken">

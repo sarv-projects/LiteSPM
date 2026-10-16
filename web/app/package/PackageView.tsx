@@ -25,6 +25,7 @@ import {
   clampMeta,
   entryBreadcrumbJsonLd,
   entryJsonLd,
+  staticEntryHref,
 } from "../../lib/packageEntries";
 
 /** Same key the home strip writes; one preference, one storage slot. */
@@ -69,15 +70,20 @@ export interface PackageViewProps {
 }
 
 /**
- * Lookup is built once over the fetched row set, and only unambiguous slugs
- * are registered as keys - see `listingHref` in lib/catalog for why 121 slugs
- * cannot be used as keys. Ids are always unique and always resolve.
+ * Lookup is built once over the fetched row set. Ids always resolve; a slug is
+ * registered only when the emitter stamped it as the row's `linkKey` — which it
+ * does over the whole dataset, never over a bucket. 5,217 of this catalog's
+ * 57,112 distinct slugs are shared by 17,481 rows, so a bucket-local count
+ * would call a shared slug unique (see `scripts/emit-catalog-shards.mjs`). A
+ * slug this route cannot vouch for resolves to nothing rather than to whichever
+ * row the bucket happened to hold, and the not-found state says which case it
+ * is.
  */
 function buildLookup(rows: Listing[]): Map<string, Listing> {
   const byKey = new Map<string, Listing>();
   for (const row of rows) byKey.set(row.id, row);
   for (const row of rows) {
-    if (!byKey.has(row.slug)) byKey.set(row.slug, row);
+    if (row.linkKey && row.linkKey !== row.id) byKey.set(row.linkKey, row);
   }
   return byKey;
 }
@@ -128,6 +134,10 @@ function PackageIndexShell({
           is gone. (A fetch *error* swaps in a taller panel and still moves
           things; that is an exceptional state where a message appearing is the
           feedback, and a permanently taller reservation would be worse.)
+
+          A bare `/package/` visit — a slug can never resolve, so a lookup note
+          can never appear — fills the slot with a static hint instead of
+          leaving it empty (see the caller).
         */}
         <div className="mt-6 min-h-[44px]">{note}</div>
 
@@ -166,18 +176,33 @@ function PackageIndexShell({
   );
 }
 
-function NotFound({ total }: { total: number }) {
+function NotFound({
+  total,
+  ambiguous,
+}: {
+  total: number;
+  /** The address named a slug more than one entry answers to. */
+  ambiguous: boolean;
+}) {
   return (
     <main id="main" className="shell flex-1 py-20">
       <div className="flex max-w-prose flex-col items-start gap-3">
         <SearchX className="h-6 w-6 text-ink-3" aria-hidden="true" />
         <h1 className="t-cond text-[22px] font-semibold tracking-tight text-ink">
-          We couldn&rsquo;t find that entry
+          {ambiguous ? "That name matches more than one entry" : "We couldn\u2019t find that entry"}
         </h1>
-        <p className="text-[13px] leading-relaxed text-ink-2">
-          Nothing in this snapshot&rsquo;s {formatCount(total)} entries matches this address. It may
-          have been renamed or withdrawn, or published after this snapshot was built.
-        </p>
+        {ambiguous ? (
+          <p className="text-[13px] leading-relaxed text-ink-2">
+            The slug in this address is shared by more than one entry in this snapshot, so it
+            doesn&rsquo;t name a single one. Open the entry from a search result or use its catalog
+            id — the address bar keeps the id form for every entry whose slug is ambiguous.
+          </p>
+        ) : (
+          <p className="text-[13px] leading-relaxed text-ink-2">
+            Nothing in this snapshot&rsquo;s {formatCount(total)} entries matches this address. It may
+            have been renamed or withdrawn, or published after this snapshot was built.
+          </p>
+        )}
         <Link href="/explore/" className="btn btn-solid mt-2">
           Search the catalog
         </Link>
@@ -280,13 +305,27 @@ function PackageContent({
   // to concatenate on every visit. A pre-rendered page already has its row, so
   // it asks for nothing.
   const { status, payload, retry } = useProductRow(initialItem ? null : slug);
-  // The same lookup the full set used: ids always resolve, ambiguous slugs are
-  // not registered. Only the input shrank from 69,376 rows to ~270.
+  // Ids always resolve; slugs resolve only when the emitter stamped them as
+  // the row's whole-dataset `linkKey`, never by a bucket-local first-wins.
   const lookup = useMemo(() => (payload ? buildLookup(payload.rows) : null), [payload]);
   const item = useMemo(
     () => initialItem ?? (slug && lookup ? lookup.get(slug) ?? null : null),
     [initialItem, slug, lookup]
   );
+
+  /**
+   * The address named a slug that more than one row answers to. The bucket
+   * keeps the first such row (filed by the emitter so the ambiguity is
+   * detectable here), and its stamped `linkKey` is its id rather than the slug
+   * — that difference is the signal. Ids never take this path: they always
+   * resolve.
+   */
+  const ambiguousSlug = useMemo(() => {
+    if (item || !slug || !payload) return false;
+    return payload.rows.some(
+      (row) => row.slug === slug && row.linkKey !== undefined && row.linkKey !== row.slug
+    );
+  }, [item, slug, payload]);
 
   // The agent preference. Reading it is enough to personalize the page;
   // changing it writes the same `litespm-agent` key the home strip uses and
@@ -405,10 +444,26 @@ function PackageContent({
     // entry is wanted. Both cases get the route index: a described frame with
     // real links, not a spinner and not a false "not found". A pre-rendered
     // page never takes this branch — its entry arrived with the HTML.
+    //
+    // A bare visit fills the reserved note slot with a static hint instead of
+    // leaving it empty forever: the slot is the one piece of this shell whose
+    // content only ever arrives on the client, and with no slug no lookup note
+    // can ever come. The hint costs no layout shift (the slot is already
+    // reserved) and stops the page reading as a gap waiting for something.
     return (
       <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
         <Header />
-        <PackageIndexShell total={total} indexRows={indexRows} />
+        <PackageIndexShell
+          total={total}
+          indexRows={indexRows}
+          note={
+            resolved && !slug ? (
+              <p className="text-[12px] leading-relaxed text-ink-3">
+                Open an entry from the list below, or search the full catalog.
+              </p>
+            ) : undefined
+          }
+        />
         <SiteFooter />
       </div>
     );
@@ -423,7 +478,7 @@ function PackageContent({
       return (
         <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
           <Header />
-          <NotFound total={total} />
+          <NotFound total={total} ambiguous={ambiguousSlug} />
           <SiteFooter />
         </div>
       );
@@ -461,6 +516,14 @@ function PackageContent({
   const hosts = hostsFor(item);
   const worksWith = rowWorksWithAgent(item, agent);
   const avail = availabilityOf(item);
+
+  /**
+   * The address this page is actually served at. The client-resolved form is
+   * `/package/?slug=<key>`; a pre-rendered entry page is `/package/<key>/` and
+   * declares that path as its canonical, so the Source tab prints the URL the
+   * reader (and a crawler) is on rather than the legacy query spelling.
+   */
+  const pageHref = initialItem ? staticEntryHref(initialItem) : listingHref(item);
 
   // Emitted by the client only on the client-resolved route. A pre-rendered
   // `/package/<key>/` page carries the same structured data in its own HTML
@@ -743,7 +806,7 @@ function PackageContent({
                         {item.args?.length ? ` ${item.args.join(" ")}` : ""}
                       </span>
                     ) : (
-                      <span className="absent">unspecified</span>
+                      <span className="absent">not published</span>
                     )}
                   </dd>
                 </div>
@@ -753,7 +816,7 @@ function PackageContent({
                     {item.installHint ? (
                       <span className="break-all">{item.installHint}</span>
                     ) : (
-                      <span className="absent">{item.kind === "plugin" ? "unspecified" : "not applicable"}</span>
+                      <span className="absent">not published</span>
                     )}
                   </dd>
                 </div>
@@ -763,7 +826,7 @@ function PackageContent({
                     {item.skillSource ? (
                       <span className="break-all">{item.skillSource}</span>
                     ) : (
-                      <span className="absent">{item.kind === "skill" ? "unspecified" : "not applicable"}</span>
+                      <span className="absent">not published</span>
                     )}
                   </dd>
                 </div>
@@ -778,6 +841,7 @@ function PackageContent({
               agent={agent}
               hostTotal={hostTotal}
               snapshot={snapshot}
+              pageHref={pageHref}
               active={tab}
               onChange={setTab}
             />

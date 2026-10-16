@@ -18,7 +18,7 @@ import type { Listing } from "./telemetry";
 import { matchesQuery } from "./query";
 import { HOSTS, SKILL_TARGETS, hostsFor } from "./hosts";
 import { isDiscontinued } from "./lifecycle";
-import { OFFICIAL_SKILLS_CATEGORY, sortListings } from "./catalog";
+import { GRID_PAGE, OFFICIAL_SKILLS_CATEGORY, sortListings } from "./catalog";
 import { availabilityOf } from "./availability";
 
 /**
@@ -36,10 +36,12 @@ export interface Topic {
   /** `?q=` term, for topics the category vocabulary does not cover. */
   query?: string;
   /**
-   * Preferred example names, in display order. Verified against the row set at
-   * build time: a name that is not actually in the topic's result set is
-   * dropped and the gap is backfilled from real rows, so a regenerated dataset
-   * cannot put a stranger's name on a tile that no longer matches it.
+   * Preferred example names, in display order. Verified against the FIRST PAGE
+   * of the view the tile links to at build time — a name that is not among the
+   * rows Explore shows first is dropped and the gap is backfilled from that
+   * page, so the tile cannot advertise a name its own link buries behind a
+   * page of results. (It used to be checked against the whole result set,
+   * which let a tile show three names none of its first 48 rows contained.)
    */
   examples: string[];
 }
@@ -50,7 +52,9 @@ export const TOPICS: Topic[] = [
     label: "Code & Git",
     blurb: "Repositories, reviews, CI and the languages your agent writes.",
     category: "Developer Tools",
-    examples: ["github", "circleci", "context7"],
+    // Drawn from this category's first curated page (the rows Explore shows
+    // first); a name that is not there is dropped and backfilled.
+    examples: ["21st.dev", "0nMCP — Universal AI API Orchestrator", "0xArchive Market Data"],
   },
   {
     id: "browser",
@@ -64,7 +68,7 @@ export const TOPICS: Topic[] = [
     label: "Files & Documents",
     blurb: "Read and write docs, PDFs, spreadsheets and notes.",
     query: "document",
-    examples: ["notion", "google-docs", "docx-mcp"],
+    examples: ["document-skills", "Document Tools", "Document Api Endpoint"],
   },
   {
     id: "databases",
@@ -106,14 +110,14 @@ export const TOPICS: Topic[] = [
     label: "Productivity",
     blurb: "Tasks, calendars, docs and the workflow around your team.",
     category: "Productivity & Workflow",
-    examples: ["asana", "clickup", "linear"],
+    examples: ["asana", "clickup", "airtable"],
   },
   {
     id: "knowledge",
     label: "Knowledge & Memory",
     blurb: "Give an agent durable notes it can recall later.",
     category: "Knowledge & Memory",
-    examples: ["apple-notes-mcp", "basic-memory", "obsidian-mcp"],
+    examples: ["apple-notes-mcp", "basic-memory", "assistant-mcp"],
   },
   {
     id: "security",
@@ -145,16 +149,31 @@ function topicHref(topic: Topic): string {
  * Count and fill each topic against the full row set. Runs at build time in
  * `app/page.tsx`, so the numbers beside the tiles are the same numbers Explore
  * will report after it fetches — both come from this predicate over these rows.
+ *
+ * Example names come from the FIRST PAGE of the view the tile links to, not
+ * from the whole result set: a category topic is ordered the way Explore's
+ * browse default orders it (`sortListings(matches, "curated")`), and a query
+ * topic is ordered by the caller's `rankQuery` — `app/page.tsx` passes the
+ * search index's own ranking (with validation fixtures demoted, exactly as
+ * Explore's query path does). A regenerated dataset therefore cannot put a
+ * name on a tile that the reader will not see when they follow the tile.
  */
-export function deriveTopics(items: Listing[]): TopicStat[] {
+export function deriveTopics(
+  items: Listing[],
+  rankQuery?: (query: string) => Listing[]
+): TopicStat[] {
   return TOPICS.map((topic) => {
     const matches = items.filter(topicPredicate(topic));
-    const present = new Set(matches.map((m) => m.name));
+    const ordered = topic.category
+      ? sortListings(matches, "curated")
+      : rankQuery?.(topic.query ?? "") ?? matches;
+    const firstPage = ordered.slice(0, GRID_PAGE);
+    const present = new Set(firstPage.map((m) => m.name));
     const examples: string[] = [];
     for (const name of topic.examples) {
       if (present.has(name) && examples.length < 3) examples.push(name);
     }
-    for (const item of matches) {
+    for (const item of firstPage) {
       if (examples.length >= 3) break;
       if (!examples.includes(item.name)) examples.push(item.name);
     }

@@ -82,7 +82,16 @@ function ReleaseChip({ telemetry }: { telemetry: TelemetryState }) {
           status === "ready" ? "bg-accent" : status === "loading" ? "animate-pulse bg-ink-3" : "bg-ink-3/50"
         }`}
       />
-      {status === "loading" && "checking the catalog…"}
+      {/*
+        The initial state is "bundled snapshot", not "checking the catalog…":
+        the prerendered HTML ships whichever string is here, and only the
+        client can resolve a check — so a reader without JavaScript (exactly
+        the reader this site advertises supporting) used to sit on a permanent
+        loading state. "Bundled snapshot" is true in every state the server can
+        render: the counts above it come from the bundled release until the
+        origin's manifest answers and the chip says "catalog is current".
+      */}
+      {status === "loading" && "bundled snapshot"}
       {status === "ready" && "catalog is current"}
       {status === "offline" && "bundled snapshot"}
     </span>

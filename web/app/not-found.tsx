@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Header } from "../components/navigation/Header";
 import { SiteFooter } from "../components/layout/SiteFooter";
 
@@ -8,7 +9,15 @@ import { SiteFooter } from "../components/layout/SiteFooter";
  * layout's "Skip to content" link pointing at `#main` with no such anchor
  * on the page (an accessibility dead end on the one page that 404s).
  * Every other route renders `<main id="main">` itself; this one does too.
+ *
+ * The title is page-specific: without this export the export shipped the
+ * layout's default site title, so a 404 read as the home page in a tab,
+ * a bookmark or a history entry. The layout's template appends the site name.
  */
+export const metadata: Metadata = {
+  title: "Page not found",
+};
+
 export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col">

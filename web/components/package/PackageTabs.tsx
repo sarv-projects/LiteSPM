@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
-import { kindLabel, listingHref } from "../../lib/catalog";
+import { kindLabel } from "../../lib/catalog";
 import { bridgeSnippet, hostPath, hostsFor, resolveHost } from "../../lib/hosts";
 import { formatCount, shortDigest } from "../../lib/format";
 import { VerifiedMark } from "../catalog/PublisherMark";
@@ -147,7 +147,7 @@ function OverviewPanel({ item }: { item: Listing }) {
           {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
             externalLink(item.publisher.url, item.publisher.name)
           ) : (
-            item.publisher?.name || <Absent text="unspecified" />
+            item.publisher?.name || <Absent text="not published" />
           )}
         </SpecRow>
         <SpecRow label="Publisher listing">
@@ -168,7 +168,7 @@ function OverviewPanel({ item }: { item: Listing }) {
             {item.runtime ? (
               <span className="t-mono text-[12px]!">{item.runtime}</span>
             ) : (
-              <Absent text="unspecified" />
+              <Absent text="not published" />
             )}
           </SpecRow>
         )}
@@ -177,7 +177,7 @@ function OverviewPanel({ item }: { item: Listing }) {
             {item.transport ? (
               <span className="t-mono text-[12px]!">{item.transport}</span>
             ) : (
-              <Absent text="unspecified" />
+              <Absent text="not published" />
             )}
           </SpecRow>
         )}
@@ -244,31 +244,31 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
           {item.runtime ? (
             <span className="t-mono text-[12px]!">{item.runtime}</span>
           ) : (
-            <Absent text={item.kind === "mcp" ? "unspecified" : "not applicable"} />
+            <Absent text="not published" />
           )}
         </SpecRow>
         <SpecRow label="Transport">
           {item.transport ? (
             <span className="t-mono text-[12px]!">{item.transport}</span>
           ) : (
-            <Absent text={item.kind === "mcp" ? "unspecified" : "not applicable"} />
+            <Absent text="not published" />
           )}
         </SpecRow>
         <SpecRow label="Launch line">
-          {launch ? <span className="t-mono break-all text-[12px]!">{launch}</span> : <Absent text="unspecified" />}
+          {launch ? <span className="t-mono break-all text-[12px]!">{launch}</span> : <Absent text="not published" />}
         </SpecRow>
         <SpecRow label={item.kind === "skill" ? "Install from source" : "Host command"}>
           {item.installHint ? (
             <span className="t-mono break-all text-[12px]!">{item.installHint}</span>
           ) : (
-            <Absent text={item.kind === "plugin" ? "unspecified" : "not applicable"} />
+          <Absent text="not published" />
           )}
         </SpecRow>
         <SpecRow label="Skill source">
           {item.skillSource ? (
             <span className="t-mono break-all text-[12px]!">{item.skillSource}</span>
           ) : (
-            <Absent text={item.kind === "skill" ? "unspecified" : "not applicable"} />
+            <Absent text="not published" />
           )}
         </SpecRow>
       </dl>
@@ -511,32 +511,32 @@ function VersionsPanel({
         <dl className="spec-list mt-3">
           <SpecRow label="Release">
             <span className="t-mono text-[12px]!">
-              {typeof release.releaseId === "string" ? release.releaseId : <Absent text="unspecified" />}
+              {typeof release.releaseId === "string" ? release.releaseId : <Absent text="not published" />}
             </span>
           </SpecRow>
           <SpecRow label="Sequence">
             {typeof release.sequence === "number" ? (
               <span className="t-mono t-tabular text-[12px]!">{release.sequence}</span>
             ) : (
-              <Absent text="unspecified" />
+              <Absent text="not published" />
             )}
           </SpecRow>
           <SpecRow label="Built">
             <span className="t-mono text-[12px]!">
-              {createdAt ? createdAt.replace("T", " ").replace("Z", " UTC") : <Absent text="unspecified" />}
+              {createdAt ? createdAt.replace("T", " ").replace("Z", " UTC") : <Absent text="not published" />}
             </span>
           </SpecRow>
           <SpecRow label="Dataset digest">
             <span className="t-mono text-[12px]!">
               {shortDigest(typeof release.datasetDigest === "string" ? release.datasetDigest : undefined) ?? (
-                <Absent text="unspecified" />
+                <Absent text="not published" />
               )}
             </span>
           </SpecRow>
           <SpecRow label="Manifest digest">
             <span className="t-mono text-[12px]!">
               {shortDigest(typeof release.manifestDigest === "string" ? release.manifestDigest : undefined) ?? (
-                <Absent text="unspecified" />
+                <Absent text="not published" />
               )}
             </span>
           </SpecRow>
@@ -550,8 +550,8 @@ function VersionsPanel({
   );
 }
 
-function SourcePanel({ item }: { item: Listing }) {
-  const canonical = `${SITE_URL}${listingHref(item)}`;
+function SourcePanel({ item, pageHref }: { item: Listing; pageHref: string }) {
+  const canonical = `${SITE_URL}${pageHref}`;
 
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -575,14 +575,14 @@ function SourcePanel({ item }: { item: Listing }) {
           {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
             externalLink(item.publisher.url, item.publisher.url)
           ) : (
-            <Absent text="unspecified" />
+            <Absent text="not published" />
           )}
         </SpecRow>
         <SpecRow label="Skill source">
           {item.skillSource ? (
             externalLink(item.skillSource, item.skillSource)
           ) : (
-            <Absent text={item.kind === "skill" ? "unspecified" : "not applicable"} />
+            <Absent text="not published" />
           )}
         </SpecRow>
         <SpecRow label="Source class">
@@ -611,6 +611,14 @@ export interface PackageTabsProps {
   hostTotal: number;
   /** Version coverage over the loaded row set (rows are loaded on this route). */
   snapshot: { total: number; versioned: number };
+  /**
+   * The path this page is actually served at: `/package/<key>/` on a
+   * pre-rendered entry page, `/package/?slug=<key>` on the client-resolved
+   * one. The Source tab prints it as "This page", so it must be the address
+   * the reader is on — not the client form on a page whose canonical is the
+   * path form.
+   */
+  pageHref: string;
   /** Controlled so a question block above can jump to a tab — local state only. */
   active: PackageTabId;
   onChange: (id: PackageTabId) => void;
@@ -623,7 +631,7 @@ export interface PackageTabsProps {
  * link from the questions above can open a specific tab — switching never
  * fetches anything (the row is already in memory).
  */
-export function PackageTabs({ item, agent, hostTotal, snapshot, active, onChange }: PackageTabsProps) {
+export function PackageTabs({ item, agent, hostTotal, snapshot, pageHref, active, onChange }: PackageTabsProps) {
   const renderPanel = (tab: PackageTabId): React.ReactNode => {
     switch (tab) {
       case "overview":
@@ -637,7 +645,7 @@ export function PackageTabs({ item, agent, hostTotal, snapshot, active, onChange
       case "versions":
         return <VersionsPanel item={item} total={snapshot.total} versioned={snapshot.versioned} />;
       case "source":
-        return <SourcePanel item={item} />;
+        return <SourcePanel item={item} pageHref={pageHref} />;
     }
   };
 

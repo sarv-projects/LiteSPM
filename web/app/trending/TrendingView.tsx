@@ -22,6 +22,12 @@ export interface TrendingBoards {
 export interface TrendingViewProps {
   total: number;
   boards: TrendingBoards;
+  /**
+   * How many distinct values each board has in the whole snapshot. A board
+   * renders the largest 15; the totals are what makes that truncation visible
+   * instead of reading as "these are all of them".
+   */
+  boardTotals: { categories: number; hosts: number; publishers: number };
 }
 
 /**
@@ -53,6 +59,7 @@ function CountBoard({
   rows,
   href,
   tone,
+  total,
 }: {
   title: string;
   note?: string;
@@ -61,6 +68,12 @@ function CountBoard({
   rows: Array<{ label: string; count: number; href?: string; display?: string }>;
   href?: (label: string) => string;
   tone?: string;
+  /**
+   * Distinct values in the whole snapshot. Boards render the largest 15 and
+   * say so; without this the board read as the complete list (the agent-host
+   * board ended at 15 with 75 more unmentioned).
+   */
+  total?: number;
 }) {
   if (!rows.length) return null;
   const max = rows[0].count;
@@ -71,6 +84,11 @@ function CountBoard({
         <div className="min-w-0">
           <h2>{title}</h2>
           {note && <p className="section-note mt-0.5">{note}</p>}
+          {total !== undefined && total > rows.length && (
+            <p className="section-note mt-0.5">
+              Showing the top {rows.length} of {formatCount(total)}.
+            </p>
+          )}
         </div>
       </div>
 
@@ -112,7 +130,7 @@ function CountBoard({
   );
 }
 
-export default function CoveragePage({ total, boards }: TrendingViewProps) {
+export default function CoveragePage({ total, boards, boardTotals }: TrendingViewProps) {
   return (
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
       <Header />
@@ -131,7 +149,7 @@ export default function CoveragePage({ total, boards }: TrendingViewProps) {
           — the upstream sources publish no star, download or install figures.
         </p>
 
-        <div className="mt-7 grid gap-x-10 gap-y-9 lg:grid-cols-2">
+        <div className="mt-7 grid items-start gap-x-10 gap-y-9 lg:grid-cols-2">
           <CountBoard
             title="By capability kind"
             note="Every entry is an MCP server, an agent skill or a plugin."
@@ -141,18 +159,21 @@ export default function CoveragePage({ total, boards }: TrendingViewProps) {
             title="Agent hosts by coverage"
             note="How many entries are compatible with each host. MCP servers and skills come from LiteSPM's adapter registries; plugins from the publisher's own list — not a test result."
             rows={boards.hosts}
+            total={boardTotals.hosts}
           />
           <CountBoard
             title="Categories by entry count"
             note="Using the category string each source publishes."
             rows={boards.categories.map((c) => ({ ...c, display: categoryLabel(c.label) }))}
             href={(label) => `/explore/?category=${encodeURIComponent(label)}`}
+            total={boardTotals.categories}
           />
           <CountBoard
             title="Publishers by entries shipped"
-            note="Count of entries, not stars."
+            note="Count of entries, not stars. The link opens the publisher's own rows."
             rows={boards.publishers}
-            href={(label) => `/explore/?q=${encodeURIComponent(label)}`}
+            href={(label) => `/explore/?publisher=${encodeURIComponent(label)}`}
+            total={boardTotals.publishers}
           />
         </div>
 

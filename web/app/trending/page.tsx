@@ -28,19 +28,30 @@ export const metadata: Metadata = {
 export default function TrendingPage() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);
 
+  const categories = categoryIndex(items);
+  const hosts = agentFacets(items);
+  const publishers = publisherFacets(items, Number.MAX_SAFE_INTEGER);
+
   const props: TrendingViewProps = {
     total: items.length,
     boards: {
-      categories: categoryIndex(items)
+      categories: categories
         .slice(0, 15)
         .map((c) => ({ label: c.name, count: c.count })),
-      hosts: agentFacets(items)
+      hosts: hosts
         .slice(0, 15)
         .map((a) => ({ label: a.name, count: a.count })),
-      publishers: publisherFacets(items, 15).map((p) => ({ label: p.name, count: p.count })),
+      publishers: publishers.slice(0, 15).map((p) => ({ label: p.name, count: p.count })),
       kinds: kindBreakdown(items)
         .map((k) => ({ label: kindLabel(k.kind), count: k.count, kind: k.kind }))
         .sort((a, b) => b.count - a.count),
+    },
+    // The boards render 15 rows each; these are the whole-snapshot counts, so
+    // the truncation is stated on the page instead of silently implied.
+    boardTotals: {
+      categories: categories.length,
+      hosts: hosts.length,
+      publishers: publishers.length,
     },
   };
 

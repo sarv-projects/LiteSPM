@@ -347,8 +347,8 @@ export function categoryFacets(items: Listing[], limit = 16): Array<{ name: stri
 }
 
 /**
- * `slug` is NOT unique in this dataset: 121 slugs are shared by 402 entries
- * (up to 73 answer to one slug, e.g. `skill-creator`). Emitting
+ * `slug` is NOT unique in this dataset: 5,217 of its 57,112 distinct slugs are
+ * shared by 17,481 rows (up to 1,906 answer to one slug, `mcp`). Emitting
  * `?slug=<slug>` for those would send a reader to whichever entry happened to
  * be indexed last.
  *
@@ -360,7 +360,10 @@ export function categoryFacets(items: Listing[], limit = 16): Array<{ name: stri
  * and in the browser after the lazily-fetched rows arrive — so the link target
  * rides along on the row instead of needing the whole row set in every
  * component that renders a card. Counts are computed over the full set, never
- * over the slice a page happens to render.
+ * over the slice a page happens to render. The product-page buckets do not
+ * call this at all: the emitter stamps every bucket row with the key it
+ * resolved over the whole dataset (`scripts/emit-catalog-shards.mjs`), because
+ * a bucket-local count would call a globally-shared slug unique.
  */
 export function withLinkKeys(items: Listing[]): Listing[] {
   const counts = new Map<string, number>();

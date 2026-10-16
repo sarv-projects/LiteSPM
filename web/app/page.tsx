@@ -1,6 +1,6 @@
 import catalogData from "../data/catalog.json";
 import type { Listing } from "../lib/telemetry";
-import { deriveKindCounts, withLinkKeys } from "../lib/catalog";
+import { demoteValidationFixtures, deriveKindCounts, withLinkKeys } from "../lib/catalog";
 import {
   AGENT_CHOICES,
   deriveProvenance,
@@ -8,6 +8,12 @@ import {
   deriveTopics,
   rowWorksWithAgent,
 } from "../lib/landing";
+import {
+  buildSearchIndex,
+  decodeSearchIndex,
+  encodeSearchIndex,
+  querySearchIndex,
+} from "../lib/searchFormat.mjs";
 import type { HomeViewProps } from "./HomeView";
 import HomeRoute from "./HomeRoute";
 
@@ -31,6 +37,26 @@ import HomeRoute from "./HomeRoute";
  * counts in the HTML and the counts Explore reports after a fetch come from the
  * same code path.
  */
+/**
+ * The search index the browser fetches, built here as well so the home tiles'
+ * example names can be drawn from the first page their own link actually
+ * shows. This is Explore's query path, reproduced with the same functions:
+ * `querySearchIndex` over the same emitted index, then the validation-fixture
+ * demotion Explore applies. Built once per process (the module outlives the
+ * request in both `next build` and `next dev`), because the index is ~2s of
+ * work over 69k rows and nothing about it changes between renders.
+ */
+let topicIndex: ReturnType<typeof decodeSearchIndex> | null = null;
+
+function topicRanker(items: Listing[]): (query: string) => Listing[] {
+  if (!topicIndex) {
+    topicIndex = decodeSearchIndex(encodeSearchIndex(buildSearchIndex(items)));
+  }
+  const index = topicIndex;
+  return (query: string) =>
+    demoteValidationFixtures(querySearchIndex(index, query).map((i) => items[i]));
+}
+
 export default function Home() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);
 
@@ -38,7 +64,7 @@ export default function Home() {
     total: items.length,
     kindCounts: deriveKindCounts(items),
     provenance: deriveProvenance(items),
-    topics: deriveTopics(items),
+    topics: deriveTopics(items, topicRanker(items)),
     shelves: deriveShelves(items),
     // Counted here, over the same rows the strip's numbers used to come from,
     // so the landing page can print them without loading the row set.

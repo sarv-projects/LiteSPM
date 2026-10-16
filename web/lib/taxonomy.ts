@@ -75,7 +75,7 @@ export interface GoalDefinition {
  *   communication   2,818   4.1%   email, chat, meetings, social
  *   other          21,202  30.6%   no goal this map can place — honest remainder
  *
- * (Measured on the 2026-10-11 snapshot, 69,376 rows. The largest goal is 10.5%
+ * (Measured on the 2026-10-15 snapshot, 69,376 rows. The largest goal is 10.5%
  * of the catalog — against the 65.4% the sources' own labels put in
  * "Developer Tools" — and `other` is the remainder the coverage line on
  * `/categories/` reports, never hidden.)

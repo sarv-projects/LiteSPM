@@ -2,6 +2,7 @@
 
 import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { RotateCw, X } from "lucide-react";
 import { Header } from "../../components/navigation/Header";
 import { SearchBar } from "../../components/navigation/SearchBar";
@@ -106,12 +107,20 @@ function useQueryFilters(request: () => void) {
     goal: "all",
     category: "all",
     agent: "all",
+    publisher: "",
     source: "",
     verifiedOnly: false,
     installableOnly: false,
     sort: DEFAULT_SORT,
   });
   const [urlSortPinned, setUrlSortPinned] = useState(false);
+  /**
+   * True once the query string has been read and applied. The URL-sync effect
+   * below must not run before this: on the first commit `filters` still holds
+   * the defaults, and writing those to the address bar would erase the deep
+   * link the seeding effect is about to apply.
+   */
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -122,6 +131,7 @@ function useQueryFilters(request: () => void) {
       goal: p.get("goal") ?? "",
       category: p.get("category") ?? "",
       agent: p.get("host") ?? "",
+      publisher: p.get("publisher") ?? "",
       source: p.get("source") ?? "",
       verifiedOnly: p.get("verified") === "1",
       installableOnly: p.get("installable") === "1",
@@ -133,6 +143,7 @@ function useQueryFilters(request: () => void) {
       next.goal !== "" ||
       next.category !== "" ||
       next.agent !== "" ||
+      next.publisher !== "" ||
       next.source !== "" ||
       next.verifiedOnly ||
       next.installableOnly ||
@@ -143,16 +154,18 @@ function useQueryFilters(request: () => void) {
       goal: next.goal || "all",
       category: next.category || "all",
       agent: next.agent || "all",
+      publisher: next.publisher,
       source: next.source,
       verifiedOnly: next.verifiedOnly,
       installableOnly: next.installableOnly,
       sort: next.sort,
     });
     setUrlSortPinned(sort !== "");
+    setHydrated(true);
     if (seeded) request();
   }, [request]);
 
-  return [filters, setFilters, urlSortPinned] as const;
+  return [filters, setFilters, urlSortPinned, hydrated] as const;
 }
 
 /** Human names for the fields `explainMatch` reports. */
@@ -340,8 +353,10 @@ function ExploreLoadError({ onRetry }: { onRetry: () => void }) {
 
 function ExploreContent(props: ExploreViewProps) {
   const { status, items: full, request } = useCatalog();
-  const [filters, setFilters, urlSortPinned] = useQueryFilters(request);
-  const { query, kind, goal, category, agent, source, verifiedOnly, installableOnly, sort } = filters;
+  const [filters, setFilters, urlSortPinned, hydrated] = useQueryFilters(request);
+  const { query, kind, goal, category, agent, publisher, source, verifiedOnly, installableOnly, sort } =
+    filters;
+  const router = useRouter();
 
   /**
    * `?focus=search` is what the header's search affordance deep-links to. It
@@ -407,6 +422,10 @@ function ExploreContent(props: ExploreViewProps) {
     request();
     setFilters((f) => ({ ...f, agent: a }));
   };
+  const setPublisher = (p: string) => {
+    request();
+    setFilters((f) => ({ ...f, publisher: p }));
+  };
   const setVerifiedOnly = (v: boolean) => {
     request();
     setFilters((f) => ({ ...f, verifiedOnly: v }));
@@ -424,6 +443,36 @@ function ExploreContent(props: ExploreViewProps) {
     setSortTouched(true);
     setFilters((f) => ({ ...f, sort: s }));
   };
+
+  /**
+   * Keep the address bar in step with the filters that are actually applied.
+   *
+   * Reset used to clear the state but leave `?kind=plugin&category=…` in the
+   * URL, so a refresh or a shared link re-applied filters the reader had
+   * cleared — the list said "All capabilities" while the address bar said
+   * otherwise. The query field is deliberately not a dependency: it syncs on
+   * Enter (SearchBar) and on clear, so typing does not rewrite history on
+   * every keystroke.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (kind !== "all") params.set("kind", kind);
+    if (goal !== "all") params.set("goal", goal);
+    if (category !== "all") params.set("category", category);
+    if (agent !== "all") params.set("host", agent);
+    if (publisher) params.set("publisher", publisher);
+    if (source) params.set("source", source);
+    if (verifiedOnly) params.set("verified", "1");
+    if (installableOnly) params.set("installable", "1");
+    if (sort !== DEFAULT_SORT) params.set("sort", sort);
+    const next = params.toString();
+    if (next === window.location.search.replace(/^\?/, "")) return;
+    router.replace(next ? `/explore/?${next}` : "/explore/", { scroll: false });
+    // `query` is read, not depended on — see the comment above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, kind, goal, category, agent, publisher, source, verifiedOnly, installableOnly, sort, router]);
 
   const deferredQuery = useDeferredValue(query);
 
@@ -449,6 +498,20 @@ function ExploreContent(props: ExploreViewProps) {
   const goals = live ? live.goals : props.goals;
   const agents = live ? live.agents : props.agents;
   const hostCount = live ? live.hostCount : props.hostCount;
+
+  /**
+   * A deep link can spell a host this build lists with different case
+   * (`?host=claude%20code`). Canonicalise it to the facet's own name so the
+   * "Works with" select shows the filter that is actually applied instead of
+   * falling back to "Any agent" beside a filtered list.
+   */
+  useEffect(() => {
+    if (agent === "all") return;
+    const canonical = agents.find((a) => a.name.toLowerCase() === agent.toLowerCase());
+    if (canonical && canonical.name !== agent) {
+      setFilters((f) => (f.agent === agent ? { ...f, agent: canonical.name } : f));
+    }
+  }, [agent, agents, setFilters]);
 
   const { results, searching, settled } = useCatalogSearch(full ?? [], deferredQuery, {
     kind: kind === "all" ? null : kind,
@@ -485,6 +548,10 @@ function ExploreContent(props: ExploreViewProps) {
       // pure rule derives on both sides of the wire (`lib/taxonomy`).
       if (goal !== "all" && classifyListing(item) !== goal) return false;
       if (agent !== "all" && !matchesHost(item, agent)) return false;
+      // The publisher's own name, compared the way `publisherFacets` counts
+      // it (trimmed). This is the filter the Coverage boards link to; a text
+      // search for the same string measures something else entirely.
+      if (publisher && (item.publisher?.name ?? "").trim() !== publisher) return false;
       if (source && !matchesSource(item, source)) return false;
       if (verifiedOnly && !item.publisher?.verified) return false;
       if (installableOnly && !isInstallable(item)) return false;
@@ -500,7 +567,7 @@ function ExploreContent(props: ExploreViewProps) {
     // `demoteValidationFixtures` only reorders, so the count above and the
     // rows' own pages are untouched.
     return demoteValidationFixtures(ranked);
-  }, [results, goal, agent, source, verifiedOnly, installableOnly, effectiveSort, rankAgent]);
+  }, [results, goal, agent, publisher, source, verifiedOnly, installableOnly, effectiveSort, rankAgent]);
 
   /**
    * Match evidence for the first results, computed from the hydrated rows with
@@ -521,6 +588,7 @@ function ExploreContent(props: ExploreViewProps) {
     goal !== "all" ||
     category !== "all" ||
     agent !== "all" ||
+    publisher !== "" ||
     source !== "" ||
     verifiedOnly ||
     installableOnly ||
@@ -533,6 +601,7 @@ function ExploreContent(props: ExploreViewProps) {
     goal !== "all" ||
     category !== "all" ||
     agent !== "all" ||
+    publisher !== "" ||
     source !== "" ||
     verifiedOnly ||
     installableOnly;
@@ -558,11 +627,15 @@ function ExploreContent(props: ExploreViewProps) {
     setGoal("all");
     setCategory("all");
     setAgent("all");
+    setPublisher("");
     setSource("");
     setVerifiedOnly(false);
     setInstallableOnly(false);
     setSortTouched(false);
     setFilters((f) => ({ ...f, sort: DEFAULT_SORT }));
+    // The state above is already the whole story; the address bar has to
+    // agree with it or a refresh re-applies filters the reader just cleared.
+    router.replace("/explore/", { scroll: false });
   };
 
   return (
@@ -724,6 +797,13 @@ function ExploreContent(props: ExploreViewProps) {
                     {a.name} ({formatCount(a.count)})
                   </option>
                 ))}
+                {/* A `?host=` that names nothing this catalog lists is still
+                    applied, so it is shown rather than silently rendering
+                    "Any agent" beside an empty list. Its count is 0 because no
+                    row's host list carries the name. */}
+                {agent !== "all" && !agents.some((a) => a.name === agent) && (
+                  <option value={agent}>{agent} — not a host in this catalog (0)</option>
+                )}
               </select>
             </label>
 
@@ -757,6 +837,24 @@ function ExploreContent(props: ExploreViewProps) {
                   type="button"
                   onClick={() => setSource("")}
                   aria-label={`Clear the ${sourceLabel(source)} source filter`}
+                  className="btn h-5 min-h-0 px-1! py-0!"
+                >
+                  <X className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </span>
+            )}
+
+            {/* A publisher set by a Coverage board's link. Publishers number in
+                the tens of thousands, so there is no select for them; the chip
+                is the whole control. */}
+            {publisher && (
+              <span className="inline-flex items-center gap-1.5 rounded-chip border border-rule bg-sunken px-2 py-1 text-[12px] text-ink-2">
+                <span className="t-mono text-[11px] text-ink-3">publisher</span>
+                {publisher}
+                <button
+                  type="button"
+                  onClick={() => setPublisher("")}
+                  aria-label={`Clear the ${publisher} publisher filter`}
                   className="btn h-5 min-h-0 px-1! py-0!"
                 >
                   <X className="h-3 w-3" aria-hidden="true" />

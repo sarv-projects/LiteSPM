@@ -164,6 +164,23 @@ function bucketFor(key) {
 rmSync(PKG_DIR, { recursive: true, force: true });
 mkdirSync(PKG_DIR, { recursive: true });
 
+// The key each row answers to is resolved over the WHOLE dataset, once, before
+// any bucket is written: `linkKey` is the slug only where exactly one row in
+// the catalog carries it, and the id otherwise. Computing it inside a bucket
+// would call a globally-shared slug unique in the one bucket that happens to
+// hold its first-wins row — which is how `/package/?slug=postgres` (8 rows)
+// resolved to whichever of the 8 was indexed first. `withLinkKeys` in
+// `lib/catalog.ts` states the same rule for the full row set, and `buildLookup`
+// in `app/package/PackageView.tsx` trusts this stamped key.
+const globalSlugCounts = new Map();
+for (const row of rows) {
+  globalSlugCounts.set(row.slug, (globalSlugCounts.get(row.slug) ?? 0) + 1);
+}
+const withLinkKey = (row) => ({
+  ...row,
+  linkKey: globalSlugCounts.get(row.slug) === 1 ? row.slug : row.id,
+});
+
 const buckets = Array.from({ length: BUCKETS }, () => []);
 let versioned = 0;
 let slugBucketExtras = 0;
@@ -179,17 +196,17 @@ for (const row of rows) {
   // to be filed under the bucket of each key it answers to; filing by slug
   // alone made every id-keyed page report "not in this catalog snapshot".
   const idBucket = bucketFor(row.id);
-  buckets[idBucket].push(row);
+  buckets[idBucket].push(withLinkKey(row));
 
-  // Slugs are filed first-wins, matching `buildLookup`: 69,376 rows share only
-  // 57,112 distinct slugs, and `mcp` alone is claimed by thousands. Without
-  // this the `mcp` bucket held 2,181 rows, 8x the average, and those duplicate
-  // rows could never have been resolved anyway.
+  // An ambiguous slug is still filed first-wins so the page can tell "shared
+  // name" from "no such name": `buildLookup` refuses to register the key, and
+  // the view's not-found state names the ambiguity rather than claiming the
+  // entry is missing. The rows that share the slug stay reachable by id.
   if (!seenSlugs.has(row.slug)) {
     seenSlugs.add(row.slug);
     const slugBucket = bucketFor(row.slug);
     if (slugBucket !== idBucket) {
-      buckets[slugBucket].push(row);
+      buckets[slugBucket].push(withLinkKey(row));
       slugBucketExtras += 1;
     }
   }
@@ -232,7 +249,7 @@ for (const [name, group] of byCategory) {
   if (group.length > SIBLING_CATEGORY_MAX) continue;
   const slug = categorySlug(name);
   if (!slug) continue;
-  writeFileSync(path.join(CAT_DIR, `${slug}.json`), `${JSON.stringify(group)}\n`);
+  writeFileSync(path.join(CAT_DIR, `${slug}.json`), `${JSON.stringify(group.map(withLinkKey))}\n`);
   categoryFiles += 1;
 }
 

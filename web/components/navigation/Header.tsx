@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Search, SquareTerminal } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -38,6 +38,50 @@ const PRIMARY_NAV = [
 
 export function Header({ onNavigate, onSearchClick }: HeaderProps) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  /**
+   * Scroll to the home page's install section once it exists.
+   *
+   * The section lives in the home page's dynamically imported view, so on a
+   * cross-route `/#install` navigation the App Router's own scroll attempt
+   * runs before the target has mounted and finds nothing — the reader lands at
+   * the top of the page (measured: scrollY 0 against a target 5,583px down).
+   * Polling for the element closes that window without guessing at a delay.
+   */
+  const scrollToInstall = React.useCallback(() => {
+    let tries = 0;
+    const tick = () => {
+      const el = document.getElementById("install");
+      if (el) {
+        el.scrollIntoView({ block: "start" });
+        return;
+      }
+      if (tries < 60) {
+        tries += 1;
+        window.setTimeout(tick, 50);
+      }
+    };
+    tick();
+  }, []);
+
+  // A full page load straight onto `/#install` (or a back/forward to it) also
+  // needs the wait: the target is not in the static HTML.
+  React.useEffect(() => {
+    if (pathname === "/" && window.location.hash === "#install") scrollToInstall();
+  }, [pathname, scrollToInstall]);
+
+  const onInstallClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    // The anchor keeps its href for no-JS and middle-click; a plain click is
+    // handled here so the scroll can wait for the target to mount.
+    event.preventDefault();
+    if (pathname === "/") {
+      window.history.replaceState(null, "", "/#install");
+    } else {
+      router.push("/#install");
+    }
+    scrollToInstall();
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-rule bg-surface">
@@ -91,7 +135,7 @@ export function Header({ onNavigate, onSearchClick }: HeaderProps) {
             <Search className="h-4 w-4" aria-hidden="true" />
           </Link>
           <ThemeToggle />
-          <Link href="/#install" className="btn btn-solid btn-lg whitespace-nowrap">
+          <Link href="/#install" onClick={onInstallClick} className="btn btn-solid btn-lg whitespace-nowrap">
             <span className="hidden sm:inline">Install LiteSPM</span>
             <span className="sm:hidden">Install</span>
           </Link>

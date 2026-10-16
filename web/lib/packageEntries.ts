@@ -27,7 +27,7 @@
 //      row scores identically on the curated axes (verified + installable), so
 //      the cap applies in the same name order the catalog uses everywhere.
 //
-// Measured against the 2026-10-11 snapshot (69,376 rows): 26,165 rows are
+// Measured against the 2026-10-15 snapshot (69,376 rows): 26,165 rows are
 // installable, 25,404 of those are publisher-manifest rows, 18,877 survive the
 // key rule, and the cap below keeps N of them. Nothing here runs at request
 // time — it is the same computation `generateStaticParams` and the sitemap use,

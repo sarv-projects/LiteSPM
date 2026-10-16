@@ -20,9 +20,12 @@ import { SITE_URL } from "../lib/site";
  * sitemap cannot name a page the build did not produce).
  *
  * `/package/` is deliberately absent. It resolves an entry from `?slug=` in
- * the browser and answers any unknown slug with HTTP 200, so it presents a
+ * the browser and answers an unknown slug with HTTP 200, so it presents a
  * crawler with an unbounded set of identical pages and no prerendered content
- * to index; `public/robots.txt` disallows it for the same reason.
+ * to index. The pre-rendered entry pages (`/package/<key>/`) are listed at
+ * `/package/entries/sitemap.xml` instead, and `public/robots.txt` no longer
+ * disallows the subtree — the page's own canonical and noindex rules do that
+ * work.
  *
  * `lastmod` is the catalog release's own creation time from
  * `data/release.json` — the one date this build can honestly claim for every
