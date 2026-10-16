@@ -1084,10 +1084,21 @@
    * properties, which is what lets the packet travel with `transform` alone —
    * a vertical leg is always a *known* pixel height, never a measured one.
    *
-   * Nothing in the figure animates a layout property. The moving parts are
-   * `transform` (both packets, the tile lift) and `opacity` / `background-color`
-   * / `border-color` (the highlight state), all of which the compositor can
-   * carry without dirtying style or layout.
+   * Nothing in the figure animates a layout property, and nothing here reads
+   * layout. The moving parts are:
+   *
+   *   transform   both packets, the bus's travelling light
+   *   opacity     the packets, the bus's travelling light
+   *   paint-only  the pulses (box-shadow, background-color, border-color) and
+   *               the verb readout (color), all on small elements
+   *
+   * `transform` and `opacity` are the compositor's own properties; the pulses
+   * are paint work on a tile-sized box and the readout is four words of 10px
+   * text, which is why the figure can carry them on a page whose argument is
+   * that it loads in 166 ms. Every cue is gated — on `data-live` for the two
+   * ambient ones, on a phase for the journey's own answers — so off-screen,
+   * reduced-motion and no-JS readers get a complete still diagram and nothing
+   * running behind it.
    *
    * The stage is `--paper` inside a `--surface` card: one plane in front of
    * another, which is the whole depth story, plus the dot ground and the
@@ -1248,6 +1259,60 @@
     background-color: var(--accent-text);
     transition: opacity var(--t-hover) ease-out;
   }
+  /*
+   * The bus runs whether or not a packet is on it: a soft light crosses the
+   * shared run on a slow loop, so the figure is never inert between journeys.
+   *
+   * Two deliberate choices. **Additive, never a recolour** — it is a
+   * translucent wash travelling over the bus, so the wire underneath keeps its
+   * own colour at every frame. Measured on the served page, the wire reads
+   * 4.32:1 in light and 8.32:1 in dark against the band it is drawn on (4.64 /
+   * 8.54 on the raw paper), and it needs 3:1 as a meaningful graphic; a
+   * brighter core would have cost that margin in light mode and a darker one
+   * would have cost it in dark mode, which is why there is no core. And
+   * **4.4 s, not a divisor of the 1.98 s journey**, so the light and the
+   * packets never lock into a beat that reads as one mechanism: the packets
+   * are the claim, this is the hum.
+   *
+   * `opacity: 0` is the base state, so a reader without the animation — no JS,
+   * reduced motion, or simply off-screen, where `data-live` is removed — never
+   * sees a stray blob parked at the left end of the bus.
+   */
+  .dg-bus::after {
+    content: "";
+    position: absolute;
+    top: -7px;
+    bottom: -7px;
+    left: 0;
+    width: 25%;
+    opacity: 0;
+    background: radial-gradient(
+      closest-side,
+      color-mix(in srgb, var(--accent-text) 50%, transparent),
+      transparent
+    );
+  }
+  /* -100% of its own width is fully off the left end, 400% fully off the
+     right: the element is a quarter of the bus, so four widths is one run. */
+  @keyframes dg-bus-run {
+    0% {
+      opacity: 0;
+      transform: translateX(-100%);
+    }
+    10%,
+    90% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(400%);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .dg-stage[data-live] .dg-bus::after {
+      animation: dg-bus-run 4.4s linear infinite;
+    }
+  }
 
   .dg-hub {
     position: absolute;
@@ -1288,6 +1353,48 @@
   @media (min-width: 768px) {
     .dg-hub-verbs {
       font-size: 10.5px;
+    }
+  }
+  /*
+   * The four operations read as a sequence because they are lit as one: one
+   * word at a time, in the order the line prints them, a quarter of the
+   * journey each (`--dg-cycle`, handed down from the component so the readout
+   * and the packet cannot drift). The dot separators are text nodes of the
+   * container and stay neutral, so the lit word is the only thing that moves
+   * the eye.
+   *
+   * Colour only, and `--accent-text` rather than a stronger ink, so the lit
+   * word stays text rather than becoming a highlight: measured on the served
+   * page, the readout is 5.94:1 resting and 5.31:1 lit in light, 7.10:1 and
+   * 8.01:1 in dark — every state clears AA with a full point of headroom, and
+   * nothing about the word changes size or weight. A weight change would
+   * re-measure the line and re-centre the hub, which is exactly the kind of
+   * layout the figure does not do.
+   *
+   * The fade in/out inside each verb's own quarter is what makes the handover
+   * read as a relay: a word is fully out before the next is fully in.
+   */
+  .dg-verb {
+    color: var(--ink-3);
+    transition: color var(--t-hover) ease-out;
+  }
+  @keyframes dg-verb-step {
+    0% {
+      color: var(--ink-3);
+    }
+    6%,
+    19% {
+      color: var(--accent-text);
+    }
+    25%,
+    100% {
+      color: var(--ink-3);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .dg-stage[data-live] .dg-verb {
+      animation: dg-verb-step var(--dg-cycle, 1980ms) linear infinite;
+      animation-delay: calc(var(--dg-verb-i, 0) * var(--dg-cycle, 1980ms) / 4);
     }
   }
 
@@ -1333,10 +1440,11 @@
 
   /*
    * The phase machine, expressed where it belongs. `up` and `out` move a
-   * packet; `hub` fades it out at the bus and pulses the device; `idle` parks
-   * both packets invisibly at their starts. The reset needs no second
-   * animation: when a phase stops matching, the transform simply transitions
-   * back to zero.
+   * packet; `hub` fades the in-packet out at the bus and pulses the device;
+   * `land` fades the out-packet where it arrived and lets the tile answer;
+   * `idle` parks both packets invisibly at their starts. The reset needs no
+   * second animation: when a phase stops matching, the transform simply
+   * transitions back to zero.
    *
    * That reset is not free, though. Reusing the rise's ease-out in reverse
    * front-loads the retreat: the packet retraced ~60% of its leg in the
@@ -1361,12 +1469,104 @@
     opacity: 1;
     transform: translateY(calc(-1 * var(--dg-leg-out)));
   }
+  /*
+   * `land`: the packet is absorbed where it landed. It keeps the transform it
+   * arrived with and only fades — so it can no longer slide back down the wire
+   * while a reader is still reading the arrival — and the retrace happens
+   * afterwards, in `idle`, while the dot is invisible. This is also the phase
+   * the arrival pulse is drawn in: a delivery needs a moment that is *at the
+   * agent* to be acknowledged at.
+   */
+  .dg-stage[data-phase="land"] .dg-packet-out {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--dg-leg-out)));
+  }
   .dg-stage[data-phase="hub"] .dg-hub {
     border-color: color-mix(in srgb, var(--accent) 78%, transparent);
     background-color: color-mix(in srgb, var(--accent) 7%, var(--surface));
     box-shadow:
       0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
       0 2px 8px -2px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  /* ---- what answers the packet --------------------------------------- */
+  /*
+   * The hub has always pulsed when it takes the packet. The kinds and the
+   * tiles answer too, so one journey is drawn end to end: the kind lights as
+   * the packet leaves it, the wire it is on energises, the hub accepts it, and
+   * the tile it lands on registers the delivery.
+   *
+   * Both pulses are keyframes that begin and end on the element's own resting
+   * state, and both run inside a phase that outlives them (620 ms of pulse in
+   * a 680 ms `up`; 340 ms in the 380 ms `land`). That is what makes it safe to
+   * remove them: a hover, a scroll away or the next phase can cut the rule at
+   * any moment without leaving a tile lit or a pulse snapped off mid-flight —
+   * the fill state it is cut at is the state the element already had.
+   *
+   * The arrival pulse is built from the same three ingredients as the hover
+   * highlight (accent border, 3px ring, `--accent-wash` fill), so "a tile has
+   * received something" reads in the language the figure already speaks. The
+   * send pulse takes the *kind's* hue instead, because the packet it is
+   * pushing out carries that hue — a send from MCP servers should not look
+   * like a send from Plugins.
+   */
+  @keyframes dg-send {
+    0% {
+      background-color: var(--dg-hue-wash);
+      box-shadow: 0 0 0 0 transparent;
+    }
+    22% {
+      background-color: color-mix(in srgb, var(--dg-hue) 7%, var(--dg-hue-wash));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--dg-hue) 30%, transparent);
+    }
+    100% {
+      background-color: var(--dg-hue-wash);
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+  @keyframes dg-arrive {
+    0%,
+    100% {
+      background-color: var(--dg-tile-bg);
+      border-color: var(--rule-2);
+      box-shadow: 0 0 0 0 transparent;
+    }
+    22% {
+      background-color: var(--accent-wash);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+    }
+  }
+  @keyframes dg-arrive-ink {
+    0%,
+    100% {
+      color: var(--ink-3);
+    }
+    22% {
+      color: var(--accent-text);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .dg-stage[data-phase="up"] .dg-kind[data-src] .dg-kind-link {
+      animation: dg-send 620ms ease-out both;
+    }
+    .dg-stage[data-phase="land"] .dg-agent[data-dst] .dg-agent-link,
+    .dg-stage[data-phase="land"] .dg-agent[data-dst] .dg-agent-still {
+      animation: dg-arrive 340ms ease-out both;
+    }
+    .dg-stage[data-phase="land"] .dg-agent[data-dst] .dg-agent-name {
+      animation: dg-arrive-ink 340ms ease-out both;
+    }
+  }
+  /*
+   * The wire under the travelling packet energises for exactly as long as the
+   * packet is on it. A transition rather than a pulse, so it cannot outlive
+   * its phase, and the same accent glow the hover highlight uses — the figure
+   * has one language for "this path is live".
+   */
+  .dg-stage[data-phase="up"] .dg-trace-out[data-src],
+  .dg-stage[data-phase="out"] .dg-trace-in[data-dst] {
+    box-shadow: 0 0 6px 1px color-mix(in srgb, var(--accent) 34%, transparent);
   }
   /* Below `sm` the tiles are three across, so the outgoing packet leaves from
      the centre of the block rather than from a column that no longer exists. */
@@ -1415,7 +1615,10 @@
     /* A control boundary: 3:1, which is what --rule-2 is for. */
     border: 1px solid var(--rule-2);
     border-radius: var(--r-panel);
-    background-color: var(--surface);
+    /* Named so the arrival pulse can return the tile to *its own* resting
+       fill — the honest sixth is `--sunken`, the rest are `--surface`. */
+    --dg-tile-bg: var(--surface);
+    background-color: var(--dg-tile-bg);
     transition:
       border-color var(--t-hover) ease-out,
       background-color var(--t-hover) ease-out,
@@ -1458,7 +1661,7 @@
   /* The honest sixth: no mark, because there is no mark we could attribute. */
   .dg-agent-other .dg-agent-still {
     border-style: dashed;
-    background-color: var(--sunken);
+    --dg-tile-bg: var(--sunken);
   }
   .dg-agent-mark {
     display: inline-flex;

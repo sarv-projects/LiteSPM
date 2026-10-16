@@ -192,6 +192,60 @@ export function sortByCompatibility<T extends Listing>(
   return [...compatible, ...rest];
 }
 
+/* ------------------------------------------------------------------ *
+ * Validation fixtures — a name pattern, demoted not deleted
+ * ------------------------------------------------------------------ */
+
+/**
+ * The suffix a validation-pattern row names itself with: `, value
+ * discarded`, `, path discarded`, `, body discarded`, `, number discarded`, …
+ *
+ * 1,090 of the catalog's 69,376 rows (measured 2026-10-16) are registry
+ * entries whose names describe a format check and whose summaries repeat the
+ * name verbatim — `GitHub commit SHA hex, value discarded`, `ABA routing
+ * 9-digit shape, value discarded`. They are legitimate upstream entries and
+ * stay in the catalog, but a generic query like `github` surfaces a wall of
+ * them: their names lead with the very token a reader searches for, so the
+ * index ranks them as name matches ahead of capabilities that merely mention
+ * GitHub.
+ *
+ * The rule is the row's own statement, not a publisher list: a name that ends
+ * with `, <field> discarded` says the matched value is thrown away, so the row
+ * is a pattern matcher rather than a capability. On the current dataset it
+ * matches 1,090 rows, every one of them `sadri-dridi`, and no row from any
+ * other publisher. A bare `shape`/`charset` word was rejected as a trigger
+ * because it also matches eight real capabilities outside that publisher
+ * (`Shape`, `Writing Shape`, `Shape Your Agent`, `Dx Org Shape Manage`, …);
+ * the price is that 73 `sadri-dridi` rows that look like fixtures but do not
+ * carry the suffix (`GitHub Repo Shape`, `ULID Crockford charset`) stay
+ * undemoted. Both numbers are measured, not tuned.
+ */
+export const VALIDATION_FIXTURE_SUFFIX = /,\s+[a-z][a-z0-9 -]*\s+discarded\s*$/i;
+
+/** Does this row's name describe a validation pattern rather than a capability? */
+export function isValidationFixture(item: Pick<Listing, "name">): boolean {
+  return VALIDATION_FIXTURE_SUFFIX.test(item.name);
+}
+
+/**
+ * Stable-partition validation fixtures to the end of an already-ordered list.
+ *
+ * Demotion, not removal or filtering: the row keeps its place in the catalog,
+ * its result count, and its entry page, and searching its own words still
+ * finds it — it just no longer leads a generic query. `sortListings`
+ * `"relevance"` preserves the order it is handed, so this runs last, after
+ * compatibility ranking: a fixture that "works with your agent" is still a
+ * fixture. `"relevance"` is also the only order this applies to — an explicit
+ * sort (name, publisher, installable, catalog order) is the reader's order and
+ * is never second-guessed.
+ */
+export function demoteValidationFixtures<T extends Listing>(items: T[]): T[] {
+  const kept: T[] = [];
+  const demoted: T[] = [];
+  for (const item of items) (isValidationFixture(item) ? demoted : kept).push(item);
+  return demoted.length === 0 ? items.slice() : [...kept, ...demoted];
+}
+
 /** Distinct agents this catalog can install into, with compatible package counts. */
 export function agentFacets(items: Listing[]): Array<{ name: string; slug: string; count: number }> {
   const counts = new Map<string, number>();

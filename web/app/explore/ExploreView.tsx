@@ -14,6 +14,7 @@ import {
   agentFacets,
   categoryFacets,
   CURATED_NOTE,
+  demoteValidationFixtures,
   deriveKindCounts,
   hostUniverse,
   isInstallable,
@@ -207,6 +208,11 @@ function MatchExplanationPanel({
         <span className="t-mono text-[11.5px]">io.github.…</span> are identifiers, not content.
         Equal match classes break on what can be installed, whether the row comes from the
         publisher's own manifest, and the upstream directory's official-skills classification.
+        Names that describe a validation pattern rather than a capability — a trailing “,{" "}
+        <span className="t-mono text-[11.5px]">&lt;field&gt; discarded</span>”, like “GitHub
+        commit SHA hex, value discarded” — are ranked after capability rows: they stay in the
+        catalog, in the count, and on their own pages, and searching their own words still finds
+        them.
         {host && (
           <>
             {" "}
@@ -487,7 +493,13 @@ function ExploreContent(props: ExploreViewProps) {
     const ordered = sortListings(scoped, effectiveSort);
     // Compatibility is a ranking preference over the search order, not a
     // filter and not an override of an explicitly chosen sort.
-    return effectiveSort === "relevance" ? sortByCompatibility(ordered, rankAgent?.names ?? null) : ordered;
+    if (effectiveSort !== "relevance") return ordered;
+    const ranked = sortByCompatibility(ordered, rankAgent?.names ?? null);
+    // The quality rule runs last, so a fixture cannot be lifted back up by
+    // compatibility: it is demoted below every capability row, not deleted —
+    // `demoteValidationFixtures` only reorders, so the count above and the
+    // rows' own pages are untouched.
+    return demoteValidationFixtures(ranked);
   }, [results, goal, agent, source, verifiedOnly, installableOnly, effectiveSort, rankAgent]);
 
   /**

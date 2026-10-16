@@ -36,6 +36,44 @@
  *    from a capability kind, is accepted by the bridge, and leaves for an
  *    agent. Four moving nodes at most, no crossings, no loops per connector.
  *
+ * 4. **The journey was drawn, but nothing answered it.** One packet moved
+ *    through a figure whose every other element stayed inert, and the phases
+ *    existed only to move it. The figure now answers its own packet, and the
+ *    state machine says when:
+ *
+ *    | phase | at     | what answers |
+ *    |-------|--------|--------------|
+ *    | `up`    | 0.04 s | the kind lights and its wire energises |
+ *    | `hub`   | 0.72 s | the bridge pulses (unchanged) |
+ *    | `out`   | 0.98 s | the destination agent's wire energises |
+ *    | `land`  | 1.60 s | the tile registers the arrival; the packet is absorbed |
+ *
+ *    `land` is new, and it is why the state machine has five phases: the
+ *    out-packet used to fade *while sliding back* down the wire, so "arrived"
+ *    and "retreated" were the same 160 ms. It now stays where it landed, fades
+ *    there, and only resets once it is invisible — which is also the only
+ *    honest moment at which a tile can acknowledge a delivery.
+ *
+ *    Two cues run on their own clocks, both gated on `data-live` (present only
+ *    while the figure is in view, motion is allowed, and no pointer holds a
+ *    path open — the same condition that starts the packets):
+ *
+ *    - **the verbs are a readout.** `discover · install · manage · undo` lights
+ *      one word at a time, in the order the line prints them, on the journey's
+ *      own 1.98 s clock. They are *not* pinned to the four phases: that would
+ *      assert that the bridge's operations happen in that order within one
+ *      packet's trip, which is a claim the product does not make. The sequence
+ *      is the label, cycled.
+ *    - **the bus carries a slow light** (4.4 s, deliberately not a divisor of
+ *      the journey) so the figure is not inert between packets. It is a
+ *      translucent wash travelling *over* the bus, never a change to the bus's
+ *      own colour — the wire's measured contrast cannot regress.
+ *
+ *    One fix came with the arrival cue: `agentIndex` was `(step * 2) % TILES`,
+ *    which advances by two and so only ever reached three of the six tiles.
+ *    The other three could never have received anything. `step % TILES` draws
+ *    all eighteen (kind, agent) pairs exactly once per cycle.
+ *
  * ## Geometry
  *
  * Laid out in HTML with CSS custom properties rather than SVG, for three
@@ -44,8 +82,8 @@
  * produce, and every trace is a 2px absolutely-positioned rule whose length is
  * a *known pixel value* — which is what lets both packets travel with a plain
  * `translateY`. No JavaScript ever measures a layout box, so no animation can
- * dirty style or layout; the whole figure is one static HTML tree plus three
- * compositor-only properties.
+ * dirty style or layout; the whole figure is one static HTML tree, and the
+ * only things that ever move are `transform` and `opacity` on it.
  *
  * The stage's own numbers live in `globals.css` under `.dg-stage`; the only
  * value this file hands down is each column's centre as a unitless fraction
@@ -62,10 +100,17 @@
  * decision as `AgentsView`: a viewport-full of prefetched routes is ~9.5 KB
  * each of speculative download on a page whose whole argument is that it is
  * fast.
+ *
+ * Motion is additive and always optional. With `prefers-reduced-motion:
+ * reduce` the packets are never rendered, `data-live` never appears and every
+ * phase stays `idle`, so the figure is complete and legible before a single
+ * cue is applied; with JavaScript off the prerendered HTML is that same still
+ * figure. The pointer always wins: a hover or a focus ring stops the ambient
+ * motion outright rather than competing with it.
  */
 
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useState, type CSSProperties } from "react";
 import { AgentLogo } from "../AgentLogo";
 import { useInView, useReducedMotion } from "../motion/useInView";
 
@@ -91,8 +136,18 @@ const KINDS = [
 /** Six tiles: the five named agents, then the honest sixth. */
 const TILES = AGENTS.length + 1;
 
-/** Phase of one packet's journey. `idle` is the rest between journeys. */
-type Phase = "idle" | "up" | "hub" | "out";
+/** The bridge's four operations, in the order the hub prints them. The figure
+ *  lights them one at a time, so the line reads as the sequence it describes. */
+const VERBS = ["discover", "install", "manage", "undo"] as const;
+
+/** One journey — the packet's whole cycle through the figure, in ms. The verb
+ *  readout runs on the same clock (a quarter of it per verb), so the two
+ *  cannot drift apart; the stylesheet reads the value as `--dg-cycle`. */
+const CYCLE_MS = 1980;
+
+/** Phase of one packet's journey. `idle` is the rest between journeys; `land`
+ *  is the out-packet's arrival at an agent, where it is absorbed. */
+type Phase = "idle" | "up" | "hub" | "out" | "land";
 
 /**
  * The centre of column `i` of `n`, as a fraction of the grid's content box.
@@ -119,7 +174,7 @@ export function BridgeDiagram() {
   // the same trace.
   const running = inView && !reduced && hot === null;
 
-  const agentIndex = (step * 2) % TILES;
+  const agentIndex = step % TILES;
   const kindIndex = step % KINDS.length;
 
   useEffect(() => {
@@ -132,19 +187,21 @@ export function BridgeDiagram() {
       timers.push(window.setTimeout(fn, ms));
     };
 
-    // One journey, 1.98 s:
+    // One journey, CYCLE_MS long:
     //   0.04 s  the packet leaves a capability kind and rises to the bus
     //   0.72 s  the bridge takes it (and pulses)
     //   0.98 s  a packet leaves the bridge and rises into an agent
-    //   1.70 s  hide, reset, and line up the next hop
+    //   1.60 s  the agent receives it: the tile registers the arrival and the
+    //           packet is absorbed where it landed
+    //   1.98 s  hide, reset, and line up the next hop
     // The 40 ms offset is what makes the rise a *transition*: a phase applied
     // in the same commit that first paints the element would land instantly.
     setPhase("idle");
     at(40, () => setPhase("up"));
     at(720, () => setPhase("hub"));
     at(980, () => setPhase("out"));
-    at(1700, () => setPhase("idle"));
-    at(1980, () => setStep((s) => (s + 1) % (TILES * KINDS.length)));
+    at(1600, () => setPhase("land"));
+    at(CYCLE_MS, () => setStep((s) => (s + 1) % (TILES * KINDS.length)));
 
     return () => {
       for (const timer of timers) window.clearTimeout(timer);
@@ -157,21 +214,30 @@ export function BridgeDiagram() {
         ref={stageRef}
         className="dg-stage"
         data-phase={phase}
+        // Present exactly while the journey is running — in view, motion
+        // allowed, no pointer holding a path open. Every ambient cue (the verb
+        // readout, the light on the bus) is gated on it, so nothing animates
+        // off-screen or while a reader is inspecting a tile.
+        data-live={running ? "" : undefined}
         data-hot-agent={hot?.by === "agent" ? hot.i : undefined}
         data-hot-kind={hot?.by === "kind" ? KINDS[hot.i].token : undefined}
+        style={{ "--dg-cycle": `${CYCLE_MS}ms` } as CSSProperties}
       >
         {/* The board: the device plane every trace is routed on. */}
         <div className="dg-band" aria-hidden="true" />
 
         {/* One trace per agent, dropping into the bus. Below `sm` the tiles
             wrap to three columns and the six traces would point at nothing, so
-            a single collector trace carries the whole row instead. */}
+            a single collector trace carries the whole row instead.
+            `data-dst` marks the trace this journey's out-packet is climbing;
+            it is what the stylesheet energises while the packet is on it. */}
         {AGENTS.map((agent, i) => (
           <span
             key={agent.id}
             aria-hidden="true"
             className="dg-trace dg-trace-in"
             data-i={i}
+            data-dst={i === agentIndex ? "" : undefined}
             style={{ "--dg-x": centre(i, TILES) } as CSSProperties}
           />
         ))}
@@ -181,16 +247,35 @@ export function BridgeDiagram() {
 
         <div className="dg-hub">
           <span className="dg-hub-title">one local bridge</span>
-          <span className="dg-hub-verbs t-mono">discover · install · manage · undo</span>
+          {/* The verbs are a readout, not a caption: one word lights at a time,
+              in the order the line prints them. Split into spans so the
+              stylesheet can stagger them; the text content — including the
+              spaces and the dots — is byte-for-byte what it always was, so the
+              still, no-JS and reduced-motion figures are unchanged. */}
+          <span className="dg-hub-verbs t-mono">
+            {VERBS.map((verb, i) => (
+              <Fragment key={verb}>
+                {i > 0 ? " · " : null}
+                <span
+                  className="dg-verb"
+                  style={{ "--dg-verb-i": i } as CSSProperties}
+                >
+                  {verb}
+                </span>
+              </Fragment>
+            ))}
+          </span>
         </div>
 
-        {/* Three exits, one per kind. */}
+        {/* Three exits, one per kind. `data-src` marks the one this journey's
+            in-packet is climbing out of. */}
         {KINDS.map((kind, i) => (
           <span
             key={kind.token}
             aria-hidden="true"
             className="dg-trace dg-trace-out"
             data-kind={kind.token}
+            data-src={i === kindIndex ? "" : undefined}
             style={{ "--dg-x": centre(i, KINDS.length) } as CSSProperties}
           />
         ))}
@@ -218,7 +303,12 @@ export function BridgeDiagram() {
 
         <ul className="dg-agents">
           {AGENTS.map((agent, i) => (
-            <li key={agent.id} className="dg-agent" data-i={i}>
+            <li
+              key={agent.id}
+              className="dg-agent"
+              data-i={i}
+              data-dst={i === agentIndex ? "" : undefined}
+            >
               {/* A real link to the agent's own page: the tile is not a
                   decorative hit area, and the highlight it triggers is
                   therefore keyboard-reachable on focus rather than hover-only. */}
@@ -241,19 +331,25 @@ export function BridgeDiagram() {
               </Link>
             </li>
           ))}
-          <li className="dg-agent dg-agent-other" data-i={TILES - 1}>
+          <li
+            className="dg-agent dg-agent-other"
+            data-i={TILES - 1}
+            data-dst={TILES - 1 === agentIndex ? "" : undefined}
+          >
             {/* No link and no mark. There is no logo that means "other
                 agents", and there is no page for it either; the tile is here
                 because the catalog is not five products wide, and a reader on
-                a host we did not draw has to find themselves in the picture. */}
+                a host we did not draw has to find themselves in the picture.
+
+                The tile used to carry a "+" glyph above the label. It was a
+                stand-in for a mark that does not exist, and it read as an
+                "add" affordance on a diagram that cannot be added to — so the
+                label now stands alone, which is what it always meant. */}
             <span
               className="dg-agent-still"
               onPointerEnter={() => setHot({ by: "agent", i: TILES - 1 })}
               onPointerLeave={() => setHot(null)}
             >
-              <span aria-hidden="true" className="dg-agent-mark">
-                +
-              </span>
               <span className="dg-agent-name">other agents</span>
             </span>
           </li>
@@ -261,7 +357,12 @@ export function BridgeDiagram() {
 
         <ul className="dg-kinds">
           {KINDS.map((kind, i) => (
-            <li key={kind.token} className="dg-kind" data-kind={kind.token}>
+            <li
+              key={kind.token}
+              className="dg-kind"
+              data-kind={kind.token}
+              data-src={i === kindIndex ? "" : undefined}
+            >
               <Link
                 href={`/explore/?kind=${kind.token}`}
                 prefetch={false}
@@ -286,7 +387,8 @@ export function BridgeDiagram() {
         local LiteSPM bridge, which connects out to MCP servers, agent skills and plugins. Any agent
         can reach any kind of capability. Hovering or focusing an agent lights its path through the
         bridge and out to all three kinds; hovering or focusing a kind lights every agent&rsquo;s
-        path to it.
+        path to it. The motion is decorative — one packet&rsquo;s journey from a kind, through the
+        bridge, to an agent — and carries nothing the still figure does not.
       </figcaption>
     </figure>
   );

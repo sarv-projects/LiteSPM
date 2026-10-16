@@ -39,9 +39,19 @@
 // upstream Official Skills classification) are a 3-bit table appended to the
 // payload. No stars, downloads or install counts exist in the dataset, so no
 // popularity term exists here either.
+//
+// **Format v3 — the display projection carries the row's origin.** v2's ROWS
+// record omitted `source` (the `domain.SourceID` the row was ingested from),
+// so every row hydrated from the projection — which is every row the browser
+// shows after a filter or a search — lost the one field `rowProvenance`
+// renders for a non-manifest row, and the card printed "Origin not stated"
+// where the dataset holds e.g. `feed:mcpservers-org`. The server-rendered
+// rows carried it; the hydrated ones could not. v3 interns `source` as an
+// eleventh dictionary and appends a 2-byte index to the fixed block (11 → 13
+// bytes), so both paths render the same origin for the same row.
 
 /** Bumped when the byte layout changes; every reader refuses a mismatch. */
-export const SEARCH_FORMAT_VERSION = 2;
+export const SEARCH_FORMAT_VERSION = 3;
 
 /** ASCII magic at the head of both artifacts. */
 const MAGIC = "LSPMSRCH";
@@ -1028,7 +1038,8 @@ const DICT_KINDS = 6;
 const DICT_HOSTS = 7;
 const DICT_ID_PREFIXES = 8;
 const DICT_PROVENANCE = 9;
-const DICT_COUNT = 10;
+const DICT_SOURCE = 10;
+const DICT_COUNT = 11;
 
 /**
  * Cap a summary at a word boundary and mark it as truncated.
@@ -1138,6 +1149,7 @@ export function buildDisplayRows(rows, options = {}) {
       intern(DICT_TRANSPORTS, row.transport == null ? "" : String(row.transport)),
       intern(DICT_VERSIONS, row.version == null ? "" : String(row.version)),
       intern(DICT_INSTALLABILITY, row.installability == null ? "" : String(row.installability)),
+      intern(DICT_SOURCE, row.source == null ? "" : String(row.source)),
       (row.compatibleHosts ?? []).map((host) => intern(DICT_HOSTS, String(host))),
     ]);
   }
@@ -1187,10 +1199,11 @@ export function buildDisplayShards(rows) {
  *   varint nameLen + bytes, varint summaryLen + bytes, varint slugLen + bytes,
  *   u8 categoryIdx, u16 publisherIdx, u8 flags (bit0 verified, bit1 linkKey=id),
  *   u8 kindIdx, u8 provenanceIdx, u8 runtimeIdx, u8 transportIdx,
- *   u16 versionIdx, u8 installabilityIdx, varint hostCount + u8 hostIdx[hostCount]
+ *   u16 versionIdx, u8 installabilityIdx, u16 sourceIdx,
+ *   varint hostCount + u8 hostIdx[hostCount]
  *
- * Absent runtime / transport / version / installability are dictionary slot 0,
- * so a null never needs a separate presence bit.
+ * Absent runtime / transport / version / installability / source are dictionary
+ * slot 0, so a null never needs a separate presence bit.
  *
  * @param {ReturnType<typeof buildDisplayRows>} display
  * @returns {Uint8Array}
@@ -1218,6 +1231,7 @@ export function encodeDisplayRows(display) {
       transportIdx,
       versionIdx,
       installabilityIdx,
+      sourceIdx,
       hosts,
     ] = display.records[i];
 
@@ -1236,6 +1250,7 @@ export function encodeDisplayRows(display) {
     recordBytes.push(kindIdx & 0xff, provenanceIdx & 0xff, runtimeIdx & 0xff, transportIdx & 0xff);
     recordBytes.push(versionIdx & 0xff, (versionIdx >> 8) & 0xff);
     recordBytes.push(installabilityIdx & 0xff);
+    recordBytes.push(sourceIdx & 0xff, (sourceIdx >> 8) & 0xff);
     const hostList = /** @type {number[]} */ (hosts);
     writeVarint(hostList.length, recordBytes);
     for (const host of hostList) recordBytes.push(host & 0xff);
@@ -1356,7 +1371,8 @@ export function decodeDisplayRows(payload) {
     const transportIdx = payload[cursor + 7];
     const versionIdx = payload[cursor + 8] | (payload[cursor + 9] << 8);
     const installabilityIdx = payload[cursor + 10];
-    cursor += 11;
+    const sourceIdx = payload[cursor + 11] | (payload[cursor + 12] << 8);
+    cursor += 13;
 
     const id = `${dicts[DICT_ID_PREFIXES][idPrefixIdx]}${idSuffix}`;
     const hosts = [];
@@ -1390,6 +1406,8 @@ export function decodeDisplayRows(payload) {
     if (transport) listing.transport = transport;
     const installability = dicts[DICT_INSTALLABILITY][installabilityIdx];
     if (installability) listing.installability = installability;
+    const source = dicts[DICT_SOURCE][sourceIdx];
+    if (source) listing.source = source;
     if (hosts.length > 0) listing.compatibleHosts = hosts;
     return listing;
   };

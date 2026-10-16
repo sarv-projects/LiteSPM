@@ -147,14 +147,13 @@ export function ExtensionGrid({
    * shown" is true by construction, and it changes honestly as "Show more"
    * brings in rows that differ.
    *
-   * `provenance` is only hoisted when the rows actually carry the field. The
-   * lazily-fetched display projection does not include `source` (see
-   * `lib/searchFormat.mjs` `buildDisplayRows`), so after the first filter
-   * `rowProvenance` answers "Origin not stated" for every non-manifest row —
-   * the true origin exists in the dataset, the projection just does not carry
-   * it. Stating that once as if it were the result set's provenance would turn
-   * a transport limitation into a claim, so it is left where it was: on the
-   * row, unchanged.
+   * `provenance` is only hoisted when the rows actually carry the field —
+   * `publisher.verified` or a `source`. The display projection carries
+   * `source` since the search format v3 (`lib/searchFormat.mjs`
+   * `buildDisplayRows`), so a hydrated row answers `rowProvenance` the same
+   * way the server-rendered one does. The guard stays for a row that
+   * genuinely carries neither: hoisting "Origin not stated" once above the
+   * rows would turn one row's missing field into a claim about the whole set.
    */
   const constants = useMemo(() => {
     if (shown.length === 0) return null;
