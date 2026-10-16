@@ -43,18 +43,18 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
   } else if (choice.hosts.length === 0) {
     status = (
       <>
-        Nothing in the catalog claims to work with{" "}
-        <strong className="font-medium text-ink-2">&ldquo;{choice.label}&rdquo;</strong>, so no
-        badges will show. Pick a named agent to see its matches.
+        There is no compatibility list to check{" "}
+        <strong className="font-medium text-ink-2">&ldquo;{choice.label}&rdquo;</strong> against,
+        so no badges will show. Pick a named agent above to see its matches.
       </>
     );
   } else if (countFor !== null) {
     status = (
       <>
         <span className="t-mono t-tabular text-ink">{formatCount(countFor)}</span> of{" "}
-        <span className="t-mono t-tabular text-ink">{formatCount(total)}</span> entries
-        install into <strong className="font-medium text-ink-2">{choice.label}</strong>, derived
-        from the adapter registries and publisher declarations. We have not run any of them.
+        <span className="t-mono t-tabular text-ink">{formatCount(total)}</span> entries work with{" "}
+        <strong className="font-medium text-ink-2">{choice.label}</strong>, based on the adapter
+        registries and publisher declarations. None of them has been tested by us.
       </>
     );
   } else {
@@ -79,8 +79,8 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
 
         <div className="mt-4 flex flex-wrap gap-2">
           {AGENT_CHOICES.map((option) => {
-            // "Other" and "I'm not sure" are answers, not agents, so they get
-            // no mark — a letter tile beside them would read as one.
+            // "Other" is an answer, not an agent, so it gets no mark — a
+            // letter tile beside it would read as one.
             const isHost = HOSTS.some((h) => h.id === option.id);
             return (
               <button
@@ -98,11 +98,6 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
         </div>
 
         <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-ink-2">{status}</p>
-
-        <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
-          A badge means the entry installs into your agent, based on the adapter registries or the
-          publisher&rsquo;s own list. It is not a test result.
-        </p>
       </DiscoveryCard>
     </section>
   );

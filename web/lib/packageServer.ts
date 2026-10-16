@@ -16,6 +16,7 @@ import catalogData from "../data/catalog.json";
 import type { Listing } from "./telemetry";
 import { hostUniverse, sortListings, withLinkKeys } from "./catalog";
 import { categorySiblingSlugs } from "./categoryFiles.mjs";
+import { publisherSiblingNames } from "./relatedFiles.mjs";
 import { selectStaticEntries, staticEntryKey } from "./packageEntries";
 
 export interface PackageCatalogContext {
@@ -38,6 +39,15 @@ let cached: PackageCatalogContext | null = null;
 export function catalogContext(): PackageCatalogContext {
   if (cached) return cached;
   const rows = withLinkKeys(catalogData as unknown as Listing[]);
+  // The emitter stamps `publisherGroup` into the bucket files; the server-side
+  // rows (which feed the pre-rendered pages' `initialItem`) need the same flag
+  // from the same predicate, or a pre-rendered page would render a publisher
+  // rail the client-resolved page would not — or ask for a file that was never
+  // written. One whole-dataset pass, memoized with the rest of this context.
+  const grouped = publisherSiblingNames(rows);
+  for (const row of rows) {
+    if (grouped.has(row.publisher?.name ?? "")) row.publisherGroup = true;
+  }
   const staticEntries = selectStaticEntries(rows);
   cached = {
     rows,

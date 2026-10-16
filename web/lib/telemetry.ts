@@ -41,6 +41,14 @@ export interface Listing {
   stars: number | null;
   version: string | null;
   /**
+   * The launch endpoint an MCP row's own record names (`https://….mcp`), when
+   * the upstream published one. Present on 25,401 of 69,376 rows; null for
+   * skills, plugins and MCP rows whose source list carried no URL. Displayed
+   * as the record's "Endpoint" row on the entry page — never guessed from the
+   * publisher's homepage.
+   */
+  url?: string | null;
+  /**
    * Publisher-declared host list. Only plugins carry one. MCP servers and
    * skills derive their compatibility from the kind (see lib/hosts.ts
    * `hostsFor`), because an MCP server is installable into every bridge
@@ -63,6 +71,15 @@ export interface Listing {
    * so a row carries its own link target across the server → client boundary.
    */
   linkKey?: string;
+  /**
+   * True when this row's publisher has at least two rows in this snapshot, so
+   * a `pub/` sibling file exists for it (`lib/relatedFiles.mjs`). Stamped by
+   * the emitter into the bucket files and by `lib/packageServer.ts` onto the
+   * server-side rows — the related rail reads it to know whether asking for
+   * the publisher's sibling file can be answered, and a falsey value means
+   * there is nothing to ask for. Never present in the wire format.
+   */
+  publisherGroup?: boolean;
 }
 
 export interface Telemetry {

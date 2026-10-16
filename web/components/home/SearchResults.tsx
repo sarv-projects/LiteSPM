@@ -101,16 +101,13 @@ export function SearchResults({
                   {formatCount(visibleItems.length)}
                 </span>{" "}
                 of <span className="t-mono t-tabular text-ink">{formatCount(reported)}</span> results
-                · <span className="t-mono t-tabular">{formatCount(total)}</span> entries
+                · <span className="t-mono t-tabular">{formatCount(total)}</span> in catalog
                 {loading && " · updating results…"}
                 {error && " · the catalog could not be loaded"}
               </>
             ) : settled ? (
               error ? (
-                <>
-                  The catalog rows could not be loaded · this is not a &ldquo;no matches&rdquo;
-                  answer
-                </>
+                <>The catalog rows could not be loaded</>
               ) : (
                 <>
                   No matches · <span className="t-mono t-tabular">{formatCount(total)}</span> entries
@@ -145,8 +142,7 @@ export function SearchResults({
           <div className="flex max-w-prose flex-col items-start gap-3">
             <RotateCw className="h-5 w-5 text-ink-3" aria-hidden="true" />
             <p className="text-[13px] text-ink-2">
-              The catalog rows could not be loaded, so this is not a &ldquo;no matches&rdquo; answer —
-              nothing has been searched yet.
+              Search needs the full catalog rows, and that request did not come back.
             </p>
             <button type="button" onClick={onRetry} className="btn btn-solid">
               Try again
@@ -179,8 +175,8 @@ export function SearchResults({
           <SearchX className="h-6 w-6 text-ink-3" aria-hidden="true" />
           <h3 className="text-[15px] font-semibold">Nothing matches that search</h3>
           <p className="text-[13px] text-ink-2">
-            No entry in the bundled catalog contains &ldquo;{query}&rdquo;. Search covers names,
-            summaries, publishers, categories, runtimes and transports.
+            No entry in the catalog contains &ldquo;{query}&rdquo;. Search covers names, summaries,
+            publishers, categories, runtimes and transports.
           </p>
           <button type="button" onClick={onClear} className="btn btn-solid mt-1">
             Clear search

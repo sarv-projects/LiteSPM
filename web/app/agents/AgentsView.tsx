@@ -47,8 +47,8 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
   /**
    * The one row the remembered choice names. Adapter id first — the row whose
    * config LiteSPM can write is the row a reader means — then the catalog's
-   * own host spellings, which is the match Explore uses. "Other" and "I'm not
-   * sure" carry no hosts, so they mark nothing.
+   * own host spellings, which is the match Explore uses. "Other" carries no
+   * hosts, so it marks nothing.
    */
   const pickedSlug = savedAgent
     ? agents.find((agent) => resolveHost(agent.name)?.id === savedAgent.id)?.slug ??
@@ -205,8 +205,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
 
         <p className="mt-6 max-w-prose text-[12px] leading-relaxed text-ink-3">
           Compatibility comes from LiteSPM&rsquo;s adapter registries, or from a publisher&rsquo;s
-          own list for plugins. It is not a test result, and this site does not run these
-          capabilities.
+          own list for plugins — declared, not tested.
         </p>
       </main>
 

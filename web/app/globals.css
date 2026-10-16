@@ -914,6 +914,24 @@
     border-color: var(--accent-hover);
     color: #ffffff;
   }
+  /* A disabled control states its state instead of changing its label: the
+     package page's fail-closed install states render the button the command
+     would occupy as disabled, with the reason in the tooltip. The hover rules
+     above still match a disabled button, so they are neutralised here. */
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .btn:disabled:hover {
+    border-color: var(--ink-3);
+    background-color: var(--surface);
+    color: var(--ink-2);
+  }
+  .btn-solid:disabled:hover {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+  }
   /* Primary CTA: 40px on desktop, 44px on touch. */
   .btn-lg {
     min-height: var(--h-ctl-lg);

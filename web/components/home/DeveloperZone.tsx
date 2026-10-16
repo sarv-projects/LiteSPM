@@ -21,7 +21,7 @@ const SNIPPETS: Array<{ cmd: string; note: string }> = [
   { cmd: "npm install -g litespm", note: "Install the CLI (npm wrapper around the native binary)" },
   { cmd: "litespm setup", note: "Interactive wizard: pick a host, merge one bridge entry safely" },
   { cmd: "litespm search github", note: "Search the locally synced catalog index" },
-  { cmd: "litespm install <id>", note: "Plan, approve, and install into a host's config" },
+  { cmd: "litespm install <id>", note: "Plan, approve, then install a capability" },
   { cmd: "litespm doctor", note: "Environment check: daemon, bridge, adapters, vault" },
 ];
 

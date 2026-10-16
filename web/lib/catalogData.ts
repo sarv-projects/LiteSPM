@@ -34,6 +34,7 @@ import { withLinkKeys } from "./catalog";
 import { fetchDisplayRows } from "./searchAssets";
 import { SEARCH_SHARD_ROWS } from "./searchFormat.mjs";
 import { categorySlug } from "./categoryFiles.mjs";
+import { publisherFileStem, sourceFileSlug } from "./relatedFiles.mjs";
 import bundledRelease from "../data/release.json";
 
 /**
@@ -285,17 +286,16 @@ export function fetchProductPayload(slug: string): Promise<ProductPayload> {
 }
 
 /**
- * Same-category siblings, or `null` when this build wrote no file for the
- * category — the two that hold most of the catalog have none by design, where
- * twelve arbitrary entries say nothing and the "see all" link is the honest
- * answer.
+ * Same-category siblings. Every category this build's page set includes has a
+ * file — `lib/categoryFiles.mjs` states why each category gets one and which
+ * are bounded slices — so a `null` here means the build handed this page no
+ * set that contains the slug, or an older build's file is missing.
  *
  * `siblingCategories` is the build-time set the page was given (from
  * `lib/categoryFiles.mjs`). A category outside it is answered without a
- * request: the file does not exist on a static host, so asking for it was a
- * guaranteed 404 round trip and a console error on every visit to an entry in
- * one of those categories. The 404 branch below stays as the fallback for a
- * page rendered against an older build's set.
+ * request: the file does not exist for that page's build, so asking for it was
+ * a guaranteed 404 round trip and a console error. The 404 branch below stays
+ * as the fallback for a page rendered against an older build's set.
  */
 const siblingCache = new Map<string, Listing[]>();
 const siblingInflight = new Map<string, Promise<Listing[] | null>>();
@@ -315,8 +315,8 @@ export function fetchCategorySiblings(
 
   const p = fetch(`${PACKAGE_DATA_DIR}/cat/${slug}.json${DATASET_VERSION}`)
     .then((res) => {
-      // A 404 here is a normal answer, not a failure: it means the category is
-      // too large to have a sibling file.
+      // A 404 means this build wrote no file for the category (an older build's
+      // page, or a category the set no longer names).
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`category ${res.status}`);
       return res.json();
@@ -332,6 +332,89 @@ export function fetchCategorySiblings(
       throw err;
     });
   siblingInflight.set(slug, p);
+  return p;
+}
+
+/**
+ * Same-publisher siblings, from the `pub/` file `lib/relatedFiles.mjs` keys by
+ * the hash of the exact name. The row's `publisherGroup` flag — stamped by the
+ * emitter into the bucket files and by `lib/packageServer.ts` onto the server
+ * rows — is the caller's signal that a file was written for this publisher at
+ * all; this fetcher assumes the caller checked and treats a 404 as "no file"
+ * rather than an error.
+ *
+ * The file is filtered by exact publisher name: file stems are hashes, and the
+ * filter makes a hypothetical hash collision (two names in one file) render
+ * correctly rather than mixing two publishers' rows.
+ */
+const publisherCache = new Map<string, Listing[]>();
+const publisherInflight = new Map<string, Promise<Listing[] | null>>();
+
+export function fetchPublisherSiblings(
+  publisherName: string | null | undefined,
+): Promise<Listing[] | null> {
+  if (!publisherName) return Promise.resolve(null);
+  const stem = publisherFileStem(publisherName);
+  const hit = publisherCache.get(stem);
+  if (hit) return Promise.resolve(hit);
+  const running = publisherInflight.get(stem);
+  if (running) return running;
+
+  const p = fetch(`${PACKAGE_DATA_DIR}/pub/${stem}.json${DATASET_VERSION}`)
+    .then((res) => {
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`publisher ${res.status}`);
+      return res.json();
+    })
+    .then((rows: Listing[] | null) => {
+      const out = rows ? rows.filter((row) => row.publisher?.name === publisherName) : null;
+      if (out) publisherCache.set(stem, out);
+      publisherInflight.delete(stem);
+      return out;
+    })
+    .catch((err) => {
+      publisherInflight.delete(stem);
+      throw err;
+    });
+  publisherInflight.set(stem, p);
+  return p;
+}
+
+/**
+ * Same-source siblings, from the `src/` file `lib/relatedFiles.mjs` keys by
+ * the slugified source id. Every row in this catalog names a source and the
+ * source set is closed, so unlike the publisher fetcher there is no "does a
+ * file exist" flag to consult; a 404 still resolves to `null` rather than an
+ * error, for the same older-build reason as the category fetcher.
+ */
+const sourceCache = new Map<string, Listing[]>();
+const sourceInflight = new Map<string, Promise<Listing[] | null>>();
+
+export function fetchSourceSiblings(source: string | null | undefined): Promise<Listing[] | null> {
+  const slug = source ? sourceFileSlug(source) : "";
+  if (!slug) return Promise.resolve(null);
+  const hit = sourceCache.get(slug);
+  if (hit) return Promise.resolve(hit);
+  const running = sourceInflight.get(slug);
+  if (running) return running;
+
+  const p = fetch(`${PACKAGE_DATA_DIR}/src/${slug}.json${DATASET_VERSION}`)
+    .then((res) => {
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`source ${res.status}`);
+      return res.json();
+    })
+    .then((rows: Listing[] | null) => {
+      const out = rows ? rows.filter((row) => row.source === source) : null;
+      if (out) sourceCache.set(slug, out);
+      sourceInflight.delete(slug);
+      return out;
+    })
+    .catch((err) => {
+      sourceInflight.delete(slug);
+      throw err;
+    });
+  sourceInflight.set(slug, p);
   return p;
 }
 

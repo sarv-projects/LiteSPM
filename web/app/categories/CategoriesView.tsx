@@ -77,19 +77,14 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          <strong className="font-medium text-ink">Goals are LiteSPM&rsquo;s editorial grouping</strong>,
-          not a publisher&rsquo;s or a source&rsquo;s label. The upstream vocabulary puts 65% of this
-          catalog in one bucket (&ldquo;Developer Tools&rdquo;) and the next-largest in a format
-          (&ldquo;Agent Skills&rdquo;), so this page leads with a small set of task-shaped goals
-          instead. The source category is kept as provenance on every entry and in the table below.
+          Two ways to browse: <strong className="font-medium text-ink">goals</strong> group entries
+          by what they help you do, derived from each entry&rsquo;s own text;{" "}
+          <strong className="font-medium text-ink">source categories</strong> are the labels the
+          upstream directories publish.
         </p>
 
         <h2 className="mt-8 band-title">Browse by goal</h2>
-        <p className="band-sub mt-2">
-          Each card opens Explore filtered to that goal. The rules behind the grouping are in{" "}
-          <span className="t-mono text-[12px]">web/lib/taxonomy.ts</span> — deterministic keyword
-          rules over the record&rsquo;s own text, no model call at run time.
-        </p>
+        <p className="band-sub mt-2">Each card opens Explore filtered to that goal.</p>
 
         <ul className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {goals.map((facet) => (
@@ -154,15 +149,13 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
         </ul>
 
         <p className="mt-4 max-w-prose text-[12.5px] leading-relaxed text-ink-3">
-          Coverage: the map places <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.mapped)}</span>{" "}
-          of <span className="t-mono t-tabular text-ink-2">{formatCount(total)}</span> rows (
-          {Math.round(coverage.coverage * 100)}%) into a goal.{" "}
-          <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.other)}</span> rows (
-          {Math.round((1 - coverage.coverage) * 100)}%) name no goal these rules can place and stay
-          in Other rather than being force-fitted. Largest goal:{" "}
+          Goals cover{" "}
+          <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.mapped)}</span> of{" "}
+          <span className="t-mono t-tabular text-ink-2">{formatCount(total)}</span> entries (
+          {Math.round(coverage.coverage * 100)}%); the rest stay in Other. Largest goal:{" "}
           <span className="text-ink-2">{coverage.largest.label}</span>,{" "}
           <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.largest.count)}</span>{" "}
-          rows ({Math.round(coverage.largest.share * 100)}% of the catalog).
+          entries ({Math.round(coverage.largest.share * 100)}%).
         </p>
 
         <div className="mt-10 border-b border-ink pb-2">
@@ -173,10 +166,9 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
             </p>
           </div>
           <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            These are the upstream sources&rsquo; own labels, carried verbatim and kept as
-            provenance — the same value every entry page and the Explore filter show. A few describe
-            a language or a collection rather than a domain. The bar shows each category&rsquo;s
-            share of the largest one.
+            The labels the upstream sources publish. A few name a language or a
+            collection rather than a domain. The bar shows each category&rsquo;s share of the
+            largest one.
           </p>
         </div>
 

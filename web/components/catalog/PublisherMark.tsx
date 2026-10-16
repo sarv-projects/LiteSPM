@@ -107,7 +107,7 @@ export function PublisherTile({ item, size = 28, className = "" }: PublisherTile
       : shownHost && shownHost !== mark.label
         ? `Mark: the icon of ${shownHost}, the root domain of ${mark.label} — the site this entry's own record names, which serves no icon of its own.`
         : `Mark: ${mark.label} — the site this entry's own record names.`
-    : "No mark is published for this entry's publisher; shown as a letter rather than a logo we cannot attribute.";
+    : "No mark is published for this entry's publisher.";
 
   return (
     <span

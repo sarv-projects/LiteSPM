@@ -232,10 +232,9 @@ export const AGENT_CHOICES: AgentChoice[] = [
     ].filter((n): n is string => Boolean(n));
     return { id, label, hosts: names };
   }),
-  // No compatibility claim attaches to these two: the reader told us nothing
-  // the catalog can check, so they carry an empty host set and no badges.
+  // No compatibility claim attaches to this one: the reader told us nothing
+  // the catalog can check, so it carries an empty host set and no badges.
   { id: "other", label: "Other", hosts: [] },
-  { id: "unsure", label: "I'm not sure", hosts: [] },
 ];
 
 export function findAgentChoice(id: string | null): AgentChoice | null {

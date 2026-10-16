@@ -15,7 +15,7 @@ import TrendingRoute from "./TrendingRoute";
 export const metadata: Metadata = {
   title: "Coverage",
   description:
-    "What the catalog snapshot contains, counted rather than estimated: entries per source, publisher, category, kind and agent host. Nothing here is ranked by popularity.",
+    "What the catalog snapshot contains: entries per capability kind, agent host, category and publisher.",
   alternates: { canonical: "/trending/" },
   openGraph: { title: "Coverage · LiteSPM Market", url: "/trending/" },
 };

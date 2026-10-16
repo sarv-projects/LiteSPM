@@ -45,35 +45,37 @@ export interface Availability {
   installable: boolean;
 }
 
+/*
+ * These strings are a chip's tooltip and, on some cards, part of the link's
+ * accessible name. They are read one at a time, next to the row they describe,
+ * so each is one clause and none of them explains the catalog to the reader —
+ * a label that needs a paragraph behind it is the wrong label.
+ */
 const REMOTE: Availability = {
   id: "remote",
   label: "Remote endpoint",
-  plain:
-    "LiteSPM registers this server's own hosted endpoint in your agent's config. Nothing is downloaded or run locally.",
+  plain: "Runs on the publisher's own hosted endpoint. Nothing is downloaded to your machine.",
   installable: true,
 };
 
 const SOURCE: Availability = {
   id: "source",
   label: "Installs from source",
-  plain:
-    "LiteSPM installs this skill's files from the source it was published in, and records what it wrote in a ledger so it can be removed again.",
+  plain: "LiteSPM copies the files and records what it wrote, so the install can be undone.",
   installable: true,
 };
 
 const DISCOVERY: Availability = {
   id: "discovery",
   label: "Discovery only",
-  plain:
-    "No launch line and no endpoint is recorded for this entry, so LiteSPM can show it to you but cannot install it.",
+  plain: "No command and no endpoint are published, so this entry can be listed but not installed.",
   installable: false,
 };
 
 const UNSUPPORTED: Availability = {
   id: "unsupported",
   label: "Not installable",
-  plain:
-    "LiteSPM has no plugin artifact source yet, so plugin installs fail closed rather than installing half a bundle.",
+  plain: "Plugin installs are not supported yet — LiteSPM will not install a partial bundle.",
   installable: false,
 };
 

@@ -196,7 +196,7 @@ export function CommandPalette({ open, onOpenChange, returnFocusRef }: CommandPa
       // `settled` is `useCatalogSearch` saying these results are for this
       // query, and until it is true the count is simply not known.
       const note = error
-        ? "the catalog search could not be loaded — this is not a “no matches” answer"
+        ? "the catalog search could not be loaded"
         : !settled
           ? "searching…"
           : totalMatches === 0
@@ -216,7 +216,7 @@ export function CommandPalette({ open, onOpenChange, returnFocusRef }: CommandPa
               settled && !error && totalMatches > 0
                 ? `See all ${formatCount(totalMatches)} matches in Explore`
                 : `Search Explore for “${q}”`,
-            detail: "The catalog's own search surface, with the full filter set",
+            detail: "Search the full catalog with all filters",
             href: `/explore/?q=${exploreQuery}`,
           },
         ],

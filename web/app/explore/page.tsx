@@ -2,10 +2,8 @@ import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import {
   agentFacets,
-  categoryFacets,
   deriveKindCounts,
   GRID_PAGE,
-  hostUniverse,
   withLinkKeys,
   sortListings,
   DEFAULT_SORT,
@@ -18,7 +16,7 @@ import ExploreRoute from "./ExploreRoute";
 export const metadata: Metadata = {
   title: "Explore the catalog",
   description:
-    "Search the whole catalog snapshot by name, summary, publisher, category, runtime, transport or tool name, filter by task-shaped goal or the source's own category, and narrow to what installs into the agent you actually use.",
+    "Search the whole catalog snapshot by name, summary, publisher, category, runtime, transport or tool name, filter by goal, and narrow to what works with the agent you actually use.",
   alternates: { canonical: "/explore/" },
   openGraph: { title: "Explore the catalog · LiteSPM Market", url: "/explore/" },
 };
@@ -39,7 +37,6 @@ export default function ExplorePage() {
   const props: ExploreViewProps = {
     total: items.length,
     kindCounts: deriveKindCounts(items),
-    categories: categoryFacets(items, 200),
     // The editorial goal facets, from the same rules the browser re-runs over
     // the fetched rows (`lib/taxonomy`), so the two cannot disagree.
     goals: taxonomyFacets(items).map((facet) => ({
@@ -48,7 +45,6 @@ export default function ExplorePage() {
       count: facet.count,
     })),
     agents: agentFacets(items),
-    hostCount: hostUniverse(items).length,
     // Sorted with the same function and the same default the browser uses, so
     // the prerendered page and the hydrated one agree on what "first" means.
     gridRows: sortListings(items, DEFAULT_SORT).slice(0, GRID_PAGE),

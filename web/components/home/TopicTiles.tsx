@@ -27,7 +27,7 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
             What are you trying to get done?
           </h2>
           <p className="band-sub">
-            Pick the one that sounds like your week. Each tile opens a live search of the catalog;
+            Pick the one that sounds like your week. Each tile opens a real search of the catalog;
             the count and the sample names are what that search returns.
           </p>
         </div>

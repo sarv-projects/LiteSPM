@@ -7,19 +7,23 @@ import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { Listing } from "../../lib/telemetry";
 import { formatCount } from "../../lib/format";
-import { kindLabel, listingHref, sortListings } from "../../lib/catalog";
+import { kindLabel, listingHref } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { hostsFor } from "../../lib/hosts";
 import { VerifiedMark } from "../../components/catalog/PublisherMark";
-import { fetchCategorySiblings, useProductRow } from "../../lib/catalogData";
+import { useProductRow } from "../../lib/catalogData";
 import { SITE_URL } from "../../lib/site";
 import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice, rowWorksWithAgent } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { AddSteps, scrollToSection } from "../../components/package/AddSteps";
+import { InstallBand } from "../../components/package/InstallBand";
 import { PlainSummary } from "../../components/package/PlainSummary";
 import { TryItPrompts } from "../../components/package/TryItPrompts";
 import { PackageTabs } from "../../components/package/PackageTabs";
 import type { PackageTabId } from "../../components/package/PackageTabs";
+import { SpecCard } from "../../components/package/SpecCard";
+import { PromoSlot } from "../../components/package/PromoSlot";
+import { RelatedRail } from "../../components/package/RelatedRail";
 import { categoryLabel } from "../categories/categoryLabel";
 import {
   clampMeta,
@@ -48,9 +52,10 @@ export interface PackageViewProps {
   /**
    * Category slugs this build wrote a sibling file for
    * (`/data/pkg/cat/<slug>.json`), computed by the page from the same rule the
-   * emitter uses (`lib/categoryFiles.mjs`). A category outside this set has no
-   * file — the two largest hold most of the catalog and never get one — so
-   * the page answers it without a request instead of a guaranteed 404.
+   * emitter uses (`lib/categoryFiles.mjs`). Every category the snapshot has is
+   * in the set — the largest two are bounded slices rather than full files —
+   * so a slug outside it means an older build's page, which is still answered
+   * without a request instead of a guaranteed 404.
    */
   siblingCategories: string[];
   /**
@@ -584,6 +589,17 @@ function PackageContent({
 
       <main id="main" className="shell flex-1 pb-16 pt-7">
         <div className="mx-auto w-full max-w-[1040px]">
+          {/*
+           * Two columns on lg+ — the record runs down the main column while
+           * the specifications card and the reserved promotion slot sit in an
+           * aside beside it, the arrangement both comparable detail pages use
+           * (mcp.so and mcpservers.org both put specs and the sponsor slot in
+           * a sidebar at this width). Below lg the aside follows the title
+           * block instead, so the specifications stay near the top of the
+           * mobile page rather than at its end.
+           */}
+          <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-x-10">
+            <div className="lg:col-start-1 lg:row-start-1">
           {/* ---- 1. What is this? -------------------------------------- */}
           <header aria-labelledby="pkg-title">
             <p className="kicker">What is this?</p>
@@ -638,6 +654,16 @@ function PackageContent({
             </p>
 
             <p className="mt-2.5 max-w-prose text-[14px] leading-relaxed text-ink-2">{item.summary}</p>
+
+            {/* ---- 1c. The action, on the first screen ------------------- */}
+            {/*
+             * The install line sits in the title block, above everything the
+             * page has to explain — the competitor pages all open this way,
+             * and a reader who arrived from a search result gets the one
+             * thing they came for without scrolling. The guided flow stays
+             * in "How do I add it?"; the band's link is the path to it.
+             */}
+            <InstallBand item={item} onSeeSteps={() => scrollToSection("pkg-add")} />
           </header>
 
           {/* ---- 1b. The short version -------------------------------- */}
@@ -657,6 +683,19 @@ function PackageContent({
               scrollToSection("pkg-details");
             }}
           />
+            </div>
+
+            <aside className="mt-9 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
+              {/* Sticky on lg+ so the specs travel with the reader; the inner
+                  div does the sticking because the aside itself is the grid
+                  item that spans both rows. */}
+              <div className="space-y-4 lg:sticky lg:top-[calc(var(--site-header-height)+16px)]">
+                <SpecCard item={item} />
+                <PromoSlot />
+              </div>
+            </aside>
+
+            <div className="lg:col-start-1 lg:row-start-2">
 
           {/* ---- 2. How do I add it? ----------------------------------- */}
           {/*
@@ -846,91 +885,16 @@ function PackageContent({
               onChange={setTab}
             />
           </div>
+            </div>
+          </div>
 
           {/* ---- related ---- */}
-          <RelatedRow item={item} siblingCategories={siblingCategories} />
+          <RelatedRail item={item} siblingCategories={siblingCategories} />
         </div>
       </main>
 
       <SiteFooter />
     </div>
-  );
-}
-
-/**
- * Also-in-category: discovery after the record, never a popularity list.
- *
- * The siblings arrive as their own ~50 KB file. Two categories hold most of the
- * catalog (45,373 and 19,209 rows) and deliberately have no file: twelve
- * arbitrary entries out of forty-five thousand is noise, and the "see all"
- * link below is the honest answer there. The build hands this component the
- * set of categories that *do* have a file, so the two that don't are answered
- * without a request — and a missing file still renders nothing.
- */
-function RelatedRow({ item, siblingCategories }: { item: Listing; siblingCategories: string[] }) {
-  const [siblings, setSiblings] = useState<Listing[] | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    setSiblings(null);
-    fetchCategorySiblings(item.category, siblingCategories)
-      .then((rows) => {
-        if (alive) setSiblings(rows ?? []);
-      })
-      .catch(() => {
-        if (alive) setSiblings([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [item.category, siblingCategories]);
-
-  const related = useMemo(() => {
-    if (!siblings) return [];
-    return sortListings(
-      siblings.filter((i) => i.id !== item.id),
-      "index"
-    ).slice(0, 6);
-  }, [item.id, siblings]);
-
-  if (related.length === 0) return null;
-
-  return (
-    <section className="mt-9">
-      <div className="section-head">
-        <h2>Also in {item.category}</h2>
-        <Link
-          href={`/explore/?category=${encodeURIComponent(item.category)}`}
-          className="t-mono shrink-0 text-[12px] text-ink-2 hover:text-ink hover:underline"
-        >
-          see all
-        </Link>
-      </div>
-      <ul>
-        {related.map((r) => (
-          <li key={r.id}>
-            <Link
-              href={listingHref(r)}
-              className="grid grid-cols-[3px_minmax(0,1fr)_auto] items-center gap-3 border-b border-rule py-2.5 transition-colors hover:bg-hover"
-            >
-              <span
-                aria-hidden="true"
-                className="h-7 w-[3px] rounded-[1px]"
-                style={{ backgroundColor: `var(--${r.kind})` }}
-              />
-              <span className="min-w-0">
-                <span className="t-cond block truncate text-[14px] font-medium text-ink">{r.name}</span>
-                <span className="row-meta">
-                  <span className="meta-publisher">{r.publisher?.name || "unspecified"}</span>
-                  <span className="truncate text-ink-3">{r.summary}</span>
-                </span>
-              </span>
-              <span className="t-mono t-tabular shrink-0 text-[11px] text-ink-3">{r.kind}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 

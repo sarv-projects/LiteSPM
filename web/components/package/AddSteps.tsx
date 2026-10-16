@@ -64,7 +64,14 @@ export interface AddStepsProps {
  *
  *   installable + selected  → "You chose <agent>" + a primary action that
  *                             takes you to the install command;
- *   installable + unset     → "No agent selected yet" + [Choose your agent];
+ *   installable + unset     → the default any-agent install command, with
+ *                             Copy, before the agent pick — the command
+ *                             genuinely completes without a choice (the CLI
+ *                             resolves its targets itself: detected agent
+ *                             skills trees for a skill, every registered
+ *                             bridge host for an MCP server), so the pick is
+ *                             an upgrade to the rest of the page, never a
+ *                             gate in front of the command;
  *   otherwise               → the CLI's fail-closed status, without an install
  *                             command for an entry it cannot install.
  *
@@ -212,21 +219,21 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             </button>
           </div>
         ) : !liteSPMInstallable ? (
-          <p className="border-b border-dark-rule pb-3.5 text-[13px] leading-relaxed text-dark-ink">
-            {item.kind === "plugin" && installabilityEstablished ? (
-              <>
-                LiteSPM can&rsquo;t install plugins yet — there is no artifact source. Rather than
-                installing half a bundle, the CLI stops with{" "}
-                <code className="t-mono text-dark-ink">LPSM-ARTIFACT-UNAVAILABLE</code>.
-              </>
-            ) : (
-              <>
-                This entry&rsquo;s metadata doesn&rsquo;t establish that it&rsquo;s installable, so
-                no install command is shown. The CLI refuses it with{" "}
-                <code className="t-mono text-dark-ink">LPSM-NOT-INSTALLABLE</code>.
-              </>
-            )}
-          </p>
+          // The caveat is a state of the action, not an essay: a disabled CTA
+          // and one clause naming the blocker, with the full explanation in
+          // the control's tooltip (`avail.plain`). The paragraph this
+          // replaces — error code included — read as an apology where the
+          // competitor pages simply show a short badge or a disabled control.
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-dark-rule pb-3.5">
+            <button type="button" disabled className="btn shrink-0" title={avail.plain}>
+              Install unavailable
+            </button>
+            <p className="text-[12px] leading-relaxed text-dark-ink-2" title={avail.plain}>
+              {item.kind === "plugin"
+                ? "Plugin installs are not supported yet."
+                : "No command or endpoint is published for this entry."}
+            </p>
+          </div>
         ) : targeted ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-dark-rule pb-3.5">
             <p className="flex min-w-0 items-start gap-2 text-[13px] leading-relaxed text-dark-ink">
@@ -249,20 +256,35 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             </button>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-dark-rule pb-3.5">
+          <div className="border-b border-dark-rule pb-3.5">
             <p className="min-w-0 text-[13px] leading-relaxed text-dark-ink">
               {agent ? (
                 <>
-                  You chose <strong className="font-medium text-dark-ink">&ldquo;{agent.label}&rdquo;</strong>.
-                  That doesn&rsquo;t name an install target, so the steps below stay general.
+                  You chose{" "}
+                  <strong className="font-medium text-dark-ink">&ldquo;{agent.label}&rdquo;</strong>.
+                  That doesn&rsquo;t name an install target, so this command stays general — it
+                  installs for every agent LiteSPM finds on your machine.
                 </>
               ) : (
-                <>No agent selected yet. Pick one and the steps below target it; until then they work for any agent.</>
+                <>
+                  Works with any agent: this command installs for every agent LiteSPM finds on your
+                  machine, so there is nothing to choose first.
+                </>
               )}
             </p>
-            <button type="button" className="btn btn-solid btn-lg shrink-0" onClick={onChooseAgent}>
-              Choose your agent
-            </button>
+            <DarkCmd
+              text={`${INSTALL_COMMAND_PREFIX}${item.id}`}
+              label="Copy install command"
+              message="Install command copied"
+            />
+            <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+              <button type="button" className="btn" onClick={onChooseAgent}>
+                Choose your agent
+              </button>
+              <p className="text-[12px] leading-relaxed text-dark-ink-2">
+                Optional — picking one shapes the rest of this page, not the command.
+              </p>
+            </div>
           </div>
         )}
 
@@ -336,8 +358,8 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                       <h3 className="text-[14px] font-semibold text-dark-ink">Add {item.name}</h3>
                       <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
                         {targeted
-                          ? `Installs this entry for ${agent?.label}.`
-                          : "Installs this entry for the agent you connected in step 2."}
+                          ? `Installs for every agent LiteSPM finds on this machine — ${agent?.label} included.`
+                          : "Installs for every agent LiteSPM finds on this machine."}
                       </p>
                     </div>
                   </div>

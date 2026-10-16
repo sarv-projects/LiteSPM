@@ -4,9 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { SearchX, RotateCw } from "lucide-react";
 import { ExtensionCard } from "./ExtensionCard";
 import { Listing } from "../../lib/telemetry";
-import { GRID_PAGE, kindPlural, rowProvenance, rowSignal } from "../../lib/catalog";
+import { GRID_PAGE } from "../../lib/catalog";
 import { formatCount } from "../../lib/format";
-import { categoryLabel } from "../../app/categories/categoryLabel";
 
 interface ExtensionGridProps {
   items: Listing[];
@@ -74,8 +73,8 @@ function CatalogError({ onRetry, inline }: { onRetry?: () => void; inline?: bool
         <h3 className="text-[15px] font-semibold">The catalog could not be loaded</h3>
         <p className="text-[13px] text-ink-2">
           {inline
-            ? "Search, filters and “show more” need the full catalog, and that request failed, so they are unavailable right now. The rows below loaded with the page, and their links still work."
-            : "Search and filtering need the full catalog, and that request failed. Nothing has been searched yet, so this is not an empty result."}
+            ? "The full catalog didn’t load, so search, filters and “show more” are unavailable right now. The rows below still open."
+            : "The full catalog didn’t load, so search and filters are unavailable right now."}
         </p>
         {onRetry && (
           <button type="button" onClick={onRetry} className="btn btn-solid mt-2">
@@ -132,60 +131,6 @@ export function ExtensionGrid({
   const remaining = reported - shown.length;
 
   /**
-   * Values that are constant across the rows about to be rendered.
-   *
-   * A chip whose value never varies tells the reader nothing, and a column of
-   * identical chips is what makes a page read as generated. On this catalog's
-   * default view every visible row is an agent skill classified "Official" by
-   * the same upstream list — three identical values times 48 rows. So: when a
-   * value is constant across the shown rows it is stated once above them and
-   * omitted per row; when it varies it stays on every row. Nothing is lost —
-   * each card's accessible name still carries the signal and the entry page
-   * states its own availability — only the repetition goes.
-   *
-   * Computed over `shown`, not over the whole result set: the claim "every row
-   * shown" is true by construction, and it changes honestly as "Show more"
-   * brings in rows that differ.
-   *
-   * `provenance` is only hoisted when the rows actually carry the field —
-   * `publisher.verified` or a `source`. The display projection carries
-   * `source` since the search format v3 (`lib/searchFormat.mjs`
-   * `buildDisplayRows`), so a hydrated row answers `rowProvenance` the same
-   * way the server-rendered one does. The guard stays for a row that
-   * genuinely carries neither: hoisting "Origin not stated" once above the
-   * rows would turn one row's missing field into a claim about the whole set.
-   */
-  const constants = useMemo(() => {
-    if (shown.length === 0) return null;
-    const first = shown[0];
-    const kinds = new Set(shown.map((item) => item.kind));
-    const signals = new Set(shown.map((item) => rowSignal(item).label));
-    const provenances = new Set(shown.map((item) => rowProvenance(item)));
-    const categories = new Set(shown.map((item) => item.category));
-    const provenanceCarried = shown.every(
-      (item) => item.publisher?.verified || Boolean(item.source)
-    );
-    return {
-      kind: kinds.size === 1 ? first.kind : null,
-      signal: signals.size === 1 ? rowSignal(first) : null,
-      provenance: provenances.size === 1 && provenanceCarried ? rowProvenance(first) : null,
-      category: categories.size === 1 ? first.category : null,
-    };
-  }, [shown]);
-
-  const constantLine = useMemo(() => {
-    if (!constants) return null;
-    const parts: string[] = [];
-    if (constants.kind) parts.push(`all ${kindPlural(constants.kind)}`);
-    if (constants.signal) parts.push(`availability “${constants.signal.label}”`);
-    if (constants.category) parts.push(`source category “${categoryLabel(constants.category)}”`);
-    if (constants.provenance) parts.push(`source: ${constants.provenance}`);
-    if (parts.length === 0) return null;
-    return { parts, note: constants.signal?.note ?? null };
-  }, [constants]);
-
-  const hideRail = Boolean(constants?.signal && constants?.provenance);
-  /**
    * Until the full row set arrives, `items` is a window of `reported` — the
    * prerendered page, or the previous query's rows. Growing `visible` past the
    * end of that array cannot put a row on screen, so "Show more" must not
@@ -228,40 +173,16 @@ export function ExtensionGrid({
       {shown.length > 0 ? (
         <>
           <div
-            className={`t-mono hidden border-b border-rule py-2 pr-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-2 lg:grid lg:items-center lg:gap-x-3 ${
-              hideRail
-                ? "lg:grid-cols-[3px_28px_minmax(0,1fr)]"
-                : "lg:grid-cols-[3px_28px_minmax(0,1fr)_200px]"
-            }`}
+            className="t-mono hidden border-b border-rule py-2 pr-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-2 lg:grid lg:grid-cols-[3px_28px_minmax(0,1fr)_200px] lg:items-center lg:gap-x-3"
           >
             <span />
             <span />
             <span>Capability</span>
-            {!hideRail && <span className="text-right">Availability &amp; source</span>}
+            <span className="text-right">Availability &amp; source</span>
           </div>
 
-          {/* The one line that replaces a column of identical chips. It states
-              only what is measured over the rows actually shown, and the
-              signal's own note (what "Official" does and does not mean) rides
-              along, so the caveat is not lost with the chip. */}
-          {constantLine && (
-            <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-ink-3">
-              <span className="t-mono text-[10.5px] font-semibold uppercase tracking-[0.08em]">
-                Same on every row shown
-              </span>
-              : {constantLine.parts.join(" · ")}.{constantLine.note ? ` ${constantLine.note}` : ""}
-            </p>
-          )}
-
           {shown.map((item) => (
-            <ExtensionCard
-              key={item.id}
-              item={item}
-              omitKind={Boolean(constants?.kind)}
-              omitSignal={Boolean(constants?.signal)}
-              omitProvenance={Boolean(constants?.provenance)}
-              omitCategory={Boolean(constants?.category)}
-            />
+            <ExtensionCard key={item.id} item={item} />
           ))}
 
           {remaining > 0 && (
@@ -317,11 +238,10 @@ export function ExtensionGrid({
             <p className="text-[13px] text-ink-2">
               {query ? (
                 <>
-                  No entry matches “{query}”{filtersActive ? " with the current filters" : ""}. Search
-                  covers names, summaries, publishers, categories, runtimes, transports and tool names.
+                  No entry matches “{query}”{filtersActive ? " with the current filters" : ""}.
                 </>
               ) : (
-                <>No entry matches these filters. Try a wider kind, goal, source category or agent.</>
+                <>No entry matches these filters. Try a wider kind or goal, or another agent.</>
               )}
             </p>
 

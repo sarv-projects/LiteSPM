@@ -52,7 +52,17 @@ import {
   SECTION_INDEX,
   SECTION_ROWS,
 } from "../lib/searchFormat.mjs";
-import { categorySlug, SIBLING_CATEGORY_MAX } from "../lib/categoryFiles.mjs";
+import {
+  categorySlug,
+  SIBLING_CATEGORY_MAX,
+  SIBLING_SLICE_ROWS,
+} from "../lib/categoryFiles.mjs";
+import {
+  publisherFileStem,
+  publisherSiblingNames,
+  relatedSlice,
+  sourceFileSlug,
+} from "../lib/relatedFiles.mjs";
 
 const webRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sourcePath = path.join(webRoot, "data", "catalog.json");
@@ -181,6 +191,21 @@ const withLinkKey = (row) => ({
   linkKey: globalSlugCounts.get(row.slug) === 1 ? row.slug : row.id,
 });
 
+// Which publishers have a `pub/` sibling file, resolved over the whole
+// dataset once, for the same reason `linkKey` is: the browser has to know
+// whether to ask for the file at all before it can receive one, and a
+// publisher with a single row has nothing to show. The same predicate stamps
+// `publisherGroup` onto the bucket rows and (in `lib/packageServer.ts`) onto
+// the server-side rows, so the two sides cannot disagree about which
+// publishers are grouped.
+const publisherGroups = publisherSiblingNames(rows);
+const withBucketFields = (row) => {
+  const keyed = withLinkKey(row);
+  return publisherGroups.has(row.publisher?.name ?? "")
+    ? { ...keyed, publisherGroup: true }
+    : keyed;
+};
+
 const buckets = Array.from({ length: BUCKETS }, () => []);
 let versioned = 0;
 let slugBucketExtras = 0;
@@ -196,7 +221,7 @@ for (const row of rows) {
   // to be filed under the bucket of each key it answers to; filing by slug
   // alone made every id-keyed page report "not in this catalog snapshot".
   const idBucket = bucketFor(row.id);
-  buckets[idBucket].push(withLinkKey(row));
+  buckets[idBucket].push(withBucketFields(row));
 
   // An ambiguous slug is still filed first-wins so the page can tell "shared
   // name" from "no such name": `buildLookup` refuses to register the key, and
@@ -206,7 +231,7 @@ for (const row of rows) {
     seenSlugs.add(row.slug);
     const slugBucket = bucketFor(row.slug);
     if (slugBucket !== idBucket) {
-      buckets[slugBucket].push(withLinkKey(row));
+      buckets[slugBucket].push(withBucketFields(row));
       slugBucketExtras += 1;
     }
   }
@@ -225,10 +250,12 @@ for (let i = 0; i < BUCKETS; i += 1) {
 
 // Siblings for the "Also in <category>" list.
 //
-// Only for categories small enough that "related" means something: the two
-// largest hold 45,373 and 19,209 rows, where twelve arbitrary entries are noise
-// and the existing "see all" link is the honest answer. The rest total a few
-// thousand rows and cost ~3 MB across the set.
+// Every category gets a file, because every entry page now carries the rail.
+// A category small enough to browse in full is written in full; the two that
+// hold most of the catalog (45,373 and 19,209 rows) are written as a bounded,
+// deterministic slice — the rail shows six, and a multi-megabyte fetch to pick
+// six items out of forty-five thousand is the thing this route exists to
+// avoid. The "see all" link beside the rail is the complete list.
 //
 // `lib/categoryFiles.mjs` owns the rule, because `app/package/page.tsx` has to
 // compute the same set at build time and hand it to the page — a category
@@ -246,18 +273,74 @@ for (const row of rows) {
 
 let categoryFiles = 0;
 for (const [name, group] of byCategory) {
-  if (group.length > SIBLING_CATEGORY_MAX) continue;
   const slug = categorySlug(name);
   if (!slug) continue;
-  writeFileSync(path.join(CAT_DIR, `${slug}.json`), `${JSON.stringify(group.map(withLinkKey))}\n`);
+  // Over the cap: a fixed-length prefix of the category in catalog order —
+  // the same slice for every entry of that category.
+  const emitted = group.length > SIBLING_CATEGORY_MAX ? group.slice(0, SIBLING_SLICE_ROWS) : group;
+  writeFileSync(path.join(CAT_DIR, `${slug}.json`), `${JSON.stringify(emitted.map(withLinkKey))}\n`);
   categoryFiles += 1;
+}
+
+// Publisher and source siblings for the related rail (`lib/relatedFiles.mjs`
+// owns both rules). A publisher file exists only for publishers with
+// `PUBLISHER_SIBLING_MIN`+ rows — the rows carry `publisherGroup` so the
+// browser never asks for one that was not written. File stems are hashes of
+// the exact publisher name; a hash collision would merge two publishers into
+// one file, which the client's exact-name filter renders correctly (and
+// FNV-1a 64 makes that hypothetical).
+const PUB_DIR = path.join(PKG_DIR, "pub");
+mkdirSync(PUB_DIR, { recursive: true });
+const byPublisher = new Map();
+for (const row of rows) {
+  const name = row.publisher?.name;
+  if (!name || !publisherGroups.has(name)) continue;
+  if (!byPublisher.has(name)) byPublisher.set(name, []);
+  byPublisher.get(name).push(row);
+}
+const publisherDocs = new Map();
+for (const [name, group] of byPublisher) {
+  const stem = publisherFileStem(name);
+  publisherDocs.set(stem, (publisherDocs.get(stem) ?? []).concat(relatedSlice(group)));
+}
+let publisherFiles = 0;
+for (const stem of [...publisherDocs.keys()].sort()) {
+  const body = `${JSON.stringify(publisherDocs.get(stem).map(withLinkKey))}\n`;
+  writeFileSync(path.join(PUB_DIR, `${stem}.json`), body);
+  publisherFiles += 1;
+}
+
+// Every row names a source, the source set is closed (12 ids), and the
+// slugified id is the file stem. Two ids slugging to the same stem would make
+// the client's `source` filter silently mix them, so that is a build failure,
+// not a warn.
+const SRC_DIR = path.join(PKG_DIR, "src");
+mkdirSync(SRC_DIR, { recursive: true });
+const bySource = new Map();
+for (const row of rows) {
+  if (!row.source) continue;
+  if (!bySource.has(row.source)) bySource.set(row.source, []);
+  bySource.get(row.source).push(row);
+}
+const sourceSlugs = new Map();
+for (const [id, group] of bySource) {
+  const slug = sourceFileSlug(id);
+  if (!slug) continue;
+  const seen = sourceSlugs.get(slug);
+  if (seen && seen !== id) {
+    console.error(`✖ source ids "${seen}" and "${id}" share the slug "${slug}"`);
+    process.exit(1);
+  }
+  sourceSlugs.set(slug, id);
+  writeFileSync(path.join(SRC_DIR, `${slug}.json`), `${JSON.stringify(relatedSlice(group).map(withLinkKey))}\n`);
 }
 
 console.log(
   `✔ product lookups: ${BUCKETS} bucket(s) (${(Math.max(...bucketFiles) / 1024).toFixed(0)} KiB largest, ` +
     `${(Math.min(...bucketFiles) / 1024).toFixed(0)} KiB smallest; ` +
     `${slugBucketExtras} slug-key extra(s)) ` +
-    `+ ${categoryFiles} category file(s) → ${path.relative(process.cwd(), PKG_DIR)}`,
+    `+ ${categoryFiles} category file(s) + ${publisherFiles} publisher file(s) ` +
+    `+ ${bySource.size} source file(s) → ${path.relative(process.cwd(), PKG_DIR)}`,
 );
 
 // ---------------------------------------------------------------------------

@@ -13,11 +13,9 @@ import { useCatalogSearch } from "../../lib/useCatalogSearch";
 import { useCatalog } from "../../lib/catalogData";
 import {
   agentFacets,
-  categoryFacets,
   CURATED_NOTE,
   demoteValidationFixtures,
   deriveKindCounts,
-  hostUniverse,
   isInstallable,
   kindLabel,
   listingHref,
@@ -76,11 +74,9 @@ export interface ExploreViewProps {
   total: number;
   /** Per-kind totals for the kind rail, counted at build time — not fetched. */
   kindCounts: { all: number; mcp: number; skill: number; plugin: number };
-  categories: Array<{ name: string; count: number }>;
   /** The editorial goal facets (`lib/taxonomy`), largest first. */
   goals: Array<{ id: string; label: string; count: number }>;
   agents: Array<{ name: string; slug: string; count: number }>;
-  hostCount: number;
   gridRows: Listing[];
 }
 
@@ -195,12 +191,17 @@ const EXPLAIN_CLASS_LABELS: Record<number, string> = {
 /**
  * Why the leading results are the leading results.
  *
- * The result cards themselves are shared with other surfaces and carry no
- * per-query explanation, so the evidence for the *ordering* lives here, above
- * the grid: each of the first results, the field the query was found in, the
- * fragment around the match, and the class that rank came from. The rule line
- * states the whole order, so the explanation also covers the rows further down
- * without a sentence per row.
+ * It renders AFTER the result set, collapsed — the answer has to precede the
+ * analysis of its order. Before that it sat above the rows, expanded, and on a
+ * search the first result started around y≈900 at 1440×900: a reader had to
+ * pass an essay to see whether anything matched. The content is kept whole
+ * because no competitor explains *why* a row ranked; it just is not the thing
+ * to read first.
+ *
+ * The evidence for the *ordering* lives here: each of the first results, the
+ * field the query was found in, the fragment around the match, and the class
+ * that rank came from. The rule line states the whole order, so the
+ * explanation also covers the rows further down without a sentence per row.
  */
 function MatchExplanationPanel({
   entries,
@@ -210,7 +211,7 @@ function MatchExplanationPanel({
   host: string | null;
 }) {
   return (
-    <details open className="mt-4 border border-rule bg-sunken px-4 py-3">
+    <details className="border border-rule bg-sunken px-4 py-3">
       <summary className="cursor-pointer text-[13px] font-medium text-ink">
         Why these results?
       </summary>
@@ -221,11 +222,8 @@ function MatchExplanationPanel({
         <span className="t-mono text-[11.5px]">io.github.…</span> are identifiers, not content.
         Equal match classes break on what can be installed, whether the row comes from the
         publisher's own manifest, and the upstream directory's official-skills classification.
-        Names that describe a validation pattern rather than a capability — a trailing “,{" "}
-        <span className="t-mono text-[11.5px]">&lt;field&gt; discarded</span>”, like “GitHub
-        commit SHA hex, value discarded” — are ranked after capability rows: they stay in the
-        catalog, in the count, and on their own pages, and searching their own words still finds
-        them.
+        Rows that name a validation pattern rather than a capability (like “GitHub commit SHA hex,
+        value discarded”) rank after capability rows; searching their own words still finds them.
         {host && (
           <>
             {" "}
@@ -339,8 +337,7 @@ function ExploreLoadError({ onRetry }: { onRetry: () => void }) {
           <RotateCw className="h-6 w-6 text-ink-3" aria-hidden="true" />
           <h3 className="text-[15px] font-semibold">The catalog could not be loaded</h3>
           <p className="text-[13px] text-ink-2">
-            Search and filtering need the full catalog, and that request failed. Nothing has been
-            searched yet, so this is not an empty result.
+            Search and filtering need the full catalog rows, and that request did not come back.
           </p>
           <button type="button" onClick={onRetry} className="btn btn-solid mt-2">
             Try again
@@ -481,23 +478,19 @@ function ExploreContent(props: ExploreViewProps) {
     return {
       total: full.length,
       kindCounts: deriveKindCounts(full),
-      categories: categoryFacets(full, 200),
       goals: taxonomyFacets(full).map((facet) => ({
         id: facet.id,
         label: facet.label,
         count: facet.count,
       })),
       agents: agentFacets(full),
-      hostCount: hostUniverse(full).length,
     };
   }, [full]);
 
   const total = live ? live.total : props.total;
   const kindCounts = live ? live.kindCounts : props.kindCounts;
-  const categories = live ? live.categories : props.categories;
   const goals = live ? live.goals : props.goals;
   const agents = live ? live.agents : props.agents;
-  const hostCount = live ? live.hostCount : props.hostCount;
 
   /**
    * A deep link can spell a host this build lists with different case
@@ -644,22 +637,7 @@ function ExploreContent(props: ExploreViewProps) {
 
       <main id="main" className="flex-1">
         <div className="shell pt-8">
-          <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <h1 className="text-[24px] font-semibold tracking-tight text-ink">Explore</h1>
-            {/*
-              The catalog total is labelled as the catalog total. It used to
-              read "{n} entries" beside the result count, which is two
-              "entries" numbers on one page with nothing saying which one the
-              search produced — a reviewer read it as "search returned
-              everything". The result count now appears exactly once, in the
-              results header below, and this line says "in catalog".
-            */}
-            <p className="t-mono text-[11px] text-ink-3">
-              {formatCount(total)} in catalog · {formatCount(goals.filter((g) => g.id !== "other").length)}{" "}
-              goals · {formatCount(categories.length)} source categories · {formatCount(hostCount)} agent
-              hosts
-            </p>
-          </div>
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Explore</h1>
 
           {savedTarget && savedAgent && (
             <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-rule bg-sunken px-4 py-3">
@@ -684,7 +662,7 @@ function ExploreContent(props: ExploreViewProps) {
             </div>
           )}
 
-          <div className="mt-4 max-w-2xl">
+          <div className="mt-4">
             <SearchBar
               query={query}
               setQuery={setQuery}
@@ -695,11 +673,11 @@ function ExploreContent(props: ExploreViewProps) {
             />
           </div>
 
-          {/* Filters are a single ruled row. Kind is segmented; goal, source
-              category and agent are selects because 12, 64 and 9 options do
-              not fit as chips. The goal is the editorial browse axis
-              (`lib/taxonomy`); the source category is the upstream label,
-              kept beside it as provenance rather than replaced. */}
+          {/* Filters are a single ruled row. Kind is segmented; goal and agent
+              are selects because 12 and 9 options do not fit as chips. A
+              source category from a deep link is a chip: the upstream labels
+              are provenance, and `/categories/` is the browse-by-category
+              surface, so they are not a second facet row here. */}
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-rule py-3">
             <div
               className="flex items-center gap-0.5 border border-ink-3 bg-sunken p-0.5"
@@ -724,12 +702,12 @@ function ExploreContent(props: ExploreViewProps) {
                     />
                   )}
                   {k === "all" ? "All types" : kindLabel(k)}
-                  {/* Counts are whole-catalog figures, exactly like the Goal,
-                      Source category and Works with selects below — never
-                      "matching your filters", which would take a per-filter
-                      derivation this rail does not have. Hidden under md: four
-                      counts make this rail wider than a phone, and the labels
-                      are what the control is for. */}
+                  {/* Counts are whole-catalog figures, exactly like the Goal
+                      and Works with selects below — never "matching your
+                      filters", which would take a per-filter derivation this
+                      rail does not have. Hidden under md: four counts make
+                      this rail wider than a phone, and the labels are what the
+                      control is for. */}
                   <span
                     className={`t-mono t-tabular hidden text-[11px] md:inline ${
                       kind === k ? "text-surface/75" : "text-ink-3"
@@ -746,7 +724,7 @@ function ExploreContent(props: ExploreViewProps) {
               <select
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
-                title="LiteSPM's editorial grouping, derived from each record's own text by the rules in web/lib/taxonomy.ts. Not a publisher's label."
+                title="Grouped by what the capability is for, derived from its own text. Not the source's category label."
                 className="field"
               >
                 <option value="all">All goals</option>
@@ -764,23 +742,6 @@ function ExploreContent(props: ExploreViewProps) {
                       Other — no goal placed ({formatCount(g.count)})
                     </option>
                   ))}
-              </select>
-            </label>
-
-            <label className="flex items-center gap-2 text-[12px] text-ink-2">
-              Source category
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                title="The upstream source's own category label, carried verbatim. The goals are LiteSPM's grouping; this is the source's."
-                className="field"
-              >
-                <option value="all">All source categories</option>
-                {categories.map((c) => (
-                  <option key={c.name} value={c.name}>
-                    {categoryLabel(c.name)} ({formatCount(c.count)})
-                  </option>
-                ))}
               </select>
             </label>
 
@@ -822,6 +783,25 @@ function ExploreContent(props: ExploreViewProps) {
               />
               Only rows LiteSPM can install
             </label>
+
+            {/* A category set by a deep link or an old bookmark. The upstream
+                labels are not offered as a browse axis here — `/categories/`
+                is — but a link that carries one still applies it, so the chip
+                keeps that filter visible and clearable like every other. */}
+            {category !== "all" && (
+              <span className="inline-flex items-center gap-1.5 rounded-chip border border-rule bg-sunken px-2 py-1 text-[12px] text-ink-2">
+                <span className="t-mono text-[11px] text-ink-3">category</span>
+                {categoryLabel(category)}
+                <button
+                  type="button"
+                  onClick={() => setCategory("all")}
+                  aria-label={`Clear the ${categoryLabel(category)} category filter`}
+                  className="btn h-5 min-h-0 px-1! py-0!"
+                >
+                  <X className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </span>
+            )}
 
             {/* A source set from a shelf's "View all" link. Shown as a chip so
                 the filter is visible and clearable like every other one. */}
@@ -873,8 +853,6 @@ function ExploreContent(props: ExploreViewProps) {
           {effectiveSort === "curated" && (
             <p className="mt-2 text-[12px] leading-relaxed text-ink-3">{CURATED_NOTE}</p>
           )}
-
-          {explanation && <MatchExplanationPanel entries={explanation} host={rankAgent?.label ?? null} />}
         </div>
 
         <div className="pt-7">
@@ -924,6 +902,16 @@ function ExploreContent(props: ExploreViewProps) {
                 </div>
               }
             />
+          )}
+
+          {/* The ordering evidence, below the rows it explains. A search's
+              first answer has to be the matching rows; the analysis of their
+              order is a follow-up question, so it is a collapsed disclosure
+              after the result set and never a block in front of it. */}
+          {explanation && (
+            <div className="shell pb-16">
+              <MatchExplanationPanel entries={explanation} host={rankAgent?.label ?? null} />
+            </div>
           )}
         </div>
       </main>

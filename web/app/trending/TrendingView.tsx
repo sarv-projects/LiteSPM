@@ -138,15 +138,12 @@ export default function CoveragePage({ total, boards, boardTotals }: TrendingVie
       <main id="main" className="shell flex-1 pt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Coverage</h1>
-          <p className="t-mono text-[11px] text-ink-3">
-            {formatCount(total)} entries · counted, not estimated
-          </p>
+          <p className="t-mono text-[11px] text-ink-3">{formatCount(total)} entries</p>
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          These boards describe the shape of the snapshot: how many entries fall under each
-          capability kind, agent host, category and publisher. Nothing here is ranked by popularity
-          — the upstream sources publish no star, download or install figures.
+          Counts across the snapshot: entries per capability kind, agent host, category and
+          publisher.
         </p>
 
         <div className="mt-7 grid items-start gap-x-10 gap-y-9 lg:grid-cols-2">
@@ -157,7 +154,7 @@ export default function CoveragePage({ total, boards, boardTotals }: TrendingVie
           />
           <CountBoard
             title="Agent hosts by coverage"
-            note="How many entries are compatible with each host. MCP servers and skills come from LiteSPM's adapter registries; plugins from the publisher's own list — not a test result."
+            note="How many entries are compatible with each host, by adapter registry and publisher declaration."
             rows={boards.hosts}
             total={boardTotals.hosts}
           />
@@ -170,7 +167,7 @@ export default function CoveragePage({ total, boards, boardTotals }: TrendingVie
           />
           <CountBoard
             title="Publishers by entries shipped"
-            note="Count of entries, not stars. The link opens the publisher's own rows."
+            note="Entries per publisher; each row opens the publisher's own entries."
             rows={boards.publishers}
             href={(label) => `/explore/?publisher=${encodeURIComponent(label)}`}
             total={boardTotals.publishers}
@@ -178,9 +175,7 @@ export default function CoveragePage({ total, boards, boardTotals }: TrendingVie
         </div>
 
         <p className="mt-9 max-w-prose border-t border-rule pt-5 text-[12px] leading-relaxed text-ink-3">
-          Sources for this snapshot are listed in the repository under{" "}
-          <span className="t-mono">internal/source</span>. Each capability links back to the upstream
-          page it was read from.
+          Each capability links back to the upstream page it was read from.
         </p>
       </main>
 

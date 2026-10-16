@@ -13,7 +13,7 @@ import AgentsRoute from "./AgentsRoute";
  */
 export const metadata: Metadata = {
   title: "Agent hosts",
-  description: `Every agent host named in the catalog, and which of them LiteSPM has a compiled-in adapter for — the configuration file each one writes, the one bridge entry it adds, and the vendor documentation every row was checked against.`,
+  description: `Every agent host named in the catalog, which of them LiteSPM can configure directly, and the config file each one uses.`,
   alternates: { canonical: "/agents/" },
   openGraph: { title: "Agent hosts · LiteSPM Market", url: "/agents/" },
 };

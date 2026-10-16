@@ -343,7 +343,7 @@ export default function AgentDetailView({
               {formatCount(count)}
             </span>
             <span className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-              catalog entries install into {name}.
+              catalog entries declare compatibility with {name}.
             </span>
           </p>
 
@@ -359,8 +359,8 @@ export default function AgentDetailView({
               before the footer. The footer's long form is gone and one line
               here does the same job next to the number it qualifies. */}
           <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            This page covers the config file, the command and the count. Operating-system support,
-            popularity and ratings are not published.
+            Operating-system support, popularity and ratings are not published by any upstream
+            source.
           </p>
         </section>
       </main>

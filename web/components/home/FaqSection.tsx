@@ -72,8 +72,7 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
         <>
           The publisher&rsquo;s own name and a link to them. A <em>from publisher manifest</em>{" "}
           badge means the row was parsed from that publisher&rsquo;s own listing — it records
-          where the data came from, not that anyone reviewed the software. Nobody audited them,
-          and we didn&rsquo;t either.
+          where the data came from, not that anyone reviewed the software.
         </>
       ),
     },
@@ -82,8 +81,7 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       a: (
         <>
           You get the exact command it runs and the file LiteSPM would change, before anything is
-          written. What it can reach once it&rsquo;s running is something no catalog can see — so
-          we don&rsquo;t pretend to tell you.
+          written. What it can reach once it is running is not something the catalog can see.
         </>
       ),
     },
@@ -91,10 +89,9 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "How far was it actually checked?",
       a: (
         <>
-          The catalog records how much was read: <em>Discovery only</em> or{" "}
+          Every entry says how far it was read: <em>Discovery only</em> or{" "}
           <em>LiteSPM-parsed</em>. Most entries are still Discovery only —{" "}
-          {formatCount(provenance.discoveryOnly)} of {formatCount(provenance.total)} — and every
-          entry says which it is rather than rounding up.
+          {formatCount(provenance.discoveryOnly)} of {formatCount(provenance.total)}.
         </>
       ),
     },
@@ -104,7 +101,7 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
         <>
           The version the publisher gave, on {formatCount(provenance.versioned)} of{" "}
           {formatCount(provenance.total)} entries. Where there isn&rsquo;t one, the page says{" "}
-          <span className="absent">not published</span> instead of guessing.
+          <span className="absent">not published</span>.
         </>
       ),
     },
@@ -116,7 +113,7 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
             Every claim above is a field on the entry&rsquo;s own record. Open any entry and you
             can see where it came from, what command it runs, how far the reading went, and which
             version the publisher gave — and where a field is missing, the entry says{" "}
-            <span className="absent">not published</span> instead of filling it in.
+            <span className="absent">not published</span>.
           </p>
           <details className="group mt-3 border-t border-rule pt-3">
             <summary className="flex min-h-[32px] w-full cursor-pointer items-start justify-between gap-4 text-left">
@@ -139,7 +136,7 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
                 <code className="t-mono">publisher.verified</code> — a provenance flag, not a
                 security review. What it runs is <code className="t-mono">command</code>,{" "}
                 <code className="t-mono">args</code> and{" "}
-                <code className="t-mono">installHint</code>; how far we got is{" "}
+                <code className="t-mono">installHint</code>; how far the reading went is{" "}
                 <code className="t-mono">installability</code>; and{" "}
                 <code className="t-mono">version</code> is the publisher&rsquo;s own.
               </p>
@@ -181,9 +178,7 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
           The listings are a fixed catalog snapshot baked into the build. The index pages and the{" "}
           {formatCount(HOSTS.length)} agent pages are pre-rendered, so they read with JavaScript
           off; opening one entry is the exception, because that lookup runs in your browser. Only
-          the release manifest is fetched on load — and the header states plainly whether that
-          fetch succeeded. The rows themselves arrive on demand, never as a script on first paint,
-          which is why this page stays a few hundred kilobytes instead of megabytes.
+          the release manifest is fetched on load — the header says whether that fetch succeeded.
         </>
       ),
     },

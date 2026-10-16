@@ -145,8 +145,8 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
             }`}
             title={
               worksWith
-                ? "MCP servers install into any host with an adapter, skills into any host with a skills directory, and plugins only into the hosts their publisher lists. Not a per-row test result."
-                : "This entry does not list that agent among its compatible hosts. Publisher-declared, not a test result."
+                ? "MCP servers install into any host with an adapter, skills into any host with a skills directory, and plugins only into the hosts their publisher lists — declared, not tested."
+                : "Not in this entry's declared host list — publisher-declared, not tested."
             }
           >
             {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
@@ -172,7 +172,7 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
           <TechRow label="hosts" value={hostsValue} />
         </dl>
         <p className="mt-2 text-[11.5px] leading-relaxed text-ink-3">
-          Only what the publisher published; a field it did not provide is left out, not guessed.
+          Only the fields the publisher provided.
         </p>
       </details>
     </DiscoveryCard>
