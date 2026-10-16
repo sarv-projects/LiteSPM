@@ -52,6 +52,17 @@ export const SEARCH_ROWS_PATH = "/data/catalog-search-rows.bin.gz";
 export const SEARCH_INDEX_PATH = "/data/catalog-search-index.bin.gz";
 
 /**
+ * Palette facets: the catalog's category list with real counts, emitted by
+ * `scripts/emit-catalog-shards.mjs`. The command palette is the only consumer,
+ * because it is the only surface that needs a browsable category list before it
+ * has any rows — every other surface either prerenders its facets (the
+ * server-rendered pages) or has already loaded the rows it counts over
+ * (Explore). It is fetched when the palette opens, which is an interaction,
+ * never on a passive visit.
+ */
+export const CATEGORIES_PATH = "/data/catalog-categories.json";
+
+/**
  * Sharded display projection: one self-contained container per
  * `SEARCH_SHARD_ROWS` rows, under a path that names the shard size so a layout
  * change can never be answered by a cached file from the previous layout.
@@ -75,6 +86,7 @@ const DATASET_VERSION = (() => {
 export const CATALOG_URL = `${CATALOG_PATH}${DATASET_VERSION}`;
 export const SEARCH_ROWS_URL = `${SEARCH_ROWS_PATH}${DATASET_VERSION}`;
 export const SEARCH_INDEX_URL = `${SEARCH_INDEX_PATH}${DATASET_VERSION}`;
+export const CATEGORIES_URL = `${CATEGORIES_PATH}${DATASET_VERSION}`;
 
 /** URL of one shard of the sharded display projection. */
 export function searchShardUrl(shardIndex: number): string {
@@ -414,4 +426,74 @@ export function useCatalog(): {
   }, [status]);
 
   return { status, items, request };
+}
+
+// ---------------------------------------------------------------------------
+// Palette facets (LPSM-J009).
+//
+// One small document — 64 categories with the counts the build measured — so
+// the command palette can offer a Categories section before any row has been
+// fetched. The bytes are the build's own counts, not a live measurement, so a
+// count printed from here is settled by construction, exactly like the
+// prerendered facets on `/categories/`.
+// ---------------------------------------------------------------------------
+
+/** One row of `/data/catalog-categories.json`, in the order the build sorted it. */
+export interface CategoryCount {
+  name: string;
+  count: number;
+}
+
+interface CategoriesDocument {
+  schema?: string;
+  rowCount?: number;
+  datasetDigest?: string;
+  categories?: unknown;
+}
+
+let categoriesCache: CategoryCount[] | null = null;
+let categoriesInflight: Promise<CategoryCount[]> | null = null;
+
+/**
+ * Fetch the category facets, once per session.
+ *
+ * Called by the palette when it opens — an interaction. Nothing on a passive
+ * visit calls this, which is what keeps `/data/` out of a cold load.
+ *
+ * A response that carries no usable list is an error, not an empty catalog: a
+ * stale or foreign document must render as "unavailable", never as "there are
+ * no categories". Entries with a non-string name or a non-numeric count are
+ * dropped rather than coerced, so a malformed row cannot print a made-up
+ * number.
+ */
+export function loadCatalogCategories(): Promise<CategoryCount[]> {
+  if (categoriesCache) return Promise.resolve(categoriesCache);
+  if (categoriesInflight) return categoriesInflight;
+  categoriesInflight = fetch(CATEGORIES_URL, { cache: "no-cache" })
+    .then((res) => {
+      if (!res.ok) throw new Error(`categories fetch failed: HTTP ${res.status}`);
+      return res.json() as Promise<unknown>;
+    })
+    .then((raw) => {
+      const doc = raw as CategoriesDocument;
+      if (!Array.isArray(doc?.categories)) {
+        throw new Error("categories document carried no category list");
+      }
+      const clean: CategoryCount[] = [];
+      for (const entry of doc.categories as Array<Record<string, unknown>>) {
+        const { name, count } = entry ?? {};
+        if (typeof name === "string" && name.length > 0 && typeof count === "number" && Number.isFinite(count)) {
+          clean.push({ name, count });
+        }
+      }
+      if (clean.length === 0) throw new Error("categories document listed no categories");
+      categoriesCache = clean;
+      categoriesInflight = null;
+      return clean;
+    })
+    .catch((err) => {
+      categoriesInflight = null;
+      throw err;
+    });
+  return categoriesInflight;
 }

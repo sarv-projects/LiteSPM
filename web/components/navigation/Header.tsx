@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Search, SquareTerminal } from "lucide-react";
+import { CommandPalette } from "./CommandPalette";
 import { ThemeToggle } from "./ThemeToggle";
 
 /**
@@ -18,15 +19,16 @@ import { ThemeToggle } from "./ThemeToggle";
  * being clipped between the wordmark and utility controls. `--stack-top`
  * follows that responsive height so sticky filter bars remain below the header.
  *
- * The search affordance deep-links to Explore with `?focus=search`, which
- * focuses the search field there without asking for the dataset — the fetch
- * belongs to the first keystroke, not to the click.
+ * The search affordance opens the command palette (LPSM-J009) on a plain
+ * click, which is what it now advertises (⌘K on its tooltip and the palette's
+ * own footer); holding ⌘/Ctrl/Shift or middle-clicking keeps the browser's
+ * behavior, and the `/explore/?focus=search` href stays on the anchor because
+ * with JavaScript off the palette does not exist and this link is then the
+ * working search entry point.
  */
 interface HeaderProps {
   /** Fired when a rail link is followed; the home route uses it to reset. */
   onNavigate?: () => void;
-  /** Lets the current page focus its search field before the deep-link updates. */
-  onSearchClick?: () => void;
 }
 
 const PRIMARY_NAV = [
@@ -36,9 +38,11 @@ const PRIMARY_NAV = [
   { href: "/trending/", label: "Coverage" },
 ];
 
-export function Header({ onNavigate, onSearchClick }: HeaderProps) {
+export function Header({ onNavigate }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const searchRef = React.useRef<HTMLAnchorElement>(null);
 
   /**
    * Scroll to the home page's install section once it exists.
@@ -81,6 +85,17 @@ export function Header({ onNavigate, onSearchClick }: HeaderProps) {
       router.push("/#install");
     }
     scrollToInstall();
+  };
+
+  /**
+   * The search control's own action: open the palette. Modified clicks are left
+   * to the browser so the anchor's href still works as a link (that href is
+   * also the entire no-JS story for this control).
+   */
+  const onSearchClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    setPaletteOpen(true);
   };
 
   return (
@@ -126,11 +141,14 @@ export function Header({ onNavigate, onSearchClick }: HeaderProps) {
 
         <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-2">
           <Link
+            ref={searchRef}
             href="/explore/?focus=search"
             onClick={onSearchClick}
             className="btn btn-icon"
             aria-label="Search the catalog"
-            title="Search the catalog"
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Meta+K Control+K"
+            title="Search the catalog — ⌘K"
           >
             <Search className="h-4 w-4" aria-hidden="true" />
           </Link>
@@ -141,6 +159,10 @@ export function Header({ onNavigate, onSearchClick }: HeaderProps) {
           </Link>
         </div>
       </div>
+
+      {/* Portals itself to `document.body`; rendered here so the palette's
+          `returnFocusRef` and open state live with the control that owns them. */}
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} returnFocusRef={searchRef} />
     </header>
   );
 }

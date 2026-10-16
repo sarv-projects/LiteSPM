@@ -4,6 +4,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
 import { formatCount } from "../../lib/format";
+import { registerPageSearchField } from "../../lib/palette";
 
 interface SearchBarProps {
   query: string;
@@ -72,13 +73,9 @@ export function SearchBar({
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const typing = isEditableTarget(document.activeElement);
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-        inputRef.current?.select();
-        return;
-      }
-      // "/" focuses search only when not already typing somewhere else.
+      // "/" focuses this field only when not already typing somewhere else.
+      // ⌘K/Ctrl-K is not handled here: the command palette owns it site-wide
+      // (lib/palette.ts), so there is exactly one ⌘K handler in the app.
       if (e.key === "/" && !typing) {
         e.preventDefault();
         inputRef.current?.focus();
@@ -90,6 +87,13 @@ export function SearchBar({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  // While this field is mounted, `/` belongs to it — the `<kbd>/</kbd>` on
+  // screen promises exactly that, and on Explore the field is wired to the
+  // visible result list, which a dialog is not. The command palette's `/`
+  // rule asks this registry before it would claim the key (lib/palette.ts);
+  // ⌘K opens the palette on every route regardless.
+  useEffect(() => registerPageSearchField(), []);
 
   /**
    * Enter takes the query to Explore — the page with the full filter surface —

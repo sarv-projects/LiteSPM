@@ -130,13 +130,15 @@ scrolling page, not a modal):
 ## 5. Design System — Three Densities (J001, `IMPLEMENTED`)
 
 > **Status (per [TODO.md](../TODO.md) `LPSM-J001`–`J009`):** `J001`, `J002`,
-> `J003` and `J005` are `IMPLEMENTED` — the tokens/type roles/theme system in
-> `web/app/globals.css`, the landing page (`web/app/`, `web/components/home/`),
-> the `CapabilityCard`/`CatalogRow` split (`web/components/catalog/CapabilityCard.tsx`,
-> `web/components/home/SearchResults.tsx`) and the package-page restructure are in
-> the tree. `J004`, `J006`, `J007`, `J008` and `J009` remain `DESIGNED`; the
-> specs below are their target. Where a `DESIGNED` spec and §1–§4 disagree,
-> §1–§4 describe the shipped tree.
+> `J003`, `J005` and `J009` are `IMPLEMENTED` — the tokens/type roles/theme
+> system in `web/app/globals.css`, the landing page (`web/app/`,
+> `web/components/home/`), the `CapabilityCard`/`CatalogRow` split
+> (`web/components/catalog/CapabilityCard.tsx`,
+> `web/components/home/SearchResults.tsx`), the package-page restructure, and the
+> global command palette (`web/components/navigation/CommandPalette.tsx`,
+> `web/lib/palette.ts`) are in the tree. `J004`, `J006`, `J007` and `J008`
+> remain `DESIGNED`; the specs below are their target. Where a `DESIGNED` spec
+> and §1–§4 disagree, §1–§4 describe the shipped tree.
 
 The site currently speaks one visual language everywhere — the "friendly
 index" register §1 set for Explore. The mistake is making every page use it.
@@ -216,7 +218,8 @@ per-reload typing animations.
 Section order (the wireframe, top to bottom):
 
 1. **Header** — logo · Explore · Agents · theme toggle · search
-   (⌘K palette when J009 lands; until then a route into Explore) · primary
+   (opens the ⌘K command palette; the control's `/explore/?focus=search` href
+   remains for the no-JavaScript case) · primary
    **Install LiteSPM** button (40 px). No nav item may link a route that
    does not exist.
 2. **Hero** — headline **"Give your AI more abilities."**; sub: *Find tools,
@@ -271,7 +274,7 @@ origin (ARCH/01), not the headline.
 
 ---
 
-## 7. Component & Page Specs (J003–J009; J003/J005 `IMPLEMENTED`, J004/J006–J009 `DESIGNED`)
+## 7. Component & Page Specs (J003–J009; J003/J005/J009 `IMPLEMENTED`, J004/J006–J008 `DESIGNED`)
 
 ### 7.1 Two card components, two layers (J003, `IMPLEMENTED`)
 
@@ -314,7 +317,7 @@ OS, compatible counts) + per-agent profile pages with a capability matrix.
 (`web/lib/hosts.ts`, `SKILL_TARGETS`, catalog `compatibleHosts`, detection
 data); unknown cells render `—`, never `✗`; no "best agent" editorializing.
 
-### 7.5 Routes & palette (J008/J009, `DESIGNED`)
+### 7.5 Routes & palette (J008 `DESIGNED`, J009 `IMPLEMENTED`)
 
 `/trending` → `/insights` with redirect and link sweep (the page never had
 trends); `/docs` hand-built sections (no new dependencies); `/tour` with

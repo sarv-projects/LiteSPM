@@ -640,11 +640,7 @@ function ExploreContent(props: ExploreViewProps) {
 
   return (
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
-      <Header
-        onSearchClick={() => {
-          document.querySelector<HTMLInputElement>('main input[type="search"]')?.focus();
-        }}
-      />
+      <Header />
 
       <main id="main" className="flex-1">
         <div className="shell pt-8">

@@ -332,3 +332,42 @@ console.log(
     `${MiB(shardGzBytes)} gzip total, largest ${(shardGzMax / 1024).toFixed(1)} KiB → ` +
     `${path.relative(process.cwd(), SEARCH_SHARD_DIR)}`,
 );
+
+// ---------------------------------------------------------------------------
+// Palette facets (LPSM-J009).
+//
+// The command palette shows a Categories section before a keystroke, and the
+// category list cannot live in a JavaScript chunk: J002's acceptance is "zero
+// catalog bytes in any JS chunk". It is small enough to be its own document —
+// 64 rows, 4.2 KiB — fetched the first time the palette opens, which is an
+// interaction (the E1 contract: a passive visit still fetches nothing from
+// `/data/`).
+//
+// The counting rule is the one `lib/catalog.ts` `categoryFacets` states — trim,
+// count, sort by count desc then name — duplicated here for the usual reason
+// (Node scripts cannot import TypeScript), over exactly the field that rule
+// reads. `?category=` filters compare the raw value, and the dataset carries no
+// untrimmed category (measured: 0 of 69,376 rows), so the emitted name is
+// exactly the value Explore accepts.
+// ---------------------------------------------------------------------------
+const CATEGORIES_FILE = "catalog-categories.json";
+const categoryCounts = new Map();
+for (const row of rows) {
+  const name = row.category?.trim();
+  if (!name) continue;
+  categoryCounts.set(name, (categoryCounts.get(name) ?? 0) + 1);
+}
+const categoriesDoc = {
+  datasetDigest: sha256(source),
+  rowCount: rows.length,
+  schema: "litespm-web-categories/v1",
+  categories: Array.from(categoryCounts, ([name, count]) => ({ name, count })).sort(
+    (a, b) => b.count - a.count || a.name.localeCompare(b.name)
+  ),
+};
+const categoriesBytes = Buffer.from(`${JSON.stringify(categoriesDoc, null, 2)}\n`, "utf8");
+writeFileSync(path.join(outDir, CATEGORIES_FILE), categoriesBytes);
+console.log(
+  `✔ palette categories: ${categoriesDoc.categories.length} categor(ies), ` +
+    `${(categoriesBytes.length / 1024).toFixed(1)} KiB → ${CATEGORIES_FILE}`,
+);
