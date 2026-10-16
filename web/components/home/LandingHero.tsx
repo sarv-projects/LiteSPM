@@ -4,6 +4,7 @@ import React from "react";
 import { Check, Copy } from "lucide-react";
 import { SearchBar } from "../navigation/SearchBar";
 import { BridgeDiagram } from "./BridgeDiagram";
+import { KindCycle } from "./KindCycle";
 import { copyText } from "../../lib/clipboard";
 import { formatCount } from "../../lib/format";
 import type { TelemetryState } from "../../lib/telemetry";
@@ -12,6 +13,14 @@ import type { TelemetryState } from "../../lib/telemetry";
  * The hero: one promise, the search box, the install command — and a single
  * mono line of scale and freshness above them, the way mcpmarket.com leads
  * with "49,501 Servers · Updated just now".
+ *
+ * The scale line keeps the total and the freshness. The per-kind figures moved
+ * one line down, onto `KindCycle`, which holds them one at a time in each
+ * kind's own hue and count — the honest equivalent of the competitor's hero
+ * typewriter (see `KindCycle` for why it does not type, and for how the line's
+ * box is held constant whether it cycles or not, at every width). Read without
+ * JavaScript, with reduced motion, or before hydration, the cycle is the same
+ * three figures in a still row.
  *
  * What is deliberately NOT here: the three-line paragraph about hunting config
  * files, the six "Try" chips, a second CTA, and the npm caveat. Each was
@@ -126,15 +135,6 @@ export function LandingHero({
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-3">
             <span className="t-mono t-tabular text-ink">{formatCount(total)}</span>
             <span>capabilities</span>
-            <span aria-hidden="true">·</span>
-            <span className="t-mono t-tabular text-mcp">{formatCount(kindCounts.mcp)}</span>
-            <span>MCP</span>
-            <span aria-hidden="true">·</span>
-            <span className="t-mono t-tabular text-skill">{formatCount(kindCounts.skill)}</span>
-            <span>skills</span>
-            <span aria-hidden="true">·</span>
-            <span className="t-mono t-tabular text-plugin">{formatCount(kindCounts.plugin)}</span>
-            <span>plugins</span>
             {updated && (
               <>
                 <span aria-hidden="true">·</span>
@@ -143,6 +143,10 @@ export function LandingHero({
             )}
             <ReleaseChip telemetry={telemetry} />
           </p>
+
+          {/* The kind figures, cycled one at a time in each kind's own hue.
+              Still row without JavaScript or motion; see KindCycle. */}
+          <KindCycle counts={kindCounts} />
 
           <h1 className="mt-5 max-w-[20ch] text-[34px] font-semibold leading-[1.06] tracking-tight text-ink sm:text-[44px] lg:text-[54px]">
             One package manager for your AI agents.

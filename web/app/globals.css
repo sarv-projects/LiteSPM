@@ -1077,6 +1077,135 @@
     -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.45) 55%, transparent 100%);
   }
 
+  /* ---- the hero's kind cycle (see components/home/KindCycle.tsx) ------ */
+  /*
+   * One line of the hero's fact block, holding the catalog's three kinds one
+   * at a time in each kind's own hue. While cycling, a one text line
+   * (`--kc-h`) window with `overflow: hidden` slides a track of four (the
+   * three, plus the first repeated) through itself with `transform` only. The
+   * still row — what no JavaScript, reduced motion, or the pre-hydration page
+   * shows — is the same three items side by side; on narrow screens it wraps
+   * to a second line, and below 480px the figure reserves both lines from the
+   * first paint, so the swap between the two states cannot move the page at
+   * any width.
+   *
+   * `contain: inline-size` is load-bearing, not hygiene: the three-wide row is
+   * ~380px of content, and without containment that is the hero column's
+   * min-content at phone widths — the column paints 380px wide, and hydration,
+   * which immediately replaces the row with the one-line window, snaps it back
+   * to the real 348px. That was a real hydration race at 390px (CLS 0 in most
+   * runs, 0.25 in the unlucky ones). Contained, the column is 348px in both
+   * states and the swap moves nothing.
+   *
+   * Text colours are the strip's own: counts in the kind hues the hero has
+   * always used (`text-mcp` and friends were AA on this background before the
+   * cycle existed), labels in `--ink-3` (5.19:1 on paper). No state dims text
+   * below its resting colour, so every frame stays compliant.
+   */
+  .kind-cycle {
+    --kc-h: 18px;
+    margin-top: 5px;
+    font-size: 12.5px;
+    line-height: var(--kc-h);
+    color: var(--ink-3);
+    contain: inline-size;
+  }
+  /* Always the block that clips while cycling; statically its height is just
+     the row's, so the figure owns the box in both states. */
+  .kind-cycle-window {
+    display: block;
+  }
+  .kind-cycle-track {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 1.25rem;
+  }
+  .kind-cycle-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .kind-cycle-item[data-kind="mcp"] {
+    --kc-hue: var(--mcp);
+  }
+  .kind-cycle-item[data-kind="skill"] {
+    --kc-hue: var(--skill);
+  }
+  .kind-cycle-item[data-kind="plugin"] {
+    --kc-hue: var(--plugin);
+  }
+  .kind-cycle-dot {
+    align-self: center;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background-color: var(--kc-hue, var(--accent));
+  }
+  .kind-cycle-count {
+    color: var(--kc-hue, var(--accent-text));
+    font-weight: 500;
+  }
+  .kind-cycle-label {
+    color: var(--ink-3);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .kind-cycle[data-live] .kind-cycle-window {
+      height: var(--kc-h);
+      overflow: hidden;
+    }
+    .kind-cycle[data-live] .kind-cycle-track {
+      display: block;
+      animation: kind-cycle 6.6s cubic-bezier(0.33, 0, 0.2, 1) infinite;
+    }
+    .kind-cycle[data-live] .kind-cycle-item {
+      display: flex;
+      align-items: center;
+      height: var(--kc-h);
+    }
+  }
+  /* Each item holds for ~1.78s and slides for ~0.40s, in the order the
+     catalog's own kind rail prints them. 100% lands on the repeated first
+     item — one item of travel past item 3 — so the loop restart is a cut
+     between identical pixels. */
+  @keyframes kind-cycle {
+    0%,
+    27% {
+      transform: translateY(0);
+    }
+    33%,
+    60% {
+      transform: translateY(calc(-1 * var(--kc-h)));
+    }
+    66%,
+    93% {
+      transform: translateY(calc(-2 * var(--kc-h)));
+    }
+    100% {
+      transform: translateY(calc(-3 * var(--kc-h)));
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* Belt and braces: `data-live` is never set under reduced motion, but if a
+       state ever lands it, the track sits on its first item. */
+    .kind-cycle[data-live] .kind-cycle-track {
+      animation: none;
+      transform: none;
+    }
+  }
+  /*
+   * Narrow screens: the still row (~380px of items) may need a second line,
+   * so below 480px the figure reserves two from the first paint. The row uses
+   * what it needs and the cycling window keeps its single line at the top of
+   * the slot, so the swap between states moves nothing either way.
+   */
+  @media (max-width: 479px) {
+    .kind-cycle {
+      min-height: calc(2 * var(--kc-h));
+    }
+  }
+
   /* ---- entrance: 240ms, and only where nothing is being read yet ------ */
   @keyframes rise-in {
     from {
@@ -1912,6 +2041,74 @@
            settled before its content is anywhere near the reading position. */
         animation-range: entry 0% entry 45%;
       }
+    }
+  }
+
+  /* ---- one item of a grid, rising on the scroll (shelf cards, goals) -- */
+  /*
+   * The same instrument as `.band`, one level down: each grid item rises 14px
+   * as it enters, driven by the item's own `view()` progress — no scroll
+   * listener, no observer, no work on the main thread, and no JavaScript at
+   * all. `--rise-i` (its index in the grid) shifts the item's range window, so
+   * a six-card shelf lands as a wave (card 0 first) instead of as a wall.
+   *
+   * Two limits, both learned from `.band`:
+   *
+   *  - **Wrappers only, never the card.** The class goes on the `li` that
+   *    wraps a `DiscoveryCard`, never on the card itself: a finished
+   *    animation's `transform` would sit above the card's hover transition in
+   *    the cascade and permanently pin the lift.
+   *  - **Transform only, never opacity.** A card caught mid-entry at the fold
+   *    would otherwise render at whatever fraction of a fade it happened to be
+   *    at; a card 14px low reads as nothing at all.
+   *
+   * Unsupported browsers (Firefox, Safari at the time of writing) never enter
+   * the `@supports` block and show the grids fully assembled, which is also
+   * what no-JS and reduced-motion readers get.
+   */
+  @keyframes rise-item {
+    from {
+      transform: translateY(14px);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .rise-item {
+        animation: rise-item linear both;
+        animation-timeline: view();
+        animation-range: entry calc(var(--rise-i, 0) * 4%) entry calc(30% + var(--rise-i, 0) * 4%);
+      }
+    }
+  }
+
+  /* ---- the agent strip's answer (see components/home/AgentStrip.tsx) -- */
+  /*
+   * Choosing an agent does not filter the page; it makes the strip answer:
+   * the status sentence under the chips is replaced with a new one (how many
+   * entries work with that agent). The new sentence rises 3px and fades in
+   * over the entrance rung (240ms, ease-out), so an answer reads as new —
+   * the component keys the paragraph on the choice, so the cue replays per
+   * selection and starts only after the click has already committed. The
+   * chips themselves are static: a control that slides under the pointer is a
+   * control that is harder to click, and the section's own `.band` rise
+   * already carries the panel in.
+   */
+  @keyframes strip-answer {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .strip-answer {
+      animation: strip-answer var(--t-enter) ease-out;
     }
   }
 

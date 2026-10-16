@@ -61,8 +61,8 @@ export function Shelves({ shelves, agent }: ShelvesProps) {
             </div>
 
             <ul className="mt-4 grid auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-3 md:mt-5">
-              {shelf.items.map((item) => (
-                <ShelfCard key={item.id} item={item} agent={agent} />
+              {shelf.items.map((item, itemIndex) => (
+                <ShelfCard key={item.id} item={item} agent={agent} entranceIndex={itemIndex} />
               ))}
             </ul>
 

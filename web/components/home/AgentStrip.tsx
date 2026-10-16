@@ -97,7 +97,16 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
           })}
         </div>
 
-        <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-ink-2">{status}</p>
+        {/* The answer is the only thing that moves: re-keyed on the choice so a
+            new answer rises in, while the chip row above stays still. The
+            static first paint renders the prompt unchanged (no `strip-answer`
+            without a choice), so nothing animates on load. */}
+        <p
+          key={choice?.id ?? "none"}
+          className={`mt-4 max-w-prose text-[13px] leading-relaxed text-ink-2${choice ? " strip-answer" : ""}`}
+        >
+          {status}
+        </p>
       </DiscoveryCard>
     </section>
   );

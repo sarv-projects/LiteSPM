@@ -37,8 +37,12 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
       </div>
 
       <ul className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {topics.map((topic) => (
-          <li key={topic.id}>
+        {topics.map((topic, index) => (
+          <li
+            key={topic.id}
+            className="rise-item"
+            style={{ "--rise-i": index } as React.CSSProperties}
+          >
             <DiscoveryCard href={topic.href} className="h-full">
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="text-[15px] font-semibold tracking-tight text-ink">{topic.label}</h3>
