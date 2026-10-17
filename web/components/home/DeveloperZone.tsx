@@ -130,8 +130,8 @@ export function DeveloperZone() {
               Install and manage from the terminal
             </h2>
             <p className="band-sub">
-              This site is a window onto the catalog. Installs, approvals, restores and diagnostics
-              all happen in the CLI.
+              Browse the catalog here. Installing, approving, restoring and diagnosing all happen
+              in your terminal, with the CLI.
             </p>
           </div>
         </div>

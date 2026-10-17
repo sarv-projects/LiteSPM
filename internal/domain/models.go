@@ -57,10 +57,35 @@ func (i Installability) Valid() bool {
 	return false
 }
 
-// IsInstallable reports whether the listing's installability is above
-// discovery_only.
+// InstallWired reports whether this build has an install path for the kind:
+// skill installs as files through the skills ledger, and mcp registers a
+// server entry in each target host's config. Everything else -- plugin,
+// connector, agent, rule, hook, tool, lsp -- has no install path, and an
+// unknown kind fails closed with the same answer.
+//
+// This is the "what can LiteSPM do" axis, independent of the "what did the
+// upstream prove" axis in Installability. A plugin row can be
+// metadata_verified and still not installable: its vendor manifest published
+// a verified source descriptor, and no fetcher exists for it.
+func (k ListingKind) InstallWired() bool {
+	switch k {
+	case KindSkill, KindMCP:
+		return true
+	}
+	return false
+}
+
+// IsInstallable reports whether this build can install the listing: its kind
+// must have a wired install path AND its provenance must be above
+// discovery_only. The two facts are independent and both are required.
+//
+// A caller that treats this as a single flag gets the conservative answer: a
+// plugin is not installable however verified its metadata, and a
+// discovery_only skill is not installable however installable its kind. A
+// caller that must explain the refusal asks Listing.Kind.InstallWired() and
+// Installability.Effective() separately.
 func (l *Listing) IsInstallable() bool {
-	return l.Installability.Effective() != InstallabilityDiscoveryOnly
+	return l.Kind.InstallWired() && l.Installability.Effective() != InstallabilityDiscoveryOnly
 }
 
 // ListingStatus represents publication lifecycle status.
@@ -244,10 +269,14 @@ type Listing struct {
 	Provenance           ProvenanceRecord    `json:"provenance"`
 	Status               ListingStatus       `json:"status"`
 	RawMetadataRef       string              `json:"rawMetadataRef,omitempty"`
-	// Installability gates install paths: discovery_only rows are searchable
-	// metadata with no proven artifact and must be refused with
-	// LPSM-NOT-INSTALLABLE. Empty means pre-installability (legacy) and is
-	// treated as installable by IsInstallable.
+	// Installability is the PROVENANCE axis of installability: a
+	// discovery_only row -- including the empty legacy value, which Effective
+	// maps to discovery_only -- is searchable metadata with no proven artifact
+	// and must be refused with LPSM-NOT-INSTALLABLE. It is not the whole
+	// installability question: IsInstallable also requires a kind this build
+	// has an install path for (ListingKind.InstallWired), so a
+	// metadata_verified plugin is refused with LPSM-ARTIFACT-UNAVAILABLE
+	// instead.
 	Installability Installability `json:"installability,omitempty"`
 }
 

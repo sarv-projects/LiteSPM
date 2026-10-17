@@ -1539,6 +1539,15 @@ func runInstall(args []string) {
 		os.Exit(1)
 	}
 
+	// Kind gate first: a kind with no wired install path is refused before
+	// anything is planned or approved, with the reason that is actually true
+	// (no fetch path), not the provenance wording below.
+	if refusal := installKindRefusal(listing); refusal != nil {
+		auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", refusal.Error())
+		fmt.Fprintf(os.Stderr, "Install failed: %v\n", refusal)
+		os.Exit(1)
+	}
+
 	// Discovery-only rows are searchable metadata, not installable packages.
 	if !listing.IsInstallable() {
 		detail := "this listing is discovery-only metadata with no proven artifact"
@@ -1640,9 +1649,15 @@ func runInstall(args []string) {
 		return
 	}
 
-	notWired := fmt.Errorf("the %q install path is not wired yet: the published catalog carries no artifact locator for it", listing.Kind)
-	auditCLIInstall(ctx, db, flags.listingID, approvalID, "deny", "refused", notWired.Error())
-	fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrArtifactUnavailable(flags.listingID, notWired.Error()))
+	// Fail-closed invariant: InstallWired() (checked above) admits only skill
+	// and mcp, and both branches returned. Reaching here means the two lists
+	// disagree, and refusing with the artifact gap is the safe answer —
+	// falling through would hand the install to machinery that cannot complete
+	// it.
+	unsupported := domain.ErrArtifactUnavailable(flags.listingID,
+		fmt.Sprintf("kind %q is marked install-wired but no install path handles it; refusing rather than half-installing", listing.Kind))
+	auditCLIInstall(ctx, db, flags.listingID, approvalID, "deny", "refused", unsupported.Error())
+	fmt.Fprintf(os.Stderr, "Install failed: %v\n", unsupported)
 	os.Exit(1)
 }
 
@@ -2505,6 +2520,14 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				Message: fmt.Sprintf("listing %s not found in the local catalog index: %v", req.ID, err)}
 		}
 
+		// Kind gate: a plan is a promise that the install can be executed. A
+		// kind with no wired install path gets no sealed plan and no approval
+		// prompt — a plan for an install that cannot be performed is a claim
+		// this system cannot honour.
+		if refusal := installKindRefusal(listing); refusal != nil {
+			return nil, installRPCError(refusal)
+		}
+
 		plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, req.ID, req.Version, scope, projectRoot, listing, nil)
 		if rpcErr != nil {
 			return nil, rpcErr
@@ -2559,6 +2582,17 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			scope = domain.ScopeUser
 		}
 		if listing, lerr := catClient.GetListing(listingID); lerr == nil {
+			// Kind gate first: see installKindRefusal. A plugin is refused
+			// here, before authorization, with LPSM-ARTIFACT-UNAVAILABLE — not
+			// mislabelled as discovery-only metadata.
+			if refusal := installKindRefusal(listing); refusal != nil {
+				// Every attempt is audited, including this one: an audit trail
+				// that records only successes cannot answer "was this asked
+				// for?".
+				recordAudit(ctx, db, "agent", "package.install", listingID,
+					"deny", approvalID, "", "refused", refusal.Error())
+				return nil, installRPCError(refusal)
+			}
 			// Discovery-only rows are searchable metadata, not installable.
 			if !listing.IsInstallable() {
 				recordAudit(ctx, db, "agent", "package.install", listingID,
@@ -2661,8 +2695,12 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 					"planId":              req.PlanID,
 				}, nil
 			}
+			// Fail-closed invariant: InstallWired() (checked above) admits only
+			// skill and mcp, and both branches returned. Reaching here means
+			// the two lists disagree; refusing beats handing the install to
+			// the archive engine, which cannot complete it.
 			return nil, installRPCError(domain.ErrArtifactUnavailable(listingID,
-				fmt.Sprintf("the %q install path is not wired yet: the published catalog carries no artifact locator for it", listing.Kind)))
+				fmt.Sprintf("kind %q is marked install-wired but no install path handles it; refusing rather than half-installing", listing.Kind)))
 		}
 
 		rec, err := installEngine.Execute(ctx, install.InstallOptions{
@@ -3380,6 +3418,14 @@ type preparePlanResult struct {
 // set because it cannot express the runtime's transport (always empty for a
 // stdio runtime and for an explicit --host set, which fails by name instead).
 func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, version string, scope domain.InstallScope, projectRoot string, listing *domain.Listing, mcpBinding *mcpInstallBinding) (*domain.InstallPlan, []hostCapabilityDrop, *ipc.RPCError) {
+	// Kind gate (defence in depth): every caller gates before calling, but no
+	// caller may seal a plan for a kind with no wired install path even if one
+	// forgets. The CLI and the RPC gates exist so the refusal is a clear
+	// user-facing answer before this point; this one guarantees the invariant.
+	if refusal := installKindRefusal(listing); refusal != nil {
+		return nil, nil, installRPCError(refusal)
+	}
+
 	r := resolver.NewResolver(&catalogResolutionProvider{client: catClient})
 	res, err := r.Resolve(ctx, id, version)
 	if err != nil {

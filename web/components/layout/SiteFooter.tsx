@@ -59,6 +59,11 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
+              <Link href="/compare/" className="link touch-link">
+                Compare hosts
+              </Link>
+            </li>
+            <li>
               <Link href="/trending/" className="link touch-link">
                 Coverage
               </Link>

@@ -13,20 +13,21 @@ This architecture defines the complete specification for **LiteSPM**, comprising
     tree or a normative document above it.)
 *   **Figure freshness — read catalog numbers in ARCH as dated, not current.** These documents are
     design records, so the figures they carry (`5,814 items`; `4,079 mcp / 1,103 skill / 632 plugin`;
-    pointer `rel-2026-10-05-01`) describe the state at the time each was written. As of **2026-10-13**
-    the released catalog is **`rel-2026-10-11-02`, sequence 147, 69,376 items** — **48,418 mcp /
-    20,320 skill / 638 plugin** — split across six shard files, and `v0.4.0` (2026-10-11) publishes a
-    keyless Sigstore bundle for every asset, where every earlier tag publishes none. The origin holds
-    the *current* release, so a probe of an older release now returns 404 and is evidence only for
-    the release it names. Where an ARCH figure and [STATUS.md](../STATUS.md) disagree, **STATUS.md
-    wins** — it is the truth baseline, re-probed rather than accumulated.
+    pointer `rel-2026-10-05-01`) describe the state at the time each was written. As of **2026-10-17**
+    the released catalog is **`rel-2026-10-15-01`, sequence 148, 69,376 items** — **48,418 mcp /
+    20,320 skill / 638 plugin** — split across six shard files, and `v0.4.0` (2026-10-11) and
+    `v0.4.1` (2026-10-15) each publish a keyless Sigstore bundle for every asset, where every earlier
+    tag publishes none. The origin holds the *current* release, so a probe of an older release now
+    returns 404 and is evidence only for the release it names. Where an ARCH figure and
+    [STATUS.md](../STATUS.md) disagree, **STATUS.md wins** — it is the truth baseline, re-probed
+    rather than accumulated.
 *   **Delivery-phase vocabulary:** the delivery sequence is the nine phases **A through I** of [08-DELIVERY](08-DELIVERY.md), mirrored row-for-row in [TODO.md](../TODO.md); both say nine. [31 §12](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#12-ordered-backlog) numbers its *backlog* 0–9 — a separate ordering for the forward plan, not the delivery phases.
 
 ---
 
 ## 2. Document Registry
 
-The registry below covers **39 architecture documents — `ARCH/00` through `ARCH/38`** — plus the
+The registry below covers **40 architecture documents — `ARCH/00` through `ARCH/39`** — plus the
 companion operational guides, [STATUS.md](../STATUS.md) and [CHANGELOG.md](../CHANGELOG.md), which
 sit at the repository root. Status columns state the highest honest evidence state per
 [STATUS.md](../STATUS.md); `STATUS.md` wins wherever a row here and that file disagree.
@@ -78,6 +79,7 @@ sit at the repository root. Status columns state the highest honest evidence sta
 | [36 — Enterprise Policy & Audit](36-ENTERPRISE-POLICY-AND-AUDIT.md) | Tighten-only policy hierarchy, `policy explain` provenance, `audit --ci` (text/json/SARIF/CycloneDX/SPDX), advisories/revocation, TUF-style catalog, Sigstore/SLSA provenance, air-gapped bundles | **DESIGNED** |
 | [37 — TUI & Completion](37-TUI-AND-COMPLETION.md) | First-class TUI with zero business logic, tab inventory, staged-plan tray, local dashboard boundary, dynamic shell completion, `why` | **DESIGNED** |
 | [38 — CLI Product Surface: Port, Orient & Help](38-CLI-PRODUCT-SURFACE.md) | `litespm copy` cross-agent porting (canonical IR, plan/approve/verify), `list`/`inventory`, the `help` system, orient commands, profile wiring, plan/apply spine | **DESIGNED** |
+| [39 — System Specification & Operations Guide](39-SYSTEM-SPECIFICATION.md) | System topology, storage layout, end-to-end workflows, host ecosystem, repository structure, CLI surface, environment variables and release order — the internal specification moved out of the root README on 2026-10-17 | Informative; [STATUS.md](../STATUS.md) wins on every status claim |
 
 ### Companion Operational Guides
 
@@ -103,7 +105,7 @@ sit at the repository root. Status columns state the highest honest evidence sta
 *   **Artifact:** The physical software bundle (tarball, zip, git tree, or container image) retrieved from an upstream publisher.
 *   **Content-Addressed Storage (CAS):** Local immutable storage indexed strictly by SHA-256 content digest, preventing in-place corruption and enabling safe rollbacks.
 *   **SourceSnapshot:** A point-in-time capture of an upstream registry or marketplace, recording sync status (`healthy`, `partial`, `failed`, `stale`), upstream commit/revision, item count, and content digest.
-*   **CatalogRelease:** An immutable, sequence-numbered public catalog deployment (`/v1/releases/<release-id>/...`) verified by a top-level `manifest.json`. **Published and served live** — the origin answers `200` for `/v1/current.json` and for `/v1/releases/<id>/{manifest,listings,versions}.json`, and `litespm catalog sync` was verified against it from a clean data root (probe 2026-10-05, release `rel-2026-10-05-01`); see [STATUS.md](../STATUS.md) §2. `index.json` / `shards/` / `items/` remain un-emitted by design ([31](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md) §4.2 records the defect this closes).
+*   **CatalogRelease:** An immutable, sequence-numbered public catalog deployment (`/v1/releases/<release-id>/...`) verified by a top-level `manifest.json`. **Published and served live** — the origin answers `200` for `/v1/current.json` and for every shard of `/v1/releases/<id>/`, and `litespm catalog sync` was verified against it from a clean data root (probe 2026-10-17, release `rel-2026-10-15-01`, sequence 148); see [STATUS.md](../STATUS.md) §2. `index.json` / `shards/` / `items/` remain un-emitted by design ([31](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md) §4.2 records the defect this closes).
 *   **Evidence State:** Where `DESIGNED`, `IMPLEMENTED`, `WIRED`, `TESTED`, `VERIFIED`, or `SHIPPED` appears as a status, it means exactly what [31](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#2-evidence-vocabulary-binding-repo-wide) §2 defines. Those states are never collapsed.
 *   **InstallPlan (v2):** A cryptographically bound, immutable description of an install, update, or removal operation. It contains exact versions, artifact digests, local filesystem effects, declared permissions, and preconditions, hashed into a canonical SHA-256 `planHash`.
 *   **Approval:** An authorization record binding a specific user confirmation (or explicit policy grant) to an immutable `subjectHash` (e.g., `planHash` or `schemaFingerprint`), with replay prevention for one-time approvals.

@@ -22,15 +22,17 @@ import { categoryLabel } from "../../categories/categoryLabel";
  * canonical pointing at the route index. This route emits a static page per
  * chosen entry — its own title, description, canonical, Open Graph tags and
  * `SoftwareApplication` JSON-LD — and everything outside the set keeps working
- * through the client path unchanged.
+ * through the client path unchanged, with the same metadata injected into the
+ * shipped shell by the edge Worker (`worker/index.js`).
  *
  * The set is bounded on purpose: a page per entry is 69,376 × 2 files against
  * Cloudflare Pages' 20,000-file free-plan limit. `lib/packageEntries.ts` states
  * the rule and the cap; `generateStaticParams` and the sitemap read the same
  * function, so the pages that exist and the pages that are advertised cannot
  * disagree. The route is only reachable at `/package/<key>/` (trailing slash):
- * the deployment's `_redirects` proxy covers the no-slash form, so an entry
- * outside the set still resolves in the browser exactly as it did before.
+ * the no-slash and query forms are served by the edge Worker with the same
+ * shell, so an entry outside the set still resolves in the browser exactly as
+ * it did before — and now carries its own metadata there too.
  *
  * The page body is the same view the client route uses, handed the resolved
  * row (`initialItem`). It therefore hydrates into the full interactive page —

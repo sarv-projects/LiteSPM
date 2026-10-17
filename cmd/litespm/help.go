@@ -217,7 +217,7 @@ func buildHelpCatalog() map[string]commandHelp {
 			},
 			DoesNot: []string{
 				"Never writes a secret value: `--env` records a name/reference only, so the credential stays where your agent was started.",
-				"Plugin listings fail closed with LPSM-ARTIFACT-UNAVAILABLE — there is no plugin artifact source yet, so no plugin is ever half-installed.",
+				"Plugin listings fail closed with LPSM-ARTIFACT-UNAVAILABLE — the catalog records each plugin's published source, but no fetch path is wired for it yet, so no plugin is ever half-installed.",
 				"Without `--host`, does not touch an agent that has no LiteSPM bridge entry; `--host` names targets yourself, so it writes where you point it (and fails by name when the host cannot carry the entry). A name collision is refused instead of overwritten unless you pass `--force`.",
 			},
 			Examples: []string{

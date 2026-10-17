@@ -15,9 +15,10 @@ import { SITE_URL } from "../../../lib/site";
  * behind it, and no page can exist without appearing here.
  *
  * The path is `/package/entries/sitemap.xml`, not `/package/sitemap.xml`,
- * because the deployment's `_redirects` proxy claims the one-segment
- * `/package/<slug>` form (a 200 proxy to the shell); the sitemap must live at a
- * path the proxy cannot match, or crawlers would receive HTML instead of XML.
+ * because the edge Worker claims the one-segment `/package/<key>` form (it
+ * serves the entry shell for a key, and an unknown key with `noindex`); the
+ * sitemap must live at a path that is not an entry address, or crawlers would
+ * receive HTML instead of XML.
  *
  * `lastmod` is the catalog release's own creation time, the same date the root
  * sitemap publishes for every page: the rows all come from that one snapshot,

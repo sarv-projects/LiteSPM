@@ -87,15 +87,13 @@ See [`SECURITY.md`](https://github.com/sarv-projects/LiteSPM/blob/main/SECURITY.
 > `LPSM-ARTIFACT-UNAVAILABLE`. See
 > [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
 >
-> **And the published npm package is still broken, so read this before
-> installing.** `litespm@0.4.0` was tagged 2h29m before the shard-aware catalog
-> client landed, so its `catalog sync` fails with `manifest missing listings.json
-> entry` — which takes `search`, `install` and `/marketplace` with it. The
-> repository is prepared for the re-cut (`npm/package.json` and the CHANGELOG
-> already say `0.4.1`), but the `v0.4.1` tag has **not** been pushed and this
-> package has **not** been republished: `npm install -g litespm` still gives you
-> `0.4.0`. The fix is the tag, not a code change — a build from current `main`
-> syncs the same tree and reports 69,376 capabilities indexed.
+> **The published package is current: `litespm@0.4.1` (2026-10-15).** A clean
+> install downloads the native binary, verifies its published SHA-256 checksum,
+> and syncs the live catalog — `✓ Catalog synchronization complete (Release
+> rel-2026-10-15-01, 69376 capabilities indexed)` (verified 2026-10-17). The
+> previous release, `0.4.0`, could not sync the sharded catalog — it was tagged
+> before the shard-aware client landed — and that incident is recorded as history
+> in [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) §2.
 
 ## Quickstart
 

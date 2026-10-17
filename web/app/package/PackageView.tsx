@@ -239,7 +239,7 @@ function safeDecode(segment: string): string {
  * the 20,000-file free-plan limit and ~2 GB of HTML, inside the same 20-minute
  * build. (This comment said 5,814 entries; the catalog is 12x that now, so the
  * argument has only strengthened.) The canonical path form `/package/<slug>` is
- * served by a `_redirects` proxy in the deploy bundle rather than by a page per
+ * served by the edge Worker (`worker/index.js`) rather than by a page per
  * entry, which is why `useSlugParam` reads the pathname as well as the query.
  *
  * A slug is also the signal that the full row set is needed: the request fires
@@ -254,9 +254,9 @@ function useSlugParam(): { slug: string | null; resolved: boolean } {
 
   useEffect(() => {
     // Two spellings of the same page. `?slug=` is what the route shipped with;
-    // `/package/<slug>` is the canonical path form, served by a `_redirects`
-    // proxy in the deploy bundle. The proxy is transparent, so the browser keeps
-    // the path form and `window.location.search` stays empty — which is why the
+    // `/package/<slug>` is the canonical path form, served by the edge Worker
+    // (`worker/index.js`). The Worker is transparent, so the browser keeps the
+    // path form and `window.location.search` stays empty — which is why the
     // pathname has to be read here rather than relying on the query alone.
     //
     // A bare /package/ resolves-with-nothing, so it shows the route index rather
@@ -265,12 +265,11 @@ function useSlugParam(): { slug: string | null; resolved: boolean } {
     const fromQuery = url.searchParams.get("slug");
     const fromPath = /^\/package\/([^/]+)\/?$/.exec(url.pathname)?.[1] ?? null;
     const param = fromQuery ?? (fromPath ? safeDecode(fromPath) : null);
-    // Canonicalise the legacy spelling. `_redirects` cannot match on a query
-    // string (Cloudflare lists `Query Parameters` as unsupported in the source),
-    // so the server cannot rewrite `?slug=` to the path form — but the client
-    // can, without a reload and without touching history length. Anyone who
-    // lands on the old form now gets a path-form address in the bar, so what
-    // they copy or bookmark is the canonical one.
+    // Canonicalise the legacy spelling. The edge Worker serves `?slug=` as the
+    // same page (its canonical already points at the path form), but only the
+    // client can move the address bar without a reload and without touching
+    // history length. Anyone who lands on the old form now gets a path-form
+    // address in the bar, so what they copy or bookmark is the canonical one.
     if (fromQuery && !fromPath) {
       window.history.replaceState(null, "", `/package/${encodeURIComponent(fromQuery)}`);
     }
@@ -411,13 +410,13 @@ function PackageContent({
   }, [docTitle, docSummary]);
 
   /**
-   * `/package/<slug>` is served by a 200 proxy rule, so an address that names
-   * no entry still answers 200 with this shell. Nothing here can change the
-   * status code — the file is prerendered — so the unresolved state carries
-   * `noindex` instead: a crawler that renders the page learns the entry does
-   * not exist, and a resolved entry never gets the tag. (A crawler that runs
-   * no JavaScript sees neither; that is the static-export limit this route
-   * already lives with, not something a client-side tag can fix.)
+   * An address that names no entry still answers 200 with this shell on the
+   * query and no-slash forms (the trailing-slash form is a real 404). The edge
+   * Worker marks that shell `noindex` in the served HTML, so a crawler that
+   * runs no JavaScript sees the tag too; this effect is the client-side
+   * counterpart, kept so the tag is also correct when the page was served
+   * without the Worker (a bare static serve) or when the key resolves to
+   * nothing here. A resolved entry never gets the tag.
    */
   const missing = resolved && status === "ready" && !item;
   useEffect(() => {
@@ -443,6 +442,20 @@ function PackageContent({
       meta.remove();
     };
   }, [missing]);
+
+  /**
+   * The edge Worker injects this entry's structured data into the served HTML
+   * (marked `data-litespm-entry`). Once the entry resolves here the client
+   * owns that data — its own block is rendered below for a client-resolved
+   * page, and a pre-rendered page ships its own without the marker — so the
+   * injected block is removed rather than left as a second SoftwareApplication
+   * block for one entry, or as a stale one after a client-side navigation.
+   * Runs before the early returns below, like every hook here.
+   */
+  useEffect(() => {
+    if (!item) return;
+    document.head.querySelector('script[data-litespm-entry]')?.remove();
+  }, [item]);
 
   if (!item && (!resolved || !slug)) {
     // Pre-hydration, and when the route is visited bare, we cannot know which

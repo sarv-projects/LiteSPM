@@ -2,10 +2,11 @@
 
 ## Session 2026-10-14/15 — parity, the wizard, the leak, and the site
 
-**Read this first if you are picking the repo up.** Everything below is committed; the two things that
-are *not* done are called out as such and neither is a code change.
+**Read this first if you are picking the repo up.** Everything below is committed. This section was
+written 2026-10-14/15; both open items carry dated resolution notes below — the `v0.4.1` release
+shipped on 2026-10-15, and the dataset regeneration was still open at that date.
 
-### The five commits that are ahead of `origin/main`
+### The commits from this session (all now on `origin/main`)
 
 | commit | what it does |
 |---|---|
@@ -16,10 +17,11 @@ are *not* done are called out as such and neither is a code change.
 | `950bfb7` | the four audit items that fell between agents (duplicate live region, `/agents` metadata, mobile managed-marker, mobile home link) |
 | `e63ed3a` | **`release: v0.4.1`** — the version bump and the CHANGELOG heading |
 
-### CI was RED on every push since 2026-10-14 — three separate causes
+### CI was RED on every push since 2026-10-14 — three separate causes (all fixed by 2026-10-15)
 
-All three runs (`38607927026`, `38637577529`, `38715928250`) failed. Recorded here in full because
-two are now fixed and the third is not.
+All three runs (`38607927026`, `38637577529`, `38715928250`) failed. The record is kept in full because
+each cause was a different class of mistake. All three are fixed: causes 1 and 2 on 2026-10-15, and
+cause 3 by the 2026-10-15 release re-cut — CI has been green on `main` since (verified 2026-10-17).
 
 **1. `Check gofmt Formatting` — FIXED 2026-10-15. A toolchain mismatch, not a code defect.**
 Go **1.27 changed gofmt's indentation for a multi-value `return` with composite literals.** The repo
@@ -44,7 +46,8 @@ considered and rejected: every candidate for a fast Windows failure either waits
 timeout or fails the *read* too — which would move the failure before the tree is replaced and defeat
 the point of the test.
 
-**3. `Package and Audit the Deploy Bundle` — NOT FIXED. Needs a release re-cut, and it is mine.**
+**3. `Package and Audit the Deploy Bundle` — FIXED 2026-10-15 by the release re-cut.** The original
+diagnosis, kept as the record:
 ```
 Catalog build failed: materialized manifest digest sha256:0acea4fd… does not match
 released pointer digest sha256:c1364c17…; refusing to reuse immutable release "rel-2026-10-11-02"
@@ -59,7 +62,8 @@ reuse an immutable release id for different content. My local checks missed it b
 **The fix is a release cut, not an edit**: a new release id and sequence, a re-materialized tree under
 it, and an updated pointer. Do **not** overwrite `rel-2026-10-11-02` — its assets are cosign-signed
 and the refusal exists precisely to protect that. This is the same re-cut `v0.4.1` needs, so do them
-together.
+together. **Done 2026-10-15:** the re-cut shipped as `rel-2026-10-15-01` (sequence 148) in the same
+pass as the `v0.4.1` tag.
 
 **Local verification worth running before the next push** (CI-equivalent, in this order):
 ```bash
@@ -73,19 +77,21 @@ go run ./cmd/litespm catalog build --materialize --out /tmp/rel --prev web/publi
 cd web && npm run type-check && npm run lint && npm run build
 ```
 
-### NOT done — and both need a human
+### Status of the two open items (recorded 2026-10-14/15; item 1 resolved the same day)
 
-**1. The `v0.4.1` tag has not been pushed and npm has not been republished.** The staged half is
-committed: `npm/package.json` says `0.4.1`, the CHANGELOG's `[Unreleased]` content is under
-`## [0.4.1] - 2026-10-15`, and `git merge-base --is-ancestor 547d230 HEAD` passes so the shard-aware
-client is in the tree you would tag. The order is forced — `release.yml:104-112` fails the whole
-release if the npm version disagrees with the tag — so the tree briefly claims 0.4.1 with no tag, which
-is the only sequence the workflow permits. See "How to cut `v0.4.1`" below for the exact commands, and
-**check `NPM_TOKEN` is set**: without it the release still builds and publishes to GitHub while npm
-stays on `0.4.0`, silently.
+**1. RESOLVED 2026-10-15 — the `v0.4.1` release shipped.** The record: the staged half was committed
+(`npm/package.json` said `0.4.1`, the CHANGELOG's `[Unreleased]` content moved under
+`## [0.4.1] - 2026-10-15`, and `git merge-base --is-ancestor 547d230 HEAD` passed). The tag was then
+pushed (tag object 2026-10-15 16:26:50Z, commit `3ce3b2b`), Release workflow run `38769071987`
+succeeded (6m41s, started 16:26:55Z), and npm serves `0.4.1` (`npm view litespm version` → `0.4.1`,
+verified 2026-10-17). A clean sandbox install of the published package syncs the live catalog:
+`✓ Catalog synchronization complete (Release rel-2026-10-15-01, 69376 capabilities indexed)`. The
+`NPM_TOKEN` check remains the standing note for the next release — without it the release still builds
+and publishes to GitHub while npm stays behind, silently.
 
-**2. The dataset has not been regenerated.** It was attempted twice and killed both times — once by a
-30-minute timeout, once by an environment restart that also took `/tmp/opencode/` with it. The script
+**2. Still open (as of this session) — the dataset has not been regenerated.** It was attempted twice
+and killed both times — once by a 30-minute timeout, once by an environment restart that also took
+`/tmp/opencode/` with it. The script
 writes `web/data/catalog.json` **once, at the end**, so both kills were harmless: `git diff
 web/data/catalog.json` is empty and the coherence check passes against the committed dataset. The
 regeneration is **optional** — it only picks up rows upstream published since the 2026-10-11 snapshot,
@@ -384,14 +390,16 @@ reference: `internal/skills/agents.go:60-64` says so itself ("Source: vercel-lab
 
 Detailed rows for items 2-4 are in [TODO.md](TODO.md)'s roadmap table.
 
-**Still open, in value order:** re-cut `v0.4.1`; the five `IMPLEMENTED`-but-unwired packages
-(`receipts`, `identity`, `compat`, `profiles`, `manager`); `ResolveLaunchSecrets` (no caller);
-`internal/source` adapters (no production ingest); REG-34 invocation registry; M3 plugin artifact
-locator. `ARCH/24` describes 21 of 42 packages and says so at the top.
+**Still open, in value order:** the five `IMPLEMENTED`-but-unwired packages (`receipts`, `identity`,
+`compat`, `profiles`, `manager`); `ResolveLaunchSecrets` (no caller); `internal/source` adapters (no
+production ingest); REG-34 invocation registry; M3 plugin artifact locator. (`v0.4.1` was re-cut and
+published 2026-10-15.) `ARCH/24` describes 21 of 42 packages and says so at the top.
 
-### How to cut `v0.4.1` (the one thing that unblocks npm users)
+### How to cut `v0.4.1` — executed 2026-10-15; kept as the procedure of record
 
-Everything up to the credentials is prepared; nothing below has been run, because it publishes.
+Everything below was run to cut and publish `v0.4.1`. Verified 2026-10-17: npm serves `0.4.1`, and a
+clean sandbox sync of the published package reports `Release rel-2026-10-15-01, 69376 capabilities
+indexed`. Kept as the procedure for the next release.
 
 ```bash
 # 1. Prove the fix is in the tag you are about to cut (already true of HEAD):
@@ -410,7 +418,8 @@ git commit -am "release: v0.4.1"
 git tag -a v0.4.1 -m "v0.4.1"
 git push origin main --follow-tags   # pushes the tag -> .github/workflows/release.yml runs
 
-# 5. Only after the GitHub release exists (8 assets + 8 .sigstore.json bundles):
+# 5. Only after the GitHub release exists (17 assets for v0.4.1: 6 platform binaries, the SBOM, the
+#    web bundle and SHA256SUMS, plus 8 .sigstore.json bundles):
 cd npm && npm publish
 ```
 
@@ -420,7 +429,7 @@ Verify afterwards with a clean data root rather than trusting the log:
 
 ```bash
 rm -rf /tmp/lspm-verify && HOME=/tmp/lspm-verify litespm catalog sync
-# expect: Release rel-2026-10-11-02, 69376 capabilities indexed
+# expect: Release rel-2026-10-15-01, 69376 capabilities indexed
 ```
 
 Do **not** re-publish `0.4.0`: the tag is immutable in the GitHub release chain and its assets are
@@ -536,11 +545,11 @@ commit"` (yesterday 04:29, zero session markers) exists and was deliberately lef
 
 ## Final Next Steps
 
-> **Superseded 2026-10-15.** The detached producer PID below no longer exists and the release it
-> describes has since been cut (the live pointer is `rel-2026-10-11-02`, sequence 147, 69,376 rows).
-> The current next steps are in **Session 2026-10-14/15** at the top of this file: push the `v0.4.1`
-> tag and publish to npm, and optionally regenerate the dataset somewhere that will not be
-> interrupted. Kept as a dated record of that lane, not as instructions.
+> **Superseded 2026-10-15; pointer updated 2026-10-17.** The detached producer PID below no longer
+> exists and the release it describes has since been cut (the live pointer is `rel-2026-10-15-01`,
+> sequence 148, 69,376 rows). The current next steps are in **Session 2026-10-14/15** at the top of
+> this file: the `v0.4.1` tag was pushed and npm published on 2026-10-15; the optional dataset
+> regeneration remains open. Kept as a dated record of that lane, not as instructions.
 
 1. **Producer rebuild is running** as detached PID `2456`; log: `/tmp/opencode/rebuild.log`. Last observed in replay mode at `skills.sh: 500/19,388 processed (384 added)`, after 764/1,114 skill rows had been verified/promoted. The process may have progressed since that observation. It will then enrich remaining feeds and crawl mcpmarket (≤2,000 pages/run, 1 s crawl delay, robots-permitted paths only). Wait for the completion notification from watcher `sh_11cf03444001V0ABq3JIDQxSHo`; then inspect final ingestion completeness/stale status, skill verification totals, endpoint-drop counts, and source rows before cutting a release.
 2. **Release cut** (explicitly authorized): `go run ./cmd/litespm catalog build` from the completed producer dataset; verify the resulting release ID/sequence/digests and synced `web/data/release.json` + `web/public/v1/current.json`, then run `go run ./cmd/litespm catalog build --verify web/public`. Expected next sequence is 146 from the current 145 pointer, but confirm the pointer at execution time rather than assume it.

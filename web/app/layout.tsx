@@ -3,8 +3,6 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { ToastViewport } from "../components/ui/Toast";
 import { DOCS_URL, SITE_URL } from "../lib/site";
-import { MAX_STATIC_ENTRIES } from "../lib/packageEntries";
-import { formatCount } from "../lib/format";
 
 /**
  * IBM Plex: an engineered grotesque with squared terminals, which reads as
@@ -181,12 +179,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
          * The stylesheet below does that swap for them, scoped to `<noscript>`
          * so it cannot apply (and cannot flash content mid-hydration) when
          * scripting is on. The note then says what genuinely needs scripting:
-         * search, filters, sorting, the theme toggle, and resolving an
-         * individual `/package/?slug=…` entry. The bounded set of entries that
-         * have their own pre-rendered page (`/package/<key>/`, see
-         * `lib/packageEntries.ts`) does NOT need it — their summaries and
-         * try-it prompts are in the raw HTML — so the note names the exception
-         * instead of claiming every entry needs JavaScript. Nothing here
+         * search, filters, sorting, the theme toggle, and the interactive
+         * parts of an entry page. Every entry is *named* in the served HTML —
+         * the bounded pre-rendered set (`/package/<key>/`, see
+         * `lib/packageEntries.ts`) carries the whole record, and the edge
+         * Worker (`worker/index.js`) injects the name, publisher and summary
+         * into the shell for every other key — so the note says that instead
+         * of claiming an entry cannot be read without scripting. Nothing here
          * claims the site does more than it does.
          */}
         <noscript>
@@ -198,11 +197,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
            */}
           <style>{`@layer base{div[id^="S:"][hidden]{display:block!important}}`}</style>
           <div className="border-b border-rule bg-sunken px-4 py-2.5 text-center text-[12.5px] leading-relaxed text-ink-2">
-            JavaScript is off. The pages are pre-rendered, so everything below still displays;
-            search, filtering, sorting, the theme toggle and opening an individual catalog entry
-            outside the {formatCount(MAX_STATIC_ENTRIES)} entries that have their own pre-rendered
-            page need JavaScript. Those pages carry the entry&rsquo;s plain summary and try-it
-            prompts. Install steps are in the{" "}
+            JavaScript is off. The pages are pre-rendered, so everything below still displays.
+            Entry pages name the entry, its publisher and its summary in the served HTML; search,
+            filtering, sorting, the theme toggle and an entry&rsquo;s interactive parts — tabs,
+            the install panel, related lists — need JavaScript. Install steps are in the{" "}
             <a href={DOCS_URL} className="link">
               README
             </a>

@@ -52,6 +52,14 @@ export interface HostAdapter {
    */
   projectScope?: boolean;
   projectPath?: string;
+  /**
+   * True when the registry has a verified remote (URL) MCP entry spelling for
+   * this host (`host.RemoteEntrySpecFor`); absent means a remote install there
+   * is refused fail-closed. Eight of the fifty rows carry it. It was declared
+   * on `GeneratedHost` below and then dropped by the mapper, so no surface
+   * could read it; `/compare` needs it and carries it through instead.
+   */
+  remote?: boolean;
 }
 
 /** Shape of one row in the generated web/data/hosts.json. */
@@ -120,6 +128,7 @@ export const HOSTS: HostAdapter[] = (generated as GeneratedHost[]).map((h) => {
     nested: keyPath.includes("."),
     projectScope: h.projectScope,
     projectPath: h.projectPath,
+    remote: h.remote,
   };
 });
 
@@ -135,9 +144,23 @@ export function hostPath(host: HostAdapter, os: PlatformOS): string {
  * registry from bridge adapters: these are hosts with a skills directory we can
  * write a SKILL.md into, which is a smaller and differently-shaped set than
  * "hosts whose MCP config we can edit".
+ *
+ * `hasGlobal` ships in the generated file and was declared nowhere: an agent
+ * with no user-level skills directory (`internal/skills/agents.go` leaves
+ * `GlobalDir` empty) can only take project-scope skills. Two of the 81 rows are
+ * that shape, and `/compare` states it.
  */
-export const SKILL_TARGETS: Array<{ id: string; displayName: string; universal?: boolean }> =
-  generatedSkillTargets as Array<{ id: string; displayName: string; universal?: boolean }>;
+export const SKILL_TARGETS: Array<{
+  id: string;
+  displayName: string;
+  universal?: boolean;
+  hasGlobal: boolean;
+}> = generatedSkillTargets as Array<{
+  id: string;
+  displayName: string;
+  universal?: boolean;
+  hasGlobal: boolean;
+}>;
 
 /**
  * Which agent hosts a capability can be installed into.

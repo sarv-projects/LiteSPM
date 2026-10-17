@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -17,6 +18,75 @@ import (
 type DatasetPublisher struct {
 	Name string `json:"name"`
 	URL  string `json:"url"`
+}
+
+// sha40 is the pinning bar the producer adopts for git commits (xAI's
+// marketplace README states it, and scripts/build_full_catalog.py's
+// manifest_artifact_descriptor enforces it): a descriptor is pinned only when
+// its sha is a full 40-character lowercase commit id. A branch or tag NAME in
+// `ref` is mutable and does not clear it.
+var sha40 = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+// DatasetArtifact mirrors one row's `artifact` object: the source descriptor
+// the vendor manifest itself published, transcribed by the producer
+// (scripts/build_full_catalog.py, manifest_artifact_descriptor). The producer
+// used to read only the URL out of it, discarding whichever locator the
+// manifest actually declared.
+//
+// The fields mean exactly what they say and nothing more:
+//   - Type is the domain's ArtifactType vocabulary: "git-tree" (a revision of
+//     a repository) or "local-dir" (a directory inside the repository that
+//     publishes the manifest). Neither is an archive, and no fetcher is wired
+//     for either yet, so every plugin install still fails closed with
+//     LPSM-ARTIFACT-UNAVAILABLE.
+//   - DeclaredAs records the spelling the manifest used ("url",
+//     "git-subdir", "relative-path", "path", "local"): a relative path and a
+//     git URL are not the same claim.
+//   - Path keeps the manifest's verbatim spelling. Resolution against Repo is
+//     a fetcher's job and nothing here has performed it.
+//   - Ref is a branch or tag NAME and is therefore mutable. Pinned is true
+//     only for a full 40-hex lowercase commit Sha; Ref alone never pins.
+//   - Sha is copied, never resolved or verified.
+type DatasetArtifact struct {
+	Type       string `json:"type"`
+	DeclaredAs string `json:"declaredAs"`
+	Repo       string `json:"repo,omitempty"`
+	Path       string `json:"path,omitempty"`
+	Ref        string `json:"ref,omitempty"`
+	SHA        string `json:"sha,omitempty"`
+	Pinned     bool   `json:"pinned"`
+}
+
+// artifactProblem reports the first internal inconsistency of a transcribed
+// descriptor, or "" when it is well formed. Fail-closed: a descriptor whose
+// claims cannot all be true is producer/domain drift, and a release must not
+// be built from it.
+func (a *DatasetArtifact) artifactProblem() string {
+	switch domain.ArtifactType(a.Type) {
+	case domain.ArtifactGitTree, domain.ArtifactLocalDir:
+		// Both kinds name a location inside a repository: a git tree is a
+		// revision of one, a local dir is a directory in one. The producer
+		// always fills Repo from its source table, so an empty Repo means the
+		// descriptor has no locator at all.
+		if strings.TrimSpace(a.Repo) == "" {
+			return fmt.Sprintf("a %s descriptor must name the repository it lives in (repo is empty)", a.Type)
+		}
+		if domain.ArtifactType(a.Type) == domain.ArtifactLocalDir && strings.TrimSpace(a.Path) == "" {
+			return "a local-dir descriptor must name the directory it points at (path is empty)"
+		}
+	default:
+		return fmt.Sprintf("unknown artifact type %q (the producer writes %q or %q)",
+			a.Type, domain.ArtifactGitTree, domain.ArtifactLocalDir)
+	}
+	if a.Pinned {
+		if !sha40.MatchString(a.SHA) {
+			return fmt.Sprintf("pinned is true but sha %q is not a full 40-hex lowercase commit id", a.SHA)
+		}
+		if domain.ArtifactType(a.Type) != domain.ArtifactGitTree {
+			return fmt.Sprintf("only a git tree can be pinned to a commit, not %q", a.Type)
+		}
+	}
+	return ""
 }
 
 // DatasetRow mirrors one flat row of the catalog dataset written by
@@ -44,6 +114,11 @@ type DatasetRow struct {
 	Args             []string         `json:"args"`             // mcp only
 	URL              string           `json:"url"`              // mcp only: remote endpoint the publisher declared
 	SkillSource      string           `json:"skillSource"`      // skill only
+	// Artifact is the source descriptor the vendor manifest published for this
+	// row (plugin rows today; absent means the manifest published none this
+	// producer could transcribe). It is carried into the version record's
+	// artifacts; it is not an install claim, and nothing fetches it yet.
+	Artifact *DatasetArtifact `json:"artifact,omitempty"`
 	// Installability is the provenance class of the row (domain.Installability
 	// values). Empty means discovery_only: heuristic ingestion never proved a
 	// version or launch line.
@@ -95,6 +170,15 @@ func ParseDataset(raw []byte) ([]DatasetRow, error) {
 		}
 		if !domain.Installability(r.Installability).Valid() {
 			fail("unknown installability %q", r.Installability)
+		}
+		// A transcribed descriptor must be internally consistent: the release
+		// must not carry a locator whose claims cannot all be true (see
+		// DatasetArtifact.artifactProblem). Absent is fine -- the honest
+		// absence -- and is not an error.
+		if r.Artifact != nil {
+			if problem := r.Artifact.artifactProblem(); problem != "" {
+				fail("artifact descriptor: %s", problem)
+			}
 		}
 		// Version and launch line are required only of rows that claim more
 		// than discovery_only: a heuristic row has none to give, and the
@@ -165,7 +249,13 @@ func DatasetSnapshotID(dataset []byte) string {
 //     MCP server is not wired yet (STATUS.md; ARCH/13/17), while skill
 //     components are SupportYes because the shipped skills lifecycle installs
 //     and loads them today;
-//   - popularity, host-compatibility, and star figures are not invented.
+//   - popularity, host-compatibility, and star figures are not invented;
+//   - a row's transcribed source descriptor becomes one ArtifactRef, or none
+//     when the manifest published no transcribable descriptor: see
+//     artifactRefsFor for what each field means and what is deliberately left
+//     empty. Carrying the descriptor is not an install claim -- no fetcher is
+//     wired for git-tree or local-dir artifacts, and every plugin install
+//     still fails closed with LPSM-ARTIFACT-UNAVAILABLE.
 func ConvertDataset(rows []DatasetRow, releaseID, _datasetInputID string, ingestedAt time.Time) ([]*domain.Listing, []*domain.VersionRecord, error) {
 	listings := make([]*domain.Listing, 0, len(rows))
 	versions := make([]*domain.VersionRecord, 0, len(rows))
@@ -277,7 +367,7 @@ func convertRow(row DatasetRow, releaseID string, ingestedAt time.Time) (*domain
 		ListingID:        row.ID,
 		Version:          versionForRecord,
 		SourceSnapshotID: row.SourceSnapshotID,
-		Artifacts:        []domain.ArtifactRef{},
+		Artifacts:        artifactRefsFor(row),
 		Components:       components,
 		Dependencies:     []domain.DependencyConstraint{},
 		Requirements:     []domain.Requirement{},
@@ -290,6 +380,53 @@ func convertRow(row DatasetRow, releaseID string, ingestedAt time.Time) (*domain
 	}
 
 	return listing, version, nil
+}
+
+// artifactRefsFor maps the row's transcribed manifest descriptor onto the
+// domain's artifact vocabulary, inventing nothing.
+//
+//   - git-tree: Locator is the repository the manifest named; Subpath is the
+//     manifest's verbatim path with a leading "./" removed (the domain's
+//     Subpath is repository-relative). ImmutableRef is the published sha ONLY
+//     when the descriptor is pinned -- a 40-hex commit is immutable, while a
+//     `ref` alone is a mutable branch or tag name and is therefore NOT copied
+//     into an immutable slot; an unpinned git tree fetches FetchHeadRef. The
+//     dataset still carries `ref` for a reader that wants the name.
+//   - local-dir: a directory inside the repository publishing the manifest.
+//     FetchLocalOnly: it is never fetched over the network, and it is not
+//     pinned because there is no remote revision to pin.
+//
+// Digest, Size and MediaType stay empty: the manifests publish none, and a
+// fabricated digest would be indistinguishable from a verified one.
+//
+// Nothing consumes these refs on an install path today (the plan builder
+// writes no plan artifacts and the fetcher supports archive/mcpb only), so
+// populating them changes no install outcome: every plugin install still fails
+// closed with LPSM-ARTIFACT-UNAVAILABLE.
+func artifactRefsFor(row DatasetRow) []domain.ArtifactRef {
+	if row.Artifact == nil {
+		return []domain.ArtifactRef{}
+	}
+	a := row.Artifact
+	ref := domain.ArtifactRef{
+		// Artifacts carry no upstream id of their own, so the id is derived
+		// from the listing it belongs to (deterministic, and collision-free
+		// because a row produces at most one artifact).
+		ArtifactID: "art_" + strings.ReplaceAll(row.ID, ":", "_"),
+		Type:       domain.ArtifactType(a.Type),
+		Locator:    a.Repo,
+		Subpath:    strings.TrimPrefix(strings.TrimSpace(a.Path), "./"),
+	}
+	if ref.Type == domain.ArtifactGitTree {
+		ref.FetchPolicy = domain.FetchHeadRef
+		if a.Pinned {
+			ref.ImmutableRef = a.SHA
+			ref.FetchPolicy = domain.FetchImmutable
+		}
+	} else {
+		ref.FetchPolicy = domain.FetchLocalOnly
+	}
+	return []domain.ArtifactRef{ref}
 }
 
 // datasetComponents derives the per-kind component lists. MCP rows carry their

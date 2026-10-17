@@ -333,13 +333,16 @@ Explore · Agents · Categories · Collections · Trending · Docs
 The site is a static export (`web/next.config.ts`: `output: "export"`, `trailingSlash: true`). Detail pages are served from one HTML shell with the key read client-side:
 
 ```text
-/package/<canonical-slug>      # canonical path form; served by a `_redirects` proxy
+/package/<canonical-slug>/       # canonical path form
+/package/<canonical-slug>        # same page; address canonicalised with replaceState
 /package/?slug=<canonical-slug>  # legacy form; canonicalised with replaceState
 ```
 
-`scripts/deploy-pages.sh` writes the `_redirects` rule (`/package/:slug /package/ 200`), and `web/app/package/page.tsx` reads the pathname as well as the query, because the 200 proxy leaves `window.location.search` empty for a path visit. The client resolves the key (`slug` when globally unique, else the full `id`) against the catalog, which keeps the export file count flat.
+`wrangler.toml` routes every `/package/*` request to `worker/index.js` (`run_worker_first`, `compatibility_date = "2026-09-01"`), which serves the requested shape: a real pre-rendered page where the bounded set has one, and the shipped shell with the entry's own `<title>`, description, canonical, Open Graph tags, JSON-LD and no-JS identity block otherwise. The Worker resolves the key (`slug` when globally unique, else the full `id`) against the same `/data/pkg/<bucket>.json` files the client uses; `web/app/package/page.tsx` reads the pathname as well as the query, because the Worker is transparent and leaves `window.location.search` empty for a path visit. `scripts/deploy-pages.sh` no longer writes the old `/package/:slug /package/ 200` `_redirects` proxy — it was applied before assets and rewrote the route's own `/package/index.txt` RSC payload to HTML, forcing every entry click into a hard navigation; the Worker owns that shape now.
 
 **Build-size risk (explicit):** the shipped dataset has **69,376 items**. Per-item static pages (`generateStaticParams` over all items) would add at least one HTML file per item, plus assets. The catalog builder is expected to grow. Cloudflare Pages is limited to **20,000 files per project** ([09 — Research](09-RESEARCH.md) §7). Per-item static pages are therefore **not adopted** unless a static-param budget is explicitly approved (e.g. prerender only the top N by a real signal, with the rest served via the query route). This document rejects unbounded `generateStaticParams` for the full catalog; the one bounded exception is `/agents/<id>/`, whose 50 bridge hosts are a closed registry.
+
+**Adopted:** a bounded, curated pre-render set (`web/lib/packageEntries.ts`: the installable publisher-manifest rows, capped for the file budget — 4,000 entries at the 2026-10-15 snapshot, 8,000 files) plus the edge Worker (`worker/index.js`) described in §6.3, which carries every other entry's identity into the one shell. The export stays at ~14,865 files; every key's URL answers with that entry in the served HTML, and the sitemap lists exactly the pages the build wrote.
 
 Identity note: `slug` must be globally unique. v1 `slug` values are derived per-source and may collide. The target contract uses a canonical slug (or the full package `id`) as the lookup key and validates uniqueness at build time.
 

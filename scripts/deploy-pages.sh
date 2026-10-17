@@ -107,44 +107,27 @@ cat << 'EOF' > "${PAGES_DIR}/_headers"
   X-Content-Type-Options: nosniff
 EOF
 
-echo "● Writing Cloudflare Pages _redirects..."
-# Canonical path form for product pages.
+# No `_redirects` is written any more.
 #
-# Product pages shipped as `/package/?slug=<slug>`. A query parameter is not a
-# route: it carries no identity of its own, so it cannot be linked to as a page,
-# and the same key has one address that no crawler will treat as a resource.
+# The no-slash product URL `/package/<key>` used to be served by a
+# `/package/:slug /package/ 200` proxy here. That rule is gone because
+# `wrangler.toml` now routes every `/package/*` request to `worker/index.js`
+# (`run_worker_first`), which serves the shell at the requested path with the
+# entry's identity injected, and answers the query form, the no-slash form and
+# the trailing-slash form from one handler.
 #
-# `/package/<slug>` fixes that WITHOUT a page per entry — which is what makes it
-# affordable. 69,376 prerendered pages would exceed the 20,000-file free-plan
-# limit and add ~2 GB of HTML inside the same 20-minute build. A `200` proxy
-# instead serves the one prerendered shell at the requested path, so the address
-# bar keeps `/package/<slug>` and there is no new file, no new HTML, and no
-# billed Worker invocation (this deployment has no Worker script — `wrangler.toml`
-# is `[assets]` only, and static asset serving is not an invocation).
+# Removing the rule is not cosmetic: `_redirects` rules are applied before
+# static assets, and `/package/index.txt` — the RSC payload the client router
+# fetches for the route — is a single path segment, so the blanket rule
+# rewrote it to HTML and every entry click fell back to a hard navigation.
+# With the rule gone, `/package/index.txt` is served as the text payload it
+# is and entry navigation stays client-side. The Worker never depends on the
+# rule: it fetches `/package/` directly when the requested path has no file.
 #
-# `:slug` matches every non-`/` character, so percent-escapes like
-# `skill%3Aanthropics%3Adocx` match as one segment. The proxy is transparent, so
-# `window.location.search` is empty at the client — `useSlugParam` reads the
-# pathname for exactly this reason, and canonicalises the legacy query form.
-#
-# The rule cannot know which slugs exist, so a slug that names no entry answers
-# 200 with the same shell. The honesty lives in the page: once the snapshot
-# arrives and the key is absent, `PackageView` injects a `noindex` meta tag, so
-# a crawler that renders the page does not index an unlimited supply of
-# non-existent addresses. Removing this rule to avoid that would 404 every real
-# entry too, which is the worse trade.
-#
-# The destination must be the DIRECTORY (`/package/`), not `/package/index.html`.
-# Verified against a local Workers runtime: the explicit-file form returns
-# **307** rather than serving, because Workers Static Assets normalises an
-# `index.html` request with a redirect. `/package/` serves the shell `200 OK`,
-# byte-identical to the bare route.
-#
-# Only the first matching rule in this file applies, and dynamic rules are
-# limited to 100: this uses one.
-cat << 'EOF' > "${PAGES_DIR}/_redirects"
-/package/:slug /package/ 200
-EOF
+# A request that reaches the asset server for a path with no file behind it
+# (the Worker is the only `/package/*` handler, and it passes through only
+# non-page requests) gets the export's own 404 — which is the honest answer
+# for an unknown key on the trailing-slash form, exactly as before.
 
 # Every judgement about the finished bundle lives in one script, which CI also
 # runs, so the deploy path and the checks it faces cannot drift apart.

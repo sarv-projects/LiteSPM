@@ -751,6 +751,15 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		return nil
 	}
 	listing := results[n-1].Listing
+	// Kind gate first: a plugin is refused before the scope and consent
+	// questions, because the install cannot be performed whatever the answers
+	// would be — asking first and refusing after is a question that was never
+	// the user's to answer.
+	if refusal := installKindRefusal(listing); refusal != nil {
+		fmt.Fprintf(w.out, "\nLiteSPM cannot install %s yet: %v\n", listing.Name, refusal)
+		fmt.Fprintln(w.out, "Nothing was changed.")
+		return nil
+	}
 	if !listing.IsInstallable() {
 		fmt.Fprintf(w.out, "\n%s is catalog metadata only: it has no verified source, so LiteSPM cannot install it.\n", listing.Name)
 		return nil
@@ -790,9 +799,11 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		return nil
 	}
 
+	// Fail-closed invariant: the kind gate above admits only skill and mcp.
+	// Reaching the other branch means the two lists disagree; refusing beats
+	// proceeding into machinery that cannot finish.
 	if listing.Kind != domain.KindSkill && listing.Kind != domain.KindMCP {
-		fmt.Fprintf(w.out, "\nLiteSPM cannot install %s yet: the published catalog carries no installable artifact for %q.\n",
-			listing.Name, listing.Kind)
+		fmt.Fprintf(w.out, "\nLiteSPM cannot install %s: kind %q is marked install-wired but no install path handles it.\n", listing.Name, listing.Kind)
 		fmt.Fprintln(w.out, "Nothing was changed.")
 		return nil
 	}

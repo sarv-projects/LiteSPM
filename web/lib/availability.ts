@@ -4,20 +4,23 @@ import type { Listing } from "./telemetry";
  * Whether a catalog row can actually be installed, derived from the same
  * predicate the CLI uses.
  *
- * `litespm install` refuses a row unless `domain.Listing.IsInstallable()` —
- * `installability != "discovery_only"` — and inspects the row's kind on top of
- * that. The badge has to agree with the binary or it advertises installs that
- * fail, so the rule here is copied rather than invented:
+ * `litespm install` refuses a row unless both installability questions answer
+ * yes, and the CLI asks the kind question first (`cmd/litespm/install_kind.go`):
+ * `domain.Listing.IsInstallable()` is the conjunction of a kind this build has
+ * an install path for (`ListingKind.InstallWired`) and a non-`discovery_only`
+ * installability. The badge has to agree with the binary or it advertises
+ * installs that fail, so the rule here is copied rather than invented:
  *
  *   1. **plugin** → never. `AddSteps` excludes the kind and the CLI fails closed
- *      with `LPSM-ARTIFACT-UNAVAILABLE`; there is no plugin artifact source, so
- *      a plugin is refused *even when its metadata is verified* (all 638 are).
- *   2. **installability is `discovery_only`** → never. That is the gate in
- *      `install_skill.go:73` and `install_mcp.go:339`, refused with
- *      `LPSM-NOT-INSTALLABLE`.
+ *      with `LPSM-ARTIFACT-UNAVAILABLE`; the catalog carries each plugin's
+ *      published source descriptor but no fetch path is wired for it, so a
+ *      plugin is refused *even when its metadata is verified* (all 638 are).
+ *   2. **installability is `discovery_only`** → never. That is the provenance
+ *      half, gated in `install_skill.go:73` and `install_mcp.go:378` and
+ *      refused with `LPSM-NOT-INSTALLABLE`.
  *   3. **MCP** additionally needs a transport: the launch line comes from the
  *      published version record's `command` or `endpoint`, and a row with
- *      neither dies at `LPSM-ARTIFACT-UNAVAILABLE` (`install_mcp.go:344-350`).
+ *      neither dies at `LPSM-ARTIFACT-UNAVAILABLE` (`install_mcp.go:389`).
  *   4. **skill** → installs through the content-addressed skills ledger from the
  *      source it was published in.
  *

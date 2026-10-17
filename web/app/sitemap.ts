@@ -14,7 +14,7 @@ import { SITE_URL } from "../lib/site";
  * its MCP config — were reachable only by following links a crawler had no
  * reason to find. Nothing pointed at them.
  *
- * The URL list is exactly the set of routes this export emits: the five index
+ * The URL list is exactly the set of routes this export emits: the six index
  * pages plus one page per host in the compiled-in registry (`HOSTS`, the same
  * array `app/agents/[id]/page.tsx` uses for `generateStaticParams`, so the
  * sitemap cannot name a page the build did not produce).
@@ -39,7 +39,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   // Trailing slashes match `trailingSlash: true` in next.config.ts, so each
   // URL here is the canonical URL the page itself declares.
-  const indexRoutes = ["/", "/agents/", "/categories/", "/explore/", "/trending/"];
+  const indexRoutes = ["/", "/agents/", "/compare/", "/categories/", "/explore/", "/trending/"];
 
   return [
     ...indexRoutes.map((path) => ({ url: `${SITE_URL}${path}`, lastModified })),

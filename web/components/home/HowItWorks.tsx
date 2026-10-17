@@ -128,7 +128,7 @@ export function HowItWorks() {
       <div className="border-t border-rule pt-8">
         <p className="kicker">How LiteSPM works</p>
         <h2 id="how-title" className="band-title mt-2">
-          Five steps, start to finish
+          From setup to managed, in five steps
         </h2>
       </div>
 

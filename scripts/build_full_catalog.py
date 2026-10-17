@@ -415,6 +415,28 @@ def canonical_id(kind, source, upstream):
     return f"{kind}:{source.lower()}:{tail}"
 
 
+def base_slug(name):
+    """The upstream-name half of a vendor-manifest row id.
+
+    Module-level (not a local inside build_full_catalog) so the focused
+    descriptor re-run (`scripts/enrich_plugin_artifacts.py`) derives exactly
+    the ids the producer derives: two spellings of this rule would be two
+    chances for the join to silently miss rows.
+    """
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def manifest_is_command(s):
+    """True when a marketplace entry's `source` starts a command, not an
+    artifact: such an entry produces no plugin row and therefore no artifact
+    descriptor. Shared with the focused re-run for the same reason as
+    base_slug() above."""
+    if not isinstance(s, dict):
+        return False
+    kind = str(s.get("source") or s.get("type") or "").lower()
+    return kind == "command" or bool(s.get("command"))
+
+
 def clean_desc(text):
     # Remove markdown badges [![...](...)]
     text = re.sub(r'\[\!\[[^\]]*\]\([^\)]*\)\](?:\([^\)]*\))?', '', text)
@@ -473,6 +495,70 @@ PROV_LIST = "awesome-list-claim"
 DISCOVERY_ONLY = "discovery_only"
 METADATA_VERIFIED = "metadata_verified"
 
+# The six vendor repositories whose seven manifests produce the plugin rows.
+# Module-level (not a local inside build_full_catalog) so the focused
+# descriptor re-run (`scripts/enrich_plugin_artifacts.py`) ingests exactly the
+# same manifests with exactly the same ids and the same first-wins order: two
+# definitions of this table would be two chances for the two paths to drift.
+MARKETPLACE_SOURCES = [
+    {
+        "key": "claude", "id_owner": "claude-official",
+        "url": "https://raw.githubusercontent.com/anthropics/claude-plugins-official/main/.claude-plugin/marketplace.json",
+        "source_id": "git:claude-plugins-official",
+        "repo": "https://github.com/anthropics/claude-plugins-official",
+        "publisher": "Anthropic", "family": "claude",
+        "marketplace": "claude-plugins-official", "hosts": ["Claude Code"],
+    },
+    {
+        "key": "knowledge", "id_owner": "knowledge-work",
+        "url": "https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/.claude-plugin/marketplace.json",
+        "source_id": "git:knowledge-work-plugins",
+        "repo": "https://github.com/anthropics/knowledge-work-plugins",
+        "publisher": "Anthropic", "family": "claude",
+        "marketplace": "knowledge-work-plugins", "hosts": ["Claude Code"],
+    },
+    {
+        "key": "askills", "id_owner": "anthropic-skills",
+        "url": "https://raw.githubusercontent.com/anthropics/skills/main/.claude-plugin/marketplace.json",
+        "source_id": "git:anthropics-skills",
+        "repo": "https://github.com/anthropics/skills",
+        "publisher": "Anthropic", "family": "claude",
+        "marketplace": "anthropic-agent-skills", "hosts": ["Claude Code"],
+    },
+    {
+        "key": "codex", "id_owner": "openai-plugins",
+        "url": "https://raw.githubusercontent.com/openai/plugins/main/.agents/plugins/marketplace.json",
+        "source_id": "git:openai-plugins",
+        "repo": "https://github.com/openai/plugins",
+        "publisher": "OpenAI", "family": "codex",
+        "marketplace": "", "hosts": ["Codex"],
+    },
+    {
+        "key": "codex", "id_owner": "openai-plugins",
+        "url": "https://raw.githubusercontent.com/openai/plugins/main/.agents/plugins/api_marketplace.json",
+        "source_id": "git:openai-plugins",
+        "repo": "https://github.com/openai/plugins",
+        "publisher": "OpenAI", "family": "codex",
+        "marketplace": "", "hosts": ["Codex"],
+    },
+    {
+        "key": "cursor", "id_owner": "cursor-plugins",
+        "url": "https://raw.githubusercontent.com/cursor/plugins/main/.cursor-plugin/marketplace.json",
+        "source_id": "git:cursor-plugins",
+        "repo": "https://github.com/cursor/plugins",
+        "publisher": "Cursor", "family": "cursor",
+        "marketplace": "", "hosts": ["Cursor"],
+    },
+    {
+        "key": "xai", "id_owner": "xai-plugins",
+        "url": "https://raw.githubusercontent.com/xai-org/plugin-marketplace/main/.grok-plugin/marketplace.json",
+        "source_id": "git:xai-plugin-marketplace",
+        "repo": "https://github.com/xai-org/plugin-marketplace",
+        "publisher": "xAI", "family": "grok",
+        "marketplace": "", "hosts": ["Grok Build"],
+    },
+]
+
 
 def publisher_obj(name, url, provenance):
     return {
@@ -481,6 +567,116 @@ def publisher_obj(name, url, provenance):
         "provenance": provenance,
         "url": url,
     }
+
+
+# PLUGIN SOURCE DESCRIPTORS — THE MANIFEST'S OWN `source`, TRANSCRIBED
+#
+# Every vendor manifest already publishes where its plugin lives, and until now
+# this producer read only the URL out of it (into `publisher.url`, which is a
+# display/provenance field — for 15 rows it is not even the manifest's source).
+# The descriptor is transcribed into the row's own `artifact` field so the
+# catalog stops discarding it. Five spellings appear across the seven
+# manifests and all five are handled; `declaredAs` records which one the
+# manifest used, because a relative path and a git URL are not the same thing:
+#
+#   {"source":"url","url":...,"sha":...}          declaredAs "url"           -> git-tree
+#   {"source":"git-subdir","url":...,"path":...}  declaredAs "git-subdir"    -> git-tree
+#   "./plugins/x"                                 declaredAs "relative-path" -> local-dir
+#   "dir"                                         declaredAs "path"          -> local-dir
+#   {"source":"local","path":"./plugins/x"}       declaredAs "local"         -> local-dir
+#
+# `type` is the domain's ArtifactType vocabulary (internal/domain/models.go:
+# git-tree | local-dir), and the two values mean exactly what they say. A git
+# tree is NOT an archive: internal/artifact's HTTPArchiveFetcher.Supports
+# accepts only ArtifactArchive/ArtifactMCPB, so a git-tree row still has no
+# wired fetch path, and every plugin install still fails closed with
+# LPSM-ARTIFACT-UNAVAILABLE.
+#
+# PINNING POLICY (the rule the future fetcher will be held to; nothing fetches
+# yet). xAI's own marketplace README states the bar this producer adopts:
+# "Every `url` source must pin a full 40-character lowercase commit `sha`.
+# Without a pin, a vendor force-push or repo compromise would silently ship
+# new code… Grok Build re-verifies `git rev-parse HEAD == sha` after cloning."
+# So:
+#   pinned   the descriptor carries a full 40-hex lowercase commit sha. The
+#            sha is copied verbatim; nothing here resolves or verifies it.
+#   unpinned everything else, including a `ref` alone. `ref` is a branch or
+#            tag NAME and is mutable — a ref without a sha is not a pin — and
+#            a path inside the manifest's own repository carries no remote ref
+#            at all. The field is `pinned`, not a convention, and
+#            catalogbuild.ParseDataset enforces it fail-closed.
+#
+# No digest, size, media type or resolved revision is invented here: the
+# manifests publish none, and a fabricated digest would be indistinguishable
+# from a verified one downstream.
+_SHA40 = re.compile(r"^[0-9a-f]{40}\Z")
+_GIT_DESCRIPTOR_KINDS = frozenset({"url", "git", "github", "git-subdir"})
+
+
+def manifest_artifact_descriptor(source, repo, report=None):
+    """Transcribe one marketplace entry's `source` into the row's `artifact`.
+
+    Returns a dict with `type`, `declaredAs`, `repo` (when known), `path`
+    (when published), `ref` (when published), `sha` (when published) and
+    `pinned`, or None when the manifest published no descriptor this producer
+    can transcribe. An unknown shape is reported (never silently dropped) and
+    returns None: the row then carries no artifact, which is the honest
+    absence rather than a guessed locator.
+    """
+    def note(kind):
+        if report is not None:
+            report[kind] = report.get(kind, 0) + 1
+
+    if isinstance(source, str):
+        raw = source.strip()
+        if not raw:
+            note("empty-string")
+            return None
+        # A path inside the repository that publishes the manifest. The
+        # manifest's own spelling is kept verbatim: resolving it against a
+        # repository root is a fetcher's job, and normalizing it here would
+        # assert a resolution this producer has not performed.
+        declared = "relative-path" if raw.startswith("./") else "path"
+        out = {"type": "local-dir", "declaredAs": declared, "pinned": False}
+        if repo:
+            out["repo"] = repo
+        out["path"] = raw
+        return out
+
+    if not isinstance(source, dict):
+        note("not-a-descriptor")
+        return None
+
+    kind = str(source.get("source") or source.get("type") or "").strip().lower()
+    url = str(source.get("url") or source.get("repo") or "").strip()
+    subpath = str(source.get("path") or source.get("subdir") or "").strip()
+    ref = str(source.get("ref") or "").strip()
+    sha = str(source.get("sha") or source.get("commit_sha") or
+              source.get("commitSha") or "").strip()
+
+    if kind in _GIT_DESCRIPTOR_KINDS and url:
+        out = {"type": "git-tree", "declaredAs": kind, "repo": url,
+               "pinned": bool(_SHA40.match(sha))}
+        if subpath:
+            out["path"] = subpath
+        if ref:
+            out["ref"] = ref
+        if sha:
+            # Published verbatim, pinned or not; `pinned` states whether it
+            # clears the 40-hex bar, so a short or non-lowercase sha shows up
+            # as an unpinned descriptor instead of a silent downgrade.
+            out["sha"] = sha
+        return out
+
+    if (kind == "local" or (not kind and not url)) and subpath:
+        out = {"type": "local-dir", "declaredAs": kind or "local",
+               "pinned": False, "path": subpath}
+        if repo:
+            out["repo"] = repo
+        return out
+
+    note(f"unsupported:{kind or 'unknown'}")
+    return None
 
 
 CATEGORY_MAPPING = {
@@ -2443,64 +2639,16 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
     # skill row per bundled skill). Slugs are namespaced per source so they can
     # never collide with awesome-list rows.
     print("Parsing vendor plugin marketplaces...")
-    MARKETPLACE_SOURCES = [
-        {
-            "key": "claude", "id_owner": "claude-official",
-            "url": "https://raw.githubusercontent.com/anthropics/claude-plugins-official/main/.claude-plugin/marketplace.json",
-            "source_id": "git:claude-plugins-official",
-            "repo": "https://github.com/anthropics/claude-plugins-official",
-            "publisher": "Anthropic", "family": "claude",
-            "marketplace": "claude-plugins-official", "hosts": ["Claude Code"],
-        },
-        {
-            "key": "knowledge", "id_owner": "knowledge-work",
-            "url": "https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/.claude-plugin/marketplace.json",
-            "source_id": "git:knowledge-work-plugins",
-            "repo": "https://github.com/anthropics/knowledge-work-plugins",
-            "publisher": "Anthropic", "family": "claude",
-            "marketplace": "knowledge-work-plugins", "hosts": ["Claude Code"],
-        },
-        {
-            "key": "askills", "id_owner": "anthropic-skills",
-            "url": "https://raw.githubusercontent.com/anthropics/skills/main/.claude-plugin/marketplace.json",
-            "source_id": "git:anthropics-skills",
-            "repo": "https://github.com/anthropics/skills",
-            "publisher": "Anthropic", "family": "claude",
-            "marketplace": "anthropic-agent-skills", "hosts": ["Claude Code"],
-        },
-        {
-            "key": "codex", "id_owner": "openai-plugins",
-            "url": "https://raw.githubusercontent.com/openai/plugins/main/.agents/plugins/marketplace.json",
-            "source_id": "git:openai-plugins",
-            "repo": "https://github.com/openai/plugins",
-            "publisher": "OpenAI", "family": "codex",
-            "marketplace": "", "hosts": ["Codex"],
-        },
-        {
-            "key": "codex", "id_owner": "openai-plugins",
-            "url": "https://raw.githubusercontent.com/openai/plugins/main/.agents/plugins/api_marketplace.json",
-            "source_id": "git:openai-plugins",
-            "repo": "https://github.com/openai/plugins",
-            "publisher": "OpenAI", "family": "codex",
-            "marketplace": "", "hosts": ["Codex"],
-        },
-        {
-            "key": "cursor", "id_owner": "cursor-plugins",
-            "url": "https://raw.githubusercontent.com/cursor/plugins/main/.cursor-plugin/marketplace.json",
-            "source_id": "git:cursor-plugins",
-            "repo": "https://github.com/cursor/plugins",
-            "publisher": "Cursor", "family": "cursor",
-            "marketplace": "", "hosts": ["Cursor"],
-        },
-        {
-            "key": "xai", "id_owner": "xai-plugins",
-            "url": "https://raw.githubusercontent.com/xai-org/plugin-marketplace/main/.grok-plugin/marketplace.json",
-            "source_id": "git:xai-plugin-marketplace",
-            "repo": "https://github.com/xai-org/plugin-marketplace",
-            "publisher": "xAI", "family": "grok",
-            "marketplace": "", "hosts": ["Grok Build"],
-        },
-    ]
+    # The source table itself is module-level (see the comment above it):
+    # the focused descriptor re-run shares it so the two paths cannot drift.
+    # Descriptor observability: nothing about a manifest `source` may be
+    # dropped silently, so every unrecognized shape is counted under
+    # `plugin_descriptor_notes` and every accepted one per source below.
+    plugin_descriptor_notes = {}
+    plugin_descriptor_tally = {
+        src["url"]: {"rows": 0, "descriptors": 0, "pinned": 0, "byDeclaredAs": {}}
+        for src in MARKETPLACE_SOURCES
+    }
 
     def manifest_author(a, fallback):
         if isinstance(a, dict):
@@ -2513,15 +2661,6 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
         if isinstance(s, dict):
             return s.get("url") or s.get("repo") or ""
         return ""
-
-    def manifest_is_command(s):
-        if not isinstance(s, dict):
-            return False
-        kind = str(s.get("source") or s.get("type") or "").lower()
-        return kind == "command" or bool(s.get("command"))
-
-    def base_slug(name):
-        return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
     for src in MARKETPLACE_SOURCES:
@@ -2561,6 +2700,7 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                 continue
             seen_ids.add(item_id)
             seen_slugs.add(slug)
+            plugin_descriptor_tally[src["url"]]["rows"] += 1
 
             if src["family"] == "codex":
                 category = clean_category(p.get("category") or "developer tools")
@@ -2583,6 +2723,21 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                 upstream = manifest_source_url(p.get("source")) or p.get("homepage") or p.get("repository") or src["repo"]
                 install_hint = f"/plugin install {name}@{src['marketplace']}" if src.get("marketplace") else ""
 
+            # The descriptor the manifest itself publishes for this entry.
+            # Transcribed verbatim into the row's `artifact`; nothing resolves
+            # or fetches it here. A shape this producer does not recognize
+            # yields no field (reported in the summary below) rather than a
+            # guessed locator.
+            descriptor = manifest_artifact_descriptor(
+                p.get("source"), src["repo"], plugin_descriptor_notes)
+            if descriptor:
+                plugin_descriptor_tally[src["url"]]["descriptors"] += 1
+                if descriptor["pinned"]:
+                    plugin_descriptor_tally[src["url"]]["pinned"] += 1
+                declared = descriptor["declaredAs"]
+                by_kind = plugin_descriptor_tally[src["url"]]["byDeclaredAs"]
+                by_kind[declared] = by_kind.get(declared, 0) + 1
+
             # Manifest version only when the manifest publishes one.
             # An absent version is null, not a guess.
             manifest_version = p.get("version") if isinstance(p.get("version"), str) and p.get("version").strip() else None
@@ -2603,6 +2758,8 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                 "installability": METADATA_VERIFIED,
                 "source": src["source_id"],
             }
+            if descriptor:
+                row["artifact"] = descriptor
             if install_hint:
                 row["installHint"] = install_hint
             items.append(row)
@@ -2674,6 +2831,22 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                     added += 1
         print(f"  {src['key']}: +{added} rows")
         attribute_rows(src["url"], added)
+
+    # Descriptor observability (see the note where the tallies are created):
+    # a reader of a build log can see, per manifest, how many rows carry a
+    # transcribed descriptor, how many are pinned (full 40-hex sha) and which
+    # `declaredAs` spellings they used -- and which shapes were refused.
+    for src in MARKETPLACE_SOURCES:
+        t = plugin_descriptor_tally[src["url"]]
+        if not t["rows"] and not t["descriptors"]:
+            continue
+        kinds = ", ".join(f"{k}={v}" for k, v in sorted(t["byDeclaredAs"].items()))
+        print(f"  {src['key']} descriptors: {t['descriptors']}/{t['rows']} rows, "
+              f"{t['pinned']} pinned" + (f" ({kinds})" if kinds else ""))
+    if plugin_descriptor_notes:
+        refused = ", ".join(
+            f"{k}={v}" for k, v in sorted(plugin_descriptor_notes.items()))
+        print(f"  descriptor shapes not transcribed: {refused}")
 
     print_verify_tally(verify_tally, "skill verification")
 

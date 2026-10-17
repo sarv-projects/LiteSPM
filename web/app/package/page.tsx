@@ -12,7 +12,10 @@ import type { Metadata } from "next";
  * `/package/<key>/` (`app/package/[slug]/page.tsx`) and each carries its own
  * title, description, canonical and structured data; the set that gets one is
  * chosen in `lib/packageEntries.ts` and listed at
- * `/package/entries/sitemap.xml`.
+ * `/package/entries/sitemap.xml`. An entry outside that set is served by the
+ * edge Worker (`worker/index.js`), which injects the same metadata into this
+ * shell — so the generic title/description below reach only a request that
+ * names no key at all.
  */
 export const metadata: Metadata = {
   title: "Entry detail",

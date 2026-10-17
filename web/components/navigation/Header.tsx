@@ -11,11 +11,11 @@ import { ThemeToggle } from "./ThemeToggle";
  * One header for every route: logo, the primary rail, a search affordance, the
  * theme toggle and the install CTA.
  *
- * The rail only lists routes that exist (`/explore`, `/agents`, `/categories`,
- * `/trending`) — Compare, Docs and Tour are not links until they are pages.
- * The kind tabs that used to sit on a second row are gone: filtering by kind
- * is what `/explore` is for, and the discover surface traded that row for a
- * spacious hero. On narrow screens, navigation gets its own row rather than
+ * The rail only lists routes that exist (`/explore`, `/agents`, `/compare`,
+ * `/categories`, `/trending`) — Docs and Tour are not links until they are
+ * pages. The kind tabs that used to sit on a second row are gone: filtering by
+ * kind is what `/explore` is for, and the discover surface traded that row for
+ * a spacious hero. On narrow screens, navigation gets its own row rather than
  * being clipped between the wordmark and utility controls. `--stack-top`
  * follows that responsive height so sticky filter bars remain below the header.
  *
@@ -34,6 +34,7 @@ interface HeaderProps {
 const PRIMARY_NAV = [
   { href: "/explore/", label: "Explore" },
   { href: "/agents/", label: "Agent hosts" },
+  { href: "/compare/", label: "Compare" },
   { href: "/categories/", label: "Categories" },
   { href: "/trending/", label: "Coverage" },
 ];

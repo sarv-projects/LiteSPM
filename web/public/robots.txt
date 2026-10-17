@@ -7,18 +7,21 @@
 User-agent: *
 Allow: /
 
-# /package/ has two shapes now. The pre-rendered entry pages at
-# /package/<key>/ are real static pages — one per entry in a bounded set,
-# listed exactly at /package/entries/sitemap.xml — so the subtree can no
-# longer be disallowed wholesale. The client form /package/?slug=… resolves in
-# the browser and declares /package/ as its canonical; the no-slash form
-# /package/<slug> is proxied to the same shell and still answers 200 for an
-# unknown key, which the page marks noindex once it has resolved. The
-# trailing-slash form is NOT proxied: /package/<key>/ exists only for the
-# pre-rendered set, so /package/<unknown>/ is a real 404. A blanket ban would
-# hide the real pages, and blocking only the query form would leave the
-# thousands of entry links that use it "indexed, though blocked" — so the
-# page's own canonical and noindex rules do the work instead.
+# /package/ is not disallowed, and every shape is answerable:
+#
+#   * /package/<key>/ serves the entry — the real pre-rendered page when the
+#     bounded set has one (listed at /package/entries/sitemap.xml), and the
+#     edge-served shell carrying the entry's own title, description, canonical,
+#     Open Graph tags and JSON-LD otherwise (worker/index.js). An unknown key
+#     is a real 404 here.
+#   * /package/<key> and /package/?slug=<key> serve the same shell; a known key
+#     declares /package/<key>/ as its canonical, and an unknown key is marked
+#     noindex in the served HTML.
+#
+# A blanket ban would hide the real pages, and blocking only the query form
+# would leave the thousands of entry links that use it "indexed, though
+# blocked" — so the page's own canonical and noindex rules do the work
+# instead.
 
 # Machine-readable release data and catalog shards, not pages.
 Disallow: /data/

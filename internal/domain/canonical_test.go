@@ -139,14 +139,41 @@ func TestComputeContentDigestTracksContent(t *testing.T) {
 	}
 }
 
-func TestInstallabilityZeroValueIsDiscoveryOnly(t *testing.T) {
+func TestInstallabilityRequiresWiredKindAndProvenance(t *testing.T) {
 	var zero Listing
 	if zero.IsInstallable() || zero.Installability.Effective() != InstallabilityDiscoveryOnly {
 		t.Fatal("zero-value installability must be discovery_only")
 	}
-	if !(&Listing{Installability: InstallabilityMetadataVerified}).IsInstallable() {
-		t.Fatal("metadata_verified must be installable")
+
+	// Both axes are required, and neither alone is enough.
+	if !(&Listing{Kind: KindMCP, Installability: InstallabilityMetadataVerified}).IsInstallable() {
+		t.Fatal("a metadata_verified mcp row must be installable")
 	}
+	if !(&Listing{Kind: KindSkill, Installability: InstallabilityRuntimeVerified}).IsInstallable() {
+		t.Fatal("a runtime_verified skill row must be installable")
+	}
+	if (&Listing{Kind: KindMCP, Installability: InstallabilityDiscoveryOnly}).IsInstallable() {
+		t.Fatal("a discovery_only mcp row must not be installable")
+	}
+	// A kind with no wired install path is never installable, however proven
+	// its metadata: 636 plugin rows are metadata_verified from vendor
+	// manifests and still have no fetcher, and an unknown kind fails closed
+	// with the same answer.
+	unwired := []ListingKind{KindPlugin, KindConnector, KindAgent, KindRule, KindHook, KindTool, KindLSP, ListingKind("bogus")}
+	for _, kind := range unwired {
+		if kind.InstallWired() {
+			t.Fatalf("kind %q must not report an install path", kind)
+		}
+		if (&Listing{Kind: kind, Installability: InstallabilityMetadataVerified}).IsInstallable() {
+			t.Fatalf("kind %q must never be installable: no install path is wired for it", kind)
+		}
+	}
+	for _, kind := range []ListingKind{KindSkill, KindMCP} {
+		if !kind.InstallWired() {
+			t.Fatalf("kind %q has an install path and must report one", kind)
+		}
+	}
+
 	if Installability("bogus").Valid() {
 		t.Fatal("unknown installability reported valid")
 	}

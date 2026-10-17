@@ -142,7 +142,7 @@ export default function CoveragePage({ total, boards, boardTotals }: TrendingVie
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Counts across the snapshot: entries per capability kind, agent host, category and
+          Every entry in the catalog, counted by capability kind, agent host, category and
           publisher.
         </p>
 

@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/sarv-projects/litespm/internal/artifact"
 	"github.com/sarv-projects/litespm/internal/domain"
 )
 
@@ -721,6 +723,277 @@ func TestVersionlessCommandlessVerifiedSkillRow(t *testing.T) {
 	if !strings.Contains(component.ID, "@discovery#") {
 		t.Errorf("component id %q lacks the discovery version marker", component.ID)
 	}
+}
+
+// artifactPluginRow builds a valid plugin dataset row carrying one descriptor
+// object (or `null`). Plugin rows are where the producer transcribes the
+// vendor manifest's own `source` since the 2026-10-17 change.
+func artifactPluginRow(artifact string) string {
+	return `[{
+		"id": "plugin:example:demo-plugin",
+		"kind": "plugin",
+		"name": "demo-plugin",
+		"slug": "example-demo-plugin",
+		"summary": "s",
+		"category": "Plugins & Toolkits",
+		"publisher": {"name": "example", "url": "https://github.com/example/plugins"},
+		"installability": "metadata_verified",
+		"artifact": ` + artifact + `
+	}]`
+}
+
+const artifactSHA = "0123456789abcdef0123456789abcdef01234567"
+
+// TestParseDatasetRejectsInconsistentArtifactDescriptors pins the fail-closed
+// artifact validation: a descriptor whose claims cannot all be true is
+// producer/domain drift, and a release must not be built from it.
+func TestParseDatasetRejectsInconsistentArtifactDescriptors(t *testing.T) {
+	cases := []struct {
+		name    string
+		dataset string
+		want    string
+	}{
+		{
+			"unknown descriptor type",
+			artifactPluginRow(`{"type":"tarball","declaredAs":"url","repo":"https://github.com/acme/plug","pinned":false}`),
+			"unknown artifact type",
+		},
+		{
+			"git-tree without a repository",
+			artifactPluginRow(`{"type":"git-tree","declaredAs":"url","sha":"` + artifactSHA + `","pinned":true}`),
+			"must name the repository",
+		},
+		{
+			"local-dir without a directory",
+			artifactPluginRow(`{"type":"local-dir","declaredAs":"local","repo":"https://github.com/acme/plug","pinned":false}`),
+			"must name the directory",
+		},
+		{
+			"local-dir without a repository",
+			artifactPluginRow(`{"type":"local-dir","declaredAs":"local","path":"./plugins/x","pinned":false}`),
+			"must name the repository",
+		},
+		{
+			"pinned with a short sha",
+			artifactPluginRow(`{"type":"git-tree","declaredAs":"url","repo":"https://github.com/acme/plug","sha":"abc1234","pinned":true}`),
+			"full 40-hex",
+		},
+		{
+			"pinned with no sha at all",
+			artifactPluginRow(`{"type":"git-tree","declaredAs":"url","repo":"https://github.com/acme/plug","pinned":true}`),
+			"full 40-hex",
+		},
+		{
+			"pinned with an uppercase sha (the bar is lowercase)",
+			artifactPluginRow(`{"type":"git-tree","declaredAs":"url","repo":"https://github.com/acme/plug","sha":"` + strings.Repeat("A", 40) + `","pinned":true}`),
+			"full 40-hex",
+		},
+		{
+			"a local directory cannot be pinned to a commit",
+			artifactPluginRow(`{"type":"local-dir","declaredAs":"local","repo":"https://github.com/acme/plug","path":"./plugins/x","sha":"` + artifactSHA + `","pinned":true}`),
+			"only a git tree can be pinned",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseDataset([]byte(tc.dataset))
+			if err == nil {
+				t.Fatal("expected an error, got none")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error %q does not contain %q", err.Error(), tc.want)
+			}
+		})
+	}
+}
+
+// TestArtifactDescriptorBecomesOneArtifactRef pins the mapping field by field
+// for every shape the seven manifests publish, including the two rules that
+// keep the mapping honest: a mutable `ref` never lands in ImmutableRef, and a
+// non-40-hex sha is transcribed as unpinned rather than silently upgraded.
+func TestArtifactDescriptorBecomesOneArtifactRef(t *testing.T) {
+	cases := []struct {
+		name     string
+		artifact string
+		want     domain.ArtifactRef
+	}{
+		{
+			"pinned git-tree",
+			`{"type":"git-tree","declaredAs":"url","repo":"https://github.com/acme/plug.git","sha":"` + artifactSHA + `","pinned":true}`,
+			domain.ArtifactRef{
+				ArtifactID:   "art_plugin_example_demo-plugin",
+				Type:         domain.ArtifactGitTree,
+				Locator:      "https://github.com/acme/plug.git",
+				ImmutableRef: artifactSHA,
+				FetchPolicy:  domain.FetchImmutable,
+			},
+		},
+		{
+			"unpinned git-tree: ref and path carried, ref never an immutableRef",
+			`{"type":"git-tree","declaredAs":"git-subdir","repo":"https://github.com/acme/mono.git","path":"plugins/demo","ref":"v1.2.3","pinned":false}`,
+			domain.ArtifactRef{
+				ArtifactID:  "art_plugin_example_demo-plugin",
+				Type:        domain.ArtifactGitTree,
+				Locator:     "https://github.com/acme/mono.git",
+				Subpath:     "plugins/demo",
+				FetchPolicy: domain.FetchHeadRef,
+			},
+		},
+		{
+			"local-dir: manifest spelling kept without the ./ prefix, local-only",
+			`{"type":"local-dir","declaredAs":"relative-path","repo":"https://github.com/anthropics/skills","path":"./plugins/demo","pinned":false}`,
+			domain.ArtifactRef{
+				ArtifactID:  "art_plugin_example_demo-plugin",
+				Type:        domain.ArtifactLocalDir,
+				Locator:     "https://github.com/anthropics/skills",
+				Subpath:     "plugins/demo",
+				FetchPolicy: domain.FetchLocalOnly,
+			},
+		},
+		{
+			"short sha is transcribed verbatim and stays unpinned",
+			`{"type":"git-tree","declaredAs":"url","repo":"https://github.com/acme/plug","sha":"abc1234","pinned":false}`,
+			domain.ArtifactRef{
+				ArtifactID:  "art_plugin_example_demo-plugin",
+				Type:        domain.ArtifactGitTree,
+				Locator:     "https://github.com/acme/plug",
+				FetchPolicy: domain.FetchHeadRef,
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, err := ParseDataset([]byte(artifactPluginRow(tc.artifact)))
+			if err != nil {
+				t.Fatalf("descriptor rejected: %v", err)
+			}
+			_, versions, err := ConvertDataset(rows, "rel-1", "snap-1", time.Now().UTC())
+			if err != nil {
+				t.Fatalf("ConvertDataset: %v", err)
+			}
+			refs := versions[0].Artifacts
+			if len(refs) != 1 {
+				t.Fatalf("artifacts = %+v, want exactly one", refs)
+			}
+			if !reflect.DeepEqual(refs[0], tc.want) {
+				t.Errorf("artifact = %+v\nwant        %+v", refs[0], tc.want)
+			}
+		})
+	}
+}
+
+// TestPluginRowWithoutDescriptorKeepsEmptyArtifacts: absence is the honest
+// answer, and the array stays non-nil so the emitted JSON satisfies
+// schemas/version.schema.json.
+func TestPluginRowWithoutDescriptorKeepsEmptyArtifacts(t *testing.T) {
+	rows, err := ParseDataset([]byte(artifactPluginRow(`null`)))
+	if err != nil {
+		t.Fatalf("descriptor-less plugin row rejected: %v", err)
+	}
+	if rows[0].Artifact != nil {
+		t.Fatalf("artifact = %+v, want nil", rows[0].Artifact)
+	}
+	_, versions, err := ConvertDataset(rows, "rel-1", "snap-1", time.Now().UTC())
+	if err != nil {
+		t.Fatalf("ConvertDataset: %v", err)
+	}
+	if versions[0].Artifacts == nil || len(versions[0].Artifacts) != 0 {
+		t.Fatalf("artifacts = %#v, want an empty non-nil array", versions[0].Artifacts)
+	}
+}
+
+// TestRealCatalogPluginArtifactsMapAndRemainUnfetchable runs the committed
+// dataset through the same validation a release build performs and pins the
+// plugin half of LPSM-D003: every transcribed descriptor becomes exactly one
+// ArtifactRef, its pinning is carried faithfully, and NONE of them can be
+// fetched by the only wired fetcher (HTTPArchiveFetcher supports archive/mcpb
+// over HTTPS only) -- which is why every plugin install still fails closed
+// with LPSM-ARTIFACT-UNAVAILABLE.
+func TestRealCatalogPluginArtifactsMapAndRemainUnfetchable(t *testing.T) {
+	datasetPath := filepath.Join("..", "..", "web", "data", "catalog.json")
+	raw, err := os.ReadFile(datasetPath)
+	if err != nil {
+		t.Fatalf("read committed dataset %s: %v", datasetPath, err)
+	}
+	rows, err := ParseDataset(raw)
+	if err != nil {
+		t.Fatalf("committed dataset rejected: %v", err)
+	}
+
+	var fetcher artifact.HTTPArchiveFetcher
+	pluginRows := 0
+	withDescriptor := 0
+	pinned := 0
+	byType := map[domain.ArtifactType]int{}
+	for i, row := range rows {
+		if row.Kind != "plugin" {
+			continue
+		}
+		pluginRows++
+		if row.Artifact == nil {
+			continue
+		}
+		withDescriptor++
+		a := row.Artifact
+		// The producer's pinning convention, checked on real data: pinned is
+		// exactly "the sha clears the 40-hex lowercase bar". ParseDataset
+		// enforces the forward direction; the reverse is a producer rule, and
+		// this is where a regression in it shows up.
+		if got := sha40.MatchString(a.SHA); got != a.Pinned {
+			t.Errorf("row %d (%s): pinned=%v but sha %q clears the bar: %v", i, row.ID, a.Pinned, a.SHA, got)
+		}
+
+		refs := artifactRefsFor(row)
+		if len(refs) != 1 {
+			t.Fatalf("row %d (%s): artifacts = %+v, want exactly one per descriptor", i, row.ID, refs)
+		}
+		ref := refs[0]
+		byType[ref.Type]++
+		switch ref.Type {
+		case domain.ArtifactGitTree:
+			if ref.Locator == "" {
+				t.Errorf("row %d (%s): git-tree artifact has no locator", i, row.ID)
+			}
+			if a.Pinned {
+				pinned++
+				if ref.ImmutableRef != a.SHA || ref.FetchPolicy != domain.FetchImmutable {
+					t.Errorf("row %d (%s): pinned descriptor mapped to %+v", i, row.ID, ref)
+				}
+			} else if ref.ImmutableRef != "" || ref.FetchPolicy != domain.FetchHeadRef {
+				t.Errorf("row %d (%s): unpinned descriptor mapped to %+v", i, row.ID, ref)
+			}
+		case domain.ArtifactLocalDir:
+			if ref.Locator == "" {
+				t.Errorf("row %d (%s): local-dir artifact has no locator", i, row.ID)
+			}
+			// Subpath is the manifest's own spelling minus a leading "./". An
+			// entry at the repository root (the five askills rows spell it
+			// "./") legitimately trims to "" — that is "the repo root", not a
+			// missing value.
+			if want := strings.TrimPrefix(strings.TrimSpace(a.Path), "./"); ref.Subpath != want {
+				t.Errorf("row %d (%s): local-dir subpath %q, want the manifest's path %q", i, row.ID, ref.Subpath, want)
+			}
+			if ref.FetchPolicy != domain.FetchLocalOnly || ref.ImmutableRef != "" {
+				t.Errorf("row %d (%s): local-dir descriptor mapped to %+v", i, row.ID, ref)
+			}
+		default:
+			t.Errorf("row %d (%s): descriptor type %q outside the producer's vocabulary", i, row.ID, ref.Type)
+		}
+		if ref.Digest != "" || ref.Size != 0 || ref.MediaType != "" {
+			t.Errorf("row %d (%s): digest/size/media type were invented: %+v", i, row.ID, ref)
+		}
+		if fetcher.Supports(ref) {
+			t.Errorf("row %d (%s): the wired archive fetcher claims to support %+v; plugin installs must stay unfetchable",
+				i, row.ID, ref)
+		}
+	}
+
+	if pluginRows == 0 || withDescriptor == 0 {
+		t.Fatalf("no plugin descriptor found in %s: plugin rows=%d, with descriptor=%d; the producer stopped carrying them",
+			datasetPath, pluginRows, withDescriptor)
+	}
+	t.Logf("plugin rows: %d, with descriptor: %d, pinned: %d, by type: %v",
+		pluginRows, withDescriptor, pinned, byType)
 }
 
 func sortedOutputKeys(b *BuildOutput) []string {

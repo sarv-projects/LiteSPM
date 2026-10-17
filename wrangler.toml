@@ -11,11 +11,29 @@
 # updated in one change. The legacy `litepsm` Worker still serves the same
 # frozen release; retire it once nothing points at it.
 name = "litespm"
-compatibility_date = "2024-09-23"
+# Bumped from 2024-09-23 when the entry-shell Worker was added: `run_worker_first`
+# routes `/package/*` to the Worker ahead of the asset server, and the Worker
+# needs the current asset-routing semantics. Nothing else about the runtime
+# changed — the Worker uses `env.ASSETS.fetch` and `HTMLRewriter` only.
+compatibility_date = "2026-09-01"
+
+# The edge half of `/package/`: one small Worker that serves the shipped shell
+# with each entry's own title, description, canonical, Open Graph tags, JSON-LD
+# and no-JS identity block. It exists because a page per entry is 138,752 files
+# against the 20,000-file free-plan limit (see worker/index.js). It adds no
+# static file and changes no URL shape.
+main = "worker/index.js"
 
 # Cloudflare Workers Static Assets. `pages_build_output_dir` was removed: it is
 # a Pages-only field, and its presence made `wrangler deploy` warn that this was
 # a "Pages project" on every build. This deployment is a Worker.
 [assets]
 directory = "./pages-dist"
+binding = "ASSETS"
 not_found_handling = "404-page"
+# Only entry-page requests invoke the Worker; every other path — including the
+# whole static site — is still served by the asset server with no invocation.
+# `scripts/deploy-pages.sh` no longer writes the old `/package/:slug` proxy
+# rule: the Worker owns every `/package/*` shape, and the rule (applied before
+# assets) used to swallow the route's own `/package/index.txt` RSC payload.
+run_worker_first = ["/package/*"]

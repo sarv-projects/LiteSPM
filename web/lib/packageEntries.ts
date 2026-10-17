@@ -6,7 +6,11 @@
 // its RSC payload) — past Cloudflare Pages' 20,000-file free-plan limit and
 // ~2 GB of HTML inside the same 20-minute build. So the build pre-renders a
 // bounded, chosen set at `/package/<key>/` and everything outside it keeps
-// working through the existing client path.
+// working through the existing client path — with the entry's own title,
+// description, canonical, Open Graph tags and JSON-LD injected into the shell
+// by the edge Worker (`worker/index.js`), so no key is left with the generic
+// document. This module still owns which keys get the strongest, fully
+// pre-rendered page; the Worker covers the rest.
 //
 // The rule, in order:
 //

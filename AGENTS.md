@@ -58,7 +58,7 @@ marked `metadata.internal: true` is hidden and refused unless `INSTALL_INTERNAL_
 | **OpenAI Codex** | Terminal CLI (`codex`) | TOML (`config.toml`) | `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`; Windows `%USERPROFILE%\.codex\config.toml`) — the adapter **does** honour `$CODEX_HOME`. Project `.codex/config.toml` is host-documented but not scanned; `%APPDATA%\Codex\config.toml` was **removed** as a fallback (`internal/host/codex.go`) |
 | **OpenCode** | Open-source CLI (`opencode`) | JSON (`opencode.jsonc` preferred, else `opencode.json`) | `$OPENCODE_CONFIG_DIR/{opencode.jsonc,opencode.json}` when set, else `$XDG_CONFIG_HOME/opencode/` (default `~/.config/opencode/`), `.jsonc` first — on every OS, because OpenCode resolves the directory through xdg-basedir. Project scope and `%APPDATA%\OpenCode\opencode.json` are **not** read by any release and are no longer probed. One layout only: servers are direct members of `mcp` (`internal/host/opencode.go`) |
 
-> Six bespoke adapters above. The full registry is 50 bridge targets (6 bespoke + 44 generic `BridgeTarget` rows) plus 81 skill targets — the 77 transcribed rows plus the `universal`/`warp`/`grok`/`pi` ids appended 2026-10-14; the generated `web/data/skill-targets.json` still lists the old 77 until the generator is re-run — see `ARCH/30-DATA-DRIVEN-BRIDGE-TARGETS.md` and `litespm host list`.
+> Six bespoke adapters above. The full registry is 50 bridge targets (6 bespoke + 44 generic `BridgeTarget` rows) plus 81 skill targets — the 77 transcribed rows plus the `universal`/`warp`/`grok`/`pi` ids appended 2026-10-14; the generated `web/data/skill-targets.json` now lists all 81 — see `ARCH/30-DATA-DRIVEN-BRIDGE-TARGETS.md` and `litespm host list`.
 
 ---
 
