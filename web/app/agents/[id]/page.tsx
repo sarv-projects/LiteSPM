@@ -1,7 +1,7 @@
 import catalogData from "../../../data/catalog.json";
 import type { Listing } from "../../../lib/telemetry";
-import { matchesHost } from "../../../lib/catalog";
-import { HOSTS, SKILL_TARGETS, bridgeSnippet, hostPath } from "../../../lib/hosts";
+import { hostEntryCount, hostIdentity } from "../../../lib/hostIdentity";
+import { HOSTS, bridgeSnippet, hostPath } from "../../../lib/hosts";
 import { hostNote } from "../../../lib/hostNotes";
 import { vendorName } from "../../../lib/vendorNames";
 import { discontinuedNotice } from "../../../lib/lifecycle";
@@ -143,11 +143,13 @@ export default async function AgentDetailPage({
   // other hosts people actually search for; every other host gets the plain
   // description of what we can honestly say about it, rather than invented copy.
   const note = hostNote(host.id);
-  const skillsSupported = SKILL_TARGETS.some((t) => t.id === host.id);
+  const skillsSupported = Boolean(hostIdentity(host.id)?.skill);
 
-  // Counted with the same key Explore's host filter matches on (`host.name`),
-  // so the number here is the number the Explore link below it reports.
-  const count = items.filter((item) => matchesHost(item, host.name)).length;
+  // Counted with the same rule Explore's host filter uses (`lib/hostIdentity`):
+  // every row that names this host through any of its catalog spellings,
+  // counted once per row. The figure here, the figure on the host's `/agents/`
+  // row and the figure its Explore link opens are one measurement.
+  const count = hostEntryCount(items, host.id);
 
   // `bridgeSnippet` leads with the target path as a comment line. The file
   // card already shows that path as its heading, so the card body is the
@@ -163,10 +165,10 @@ export default async function AgentDetailPage({
   const props: AgentDetailViewProps = {
     id: host.id,
     // Display name: the vendor's own spelling when the registry row disagrees
-    // (Auggie CLI, Xum, Kimchi Coding, …). Counting below deliberately keeps
-    // `host.name` — that string is what Explore's host filter matches on, so
-    // changing it here would make the headline number disagree with the link
-    // under it.
+    // (Auggie CLI, Xum, Kimchi Coding, …). It is also the host's canonical
+    // Explore filter value: the filter resolves every spelling of a host to
+    // one identity (`lib/hostIdentity`), so the link under the count opens
+    // exactly the count above it whichever spelling is on screen.
     name: vendorName(host.id, host.name),
     registryName: host.name,
     interfaceLabel: note?.interface ?? "Agent host",

@@ -5,11 +5,11 @@ import { ExternalLink } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
 import { kindLabel } from "../../lib/catalog";
-import { bridgeSnippet, hostPath, hostsFor, resolveHost } from "../../lib/hosts";
+import { bridgeSnippet, hostPath } from "../../lib/hosts";
+import { hostsNamedBy, resolveHostId } from "../../lib/hostIdentity";
 import { formatCount } from "../../lib/format";
 import { VerifiedMark } from "../catalog/PublisherMark";
 import { TabList } from "../ui/TabList";
-import { SITE_URL } from "../../lib/site";
 import { CopyButton } from "./CopyButton";
 import { usePlatformOs } from "./usePlatformOs";
 import bundledRelease from "../../data/release.json";
@@ -50,12 +50,12 @@ const INSTALLABILITY: Record<
   discovery_only: {
     label: "Discovery only",
     plain:
-      "LiteSPM found this entry in a source list. Whether it installs, and what it would run, has not been checked.",
+      "No install path has been proven — LiteSPM lists it, but won't install it.",
   },
   metadata_verified: {
     label: "LiteSPM-parsed",
     plain:
-      "LiteSPM read this entry's metadata out of the publisher's own manifest — hosts and install command included — but has not run it.",
+      "LiteSPM opened this entry's own published metadata — but hasn't run it.",
   },
   runtime_verified: {
     label: "LiteSPM-verified",
@@ -71,18 +71,16 @@ const INSTALLABILITY: Record<
 const HOST_SOURCE: Record<Listing["kind"], { label: string; plain: string }> = {
   mcp: {
     label: "By entry type",
-    plain:
-      "Every host LiteSPM can set up. The list comes from LiteSPM itself, not from the publisher, and not from a test.",
+    plain: "Every host LiteSPM can set up. This list is LiteSPM's own, not the publisher's.",
   },
   skill: {
     label: "By entry type",
     plain:
-      "Every host with a skills directory LiteSPM can write a SKILL.md into. The list comes from LiteSPM itself, not from the publisher, and not from a test.",
+      "Every host LiteSPM can install skills into. This list is LiteSPM's own, not the publisher's.",
   },
   plugin: {
     label: "Publisher-declared",
-    plain:
-      "The publisher listed these hosts in its own manifest — a declaration, not a LiteSPM test result.",
+    plain: "Hosts the publisher declared in its own manifest.",
   },
 };
 
@@ -108,15 +106,11 @@ function externalLink(href: string, text: string) {
   );
 }
 
-function sourceLabel(item: Listing): string {
-  return item.publisher?.provenance === "vendor-manifest"
-    ? "read from the publisher's own repository manifest"
-    : "claimed by a third-party list, not read from the publisher's own manifest";
-}
-
-/** The same fact as a sentence, for the two panels that print it as one. */
+/** Where this listing came from, for the panels that print it as a line. */
 function sourceSentence(item: Listing): string {
-  return `This row was ${sourceLabel(item)}.`;
+  return item.publisher?.provenance === "vendor-manifest"
+    ? "Read from the publisher's own manifest."
+    : "From a third-party list, not the publisher's own manifest.";
 }
 
 /* ------------------------------ panels ------------------------------ */
@@ -176,14 +170,6 @@ function OverviewPanel({ item }: { item: Listing }) {
             )}
           </SpecRow>
         )}
-        <SpecRow label="Popularity">
-          <span
-            className="absent"
-            title="No source publishes star, download or install counts for this entry."
-          >
-            not published
-          </span>
-        </SpecRow>
       </dl>
     </div>
   );
@@ -199,22 +185,18 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
       <div>
         <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
           {item.kind === "mcp" && (
-            <>
-              The catalog doesn&rsquo;t list this server&rsquo;s tools. Your agent discovers them
-              when it connects.
-            </>
+            <>Your agent discovers this server&rsquo;s tools when it connects.</>
           )}
           {item.kind === "skill" && (
             <>
-              This skill&rsquo;s instructions live in its SKILL.md — the file your agent reads. The
-              catalog indexes the skill and its source; it carries no tool list.
+              This skill&rsquo;s instructions live in its SKILL.md — the file your agent reads. No
+              tool list is published for it.
             </>
           )}
           {item.kind === "plugin" && (
             <>
-              The host installs this plugin and its components. What it adds shows up in your agent
-              afterwards; the catalog carries the publisher&rsquo;s description and host list, not
-              the plugin&rsquo;s internals.
+              Your agent host installs this plugin and its components; what it adds shows up
+              afterwards.
             </>
           )}
         </p>
@@ -273,9 +255,15 @@ function CompatibilityPanel({
   agent: AgentChoice | null;
   hostTotal: number;
 }) {
-  const hosts = hostsFor(item);
+  const hosts = hostsNamedBy(item);
   const source = HOST_SOURCE[item.kind];
-  const wanted = (agent?.hosts ?? []).map((n) => n.toLowerCase());
+  // One entry per host identity: a skill row names the Pi host through two of
+  // its strings, and this list (and the count beside it) says one host.
+  const wanted = new Set(
+    (agent?.hosts ?? [])
+      .map((name) => resolveHostId(name))
+      .filter((id): id is string => id !== null)
+  );
   /* The select used to preselect whichever host sorted first in the registry
      and change nothing else — a control whose state nothing read, and an
      invitation to read that first host as "the" host for this entry. It now
@@ -284,8 +272,8 @@ function CompatibilityPanel({
      `item` changes; `chosen` re-derives it, so there is no effect and no
      hook-order hazard. */
   const [selected, setSelected] = useState<string>("");
-  const chosen = hosts.includes(selected) ? selected : "";
-  const adapter = chosen ? resolveHost(chosen) : undefined;
+  const chosen = hosts.find((h) => h.value === selected) ?? null;
+  const adapter = chosen?.adapter;
   const platformOs = usePlatformOs();
 
   return (
@@ -304,18 +292,18 @@ function CompatibilityPanel({
           {/* The agent the visitor already chose, surfaced on its own line. It
               used to be one highlighted chip among fifty, which is why the page
               read as though only that agent worked. */}
-          {wanted.length > 0 && (
+          {wanted.size > 0 && (
             <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-3">
               Works with
               {hosts
-                .filter((h) => wanted.includes(h.toLowerCase()))
+                .filter((h) => wanted.has(h.value))
                 .map((h) => (
                   <span
-                    key={h}
+                    key={h.value}
                     className="inline-flex min-h-[24px] items-center rounded-chip border border-accent/40 bg-accent-wash px-2 py-0.5 text-[12px] text-accent-text"
                     title={`Matches the agent you selected. ${source.plain}`}
                   >
-                    {h}
+                    {h.name}
                   </span>
                 ))}
             </p>
@@ -324,14 +312,14 @@ function CompatibilityPanel({
           <label className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-ink-2">
             Show setup for
             <select
-              value={chosen}
+              value={chosen?.value ?? ""}
               onChange={(e) => setSelected(e.target.value)}
               className="field max-w-full"
             >
               <option value="">Choose a host…</option>
               {hosts.map((h) => (
-                <option key={h} value={h}>
-                  {h}
+                <option key={h.value} value={h.value}>
+                  {h.name}
                 </option>
               ))}
             </select>
@@ -341,7 +329,7 @@ function CompatibilityPanel({
             <div className="mt-3 border border-rule-2 bg-sunken px-3 py-3">
               <p className="flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
                 <span className="inline-flex min-h-[24px] items-center rounded-chip border border-accent bg-accent-wash px-2 py-0.5 text-[12px] font-medium text-accent-text">
-                  {chosen}
+                  {chosen.name}
                 </span>
                 {adapter
                   ? "LiteSPM's bridge entry goes in this file:"
@@ -356,7 +344,7 @@ function CompatibilityPanel({
                     </code>
                     <CopyButton
                       text={hostPath(adapter, platformOs)}
-                      label={`Copy the config path for ${chosen}`}
+                      label={`Copy the config path for ${chosen.name}`}
                       message="Config path copied"
                     />
                   </div>
@@ -364,9 +352,8 @@ function CompatibilityPanel({
                     {bridgeSnippet(adapter, "litespm", platformOs)}
                   </pre>
                   <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-ink-3">
-                    This is LiteSPM&rsquo;s own bridge entry — the same on every catalog page. It
-                    connects {chosen} to LiteSPM; the entry itself doesn&rsquo;t change when you
-                    install a capability.
+                    LiteSPM&rsquo;s bridge entry connects {chosen.name} to LiteSPM — installing a
+                    capability doesn&rsquo;t change it.
                   </p>
                 </>
               )}
@@ -375,8 +362,7 @@ function CompatibilityPanel({
         </div>
       ) : (
         <p className="mt-4 text-[13px] text-ink-3">
-          No compatible hosts are listed for this entry — nobody has declared support, which is
-          not the same as it failing anywhere.
+          Nobody has declared support for this entry — that is not a report that it fails.
         </p>
       )}
     </div>
@@ -389,23 +375,12 @@ function SecurityPanel({ item }: { item: Listing }) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <div className="border-t border-rule pt-3">
-        <h3 className="text-[14px] font-semibold tracking-tight text-ink">What LiteSPM checked</h3>
+        <h3 className="text-[14px] font-semibold tracking-tight text-ink">What LiteSPM has read</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="chip pointer-events-none">{installability ? installability.label : "—"}</span>
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
           {installability ? installability.plain : "This entry doesn't publish a provenance level."}
-        </p>
-        {/* Two different questions share the words "Discovery only", and only
-            this sentence separates them: the chip above grades how much
-            metadata was *read*, while the badge at the top of the page answers
-            whether `litespm install` will actually run — which also weighs the
-            entry's kind. A plugin can be `metadata_verified` (LiteSPM-parsed)
-            and still be not installable, which is exactly the pair a reader
-            would otherwise read as a contradiction. */}
-        <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
-          How much of the entry LiteSPM has read — not whether an install will run. The badge at
-          the top of the page answers that one.
         </p>
       </div>
 
@@ -415,19 +390,17 @@ function SecurityPanel({ item }: { item: Listing }) {
           {item.publisher?.verified ? <VerifiedMark /> : <span className="chip pointer-events-none">third-party list entry</span>}
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
-          &ldquo;From publisher manifest&rdquo; means the row came from that publisher&rsquo;s own
-          marketplace manifest. That is where the data is from — LiteSPM has not audited the
-          publisher.
+          {item.publisher?.verified
+            ? "Read from the publisher's own manifest. LiteSPM has not audited the publisher."
+            : "Claimed by a third-party list. LiteSPM has not audited the publisher."}
         </p>
       </div>
 
       <div className="border-t border-rule pt-3">
-        <h3 className="text-[14px] font-semibold tracking-tight text-ink">What it can touch</h3>
+        <h3 className="text-[14px] font-semibold tracking-tight text-ink">What LiteSPM changes</h3>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
-          The catalog has no per-entry access declaration yet, so no file, network or credential
-          scope is listed. One guarantee does hold: a host config file is backed up before LiteSPM
-          edits it, and <code className="t-mono text-ink">litespm restore</code> puts the original
-          back.
+          A host config file is backed up before LiteSPM edits it, and{" "}
+          <code className="t-mono text-ink">litespm restore</code> puts the original back.
         </p>
       </div>
 
@@ -473,10 +446,9 @@ function VersionsPanel({
               <Absent text="not published" />
             </p>
             <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-              The source publishes no version for this entry, and this page won&rsquo;t invent one.{" "}
+              No version is published for this entry.{" "}
               <span className="t-mono t-tabular">{formatCount(versioned)}</span> of{" "}
-              <span className="t-mono t-tabular">{formatCount(total)}</span> entries in this snapshot
-              carry a version.
+              <span className="t-mono t-tabular">{formatCount(total)}</span> entries carry one.
             </p>
           </>
         )}
@@ -484,7 +456,7 @@ function VersionsPanel({
 
       <div>
         <div className="section-head">
-          <h3 className="text-[13px] font-semibold tracking-tight text-ink">This snapshot</h3>
+          <h3 className="text-[13px] font-semibold tracking-tight text-ink">Catalog release</h3>
         </div>
         <dl className="spec-list mt-3">
           <SpecRow label="Release">
@@ -503,45 +475,25 @@ function VersionsPanel({
   );
 }
 
-function SourcePanel({ item, pageHref }: { item: Listing; pageHref: string }) {
-  const canonical = `${SITE_URL}${pageHref}`;
-
+function SourcePanel({ item }: { item: Listing }) {
   return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div>
-        <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Where this record came from, and where to go upstream.
-        </p>
-        <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
-          {sourceSentence(item)}
-        </p>
-      </div>
-
-      <dl className="spec-list">
-        <SpecRow label="Publisher URL">
-          {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
-            externalLink(item.publisher.url, item.publisher.url)
-          ) : (
-            <Absent text="not published" />
-          )}
-        </SpecRow>
-        <SpecRow label="Skill source">
-          {item.skillSource ? (
-            externalLink(item.skillSource, item.skillSource)
-          ) : (
-            <Absent text="not published" />
-          )}
-        </SpecRow>
-        <SpecRow label="Where it was read">
-          {item.publisher?.provenance === "vendor-manifest"
-            ? "From the publisher's own manifest"
-            : "From a third-party list"}
-        </SpecRow>
-        <SpecRow label="This page">
-          <span className="t-mono break-all text-[12px]!">{canonical}</span>
-        </SpecRow>
-      </dl>
-    </div>
+    <dl className="spec-list max-w-xl">
+      <SpecRow label="Where it was read">{sourceSentence(item)}</SpecRow>
+      <SpecRow label="Publisher URL">
+        {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
+          externalLink(item.publisher.url, item.publisher.url)
+        ) : (
+          <Absent text="not published" />
+        )}
+      </SpecRow>
+      <SpecRow label="Skill source">
+        {item.skillSource ? (
+          externalLink(item.skillSource, item.skillSource)
+        ) : (
+          <Absent text="not published" />
+        )}
+      </SpecRow>
+    </dl>
   );
 }
 
@@ -551,18 +503,10 @@ export interface PackageTabsProps {
   item: Listing;
   /** The agent the reader picked; drives the highlighted compatibility chips. */
   agent: AgentChoice | null;
-  /** `hostUniverse(rows).length` — the coverage denominator. */
+  /** The catalog's host identities — the coverage denominator. */
   hostTotal: number;
   /** Version coverage over the loaded row set (rows are loaded on this route). */
   snapshot: { total: number; versioned: number };
-  /**
-   * The path this page is actually served at: `/package/<key>/` on a
-   * pre-rendered entry page, `/package/?slug=<key>` on the client-resolved
-   * one. The Source tab prints it as "This page", so it must be the address
-   * the reader is on — not the client form on a page whose canonical is the
-   * path form.
-   */
-  pageHref: string;
   /** Controlled so a question block above can jump to a tab — local state only. */
   active: PackageTabId;
   onChange: (id: PackageTabId) => void;
@@ -575,7 +519,7 @@ export interface PackageTabsProps {
  * link from the questions above can open a specific tab — switching never
  * fetches anything (the row is already in memory).
  */
-export function PackageTabs({ item, agent, hostTotal, snapshot, pageHref, active, onChange }: PackageTabsProps) {
+export function PackageTabs({ item, agent, hostTotal, snapshot, active, onChange }: PackageTabsProps) {
   const renderPanel = (tab: PackageTabId): React.ReactNode => {
     switch (tab) {
       case "overview":
@@ -589,7 +533,7 @@ export function PackageTabs({ item, agent, hostTotal, snapshot, pageHref, active
       case "versions":
         return <VersionsPanel item={item} total={snapshot.total} versioned={snapshot.versioned} />;
       case "source":
-        return <SourcePanel item={item} pageHref={pageHref} />;
+        return <SourcePanel item={item} />;
     }
   };
 
@@ -597,7 +541,7 @@ export function PackageTabs({ item, agent, hostTotal, snapshot, pageHref, active
     <section aria-labelledby="pkg-details-title" className="mt-9">
       <div className="section-head">
         <h2 id="pkg-details-title">Details</h2>
-        <span className="section-note">the full record</span>
+        <span className="section-note">the full listing</span>
       </div>
 
       <TabList

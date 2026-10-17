@@ -1,7 +1,7 @@
 import React from "react";
 import type { Listing } from "../../lib/telemetry";
 import { availabilityOf } from "../../lib/availability";
-import { hostsFor } from "../../lib/hosts";
+import { hostsNamedBy } from "../../lib/hostIdentity";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 import type { PackageTabId } from "./PackageTabs";
 import { Absent } from "./Absent";
@@ -31,11 +31,11 @@ import { Absent } from "./Absent";
  *
  * Each row's "details" link opens the matching technical tab when scripting is
  * on, and falls back to the Details anchor when it is not, so the exact field
- * (transport, version, source, commands, digests) is always one click away.
+ * (transport, version, source, commands) is always one click away.
  */
 export interface PlainSummaryProps {
   item: Listing;
-  /** `hostUniverse(rows).length` — the coverage denominator, for context. */
+  /** The catalog's host universe — the coverage denominator, for context. */
   hostTotal: number;
   /** Opens a technical tab. Without it the link still jumps to Details. */
   onOpenTab?: (tab: PackageTabId) => void;
@@ -72,7 +72,10 @@ function Fact({
 
 export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) {
   const avail = availabilityOf(item);
-  const hosts = hostsFor(item);
+  // One entry per host identity (`lib/hostIdentity`): the two catalog strings
+  // that name the Pi host are one compatible host, and `hostTotal` counts the
+  // same identities, so "N of M" is one rule on both sides of the fraction.
+  const hosts = hostsNamedBy(item);
 
   const detailLink = (tab: PackageTabId, text: string) => (
     <a
@@ -97,7 +100,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
     <section id="pkg-plain" aria-labelledby="pkg-plain-title" className="mt-8">
       <div className="section-head">
         <h2 id="pkg-plain-title">The short version</h2>
-        <span className="section-note">the record, in plain words</span>
+        <span className="section-note">in plain words</span>
       </div>
 
       <dl className="mt-3 grid gap-x-10 gap-y-4 border-b border-rule pb-4 md:grid-cols-2">
@@ -113,8 +116,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
             item.summary.trim()
           ) : (
             <>
-              <Absent /> — the publisher&rsquo;s description is not in this record, so this
-              page does not guess one.
+              <Absent /> — the publisher didn&rsquo;t provide a description.
             </>
           )}
         </Fact>
@@ -135,12 +137,12 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
                 publisher
               )}
               {item.publisher?.verified
-                ? " — read from the publisher's own manifest, not audited by LiteSPM."
-                : " — claimed by a third-party list, not read from the publisher's own manifest. Not audited by LiteSPM."}
+                ? " — from the publisher's own manifest. Not audited by LiteSPM."
+                : " — from a third-party list, not the publisher's own manifest. Not audited by LiteSPM."}
             </>
           ) : (
             <>
-              <Absent /> — this record does not name a publisher.
+              <Absent /> — this listing doesn&rsquo;t name a publisher.
             </>
           )}
         </Fact>
@@ -186,7 +188,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
             <span className="t-mono text-[12.5px]!">{item.version}</span>
           ) : (
             <>
-              <Absent /> — the source this row came from publishes no version for it.
+              <Absent /> — no version is published for this entry.
             </>
           )}
         </Fact>

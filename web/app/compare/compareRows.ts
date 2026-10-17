@@ -2,7 +2,7 @@
 // fact a registry in this repository states.
 //
 // The row set is the UNION of the two registries the site already publishes,
-// joined on registry id:
+// joined into host identities by `lib/hostIdentity.ts`:
 //
 //   * `web/data/hosts.json` — bridge adapters: hosts whose MCP configuration
 //     LiteSPM can write. Generated from the compiled-in Go adapter registry by
@@ -10,10 +10,13 @@
 //   * `web/data/skill-targets.json` — skill install targets: hosts with a
 //     documented skills directory. Generated from `internal/skills/agents.go`.
 //
-// Joined on `id`, not on a display name, because the id is the only key both
-// registries share and they legitimately spell a product differently: the
-// bridge row for Cline reads "Cline (VS Code Extension)" while its skill target
-// reads "Cline". Matching on names would either miss that join or invent one.
+// The join is the registry id, not a display name, because the id is the only
+// key both registries share and they legitimately spell a product differently:
+// the bridge row for Cline reads "Cline (VS Code Extension)" while its skill
+// target reads "Cline". Matching on names would either miss that join or
+// invent one. The reference installer's two alias ids ("pi", "grok") merge
+// into the adapter rows the alias table in `lib/hosts.ts` already names —
+// the same join `internal/host/registry.go` makes.
 //
 // Every value here comes from one of those two files. Nothing is inferred from
 // another column, no fact is carried over from a sibling row, and a host whose
@@ -28,10 +31,9 @@
 // reader has no use for and which must not appear on the page at all.
 
 import release from "../../data/release.json";
-import { HOSTS, SKILL_TARGETS } from "../../lib/hosts";
+import { HOST_IDENTITIES } from "../../lib/hostIdentity";
 import { ADAPTER_SOURCE } from "../../lib/adapterSources";
 import { hostNote } from "../../lib/hostNotes";
-import { vendorName } from "../../lib/vendorNames";
 
 /**
  * The hand-written adapters' source files live in `lib/adapterSources.ts`:
@@ -126,29 +128,25 @@ function docsFor(id: string, registryDocs?: string): Pick<CompareRow, "docs" | "
  * none of them can order anything here.
  */
 export function compareData(): CompareData {
-  const adapters = new Map(HOSTS.map((host) => [host.id, host]));
-  const skillTargets = new Map(SKILL_TARGETS.map((target) => [target.id, target]));
-  const ids = new Set<string>([...adapters.keys(), ...skillTargets.keys()]);
-
   const withAdapter: CompareRow[] = [];
   const skillsOnly: CompareRow[] = [];
 
-  for (const id of ids) {
-    const host = adapters.get(id);
-    const target = skillTargets.get(id);
-    // A row exists because at least one registry names the id; the loop reads
-    // both and lets whichever is present fill its own columns.
-    const name = host ? vendorName(host.id, host.name) : (target?.displayName ?? id);
+  for (const identity of HOST_IDENTITIES) {
+    const host = identity.adapter;
+    const target = identity.skill;
+    // One row per host identity: the skills registry's alias spellings
+    // ("Pi", "Grok") join the adapter rows they name rather than appearing as
+    // second hosts, and the id is the key both registries share.
     const row: CompareRow = {
-      id,
-      name,
+      id: identity.id,
+      name: identity.name,
       configurable: Boolean(host),
       configFile: host?.userPath || undefined,
       projectFile: host?.projectPath,
       skills: Boolean(target),
       skillsAtUser: Boolean(target?.hasGlobal),
       skillsShared: Boolean(target?.universal),
-      ...docsFor(id, host?.docsUrl),
+      ...docsFor(identity.id, host?.docsUrl),
       remote: Boolean(host?.remote),
     };
     (host ? withAdapter : skillsOnly).push(row);
@@ -173,7 +171,7 @@ export function compareData(): CompareData {
         rows: skillsOnly,
       },
     ],
-    hostCount: ids.size,
+    hostCount: HOST_IDENTITIES.length,
     setupCount: withAdapter.length,
     serverCount: SERVER_COUNT,
     skillCount: SKILL_COUNT,
@@ -187,7 +185,9 @@ export function compareData(): CompareData {
  * build rather than shipping a wrong evidence link.
  */
 export function assertAdapterSourcesMatchRegistry(): void {
-  const bespoke = HOSTS.filter((host) => !host.generic).map((host) => host.id).sort();
+  const bespoke = HOST_IDENTITIES.filter((identity) => identity.adapter && !identity.adapter.generic)
+    .map((identity) => identity.id)
+    .sort();
   const mapped = Object.keys(ADAPTER_SOURCE).sort();
   if (bespoke.join(",") !== mapped.join(",")) {
     throw new Error(

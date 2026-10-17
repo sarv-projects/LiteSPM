@@ -59,7 +59,7 @@ function KindMix({ facet }: { facet: GoalFacet }) {
 }
 
 export default function CategoriesPage({ total, categories, taxonomy }: CategoriesViewProps) {
-  const { facets, coverage } = taxonomy;
+  const { facets } = taxonomy;
   const goals = facets.filter((facet) => facet.id !== "other");
   const other = facets.find((facet) => facet.id === "other");
 
@@ -77,10 +77,8 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Two ways to browse: <strong className="font-medium text-ink">goals</strong> group entries
-          by what they help you do;{" "}
-          <strong className="font-medium text-ink">source categories</strong> are the labels the
-          sources themselves publish.
+          Goals group entries by what they help you do. Source categories are the labels the
+          catalog&rsquo;s sources use.
         </p>
 
         <h2 className="mt-8 band-title">Browse by goal</h2>
@@ -118,9 +116,8 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
             </li>
           ))}
 
-          {/* The remainder is shown as a card of its own, dashed and last: it
-              is a reported fact, not a goal, and hiding it would make the
-              coverage claim unverifiable. */}
+          {/* The remainder is shown as a card of its own, dashed and last: a
+              reported fact, not a goal. */}
           {other && other.count > 0 && (
             <li key="other">
               <DiscoveryCard
@@ -148,13 +145,6 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
           )}
         </ul>
 
-        <p className="mt-4 max-w-prose text-[12.5px] leading-relaxed text-ink-3">
-          Goals place{" "}
-          <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.mapped)}</span> of{" "}
-          <span className="t-mono t-tabular text-ink-2">{formatCount(total)}</span> entries (
-          {Math.round(coverage.coverage * 100)}%); the rest stay in Other.
-        </p>
-
         <div className="mt-10 border-b border-ink pb-2">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="band-title">Source categories</h2>
@@ -162,10 +152,6 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
               {formatCount(categories.length)} source labels
             </p>
           </div>
-          <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            The labels the sources themselves publish. A few name a language or a collection
-            rather than a domain.
-          </p>
         </div>
 
         {/* Column headers are a real table header, not an ALL-CAPS eyebrow. */}

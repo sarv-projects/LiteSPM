@@ -16,7 +16,13 @@
 // here ranks by popularity.
 
 import type { Listing } from "./telemetry";
-import { hostsFor } from "./hosts";
+import {
+  HOST_IDENTITIES,
+  hostIdsFor,
+  itemMatchesHost,
+  resolveHostId,
+  tallyHosts,
+} from "./hostIdentity";
 import { availabilityOf } from "./availability";
 
 export const KIND_ORDER: Listing["kind"][] = ["mcp", "skill", "plugin"];
@@ -98,7 +104,7 @@ export const DEFAULT_SORT: SortMode = "curated";
 
 /** The default order's rule, stated once in the UI where the sort control is. */
 export const CURATED_NOTE =
-  "Curated first: official skills first, then entries read from the publisher's own manifest, then entries LiteSPM can install.";
+  "Official skills first, then entries from the publisher's own manifest, then entries LiteSPM can install.";
 
 /** How strongly the curated order prefers a row. Higher sorts first. */
 export function curatedScore(item: Listing): number {
@@ -160,7 +166,7 @@ export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[]
 }
 
 /**
- * A stable partition: rows that work with one of `agentNames` first, the rest
+ * A stable partition: rows that work with one of `hosts` first, the rest
  * after, each group keeping the order it arrived in.
  *
  * Compatibility here is exactly what `hostsFor` derives, no stronger: every
@@ -169,24 +175,29 @@ export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[]
  * `compatibleHosts` list. That is the only compatibility data this catalog
  * has, so it is the only data used — no per-row host field is invented.
  *
- * More than one spelling is accepted because one agent answers to several:
- * an MCP row names the bridge adapter ("OpenAI Codex") while a plugin row
- * declares the directory name ("Codex"), and the reader picked one agent, not
- * two. Used as a ranking *preference* over an already-ranked result list (the
- * reader's agent first, everything else still present below), never as a
- * second filter. An explicit sort choice is not overridden by it.
+ * `hosts` accepts any spelling of a host (a display name, a registry id, an
+ * adapter name), because one agent answers to several: an MCP row names the
+ * bridge adapter ("OpenAI Codex CLI") while a plugin row declares the
+ * directory name ("Codex"), and the reader picked one agent, not two.
+ * `lib/hostIdentity.ts` is the one rule that decides which spellings are the
+ * same host; a spelling no registry resolves ranks nothing. Used as a ranking
+ * *preference* over an already-ranked result list (the reader's agent first,
+ * everything else still present below), never as a second filter. An explicit
+ * sort choice is not overridden by it.
  */
 export function sortByCompatibility<T extends Listing>(
   items: T[],
-  agentNames: readonly string[] | null
+  hosts: readonly string[] | null
 ): T[] {
-  if (!agentNames || agentNames.length === 0) return [...items];
-  const wanted = new Set(agentNames.map((name) => name.trim().toLowerCase()).filter(Boolean));
+  if (!hosts || hosts.length === 0) return [...items];
+  const wanted = new Set(
+    hosts.map((host) => resolveHostId(host)).filter((id): id is string => id !== null)
+  );
   if (wanted.size === 0) return [...items];
   const compatible: T[] = [];
   const rest: T[] = [];
   for (const item of items) {
-    const works = hostsFor(item).some((host) => wanted.has(host.toLowerCase()));
+    const works = hostIdsFor(item).some((id) => wanted.has(id));
     (works ? compatible : rest).push(item);
   }
   return [...compatible, ...rest];
@@ -246,28 +257,54 @@ export function demoteValidationFixtures<T extends Listing>(items: T[]): T[] {
   return demoted.length === 0 ? items.slice() : [...kept, ...demoted];
 }
 
-/** Distinct agents this catalog can install into, with compatible package counts. */
-export function agentFacets(items: Listing[]): Array<{ name: string; slug: string; count: number }> {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    for (const host of hostsFor(item)) {
-      const key = host.trim();
-      if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
+/** One host's facet: the identity, what to call it, and its compatible count. */
+export interface AgentFacet {
+  /** Identity id (or the raw spelling when no registry resolves it). */
+  id: string;
+  /** What the select shows. */
+  name: string;
+  /** Compatible entries, counted once per item (lib/hostIdentity). */
+  count: number;
+}
+
+/**
+ * Distinct agent hosts this catalog can install into, with compatible package
+ * counts — one facet per host identity, not per catalog spelling. A skill row
+ * names the Pi host through two of its strings; `tallyHosts` counts that row
+ * once for the identity, so the option's figure is exactly the number of rows
+ * its own filter returns.
+ *
+ * Every identity is offered, even one the current snapshot names no rows for
+ * (a zero beside it is a measurement, not a claim), and a spelling no registry
+ * resolves stays its own option rather than vanishing from the select.
+ */
+export function agentFacets(items: Listing[]): AgentFacet[] {
+  const tally = tallyHosts(items);
+  const facets: AgentFacet[] = HOST_IDENTITIES.map((identity) => ({
+    id: identity.id,
+    name: identity.name,
+    count: tally.get(identity.id)?.total ?? 0,
+  }));
+  for (const [key, host] of tally) {
+    if (!key.startsWith("raw:")) continue;
+    facets.push({ id: key, name: host.name, count: host.total });
   }
-  return Array.from(counts, ([name, count]) => ({ name, slug: slugifyAgent(name), count })).sort(
-    (a, b) => b.count - a.count || a.name.localeCompare(b.name)
-  );
+  return facets.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
 export function slugifyAgent(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+/**
+ * Does this row work with the named host? `agentName` accepts any spelling of
+ * an identity — a display name, a registry id, an adapter name, a publisher
+ * spelling — and the rule that decides which spellings are one host lives in
+ * `lib/hostIdentity.ts`. A name no registry resolves measures that name
+ * exactly, so an unknown `?host=` reads zero rather than everything.
+ */
 export function matchesHost(item: Listing, agentName: string | null): boolean {
-  if (!agentName) return true;
-  const target = agentName.toLowerCase();
-  return hostsFor(item).some((h) => h.toLowerCase() === target);
+  return itemMatchesHost(item, agentName);
 }
 
 export function publisherFacets(items: Listing[], limit = 24): Array<{ name: string; count: number }> {
@@ -290,16 +327,14 @@ export function verifiedItems(items: Listing[]): Listing[] {
   return items.filter((i) => i.publisher?.verified);
 }
 
-/** Distinct host names across the whole catalog - the denominator for coverage. */
+/**
+ * Every distinct agent host this row set names — the denominator for coverage.
+ * One entry per host identity (plus any spelling no registry resolves), so two
+ * catalog strings that name one host are one host here, and a merged per-host
+ * figure always has a universe that counts it once.
+ */
 export function hostUniverse(items: Listing[]): string[] {
-  const hosts = new Set<string>();
-  for (const item of items) {
-    for (const host of hostsFor(item)) {
-      const key = host.trim();
-      if (key) hosts.add(key);
-    }
-  }
-  return Array.from(hosts).sort((a, b) => a.localeCompare(b));
+  return Array.from(tallyHosts(items).keys()).sort((a, b) => a.localeCompare(b));
 }
 
 /** Share of the catalog each kind represents, for the proportional bar. */

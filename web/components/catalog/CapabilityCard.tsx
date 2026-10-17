@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowUpRight, Check, ChevronDown } from "lucide-react";
 import { Listing } from "../../lib/telemetry";
 import { kindLabel, listingHref } from "../../lib/catalog";
-import { hostsFor } from "../../lib/hosts";
+import { hostsNamedBy } from "../../lib/hostIdentity";
 import type { AgentChoice } from "../../lib/landing";
 import { rowWorksWithAgent } from "../../lib/landing";
 import { availabilityOf } from "../../lib/availability";
@@ -66,7 +66,10 @@ function TechRow({ label, value }: { label: string; value?: string | null }) {
 
 export function CapabilityCard({ item, agent, className = "" }: CapabilityCardProps) {
   const worksWith = rowWorksWithAgent(item, agent ?? null);
-  const hosts = hostsFor(item);
+  // One entry per host identity (`lib/hostIdentity`): a skill row's two
+  // spellings of the Pi host are one host, and the count beside them is what
+  // the same rule counts on the entry page.
+  const hosts = hostsNamedBy(item);
   const avail = availabilityOf(item);
   const detail = [
     kindLabel(item.kind),
@@ -80,10 +83,11 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
     .map((part) => part.replace(/\.+$/, ""))
     .join(". ");
   /**
-   * What the "Hosts" value under Technical details is. `hostsFor` derives MCP
-   * and skill coverage from the kind — every host LiteSPM can set up — so
+   * What the "Hosts" value under Technical details is. Host coverage for MCP
+   * and skills is derived from the kind — every host LiteSPM can set up — so
    * calling those "declared" would credit the publisher with a list it never
-   * wrote. Only a plugin carries a publisher-declared list.
+   * wrote. Only a plugin carries a publisher-declared list. The count is over
+   * host identities, one per host however many strings name it.
    */
   const hostsValue =
     hosts.length === 0

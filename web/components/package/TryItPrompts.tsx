@@ -8,9 +8,8 @@ import { CopyButton } from "./CopyButton";
  * The prompts come from `lib/tryPrompts` — an example built from the
  * publisher's own first sentence only when that sentence states an action, and
  * a first-look prompt that works for anything installed. When the record
- * supports no example, the section says so instead of showing one this site
- * assembled; the catalog carries no tool list for any row, and a fabricated
- * prompt that fails when pasted would be worse than no prompt at all.
+ * supports no example, only the first-look prompt renders; nothing is
+ * assembled from parts to fill the gap.
  *
  * Only installable entries get this section: there is nothing to try for a row
  * the CLI refuses. The section renders inside the client view (and therefore
@@ -21,8 +20,6 @@ export function TryItPrompts({ item }: { item: Listing }) {
   const prompts = tryPrompts(item);
   if (prompts.length === 0) return null;
 
-  const hasExample = prompts.some((prompt) => prompt.id === "example");
-
   return (
     <section id="pkg-try" aria-labelledby="pkg-try-title" className="mt-9">
       <div className="section-head">
@@ -31,19 +28,8 @@ export function TryItPrompts({ item }: { item: Listing }) {
       </div>
 
       <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-        Once the install above has run, paste one of these into the agent you installed it
-        for. Nothing here runs on this site — it is static text, and it is a starting point,
-        not a script.
+        Once the install above has run, paste one of these into the agent you installed it for.
       </p>
-
-      {!hasExample && (
-        <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-3">
-          This entry&rsquo;s record doesn&rsquo;t describe a specific task, and the catalog
-          carries no tool list for any entry — so there is no example prompt to copy here
-          rather than one this site would have to invent. The first-look prompt below asks
-          your agent to show you what it actually has.
-        </p>
-      )}
 
       <ul className="mt-4 grid gap-3 md:grid-cols-2">
         {prompts.map((prompt) => (

@@ -24,7 +24,7 @@ import { assertAdapterSourcesMatchRegistry, compareData } from "./compareRows";
 export const metadata: Metadata = {
   title: "Compare agent hosts",
   description:
-    "The 50 agent hosts LiteSPM can configure, the config file it adds one entry to, where skills install — and the 31 more that take skills only.",
+    "The 50 agent hosts LiteSPM can configure, the config file it adds one entry to, where skills install — and the 29 more that take skills only.",
   alternates: { canonical: "/compare/" },
   openGraph: { title: "Compare agent hosts · LiteSPM Market", url: "/compare/" },
 };

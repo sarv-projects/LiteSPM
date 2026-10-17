@@ -9,7 +9,7 @@ import { Listing } from "../../lib/telemetry";
 import { formatCount } from "../../lib/format";
 import { kindLabel, listingHref } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
-import { hostsFor } from "../../lib/hosts";
+import { hostsNamedBy } from "../../lib/hostIdentity";
 import { VerifiedMark } from "../../components/catalog/PublisherMark";
 import { useProductRow } from "../../lib/catalogData";
 import { SITE_URL } from "../../lib/site";
@@ -28,7 +28,6 @@ import {
   clampMeta,
   entryBreadcrumbJsonLd,
   entryJsonLd,
-  staticEntryHref,
 } from "../../lib/packageEntries";
 
 /** Same key the home strip writes; one preference, one storage slot. */
@@ -44,7 +43,7 @@ import {
 export interface PackageViewProps {
   /** Row count of this build's snapshot, for the index copy. */
   total: number;
-  /** `hostUniverse(rows).length` at build time — the coverage denominator. */
+  /** The catalog's host identities, at build time — the coverage denominator. */
   hostTotal: number;
   /** First twelve rows in index order: the list the static shell renders. */
   indexRows: Listing[];
@@ -117,9 +116,9 @@ function PackageIndexShell({
           Find a package
         </h1>
         <p className="mt-2.5 text-[13px] leading-relaxed text-ink-2">
-          Open any entry for its full record: what it does, which agent hosts it works with, and how
-          to add it. Below is the start of this snapshot&rsquo;s {formatCount(total)} entries — search
-          the full set if what you want isn&rsquo;t here.
+          Open any entry for the details: what it does, which agent hosts it works with, and how to
+          add it. Below is the start of the catalog&rsquo;s {formatCount(total)} entries — search the
+          full set if what you want isn&rsquo;t here.
         </p>
 
         {/*
@@ -203,8 +202,8 @@ function NotFound({
           </p>
         ) : (
           <p className="text-[13px] leading-relaxed text-ink-2">
-            Nothing in this snapshot&rsquo;s {formatCount(total)} entries matches this address. It may
-            have been renamed or withdrawn, or published after this snapshot was built.
+            No entry in the catalog&rsquo;s {formatCount(total)} entries matches this address. It may
+            have been renamed or withdrawn, or published after the catalog was last updated.
           </p>
         )}
         <Link href="/explore/" className="btn btn-solid mt-2">
@@ -530,17 +529,12 @@ function PackageContent({
     );
   }
 
-  const hosts = hostsFor(item);
+  // One entry per host identity (`lib/hostIdentity`), so a skill row's two
+  // spellings of the Pi host count once — and this fraction's numerator and
+  // `hostTotal` are the same kind of thing.
+  const hosts = hostsNamedBy(item);
   const worksWith = rowWorksWithAgent(item, agent);
   const avail = availabilityOf(item);
-
-  /**
-   * The address this page is actually served at. The client-resolved form is
-   * `/package/?slug=<key>`; a pre-rendered entry page is `/package/<key>/` and
-   * declares that path as its canonical, so the Source tab prints the URL the
-   * reader (and a crawler) is on rather than the legacy query spelling.
-   */
-  const pageHref = initialItem ? staticEntryHref(initialItem) : listingHref(item);
 
   // Emitted by the client only on the client-resolved route. A pre-rendered
   // `/package/<key>/` page carries the same structured data in its own HTML
@@ -553,7 +547,7 @@ function PackageContent({
   );
   const breadcrumb = entryBreadcrumbJsonLd(item, SITE_URL, categoryLabel(item.category));
 
-  /** Question two — plain first, exact fields one disclosure deeper. */
+  /** The entry view: the plain questions first, the exact fields in the tabs below. */
   return (
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
       <Header />
@@ -783,8 +777,8 @@ function PackageContent({
                 </p>
               ) : agent.hosts.length === 0 ? (
                 <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-                  This catalog carries no compatibility data for &ldquo;{agent.label}&rdquo;, so this
-                  entry neither claims nor denies support.
+                  No compatibility data for &ldquo;{agent.label}&rdquo; — this entry neither claims
+                  nor denies support.
                 </p>
               ) : (
                 <span
@@ -806,8 +800,7 @@ function PackageContent({
             </div>
 
             <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
-              Compatibility is declared by the publisher or derived from what the entry is — never
-              a test result. This site doesn&rsquo;t run what it lists.
+              Compatibility is declared, not tested — LiteSPM doesn&rsquo;t run what it lists.
             </p>
 
             <button
@@ -826,62 +819,11 @@ function PackageContent({
           <section aria-labelledby="pkg-access-title" className="mt-9">
             <div className="section-head">
               <h2 id="pkg-access-title">What access does it need?</h2>
-              <span className="section-note">from the catalog record</span>
             </div>
 
             <p className="mt-3 max-w-prose text-[14px] leading-relaxed text-ink-2">
-              Nothing in the catalog says which files, sites or credentials this entry can reach —
-              that per-entry list isn&rsquo;t published yet, so this page doesn&rsquo;t guess. Where
-              a server needs a credential, LiteSPM records the variable&rsquo;s name at install time,
-              never its value.
+              Which files, sites or credentials this entry can reach isn&rsquo;t published yet.
             </p>
-
-            <details className="group mt-2 border-t border-rule">
-              <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-[12.5px] font-medium text-ink-2 transition-colors duration-state ease-out hover:text-ink md:min-h-[36px]">
-                The exact values
-                <span
-                  aria-hidden="true"
-                  className="text-ink-3 transition-transform duration-panel ease-out group-open:rotate-90"
-                >
-                  →
-                </span>
-              </summary>
-              <dl className="spec-list pb-1">
-                <div>
-                  <dt>Launch command</dt>
-                  <dd className="t-mono text-[12px]!">
-                    {item.command ? (
-                      <span className="break-all">
-                        {item.command}
-                        {item.args?.length ? ` ${item.args.join(" ")}` : ""}
-                      </span>
-                    ) : (
-                      <span className="absent">not published</span>
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Install command</dt>
-                  <dd className="t-mono text-[12px]!">
-                    {item.installHint ? (
-                      <span className="break-all">{item.installHint}</span>
-                    ) : (
-                      <span className="absent">not published</span>
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Skill source</dt>
-                  <dd className="t-mono text-[12px]!">
-                    {item.skillSource ? (
-                      <span className="break-all">{item.skillSource}</span>
-                    ) : (
-                      <span className="absent">not published</span>
-                    )}
-                  </dd>
-                </div>
-              </dl>
-            </details>
           </section>
 
           {/* ---- then: tabs -------------------------------------------- */}
@@ -891,7 +833,6 @@ function PackageContent({
               agent={agent}
               hostTotal={hostTotal}
               snapshot={snapshot}
-              pageHref={pageHref}
               active={tab}
               onChange={setTab}
             />

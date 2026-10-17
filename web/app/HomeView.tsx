@@ -26,8 +26,8 @@ import type { ProvenanceStats, Shelf, TopicStat } from "../lib/landing";
  *
  * Exactly one interaction asks for the full row set: typing in the hero
  * search. Everything else — the agent preference, the topic tiles, the
- * shelves — runs off the server slice or off `hostsFor`, which is a property
- * of the row's kind. A passive visit therefore fetches `/v1/current.json`
+ * shelves — runs off the server slice or off what a row's kind derives. A
+ * passive visit therefore fetches `/v1/current.json`
  * (release liveness, bundled-snapshot fallback) and nothing else;
  * `/data/catalog.json` waits for a keystroke.
  */

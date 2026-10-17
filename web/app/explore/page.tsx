@@ -16,7 +16,7 @@ import ExploreRoute from "./ExploreRoute";
 export const metadata: Metadata = {
   title: "Explore the catalog",
   description:
-    "Search the whole catalog snapshot by name, summary, publisher, category, runtime, transport or tool name, filter by goal, and narrow to what works with the agent you actually use.",
+    "Search the whole catalog by name, summary, publisher, category, runtime, transport or tool name, filter by goal, and narrow to what works with the agent you actually use.",
   alternates: { canonical: "/explore/" },
   openGraph: { title: "Explore the catalog · LiteSPM Market", url: "/explore/" },
 };

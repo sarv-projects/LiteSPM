@@ -28,6 +28,7 @@ import {
   SortMode,
 } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
+import { resolveHostId } from "../../lib/hostIdentity";
 import {
   explainMatch,
   MATCH_BODY,
@@ -76,7 +77,8 @@ export interface ExploreViewProps {
   kindCounts: { all: number; mcp: number; skill: number; plugin: number };
   /** The editorial goal facets (`lib/taxonomy`), largest first. */
   goals: Array<{ id: string; label: string; count: number }>;
-  agents: Array<{ name: string; slug: string; count: number }>;
+  /** One facet per host identity (`lib/hostIdentity`), largest first. */
+  agents: Array<{ id: string; name: string; count: number }>;
   gridRows: Listing[];
 }
 
@@ -216,16 +218,13 @@ function MatchExplanationPanel({
         Why these results?
       </summary>
       <p className="mt-2 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
-        Results are ordered by where the query matched: an exact name first, then a name that
-        starts with it, a word inside the name, the publisher, the web address, then the summary or
-        tool text. Ties break on what can be installed, whether the entry came from the
-        publisher&rsquo;s own manifest, and whether it is an official skill. Rows that describe a
-        validation pattern rather than a capability rank after capability rows; searching their own
-        words still finds them.
+        Matches rank by where the query was found — the name first, then the publisher, web
+        address and description. Ties go to entries LiteSPM can install, then to publisher
+        manifests and official skills.
         {host && (
           <>
             {" "}
-            Entries that work with <strong className="font-medium text-ink">{host}</strong> are ranked
+            Entries that work with <strong className="font-medium text-ink">{host}</strong> rank
             first.
           </>
         )}
@@ -491,14 +490,19 @@ function ExploreContent(props: ExploreViewProps) {
   const agents = live ? live.agents : props.agents;
 
   /**
-   * A deep link can spell a host this build lists with different case
-   * (`?host=claude%20code`). Canonicalise it to the facet's own name so the
-   * "Works with" select shows the filter that is actually applied instead of
-   * falling back to "Any agent" beside a filtered list.
+   * A deep link can spell a host any way a registry does (`?host=claude%20code`
+   * for the adapter's "Claude Code CLI", or a skill target's "Codex"). The
+   * filter resolves every spelling of a host to one identity (`lib/hostIdentity`),
+   * and the select offers one option per identity; canonicalise the applied
+   * value to that option so the select shows the filter that is actually
+   * applied instead of falling back to "Any agent" beside a filtered list.
    */
   useEffect(() => {
     if (agent === "all") return;
-    const canonical = agents.find((a) => a.name.toLowerCase() === agent.toLowerCase());
+    const id = resolveHostId(agent);
+    const canonical = id
+      ? agents.find((a) => a.id === id)
+      : agents.find((a) => a.name.toLowerCase() === agent.toLowerCase());
     if (canonical && canonical.name !== agent) {
       setFilters((f) => (f.agent === agent ? { ...f, agent: canonical.name } : f));
     }
@@ -516,19 +520,21 @@ function ExploreContent(props: ExploreViewProps) {
    * the agent remembered from the home page is a ranking preference — it
    * reorders results (compatible first, everything else still below), it never
    * narrows them; narrowing stays the banner button's job. Compatibility comes
-   * from `hostsFor`: every MCP server works with every bridge adapter and every
-   * skill with every skill target (a property of the kind), and only plugins
-   * carry their own declared host list. That is the only compatibility data the
-   * catalog has, and the only data used. One agent answers to several host
-   * spellings (`OpenAI Codex` for the bridge, `Codex` for a plugin's own
-   * manifest), so the remembered agent ranks against all of them.
+   * from what a row is: every MCP server works with every bridge adapter and
+   * every skill with every skills target, and only plugins carry their own
+   * declared host list. `lib/hostIdentity.ts` resolves the chosen spellings to
+   * one host, so "OpenAI Codex CLI" and a plugin manifest's "Codex" rank the
+   * same agent.
    */
   const rankAgent = useMemo(() => {
-    if (agent !== "all") return { names: [agent], label: agent };
+    if (agent !== "all") {
+      const facet = agents.find((a) => a.id === resolveHostId(agent));
+      return { hosts: [agent], label: facet?.name ?? agent };
+    }
     if (!savedAgent || savedAgent.hosts.length === 0) return null;
-    const known = savedAgent.hosts.filter((h) => agents.some((a) => a.name === h));
+    const known = savedAgent.hosts.filter((h) => agents.some((a) => a.id === resolveHostId(h)));
     if (known.length === 0) return null;
-    return { names: known, label: savedAgent.label };
+    return { hosts: known, label: savedAgent.label };
   }, [agent, savedAgent, agents]);
 
   const filtered = useMemo(() => {
@@ -552,7 +558,7 @@ function ExploreContent(props: ExploreViewProps) {
     // Compatibility is a ranking preference over the search order, not a
     // filter and not an override of an explicitly chosen sort.
     if (effectiveSort !== "relevance") return ordered;
-    const ranked = sortByCompatibility(ordered, rankAgent?.names ?? null);
+    const ranked = sortByCompatibility(ordered, rankAgent?.hosts ?? null);
     // The quality rule runs last, so a fixture cannot be lifted back up by
     // compatibility: it is demoted below every capability row, not deleted —
     // `demoteValidationFixtures` only reorders, so the count above and the
@@ -604,7 +610,7 @@ function ExploreContent(props: ExploreViewProps) {
    * would filter to an empty page and read as a broken link.
    */
   const savedTarget = savedAgent && !savedDismissed && !hasFilters
-    ? savedAgent.hosts.find((h) => agents.some((a) => a.name === h)) ?? null
+    ? savedAgent.hosts.find((h) => agents.some((a) => a.id === resolveHostId(h))) ?? null
     : null;
 
   // Same rule as Home: rows from the prerender until the dataset lands, an
@@ -622,7 +628,10 @@ function ExploreContent(props: ExploreViewProps) {
   if (kind !== "all") appliedFilterLabels.push(`${kindLabel(kind)}s`);
   if (goal !== "all") appliedFilterLabels.push(goals.find((g) => g.id === goal)?.label ?? goal);
   if (category !== "all") appliedFilterLabels.push(categoryLabel(category));
-  if (agent !== "all") appliedFilterLabels.push(`Works with ${agent}`);
+  if (agent !== "all") {
+    const facet = agents.find((a) => a.id === resolveHostId(agent));
+    appliedFilterLabels.push(`Works with ${facet?.name ?? agent}`);
+  }
   if (publisher) appliedFilterLabels.push(publisher);
   if (source) appliedFilterLabels.push(sourceLabel(source));
   if (verifiedOnly) appliedFilterLabels.push("From publisher manifests");
@@ -704,7 +713,7 @@ function ExploreContent(props: ExploreViewProps) {
           </div>
 
           {/* Filters are a single ruled row. Kind is segmented; goal and agent
-              are selects because 12 and 9 options do not fit as chips. A
+              are selects because 12 and 79 options do not fit as chips. A
               source category from a deep link is a chip: the upstream labels
               are provenance, and `/categories/` is the browse-by-category
               surface, so they are not a second facet row here. */}
@@ -780,7 +789,7 @@ function ExploreContent(props: ExploreViewProps) {
               <select value={agent} onChange={(e) => setAgent(e.target.value)} className="field">
                 <option value="all">Any agent</option>
                 {agents.map((a) => (
-                  <option key={a.slug} value={a.name}>
+                  <option key={a.id} value={a.name}>
                     {a.name} ({formatCount(a.count)})
                   </option>
                 ))}

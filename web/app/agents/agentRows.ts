@@ -9,43 +9,37 @@
 // the same displayed name, the same link and two different counts — which a
 // reader cannot tell apart and which this module exists to remove.
 //
-// Two rules keep every number on the page honest:
+// The row set is now the registry's own identity list (`lib/hostIdentity.ts`),
+// so a host cannot drop off the page for want of a catalog string, and every
+// count is the number of items that name the host — counted once per item,
+// however many of its strings resolve to the identity. Each count keeps the
+// catalog string its kind is named by, because that string is what Explore's
+// `?host=` filter accepts. Every number the page links stays equal to the
+// filter it opens.
 //
-//   1. Counts are counted over ITEMS, once per item. A skill entry lists every
-//      skill target, so a host named by two of its strings is one compatible
-//      entry, not two; summing per-string facets would double it.
-//   2. Each count keeps the catalog string its kind is named by, because that
-//      string is what Explore's `?host=` filter matches on. Every number the
-//      page links stays equal to the filter it opens.
-//
-// The join key is the registry id, not the display string: a skill target whose
-// display name does not resolve ("Devin for Terminal") still joins the adapter
-// its id names ("devin"). `internal/host/registry.go` and
-// `internal/skills/agents.go` are the sources of those ids; the alias entries
-// in `lib/hosts.ts` cover the two the skill registry appends for the same
-// directories ("Pi", "Grok").
+// A string no registry resolves is still a host the catalog names, so it keeps
+// its own row (none exists in the current snapshot).
 
 import type { Listing } from "../../lib/telemetry";
 import { slugifyAgent } from "../../lib/catalog";
-import { HOSTS, SKILL_TARGETS, hostsFor, resolveHost } from "../../lib/hosts";
-import { vendorName } from "../../lib/vendorNames";
+import { HOST_IDENTITIES, tallyHosts } from "../../lib/hostIdentity";
 
 /** One kind's compatible-entry count, and the catalog string it is keyed by. */
 export interface KindCount {
   count: number;
-  /** The catalog host string Explore's `?host=` filter matches this kind on. */
+  /** A spelling of this host Explore's `?host=` filter accepts for this kind. */
   host: string;
 }
 
 /** One agent host, with only the facts a registry states about it. */
 export interface AgentRow {
-  /** React key; the adapter id when there is one, a slug of the name otherwise. */
+  /** React key; the registry id (a slug of the name for an unresolved host). */
   slug: string;
   /** Display name: the vendor's own spelling for a host with an adapter. */
   name: string;
   /** Present when LiteSPM has a compiled-in adapter for this host. */
   hostId?: string;
-  /** Every catalog spelling that resolved into this row. */
+  /** Every catalog spelling that resolves into this row. */
   strings: string[];
   /** MCP servers compatible with this host — null when it has no adapter. */
   mcp: KindCount | null;
@@ -58,87 +52,51 @@ export interface AgentRow {
 }
 
 /**
- * Which row a catalog host string belongs to, and the adapter id when one
- * exists. String → skill target → adapter, in that order, so a renamed product
- * joins the adapter its skill-target id names.
- */
-function identityOf(host: string): { key: string; hostId?: string } {
-  const adapter = resolveHost(host);
-  if (adapter) return { key: adapter.id, hostId: adapter.id };
-  const target = SKILL_TARGETS.find((t) => t.displayName === host);
-  if (target) {
-    const byId = HOSTS.find((h) => h.id === target.id);
-    if (byId) return { key: byId.id, hostId: byId.id };
-    return { key: `skill:${target.id}` };
-  }
-  return { key: `host:${host}` };
-}
-
-/** The adapter's own registry string for a resolved host — what its MCP filter uses. */
-function mcpString(hostId: string): string {
-  return HOSTS.find((h) => h.id === hostId)?.name ?? hostId;
-}
-
-/** The skill target's own display name for a resolved host, when one exists. */
-function skillString(hostId: string, fallback: string): string {
-  return SKILL_TARGETS.find((t) => t.id === hostId)?.displayName ?? fallback;
-}
-
-/**
  * Build the row set from the full snapshot. Runs at build time in the route's
  * server component; nothing here crosses to the browser but the resolved rows.
+ *
+ * One pass over the items feeds every row: `tallyHosts` resolves each item's
+ * strings to identities and counts the item once per identity it names.
  */
 export function buildAgentRows(items: Listing[]): AgentRow[] {
-  const rows = new Map<string, AgentRow>();
+  const tally = tallyHosts(items);
 
-  for (const item of items) {
-    // One item may name a host through several strings; dedupe to one count
-    // per host before recording it.
-    const seen = new Map<string, { hostId?: string; strings: string[] }>();
-    for (const raw of hostsFor(item)) {
-      const host = raw.trim();
-      if (!host) continue;
-      const { key, hostId } = identityOf(host);
-      const entry = seen.get(key);
-      if (entry) entry.strings.push(host);
-      else seen.set(key, { hostId, strings: [host] });
-    }
+  const rows: AgentRow[] = HOST_IDENTITIES.map((identity) => {
+    const counts = tally.get(identity.id);
+    return {
+      slug: identity.id,
+      name: identity.name,
+      hostId: identity.adapter?.id,
+      strings: identity.strings.slice(),
+      // A registry row's absence is "no data", rendered as nothing; a row
+      // whose registry exists keeps its count, a measured zero included.
+      mcp: identity.adapter
+        ? { count: counts?.mcp ?? 0, host: identity.adapter.name }
+        : null,
+      skill: identity.skill
+        ? { count: counts?.skill ?? 0, host: identity.skill.displayName }
+        : null,
+      plugin:
+        counts && counts.plugin > 0 ? { count: counts.plugin, host: identity.name } : null,
+      total: counts?.total ?? 0,
+    };
+  });
 
-    for (const [key, { hostId, strings }] of seen) {
-      let row = rows.get(key);
-      if (!row) {
-        const name = hostId ? vendorName(hostId, mcpString(hostId)) : strings[0];
-        row = {
-          slug: hostId ?? slugifyAgent(name),
-          name,
-          hostId,
-          strings: [],
-          mcp: null,
-          skill: null,
-          plugin: null,
-          total: 0,
-        };
-        rows.set(key, row);
-      }
-      for (const s of strings) if (!row.strings.includes(s)) row.strings.push(s);
-
-      const host =
-        item.kind === "mcp" && hostId
-          ? mcpString(hostId)
-          : item.kind === "skill" && hostId
-            ? skillString(hostId, strings[0])
-            : strings[0];
-      const kind = row[item.kind];
-      if (kind) {
-        kind.count += 1;
-      } else {
-        row[item.kind] = { count: 1, host };
-      }
-      row.total += 1;
-    }
+  // A spelling no registry resolves is still a host the catalog names; it
+  // keeps a row of its own rather than disappearing from the index.
+  for (const [key, host] of tally) {
+    if (!key.startsWith("raw:")) continue;
+    rows.push({
+      slug: slugifyAgent(host.name),
+      name: host.name,
+      strings: [host.name],
+      mcp: null,
+      skill: null,
+      plugin: host.plugin > 0 ? { count: host.plugin, host: host.name } : null,
+      total: host.total,
+    });
   }
 
-  const list = Array.from(rows.values());
-  list.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
-  return list;
+  rows.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  return rows;
 }

@@ -205,8 +205,12 @@ export function getHost(id: string): HostAdapter {
  * "managed" badge be attached to the right row instead of being silently
  * dropped for want of an exact string match. Built from the generated table so
  * every registered host is resolvable without a hand-kept list.
+ *
+ * Exported because `lib/hostIdentity.ts` uses this same table as the join
+ * between the two registries: the skills registry's "Pi"/"Grok" rows are the
+ * reference installer's spellings of the adapters these aliases already name.
  */
-const HOST_ALIASES: Record<string, string> = (() => {
+export const HOST_ALIASES: Record<string, string> = (() => {
   const map: Record<string, string> = {};
   for (const h of HOSTS) {
     const add = (key: string) => {

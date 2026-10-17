@@ -16,7 +16,8 @@
 
 import type { Listing } from "./telemetry";
 import { matchesQuery } from "./query";
-import { HOSTS, SKILL_TARGETS, hostsFor } from "./hosts";
+import { HOSTS, SKILL_TARGETS } from "./hosts";
+import { itemMatchesHost } from "./hostIdentity";
 import { isDiscontinued } from "./lifecycle";
 import { GRID_PAGE, OFFICIAL_SKILLS_CATEGORY, sortListings } from "./catalog";
 import { availabilityOf } from "./availability";
@@ -199,9 +200,10 @@ export interface AgentChoice {
   id: string;
   label: string;
   /**
-   * The names this agent answers to inside `hostsFor(item)`. Derived from the
-   * two generated registries rather than typed out, so an adapter rename
-   * cannot leave the strip pointing at a host that no longer exists.
+   * The names this agent answers to inside the catalog's host rule
+   * (`lib/hostIdentity.ts`). Derived from the two generated registries rather
+   * than typed out, so an adapter rename cannot leave the strip pointing at a
+   * host that no longer exists.
    *
    * An MCP row names the bridge adapter ("Claude Code CLI"), a skill row names
    * the skill target ("Claude Code"), and a plugin row carries whatever its
@@ -245,17 +247,18 @@ export function findAgentChoice(id: string | null): AgentChoice | null {
 /**
  * Does this row declare support for the chosen agent?
  *
- * This is the catalog's own declared semantics, no stronger:
- * `hostsFor` returns every bridge adapter for an MCP server, every skill
- * directory for a skill, and the publisher's own list for a plugin. It is a
+ * This is the catalog's own declared semantics, no stronger: an MCP server
+ * works with every bridge adapter, a skill with every skills directory, and a
+ * plugin with the publisher's own list. `lib/hostIdentity.ts` is the one rule
+ * that decides which spellings of an agent are the same host, so the choice's
+ * "Claude Code CLI" and a skill row's "Claude Code" are one host. It is a
  * declaration, never a test result — the UI says so next to the badges.
  *
  * Pure over rows the caller already holds. It cannot fetch anything.
  */
 export function rowWorksWithAgent(item: Listing, choice: AgentChoice | null): boolean {
   if (!choice || choice.hosts.length === 0) return false;
-  const wanted = choice.hosts.map((n) => n.toLowerCase());
-  return hostsFor(item).some((h) => wanted.includes(h.toLowerCase()));
+  return choice.hosts.some((host) => itemMatchesHost(item, host));
 }
 
 /* ------------------------------------------------------------------ *

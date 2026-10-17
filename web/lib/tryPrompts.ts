@@ -96,7 +96,7 @@ export function examplePrompt(item: Listing): TryPrompt | null {
     label: "An example to try",
     prompt: `Use ${item.name} to ${lower}.`,
     basis:
-      "Built from the publisher's own one-line description of this entry. The catalog carries no tool list, so it is a starting point, not a script — this site has not run it.",
+      "From the publisher's own description of this entry. LiteSPM hasn't run it.",
   };
 }
 
@@ -108,7 +108,7 @@ export function firstLookPrompt(item: Listing): TryPrompt | null {
       label: "First look",
       prompt: `List the tools ${item.name} gives you, and what each one is for.`,
       basis:
-        "Works for any installed MCP server: it asks your agent to enumerate what it now has, so a wrong guess about a capability is not possible.",
+        "Works for any installed MCP server — it asks your agent what it now has.",
     };
   }
   if (item.kind === "skill") {
@@ -117,7 +117,7 @@ export function firstLookPrompt(item: Listing): TryPrompt | null {
       label: "First look",
       prompt: `Load the ${item.name} skill and tell me what it covers.`,
       basis:
-        "Works for any installed skill: it asks your agent to load the skill and describe it, so a wrong guess about a capability is not possible.",
+        "Works for any installed skill — it asks your agent to describe what it loaded.",
     };
   }
   return null;

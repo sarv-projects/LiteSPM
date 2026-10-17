@@ -8,6 +8,7 @@ import { SiteFooter } from "../../components/layout/SiteFooter";
 import { AgentLogo } from "../../components/AgentLogo";
 import { HOSTS } from "../../lib/hosts";
 import { formatCount } from "../../lib/format";
+import { isDiscontinued } from "../../lib/lifecycle";
 import { AGENT_STORAGE_KEY, findAgentChoice } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import type { AgentRow, KindCount } from "./agentRows";
@@ -137,7 +138,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                       href={
                         host
                           ? `/agents/${host.id}/`
-                          : `/explore/?host=${encodeURIComponent(agent.strings[0])}`
+                          : `/explore/?host=${encodeURIComponent(agent.name)}`
                       }
                       // Measured: each scroll-past row is a ~9.5 KB speculative
                       // RSC download, so a full read cost 456,794 B (83%) and a
@@ -164,8 +165,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                       )}
                       <span className="t-cond truncate text-[14px] font-medium text-ink transition-colors duration-hover group-hover:text-accent-text">
                         {/* The vendor's own spelling, applied in `agentRows.ts`
-                            to the row's whole spelling set — the link and every
-                            count below carry the catalog strings themselves. */}
+                            to the row's whole spelling set. The Explore filter
+                            resolves every spelling of a host to one identity,
+                            so the link and every count below agree whatever
+                            the reader sees here. */}
                         {agent.name}
                       </span>
                     </Link>
@@ -175,6 +178,17 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                         title="Remembered from the home page — saved in this browser only"
                       >
                         your pick
+                      </span>
+                    )}
+                    {agent.hostId && isDiscontinued(agent.hostId) && (
+                      // The row stays: this is the index of every host the
+                      // catalog names, and its own page carries the vendor's
+                      // notice. The mark is what keeps the listing honest.
+                      <span
+                        className="inline-flex shrink-0 items-center rounded-chip border border-rule bg-sunken px-1.5 py-0.5 text-[10.5px] font-medium text-ink-3"
+                        title="The vendor has ended this product. Its own notice is on the host's page."
+                      >
+                        discontinued
                       </span>
                     )}
                     {/* The page's whole point is which hosts LiteSPM can

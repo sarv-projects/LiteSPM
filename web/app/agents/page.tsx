@@ -1,7 +1,6 @@
 import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import { withLinkKeys } from "../../lib/catalog";
-import { isDiscontinued } from "../../lib/lifecycle";
 import { buildAgentRows } from "./agentRows";
 import type { Metadata } from "next";
 import type { AgentsViewProps } from "./AgentsView";
@@ -31,12 +30,12 @@ export default function AgentsPage() {
   // its skill target's display name — and rendering the strings separately put
   // the same host on the page twice with two different counts.
   //
-  // A product its vendor has ended is filtered here rather than in the view: it
-  // should not travel to the browser at all, so the render never has to decide.
-  // `lifecycle.ts` holds the vendors' own notices.
-  const rows = buildAgentRows(items).filter(
-    (row) => !(row.hostId && isDiscontinued(row.hostId))
-  );
+  // Every identity is listed, including a product its vendor has ended: the
+  // page is the index of what the catalog names, the count it states is the
+  // number of rows it renders, and the row's own page carries the vendor's
+  // notice. `AgentsView` marks a discontinued row; the landing chooser is
+  // where an ended product stops being offered (`lib/lifecycle.ts`).
+  const rows = buildAgentRows(items);
 
   const props: AgentsViewProps = {
     hostCount: rows.length,

@@ -143,7 +143,7 @@ export const OTHER_GOAL: { id: "other"; label: string; blurb: string } = {
   id: "other",
   label: "Other",
   blurb:
-    "No goal this map can place from the record's own text: single-purpose utilities, regional lookups, reference data and the long tail of directories.",
+    "Single-purpose utilities, regional lookups, reference data and the long tail of directories.",
 };
 
 /**

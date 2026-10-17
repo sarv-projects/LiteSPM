@@ -96,10 +96,9 @@ export default function AgentDetailView({
   discontinued,
 }: AgentDetailViewProps) {
   const command = `litespm host setup ${id}`;
-  // Explore filters on the registry string — that is what `count` was
-  // computed with — so the link must use `registryName`, not the vendor's
-  // name, or the number above it and the rows behind it disagree.
-  const exploreHref = `/explore/?host=${encodeURIComponent(registryName)}`;
+  // Explore resolves every spelling of a host to one identity, and the page's
+  // own name is one of them, so the link opens exactly the count above it.
+  const exploreHref = `/explore/?host=${encodeURIComponent(name)}`;
   const nameDiffers = name !== registryName;
 
   return (

@@ -50,9 +50,10 @@ export interface Listing {
   url?: string | null;
   /**
    * Publisher-declared host list. Only plugins carry one. MCP servers and
-   * skills derive their compatibility from the kind (see lib/hosts.ts
-   * `hostsFor`), because an MCP server is installable into every bridge
-   * adapter and a skill into every host with a skills directory.
+   * skills derive their compatibility from the kind (see lib/hostIdentity.ts,
+   * the one rule that turns a catalog spelling into a host), because an MCP
+   * server is installable into every bridge adapter and a skill into every
+   * host with a skills directory.
    */
   compatibleHosts?: string[];
   readme?: string;

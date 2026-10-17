@@ -12,9 +12,11 @@
 // and stop offering it as a choice.
 //
 // Adding an entry here removes the agent from the landing-page "What do you
-// use?" chooser, from the agent atlas cards, and from the /agents/ index. Its
-// detail page stays reachable, so anyone following an old link still lands on a
-// page that tells them the truth instead of a 404.
+// use?" chooser and from the agent atlas cards, and marks its row on the
+// /agents/ index as discontinued — the index still lists it, because it is
+// still a host the catalog names and its row is what the host's own page is
+// checked against. Its detail page stays reachable, so anyone following an old
+// link still lands on a page that tells them the truth instead of a 404.
 //
 // Audited 2026-10-12 across all fifty hosts: these are the only three whose
 // own documentation says the product has ended. The remaining four
