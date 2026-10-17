@@ -46,6 +46,28 @@ test("search: results settle, the count is measured, and the first row is above 
   expect(explanationTop).toBeGreaterThan(top);
 });
 
+test("the grid count never prints a figure before the search measured one", async ({ page }) => {
+  // Hold the search index so the unsettled window is deterministic instead of
+  // a race. Until it resolves, `filtered` is empty — and the count must read
+  // "searching…", not print that emptiness as "0 entries". That was the
+  // defect: a figure for a search that had not run. The heading renders only
+  // once the full row set is in hand, so at the first assertion the grid is on
+  // screen and only the search itself is outstanding.
+  await page.route("**/data/catalog-search-index.bin.gz*", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await route.continue();
+  });
+  await page.goto("/explore/?q=github");
+  await expect(
+    page.locator("main h2").filter({ hasText: "Results for “github”" })
+  ).toBeVisible();
+  await expect(resultCount(page)).toHaveText("searching…");
+
+  // Once the index lands, the count is the measured one.
+  await waitForSearchGrid(page, "github");
+  expect(parseCount(await resultCount(page).textContent())).toBeGreaterThan(1000);
+});
+
 test("typing a query and submitting keeps the URL and the grid in step", async ({ page }) => {
   await gotoSettled(page, "/explore/");
   const field = page.locator('input[name="q"]');

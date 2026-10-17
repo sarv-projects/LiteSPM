@@ -178,10 +178,10 @@ export default async function AgentDetailPage({
     format: host.kind,
     // `projectPath` is emitted from the Go adapter together with project
     // scope support, so its presence is what the fact list keys on.
-    projectPath: host.projectPath,
+    repoConfigPath: host.projectPath,
     skillsSupported,
     count,
-    docsUrl: host.docsUrl,
+    docsHref: host.docsUrl,
     capabilities: note?.capabilities,
     // Present only for a vendor that has ended the product. The page is still
     // built so an old link works; it says so instead of implying the agent is

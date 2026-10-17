@@ -9,7 +9,6 @@ import {
 } from "../../lib/catalog";
 import { HOSTS, SKILL_TARGETS } from "../../lib/hosts";
 import { vendorName } from "../../lib/vendorNames";
-import { ADAPTER_SOURCE } from "../../lib/adapterSources";
 import { buildAgentRows } from "../agents/agentRows";
 import type { TrendingHostRow, TrendingViewProps } from "./TrendingView";
 import type { Metadata } from "next";
@@ -47,13 +46,11 @@ export default function TrendingPage() {
     return {
       id: host.id,
       name: vendorName(host.id, host.name),
-      generic: host.generic,
       format: host.kind,
-      userPath: host.userPath,
-      projectPath: host.projectPath,
+      configPath: host.userPath,
+      repoConfigPath: host.projectPath,
       skillName: SKILL_TARGETS.find((target) => target.id === host.id)?.displayName,
-      docsUrl: host.docsUrl,
-      adapterFile: ADAPTER_SOURCE[host.id],
+      docsHref: host.docsUrl,
       mcp: row?.mcp?.count ?? null,
       skill: row?.skill?.count ?? null,
       plugin: row?.plugin?.count ?? null,

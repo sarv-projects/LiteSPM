@@ -45,7 +45,7 @@ function KindLink({
     <Link
       href={`/explore/?kind=${kind}&host=${encodeURIComponent(kc.host)}`}
       aria-label={`${formatCount(kc.count)} ${label} entries in Explore for ${kc.host}`}
-      title={`${formatCount(kc.count)} ${label} — the entries whose own registry lists “${kc.host}”`}
+      title={`${formatCount(kc.count)} ${label} — the entries that name “${kc.host}”`}
       // Same measured trade as the name link above: each in-viewport link is a
       // speculative RSC download, and a row can carry three of these.
       prefetch={false}
@@ -98,16 +98,14 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Agent hosts</h1>
           <p className="t-mono text-[11px] text-ink-3">
-            {formatCount(hostCount)} hosts · {formatCount(HOSTS.length)} with compiled-in
-            adapters
+            {formatCount(hostCount)} hosts · {formatCount(HOSTS.length)} LiteSPM can set up
           </p>
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Compatibility follows from what an entry is: MCP servers install into any host with a
-          bridge adapter, skills into any host with a skills directory, and plugins only into the
-          hosts their publisher lists. LiteSPM can edit the config of hosts with a compiled-in
-          adapter; the others are indexed, not configured.
+          What works with what follows from what a capability is: MCP servers work in any host
+          LiteSPM can set up, skills in any host with a skills directory, and plugins only in the
+          hosts their publisher lists. Hosts LiteSPM can&rsquo;t set up are still indexed here.
         </p>
 
         <div className="mt-7 border-b border-ink pb-2">
@@ -116,7 +114,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
               set with md:order-2 (adapter) and md:order-3 (compatible counts). */}
           <div className="t-mono hidden grid-cols-[minmax(0,1fr)_92px_100px_minmax(0,1fr)] items-center gap-3 text-[10px] text-ink-3 md:grid">
             <span>Host</span>
-            <span>Adapter</span>
+            <span>LiteSPM setup</span>
             <span className="text-right">Compatible</span>
             <span>Config file this host uses</span>
           </div>
@@ -191,7 +189,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                       aria-label={
                         host
                           ? "LiteSPM can write this host's config file"
-                          : "No adapter — compatibility is publisher-declared"
+                          : "LiteSPM can't write this host's config; compatibility is publisher-declared"
                       }
                     >
                       {host ? (
@@ -217,13 +215,13 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                     {host ? (
                       <span
                         className="inline-flex items-center gap-1 text-[11px] text-ink"
-                        title="LiteSPM has a compiled-in adapter that can write this host's config file"
+                        title="LiteSPM can write this host's config file"
                       >
                         <Check className="h-3 w-3" aria-hidden="true" />
                         managed
                       </span>
                     ) : (
-                      <span className="text-[11px] text-ink-3" title="No compiled-in adapter; publishers declare compatibility themselves">
+                      <span className="text-[11px] text-ink-3" title="LiteSPM can't write this host's config; compatibility is publisher-declared">
                         declared
                       </span>
                     )}
@@ -242,8 +240,8 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         </ul>
 
         <p className="mt-6 max-w-prose text-[12px] leading-relaxed text-ink-3">
-          Compatibility comes from LiteSPM&rsquo;s adapter registries, or from a publisher&rsquo;s
-          own list for plugins — declared, not tested.
+          Compatibility is declared — by LiteSPM for MCP servers and skills, by the publisher for
+          plugins — not tested.
         </p>
       </main>
 

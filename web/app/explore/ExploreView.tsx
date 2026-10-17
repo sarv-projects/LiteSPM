@@ -168,12 +168,12 @@ function useQueryFilters(request: () => void) {
 const EXPLAIN_FIELD_LABELS: Record<string, string> = {
   name: "name",
   publisher: "publisher",
-  slug: "slug",
+  slug: "web address",
   summary: "summary",
   category: "category",
   runtime: "runtime",
   transport: "transport",
-  id: "catalog id",
+  id: "ID",
   tool: "tool name or description",
 };
 
@@ -183,9 +183,9 @@ const EXPLAIN_CLASS_LABELS: Record<number, string> = {
   [MATCH_NAME_PREFIX]: "name starts with the query",
   [MATCH_NAME_TOKEN]: "name word",
   [MATCH_PUBLISHER]: "publisher name",
-  [MATCH_SLUG]: "slug",
+  [MATCH_SLUG]: "web address",
   [MATCH_BODY]: "summary or tool text",
-  [MATCH_ID]: "catalog id — the lowest class",
+  [MATCH_ID]: "ID",
 };
 
 /**
@@ -217,17 +217,15 @@ function MatchExplanationPanel({
       </summary>
       <p className="mt-2 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
         Results are ordered by where the query matched: an exact name first, then a name that
-        starts with it, a word inside the name, the publisher, the slug, the summary or tool text,
-        and last the catalog id — registry names like{" "}
-        <span className="t-mono text-[11.5px]">io.github.…</span> are identifiers, not content.
-        Equal match classes break on what can be installed, whether the row comes from the
-        publisher's own manifest, and the upstream directory's official-skills classification.
-        Rows that name a validation pattern rather than a capability (like “GitHub commit SHA hex,
-        value discarded”) rank after capability rows; searching their own words still finds them.
+        starts with it, a word inside the name, the publisher, the web address, then the summary or
+        tool text. Ties break on what can be installed, whether the entry came from the
+        publisher&rsquo;s own manifest, and whether it is an official skill. Rows that describe a
+        validation pattern rather than a capability rank after capability rows; searching their own
+        words still finds them.
         {host && (
           <>
             {" "}
-            Rows that work with <strong className="font-medium text-ink">{host}</strong> are ranked
+            Entries that work with <strong className="font-medium text-ink">{host}</strong> are ranked
             first.
           </>
         )}
@@ -613,6 +611,38 @@ function ExploreContent(props: ExploreViewProps) {
   // empty set (skeleton) for a filter that has nothing to run against yet.
   const gridItems = full ? filtered : hasFilters ? [] : props.gridRows;
   const gridPending = !full && hasFilters;
+  /**
+   * What the row set actually is. The heading used to read "All capabilities"
+   * for every non-query state, so a publisher deep link (2,365 rows), a kind
+   * filter (638) or a coverage-board category all sat under a heading claiming
+   * the whole catalog. One applied filter is named; several fall back to
+   * "Filtered capabilities", which claims only that a filter is on.
+   */
+  const appliedFilterLabels: string[] = [];
+  if (kind !== "all") appliedFilterLabels.push(`${kindLabel(kind)}s`);
+  if (goal !== "all") appliedFilterLabels.push(goals.find((g) => g.id === goal)?.label ?? goal);
+  if (category !== "all") appliedFilterLabels.push(categoryLabel(category));
+  if (agent !== "all") appliedFilterLabels.push(`Works with ${agent}`);
+  if (publisher) appliedFilterLabels.push(publisher);
+  if (source) appliedFilterLabels.push(sourceLabel(source));
+  if (verifiedOnly) appliedFilterLabels.push("From publisher manifests");
+  if (installableOnly) appliedFilterLabels.push("Installable entries");
+  const gridHeading = deferredQuery
+    ? `Results for “${deferredQuery}”`
+    : appliedFilterLabels.length === 0
+      ? "All capabilities"
+      : appliedFilterLabels.length === 1
+        ? appliedFilterLabels[0]
+        : "Filtered capabilities";
+  /**
+   * The grid's count is measured by the build while the prerendered first page
+   * is what is on screen (`props.total`, with `full === null`), and by the
+   * search once the rows are in hand (`filtered.length`). Only the second can
+   * be unsettled: the hook's `settled` is `false` until its own rows exist,
+   * and blanking a build-time total with "searching…" while nothing is being
+   * searched would be the same defect pointed the other way.
+   */
+  const gridCountSettled = !full || settled;
 
   const clear = () => {
     setQuery("");
@@ -724,7 +754,7 @@ function ExploreContent(props: ExploreViewProps) {
               <select
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
-                title="Grouped by what the capability is for, derived from its own text. Not the source's category label."
+                title="Grouped by what the capability is for. Not the source's category label."
                 className="field"
               >
                 <option value="all">All goals</option>
@@ -771,7 +801,7 @@ function ExploreContent(props: ExploreViewProps) {
                 onChange={(e) => setVerifiedOnly(e.target.checked)}
                 className="h-3.5 w-3.5 accent-ink"
               />
-              Only rows from publisher manifests
+              Only entries from publisher manifests
             </label>
 
             <label className="flex min-h-[44px] items-center gap-2 text-[12px] text-ink-2 md:min-h-0">
@@ -781,7 +811,7 @@ function ExploreContent(props: ExploreViewProps) {
                 onChange={(e) => setInstallableOnly(e.target.checked)}
                 className="h-3.5 w-3.5 accent-ink"
               />
-              Only rows LiteSPM can install
+              Only entries LiteSPM can install
             </label>
 
             {/* A category set by a deep link or an old bookmark. The upstream
@@ -866,6 +896,7 @@ function ExploreContent(props: ExploreViewProps) {
             <ExtensionGrid
               items={gridItems}
               query={deferredQuery}
+              heading={gridHeading}
               count={full ? filtered.length : total}
               loading={searching}
               awaiting={status === "loading"}
@@ -875,7 +906,7 @@ function ExploreContent(props: ExploreViewProps) {
               onClearFilters={clear}
               onSuggestion={setQuery}
               filtersActive={narrowing}
-              settled={settled}
+              settled={gridCountSettled}
 
               toolbar={
                 <div className="flex shrink-0 items-center gap-2">

@@ -11,6 +11,12 @@ interface ExtensionGridProps {
   items: Listing[];
   query: string;
   /**
+   * The grid's heading, when the caller knows what the row set is (Explore
+   * names the applied filter: "Plugins", "Works with Zed", …). Falls back to
+   * the query form, then to the unfiltered default.
+   */
+  heading?: string;
+  /**
    * Entry count for the header line. The prerendered view starts with one page
    * of rows, so `items.length` would say "48 entries" over a catalog of tens of
    * thousands; the caller passes the authoritative count instead.
@@ -44,11 +50,17 @@ interface ExtensionGridProps {
   /** True when a kind, category, agent or provenance filter narrows the list. */
   filtersActive?: boolean;
   /**
-   * Whether the current query has been measured (see `useCatalogSearch`). A
-   * row set already on screen is kept as-is while a search runs; with nothing
-   * on screen, `settled === false` renders as loading instead of as the empty
-   * state, which would be a claim that the search found nothing before any
-   * search had happened.
+   * Whether the current query has been measured (see `useCatalogSearch`).
+   *
+   * The header count is a measurement, and there is a real window in which it
+   * has not happened yet: the search runs off-thread, and `count` arrives as
+   * `0` because nothing has been searched — not because nothing matched. The
+   * same contract as `SearchBar`: when this is explicitly `false` the count
+   * reads "searching…" instead of printing a figure. A row set already on
+   * screen is kept as-is while a search runs; with nothing on screen,
+   * `settled === false` also renders loading instead of the empty state,
+   * which would be a claim that the search found nothing before any search
+   * had happened.
    */
   settled?: boolean;
   /** Rendered above the rows; the caller owns the sort control. */
@@ -89,6 +101,7 @@ function CatalogError({ onRetry, inline }: { onRetry?: () => void; inline?: bool
 export function ExtensionGrid({
   items,
   query,
+  heading,
   count,
   loading,
   awaiting,
@@ -156,14 +169,16 @@ export function ExtensionGrid({
       <div className="section-head sticky top-[var(--stack-top)] z-20 -mx-px bg-paper/95 px-px backdrop-blur-xs">
         <div className="flex min-w-0 items-baseline gap-3">
           <h2>
-            {query ? `Results for “${query}”` : "All capabilities"}
+            {heading ?? (query ? `Results for “${query}”` : "All capabilities")}
           </h2>
           <span
             className="t-mono t-tabular text-[12px] text-ink-3"
             aria-live="polite"
             data-testid="result-count"
           >
-            {formatCount(reported)} {reported === 1 ? "entry" : "entries"}
+            {settled === false
+              ? "searching…"
+              : `${formatCount(reported)} ${reported === 1 ? "entry" : "entries"}`}
           </span>
         </div>
         {toolbar}

@@ -135,8 +135,8 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
                 publisher
               )}
               {item.publisher?.verified
-                ? " — read from the publisher's own manifest. That is where the record came from; no one has audited or tested the entry."
-                : " — claimed by a third-party list, not read from the publisher's own manifest. No one has audited or tested the entry."}
+                ? " — read from the publisher's own manifest, not audited by LiteSPM."
+                : " — claimed by a third-party list, not read from the publisher's own manifest. Not audited by LiteSPM."}
             </>
           ) : (
             <>
@@ -163,21 +163,20 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
         >
           {hosts.length === 0 ? (
             <>
-              <Absent /> — this entry names no compatible hosts. That is an absence of a
-              claim, not evidence it fails anywhere.
+              <Absent /> — no compatible hosts are listed for this entry. That means nobody has
+              declared support, not that it fails.
             </>
           ) : item.kind === "plugin" ? (
             <>
               {hosts.length} host{hosts.length === 1 ? "" : "s"} — the publisher&rsquo;s own
-              declared list. A declaration, not a test result.
+              declared list.
             </>
           ) : (
             <>
               {hosts.length} of {hostTotal} agent hosts in this catalog — every host{" "}
               {item.kind === "mcp"
-                ? "with a LiteSPM bridge adapter"
-                : "with a skills directory LiteSPM can write to"}
-              . Derived from the entry&rsquo;s kind, not from a test.
+                ? "LiteSPM can set up."
+                : "with a skills directory LiteSPM can write to."}
             </>
           )}
         </Fact>
@@ -194,8 +193,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
       </dl>
 
       <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-ink-3">
-        Every line above is a field from this catalog&rsquo;s record. Transport, runtime,
-        digests, config paths and the raw commands are in{" "}
+        Transport, runtime, config paths and the raw commands are in{" "}
         <a href="#pkg-details" className="link">
           Details
         </a>{" "}

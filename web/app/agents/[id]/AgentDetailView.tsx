@@ -49,13 +49,13 @@ export interface AgentDetailViewProps {
   /** Config format from the adapter registry. */
   format: "json" | "toml";
   /** Project config path relative to the repo root, when the adapter has one. */
-  projectPath?: string;
+  repoConfigPath?: string;
   /** True when `SKILL_TARGETS` registers a skills directory for this host. */
   skillsSupported: boolean;
   /** Catalog entries that install into `name` — what the Explore link shows. */
   count: number;
   /** Vendor MCP configuration docs; carries the no-note fallback link. */
-  docsUrl?: string;
+  docsHref?: string;
   /** What the agent does, from its own documentation (web/lib/hostNotes.ts). */
   capabilities?: string[];
   /**
@@ -88,10 +88,10 @@ export default function AgentDetailView({
   filePath,
   snippet,
   format,
-  projectPath,
+  repoConfigPath,
   skillsSupported,
   count,
-  docsUrl,
+  docsHref,
   capabilities,
   discontinued,
 }: AgentDetailViewProps) {
@@ -179,13 +179,12 @@ export default function AgentDetailView({
           <p className="mt-5 max-w-[62ch] text-[14px] leading-relaxed text-ink-2">{summary}</p>
         ) : (
           <p className="mt-5 max-w-prose text-[14px] leading-relaxed text-ink-2">
-            No write-up for {name} yet — everything below comes from LiteSPM&rsquo;s adapter
-            registry
-            {docsUrl && (
+            No write-up for {name} yet — what&rsquo;s below is the setup LiteSPM uses
+            {docsHref && (
               <>
                 , checked against{" "}
                 <a
-                  href={docsUrl}
+                  href={docsHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="link"
@@ -222,8 +221,7 @@ export default function AgentDetailView({
             >
               {websiteLabel(source)}
             </a>
-            . Everything else on this page comes from LiteSPM&rsquo;s registries and the catalog
-            snapshot.
+            .
           </p>
         )}
 
@@ -248,8 +246,8 @@ export default function AgentDetailView({
             <div>
               <dt>Project config</dt>
               <dd>
-                {projectPath ? (
-                  <code className="t-mono text-[11.5px] break-all">{projectPath}</code>
+                {repoConfigPath ? (
+                  <code className="t-mono text-[11.5px] break-all">{repoConfigPath}</code>
                 ) : (
                   "No — one config for the whole machine."
                 )}
@@ -359,8 +357,7 @@ export default function AgentDetailView({
               before the footer. The footer's long form is gone and one line
               here does the same job next to the number it qualifies. */}
           <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            Operating-system support, popularity and ratings are not published by any upstream
-            source.
+            No source publishes operating-system support, popularity or ratings for this host.
           </p>
         </section>
       </main>

@@ -48,10 +48,9 @@ const STEPS: Step[] = [
     technical: (
       <>
         <p>
-          <code className="t-mono">litespm search &lt;term&gt;</code> queries the locally synced
-          release index. The sync walks pointer → manifest → listings and verifies a{" "}
-          <strong className="font-medium text-ink">sha256</strong> digest at every step before a row
-          is trusted; a row that fails verification is not searchable.
+          <code className="t-mono">litespm search &lt;term&gt;</code> queries the catalog you have
+          synced locally. Every step of the sync is checksummed, and a row that fails the check is
+          never searchable.
         </p>
         <p className="mt-2">
           The <code className="t-mono">/explore</code> page runs the equivalent match in your browser
@@ -68,11 +67,9 @@ const STEPS: Step[] = [
     technical: (
       <>
         <p>
-          Each entry carries <code className="t-mono">publisher.provenance</code> — either{" "}
-          <code className="t-mono">vendor-manifest</code> (read out of the publisher&rsquo;s own
-          repository manifest) or <code className="t-mono">awesome-list-claim</code> — plus{" "}
-          <code className="t-mono">installability</code>, the declared hosts, and the launch command
-          when one was proven.
+          Every entry records where it was read from — the publisher&rsquo;s own manifest, or a
+          third-party list — alongside whether LiteSPM can install it, which hosts declare support,
+          and the command that starts it when the publisher published one.
         </p>
         <p className="mt-2">
           Locally, <code className="t-mono">litespm doctor</code> reports the environment the install

@@ -80,19 +80,22 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
     .map((part) => part.replace(/\.+$/, ""))
     .join(". ");
   /**
-   * What the "hosts" count under Technical details is. `hostsFor` derives MCP
-   * and skill coverage from the kind — every bridge adapter, every skill
-   * target — so calling those "declared" would credit the publisher with a
-   * list it never wrote. Only a plugin carries a publisher-declared list.
+   * What the "Hosts" value under Technical details is. `hostsFor` derives MCP
+   * and skill coverage from the kind — every host LiteSPM can set up — so
+   * calling those "declared" would credit the publisher with a list it never
+   * wrote. Only a plugin carries a publisher-declared list.
    */
   const hostsValue =
     hosts.length === 0
       ? null
       : item.kind === "plugin"
-        ? `${formatCount(hosts.length)} declared`
-        : item.kind === "skill"
-          ? `${formatCount(hosts.length)} skill targets`
-          : `${formatCount(hosts.length)} bridge adapters`;
+        ? `${formatCount(hosts.length)} declared by the publisher`
+        : `${formatCount(hosts.length)} agent hosts`;
+  const provenanceValue = item.publisher?.provenance
+    ? item.publisher.provenance === "vendor-manifest"
+      ? "From the publisher's manifest"
+      : "From a third-party list"
+    : null;
 
   return (
     <DiscoveryCard as="article" interactive className={className}>
@@ -145,8 +148,8 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
             }`}
             title={
               worksWith
-                ? "MCP servers install into any host with an adapter, skills into any host with a skills directory, and plugins only into the hosts their publisher lists — declared, not tested."
-                : "Not in this entry's declared host list — publisher-declared, not tested."
+                ? "MCP servers work in any host LiteSPM can set up, skills in any host with a skills directory, and plugins only in the hosts their publisher lists."
+                : "Nothing declares support for this agent."
             }
           >
             {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
@@ -164,15 +167,15 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
           />
         </summary>
         <dl className="mt-1 border-t border-rule pt-1">
-          <TechRow label="id" value={item.id} />
-          <TechRow label="runtime" value={item.runtime} />
-          <TechRow label="transport" value={item.transport} />
-          <TechRow label="version" value={item.version} />
-          <TechRow label="source" value={item.publisher?.provenance} />
-          <TechRow label="hosts" value={hostsValue} />
+          <TechRow label="ID" value={item.id} />
+          <TechRow label="Runtime" value={item.runtime} />
+          <TechRow label="Transport" value={item.transport} />
+          <TechRow label="Version" value={item.version} />
+          <TechRow label="Source" value={provenanceValue} />
+          <TechRow label="Hosts" value={hostsValue} />
         </dl>
         <p className="mt-2 text-[11.5px] leading-relaxed text-ink-3">
-          Only the fields the publisher provided.
+          Values the entry doesn&rsquo;t carry are left out.
         </p>
       </details>
     </DiscoveryCard>

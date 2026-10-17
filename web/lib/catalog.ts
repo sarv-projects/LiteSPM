@@ -98,7 +98,7 @@ export const DEFAULT_SORT: SortMode = "curated";
 
 /** The default order's rule, stated once in the UI where the sort control is. */
 export const CURATED_NOTE =
-  "Curated first ranks rows by facts each row carries: the upstream directory's “Official Skills by …” section first, then rows read from the publisher's own manifest, then rows LiteSPM can install.";
+  "Curated first: official skills first, then entries read from the publisher's own manifest, then entries LiteSPM can install.";
 
 /** How strongly the curated order prefers a row. Higher sorts first. */
 export function curatedScore(item: Listing): number {
@@ -749,7 +749,7 @@ export function rowSignal(item: Listing): RowSignal {
     return {
       tier: "official",
       label: "Official",
-      note: "Classified “Official” by the upstream skills directory. Not audited by LiteSPM.",
+      note: "Marked “Official” by the source list it came from. Not audited by LiteSPM.",
     };
   }
   const avail = availabilityOf(item);

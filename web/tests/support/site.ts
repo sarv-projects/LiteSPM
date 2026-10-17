@@ -102,8 +102,8 @@ export function resultCount(page: Page) {
  * Wait until Explore is showing the *measured* grid for a query: the heading
  * only renders once the row set is in hand (the skeleton has no heading), and
  * the first row only renders once the index search has settled — until then
- * `filtered` is empty and the count honestly reads `0 entries` while the
- * SearchBar says "searching…". Waiting for a row is the settled signal.
+ * the grid count and the SearchBar both read "searching…". Waiting for a row
+ * is the settled signal.
  */
 export async function waitForSearchGrid(page: Page, query: string): Promise<void> {
   await expect(

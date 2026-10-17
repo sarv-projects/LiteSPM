@@ -127,7 +127,7 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
               }`}
               title={
                 worksWith
-                  ? "Installs into this agent, per the adapter registries and the publisher's own list — declared, not tested."
+                  ? "Works with this agent — declared, not tested."
                   : "Not in this entry's declared host list."
               }
             >

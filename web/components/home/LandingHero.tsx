@@ -29,6 +29,13 @@ import type { TelemetryState } from "../../lib/telemetry";
  * `DeveloperZone`, where the install section actually lives and where someone
  * about to paste the command will read it.
  *
+ * The promise names two kinds, not three: `litespm install` completes for MCP
+ * servers and skills, while a plugin install fails closed with
+ * `LPSM-ARTIFACT-UNAVAILABLE` (STATUS.md §3) — the same fact the plugins shelf
+ * states in its own note. The catalog's third kind stays visible one line
+ * above (the cycle counts it) and in the bridge figure; the sentence about
+ * installing claims exactly what the CLI can do.
+ *
  * The search here filters the page in place (it is a controlled `SearchBar`,
  * and typing is an interaction, so the dataset request belongs to the first
  * keystroke). Enter opens Explore, which the hint says in five words.
@@ -153,8 +160,8 @@ export function LandingHero({
           </h1>
 
           <p className="mt-4 max-w-prose text-[15px] leading-relaxed text-ink-2 sm:text-[17px]">
-            Install MCP servers, skills and plugins into the agent you already use — one catalog,
-            one command.
+            Install MCP servers and skills into the agent you already use — one catalog, one
+            command.
           </p>
 
           <div className="mt-7 max-w-2xl">

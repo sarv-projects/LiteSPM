@@ -22,7 +22,6 @@ import { TryItPrompts } from "../../components/package/TryItPrompts";
 import { PackageTabs } from "../../components/package/PackageTabs";
 import type { PackageTabId } from "../../components/package/PackageTabs";
 import { SpecCard } from "../../components/package/SpecCard";
-import { PromoSlot } from "../../components/package/PromoSlot";
 import { RelatedRail } from "../../components/package/RelatedRail";
 import { categoryLabel } from "../categories/categoryLabel";
 import {
@@ -198,9 +197,9 @@ function NotFound({
         </h1>
         {ambiguous ? (
           <p className="text-[13px] leading-relaxed text-ink-2">
-            The slug in this address is shared by more than one entry in this snapshot, so it
-            doesn&rsquo;t name a single one. Open the entry from a search result or use its catalog
-            id — the address bar keeps the id form for every entry whose slug is ambiguous.
+            This address is shared by more than one entry, so it doesn&rsquo;t name a single one.
+            Open the entry from a search result, or from its ID — the address bar keeps the ID form
+            for every entry whose name is shared.
           </p>
         ) : (
           <p className="text-[13px] leading-relaxed text-ink-2">
@@ -604,12 +603,21 @@ function PackageContent({
         <div className="mx-auto w-full max-w-[1040px]">
           {/*
            * Two columns on lg+ — the record runs down the main column while
-           * the specifications card and the reserved promotion slot sit in an
-           * aside beside it, the arrangement both comparable detail pages use
-           * (mcp.so and mcpservers.org both put specs and the sponsor slot in
-           * a sidebar at this width). Below lg the aside follows the title
-           * block instead, so the specifications stay near the top of the
-           * mobile page rather than at its end.
+           * the specifications card sits in an aside beside it, the
+           * arrangement both comparable detail pages use (mcp.so and
+           * mcpservers.org both put specs in a sidebar at this width). Below
+           * lg the aside follows the title block instead, so the
+           * specifications stay near the top of the mobile page rather than
+           * at its end.
+           *
+           * The reserved "Sponsor placement" box that used to sit under the
+           * specs is gone. This build sells no sponsorship, so the box could
+           * only ever state that it was empty — a placeholder advertising its
+           * own emptiness in the reader's eyeline, above the fold on every
+           * entry page. An unfilled slot that says "reserved" is a worse
+           * signal than no slot: it reads as a page still under construction.
+           * When a sponsor program exists, the placement belongs here; until
+           * then the sidebar carries the specification card and nothing else.
            */}
           <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-x-10">
             <div className="lg:col-start-1 lg:row-start-1">
@@ -704,7 +712,6 @@ function PackageContent({
                   item that spans both rows. */}
               <div className="space-y-4 lg:sticky lg:top-[calc(var(--site-header-height)+16px)]">
                 <SpecCard item={item} />
-                <PromoSlot />
               </div>
             </aside>
 
@@ -788,8 +795,8 @@ function PackageContent({
                   }`}
                   title={
                     worksWith
-                      ? "This entry's host list includes this agent — declared by the publisher or derived from the entry's kind. A declaration, not a test result."
-                      : "This entry's host list doesn't include this agent. An absence of a claim, not evidence it fails."
+                      ? "This entry's host list includes this agent — declared by the publisher or derived from the entry's kind."
+                      : "Nothing declares support for this agent — that is not a report that it fails."
                   }
                 >
                   {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
@@ -799,10 +806,8 @@ function PackageContent({
             </div>
 
             <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
-              Compatibility comes from the publisher&rsquo;s declaration or from the entry&rsquo;s
-              kind — MCP servers run through the LiteSPM bridge, skills go into any host with a
-              skills directory. This site doesn&rsquo;t run what it lists, so none of it is a test
-              result.
+              Compatibility is declared by the publisher or derived from what the entry is — never
+              a test result. This site doesn&rsquo;t run what it lists.
             </p>
 
             <button
@@ -833,7 +838,7 @@ function PackageContent({
 
             <details className="group mt-2 border-t border-rule">
               <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-[12.5px] font-medium text-ink-2 transition-colors duration-state ease-out hover:text-ink md:min-h-[36px]">
-                The raw record fields
+                The exact values
                 <span
                   aria-hidden="true"
                   className="text-ink-3 transition-transform duration-panel ease-out group-open:rotate-90"
@@ -843,14 +848,7 @@ function PackageContent({
               </summary>
               <dl className="spec-list pb-1">
                 <div>
-                  <dt>effects</dt>
-                  <dd className="text-[12.5px]!">
-                    <span className="absent">not yet published</span> — the per-entry access list
-                    this page would show
-                  </dd>
-                </div>
-                <div>
-                  <dt>command / args</dt>
+                  <dt>Launch command</dt>
                   <dd className="t-mono text-[12px]!">
                     {item.command ? (
                       <span className="break-all">
@@ -863,7 +861,7 @@ function PackageContent({
                   </dd>
                 </div>
                 <div>
-                  <dt>installHint</dt>
+                  <dt>Install command</dt>
                   <dd className="t-mono text-[12px]!">
                     {item.installHint ? (
                       <span className="break-all">{item.installHint}</span>
@@ -873,7 +871,7 @@ function PackageContent({
                   </dd>
                 </div>
                 <div>
-                  <dt>skillSource</dt>
+                  <dt>Skill source</dt>
                   <dd className="t-mono text-[12px]!">
                     {item.skillSource ? (
                       <span className="break-all">{item.skillSource}</span>

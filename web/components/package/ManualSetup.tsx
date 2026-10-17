@@ -111,7 +111,6 @@ export function ManualSetup() {
             <p className="t-mono text-[10px] text-ink-3">Config format</p>
             <p className="t-mono mt-1 border border-rule-2 bg-sunken px-2.5 py-2 text-[11px] uppercase text-ink-2">
               {host.kind}
-              {host.nested && <span className="ml-2 normal-case text-ink-3">nested v2 layout</span>}
             </p>
           </div>
         </div>

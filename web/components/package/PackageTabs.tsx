@@ -6,7 +6,7 @@ import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
 import { kindLabel } from "../../lib/catalog";
 import { bridgeSnippet, hostPath, hostsFor, resolveHost } from "../../lib/hosts";
-import { formatCount, shortDigest } from "../../lib/format";
+import { formatCount } from "../../lib/format";
 import { VerifiedMark } from "../catalog/PublisherMark";
 import { TabList } from "../ui/TabList";
 import { SITE_URL } from "../../lib/site";
@@ -70,14 +70,14 @@ const INSTALLABILITY: Record<
 /** Where this row's host list comes from — stated at its real strength. */
 const HOST_SOURCE: Record<Listing["kind"], { label: string; plain: string }> = {
   mcp: {
-    label: "kind-derived",
+    label: "By entry type",
     plain:
-      "Every host with a LiteSPM bridge adapter. The list comes from LiteSPM's own adapter registry, not from the publisher, and not from a test.",
+      "Every host LiteSPM can set up. The list comes from LiteSPM itself, not from the publisher, and not from a test.",
   },
   skill: {
-    label: "kind-derived",
+    label: "By entry type",
     plain:
-      "Every host with a skills directory LiteSPM can write a SKILL.md into. The list comes from LiteSPM's own skill-target registry, not from the publisher, and not from a test.",
+      "Every host with a skills directory LiteSPM can write a SKILL.md into. The list comes from LiteSPM itself, not from the publisher, and not from a test.",
   },
   plugin: {
     label: "Publisher-declared",
@@ -125,18 +125,13 @@ function OverviewPanel({ item }: { item: Listing }) {
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div>
-        <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-          The catalog&rsquo;s record for {item.name}, exactly as this snapshot carries it. Fields
-          the publisher never provided are marked <span className="absent">not published</span> —
-          nothing here is guessed.
-        </p>
-        <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
+        <p className="max-w-prose text-[13px] leading-relaxed text-ink-3">
           {sourceSentence(item)}
         </p>
       </div>
 
       <dl className="spec-list">
-        <SpecRow label="Catalog id">
+        <SpecRow label="ID">
           <span className="t-mono text-[12px]!">{item.id}</span>
         </SpecRow>
         <SpecRow label="Kind">{kindLabel(item.kind)}</SpecRow>
@@ -184,7 +179,7 @@ function OverviewPanel({ item }: { item: Listing }) {
         <SpecRow label="Popularity">
           <span
             className="absent"
-            title="The catalog's sources publish no star, download or install counts, so there is no number to show."
+            title="No source publishes star, download or install counts for this entry."
           >
             not published
           </span>
@@ -231,13 +226,6 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
             <span className="t-mono text-[12px]!">{item.tools.length} declared</span>
           ) : (
             <Absent />
-          )}
-        </SpecRow>
-        <SpecRow label="Access effects">
-          {item.effects?.length ? (
-            <span className="t-mono text-[12px]!">{item.effects.length} declared</span>
-          ) : (
-            <Absent text="not yet published" />
           )}
         </SpecRow>
         <SpecRow label="Runtime">
@@ -357,7 +345,7 @@ function CompatibilityPanel({
                 </span>
                 {adapter
                   ? "LiteSPM's bridge entry goes in this file:"
-                  : "LiteSPM's host registry has no bridge adapter for this host, so there is no config entry to show."}
+                  : "LiteSPM can't write this host's config, so there is no setup entry to show."}
               </p>
 
               {adapter && (
@@ -387,15 +375,10 @@ function CompatibilityPanel({
         </div>
       ) : (
         <p className="mt-4 text-[13px] text-ink-3">
-          This entry doesn&rsquo;t name any compatible hosts — an absence of a claim, not a claim
-          that it fails anywhere.
+          No compatible hosts are listed for this entry — nobody has declared support, which is
+          not the same as it failing anywhere.
         </p>
       )}
-
-      <p className="mt-4 max-w-prose text-[12px] leading-relaxed text-ink-3">
-        Compatibility is declared by the publisher or derived from the entry&rsquo;s kind. This site
-        doesn&rsquo;t run what it lists, so none of it is a test result.
-      </p>
     </div>
   );
 }
@@ -409,24 +392,20 @@ function SecurityPanel({ item }: { item: Listing }) {
         <h3 className="text-[14px] font-semibold tracking-tight text-ink">What LiteSPM checked</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="chip pointer-events-none">{installability ? installability.label : "—"}</span>
-          <code className="t-mono text-[11px] text-ink-3">
-            installability = {item.installability ? `"${item.installability}"` : "not published"}
-          </code>
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
           {installability ? installability.plain : "This entry doesn't publish a provenance level."}
         </p>
         {/* Two different questions share the words "Discovery only", and only
-            this sentence separates them: `installability` grades how much
+            this sentence separates them: the chip above grades how much
             metadata was *read*, while the badge at the top of the page answers
             whether `litespm install` will actually run — which also weighs the
             entry's kind. A plugin can be `metadata_verified` (LiteSPM-parsed)
             and still be not installable, which is exactly the pair a reader
             would otherwise read as a contradiction. */}
         <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
-          This grade is about the record, not about whether an install will run — the badge at the
-          top of the page answers that, and it also weighs the entry&rsquo;s kind: a plugin can be
-          <em> LiteSPM-parsed</em> and still not installable.
+          How much of the entry LiteSPM has read — not whether an install will run. The badge at
+          the top of the page answers that one.
         </p>
       </div>
 
@@ -437,8 +416,8 @@ function SecurityPanel({ item }: { item: Listing }) {
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
           &ldquo;From publisher manifest&rdquo; means the row came from that publisher&rsquo;s own
-          marketplace manifest. That is where the data is from — no registry vouches for the
-          publisher, and LiteSPM has not audited it.
+          marketplace manifest. That is where the data is from — LiteSPM has not audited the
+          publisher.
         </p>
       </div>
 
@@ -486,7 +465,7 @@ function VersionsPanel({
         {item.version ? (
           <p className="mt-3 flex items-baseline gap-2 text-[13px] text-ink-2">
             <span className="t-mono text-[15px] text-ink">{item.version}</span>
-            <span className="text-ink-3">as published by the source this row came from</span>
+            <span className="text-ink-3">as published by the source</span>
           </p>
         ) : (
           <>
@@ -494,8 +473,7 @@ function VersionsPanel({
               <Absent text="not published" />
             </p>
             <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-              The source this row came from publishes no version for {item.name}, and this page
-              won&rsquo;t invent one.{" "}
+              The source publishes no version for this entry, and this page won&rsquo;t invent one.{" "}
               <span className="t-mono t-tabular">{formatCount(versioned)}</span> of{" "}
               <span className="t-mono t-tabular">{formatCount(total)}</span> entries in this snapshot
               carry a version.
@@ -514,37 +492,12 @@ function VersionsPanel({
               {typeof release.releaseId === "string" ? release.releaseId : <Absent text="not published" />}
             </span>
           </SpecRow>
-          <SpecRow label="Sequence">
-            {typeof release.sequence === "number" ? (
-              <span className="t-mono t-tabular text-[12px]!">{release.sequence}</span>
-            ) : (
-              <Absent text="not published" />
-            )}
-          </SpecRow>
           <SpecRow label="Built">
             <span className="t-mono text-[12px]!">
               {createdAt ? createdAt.replace("T", " ").replace("Z", " UTC") : <Absent text="not published" />}
             </span>
           </SpecRow>
-          <SpecRow label="Dataset digest">
-            <span className="t-mono text-[12px]!">
-              {shortDigest(typeof release.datasetDigest === "string" ? release.datasetDigest : undefined) ?? (
-                <Absent text="not published" />
-              )}
-            </span>
-          </SpecRow>
-          <SpecRow label="Manifest digest">
-            <span className="t-mono text-[12px]!">
-              {shortDigest(typeof release.manifestDigest === "string" ? release.manifestDigest : undefined) ?? (
-                <Absent text="not published" />
-              )}
-            </span>
-          </SpecRow>
         </dl>
-        <p className="mt-2.5 text-[12px] leading-relaxed text-ink-3">
-          Rows are requested with <code className="t-mono text-ink-2">?v=&lt;dataset digest&gt;</code>,
-          so a cached copy cannot disagree with the HTML beside it.
-        </p>
       </div>
     </div>
   );
@@ -562,12 +515,6 @@ function SourcePanel({ item, pageHref }: { item: Listing; pageHref: string }) {
         <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
           {sourceSentence(item)}
         </p>
-        {item.publisher?.verified && (
-          <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-ink-3">
-            The verified listing means the row was parsed from the publisher&rsquo;s own manifest —
-            not that anyone reviewed the code.
-          </p>
-        )}
       </div>
 
       <dl className="spec-list">
@@ -585,13 +532,10 @@ function SourcePanel({ item, pageHref }: { item: Listing; pageHref: string }) {
             <Absent text="not published" />
           )}
         </SpecRow>
-        <SpecRow label="Source class">
-          <span className="t-mono text-[12px]!">
-            {item.publisher?.provenance === "vendor-manifest" ? "vendor-manifest" : "awesome-list-claim"}
-          </span>
-        </SpecRow>
-        <SpecRow label="Slug">
-          <span className="t-mono text-[12px]!">{item.slug}</span>
+        <SpecRow label="Where it was read">
+          {item.publisher?.provenance === "vendor-manifest"
+            ? "From the publisher's own manifest"
+            : "From a third-party list"}
         </SpecRow>
         <SpecRow label="This page">
           <span className="t-mono break-all text-[12px]!">{canonical}</span>

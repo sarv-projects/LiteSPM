@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { formatCount } from "../../lib/format";
-import { REPO_URL } from "../../lib/site";
 import { categoryLabel } from "../categories/categoryLabel";
 
 /** One board's worth of precomputed rows — see `app/trending/page.tsx`. */
@@ -15,23 +14,17 @@ export interface TrendingBoards {
 }
 
 /**
- * One host in the config board. Every field is a value `hosts.json`,
- * `skill-targets.json` or the release manifest states about the host — see
- * `app/trending/page.tsx` for the sources — and `null` is a value no registry
- * states, which renders `—`.
+ * One host in the config board. Every field is a fact this build holds about
+ * the host, and `null` is a value it does not hold, which renders `—`.
  */
 export interface TrendingHostRow {
   id: string;
   name: string;
-  /** `hosts.json` `generic`: false is a hand-written adapter. */
-  generic: boolean;
   format: "json" | "toml";
-  userPath: string;
-  projectPath?: string;
+  configPath: string;
+  repoConfigPath?: string;
   skillName?: string;
-  docsUrl?: string;
-  /** The hand-written adapter's source file, for the docs column. */
-  adapterFile?: string;
+  docsHref?: string;
   /** Compatible entries by kind, and their total — `null` when unstated. */
   mcp: number | null;
   skill: number | null;
@@ -164,21 +157,24 @@ function docsLabel(url: string): string {
   }
 }
 
-/** The columns of the host board, with the field each reads. */
-const HOST_COLUMNS: Array<{ label: string; source: string }> = [
-  { label: "Host", source: "hosts.json" },
-  { label: "Adapter", source: "generic" },
-  { label: "Config file", source: "userPath · format" },
-  { label: "Project config", source: "projectScope" },
-  { label: "Skills", source: "skill-targets.json" },
-  { label: "Entries", source: "release.json" },
-  { label: "Docs", source: "docsUrl · internal/host/" },
+/**
+ * The columns of the host board, each with the reader-facing hint that sits
+ * under its name. No column names the field it reads: the second line says
+ * what the column means, not where the value lives.
+ */
+const HOST_COLUMNS: Array<{ label: string; hint: string }> = [
+  { label: "Host", hint: "" },
+  { label: "Config file", hint: "where LiteSPM writes" },
+  { label: "Project config", hint: "per-repository file" },
+  { label: "Skills", hint: "install target" },
+  { label: "Entries", hint: "compatible with it" },
+  { label: "Docs", hint: "vendor documentation" },
 ];
 
 /**
- * The agent-host board: one row per host with a compiled-in adapter, one
- * column per fact a registry states about it, alphabetical (an order the
- * reader can verify; the catalog publishes no popularity signal to rank by).
+ * The agent-host board: one row per host LiteSPM can set up, one column per
+ * fact a reader can use, alphabetical (an order the reader can verify; the
+ * catalog publishes no popularity signal to rank by).
  *
  * It replaces a ranked list of compatible-entry totals that were near-constant
  * by construction — compatibility follows from what an entry is, so a host
@@ -188,7 +184,7 @@ const HOST_COLUMNS: Array<{ label: string; source: string }> = [
  */
 function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
   const grid =
-    "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 md:grid-cols-[minmax(0,1.2fr)_88px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)_76px_132px]";
+    "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)_76px_132px]";
 
   return (
     <section>
@@ -196,34 +192,26 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
         <div className="min-w-0">
           <h2>Agent hosts by config</h2>
           <p className="section-note mt-0.5">
-            Every host with a compiled-in bridge adapter, alphabetical. Each column names the
-            registry field it reads; the Entries column is the catalog entries compatible with
-            the host.
+            Every host LiteSPM can set up, alphabetical. Config paths are the files LiteSPM edits
+            for that host; Entries counts the catalog entries that work with it.
           </p>
         </div>
       </div>
 
       <div className={`${grid} t-mono hidden border-b border-ink pb-2 text-[10px] text-ink-3 md:grid`}>
         {HOST_COLUMNS.map((column, i) => (
-          <span key={column.label} className={i === 5 ? "text-right" : undefined}>
+          <span key={column.label} className={i === 4 ? "text-right" : undefined}>
             <span className="t-cond block text-[11px] font-semibold text-ink">{column.label}</span>
-            <span className="block text-[9.5px]">{column.source}</span>
+            {column.hint && <span className="block text-[9.5px]">{column.hint}</span>}
           </span>
         ))}
       </div>
 
       <ul>
         {rows.map((row) => {
-          const docs = row.docsUrl
-            ? { href: row.docsUrl, label: docsLabel(row.docsUrl) }
-            : row.adapterFile
-              ? {
-                  href: `${REPO_URL}/blob/main/${row.adapterFile}`,
-                  label: row.adapterFile.split("/").pop() ?? row.adapterFile,
-                }
-              : null;
-          const projectWhy =
-            "web/data/hosts.json declares no project-scope config for this host (projectScope is absent; host.SupportsProjectScope is false). One file serves the whole machine.";
+          const docs = row.docsHref
+            ? { href: row.docsHref, label: docsLabel(row.docsHref) }
+            : null;
           return (
             <li key={row.id}>
               <div className={`${grid} border-b border-rule py-2.5`}>
@@ -237,39 +225,34 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
                 </Link>
 
                 <span
-                  className="hidden text-[11px] text-ink-2 md:block"
-                  title={
-                    row.generic
-                      ? 'Data-driven adapter: a row of the verified target table, emitted into web/data/hosts.json with "generic": true.'
-                      : `Hand-written adapter with its own merge logic — ${row.adapterFile} (web/data/hosts.json marks it "generic": false).`
-                  }
+                  className="hidden min-w-0 md:block"
+                  title="LiteSPM writes this file — and backs it up before any change."
                 >
-                  {row.generic ? "data-driven" : "hand-written"}
-                </span>
-
-                <span className="hidden min-w-0 md:block" title={row.userPath ? `${row.userPath} — web/data/hosts.json (${row.format.toUpperCase()})` : undefined}>
-                  {row.userPath ? (
+                  {row.configPath ? (
                     <>
-                      <code className="t-mono block truncate text-[11px] text-ink-2">{row.userPath}</code>
+                      <code className="t-mono block truncate text-[11px] text-ink-2">{row.configPath}</code>
                       <span className="t-mono block text-[10px] text-ink-3">{row.format.toUpperCase()}</span>
                     </>
                   ) : (
-                    <span className="absent" title="web/data/hosts.json carries no config path for this host.">
+                    <span className="absent" title="No config path is published for this host.">
                       —
                     </span>
                   )}
                 </span>
 
                 <span className="hidden min-w-0 md:block">
-                  {row.projectPath ? (
+                  {row.repoConfigPath ? (
                     <code
                       className="t-mono block truncate text-[11px] text-ink-2"
-                      title={`${row.projectPath} — web/data/hosts.json (projectScope: true)`}
+                      title="LiteSPM can also write a per-project file here, so one repository can pin its own setup."
                     >
-                      {row.projectPath}
+                      {row.repoConfigPath}
                     </code>
                   ) : (
-                    <span className="absent" title={projectWhy}>
+                    <span
+                      className="absent"
+                      title="No per-project config for this host — one file serves the whole machine."
+                    >
                       —
                     </span>
                   )}
@@ -279,14 +262,14 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
                   {row.skillName ? (
                     <span
                       className="t-cond block truncate text-[12px] text-ink-2"
-                      title={`Skill target “${row.skillName}” — web/data/skill-targets.json, generated from internal/skills/agents.go.`}
+                      title={`Skills install into this host under the name “${row.skillName}”.`}
                     >
                       {row.skillName}
                     </span>
                   ) : (
                     <span
                       className="absent"
-                      title="web/data/skill-targets.json carries no target for this host id, so no skill installs here."
+                      title="LiteSPM has no skills directory for this host, so skills do not install here."
                     >
                       —
                     </span>
@@ -297,10 +280,12 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
                   className="t-mono t-tabular text-right text-[11px] text-ink-2"
                   title={
                     row.total === null
-                      ? "No row in the current snapshot names this host."
-                      : `${formatCount(row.total)} = ${formatCount(row.mcp ?? 0)} MCP + ${formatCount(
-                          row.skill ?? 0
-                        )} skills + ${formatCount(row.plugin ?? 0)} publisher-declared plugins. Kind totals from web/data/release.json; plugin counts from the publishers' own lists.`
+                      ? "No entry in the catalog names this host."
+                      : `${formatCount(row.total)} compatible entries: ${formatCount(
+                          row.mcp ?? 0
+                        )} MCP servers, ${formatCount(row.skill ?? 0)} skills and ${formatCount(
+                          row.plugin ?? 0
+                        )} publisher-declared plugins.`
                   }
                 >
                   {row.total === null ? <span className="absent">—</span> : formatCount(row.total)}
@@ -313,34 +298,28 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="link t-mono block break-all text-[10px] leading-tight"
-                      title={
-                        row.docsUrl
-                          ? `${row.docsUrl} — the vendor page this adapter row was verified against (docsUrl in web/data/hosts.json).`
-                          : `${row.adapterFile} — the hand-written adapter itself; AGENTS.md §1 lists it.`
-                      }
+                      title="The vendor's own documentation for this host."
                     >
                       {docs.label}
                     </a>
                   ) : (
-                    <span className="absent" title="No vendor documentation URL and no adapter source for this host.">
+                    <span className="absent" title="No vendor documentation link for this host.">
                       —
                     </span>
                   )}
                 </span>
 
                 {/* Below the board's breakpoint the same facts travel as one
-                    wrapping line under the name, because a 7-column grid at
+                    wrapping line under the name, because a six-column grid at
                     phone width is a grid a phone reader does not read. */}
                 <span className="t-mono col-span-2 flex flex-wrap gap-x-1.5 text-[10px] text-ink-3 md:hidden">
-                  <span>{row.generic ? "data-driven" : "hand-written"}</span>
-                  <span aria-hidden="true">·</span>
                   <span>{row.format.toUpperCase()}</span>
                   <span aria-hidden="true">·</span>
-                  <span className="break-all">{row.userPath}</span>
-                  {row.projectPath && (
+                  <span className="break-all">{row.configPath}</span>
+                  {row.repoConfigPath && (
                     <>
                       <span aria-hidden="true">·</span>
-                      <span className="break-all">project {row.projectPath}</span>
+                      <span className="break-all">project {row.repoConfigPath}</span>
                     </>
                   )}
                   {row.skillName && (
@@ -400,7 +379,7 @@ export default function CoveragePage({ total, boards, hosts, boardTotals }: Tren
           />
           <CountBoard
             title="Categories by entry count"
-            note="Using the category string each source publishes."
+            note="The categories the sources themselves publish."
             rows={boards.categories.map((c) => ({ ...c, display: categoryLabel(c.label) }))}
             href={(label) => `/explore/?category=${encodeURIComponent(label)}`}
             total={boardTotals.categories}
@@ -415,7 +394,7 @@ export default function CoveragePage({ total, boards, hosts, boardTotals }: Tren
         </div>
 
         <p className="mt-9 max-w-prose border-t border-rule pt-5 text-[12px] leading-relaxed text-ink-3">
-          Each capability links back to the upstream page it was read from.
+          Every entry links back to the page it was read from.
         </p>
       </main>
 

@@ -46,7 +46,7 @@ export function InstallBand({ item, onSeeSteps }: { item: Listing; onSeeSteps: (
         <p className="text-[12px] leading-relaxed text-ink-3" title={avail.plain}>
           {item.kind === "plugin"
             ? "Plugin installs are not supported yet."
-            : "No install command is published for this entry."}
+            : "No command or endpoint is published for this entry."}
         </p>
       </div>
     );

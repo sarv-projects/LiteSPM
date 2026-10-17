@@ -479,8 +479,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
         )}
 
         <p className="mt-5 border-t border-dark-rule pt-3 text-[12px] leading-relaxed text-dark-ink-2">
-          One thing this page can&rsquo;t do: tell whether LiteSPM is installed on your machine. It
-          is static, and catalog installability is not a local check.
+          This page can&rsquo;t tell whether LiteSPM is installed on your machine.
         </p>
       </div>
 

@@ -130,29 +130,17 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
             </summary>
             <div className="mt-2 space-y-2 text-[12.5px]">
               <p>
-                Provenance is <code className="t-mono">publisher.provenance</code>; identity is{" "}
-                <code className="t-mono">publisher.name</code>,{" "}
-                <code className="t-mono">publisher.url</code> and{" "}
-                <code className="t-mono">publisher.verified</code> — a provenance flag, not a
-                security review. What it runs is <code className="t-mono">command</code>,{" "}
-                <code className="t-mono">args</code> and{" "}
-                <code className="t-mono">installHint</code>; how far the reading went is{" "}
-                <code className="t-mono">installability</code>; and{" "}
-                <code className="t-mono">version</code> is the publisher&rsquo;s own.
+                Every entry records who published it and where the row was read from — the
+                publisher&rsquo;s own manifest, or a third-party list. That mark is about
+                provenance, not security: it is not a review of the code. The command an entry
+                starts, and its version, are the publisher&rsquo;s own.
               </p>
               <p>
-                The release itself is chained: the pointer at{" "}
-                <code className="t-mono">/v1/current.json</code> is signed with a keyless Sigstore
-                bundle, and the client verifies pointer →{" "}
-                <code className="t-mono">manifest.json</code> → listings before it trusts a row.
-                The digest this build shipped with is in{" "}
-                <code className="t-mono">data/release.json</code> and stamped on the lazy row
-                request as <code className="t-mono">?v=…</code>, so a CDN cannot answer a newer
-                build with older rows than the HTML beside them. This page does not verify
-                signatures — it is static HTML — and{" "}
-                <code className="t-mono">litespm catalog sync</code> is what does, refusing an
-                unsigned origin under{" "}
-                <code className="t-mono">LITESPM_REQUIRE_CATALOG_SIGNATURE=1</code>.
+                The catalog is signed. LiteSPM verifies a signature chain from the release
+                pointer down to the individual listing before it will search or install a row,
+                and refuses an unsigned origin. This page is static HTML and verifies nothing
+                itself — <code className="t-mono">litespm catalog sync</code> is what does, and it
+                can be told to require a signature.
               </p>
             </div>
           </details>

@@ -78,9 +78,9 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
           Two ways to browse: <strong className="font-medium text-ink">goals</strong> group entries
-          by what they help you do, derived from each entry&rsquo;s own text;{" "}
+          by what they help you do;{" "}
           <strong className="font-medium text-ink">source categories</strong> are the labels the
-          upstream directories publish.
+          sources themselves publish.
         </p>
 
         <h2 className="mt-8 band-title">Browse by goal</h2>
@@ -149,26 +149,22 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
         </ul>
 
         <p className="mt-4 max-w-prose text-[12.5px] leading-relaxed text-ink-3">
-          Goals cover{" "}
+          Goals place{" "}
           <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.mapped)}</span> of{" "}
           <span className="t-mono t-tabular text-ink-2">{formatCount(total)}</span> entries (
-          {Math.round(coverage.coverage * 100)}%); the rest stay in Other. Largest goal:{" "}
-          <span className="text-ink-2">{coverage.largest.label}</span>,{" "}
-          <span className="t-mono t-tabular text-ink-2">{formatCount(coverage.largest.count)}</span>{" "}
-          entries ({Math.round(coverage.largest.share * 100)}%).
+          {Math.round(coverage.coverage * 100)}%); the rest stay in Other.
         </p>
 
         <div className="mt-10 border-b border-ink pb-2">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="band-title">Source categories</h2>
             <p className="t-mono text-[11px] text-ink-3">
-              {formatCount(categories.length)} upstream labels
+              {formatCount(categories.length)} source labels
             </p>
           </div>
           <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            The labels the upstream sources publish. A few name a language or a
-            collection rather than a domain. The bar shows each category&rsquo;s share of the
-            largest one.
+            The labels the sources themselves publish. A few name a language or a collection
+            rather than a domain.
           </p>
         </div>
 

@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     template: "%s · LiteSPM Market",
   },
   description:
-    "The Lightweight Skill & Package Manager for AI Agents — a static index of MCP servers, portable agent skills, and plugins. Browse the catalog snapshot by kind, category, publisher, runtime and agent host, and install through a single LiteSPM bridge entry.",
+    "MCP servers, portable agent skills and plugins for AI agents — search the catalog by kind, category, publisher, runtime or host, and install with one LiteSPM command.",
   applicationName: "LiteSPM Market",
   keywords: [
     "MCP",
@@ -76,7 +76,7 @@ export const metadata: Metadata = {
     // a `summary` card would letterbox the 1200×630 asset.
     card: "summary_large_image",
     title: "LiteSPM Market",
-    description: "A static capability index for coding agents.",
+    description: "MCP servers, agent skills and plugins for coding agents — one catalog, one install command.",
     images: ["/og.png"],
   },
   robots: { index: true, follow: true },
@@ -122,7 +122,7 @@ const SITE_JSON_LD = {
   name: "LiteSPM Market",
   url: SITE_URL,
   description:
-    "A static index of MCP servers, portable agent skills, and plugins for AI coding agents.",
+    "MCP servers, agent skills and plugins for AI coding agents.",
   potentialAction: {
     "@type": "SearchAction",
     target: `${SITE_URL}/explore/?q={search_term_string}`,

@@ -38,9 +38,9 @@ export function SiteFooter() {
           </p>
         </div>
 
-        <nav aria-labelledby="footer-indexed-title">
-          <p id="footer-indexed-title" className="t-mono text-[11px] font-medium text-ink">
-            Indexed
+        <nav aria-labelledby="footer-browse-title">
+          <p id="footer-browse-title" className="t-mono text-[11px] font-medium text-ink">
+            Browse
           </p>
           <ul className="mt-2 space-y-1.5 text-[13px] text-ink-2">
             <li>
@@ -67,11 +67,6 @@ export function SiteFooter() {
               <Link href="/trending/" className="link touch-link">
                 Coverage
               </Link>
-            </li>
-            <li>
-              <a href="/v1/current.json" className="link touch-link t-mono text-[12px]!">
-                /v1/current.json
-              </a>
             </li>
           </ul>
         </nav>
