@@ -603,7 +603,8 @@ export default function CompareView({ data }: CompareViewProps) {
                 <code className="t-mono text-[11.5px]">$PI_CODING_AGENT_DIR</code>,{" "}
                 <code className="t-mono text-[11.5px]">$OPENCODE_CONFIG_DIR</code> and Cline&rsquo;s{" "}
                 <code className="t-mono text-[11.5px]">$CLINE_MCP_SETTINGS_PATH</code>/
-                <code className="t-mono text-[11.5px]">$CLINE_DATA_DIR</code> — and OpenCode prefers
+                <code className="t-mono text-[11.5px]">$CLINE_DATA_DIR</code>/
+                <code className="t-mono text-[11.5px]">$CLINE_DIR</code> — and OpenCode prefers
                 an existing <code className="t-mono text-[11.5px]">opencode.jsonc</code> over the{" "}
                 <code className="t-mono text-[11.5px]">opencode.json</code> the registry names,
                 which is the file a new install creates. The Evidence column links to the adapter

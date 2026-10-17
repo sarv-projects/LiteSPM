@@ -6,20 +6,54 @@ import { SquareTerminal, Check } from "lucide-react";
 import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { AgentLogo } from "../../components/AgentLogo";
-import { HOSTS, resolveHost } from "../../lib/hosts";
-import { vendorName } from "../../lib/vendorNames";
+import { HOSTS } from "../../lib/hosts";
 import { formatCount } from "../../lib/format";
 import { AGENT_STORAGE_KEY, findAgentChoice } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
+import type { AgentRow, KindCount } from "./agentRows";
 
 /**
  * Host coverage is an aggregate: `app/agents/page.tsx` derives it from the
- * full row set at build time. This route never needs the rows themselves and
+ * full row set at build time — one row per host (`agentRows.ts`), not per
+ * catalog spelling. This route never needs the entries themselves and
  * therefore never fetches the dataset.
  */
 export interface AgentsViewProps {
+  /** Rows in the list below. */
   hostCount: number;
-  agents: Array<{ name: string; slug: string; count: number }>;
+  agents: AgentRow[];
+}
+
+/**
+ * One kind's count, linked to the Explore filter that returns exactly that
+ * number. The filter key is the catalog string the kind's registry names the
+ * host by (`agentRows.ts`), so the figure and the filter cannot disagree; the
+ * kind is named because the same host legitimately appears with one count per
+ * kind, and a bare number repeated twice reads as a mistake.
+ */
+function KindLink({
+  kind,
+  label,
+  kc,
+}: {
+  kind: "mcp" | "skill" | "plugin";
+  label: string;
+  kc: KindCount | null;
+}) {
+  if (!kc) return null;
+  return (
+    <Link
+      href={`/explore/?kind=${kind}&host=${encodeURIComponent(kc.host)}`}
+      aria-label={`${formatCount(kc.count)} ${label} entries in Explore for ${kc.host}`}
+      title={`${formatCount(kc.count)} ${label} — the entries whose own registry lists “${kc.host}”`}
+      // Same measured trade as the name link above: each in-viewport link is a
+      // speculative RSC download, and a row can carry three of these.
+      prefetch={false}
+      className="inline-flex min-h-[24px] items-center justify-end whitespace-nowrap transition-colors duration-hover hover:text-accent-text md:min-h-0"
+    >
+      {formatCount(kc.count)} {label}
+    </Link>
+  );
 }
 
 export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
@@ -46,13 +80,13 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
 
   /**
    * The one row the remembered choice names. Adapter id first — the row whose
-   * config LiteSPM can write is the row a reader means — then the catalog's
-   * own host spellings, which is the match Explore uses. "Other" carries no
+   * config LiteSPM can write is the row a reader means — then the row's own
+   * catalog spellings, which is the match Explore uses. "Other" carries no
    * hosts, so it marks nothing.
    */
   const pickedSlug = savedAgent
-    ? agents.find((agent) => resolveHost(agent.name)?.id === savedAgent.id)?.slug ??
-      agents.find((agent) => savedAgent.hosts.includes(agent.name))?.slug ??
+    ? agents.find((agent) => agent.hostId === savedAgent.id)?.slug ??
+      agents.find((agent) => savedAgent.hosts.some((h) => agent.strings.includes(h)))?.slug ??
       null
     : null;
 
@@ -64,7 +98,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Agent hosts</h1>
           <p className="t-mono text-[11px] text-ink-3">
-            {formatCount(hostCount)} hosts named · {formatCount(HOSTS.length)} with compiled-in
+            {formatCount(hostCount)} hosts · {formatCount(HOSTS.length)} with compiled-in
             adapters
           </p>
         </div>
@@ -77,10 +111,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         </p>
 
         <div className="mt-7 border-b border-ink pb-2">
-          <h2 className="sr-only">Agent hosts, compatible entry counts, and config adapters</h2>
+          <h2 className="sr-only">Agent hosts, compatible entry counts by kind, and config adapters</h2>
           {/* Column order must match the rendered cell order, which the rows
-              set with md:order-2 (adapter) and md:order-3 (compatible count). */}
-          <div className="t-mono hidden grid-cols-[minmax(0,1fr)_92px_84px_minmax(0,1fr)] items-center gap-3 text-[10px] text-ink-3 md:grid">
+              set with md:order-2 (adapter) and md:order-3 (compatible counts). */}
+          <div className="t-mono hidden grid-cols-[minmax(0,1fr)_92px_100px_minmax(0,1fr)] items-center gap-3 text-[10px] text-ink-3 md:grid">
             <span>Host</span>
             <span>Adapter</span>
             <span className="text-right">Compatible</span>
@@ -90,20 +124,22 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
 
         <ul>
           {agents.map((agent) => {
-            const host = resolveHost(agent.name);
+            const host = agent.hostId
+              ? HOSTS.find((h) => h.id === agent.hostId)
+              : undefined;
             return (
               <li key={agent.slug}>
                 {/* The row is a container, not a link: the name goes to the
                     host's detail page when LiteSPM can edit that host's
-                    config, and the count keeps the Explore filter this row
-                    already had — two targets, so no nested anchors. */}
-                <div className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-rule py-3 transition-colors hover:bg-hover md:grid-cols-[minmax(0,1fr)_92px_84px_minmax(0,1fr)]">
+                    config, and each count keeps the Explore filter its kind
+                    is named by — several targets, so no nested anchors. */}
+                <div className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-rule py-3 transition-colors hover:bg-hover md:grid-cols-[minmax(0,1fr)_92px_100px_minmax(0,1fr)]">
                   <div className="flex min-w-0 items-center gap-2">
                     <Link
                       href={
                         host
                           ? `/agents/${host.id}/`
-                          : `/explore/?host=${encodeURIComponent(agent.name)}`
+                          : `/explore/?host=${encodeURIComponent(agent.strings[0])}`
                       }
                       // Measured: each scroll-past row is a ~9.5 KB speculative
                       // RSC download, so a full read cost 456,794 B (83%) and a
@@ -129,11 +165,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                         </span>
                       )}
                       <span className="t-cond truncate text-[14px] font-medium text-ink transition-colors duration-hover group-hover:text-accent-text">
-                        {/* The vendor's own spelling — the catalog's host string
-                            is not always what the product calls itself. The link
-                            above still carries the catalog string, which is what
-                            Explore filters on. */}
-                        {host ? vendorName(host.id, agent.name) : agent.name}
+                        {/* The vendor's own spelling, applied in `agentRows.ts`
+                            to the row's whole spelling set — the link and every
+                            count below carry the catalog strings themselves. */}
+                        {agent.name}
                       </span>
                     </Link>
                     {agent.slug === pickedSlug && (
@@ -167,13 +202,16 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                     </span>
                   </div>
 
-                  <Link
-                    href={`/explore/?host=${encodeURIComponent(agent.name)}`}
-                    aria-label={`${formatCount(agent.count)} catalog entries in Explore for ${agent.name}`}
-                    className="t-mono t-tabular inline-flex min-h-[44px] items-center justify-end text-[12px] text-ink-2 transition-colors duration-hover hover:text-accent-text md:min-h-0 md:order-3"
-                  >
-                    {formatCount(agent.count)}
-                  </Link>
+                  {/* One line per kind. Each number counts the entries of that
+                      kind whose registry names this host — an entry that names
+                      it through two strings counts once (agentRows.ts) — and
+                      links to the Explore filter that returns exactly that
+                      number, so the figure and its filter cannot disagree. */}
+                  <span className="t-mono t-tabular flex flex-col items-end justify-center text-[11px] text-ink-2 md:order-3">
+                    <KindLink kind="mcp" label="MCP" kc={agent.mcp} />
+                    <KindLink kind="skill" label="skills" kc={agent.skill} />
+                    <KindLink kind="plugin" label="plugins" kc={agent.plugin} />
+                  </span>
 
                   <span className="hidden md:order-2 md:block">
                     {host ? (

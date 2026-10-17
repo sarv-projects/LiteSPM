@@ -59,7 +59,7 @@ Highest honest state per phase, with the subsystem rows that back it in [STATUS.
 | E — Supervision, Bridge & Hosts | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | provider rows are written at install time (`m4` closed 2026-10-13, `state.SaveProviderExec` inside the install transaction); `autostart` stays `0`, so nothing starts a provider at boot (STATUS §4) |
 | F — MCP profiles, Secrets & OAuth | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | `mcpclient`'s first production importer is `internal/discover`; `auth` still has zero production importers (STATUS §1, §4) |
 | G — Marketplace, `/marketplace`, wizard | `WIRED` for read tools and the web marketplace | `request_install` completes for skills and MCP servers; plugins need artifact ingestion; two bridge tools (`get_invocation`, `cancel_invocation`) answer `-32601` (STATUS §3, §4) |
-| H — Build, Conformance & Packaging | `IMPLEMENTED` | the npm installer is fail-closed on every checksum path (missing manifest/entry, unreadable manifest, mismatch); `LICENSE`/`NOTICE` are listed in the npm `files` allowlist and staged by `release.yml` before publish, but no npm publish has happened yet — `npm/package.json` says `0.4.1` and the tag is not pushed (STATUS §1) |
+| H — Build, Conformance & Packaging | `IMPLEMENTED` | the npm installer is fail-closed on every path: it verifies the release's Sigstore bundle against a signer identity pinned in code (signature, Fulcio chain, CT-log SCT, Rekor inclusion promise via sigstore-js) **and** cross-checks the published SHA-256 listing, discarding the download on a missing bundle, an unparseable bundle, a wrong signer, a wrong issuer, a mismatch, a truncated transfer or an unexpected redirect. `npm test` pins each refusal and asserts the packed tarball is exactly the `files` allowlist with the shipped installer byte-identical to the reviewed source; `LICENSE`/`NOTICE` are listed and staged by `release.yml` before publish (STATUS §1) |
 | I — Fixtures, Self-Update & Migrations | `WIRED` (self-update) / `TESTED` (state) | self-update verifies SHA-256 fail-closed and then the release's keyless Sigstore bundle when one is published; `v0.4.0` (2026-10-11) is the first tag to publish one for every asset; earlier tags are checksum-only with a stated note (STATUS §1) |
 
 **Not yet true, and not claimed here:** provider autostart; plugin installation (no artifact
@@ -170,11 +170,12 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 *   **Gate:** full CI matrix green across Windows, Ubuntu, and macOS runners; npm package boots via `npx litespm`.
 *   **Current state:** the CI matrix above is the matrix — there is no separate macOS/Windows
     *release* build job (release binaries come from the Ubuntu cross-compile script). Packaging
-    caveats that remain open: the npm installer verifies only the checksum, not the release's
-    Sigstore bundle, and no npm publish has happened yet — `LICENSE`/`NOTICE` are in the `files`
-    allowlist and staged by `release.yml`, but the published tarball listing is unproven
-    (STATUS §1). A missing checksum entry is **not** a caveat: `verifyDownloadedBinary` refuses it
-    (`npm/scripts/install-binary.js:258`).
+    caveat that remains open: the published tarball listing is unproven until the next publish
+    (`LICENSE`/`NOTICE` are in the `files` allowlist and staged by `release.yml`; `npm test`
+    now packs the tarball and asserts its exact contents and the shipped installer's digest).
+    A missing checksum entry is **not** a caveat: `verifyDownloadedBinary` refuses it
+    (`npm/scripts/install-binary.js`), and neither is the installer's publisher authentication:
+    it verifies the release's Sigstore bundle against a pinned identity and refuses by default.
 
 ### Phase I: Golden Fixtures, Self-Update & Migrations
 *   **Deliverables:**
@@ -184,8 +185,9 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 *   **Gate:** fixture-backed adapter tests pass offline; update without a published checksum is refused; higher-schema databases halt.
 *   **Current state:** the three stated checks hold. Signed releases **are** shipped — `v0.4.0`
   (2026-10-11) published a keyless bundle for every asset and the updater verifies it; what remains
-  `DESIGNED` is the TUF-style catalog envelope ([ARCH/36 §4](36-ENTERPRISE-POLICY-AND-AUDIT.md)),
-  and the npm installer still verifies the checksum only ([SECURITY.md](../SECURITY.md)).
+  `DESIGNED` is the TUF-style catalog envelope ([ARCH/36 §4](36-ENTERPRISE-POLICY-AND-AUDIT.md)).
+  The npm installer verifies the same bundle against the same pinned identity, so publisher
+  authentication is no longer a gap there ([SECURITY.md](../SECURITY.md)).
 
 ---
 

@@ -20,6 +20,11 @@
     "postinstall": "node scripts/install-binary.js",
     "test": "node test_npm.js"
   },
+  "dependencies": {
+    "@sigstore/bundle": "^5.0.0",
+    "@sigstore/tuf": "^5.0.0",
+    "@sigstore/verify": "^4.0.0"
+  },
   "keywords": [
     "mcp",
     "model-context-protocol",

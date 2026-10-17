@@ -11,7 +11,8 @@
     "lint": "node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs && node scripts/check-search-settled.mjs && node scripts/check-search-index.mjs",
     "check:search-index": "node scripts/check-search-index.mjs",
     "gen:brands": "node scripts/gen_brand_logos.mjs",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -23,10 +24,13 @@
     "tailwind-merge": "^3.0.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.13.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
+    "miniflare": "5.20261012.1-beta",
     "postcss": "^8.5.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.7.3"

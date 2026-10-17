@@ -231,6 +231,14 @@ const HOST_ALIASES: Record<string, string> = (() => {
     "roo code": "roo",
     "github copilot": "github-copilot",
     "gemini cli": "gemini-cli",
+    // The compiled-in registry itself accepts these two as ids of the
+    // canonical rows (`internal/host/registry.go` maps "pi" → PiAgentAdapter
+    // and "grok" → GrokBuildAdapter), and `internal/skills/agents.go` records
+    // them as the reference installer's spellings of the same directories.
+    // The catalog carries them as skill-target strings ("Pi", "Grok"), so
+    // without this they read as hosts no adapter manages — which is not true.
+    pi: "pi-agent",
+    grok: "grok-build",
   });
   return map;
 })();

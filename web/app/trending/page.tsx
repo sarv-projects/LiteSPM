@@ -1,14 +1,17 @@
 import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import {
-  agentFacets,
   categoryIndex,
   kindBreakdown,
   kindLabel,
   publisherFacets,
   withLinkKeys,
 } from "../../lib/catalog";
-import type { TrendingViewProps } from "./TrendingView";
+import { HOSTS, SKILL_TARGETS } from "../../lib/hosts";
+import { vendorName } from "../../lib/vendorNames";
+import { ADAPTER_SOURCE } from "../../lib/adapterSources";
+import { buildAgentRows } from "../agents/agentRows";
+import type { TrendingHostRow, TrendingViewProps } from "./TrendingView";
 import type { Metadata } from "next";
 import TrendingRoute from "./TrendingRoute";
 
@@ -24,13 +27,43 @@ export const metadata: Metadata = {
  * Server Component: the coverage boards are counts over the full snapshot,
  * computed at build time. Rows are never rendered here, so the browser gets a
  * few hundred bytes of board data and no reason to fetch the dataset at all.
+ *
+ * The agent-host board reads `hosts.json` (config facts), `skill-targets.json`
+ * (skills targets), `release.json` (kind totals) and `lib/adapterSources.ts`
+ * (the hand-written adapters' own files) — the same registries `/agents/` and
+ * `/compare` render, and the per-host counts come from `buildAgentRows`, so
+ * the three pages cannot disagree about a host's compatible-entry total.
  */
 export default function TrendingPage() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);
 
   const categories = categoryIndex(items);
-  const hosts = agentFacets(items);
   const publishers = publisherFacets(items, Number.MAX_SAFE_INTEGER);
+
+  const rows = buildAgentRows(items);
+  const byHostId = new Map(rows.filter((row) => row.hostId).map((row) => [row.hostId!, row]));
+  const hosts: TrendingHostRow[] = HOSTS.map((host) => {
+    const row = byHostId.get(host.id);
+    return {
+      id: host.id,
+      name: vendorName(host.id, host.name),
+      generic: host.generic,
+      format: host.kind,
+      userPath: host.userPath,
+      projectPath: host.projectPath,
+      skillName: SKILL_TARGETS.find((target) => target.id === host.id)?.displayName,
+      docsUrl: host.docsUrl,
+      adapterFile: ADAPTER_SOURCE[host.id],
+      mcp: row?.mcp?.count ?? null,
+      skill: row?.skill?.count ?? null,
+      plugin: row?.plugin?.count ?? null,
+      total: row?.total ?? null,
+    };
+  });
+  // Alphabetical, because the catalog publishes no popularity or usage figure
+  // and the compatible-entry total is near-constant by construction — sorting
+  // by it would imply a ranking the data does not carry.
+  hosts.sort((a, b) => a.name.localeCompare(b.name));
 
   const props: TrendingViewProps = {
     total: items.length,
@@ -38,19 +71,17 @@ export default function TrendingPage() {
       categories: categories
         .slice(0, 15)
         .map((c) => ({ label: c.name, count: c.count })),
-      hosts: hosts
-        .slice(0, 15)
-        .map((a) => ({ label: a.name, count: a.count })),
       publishers: publishers.slice(0, 15).map((p) => ({ label: p.name, count: p.count })),
       kinds: kindBreakdown(items)
         .map((k) => ({ label: kindLabel(k.kind), count: k.count, kind: k.kind }))
         .sort((a, b) => b.count - a.count),
     },
-    // The boards render 15 rows each; these are the whole-snapshot counts, so
-    // the truncation is stated on the page instead of silently implied.
+    hosts,
+    // The counted boards render 15 rows each; these are the whole-snapshot
+    // counts, so the truncation is stated on the page instead of silently
+    // implied. The host board renders every adapter host and needs no total.
     boardTotals: {
       categories: categories.length,
-      hosts: hosts.length,
       publishers: publishers.length,
     },
   };

@@ -111,6 +111,17 @@ jobs:
           fi
           echo "npm package version v${VERSION} matches the tag"
 
+      # The installer is what every `npm install -g litespm` runs, so the
+      # release is gated on its refusal paths. This runs after the GitHub
+      # release exists, so the cases that verify the published bundle for THIS
+      # tag run against real assets. A case that cannot reach the network is
+      # skipped, never silently passed.
+      - name: Test npm Wrapper and Installer
+        working-directory: ./npm
+        run: |
+          npm ci --ignore-scripts
+          npm test
+
       # The npm tarball must carry the project license and notices. The canonical
       # files live at the repository root; copy them into ./npm so the `files`
       # allowlist in npm/package.json packs them.

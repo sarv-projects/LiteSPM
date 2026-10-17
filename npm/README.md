@@ -73,11 +73,44 @@ npm install -g litespm
 
 Prefer a standalone binary? Grab the release for your platform from
 [GitHub Releases](https://github.com/sarv-projects/LiteSPM/releases). The npm
-package is a thin launcher: it downloads the native binary for your OS and verifies it against the
-published SHA-256 checksums — **fail-closed**. A missing checksum manifest, a manifest with no entry
-for your platform, an unreadable manifest, or a digest mismatch all discard the download; nothing
-unverified is installed or executed. Downloads are HTTPS-only (an https→http redirect is refused).
-See [`SECURITY.md`](https://github.com/sarv-projects/LiteSPM/blob/main/SECURITY.md).
+package is a thin launcher: it downloads the native binary for your OS and
+verifies its **Sigstore signature** before anything is installed or executed —
+**fail-closed**. Downloads are HTTPS-only and host-bounded (a redirect off
+GitHub's asset hosts is refused), and a truncated transfer is discarded rather
+than installed short. See
+[`SECURITY.md`](https://github.com/sarv-projects/LiteSPM/blob/main/SECURITY.md).
+
+**The default is: a valid signature is required.** The installer checks the
+signature over the downloaded bytes, the certificate chain to a Fulcio CA, the
+certificate-transparency proof, and the Rekor transparency-log inclusion — then
+requires the signer to be *exactly* this repository's release workflow on the
+tag being installed:
+
+```text
+identity: https://github.com/sarv-projects/LiteSPM/.github/workflows/release.yml@refs/tags/v<version>
+issuer:   https://token.actions.githubusercontent.com
+```
+
+A signature by anyone else is refused, because a signature that verifies
+against the wrong signer is not evidence. Every failure discards the download,
+prints `INSTALL REFUSED` and exits non-zero:
+
+```text
+[litespm] INSTALL REFUSED — refusing to install litespm-linux-amd64: signature verification failed: digest mismatch
+[litespm] The download was discarded rather than installed unverified. Nothing was written to ~/.litespm/bin/litespm-linux-amd64.
+[litespm] Check https://github.com/sarv-projects/LiteSPM/releases/tag/v0.4.1 for litespm-linux-amd64 and its .sigstore.json bundle, then reinstall. Setting LITESPM_ALLOW_UNSIGNED_RELEASE=1 disables publisher authentication and is not a fix.
+```
+
+| Variable | Effect |
+|---|---|
+| `LITESPM_ALLOW_UNSIGNED_RELEASE=1` | **Explicit opt-out.** Falls back to SHA-256-only verification for releases that publish no bundle at all — every tag before `v0.4.0` — or for a machine that cannot reach the Sigstore trust root. It prints a warning saying so. It is not a silent fallback: a release that publishes a bundle which fails to verify is still refused, because that is the attack signal. A checksum travels in the same release as the binary, so it proves the download was not corrupted, not who published it. |
+| `LITESPM_RELEASE_REPO=<owner>/<name>` or `https://<host>/<path>` | Install from a mirror. A mirror can replace the binary *and* its signature together, so it is refused unless you also state the signer you expect it to present. |
+| `LITESPM_TRUST_IDENTITY` / `LITESPM_TRUST_ISSUER` | Required with `LITESPM_RELEASE_REPO`: the exact certificate identity and OIDC issuer the mirror must present. Ignored when installing from the pinned repository — the identity there is fixed in the installer, because a trust anchor an environment variable can move is not an anchor. |
+| `LITESPM_ALLOW_LOCAL_DIST=1` | Use a `dist/` build in the checkout instead of the published release. Developer convenience; no checksum or signature is verified, and the installer says so. |
+
+Obtaining the Sigstore trust root needs network access to
+`tuf-repo-cdn.sigstore.dev` on first use; it is then cached (Linux
+`~/.local/share/sigstore-js`, macOS `~/Library/Application Support/sigstore-js`).
 
 > **Honest status.** The catalog is live end-to-end: skills install from it
 > (`litespm install <skill-id>` fetches the source and writes the skill files),
@@ -88,12 +121,13 @@ See [`SECURITY.md`](https://github.com/sarv-projects/LiteSPM/blob/main/SECURITY.
 > [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
 >
 > **The published package is current: `litespm@0.4.1` (2026-10-15).** A clean
-> install downloads the native binary, verifies its published SHA-256 checksum,
-> and syncs the live catalog — `✓ Catalog synchronization complete (Release
-> rel-2026-10-15-01, 69376 capabilities indexed)` (verified 2026-10-17). The
-> previous release, `0.4.0`, could not sync the sharded catalog — it was tagged
-> before the shard-aware client landed — and that incident is recorded as history
-> in [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) §2.
+> install downloads the native binary, verifies its published Sigstore
+> signature, and syncs the live catalog — `✓ Catalog synchronization complete
+> (Release rel-2026-10-15-01, 69376 capabilities indexed)` (verified
+> 2026-10-17). The previous release, `0.4.0`, could not sync the sharded
+> catalog — it was tagged before the shard-aware client landed — and that
+> incident is recorded as history in
+> [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) §2.
 
 ## Quickstart
 
@@ -218,8 +252,9 @@ before publishing a release), opt in explicitly:
 LITESPM_ALLOW_LOCAL_DIST=1 npm install -g litespm
 ```
 
-That path does not verify a checksum, because a local build has no published
-digest.
+That path verifies neither a checksum nor a signature, because a local build has
+no published digest and no release bundle. The installer says so when it takes
+that path.
 
 ## Requirements
 

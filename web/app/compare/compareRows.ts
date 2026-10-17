@@ -22,27 +22,15 @@
 
 import release from "../../data/release.json";
 import { HOSTS, SKILL_TARGETS } from "../../lib/hosts";
+import { ADAPTER_SOURCE } from "../../lib/adapterSources";
 import { vendorName } from "../../lib/vendorNames";
 
 /**
- * The hand-written adapters and their own source files.
- *
- * `hosts.json` carries the `generic` flag — true for the data-driven rows that
- * `internal/host/targets_data.go` emits, false for the six adapters written by
- * hand — but not the file each hand-written adapter lives in. The mapping is
- * taken from `internal/host/registry.go`, which names the type behind each id;
- * it is the only thing on this page that is not read at build time, so it is
- * kept to one place, one entry per bespoke id, and the ids are asserted against
- * the registry by the check in `compareRowsSelfCheck` below.
+ * The hand-written adapters' source files live in `lib/adapterSources.ts`:
+ * `/compare` renders them as evidence links and `/trending` as its docs column,
+ * so the map is shared rather than kept twice. `assertAdapterSourcesMatchRegistry`
+ * below still pins it against `hosts.json`'s `generic` flag at build time.
  */
-const ADAPTER_SOURCE: Record<string, string> = {
-  "claude-code": "internal/host/claudecode.go",
-  cline: "internal/host/cline.go",
-  codex: "internal/host/codex.go",
-  "grok-build": "internal/host/grokbuild.go",
-  opencode: "internal/host/opencode.go",
-  "pi-agent": "internal/host/piagent.go",
-};
 
 /** One agent host, with only the facts a registry states about it. */
 export interface CompareRow {

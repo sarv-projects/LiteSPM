@@ -58,13 +58,40 @@ verifies the bundle against the downloaded bytes:
   `https://token.actions.githubusercontent.com`), so a signature minted by a
   fork, a branch build, or a different workflow does not verify.
 
-The npm installer remains **checksum-fail-closed on every path**: a missing
-`SHA256SUMS.txt` manifest, a missing entry for your platform, an unreadable
-manifest, or a digest mismatch all discard the download, print
-`INSTALL REFUSED`, and exit non-zero — nothing unverified is installed or
-executed (`npm/scripts/install-binary.js`, `verifyDownloadedBinary`). It does
-**not** yet verify the signature bundle; that is a known gap, and the honest
-statement of what it proves follows.
+The npm installer verifies the same bundle, and is now **signature-verified by
+default**. `npm/scripts/install-binary.js` fetches `<binary>.sigstore.json`
+beside the binary, checks the signature over the downloaded bytes, the
+certificate chain to a Fulcio CA at the transparency-log timestamp, the SCT
+against a trusted certificate-transparency log, and the Rekor inclusion promise
+against the trusted log key — then requires the signer to be **exactly**
+`https://github.com/sarv-projects/LiteSPM/.github/workflows/release.yml@refs/tags/v<version>`
+with issuer `https://token.actions.githubusercontent.com`. Both are literals in
+the installer, not values read from the environment: a trust anchor an
+environment variable can move is not an anchor.
+
+Every failure refuses and discards the staged download, printing
+`INSTALL REFUSED` and exiting non-zero: a missing bundle, a bundle that is not
+JSON, a bundle of an unrecognised shape, a malformed bundle, a signature over
+different bytes, a signature by a different identity, a wrong issuer, a
+truncated transfer, a digest mismatch, and a redirect off the expected origins.
+Nothing unverified is installed or executed.
+
+The default is *require a signature*. `LITESPM_ALLOW_UNSIGNED_RELEASE=1` is the
+explicit, documented opt-out for tags cut before `release.yml` began signing
+(every tag before `v0.4.0`) and for machines that cannot reach the Sigstore
+trust root; it falls back to checksum-only **and says so loudly**. It is never a
+silent downgrade: a release that publishes a bundle which fails to verify is
+refused even with the opt-out set, because that is the attack signal rather
+than the absence of one. `LITESPM_RELEASE_REPO` redirects where bytes are
+fetched from, and because a mirror can replace the binary *and* its signature
+together it is refused unless the operator also states the expected signer via
+`LITESPM_TRUST_IDENTITY` and `LITESPM_TRUST_ISSUER`.
+
+The cryptography is sigstore-js (`@sigstore/verify` + `@sigstore/tuf`); the
+installer does not implement certificate-chain, Merkle-proof or SET validation
+itself. The trusted root is fetched over TUF, which verifies it against the root
+shipped inside `@sigstore/tuf` before trusting anything it serves, and is cached
+for later installs.
 
 The honest limit: checksums travel in the same release as the binaries, so
 they prove the download was not corrupted in transit but not that it is
@@ -76,7 +103,9 @@ repository's release workflow can sign whatever that workflow signs. The
 trust root is therefore GitHub plus this repository's write controls. Signed releases **have**
 shipped: `v0.4.0` (2026-10-11) published a keyless bundle for every asset, and every tag before it
 published none — so the practical mitigation for those older binaries remains to build from source
-(`go build ./cmd/litespm`) or pin a commit.
+(`go build ./cmd/litespm`) or pin a commit. The currently published `v0.4.1` assets carry a
+`.sigstore.json` bundle for every binary, so installs of it are authenticated today, not only
+prospectively.
 
 The catalog pointer is signed the same way: `scripts/deploy-pages.sh` signs
 `/v1/current.json` when a signing identity exists, and `catalog sync`
@@ -85,8 +114,12 @@ signature always fails, and `LITESPM_REQUIRE_CATALOG_SIGNATURE=1` refuses an
 origin that publishes none.
 
 `npm install -g litespm` runs a `postinstall` script that downloads the platform
-binary from the GitHub release and verifies it against `SHA256SUMS.txt`; the
-install fails closed (non-zero exit) when that proof cannot be produced. Read
+binary from the GitHub release and verifies its Sigstore bundle against this
+repository's release workflow before installing it; the install fails closed
+(non-zero exit) when that proof cannot be produced. It first needs network
+access to `tuf-repo-cdn.sigstore.dev` to obtain the Sigstore trust root, which
+is then cached under `~/.local/share/sigstore-js` (macOS
+`~/Library/Application Support/sigstore-js`). Read
 `npm/scripts/install-binary.js` before installing if you want to see exactly
 what it fetches.
 
@@ -122,7 +155,3 @@ non-https origins.
   an index; LiteSPM is not the publisher of those entries.
 - Anything requiring an attacker who already has write access to your user
   account or your vault.
-- The npm installer's checksum-only verification (the release artifacts
-  themselves are signed — `v0.4.0` was the first tag to publish a bundle for
-  every asset — but the `postinstall` path does not yet verify that bundle;
-  see "Supply chain").

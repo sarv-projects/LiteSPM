@@ -30,13 +30,15 @@ is closed.
 | `npm run type-check` | `tsc --noEmit` | Works — **exits 0**. `lib/hosts.ts:10` refers to this script, and until this pass it did not exist, so the comment named a command that failed with "Missing script". CI now runs `npm run type-check` (`build-web`) so the script cannot rot unnoticed. |
 | `npm run start` | `next start` | **Broken by design.** Next.js refuses: `"next start" does not work with "output: export" configuration. Use "npx serve@latest out" instead.` Use a static file server on `out/`. |
 | `npm run lint` | `node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs && node scripts/check-search-settled.mjs && node scripts/check-search-index.mjs` | Works — **exits 0**. It replaced `next lint`, which could never pass here: with no ESLint config and no `eslint` dependency it opened an interactive "How would you like to configure ESLint?" prompt and hung whenever stdin was not a TTY. Four rules run, all with the TypeScript API already in `devDependencies`: a Hook must not follow an early return (React error #310, which `tsc` and `next build` both accept), an exported component must be reachable from a route, a `<SearchBar>` reporting a match count must also pass `settled` (a count printed before the search ran is a number nobody measured — the field showed `0 found` for a query that matched 4,809 rows), and the emitted search index must reproduce the in-repo matcher over the real 69,376-row dataset, build byte-identically twice, keep the sharded projection equal to the full projection, and stay under its size budgets. None is a general linter, and together they add nothing to the lockfile. |
+| `npx playwright test` | `playwright test` (alias `npm run test:browser`) | The browser regression suite: 90 journey tests against the built export served through the real edge Worker. Requires `npm run build` first (the suite asserts on `web/out`). See [`tests/README.md`](tests/README.md). CI runs it in the `browser-regression` job. |
 
 CI's `build-web` job now runs, in order: `npm ci`, `npm run type-check`, `npm run lint`, `npm run build`,
 then `scripts/deploy-pages.sh` — which materializes the release tree, verifies its digest chain, scans
 the bundle for leaked source, and checks it against Cloudflare Pages' limits. The Job also asserts
 `test -f web/out/index.html`. Separately, a `Check Catalog Coherence` step runs
 `scripts/check_catalog_coherence.py` before the build so a dataset/release/pointer disagreement fails
-fast.
+fast. The `browser-regression` job (Node 22 — the test server runs Miniflare, which requires it)
+installs Chromium, builds the export and runs the Playwright suite against it.
 
 ## 2. Layout
 
@@ -160,8 +162,11 @@ The site is public static content. Binding rules:
   Python producer, so the numbers can be internally consistent while the dataset itself is old.
 - UI stacks described elsewhere in prose do not all exist here: the dependency list contains no
   Radix packages — the components use plain React, Tailwind and `lucide-react` icons.
-- `next build` in CI proves the export compiles; it does not prove the deployed origin serves it
-  (the live check used elsewhere is `GET /v1/current.json` → 200).
+- `next build` in CI proves the export compiles; the `browser-regression` job now also proves the
+  export *works* (every top-level route, entry identity in the served HTML through the real Worker,
+  search/filter state, the palette's fetch contract, no-JS rendering, budgets and contrast). What
+  neither proves is that the **deployed origin** serves it — that still needs the live check used
+  elsewhere: `GET /v1/current.json` → 200.
 
 See [STATUS.md](../STATUS.md) for authoritative capability states and
 [scripts/README.md](../scripts/README.md) for the builders referenced above.

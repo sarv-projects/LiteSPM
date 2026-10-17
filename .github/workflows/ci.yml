@@ -54,10 +54,14 @@ jobs:
       # native binary, so its refusal paths are tested rather than assumed.
       # test_npm.js needs a binary to resolve, so one is built first and dropped
       # in dist/ under the name the wrapper looks for.
+      #
+      # --ignore-scripts: the package's own postinstall downloads and verifies
+      # the published binary, which the tests exercise deliberately. Running it
+      # here would only add a second, redundant network fetch.
       - name: Test npm Wrapper and Installer
         run: |
           go build -o "dist/$(node -p "require('./npm/bin/litespm.js').getBinaryName()")" ./cmd/litespm
-          cd npm && npm test
+          cd npm && npm ci --ignore-scripts && npm test
 
       # The committed dataset is the input to every published release. Nothing
       # else in CI touched it, so an edit that made the dataset un-compilable
@@ -186,3 +190,70 @@ jobs:
         run: |
           chmod +x scripts/*.sh
           ./scripts/deploy-pages.sh
+
+  # `next build` proves the export compiles; it does not prove the exported
+  # site works. Every UI defect this repository has found in its review passes
+  # was found by hand — a cold load of `/package/?slug=…` serving the generic
+  # "Entry detail" shell (the flagship GitHub MCP server included), Reset
+  # leaving filters in the address bar, the ⌘K palette's fetch contract, a
+  # no-JS loading chip that never resolves, board figures that disagreed with
+  # the pages their own links opened. This job serves the built export through
+  # the real edge Worker (`web/tests/serve.mjs`, Miniflare — the runtime
+  # wrangler embeds) and runs the Playwright suite against it, including the
+  # budgets (CLS, same-origin request count, First Load JS, 390px overflow)
+  # and a contrast pass.
+  browser-regression:
+    name: Browser Regression (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Node 22, not the web job's 20: the test server runs Miniflare 5, whose
+      # own engines field requires >=22 — the same runtime wrangler 4.151
+      # embeds, pinned to the same version in web/package.json.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Web Dependencies
+        working-directory: ./web
+        run: npm ci
+
+      # ~170 MB of browser per runner; keyed on the lockfile so a Playwright
+      # bump refetches and nothing else does.
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+
+      - name: Install Playwright Browser
+        working-directory: ./web
+        run: npx playwright install --with-deps chromium
+
+      # The suite asserts on `web/out` — the bytes that ship — through the
+      # Worker that ships with them, so the build is a prerequisite, not an
+      # alternative to running against a dev server.
+      - name: Build Web Static Export
+        working-directory: ./web
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Run Browser Regression Suite
+        working-directory: ./web
+        run: npx playwright test
+
+      - name: Upload Playwright Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7

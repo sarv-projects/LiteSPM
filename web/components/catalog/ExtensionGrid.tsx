@@ -158,7 +158,11 @@ export function ExtensionGrid({
           <h2>
             {query ? `Results for “${query}”` : "All capabilities"}
           </h2>
-          <span className="t-mono t-tabular text-[12px] text-ink-3" aria-live="polite">
+          <span
+            className="t-mono t-tabular text-[12px] text-ink-3"
+            aria-live="polite"
+            data-testid="result-count"
+          >
             {formatCount(reported)} {reported === 1 ? "entry" : "entries"}
           </span>
         </div>
