@@ -36,6 +36,25 @@ export function FaqSection() {
       ),
     },
     {
+      q: "What is an MCP server?",
+      a: (
+        <>
+          MCP, the Model Context Protocol, is the open standard for connecting an AI agent to
+          outside tools. An MCP server is a small program the agent connects to and calls: one for
+          Postgres, one for your browser, one for your issue tracker.
+        </>
+      ),
+    },
+    {
+      q: "Is it free?",
+      a: (
+        <>
+          Yes, and there is no account to create. LiteSPM is Apache-2.0 and runs on your machine.
+          Individual servers may need their own credentials, which stay in your keychain.
+        </>
+      ),
+    },
+    {
       q: "Which agents work with it?",
       a: (
         <>
