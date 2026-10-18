@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
 import { kindLabel } from "../../lib/catalog";
-import { bridgeSnippet, hostPath } from "../../lib/hosts";
+import { bridgeSnippet, hostPath, isRemoteTransport } from "../../lib/hosts";
 import { hostsNamedBy, resolveHostId } from "../../lib/hostIdentity";
 import { formatCount } from "../../lib/format";
 import { VerifiedMark } from "../catalog/PublisherMark";
@@ -67,22 +67,30 @@ const INSTALLABILITY: Record<
   },
 };
 
-/** Where this row's host list comes from — stated at its real strength. */
-const HOST_SOURCE: Record<Listing["kind"], { label: string; plain: string }> = {
-  mcp: {
-    label: "By entry type",
-    plain: "Every host LiteSPM can set up. This list is LiteSPM's own, not the publisher's.",
-  },
-  skill: {
-    label: "By entry type",
-    plain:
-      "Every host LiteSPM can install skills into. This list is LiteSPM's own, not the publisher's.",
-  },
-  plugin: {
-    label: "Publisher-declared",
-    plain: "Hosts the publisher declared in its own manifest.",
-  },
-};
+/**
+ * Where this row's host list comes from — stated at its real strength. A
+ * remote MCP row's list is the hosts whose config can take a URL entry (on the
+ * others the install is refused), so it must not say "every host LiteSPM can
+ * set up".
+ */
+function hostSource(item: Listing): { label: string; plain: string } {
+  if (item.kind === "mcp") {
+    return {
+      label: "By entry type",
+      plain: isRemoteTransport(item.transport)
+        ? "Every host LiteSPM can add a remote server to. This list is LiteSPM's own, not the publisher's."
+        : "Every host LiteSPM can set up. This list is LiteSPM's own, not the publisher's.",
+    };
+  }
+  if (item.kind === "skill") {
+    return {
+      label: "By entry type",
+      plain:
+        "Every host LiteSPM can install skills into. This list is LiteSPM's own, not the publisher's.",
+    };
+  }
+  return { label: "Publisher-declared", plain: "Hosts the publisher declared in its own manifest." };
+}
 
 function Absent({ text = "not published" }: { text?: string }) {
   return <span className="absent">{text}</span>;
@@ -116,62 +124,57 @@ function sourceSentence(item: Listing): string {
 /* ------------------------------ panels ------------------------------ */
 
 function OverviewPanel({ item }: { item: Listing }) {
+  // The provenance sentence that led this panel repeated the "Publisher
+  // listing" row below it and the Source tab's "Where it was read", so the
+  // panel is now the record itself.
   return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div>
-        <p className="max-w-prose text-[13px] leading-relaxed text-ink-3">
-          {sourceSentence(item)}
-        </p>
-      </div>
-
-      <dl className="spec-list">
-        <SpecRow label="ID">
-          <span className="t-mono text-[12px]!">{item.id}</span>
-        </SpecRow>
-        <SpecRow label="Kind">{kindLabel(item.kind)}</SpecRow>
-        <SpecRow label="Category">
-          <span className="t-mono text-[12px]!">{categoryLabel(item.category)}</span>
-        </SpecRow>
-        <SpecRow label="Publisher">
-          {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
-            externalLink(item.publisher.url, item.publisher.name)
-          ) : (
-            item.publisher?.name || <Absent text="not published" />
-          )}
-        </SpecRow>
-        <SpecRow label="Publisher listing">
-          {item.publisher?.verified ? <VerifiedMark /> : <Absent text="third-party list entry" />}
-        </SpecRow>
-        <SpecRow label="Version">
-          {item.version ? (
-            <span className="t-mono text-[12px]!">{item.version}</span>
+    <dl className="spec-list max-w-xl">
+      <SpecRow label="ID">
+        <span className="t-mono text-[12px]!">{item.id}</span>
+      </SpecRow>
+      <SpecRow label="Kind">{kindLabel(item.kind)}</SpecRow>
+      <SpecRow label="Category">
+        <span className="t-mono text-[12px]!">{categoryLabel(item.category)}</span>
+      </SpecRow>
+      <SpecRow label="Publisher">
+        {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
+          externalLink(item.publisher.url, item.publisher.name)
+        ) : (
+          item.publisher?.name || <Absent text="not published" />
+        )}
+      </SpecRow>
+      <SpecRow label="Publisher listing">
+        {item.publisher?.verified ? <VerifiedMark /> : <Absent text="third-party list entry" />}
+      </SpecRow>
+      <SpecRow label="Version">
+        {item.version ? (
+          <span className="t-mono text-[12px]!">{item.version}</span>
+        ) : (
+          <Absent text="not published" />
+        )}
+      </SpecRow>
+      {/* Runtime and transport used to sit in their own "What can it do?"
+          section at the top of every page, inside a disclosure. They are
+          per-entry technical fields, which is what this list is for. */}
+      {item.kind === "mcp" && (
+        <SpecRow label="Runtime">
+          {item.runtime ? (
+            <span className="t-mono text-[12px]!">{item.runtime}</span>
           ) : (
             <Absent text="not published" />
           )}
         </SpecRow>
-        {/* Runtime and transport used to sit in their own "What can it do?"
-            section at the top of every page, inside a disclosure. They are
-            per-entry technical fields, which is what this list is for. */}
-        {item.kind === "mcp" && (
-          <SpecRow label="Runtime">
-            {item.runtime ? (
-              <span className="t-mono text-[12px]!">{item.runtime}</span>
-            ) : (
-              <Absent text="not published" />
-            )}
-          </SpecRow>
-        )}
-        {item.kind === "mcp" && (
-          <SpecRow label="Transport">
-            {item.transport ? (
-              <span className="t-mono text-[12px]!">{item.transport}</span>
-            ) : (
-              <Absent text="not published" />
-            )}
-          </SpecRow>
-        )}
-      </dl>
-    </div>
+      )}
+      {item.kind === "mcp" && (
+        <SpecRow label="Transport">
+          {item.transport ? (
+            <span className="t-mono text-[12px]!">{item.transport}</span>
+          ) : (
+            <Absent text="not published" />
+          )}
+        </SpecRow>
+      )}
+    </dl>
   );
 }
 
@@ -256,7 +259,7 @@ function CompatibilityPanel({
   hostTotal: number;
 }) {
   const hosts = hostsNamedBy(item);
-  const source = HOST_SOURCE[item.kind];
+  const source = hostSource(item);
   // One entry per host identity: a skill row names the Pi host through two of
   // its strings, and this list (and the count beside it) says one host.
   const wanted = new Set(
@@ -361,9 +364,7 @@ function CompatibilityPanel({
           )}
         </div>
       ) : (
-        <p className="mt-4 text-[13px] text-ink-3">
-          Nobody has declared support for this entry — that is not a report that it fails.
-        </p>
+        <p className="mt-4 text-[13px] text-ink-3">No host declares support for this entry.</p>
       )}
     </div>
   );
@@ -391,8 +392,8 @@ function SecurityPanel({ item }: { item: Listing }) {
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
           {item.publisher?.verified
-            ? "Read from the publisher's own manifest. LiteSPM has not audited the publisher."
-            : "Claimed by a third-party list. LiteSPM has not audited the publisher."}
+            ? "Read from the publisher's own manifest."
+            : "Claimed by a third-party list."}
         </p>
       </div>
 

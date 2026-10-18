@@ -6,6 +6,7 @@ import { ArrowUpRight, Check, ChevronDown } from "lucide-react";
 import { Listing } from "../../lib/telemetry";
 import { kindLabel, listingHref } from "../../lib/catalog";
 import { hostsNamedBy } from "../../lib/hostIdentity";
+import { isRemoteTransport } from "../../lib/hosts";
 import type { AgentChoice } from "../../lib/landing";
 import { rowWorksWithAgent } from "../../lib/landing";
 import { availabilityOf } from "../../lib/availability";
@@ -152,7 +153,9 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
             }`}
             title={
               worksWith
-                ? "MCP servers work in any host LiteSPM can set up, skills in any host with a skills directory, and plugins only in the hosts their publisher lists."
+                ? item.kind === "mcp" && isRemoteTransport(item.transport)
+                  ? "Remote MCP servers work only in the hosts LiteSPM can add a remote server to, skills in any host with a skills directory, and plugins only in the hosts their publisher lists."
+                  : "MCP servers work in any host LiteSPM can set up, skills in any host with a skills directory, and plugins only in the hosts their publisher lists."
                 : "Nothing declares support for this agent."
             }
           >

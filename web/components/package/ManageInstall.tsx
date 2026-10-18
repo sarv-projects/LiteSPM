@@ -117,10 +117,9 @@ export function ManageInstall({ item, onClear }: ManageInstallProps) {
 
       <div className="on-dark panel-dark mt-3">
         <p className="border-b border-dark-rule pb-3.5 text-[13px] leading-relaxed text-dark-ink">
-          This page can&rsquo;t read LiteSPM&rsquo;s install ledger — it lives on your machine,
-          and this site is static. Nothing below installs, updates or removes anything by
-          itself: these are the commands you run, and <code className="t-mono text-dark-ink">litespm list</code>{" "}
-          is the one source of truth about what is really installed.
+          These are the commands you run yourself —{" "}
+          <code className="t-mono text-dark-ink">litespm list</code> is the one source of truth
+          for what is installed.
         </p>
 
         <ul className="mt-4 space-y-4">

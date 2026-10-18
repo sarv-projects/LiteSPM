@@ -218,7 +218,7 @@ function MatchExplanationPanel({
         Why these results?
       </summary>
       <p className="mt-2 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
-        Matches rank by where the query was found — the name first, then the publisher, web
+        Results rank by where the query was found — the name first, then the publisher, web
         address and description. Ties go to entries LiteSPM can install, then to publisher
         manifests and official skills.
         {host && (
@@ -261,7 +261,7 @@ function MatchExplanationPanel({
                         {"”"}
                       </>
                     ) : (
-                      " (text the result view does not carry)"
+                      " (not shown in the result list)"
                     )}
                   </span>
                   <span className="text-ink-3">
@@ -286,9 +286,6 @@ function MatchExplanationPanel({
           </li>
         ))}
       </ol>
-      <p className="mt-3 text-[11.5px] text-ink-3">
-        The same rule orders every result below; these are the first {entries.length}.
-      </p>
     </details>
   );
 }
@@ -334,7 +331,7 @@ function ExploreLoadError({ onRetry }: { onRetry: () => void }) {
           <RotateCw className="h-6 w-6 text-ink-3" aria-hidden="true" />
           <h3 className="text-[15px] font-semibold">The catalog could not be loaded</h3>
           <p className="text-[13px] text-ink-2">
-            Search and filtering need the full catalog rows, and that request did not come back.
+            The full catalog didn&rsquo;t load, so search and filtering are unavailable right now.
           </p>
           <button type="button" onClick={onRetry} className="btn btn-solid mt-2">
             Try again
@@ -763,7 +760,7 @@ function ExploreContent(props: ExploreViewProps) {
               <select
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
-                title="Grouped by what the capability is for. Not the source's category label."
+                title="Grouped by what the capability is for."
                 className="field"
               >
                 <option value="all">All goals</option>
@@ -929,7 +926,7 @@ function ExploreContent(props: ExploreViewProps) {
                     title={
                       effectiveSort === "curated"
                         ? CURATED_NOTE
-                        : "Best match orders by where the query matched; the other orders are explicit."
+                        : "Best match orders by where the query matched."
                     }
                     className="field py-0! text-[12px]"
                   >

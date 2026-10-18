@@ -111,8 +111,7 @@ function PackageIndexShell({
   return (
     <main id="main" className="shell flex-1 py-16">
       <div className="max-w-prose">
-        <p className="t-mono text-[11px] text-ink-3">Entry detail</p>
-        <h1 className="t-cond mt-2 text-[24px] font-semibold tracking-tight text-ink">
+        <h1 className="t-cond text-[24px] font-semibold tracking-tight text-ink">
           Find a package
         </h1>
         <p className="mt-2.5 text-[13px] leading-relaxed text-ink-2">
@@ -197,8 +196,7 @@ function NotFound({
         {ambiguous ? (
           <p className="text-[13px] leading-relaxed text-ink-2">
             This address is shared by more than one entry, so it doesn&rsquo;t name a single one.
-            Open the entry from a search result, or from its ID — the address bar keeps the ID form
-            for every entry whose name is shared.
+            Open the entry from a search result instead.
           </p>
         ) : (
           <p className="text-[13px] leading-relaxed text-ink-2">
@@ -777,8 +775,7 @@ function PackageContent({
                 </p>
               ) : agent.hosts.length === 0 ? (
                 <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-                  No compatibility data for &ldquo;{agent.label}&rdquo; — this entry neither claims
-                  nor denies support.
+                  No compatibility data for &ldquo;{agent.label}&rdquo;.
                 </p>
               ) : (
                 <span
@@ -790,7 +787,7 @@ function PackageContent({
                   title={
                     worksWith
                       ? "This entry's host list includes this agent — declared by the publisher or derived from the entry's kind."
-                      : "Nothing declares support for this agent — that is not a report that it fails."
+                      : "Nothing declares support for this agent."
                   }
                 >
                   {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}

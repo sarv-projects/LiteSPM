@@ -53,7 +53,7 @@ const STEPS: Step[] = [
         </p>
         <p className="mt-2">
           The <code className="t-mono">/explore</code> page runs the same search in your browser,
-          over the catalogue the page shipped with — no server is involved either way.
+          over the catalog the page shipped with — no server is involved either way.
         </p>
       </>
     ),
@@ -89,7 +89,7 @@ const STEPS: Step[] = [
           spliced with a pre-edit backup.
         </p>
         <p className="mt-2">
-          Plugin artifacts are not published in the catalogue yet, so a plugin install is refused
+          Plugin artifacts are not published in the catalog yet, so a plugin install is refused
           outright rather than half-done.
         </p>
       </>

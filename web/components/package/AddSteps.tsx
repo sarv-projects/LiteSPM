@@ -478,9 +478,6 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
           </div>
         )}
 
-        <p className="mt-5 border-t border-dark-rule pt-3 text-[12px] leading-relaxed text-dark-ink-2">
-          This page can&rsquo;t tell whether LiteSPM is installed on your machine.
-        </p>
       </div>
 
       {liteSPMInstallable && marked && <ManageInstall item={item} onClear={clearMark} />}

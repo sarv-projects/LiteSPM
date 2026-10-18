@@ -18,11 +18,11 @@ import type { Metadata } from "next";
  * names no key at all.
  */
 export const metadata: Metadata = {
-  title: "Entry detail",
+  title: "Find a package",
   description:
     "One entry from the LiteSPM catalog: what it does, which agent hosts it works with, and how to add it.",
   alternates: { canonical: "/package/" },
-  openGraph: { title: "Entry detail · LiteSPM Market", url: "/package/" },
+  openGraph: { title: "Find a package · LiteSPM Market", url: "/package/" },
 };
 
 /**

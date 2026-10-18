@@ -35,8 +35,8 @@ for (const { label, entry, url } of cases) {
     expect(response.headers()["content-type"]).toContain("text/html");
     const html = await response.text();
 
-    // The generic shell the P0 shipped had the same title for every entry.
-    expect(html).not.toMatch(/<title>Entry detail/);
+    // The generic shell's own title must not appear on an entry page.
+    expect(html).not.toMatch(/<title>Find a package/);
     expect(html).toContain(`<title>${entry.row.name} · LiteSPM Market</title>`);
     expect(htmlContains(html, entry.row.name)).toBe(true);
 
@@ -117,5 +117,5 @@ test("an unknown key answers with the 404 document, not a generic entry shell", 
   const response = await request.get("/package/definitely-not-a-real-key-xyz/");
   expect(response.status()).toBe(404);
   const html = await response.text();
-  expect(html).not.toContain("Entry detail · LiteSPM Market");
+  expect(html).not.toContain("Find a package · LiteSPM Market");
 });

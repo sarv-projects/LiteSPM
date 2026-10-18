@@ -150,7 +150,7 @@ export default function Home(props: HomeViewProps) {
         <div className="bg-sunken">
           <AtlasTeaser />
         </div>
-        <FaqSection provenance={props.provenance} />
+        <FaqSection />
         <div className="bg-sunken">
           <DeveloperZone />
         </div>

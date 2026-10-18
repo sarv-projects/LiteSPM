@@ -422,7 +422,7 @@ export default function CompareView({ data }: CompareViewProps) {
         )}
 
         <p className="mt-8 max-w-prose text-[12px] leading-relaxed text-ink-3">
-          A dash means no value is recorded for that agent — never a guess.
+          A dash means no value is recorded for that agent.
         </p>
       </main>
 

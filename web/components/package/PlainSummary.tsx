@@ -1,6 +1,7 @@
 import React from "react";
 import type { Listing } from "../../lib/telemetry";
 import { availabilityOf } from "../../lib/availability";
+import { isRemoteTransport } from "../../lib/hosts";
 import { hostsNamedBy } from "../../lib/hostIdentity";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 import type { PackageTabId } from "./PackageTabs";
@@ -47,7 +48,7 @@ const KIND_PLAIN: Record<Listing["kind"], string> = {
   skill:
     "An agent skill — a SKILL.md instruction file your agent loads when a task matches it. Nothing runs until the agent applies it.",
   plugin:
-    "A plugin — a bundle of components your agent host installs. LiteSPM does not install plugins yet; it lists them.",
+    "A plugin — a bundle of components your agent host installs.",
 };
 
 function Fact({
@@ -165,8 +166,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
         >
           {hosts.length === 0 ? (
             <>
-              <Absent /> — no compatible hosts are listed for this entry. That means nobody has
-              declared support, not that it fails.
+              <Absent /> — no hosts are listed for this entry.
             </>
           ) : item.kind === "plugin" ? (
             <>
@@ -177,7 +177,9 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
             <>
               {hosts.length} of {hostTotal} agent hosts in this catalog — every host{" "}
               {item.kind === "mcp"
-                ? "LiteSPM can set up."
+                ? isRemoteTransport(item.transport)
+                  ? "LiteSPM can add a remote server to."
+                  : "LiteSPM can set up."
                 : "with a skills directory LiteSPM can write to."}
             </>
           )}

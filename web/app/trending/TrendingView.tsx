@@ -191,10 +191,7 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
       <div className="section-head">
         <div className="min-w-0">
           <h2>Agent hosts by config</h2>
-          <p className="section-note mt-0.5">
-            Every host LiteSPM can set up, alphabetical. Config paths are the files LiteSPM edits
-            for that host; Entries counts the catalog entries that work with it.
-          </p>
+          <p className="section-note mt-0.5">Every host LiteSPM can set up, alphabetical.</p>
         </div>
       </div>
 
@@ -393,9 +390,6 @@ export default function CoveragePage({ total, boards, hosts, boardTotals }: Tren
           />
         </div>
 
-        <p className="mt-9 max-w-prose border-t border-rule pt-5 text-[12px] leading-relaxed text-ink-3">
-          Every entry links back to the page it was read from.
-        </p>
       </main>
 
       <SiteFooter />

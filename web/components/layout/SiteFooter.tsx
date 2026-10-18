@@ -34,7 +34,7 @@ export function SiteFooter() {
           <p className="text-[15px] font-semibold text-ink">LiteSPM Market</p>
           <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-ink-2">
             MCP servers, skills and plugins for the AI agents you use — one catalog to search, one
-            command to install, and every listing links back to its publisher.
+            command to install.
           </p>
         </div>
 

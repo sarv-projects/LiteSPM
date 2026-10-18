@@ -156,13 +156,13 @@ export function LandingHero({
               Still row without JavaScript or motion; see KindCycle. */}
           <KindCycle counts={kindCounts} />
 
-          <h1 className="mt-5 max-w-[20ch] text-[34px] font-semibold leading-[1.06] tracking-tight text-ink sm:text-[44px] lg:text-[54px]">
-            One package manager for your AI agents.
+          <h1 className="mt-5 max-w-[22ch] text-[34px] font-semibold leading-[1.06] tracking-tight text-ink sm:text-[44px] lg:text-[54px]">
+            Give your coding agents the tools they&rsquo;re missing.
           </h1>
 
           <p className="mt-4 max-w-prose text-[15px] leading-relaxed text-ink-2 sm:text-[17px]">
-            Install MCP servers and skills into the agent you already use — one catalog, one
-            command.
+            Find MCP servers and skills for Claude Code, Codex, Cursor, OpenCode and more.
+            LiteSPM installs them for you, previews every change, and can undo it.
           </p>
 
           <div className="mt-7 max-w-2xl">

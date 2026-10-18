@@ -104,9 +104,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          What works with what follows from what a capability is: MCP servers work in any host
-          LiteSPM can set up, skills in any host with a skills directory, and plugins only in the
-          hosts their publisher lists. Hosts LiteSPM can&rsquo;t set up are still indexed here.
+          Every host this catalog knows. Rows marked managed are the ones LiteSPM can configure;
+          the rest are still indexed, because some entries name them. MCP servers work in any
+          managed host, skills in any host with a skills directory, and plugins only in the hosts
+          their publisher lists.
         </p>
 
         <div className="mt-7 border-b border-ink pb-2">

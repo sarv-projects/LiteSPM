@@ -169,7 +169,7 @@ export function VerifiedMark() {
   return (
     <span
       className="inline-flex items-center rounded-chip border border-rule bg-sunken px-1.5 py-0.5 text-[10px] font-medium text-ink-3"
-      title="Read from the publisher's own manifest. LiteSPM has not audited the publisher."
+      title="From the publisher's own manifest."
     >
       from publisher manifest
     </span>

@@ -30,7 +30,7 @@ export default function NotFound() {
         </h1>
         <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
           That page is not on this site — the link may be wrong, or the page may
-          have moved. Everything the catalog knows is reachable from Explore.
+          have moved. Everything in the catalog is reachable from Explore.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/" className="btn btn-solid btn-lg">
