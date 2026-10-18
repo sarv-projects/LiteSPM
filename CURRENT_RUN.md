@@ -1,5 +1,134 @@
 # Current Run Handover
 
+## Session 2026-10-16/18 — the product-page pass (site reads as a product, not a project)
+
+**Read this first if you are picking the repo up.** Everything below is committed and pushed as of
+2026-10-18. This session was driven by two external audits — a customer-perspective UX critique and
+an 18-section "website, marketplace and product UX blueprint" — and by one standing instruction
+from the product owner: the site must read as a **product page**, not as a project describing
+itself, and copy that reads as generated ("it" doing work in a sentence a person would not write)
+is a defect, not a style preference. The benchmark named was **mcpservers.org** and
+**mcpmarket.com**'s front page and FAQ, every time.
+
+### The rule this session established, and the mistake it came from
+
+**An earlier pass "verified" numbers that agreed with each other and were still false.** Three
+different counts (76 / 81 / 90 adapters) were consistent across files and all wrong; the checker
+compared files to each other, never to the world. Consistency is not correctness. Every gate added
+since measures the thing itself: `tests/install-feasibility.spec.ts` counts installable rows from
+the dataset and requires every surface to print that number, and `web/lib/availability.ts` is the
+one function that decides installability — 26,165 of 69,376 rows (38%) install; everything else is
+discovery-only.
+
+The bug that rule caught was live and invisible: **62% of the catalog (42,573 discovery-only rows)
+claimed every host could install it.** `/agents/aider-desk/` said 43,337 entries; the same page also
+said "Install unavailable". Fixing the sentence was not enough — `hostIdsFor`, a shared-constant
+fast path behind Explore's host filter, never consulted the gate, so every *number* stayed wrong
+until it was fixed too. Caught only by re-measuring the built export, not by reading the diff.
+
+### What shipped (all on `origin/main` unless noted)
+
+| commit | what it does |
+|---|---|
+| `9e69095` `408c8cb` | indexed package pages, ranked search, goal-based taxonomy, real publisher identity on every row, a diagram that moves |
+| `b44db54` | `searchFormat.mjs` v2→v3 so `row.source` survives hydration; fixture rows demoted (never deleted); the "+" glyph off the "other agents" tile; `agentIndex` off-by-2 |
+| `7e67b1a` | 15 audit defects: publisher links, the FAQ's third-party disclosure, header CTA, Reset clears the URL, unknown `?host=` handling, ambiguous slugs, the no-JS chip, board truncation |
+| `b6b1e75` | the ⌘K command palette (`LPSM-J009`) — 0 `/data/` requests while passive |
+| `97e0e8d` | entry pages rebuilt: install band and Copy at the top, spec card, related rail |
+| `5c240c0` | every entry URL renders its own page (69,376/69,376); README 577 → 130 lines; plugin `artifact` descriptor; release re-cut `rel-2026-10-17-01` seq 149 |
+| `b37c033` | Sigstore verification in `npm/scripts/install-binary.js` (+38 tests); the 94-test Playwright suite with its CI job; `/trending/` rebuilt; `/compare` cell verification |
+| `9f42b25` | stopped rendering the data model — `/compare/` rebuilt, site-wide token sweep 15,120 → 4,149 visible hits |
+| `373e69d` | one `web/lib/hostIdentity.ts` for all surfaces, canonical 79 identities, all 50 host pages verified against their own Explore link and `/agents/` row |
+| `d05bc49` `b86adae` | the install gate: `hostsFor` **and** `hostIdsFor` both gated on `availabilityOf`; empty-state copy in `PackageView`/`PlainSummary`/`PackageTabs` |
+| `b6206ba` `3b6de1f` | voice pass (entry pages, Explore, categories, trending, agents, compare, 404, footer) and the two competitor-FAQ answers ("What is an MCP server?", "Is it free?") |
+| `fdcf8fd` | the header nav clipped where nobody measured, and the skip link only scrolled |
+| `3490730` | `/privacy`, `/contact`, `/terms` — the three trust pages the site never had |
+
+### Two defects worth reading the commit for
+
+**The header nav clipped in a place no test was looking.** Measured at nine widths before touching
+it: at 320px the rail hid 89px ("Categories" and "Coverage" off the end) behind `no-scrollbar`,
+which removes the only native sign a scroller has — and the repo's 390px overflow test structurally
+cannot see it, because a scrolling container does not overflow the document. Worse, at **768px**
+(portrait iPad) the one-line header left the rail 315px for 367px of links, so "Coverage" rendered
+as "Cov" against the search button with no signal at all. Fixed on the evidence: navigation keeps
+its own full-width row until `lg`, `--site-header-height` moved with it, and the residual phone
+overflow now carries the measured edge fade `ui/TabList` uses for the same defect.
+
+**The skip link was a scroll, not a skip.** `href="#main"` moves the viewport; focus follows the
+fragment only when the target is focusable. Every route renders its own `<main id="main">`, so
+`tabIndex={-1}` went on all twelve, and two tests hold it: the attribute on eleven routes, and Enter
+actually landing focus inside `#main` on one.
+
+### The trust pages are written against the code
+
+`/privacy` states no cookies (there is no `document.cookie`/`Set-Cookie` anywhere), the four
+local-storage keys **by name**, self-hosted fonts, the two outside image hosts `publisherMark`
+builds and what they do and do not carry, the Worker's single `ASSETS` binding, the CLI's four
+outbound calls and nothing else, and the data-root/vault paths from `internal/config/paths.go` and
+`internal/secrets/vault_file.go`. `/contact` points only at channels that exist (the tracker and
+`SECURITY.md`'s private advisory route, with its 7-day commitment as the only response promise).
+`/terms` links Apache-2.0 rather than paraphrasing it and keeps the `SECURITY.md` "What we do not
+claim" distinctions. Each page links its own source file, so the claim is checkable and no
+"last updated" date had to be invented.
+
+### Verified at the end of this session
+
+`tsc --noEmit` clean · 4 lint gates (hook order, orphan components, search count, search index) ·
+4,063-page build · pages budget **14,881 / 20,000 files** (703 MiB) · the full Playwright suite
+green — **113 tests, 0 failures** · npm installer tests green. Screenshots of the header at
+320/360/390/768/1024/1280 and of the three trust pages at 1280 and 390 were read, not just captured.
+
+### Still left, in priority order
+
+1. **Deploy — the live origin is behind HEAD.** `wrangler` is unauthenticated in this environment.
+   Run `npx wrangler login && npx wrangler deploy`. The live `/v1/current.json` still serves
+   `rel-2026-10-15-01` while the repo names `rel-2026-10-17-01`, so the live site is several
+   commits and one catalog release behind.
+2. **npm republish.** `npm whoami` → `ENEEDAUTH` here. Live `litespm@0.4.1` still ships the
+   **pre-Sigstore** installer; the verified installer is in the repo but unpublished. Needs a
+   version bump, the CHANGELOG heading, a tag, then `npm publish` — the procedure of record is in
+   the session section below.
+3. **Blueprint P1 — the story, not yet the structure.** The homepage still leads with the catalog
+   shelves; the plan is goal tiles up, shelves down, the bridge diagram demoted, and a before/after
+   comparison. `/how-it-works/` and `/get-started/` do not exist yet as routes.
+4. **Blueprint P2 — depth.** The install-feasibility module per entry, `featured.json` for a real
+   editor's pick, the `/trending/` rename, and the Explore decomposition.
+5. **The phone nav rail still scrolls below 412px** (89px hidden at 320px). It is signalled by the
+   fade and tested, and it is honest. A hamburger drawer is what the competitors do, and it was
+   **rejected on purpose**: a JS-only drawer would hide the primary navigation entirely with
+   JavaScript off, and this site has an explicit no-JS contract (`tests/no-js.spec.ts`). Revisit
+   only with a no-JS fallback.
+6. **Dataset regeneration** (`K001`–`K004`) is network-bound and was killed twice; `K009` is gated.
+   Optional: it only picks up rows upstream published since the 2026-10-17 snapshot. Run it in the
+   release workflow, not by hand.
+7. **`web/lib/telemetry.ts` is misnamed** — it is the client catalog model (the `Listing` type and
+   the release-snapshot fetch from `/v1/current.json`, same-origin), not telemetry. `/privacy` now
+   says "no telemetry" on a site that ships a file called `telemetry.ts`. A rename is mechanical
+   (15 importers) and is the honest cleanup.
+8. **`mcpservers.org` was never observable.** Cloudflare returns 403 to automation from this
+   environment (as does `mcp.so`), and the user asked for that comparison specifically. The other
+   three competitors were rendered and mined — mcpmarket.com's front page is a 17-word sub-line, a
+   count and "UPDATED JUST NOW", h2s for Official/Featured/Top/Latest, and a 7-question accordion
+   whose answers run 40–65 words; glama.ai is a count plus a filter rail. Neither explains its data
+   model on the front page.
+9. **Open macOS-only flake** `TestSupervisor_ParentEnvCanaryNeverReachesChild` — diagnostic added,
+   no fix, recorded in `TODO.md`.
+10. **Optional/cosmetic:** `/tmp/opencode/shots/` screenshots predate the wave-2 string fixes.
+
+### Decisions made here, so they are not re-litigated
+
+- **`FAQPage` JSON-LD was deferred.** mcpmarket emits it, but Google retired FAQ rich results in
+  2023, so it is competitor trivia with no reader-visible effect.
+- **A plugin keeps its publisher-declared host list.** That list is the publisher's own data
+  (labelled "Publisher-declared"), not a claim about LiteSPM, so the install gate must not delete
+  it. Remote MCP rows are different: they match only the 8 `REMOTE_HOSTS`, because the other 42
+  hosts refuse the install (`LPSM-HOST-REMOTE-UNSUPPORTED`).
+- **No fabricated demo.** A CLI "demo" video or recording was refused: inventing one is the same
+  over-claim species the project forbids everywhere else.
+- **Fixture rows are demoted, never deleted**, and a published release is **re-cut, never edited**
+  (`rel-2026-10-17-01`, sequence 149).
+
 ## Session 2026-10-14/15 — parity, the wizard, the leak, and the site
 
 **Read this first if you are picking the repo up.** Everything below is committed. This section was
