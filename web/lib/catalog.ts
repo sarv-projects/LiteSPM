@@ -169,11 +169,12 @@ export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[]
  * A stable partition: rows that work with one of `hosts` first, the rest
  * after, each group keeping the order it arrived in.
  *
- * Compatibility here is exactly what `hostsFor` derives, no stronger: every
- * MCP server works with every bridge adapter and every skill with every skill
- * target, because that is a property of the kind; only plugins carry their own
- * `compatibleHosts` list. That is the only compatibility data this catalog
- * has, so it is the only data used — no per-row host field is invented.
+ * Compatibility is what `hostsFor` derives, no stronger. A local MCP server works
+ * with every bridge adapter and a skill with every skill target: that is a
+ * property of the kind. A remote MCP server needs a host with a verified URL
+ * entry spelling, because the binary refuses the install anywhere else, so such
+ * a row matches `REMOTE_HOSTS` only. Plugins carry their own `compatibleHosts`.
+ * No per-row host field is invented.
  *
  * `hosts` accepts any spelling of a host (a display name, a registry id, an
  * adapter name), because one agent answers to several: an MCP row names the

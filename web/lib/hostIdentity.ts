@@ -44,7 +44,15 @@
 // pages and the browser derive the same answer from the same rule.
 
 import type { Listing } from "./telemetry";
-import { HOSTS, HOST_ALIASES, SKILL_TARGETS, hostsFor, resolveHost } from "./hosts";
+import {
+  HOSTS,
+  HOST_ALIASES,
+  REMOTE_HOSTS,
+  SKILL_TARGETS,
+  hostsFor,
+  isRemoteTransport,
+  resolveHost,
+} from "./hosts";
 import type { HostAdapter } from "./hosts";
 import { vendorName } from "./vendorNames";
 
@@ -164,12 +172,22 @@ export function hostIdentity(id: string): HostIdentity | undefined {
 const MCP_IDS: string[] = Array.from(
   new Set(HOSTS.map((adapter) => resolveHostId(adapter.name) ?? adapter.id))
 );
+/**
+ * The adapters a **remote** MCP row can actually be configured for. A host
+ * without a verified remote entry spelling refuses the install fail-closed, so
+ * this is the honest set for anything reached over a URL — not `MCP_IDS`.
+ */
+const REMOTE_MCP_IDS: string[] = Array.from(
+  new Set(REMOTE_HOSTS.map((adapter) => resolveHostId(adapter.name) ?? adapter.id))
+);
 const SKILL_IDS: string[] = Array.from(
   new Set(SKILL_TARGETS.map((target) => resolveHostId(target.displayName) ?? joinSkillId(target.id)))
 );
 
-export function hostIdsFor(item: Pick<Listing, "kind" | "compatibleHosts">): string[] {
-  if (item.kind === "mcp") return MCP_IDS;
+export function hostIdsFor(
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport">
+): string[] {
+  if (item.kind === "mcp") return isRemoteTransport(item.transport) ? REMOTE_MCP_IDS : MCP_IDS;
   if (item.kind === "skill") return SKILL_IDS;
   const ids: string[] = [];
   const seen = new Set<string>();
@@ -191,7 +209,7 @@ export function hostIdsFor(item: Pick<Listing, "kind" | "compatibleHosts">): str
  * name rather than silently matching nothing or everything.
  */
 export function itemMatchesHost(
-  item: Pick<Listing, "kind" | "compatibleHosts">,
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport">,
   host: string | null
 ): boolean {
   if (!host) return true;
@@ -216,7 +234,9 @@ export interface NamedHost {
  * of the Pi host are one host, not two, and the count printed beside them is
  * the length of this list. A spelling no registry resolves stays its own host.
  */
-export function hostsNamedBy(item: Pick<Listing, "kind" | "compatibleHosts">): NamedHost[] {
+export function hostsNamedBy(
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport">
+): NamedHost[] {
   const out: NamedHost[] = [];
   const seen = new Set<string>();
   for (const raw of hostsFor(item)) {

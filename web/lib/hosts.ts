@@ -176,8 +176,44 @@ export const SKILL_TARGETS: Array<{
  * servers, which made the public site report nine hosts while the binary shipped
  * fifty. Deriving it here means the claim cannot drift from the registries.
  */
-export function hostsFor(item: { kind: string; compatibleHosts?: string[] }): string[] {
-  if (item.kind === "mcp") return HOSTS.map((h) => h.name);
+/**
+ * Hosts whose adapter has a verified remote (URL) MCP entry spelling.
+ *
+ * The registry ships one only where the adapter was checked against the
+ * vendor's own documentation. On every other host the binary refuses a remote
+ * install fail-closed, so these are the only hosts a remote row can honestly
+ * be said to work with.
+ */
+export const REMOTE_HOSTS = HOSTS.filter((h) => h.remote === true);
+
+/**
+ * True when an MCP row reaches its server over a URL rather than launching a
+ * local process, which is what decides whether a host needs a remote entry
+ * spelling to be configured for it.
+ *
+ * A row that states no transport is not remote: it has no launch line either,
+ * which is why such a row is discovery-only everywhere (see `availabilityOf`).
+ */
+export function isRemoteTransport(transport?: string | null): boolean {
+  return Boolean(transport) && transport !== "stdio";
+}
+
+/**
+ * The hosts an entry can actually be configured for.
+ *
+ * For a **remote** MCP row this is `REMOTE_HOSTS`, not every adapter: a host
+ * with no verified URL spelling has the install refused fail-closed, so listing
+ * it here would promise something the binary will not do. A local MCP row needs
+ * only an adapter that can write a launch line, which is all of them.
+ */
+export function hostsFor(item: {
+  kind: string;
+  compatibleHosts?: string[];
+  transport?: string | null;
+}): string[] {
+  if (item.kind === "mcp") {
+    return (isRemoteTransport(item.transport) ? REMOTE_HOSTS : HOSTS).map((h) => h.name);
+  }
   if (item.kind === "skill") return SKILL_TARGETS.map((t) => t.displayName);
   return item.compatibleHosts || [];
 }
