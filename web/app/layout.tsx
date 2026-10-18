@@ -197,10 +197,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
            */}
           <style>{`@layer base{div[id^="S:"][hidden]{display:block!important}}`}</style>
           <div className="border-b border-rule bg-sunken px-4 py-2.5 text-center text-[12.5px] leading-relaxed text-ink-2">
-            JavaScript is off. The pages are pre-rendered, so everything below still displays.
-            Entry pages name the entry, its publisher and its summary in the served HTML; search,
-            filtering, sorting, the theme toggle and an entry&rsquo;s interactive parts — tabs,
-            the install panel, related lists — need JavaScript. Install steps are in the{" "}
+            JavaScript is off. Everything on this page still reads; search, filters and an
+            entry&rsquo;s interactive parts need it. Install steps are in the{" "}
             <a href={DOCS_URL} className="link">
               README
             </a>

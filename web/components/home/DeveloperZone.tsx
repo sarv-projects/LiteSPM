@@ -18,11 +18,11 @@ import { ARCHITECTURE_URL, DOCS_URL, REPO_URL } from "../../lib/site";
  * (`LPSM-J010`, `LPSM-J011`), so they are not advertised here.
  */
 const SNIPPETS: Array<{ cmd: string; note: string }> = [
-  { cmd: "npm install -g litespm", note: "Install the CLI (npm wrapper around the native binary)" },
-  { cmd: "litespm setup", note: "Interactive wizard: pick a host, merge one bridge entry safely" },
-  { cmd: "litespm search github", note: "Search the locally synced catalog index" },
-  { cmd: "litespm install <id>", note: "Plan, approve, then install a capability" },
-  { cmd: "litespm doctor", note: "Environment check: daemon, bridge, adapters, vault" },
+  { cmd: "npm install -g litespm", note: "Install the CLI" },
+  { cmd: "litespm setup", note: "Detect your agents, preview the change, approve it" },
+  { cmd: "litespm search github", note: "Search the catalog" },
+  { cmd: "litespm install <id>", note: "See what it will run and change, then install it" },
+  { cmd: "litespm doctor", note: "Check your local setup and report anything wrong" },
 ];
 
 const FEATURES: Array<{ title: string; body: React.ReactNode }> = [
@@ -125,13 +125,13 @@ export function DeveloperZone() {
       <div className="rounded-card border border-rule bg-surface p-5 sm:p-7">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="kicker">For developers</p>
+            <p className="kicker">Get started</p>
             <h2 id="dev-title" className="band-title mt-2">
               Install and manage from the terminal
             </h2>
             <p className="band-sub">
-              Browse the catalog here. Installing, approving, restoring and diagnosing all happen
-              in your terminal, with the CLI.
+              This page is for browsing. Everything that changes your machine happens in your
+              terminal, and it tells you what it is about to change before it does.
             </p>
           </div>
         </div>

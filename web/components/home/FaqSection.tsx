@@ -5,17 +5,16 @@ import type { ProvenanceStats } from "../../lib/landing";
 import { formatCount } from "../../lib/format";
 
 /**
- * The questions the catalog can actually answer, asked in the order a person
- * asks them: what is this, will it work with my agent, what is it touching, can
- * I undo it, and how do I check any of that myself.
+ * The questions a buyer asks, in the order they ask them: what is this, will it
+ * work with my agent, where did the data come from, can I undo it, and how do I
+ * check any of it myself.
  *
- * Two audiences, two depths. Each answer leads with the plain version anyone
- * can use; the one answer that used to open with `publisher.provenance` and
- * Sigstore bundles keeps that detail behind its own `<details>`, labelled as
- * the reviewer's view. Every fact survives — only the first sentence changed
- * audience.
+ * Every answer is written in plain English. One carries a nested `<details>` for
+ * the signing detail, which is genuinely optional and genuinely wanted by
+ * whoever wants it; nothing else is longer than it needs to be, and no sentence
+ * exists to defend the page's own method.
  *
- * Every number below is passed in from a build-time derivation over the real
+ * Every number is passed in from a build-time derivation over the real
  * rows (`deriveProvenance`) or read from the compiled-in host registry
  * (`HOSTS`), never typed. Where the honest answer is "not published", the
  * entry says so in those words.
@@ -35,9 +34,9 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       q: "What is LiteSPM?",
       a: (
         <>
-          A package manager for AI agents, and the catalog it installs from. It connects to an
-          agent host once, writes a single version-pinned entry into that host&rsquo;s config, and
-          resolves individual capabilities through that entry.
+          A package manager for AI agents — and the catalog it installs from. It sets an agent up
+          once, with one entry in that agent&rsquo;s own config file, and from then on you install,
+          update and remove capabilities by name instead of editing config by hand.
         </>
       ),
     },
@@ -49,9 +48,9 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
             {formatCount(HOSTS.length)} agent hosts
           </Link>{" "}
           have built-in config adapters that LiteSPM can write directly; each host&rsquo;s page
-          names the file it reads. The catalog lists more hosts than that — publishers declare
-          which agents their own tools work with, and those entries are indexed as that claim.
-          LiteSPM will not edit the config of a host it has no adapter for.
+          names the file it reads. The catalog lists more agents than that, because publishers say
+          which agents their tools work with, and those listings are indexed on the
+          publisher&rsquo;s word. LiteSPM will not edit the config of a host it has no adapter for.
         </>
       ),
     },
@@ -61,8 +60,8 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
         <>
           One of two places: the publisher&rsquo;s own listing, or a community list. Right now
           that&rsquo;s {formatCount(provenance.vendorManifest)} from publishers and{" "}
-          {formatCount(provenance.awesomeList)} from community lists. Both are useful, but they
-          are not the same kind of evidence, so every row says which one it came from.
+          {formatCount(provenance.awesomeList)} from community lists. The two are not equally
+          reliable, so every row says which one it came from.
         </>
       ),
     },
@@ -71,8 +70,8 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       a: (
         <>
           The publisher&rsquo;s own name and a link to them. A <em>from publisher manifest</em>{" "}
-          badge means the row was parsed from that publisher&rsquo;s own listing — it records
-          where the data came from, not that anyone reviewed the software.
+          badge means the row was parsed from that publisher&rsquo;s own listing; it says where the
+          data came from, not that anyone vetted the software.
         </>
       ),
     },
@@ -86,12 +85,13 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       ),
     },
     {
-      q: "How far was it actually checked?",
+      q: "How much has LiteSPM read?",
       a: (
         <>
-          Every entry says how far it was read: <em>Discovery only</em> or{" "}
-          <em>LiteSPM-parsed</em>. Most entries are still Discovery only —{" "}
-          {formatCount(provenance.discoveryOnly)} of {formatCount(provenance.total)}.
+          Every entry says which, in two grades: <em>LiteSPM-parsed</em> means the listing was read
+          in full, <em>Discovery only</em> means it was indexed but not parsed. Most are still
+          Discovery only — {formatCount(provenance.discoveryOnly)} of {formatCount(provenance.total)}
+          .
         </>
       ),
     },
@@ -110,15 +110,15 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       a: (
         <>
           <p>
-            Every claim above is a field on the entry&rsquo;s own record. Open any entry and you
-            can see where it came from, what command it runs, how far the reading went, and which
-            version the publisher gave — and where a field is missing, the entry says{" "}
+            Every answer above comes from the entry&rsquo;s own page. Open any one of them and you
+            can see where it came from, what command it runs, how much was read, and which version
+            the publisher gave — and where something is missing, the entry says{" "}
             <span className="absent">not published</span>.
           </p>
           <details className="group mt-3 border-t border-rule pt-3">
             <summary className="flex min-h-[32px] w-full cursor-pointer items-start justify-between gap-4 text-left">
               <span className="text-[12.5px] font-medium text-ink-2 group-open:text-ink">
-                The reviewer&rsquo;s view: exact field names and the signed release chain
+                The catalog is signed
               </span>
               <span
                 aria-hidden="true"
@@ -130,17 +130,9 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
             </summary>
             <div className="mt-2 space-y-2 text-[12.5px]">
               <p>
-                Every entry records who published it and where the row was read from — the
-                publisher&rsquo;s own manifest, or a third-party list. That mark is about
-                provenance, not security: it is not a review of the code. The command an entry
-                starts, and its version, are the publisher&rsquo;s own.
-              </p>
-              <p>
-                The catalog is signed. LiteSPM verifies a signature chain from the release
-                pointer down to the individual listing before it will search or install a row,
-                and refuses an unsigned origin. This page is static HTML and verifies nothing
-                itself — <code className="t-mono">litespm catalog sync</code> is what does, and it
-                can be told to require a signature.
+                LiteSPM verifies a signature chain from the release pointer down to the individual
+                listing before it will search or install a row, and refuses an unsigned origin.{" "}
+                <code className="t-mono">litespm catalog sync</code> does the verifying.
               </p>
             </div>
           </details>
@@ -160,13 +152,13 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
       ),
     },
     {
-      q: "Is this page's data live?",
+      q: "How current is the catalog?",
       a: (
         <>
-          The listings are a fixed catalog snapshot baked into the build. The index pages and the{" "}
-          {formatCount(HOSTS.length)} agent pages are pre-rendered, so they read with JavaScript
-          off; opening one entry is the exception, because that lookup runs in your browser. Only
-          the release manifest is fetched on load — the header says whether that fetch succeeded.
+          The listings are a fixed snapshot, dated in the header — the catalog release this page
+          was built from. It does not change underneath you while you read, and this site never
+          updates your machine by itself. To move to a newer release, run{" "}
+          <code className="t-mono">litespm catalog sync</code>.
         </>
       ),
     },
@@ -179,8 +171,8 @@ export function FaqSection({ provenance }: { provenance: ProvenanceStats }) {
         Questions about the catalog
       </h2>
       <p className="band-sub">
-        Where the data comes from, how far it was checked, and what happens on your machine. Every
-        number here is counted from the rows at build time.
+        Where the data comes from, how much of it was read, and what happens on your machine. Every
+        number here is counted from the catalog, not estimated.
       </p>
 
       <div className="mt-7 grid gap-x-10 md:grid-cols-2">

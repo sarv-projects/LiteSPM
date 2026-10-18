@@ -34,9 +34,8 @@ const STEPS: Step[] = [
           the prompts.
         </p>
         <p className="mt-2">
-          This step is not optional. An install with no host set up refuses with{" "}
-          <code className="t-mono">LPSM-INSTALL-TARGET-UNAVAILABLE</code> rather than guessing which
-          config file to edit.
+          This step is not optional. An install with no host set up is refused rather than left
+          guessing which config file to edit.
         </p>
       </>
     ),
@@ -53,9 +52,8 @@ const STEPS: Step[] = [
           never searchable.
         </p>
         <p className="mt-2">
-          The <code className="t-mono">/explore</code> page runs the equivalent match in your browser
-          over the snapshot the page shipped with, using a MiniSearch index inside a Web Worker — no
-          server is involved either way.
+          The <code className="t-mono">/explore</code> page runs the same search in your browser,
+          over the catalogue the page shipped with — no server is involved either way.
         </p>
       </>
     ),
@@ -91,8 +89,8 @@ const STEPS: Step[] = [
           spliced with a pre-edit backup.
         </p>
         <p className="mt-2">
-          Plugin artifacts are not published in the catalog yet, so a plugin install fails closed with{" "}
-          <code className="t-mono">LPSM-ARTIFACT-UNAVAILABLE</code> instead of half-installing.
+          Plugin artifacts are not published in the catalogue yet, so a plugin install is refused
+          outright rather than half-done.
         </p>
       </>
     ),

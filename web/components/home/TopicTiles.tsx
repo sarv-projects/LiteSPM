@@ -27,8 +27,7 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
             What are you trying to get done?
           </h2>
           <p className="band-sub">
-            Pick the goal that matches what you&rsquo;re working on. Each tile opens a real search of
-            the catalog; the count and the sample names are what that search returns.
+            Pick the goal that matches what you&rsquo;re working on — every tile opens that search.
           </p>
         </div>
         <Link href="/categories/" className="touch-link text-[13px] text-ink-2 hover:text-accent-text hover:underline">

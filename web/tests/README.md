@@ -11,7 +11,7 @@ now:
 | `/explore/?q=github` buried its first result at y≈600 | `explore-search.spec.ts` (first row under 560px, ordering panel after the rows) |
 | Reset cleared the filters but left them in the address bar | `explore-search.spec.ts` (Reset leaves no query string; a reload shows the same screen) |
 | an unknown `?host=` filtered silently while the select read "Any agent" | `explore-search.spec.ts` (the unknown host is shown as applied, with its 0 count) |
-| with JS off the hero chip read "checking the catalog…" forever | `no-js.spec.ts` (every route renders; the chip reads "bundled snapshot") |
+| with JS off the hero chip read "checking the catalog…" forever | `no-js.spec.ts` (every route renders; the chip reads "snapshot", and must not claim "catalog is current") |
 | the ⌘K palette's documented acceptance criterion: a passive load fetches nothing under `/data/` | `command-palette.spec.ts` (with positive controls: opening fetches the facets, typing fetches the index) |
 
 ## Running it

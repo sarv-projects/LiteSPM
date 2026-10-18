@@ -385,10 +385,7 @@ export function BridgeDiagram() {
       <figcaption className="sr-only">
         Claude Code, Codex, OpenCode, Cursor, Cline and other agents each connect down into a single
         local LiteSPM bridge, which connects out to MCP servers, agent skills and plugins. Any agent
-        can reach any kind of capability. Hovering or focusing an agent lights its path through the
-        bridge and out to all three kinds; hovering or focusing a kind lights every agent&rsquo;s
-        path to it. The motion is decorative — one packet&rsquo;s journey from a kind, through the
-        bridge, to an agent — and carries nothing the still figure does not.
+        reaches any kind of capability: every agent connects to all three kinds.
       </figcaption>
     </figure>
   );

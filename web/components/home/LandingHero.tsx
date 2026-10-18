@@ -90,7 +90,7 @@ function ReleaseChip({ telemetry }: { telemetry: TelemetryState }) {
   return (
     <span
       className="inline-flex items-center gap-1.5 text-[11px] text-ink-3"
-      title={title ? `Release verification: ${title}` : undefined}
+      title={title ? `Catalog release ${title}` : undefined}
     >
       <span
         aria-hidden="true"
@@ -99,17 +99,18 @@ function ReleaseChip({ telemetry }: { telemetry: TelemetryState }) {
         }`}
       />
       {/*
-        The initial state is "bundled snapshot", not "checking the catalog…":
-        the prerendered HTML ships whichever string is here, and only the
-        client can resolve a check — so a reader without JavaScript (exactly
-        the reader this site advertises supporting) used to sit on a permanent
-        loading state. "Bundled snapshot" is true in every state the server can
-        render: the counts above it come from the bundled release until the
-        origin's manifest answers and the chip says "catalog is current".
+        The unverified state says "snapshot", not "checking the catalog…": the
+        prerendered HTML ships whichever string is here, and only the client can
+        resolve a check — so a reader without JavaScript used to sit on a
+        permanent loading state. "Snapshot" is true in every state the server
+        can render, because the counts above it come from the release this build
+        shipped with until the origin's manifest answers and the chip says
+        "catalog is current". It is also the plain word for what the data is;
+        "bundled" said nothing a reader wanted.
       */}
-      {status === "loading" && "bundled snapshot"}
+      {status === "loading" && "snapshot"}
       {status === "ready" && "catalog is current"}
-      {status === "offline" && "bundled snapshot"}
+      {status === "offline" && "snapshot"}
     </span>
   );
 }
