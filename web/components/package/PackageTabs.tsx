@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
 import { kindLabel } from "../../lib/catalog";
+import { availabilityOf } from "../../lib/availability";
 import { bridgeSnippet, hostPath, isRemoteTransport } from "../../lib/hosts";
 import { hostsNamedBy, resolveHostId } from "../../lib/hostIdentity";
 import { formatCount } from "../../lib/format";
@@ -281,14 +282,23 @@ function CompatibilityPanel({
 
   return (
     <div>
+      {/* With nothing installable there is no host list to head, so the tab
+          states the availability verdict where the count would go and drops the
+          "every host LiteSPM can set up" line that the count used to introduce. */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="chip pointer-events-none">{source.label}</span>
-        <span className="t-mono t-tabular text-[12px] text-ink-3">
-          {hosts.length} of {hostTotal} hosts in this catalog
+        <span className="chip pointer-events-none">
+          {hosts.length ? source.label : availabilityOf(item).label}
         </span>
+        {hosts.length > 0 && (
+          <span className="t-mono t-tabular text-[12px] text-ink-3">
+            {hosts.length} of {hostTotal} hosts in this catalog
+          </span>
+        )}
       </div>
 
-      <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">{source.plain}</p>
+      <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
+        {hosts.length ? source.plain : availabilityOf(item).plain}
+      </p>
 
       {hosts.length ? (
         <div className="mt-4">
@@ -364,7 +374,9 @@ function CompatibilityPanel({
           )}
         </div>
       ) : (
-        <p className="mt-4 text-[13px] text-ink-3">No host declares support for this entry.</p>
+        <p className="mt-4 text-[13px] text-ink-3">
+          Nothing to install, so there is no host to set it up in.
+        </p>
       )}
     </div>
   );

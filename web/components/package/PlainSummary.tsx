@@ -165,9 +165,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
           detail={detailLink("compatibility", "details: Compatibility →")}
         >
           {hosts.length === 0 ? (
-            <>
-              <Absent /> — no hosts are listed for this entry.
-            </>
+            <>Nothing to install, so there is no host to set it up in.</>
           ) : item.kind === "plugin" ? (
             <>
               {hosts.length} host{hosts.length === 1 ? "" : "s"} — the publisher&rsquo;s own

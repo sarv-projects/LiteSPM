@@ -749,67 +749,82 @@ function PackageContent({
             <div className="section-head">
               <h2 id="pkg-fit-title">Will it work with what I use?</h2>
               <span className="section-note t-mono t-tabular">
-                {hosts.length} of {hostTotal} hosts
+                {hosts.length ? `${hosts.length} of ${hostTotal} hosts` : avail.label}
               </span>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-[12px] text-ink-3">You use:</span>
-              {AGENT_CHOICES.map((option) => (
+            {hosts.length === 0 ? (
+              /* Nothing can be configured, so there is no per-agent answer to
+                 give — but the section's own question still has one, and it is
+                 the availability gate's words rather than a second explanation
+                 of them. */
+              <p className="mt-3 max-w-prose text-[14px] leading-relaxed text-ink-2">
+                Nothing to install, so there is no host to set it up in. {avail.plain}
+              </p>
+            ) : (
+              <>
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 text-[12px] text-ink-3">You use:</span>
+                  {AGENT_CHOICES.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={agent?.id === option.id}
+                      onClick={() => changeAgent(option.id)}
+                      className="chip"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {!agent ? (
+                    <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
+                      Choose your agent above and this page answers for it.
+                    </p>
+                  ) : agent.hosts.length === 0 ? (
+                    <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
+                      No compatibility data for &ldquo;{agent.label}&rdquo;.
+                    </p>
+                  ) : (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-[11px] font-medium ${
+                        worksWith
+                          ? "border-accent/30 bg-accent-wash text-accent-text"
+                          : "border-rule bg-sunken text-ink-3"
+                      }`}
+                      title={
+                        worksWith
+                          ? "This entry's host list includes this agent — declared by the publisher or derived from the entry's kind."
+                          : "Nothing declares support for this agent."
+                      }
+                    >
+                      {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
+                      {worksWith
+                        ? `Works with ${agent.label}`
+                        : `Not declared for ${agent.label}`}
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
+                  Compatibility is declared, not tested — LiteSPM doesn&rsquo;t run what it
+                  lists.
+                </p>
+
                 <button
-                  key={option.id}
                   type="button"
-                  aria-pressed={agent?.id === option.id}
-                  onClick={() => changeAgent(option.id)}
-                  className="chip"
+                  className="btn mt-3"
+                  onClick={() => {
+                    setTab("compatibility");
+                    scrollToSection("pkg-details");
+                  }}
                 >
-                  {option.label}
+                  See the full compatibility list
                 </button>
-              ))}
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {!agent ? (
-                <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-                  Choose your agent above and this page answers for it.
-                </p>
-              ) : agent.hosts.length === 0 ? (
-                <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-                  No compatibility data for &ldquo;{agent.label}&rdquo;.
-                </p>
-              ) : (
-                <span
-                  className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-[11px] font-medium ${
-                    worksWith
-                      ? "border-accent/30 bg-accent-wash text-accent-text"
-                      : "border-rule bg-sunken text-ink-3"
-                  }`}
-                  title={
-                    worksWith
-                      ? "This entry's host list includes this agent — declared by the publisher or derived from the entry's kind."
-                      : "Nothing declares support for this agent."
-                  }
-                >
-                  {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
-                  {worksWith ? `Works with ${agent.label}` : `Not declared for ${agent.label}`}
-                </span>
-              )}
-            </div>
-
-            <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
-              Compatibility is declared, not tested — LiteSPM doesn&rsquo;t run what it lists.
-            </p>
-
-            <button
-              type="button"
-              className="btn mt-3"
-              onClick={() => {
-                setTab("compatibility");
-                scrollToSection("pkg-details");
-              }}
-            >
-              See the full compatibility list
-            </button>
+              </>
+            )}
           </section>
 
           {/* ---- 4. What access does it need? -------------------------- */}

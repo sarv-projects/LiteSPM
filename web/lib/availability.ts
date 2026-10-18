@@ -84,10 +84,18 @@ const UNSUPPORTED: Availability = {
 
 /**
  * @param item any row; `kind`, `installability` and `transport` are read.
+ *
+ * `transport` accepts an explicit `null` as well as `undefined`: every test
+ * below is a truthiness test, and a row that records no transport at all and a
+ * row that records `null` describe the same catalog entry. Narrowing the
+ * parameter to `undefined` only forced callers reading raw rows to invent a
+ * difference that the logic does not make.
  */
 export function availabilityOf(
   item: Pick<Listing, "kind"> &
-    Partial<Pick<Listing, "transport" | "skillSource" | "installability">>
+    Partial<Pick<Listing, "skillSource" | "installability">> & {
+      transport?: string | null;
+    }
 ): Availability {
   // 1. Plugin installs are refused by kind, before any metadata is consulted.
   if (item.kind === "plugin") return UNSUPPORTED;

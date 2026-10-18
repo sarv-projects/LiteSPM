@@ -3,30 +3,33 @@
 //
 // Every other spec in this suite compares the site to itself: the host page's
 // figure against its `/agents/` row, a badge against its entry page. That is
-// how a compatibility claim covering the 25,401 remote-only MCP rows survived
-// 98 green tests — the site agreed with itself and disagreed with
-// `data/hosts.json`, whose 42 rows without a `remote` spelling are exactly the
-// hosts where the binary refuses a remote install. Consistency is not truth.
+// how two separate compatibility over-claims survived 98 green tests — the site
+// agreed with itself and disagreed with `data/hosts.json` and with
+// `lib/availability`:
 //
-// This file re-derives the expected answer from the same committed files the
-// binary reads and measures the rendered page against it, so the site can only
-// be wrong in one place at a time.
+//   - `hostsFor` returned all 50 adapters for every MCP row, including the
+//     25,401 remote-only rows whose install the binary refuses on 42 of those
+//     adapters (`LPSM-HOST-REMOTE-UNSUPPORTED`), and
+//   - it returned every adapter or every skill target for the 42,573
+//     discovery-only rows that have no install method at all — while the page
+//     directly above the list said "Install unavailable".
+//
+// Consistency is not truth. This file re-derives the expected answer from the
+// committed files the binary reads and measures the rendered page against it,
+// so the site can only be wrong in one place at a time.
 //
 // What it asserts:
 //
 //   1. an MCP row that reaches its server over a URL lists exactly the hosts
 //      whose adapter has a verified remote entry spelling — `remote: true` in
-//      `data/hosts.json` — because that is the set `litespm install` will not
-//      refuse. The gate has to be exact in both directions: a superset promises
+//      `data/hosts.json`. Exact in both directions: a superset promises
 //      installs that fail, a subset hides installs that work;
-//   2. the denominator beside that figure ("N of M hosts") is one number for
-//      the whole catalog, not one per entry.
-//
-// The assertions a reader would expect next — that a row LiteSPM cannot
-// install lists no host at all — are pending the `hostsFor` change that makes
-// the compatibility list agree with `lib/availability`. Today a discovery-only
-// row prints "50 of 79 agent hosts in this catalog" on the same page as
-// "Install unavailable", and this file would fail if it asserted otherwise.
+//   2. a row LiteSPM cannot install lists no host at all, and the page says why
+//      rather than printing a count of zero;
+//   3. a plugin keeps the hosts its publisher declared. That list is the
+//      publisher's own data, printed as "Publisher-declared" — it is a fact
+//      about the plugin, not a claim about LiteSPM, so the install gate must
+//      not silently delete it.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -38,7 +41,6 @@ import {
   catalogRows,
   entryFixture,
   keyOf,
-  preRenderedKeys,
   type EntryFixture,
   type Listing,
 } from "./support/catalog";
@@ -65,7 +67,7 @@ function isRemote(transport?: string | null): boolean {
 }
 
 /**
- * The first MCP row of its class in plain string order, so the pick is
+ * The first row of its class in plain string order, so the pick is
  * deterministic and the same entry is under test on every run.
  */
 function pickRow(what: string, predicate: (row: Listing) => boolean): EntryFixture {
@@ -78,28 +80,27 @@ function pickRow(what: string, predicate: (row: Listing) => boolean): EntryFixtu
 }
 
 const REMOTE_MCP = pickRow("an MCP row with a remote transport", (row) => {
-  return row.kind === "mcp" && isRemote(row.transport);
+  return row.kind === "mcp" && isRemote(row.transport) && Boolean(row.summary?.trim());
 });
 
 const DISCOVERY_MCP = pickRow("an MCP row with no transport", (row) => {
   return row.kind === "mcp" && !isRemote(row.transport) && Boolean(row.summary?.trim());
 });
 
-/** The first integer in "8 of 79 hosts" — `parseCount` would read 8,79 as 879. */
-function firstInt(text: string | null, what: string): number {
-  const match = /(\d[\d,]*)/.exec(text ?? "");
-  if (!match) throw new Error(`no number in ${what}: ${JSON.stringify(text)}`);
-  return Number.parseInt(match[1].replace(/,/g, ""), 10);
-}
+const PLUGIN = pickRow("a plugin with publisher-declared hosts", (row) => {
+  return row.kind === "plugin" && (row.compatibleHosts?.length ?? 0) > 0;
+});
 
-/** The "N of M" the compatibility section states, and the M. */
-async function hostFigures(
-  page: import("@playwright/test").Page
-): Promise<{ listed: number; universe: number }> {
+/** The compatibility section's note: "8 of 79 hosts", or an availability label. */
+async function fitNote(page: import("@playwright/test").Page): Promise<string> {
   const note = page.locator("#will-it-work .section-note");
   await expect(note).toBeVisible();
-  const text = await note.textContent();
-  const numbers = (text ?? "").match(/\d[\d,]*/g) ?? [];
+  return (await note.textContent())?.trim() ?? "";
+}
+
+/** The "N of M" pair, from a note that is a count. */
+function parsePair(text: string): { listed: number; universe: number } {
+  const numbers = text.match(/\d[\d,]*/g) ?? [];
   if (numbers.length !== 2) {
     throw new Error(`expected "N of M hosts", got ${JSON.stringify(text)}`);
   }
@@ -109,7 +110,7 @@ async function hostFigures(
   };
 }
 
-test("the fixture rows are the two classes the catalog actually has", () => {
+test("the fixture rows are the classes the catalog actually has", () => {
   // Guards the picks above: if the catalog ever gains stdio rows, or loses its
   // remote ones, this suite would keep passing while covering nothing.
   expect(
@@ -122,14 +123,16 @@ test("the fixture rows are the two classes the catalog actually has", () => {
   expect(isRemote(DISCOVERY_MCP.row.transport)).toBe(false);
   expect(REMOTE_MCP.row.kind).toBe("mcp");
   expect(DISCOVERY_MCP.row.kind).toBe("mcp");
+  expect(PLUGIN.row.kind).toBe("plugin");
+  expect(PLUGIN.row.compatibleHosts?.length ?? 0).toBeGreaterThan(0);
 });
 
 test("a remote MCP entry lists exactly the hosts that can reach it", async ({ page }) => {
   await gotoSettled(page, REMOTE_MCP.href);
 
-  const figures = await hostFigures(page);
+  const { listed } = parsePair(await fitNote(page));
   expect(
-    figures.listed,
+    listed,
     `${REMOTE_MCP.key} is reached over ${REMOTE_MCP.row.transport}, so it can only be listed for the ${REMOTE_HOSTS.length} hosts with a verified remote entry spelling (${REMOTE_HOSTS.map((h) => h.id).join(", ")})`
   ).toBe(REMOTE_HOSTS.length);
 
@@ -138,22 +141,49 @@ test("a remote MCP entry lists exactly the hosts that can reach it", async ({ pa
   // asserts against.
   const fact = page.locator("dt", { hasText: "Which agents it works with" });
   await expect(fact).toBeVisible();
-  const stated = firstInt(
-    await fact.locator("xpath=following-sibling::dd[1]").textContent(),
-    "the plain summary's compatibility fact"
+  const stated = await fact.locator("xpath=following-sibling::dd[1]").textContent();
+  expect(stated).toContain(`${REMOTE_HOSTS.length} of`);
+});
+
+test("a row LiteSPM cannot install lists no host at all", async ({ page }) => {
+  await gotoSettled(page, DISCOVERY_MCP.href);
+
+  const note = await fitNote(page);
+  expect(
+    /^\d/.test(note),
+    `${DISCOVERY_MCP.key} publishes no install method, so it must not print a host count — the note reads ${JSON.stringify(note)}`
+  ).toBe(false);
+
+  // The reason, and not a count of zero. The page above it already says
+  // "Install unavailable", so the two statements must agree.
+  await expect(page.locator("#will-it-work")).toContainText("Nothing to install");
+
+  const fact = page.locator("dt", { hasText: "Which agents it works with" });
+  await expect(fact.locator("xpath=following-sibling::dd[1]")).toContainText(
+    "Nothing to install"
   );
-  expect(stated).toBe(figures.listed);
+});
+
+test("a plugin keeps the hosts its publisher declared", async ({ page }) => {
+  await gotoSettled(page, PLUGIN.href);
+
+  const declared = PLUGIN.row.compatibleHosts?.length ?? 0;
+  const { listed } = parsePair(await fitNote(page));
+  expect(
+    listed,
+    `${PLUGIN.key} ships a publisher-declared host list, which is the publisher's data and not ours to drop`
+  ).toBe(declared);
 });
 
 test("every entry page counts its hosts against one denominator", async ({ page }) => {
   await gotoSettled(page, REMOTE_MCP.href);
-  const remote = await hostFigures(page);
+  const remote = parsePair(await fitNote(page));
 
-  await gotoSettled(page, DISCOVERY_MCP.href);
-  const discovery = await hostFigures(page);
+  await gotoSettled(page, PLUGIN.href);
+  const plugin = parsePair(await fitNote(page));
 
   expect(
-    discovery.universe,
-    `${DISCOVERY_MCP.key} and ${REMOTE_MCP.key} must divide by the same host universe`
+    plugin.universe,
+    `${PLUGIN.key} and ${REMOTE_MCP.key} must divide by the same host universe`
   ).toBe(remote.universe);
 });

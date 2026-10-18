@@ -54,6 +54,7 @@ import {
   resolveHost,
 } from "./hosts";
 import type { HostAdapter } from "./hosts";
+import { availabilityOf } from "./availability";
 import { vendorName } from "./vendorNames";
 
 /** Shape of one row in the generated `web/data/skill-targets.json`. */
@@ -162,10 +163,13 @@ export function hostIdentity(id: string): HostIdentity | undefined {
 }
 
 /**
- * The identity ids a row names, deduped. MCP and skills compatibility follow
- * from the kind (every MCP server works with every adapter; every skill with
- * every skills target), so those two return shared constant lists; a plugin
- * returns whatever its publisher declared, resolved and merged.
+ * The identity ids a row names, deduped.
+ *
+ * Two different claims wear this list and they are not the same claim (see
+ * `hostsFor`). A plugin's ids are the publisher's own declaration, so they are
+ * returned as published. An MCP row's and a skill's follow from the entry's
+ * kind, which is a claim about what LiteSPM can configure — so `availabilityOf`
+ * gates them, and a row the binary refuses names no host.
  *
  * The returned arrays are shared and must not be mutated.
  */
@@ -183,22 +187,36 @@ const REMOTE_MCP_IDS: string[] = Array.from(
 const SKILL_IDS: string[] = Array.from(
   new Set(SKILL_TARGETS.map((target) => resolveHostId(target.displayName) ?? joinSkillId(target.id)))
 );
+/** Shared empty result for a row with nothing installable. Never mutate. */
+const NO_HOSTS: string[] = [];
 
 export function hostIdsFor(
-  item: Pick<Listing, "kind" | "compatibleHosts" | "transport">
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "installability">
 ): string[] {
-  if (item.kind === "mcp") return isRemoteTransport(item.transport) ? REMOTE_MCP_IDS : MCP_IDS;
-  if (item.kind === "skill") return SKILL_IDS;
-  const ids: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of item.compatibleHosts ?? []) {
-    const id = resolveHostId(raw);
-    if (id && !seen.has(id)) {
-      seen.add(id);
-      ids.push(id);
+  if (item.kind === "plugin") {
+    const ids: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of item.compatibleHosts ?? []) {
+      const id = resolveHostId(raw);
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        ids.push(id);
+      }
     }
+    return ids;
   }
-  return ids;
+
+  // Nothing to install means no host to configure, so the row must not be
+  // counted as working with any of them. This is the single gate behind the
+  // Explore host filter, `tallyHosts` (which feeds every `/agents/` row and the
+  // boards) and each host page's own figure; without it the 42,573
+  // discovery-only rows were counted into all of them.
+  if (!availabilityOf(item).installable) return NO_HOSTS;
+
+  if (item.kind === "mcp") {
+    return isRemoteTransport(item.transport) ? REMOTE_MCP_IDS : MCP_IDS;
+  }
+  return SKILL_IDS;
 }
 
 /**

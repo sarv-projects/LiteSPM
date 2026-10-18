@@ -16,6 +16,8 @@
 
 import generated from "../data/hosts.json";
 import generatedSkillTargets from "../data/skill-targets.json";
+import { availabilityOf } from "./availability";
+import type { Listing } from "./telemetry";
 
 export type PlatformOS = "win" | "mac" | "linux";
 export type HostFormat = "json" | "toml";
@@ -201,21 +203,44 @@ export function isRemoteTransport(transport?: string | null): boolean {
 /**
  * The hosts an entry can actually be configured for.
  *
- * For a **remote** MCP row this is `REMOTE_HOSTS`, not every adapter: a host
- * with no verified URL spelling has the install refused fail-closed, so listing
- * it here would promise something the binary will not do. A local MCP row needs
- * only an adapter that can write a launch line, which is all of them.
+ * Three different claims wear this one list, and they are not the same claim:
+ *
+ *   - a **plugin** row carries the publisher's own declared hosts. That is data
+ *     about the plugin, printed as "Publisher-declared", so it is returned as
+ *     published even though LiteSPM will not install a plugin yet.
+ *   - a **skill** row and a **local MCP** row are derived from the entry's kind:
+ *     LiteSPM can write any adapter's config, or any skills directory. That is a
+ *     claim about LiteSPM, so `availabilityOf` gates it — a row the binary
+ *     refuses to install is listed for no host at all.
+ *   - a **remote MCP** row needs a host with a verified URL spelling, so it is
+ *     `REMOTE_HOSTS`, not every adapter: the other 42 refuse the install
+ *     fail-closed and listing them would promise what the binary will not do.
  */
 export function hostsFor(item: {
-  kind: string;
+  kind: Listing["kind"];
   compatibleHosts?: string[];
   transport?: string | null;
+  installability?: Listing["installability"];
 }): string[] {
+  // A plugin's list is the publisher's own declaration, and every surface that
+  // prints it says so ("Publisher-declared"). That is a statement about the
+  // plugin, not about LiteSPM's ability to install it, so the install gate does
+  // not apply — the entry page says "Not installable" separately, and dropping
+  // the list here would delete real publisher data.
+  if (item.kind === "plugin") return item.compatibleHosts || [];
+
+  // An MCP row and a skill are different: their host list is derived by LiteSPM
+  // from the entry's kind, so it *is* an install claim. `availabilityOf` is the
+  // gate the install panel, the try-prompts, the ranking and the pre-rendered
+  // entry selection already use; without it every discovery-only row — 23,017
+  // MCP and 19,556 skill rows — claimed every adapter while the page directly
+  // above the list said "Install unavailable".
+  if (!availabilityOf(item).installable) return [];
+
   if (item.kind === "mcp") {
     return (isRemoteTransport(item.transport) ? REMOTE_HOSTS : HOSTS).map((h) => h.name);
   }
-  if (item.kind === "skill") return SKILL_TARGETS.map((t) => t.displayName);
-  return item.compatibleHosts || [];
+  return SKILL_TARGETS.map((t) => t.displayName);
 }
 
 /** Every distinct host name this catalog can install into. */
