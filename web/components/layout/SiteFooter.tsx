@@ -102,6 +102,17 @@ export function SiteFooter() {
           </dl>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <nav aria-label="Site" className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <Link href="/privacy/" className="link text-[12px]">
+                Privacy
+              </Link>
+              <Link href="/contact/" className="link text-[12px]">
+                Contact
+              </Link>
+              <Link href="/terms/" className="link text-[12px]">
+                Terms
+              </Link>
+            </nav>
             <p className="t-mono text-[11px] text-ink-3">
               Open source. No analytics, no cookies, no install telemetry.
             </p>

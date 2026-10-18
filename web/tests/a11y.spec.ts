@@ -33,6 +33,9 @@ const CONTRAST_ROUTES = [
   "/compare/",
   "/trending/",
   "/package/",
+  "/privacy/",
+  "/contact/",
+  "/terms/",
   preRendered.href,
   nonPreRendered.href,
   flagship.href,
@@ -56,7 +59,7 @@ for (const path of CONTRAST_ROUTES) {
 test.describe("dark theme contrast", () => {
   test.use({ colorScheme: "dark" });
 
-  for (const path of ["/", "/explore/", "/package/00widget/"]) {
+  for (const path of ["/", "/explore/", "/package/00widget/", "/privacy/"]) {
     test(`contrast: ${path} in the dark palette has no color-contrast violations`, async ({
       page,
     }) => {
@@ -160,6 +163,9 @@ const SKIP_LINK_ROUTES = [
   "/compare/",
   "/trending/",
   "/package/",
+  "/privacy/",
+  "/contact/",
+  "/terms/",
   preRendered.href,
   nonPreRendered.href,
   "/no-such-route/",
