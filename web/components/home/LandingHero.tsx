@@ -172,7 +172,6 @@ export function LandingHero({
               totalMatches={totalMatches}
               settled={settled}
               totalCount={total}
-              placeholder="What do you want your AI to do?"
               hint={query ? undefined : "Press Enter to search the full catalog."}
             />
           </div>

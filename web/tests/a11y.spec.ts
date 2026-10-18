@@ -142,6 +142,94 @@ test("keyboard: every tab stop paints a visible focus indicator, and the primary
   }
 });
 
+/**
+ * The skip link only skips if activating it moves focus. `href="#main"` scrolls
+ * the viewport by itself, but focus follows the fragment only when the target
+ * is focusable — and every route renders its own `<main id="main">`, so one new
+ * route that forgets `tabIndex={-1}` silently reverts this to a scroll-only
+ * link that leaves the next Tab inside the header. Checking the attribute on
+ * every route is the part that catches a new route; pressing Enter on one route
+ * is the part that proves the attribute does what the comment claims.
+ */
+const SKIP_LINK_ROUTES = [
+  "/",
+  "/explore/",
+  "/agents/",
+  "/agents/claude-code/",
+  "/categories/",
+  "/compare/",
+  "/trending/",
+  "/package/",
+  preRendered.href,
+  nonPreRendered.href,
+  "/no-such-route/",
+];
+
+test("keyboard: the skip link's target is focusable on every route", async ({ page }) => {
+  for (const path of SKIP_LINK_ROUTES) {
+    await gotoSettled(page, path);
+    await expect(
+      page.locator("main#main"),
+      `${path} renders a <main id="main"> without tabIndex={-1}`
+    ).toHaveAttribute("tabindex", "-1");
+  }
+});
+
+test("keyboard: Enter on the skip link moves focus into #main, not just the viewport", async ({
+  page,
+}) => {
+  await gotoSettled(page, "/");
+  await page.locator('a[href="#main"]').focus();
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.tagName ?? null))
+    .toBe("MAIN");
+  // Focus is *inside* the main region: the next Tab leaves the header behind.
+  const next = await page.evaluate(async () => {
+    const el = document.activeElement as HTMLElement;
+    return el.closest("main") !== null;
+  });
+  expect(next, "focus should land on the main region").toBe(true);
+});
+
+test("narrow screens: an overflowing primary rail shows the edge fade, and wider headers show none", async ({
+  page,
+}) => {
+  const rail = page.locator('nav[aria-label="Primary"]');
+  const read = () =>
+    rail.evaluate((el) => {
+      const fadeEl = el.parentElement?.querySelector(
+        'div[aria-hidden="true"]'
+      ) as HTMLElement | null;
+      return {
+        overflows: el.scrollWidth > el.clientWidth + 1,
+        faded: !!fadeEl && fadeEl.className.includes("from-surface"),
+        painted: !!fadeEl && getComputedStyle(fadeEl).display !== "none",
+      };
+    });
+
+  // Phones below 412px: the rail scrolls, and the fade is the only sign.
+  for (const width of [320, 360, 390]) {
+    await page.setViewportSize({ width, height: 720 });
+    await gotoSettled(page, "/");
+    const narrow = await read();
+    expect(narrow.overflows, `the five-link rail should overflow a ${width}px viewport`).toBe(true);
+    expect(narrow.faded, `an overflowing rail must signal it at ${width}px`).toBe(true);
+    expect(narrow.painted, `the signal must actually paint at ${width}px`).toBe(true);
+  }
+
+  // 768px is the case that motivated the `lg` breakpoint: the one-line header
+  // left the rail 315px for 387px of links and cut "Coverage" to "Cov" with no
+  // signal at all. With navigation back on its own row the rail has ~710px.
+  for (const width of [412, 768, 1024, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await gotoSettled(page, "/");
+    const wide = await read();
+    expect(wide.overflows, `the rail should fit a ${width}px header`).toBe(false);
+    expect(wide.faded, `nothing is past the edge at ${width}px, so nothing should fade`).toBe(false);
+  }
+});
+
 test("keyboard: the theme toggle is operable and the / shortcut focuses search", async ({ page }) => {
   await gotoSettled(page, "/");
 

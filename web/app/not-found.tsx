@@ -23,7 +23,7 @@ export default function NotFound() {
     <div className="flex min-h-screen flex-col">
       <Header />
 
-      <main id="main" className="shell flex-1 py-20">
+      <main id="main" tabIndex={-1} className="shell flex-1 py-20">
         <p className="t-mono text-[11px] text-ink-3">404</p>
         <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-ink">
           Page not found.

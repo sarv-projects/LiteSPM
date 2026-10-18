@@ -353,7 +353,7 @@ export default function CoveragePage({ total, boards, hosts, boardTotals }: Tren
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
       <Header />
 
-      <main id="main" className="shell flex-1 pt-8">
+      <main id="main" tabIndex={-1} className="shell flex-1 pt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Coverage</h1>
           <p className="t-mono text-[11px] text-ink-3">{formatCount(total)} entries</p>

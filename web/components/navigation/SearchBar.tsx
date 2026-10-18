@@ -26,9 +26,11 @@ interface SearchBarProps {
   className?: string;
   autoFocusOnMount?: boolean;
   /**
-   * Overrides the count-first placeholder. The landing page asks for intent
-   * ("What do you want your AI to do?"); Explore keeps the count-first one,
-   * because a reader there already knows they are in a catalog.
+   * Overrides the count-first placeholder. Nothing overrides it today: the
+   * landing page asked for intent ("What do you want your AI to do?") while the
+   * only search behind it is lexical over names, summaries, publishers,
+   * categories and tool names, so the box invited a sentence it could not
+   * answer. Both surfaces now say what they search and show examples of it.
    */
   placeholder?: string;
   /** Hint line rendered under the field (hero only). */

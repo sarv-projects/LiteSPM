@@ -108,7 +108,7 @@ export default function AgentDetailView({
     >
       <Header />
 
-      <main id="main" className="shell flex-1 pb-16 pt-8">
+      <main id="main" tabIndex={-1} className="shell flex-1 pb-16 pt-8">
         {/* Two columns: what the agent is on the left, what LiteSPM can say
             about it on the right. A single left-aligned column left the top
             half of this page empty, which is what made it read as a stub. */}

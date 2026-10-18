@@ -671,7 +671,7 @@ function ExploreContent(props: ExploreViewProps) {
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
       <Header />
 
-      <main id="main" className="flex-1">
+      <main id="main" tabIndex={-1} className="flex-1">
         <div className="shell pt-8">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Explore</h1>
 

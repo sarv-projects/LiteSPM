@@ -174,7 +174,7 @@
     --h-ctl-lg: 40px;
   }
 
-  @media (max-width: 767px) {
+  @media (max-width: 1023px) {
     :root {
       --site-header-height: 92px;
       /* Measured at 375×667: the results head wraps to two rows and its

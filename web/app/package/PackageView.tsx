@@ -109,7 +109,7 @@ function PackageIndexShell({
   note?: React.ReactNode;
 }) {
   return (
-    <main id="main" className="shell flex-1 py-16">
+    <main id="main" tabIndex={-1} className="shell flex-1 py-16">
       <div className="max-w-prose">
         <h1 className="t-cond text-[24px] font-semibold tracking-tight text-ink">
           Find a package
@@ -187,7 +187,7 @@ function NotFound({
   ambiguous: boolean;
 }) {
   return (
-    <main id="main" className="shell flex-1 py-20">
+    <main id="main" tabIndex={-1} className="shell flex-1 py-20">
       <div className="flex max-w-prose flex-col items-start gap-3">
         <SearchX className="h-6 w-6 text-ink-3" aria-hidden="true" />
         <h1 className="t-cond text-[22px] font-semibold tracking-tight text-ink">
@@ -591,7 +591,7 @@ function PackageContent({
         </ol>
       </nav>
 
-      <main id="main" className="shell flex-1 pb-16 pt-7">
+      <main id="main" tabIndex={-1} className="shell flex-1 pb-16 pt-7">
         <div className="mx-auto w-full max-w-[1040px]">
           {/*
            * Two columns on lg+ — the record runs down the main column while

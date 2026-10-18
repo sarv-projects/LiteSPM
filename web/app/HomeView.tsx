@@ -100,7 +100,7 @@ export default function Home(props: HomeViewProps) {
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
       <Header />
 
-      <main id="main" className="flex-1">
+      <main id="main" tabIndex={-1} className="flex-1">
         <LandingHero
           total={total}
           kindCounts={kindCounts}
