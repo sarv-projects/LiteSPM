@@ -632,6 +632,63 @@ Detailed rows for items 2-4 are in [TODO.md](TODO.md)'s roadmap table.
 production ingest); REG-34 invocation registry; M3 plugin artifact locator. (`v0.4.1` was re-cut and
 published 2026-10-15.) `ARCH/24` describes 21 of 42 packages and says so at the top.
 
+### How to cut `v0.5.0` — prepared 2026-10-19; ready for the operator
+
+**The version is already bumped and the package is verified.** `npm/package.json` and
+`npm/package-lock.json` say `0.5.0` (npm ci refuses a lock that disagrees with the
+package), and `CHANGELOG.md` carries the `## [0.5.0] - 2026-10-19` section. The npm
+suite passes: `cd npm && npm test` → *All npm wrapper tests passed (3 skipped)*, where
+the three skips are the real-release cases (the `v0.5.0` release does not exist yet)
+and the supply-chain case that asserts `npm pack` ships exactly the allowlist.
+
+**What changed in the release process, and why it matters this time.** The npm-publish
+step now **fails loudly** when `NPM_TOKEN` is absent instead of skipping silently — that
+silent skip is how the `v0.4.0` defect reached GitHub while every npm-installed user
+stayed on a binary that could not sync the published catalog. A release that is
+deliberately GitHub-only must now say so, with the repository variable
+`ALLOW_NPM_SKIP=true` (the job then warns loudly instead of failing).
+
+**The steps, in order:**
+
+```bash
+# 1. Confirm the tree is clean and green (from the repo root)
+git status --short                 # must be empty
+GOTOOLCHAIN=go1.26.0 go test ./... # 44 packages
+GOTOOLCHAIN=go1.26.0 gofmt -l .    # must print nothing
+cd web && npm run type-check && npm run lint && npm run build   # 4 lint gates
+
+# 2. Commit the release, tag it, and push the tag. The tag is what triggers
+#    .github/workflows/release.yml (signed assets, SBOM, npm publish).
+git commit -am "release: v0.5.0"
+git tag -a v0.5.0 -m "v0.5.0"
+git push origin main --follow-tags
+
+# 3. Wait for the release workflow to finish. It publishes 6 platform binaries,
+#    the SBOM, the web bundle, SHA256SUMS, and 8 .sigstore.json bundles.
+
+# 4. Publish to npm (the workflow does this too when NPM_TOKEN is set; this is
+#    the manual path if the workflow's npm step was skipped deliberately)
+cd npm && npm publish --provenance --access public
+
+# 5. Verify from a clean data root, not from the log
+rm -rf /tmp/lspm-verify && HOME=/tmp/lspm-verify litespm catalog sync
+# expect: Release rel-2026-10-17-01, 69376 capabilities indexed
+```
+
+**After the publish, two documents need one line each** (they describe the *published*
+state, so they were deliberately left at 0.4.1 until the package actually exists):
+`SECURITY.md` ("The currently published `v0.4.1` assets carry a …") and
+`npm/README.md` ("The published package is current: `litespm@0.4.1`").
+
+**One thing to know about this release.** The catalog release the client syncs is
+`rel-2026-10-17-01` (sequence 149), and the live origin serves it byte-identically to
+the committed pointer — so a fresh install syncs the current tree. The **live pointer
+carries no signature bundle** (the deploy ran without an OIDC identity); the
+verification path exists and `LITESPM_REQUIRE_CATALOG_SIGNATURE=1` refuses an unsigned
+pointer, but the published pointer is unsigned. If a signed pointer matters for this
+release, re-run `scripts/deploy-pages.sh` from a workflow run that has an OIDC identity
+before publishing.
+
 ### How to cut `v0.4.1` — executed 2026-10-15; kept as the procedure of record
 
 Everything below was run to cut and publish `v0.4.1`. Verified 2026-10-17: npm serves `0.4.1`, and a
