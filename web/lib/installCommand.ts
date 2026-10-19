@@ -137,3 +137,40 @@ export function searchCommand(item: { name?: string | null }): string {
   const name = String(item.name ?? "").trim();
   return `litespm search ${shellQuote(name)}`;
 }
+
+/**
+ * Website bootstrap commands supported by the published CLI. The CLI does
+ * not auto-sync a fresh catalog or configure missing hosts on install.
+ * Keeping those steps explicit avoids promising an unreleased wizard.
+ */
+export const WEBSITE_NPX_PREFIX = "npx --yes litespm@latest";
+export const WEBSITE_SETUP_COMMAND = `${WEBSITE_NPX_PREFIX} setup`;
+export const WEBSITE_CATALOG_SYNC_COMMAND = `${WEBSITE_NPX_PREFIX} catalog sync`;
+
+export function safeCatalogId(id: string): boolean {
+  return /^[a-zA-Z0-9][a-zA-Z0-9:._@/+-]*$/.test(id);
+}
+
+/** --host applies to catalog MCP/plugin installs; catalog skills ignore it. */
+export function websiteInstallCommandFor(
+  item: { id: string; kind: "mcp" | "skill" | "plugin"; name?: string | null },
+  agentId?: string | null
+): InstallCommand {
+  const id = String(item.id ?? "");
+  if (!safeCatalogId(id)) throw new Error("Unsafe catalog id; refusing to generate a shell command");
+  const selected = String(agentId ?? "").trim();
+  if (selected && !/^[a-z0-9][a-z0-9-]*$/.test(selected)) {
+    throw new Error("Invalid host id; refusing to generate a shell command");
+  }
+  const target = selected && item.kind !== "skill" ? ` --host ${selected}` : "";
+  return {
+    command: `${WEBSITE_NPX_PREFIX} install ${id}${target}`,
+    form: "id",
+    term: String(item.name ?? "").trim(),
+    id,
+    label: selected && item.kind !== "skill"
+      ? "Installs this catalog entry into the chosen host after local setup and catalog sync."
+      : "Installs this exact catalog entry after local setup and catalog sync.",
+    short: false,
+  };
+}
