@@ -11,9 +11,12 @@ package main
 //     domain.Listing.IsInstallable's provenance half.
 //  2. Can this build perform the install at all? Only skills (files through
 //     the skills ledger) and MCP servers (a host-config entry) have a wired
-//     install path (domain.ListingKind.InstallWired). Everything else —
-//     plugin above all — is refused with LPSM-ARTIFACT-UNAVAILABLE and a
-//     reason that names what is actually missing.
+//     install path (domain.ListingKind.InstallWired). A plugin has one now —
+//     a pinned git tree is fetched and verified, and the MCP servers its
+//     manifest declares are registered in each target host's config — but it
+//     is only reachable once the command layer dispatches kind=plugin, and
+//     the gate and the dispatch are one change (see
+//     pluginInstallDispatched below).
 //
 // installKindRefusal answers question 2, and every gate asks it FIRST: a
 // plugin row is metadata_verified (its vendor manifest published it, and the
@@ -34,6 +37,17 @@ import (
 	"github.com/sarv-projects/litespm/internal/domain"
 )
 
+// pluginInstallDispatched reports whether the command layer dispatches
+// kind=plugin to the plugin installer (cmd/litespm/install_plugin.go).
+//
+// The gate and the dispatch are ONE change, and the flag keeps them together:
+// opening the gate without the dispatch would make the daemon seal a plan it
+// cannot execute and the wizard ask a question whose answer could not change
+// anything — both of which the existing tests pin as refusals. Flipping this
+// next to the dispatch itself is a one-line change; until then the gate
+// refuses a plugin with the reason that is actually true.
+var pluginInstallDispatched = false
+
 // installKindRefusal returns the typed refusal for a listing whose kind this
 // build has no install path for, or nil when the kind is installable in
 // principle. It is deliberately about the kind ONLY: the provenance question
@@ -41,22 +55,34 @@ import (
 // per-kind wording.
 //
 // The code is LPSM-ARTIFACT-UNAVAILABLE, not LPSM-NOT-INSTALLABLE: the row's
-// metadata is verified and the refusal is about the missing artifact fetch
-// path, not about unproven metadata.
+// metadata is verified and the refusal is about the missing install path, not
+// about unproven metadata.
 func installKindRefusal(listing *domain.Listing) *domain.LPSMError {
-	if listing == nil || listing.Kind.InstallWired() {
+	if listing == nil {
 		return nil
 	}
 	if listing.Kind == domain.KindPlugin {
+		if pluginInstallDispatched {
+			// The plugin install path is reachable: the artifact-level
+			// refusals (no artifact, an unpinned one, an unknown type) are
+			// raised by the plugin installer itself, with their own reasons.
+			return nil
+		}
 		// The 2026-10-17 catalog change carries each plugin manifest's own
-		// `source` descriptor (git-tree or local-dir, plus pinning state), so
-		// the old reason ("no artifact locator") is no longer true for 636
-		// rows. What is missing is the fetch path itself, and the refusal
-		// names it: nothing in internal/artifact fetches a git tree or a
-		// manifest-relative directory yet, and a plugin is never
-		// half-installed while that is true.
+		// `source` descriptor (git-tree or local-dir, plus pinning state),
+		// and the fetch path for it now exists: a pinned git tree is fetched,
+		// verified and extracted through the shared safe extractor, and the
+		// MCP servers the plugin's manifest declares are registered in each
+		// target host's config. What is missing is the command layer's
+		// dispatch of kind=plugin, and a plugin is never half-installed
+		// while that is true.
 		return domain.ErrArtifactUnavailable(listing.ID,
-			"no fetch path is wired for plugin sources: the catalog carries the source descriptor each vendor manifest declares, but nothing fetches or verifies a git tree or a manifest-relative directory yet, so the plugin cannot be installed")
+			"the plugin install path is implemented (a commit-pinned git tree is fetched and verified, "+
+				"and the MCP servers the plugin's manifest declares are registered in each target host's config), "+
+				"but this build's command layer does not dispatch kind=plugin yet, so the plugin cannot be installed from it")
+	}
+	if listing.Kind.InstallWired() {
+		return nil
 	}
 	return domain.ErrArtifactUnavailable(listing.ID,
 		fmt.Sprintf("the %q install path is not wired yet: the published catalog carries no artifact locator for it", listing.Kind))

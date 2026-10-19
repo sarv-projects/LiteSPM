@@ -172,6 +172,53 @@ func authorizeInstallExecute(ctx context.Context, db *state.DB, listingID, versi
 	}, nil
 }
 
+// authorizeHumanPluginInstall is the `litespm install` gate for a plugin.
+//
+// The person ran the command, so the consent is theirs; it is still recorded
+// as a plan plus a human-cli approval, consumed before any write, so every
+// install has the same auditable shape as an agent-path install.
+//
+// The plan seals the pinned artifact (repository, commit, path) and the
+// target host set. The entry names are not in the plan: they are named by
+// the plugin's own manifest, which lives inside the pinned tree, and the
+// commit id is what binds them — the approval covers the exact bytes.
+func authorizeHumanPluginInstall(
+	ctx context.Context,
+	db *state.DB,
+	catClient *catalog.Client,
+	listing *domain.Listing,
+	version string,
+	scope domain.InstallScope,
+	projectRoot string,
+	hosts []string,
+	explicit bool,
+	force bool,
+	envNames []string,
+) (*installGrant, []hostCapabilityDrop, error) {
+	plan, droppedHosts, err := buildPluginInstallPlan(ctx, catClient, listing, version, scope, projectRoot, hosts, explicit, force, envNames)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := db.SavePlan(ctx, plan); err != nil {
+		return nil, nil, fmt.Errorf("record plan %s: %w", plan.PlanID, err)
+	}
+	approvalID, err := recordHumanApproval(ctx, db, plan)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := db.ConsumeApproval(ctx, approvalID, approvalSubjectInstallPlan, plan.PlanHash); err != nil {
+		return nil, nil, err
+	}
+	resolved := plan.Resolved.Version
+	if resolved == "" {
+		resolved = version
+	}
+	return &installGrant{
+		Plan: plan, ApprovalID: approvalID, Origin: approvalActorHumanCLI,
+		ListingID: plan.Request.ListingID, Version: resolved, Scope: plan.Request.TargetScope,
+	}, droppedHosts, nil
+}
+
 // newApprovalID returns a random, unguessable approval token.
 func newApprovalID() (string, error) {
 	var buf [16]byte
@@ -358,8 +405,23 @@ func writeApprovalPrompt(w io.Writer, plan *domain.InstallPlan) {
 	fmt.Fprintf(w, "  effects : %s\n", strings.Join(plan.Effects, ", "))
 	var printedRuntime bool
 	var printedOptions bool
+	var printedArtifact bool
 	for _, change := range plan.HostChanges {
 		fmt.Fprintf(w, "  target  : %s -> %s (%s)\n", change.HostID, change.ConfigPath, change.EntryKey)
+		// A plugin's plan seals the pinned artifact instead of a launch
+		// line: the entry names come out of the plugin's own manifest, which
+		// lives inside the pinned tree, so the commit is what the approver
+		// is really approving.
+		if !printedArtifact {
+			var pluginValue pluginInstallPlanValue
+			if json.Unmarshal([]byte(change.ValueJSON), &pluginValue) == nil && pluginValue.Artifact.Commit != "" {
+				fmt.Fprintf(w, "  artifact: %s@%s\n", pluginValue.Artifact.Repo, pluginValue.Artifact.Commit)
+				if pluginValue.Artifact.Path != "" {
+					fmt.Fprintf(w, "  path   : %s\n", pluginValue.Artifact.Path)
+				}
+				printedArtifact = true
+			}
+		}
 		if printedRuntime || change.ValueJSON == "" {
 			continue
 		}

@@ -87,14 +87,39 @@ func TestInstallKindRefusalCoversEveryUnwiredKind(t *testing.T) {
 	}
 
 	// The plugin reason must not resurrect the retired wording: the catalog
-	// now carries the descriptor each manifest published. What is missing is
-	// the fetch path.
+	// now carries the descriptor each manifest published, and the fetch path
+	// for it exists. What is missing is the command layer's dispatch of
+	// kind=plugin, and the refusal must say exactly that.
 	refusal := installKindRefusal(pluginFixture("plugin:example:demo"))
 	if strings.Contains(refusal.Error(), "carries no artifact locator") {
 		t.Fatalf("plugin refusal repeats the retired claim: %v", refusal)
 	}
-	if !strings.Contains(refusal.Error(), "no fetch path is wired for plugin sources") {
+	if strings.Contains(refusal.Error(), "no fetch path is wired for plugin sources") {
+		t.Fatalf("plugin refusal repeats the retired gap: %v", refusal)
+	}
+	if !strings.Contains(refusal.Error(), "does not dispatch kind=plugin") {
 		t.Fatalf("plugin refusal does not name the real gap: %v", refusal)
+	}
+}
+
+// TestInstallKindGateAdmitsAPluginOnceTheDispatchExists pins the other half
+// of the contract: the gate and the command layer's dispatch are one change,
+// and when the dispatch is there the kind gate stops refusing a plugin — the
+// artifact-level refusals (no artifact, an unpinned one) are then the
+// installer's own business, with their own reasons.
+func TestInstallKindGateAdmitsAPluginOnceTheDispatchExists(t *testing.T) {
+	previous := pluginInstallDispatched
+	pluginInstallDispatched = true
+	t.Cleanup(func() { pluginInstallDispatched = previous })
+
+	if refusal := installKindRefusal(pluginFixture("plugin:example:demo")); refusal != nil {
+		t.Fatalf("the kind gate still refuses a plugin with the dispatch in place: %v", refusal)
+	}
+	// The other kinds are unaffected by the plugin dispatch.
+	for _, kind := range []domain.ListingKind{domain.KindConnector, domain.KindAgent, domain.KindHook} {
+		if refusal := installKindRefusal(&domain.Listing{ID: "x:y:z", Kind: kind}); refusal == nil {
+			t.Fatalf("kind %q: the kind gate admitted a kind with no install path", kind)
+		}
 	}
 }
 
