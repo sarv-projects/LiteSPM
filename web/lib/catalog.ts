@@ -129,6 +129,30 @@ function nameKey(name: string): string {
   return (stripped || name).toLowerCase();
 }
 
+/**
+ * One collator for every name comparison.
+ *
+ * `String.prototype.localeCompare` builds a collator per call unless the
+ * runtime happens to cache one; a collator built once and reused is several
+ * times faster. The comparison is the same one: `localeCompare()` with no
+ * arguments is defined as `new Intl.Collator(undefined, undefined).compare`,
+ * so the order this produces is the order it produced before.
+ */
+const nameCollator = new Intl.Collator();
+
+/**
+ * Sort the rows without recomputing a row's key for every comparison.
+ *
+ * The old form called `curatedScore` (which reads the row's availability) and
+ * `nameKey` (which rewrites the name) *inside* the comparator, so sorting the
+ * 69,376-row catalog computed two million keys and two million ICU
+ * collations — about a second of main-thread time on every filter change, on
+ * a phone several times that. The keys do not change while the sort runs, so
+ * they are computed once per row here.
+ *
+ * The order is unchanged: the same keys, the same comparison, and `sort` is
+ * stable in both forms, so ties keep the order they arrived in.
+ */
 export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[] {
   const copy = [...items];
   if (mode === "relevance") {
@@ -137,28 +161,45 @@ export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[]
     return copy;
   }
   if (mode === "name") {
-    return copy.sort((a, b) => nameKey(a.name).localeCompare(nameKey(b.name)));
+    const decorated = copy.map((item) => ({ item, name: nameKey(item.name) }));
+    decorated.sort((a, b) => nameCollator.compare(a.name, b.name));
+    return decorated.map((entry) => entry.item);
   }
   if (mode === "publisher") {
-    return copy.sort(
+    const decorated = copy.map((item) => ({
+      item,
+      publisher: item.publisher?.name || "",
+      name: nameKey(item.name),
+    }));
+    decorated.sort(
       (a, b) =>
-        (a.publisher?.name || "").localeCompare(b.publisher?.name || "") ||
-        nameKey(a.name).localeCompare(nameKey(b.name))
+        nameCollator.compare(a.publisher, b.publisher) || nameCollator.compare(a.name, b.name)
     );
+    return decorated.map((entry) => entry.item);
   }
   if (mode === "installable") {
-    return copy.sort(
+    const decorated = copy.map((item) => ({
+      item,
+      installable: availabilityOf(item).installable ? 1 : 0,
+      verified: item.publisher?.verified ? 1 : 0,
+      name: nameKey(item.name),
+    }));
+    decorated.sort(
       (a, b) =>
-        Number(availabilityOf(b).installable) - Number(availabilityOf(a).installable) ||
-        Number(Boolean(b.publisher?.verified)) - Number(Boolean(a.publisher?.verified)) ||
-        nameKey(a.name).localeCompare(nameKey(b.name))
+        b.installable - a.installable ||
+        b.verified - a.verified ||
+        nameCollator.compare(a.name, b.name)
     );
+    return decorated.map((entry) => entry.item);
   }
   if (mode === "curated") {
-    return copy.sort(
-      (a, b) =>
-        curatedScore(b) - curatedScore(a) || nameKey(a.name).localeCompare(nameKey(b.name))
-    );
+    const decorated = copy.map((item) => ({
+      item,
+      score: curatedScore(item),
+      name: nameKey(item.name),
+    }));
+    decorated.sort((a, b) => b.score - a.score || nameCollator.compare(a.name, b.name));
+    return decorated.map((entry) => entry.item);
   }
   // "index" is the builder's own order: verified publishers first, then kind,
   // then name. Deterministic and identical to the release artifact.

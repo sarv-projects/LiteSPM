@@ -55,6 +55,15 @@ try {
   for (const route of targets) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.goto(`${ORIGIN}${route}`, { waitUntil: "networkidle" });
+    // The same settle the browser suite uses: fonts ready and two animation
+    // frames painted. Auditing a page mid-hydration measures the swap, not
+    // the site.
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      );
+    });
     const axeSource = readFileSync(join(root, "node_modules/axe-core/axe.min.js"), "utf8");
     await page.addScriptTag({ content: axeSource });
     const result = await page.evaluate(

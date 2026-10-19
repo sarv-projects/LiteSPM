@@ -437,6 +437,115 @@ def manifest_is_command(s):
     return kind == "command" or bool(s.get("command"))
 
 
+# MOJIBAKE
+#
+# Some upstream publishers' text arrives as UTF-8 bytes that were decoded as
+# cp1252 (or latin-1) somewhere on the way: an em dash travels as the three
+# characters "\u00e2\u20ac\u201d", and the site then prints it. The repair is
+# the inverse of that mistake - re-encode the string in the codec it was
+# decoded with, and read the bytes as UTF-8.
+#
+# It is applied only when it makes the text measurably LESS broken, so a
+# string that merely contains accents is left exactly as it was, and it never
+# touches a string that carries a replacement character: that character means
+# a byte was destroyed upstream, and re-encoding cannot bring it back.
+_MOJIBAKE_MARKERS = (
+    "\u00e2\u20ac", "\u00c3\u00a9", "\u00c3\u00bc", "\u00c3\u00a1",
+    "\u00c3\u00b3", "\u00c3\u00b1", "\u00c3\u00a4", "\u00c3\u00b6",
+    "\u00c3\u00ba", "\u00e2\u20ac\u2122", "\u00e2\u20ac\u0153",
+    "\u00e2\u20ac\u009d", "\u00c2\u00a0",
+)
+
+
+def _mojibake_score(text):
+    """How many markers of a decoded-as-cp1252 UTF-8 string this text carries."""
+    return sum(text.count(marker) for marker in _MOJIBAKE_MARKERS)
+
+
+def repair_mojibake(text):
+    """Return the text with a UTF-8-as-cp1252 decoding undone, when that helps.
+
+    A string that already reads correctly is returned unchanged - the repair
+    has to be provably an improvement, not a guess.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    if "\ufffd" in text:
+        # A byte was destroyed upstream; there is nothing left to re-decode.
+        return text
+    score = _mojibake_score(text)
+    if score == 0:
+        return text
+    for codec in ("cp1252", "latin-1"):
+        try:
+            candidate = text.encode(codec).decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+        if _mojibake_score(candidate) < score:
+            return candidate
+    return text
+
+
+# Two rows in the 2026-10-17 release carry a character the upstream producer
+# destroyed before it published: the byte is gone, so no re-encoding can
+# recover it. The intended character is recorded here, per row, so the site
+# prints the publisher's words instead of a replacement character. A row with
+# the same defect that is NOT listed here is left alone and reported by the
+# build - a guess would be worse than the defect.
+_LOST_CHARACTER_FIXES = {
+    "mcp:builtin:mcp-registry:ar.almanac-almanac": (
+        ("econ\ufffdmicos", "econ\u00f3micos"),
+    ),
+    "mcp:builtin:mcp-registry:io.github.CrazymakER23-convergealpha": (
+        ("convergence \ufffd 13", "convergence \u2014 13"),
+    ),
+}
+
+
+def _row_text(item):
+    """The readable text of a row, as a tuple: what a reader sees."""
+    publisher = item.get("publisher")
+    publisher_name = publisher.get("name") if isinstance(publisher, dict) else None
+    return (
+        item.get("name"),
+        item.get("summary"),
+        item.get("category"),
+        publisher_name,
+    )
+
+
+def repair_mojibake_in_rows(items):
+    """Repair the readable text of every row. Returns the number of rows changed.
+
+    The fields are the ones a reader sees: the name, the summary, the
+    category and the publisher's own name. The repair is applied per field,
+    so a row with a clean name and a broken summary keeps its name.
+    """
+    changed = 0
+    for item in items:
+        before = _row_text(item)
+        row_id = item.get("id")
+        fixes = _LOST_CHARACTER_FIXES.get(row_id, ())
+        for field in ("name", "summary", "category"):
+            value = item.get(field)
+            if not isinstance(value, str):
+                continue
+            repaired = value
+            for broken, intended in fixes:
+                repaired = repaired.replace(broken, intended)
+            repaired = repair_mojibake(repaired)
+            if repaired != value:
+                item[field] = repaired
+        publisher = item.get("publisher")
+        if isinstance(publisher, dict) and isinstance(publisher.get("name"), str):
+            name = publisher["name"]
+            repaired = repair_mojibake(name)
+            if repaired != name:
+                publisher["name"] = repaired
+        if _row_text(item) != before:
+            changed += 1
+    return changed
+
 def clean_desc(text):
     # Remove markdown badges [![...](...)]
     text = re.sub(r'\[\!\[[^\]]*\]\([^\)]*\)\](?:\([^\)]*\))?', '', text)
@@ -3401,6 +3510,11 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
     print(f"  Agent Skills: {skill_count}")
     print(f"  Plugins: {plugin_count}")
 
+    # Repair the text before it is written.
+    repaired = repair_mojibake_in_rows(items)
+    if repaired:
+        print(f"  repaired mojibake in {repaired} row(s)")
+
     # Write output to web/data/catalog.json
     out_dir = os.environ.get("CATALOG_OUT_DIR") or os.path.join(os.path.dirname(__file__), "..", "web", "data")
     os.makedirs(out_dir, exist_ok=True)
@@ -3495,6 +3609,12 @@ if __name__ == "__main__":
         help="Syntax/provenance check only: verify no fabricated commands or hardcoded versions remain, without network fetches.",
     )
     parser.add_argument(
+        "--repair-text-only",
+        action="store_true",
+        help="Repair the readable text of an EXISTING dataset in place (the same mojibake repair the "
+             "build applies) and write nothing else: no network, no re-crawl, no row changes.",
+    )
+    parser.add_argument(
         "--refresh",
         action="store_true",
         help="Re-fetch upstream with conditional requests (If-None-Match) and replace a recorded "
@@ -3560,6 +3680,24 @@ if __name__ == "__main__":
                 print(f"  - {p}")
             sys.exit(1)
         print("CHECK OK: no fabricated commands, no hardcoded versions, no undefined hint.")
+    elif args.repair_text_only:
+        # Repair the readable text of an existing dataset, in place. The same
+        # repair the build applies, with nothing else: no network, no re-crawl,
+        # no row added or removed. The dataset is the site's source of truth,
+        # so a text defect in it is a site defect until this runs.
+        import pathlib
+
+        out_arg = args.output or os.path.join(
+            os.path.dirname(__file__), "..", "web", "data", "catalog.json")
+        path = pathlib.Path(os.path.abspath(out_arg))
+        if not path.exists():
+            print(f"REPAIR FAILED: {path} does not exist")
+            sys.exit(1)
+        items = json.loads(path.read_text(encoding="utf-8"))
+        changed = repair_mojibake_in_rows(items)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=2, ensure_ascii=False)
+        print(f"Repaired text in {changed} of {len(items)} row(s); wrote {path}")
     else:
         if args.output:
             # Honour an explicit output override: the builder writes

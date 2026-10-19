@@ -50,7 +50,11 @@ function KindLink({
       // Same measured trade as the name link above: each in-viewport link is a
       // speculative RSC download, and a row can carry three of these.
       prefetch={false}
-      className="inline-flex min-h-[24px] items-center justify-end whitespace-nowrap transition-colors duration-hover hover:text-accent-text md:min-h-0"
+      // The 24 px floor is the WCAG 2.2 AA target size (SC 2.5.8) and it
+      // holds at every width: `md:min-h-0` used to drop it on desktop, where
+      // the link collapsed to its 17 px line box and the axe audit found 104
+      // targets under the floor on this page.
+      className="inline-flex min-h-[24px] items-center justify-end whitespace-nowrap transition-colors duration-hover hover:text-accent-text"
     >
       {formatCount(kc.count)} {label}
     </Link>

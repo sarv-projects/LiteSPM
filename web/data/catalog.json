@@ -47522,7 +47522,7 @@
     "name": "Almanac",
     "slug": "almanac",
     "kind": "mcp",
-    "summary": "Datos econ�micos y financieros oficiales de Argentina (BCRA, INDEC, CNV, MECON), AI-ready.",
+    "summary": "Datos económicos y financieros oficiales de Argentina (BCRA, INDEC, CNV, MECON), AI-ready.",
     "category": "Developer Tools",
     "publisher": {
       "name": "ar.almanac",
@@ -83264,7 +83264,7 @@
     "name": "Barcode Generator API",
     "slug": "barcode-generator",
     "kind": "mcp",
-    "summary": "Generate barcodes â€” EAN-13, UPC-A, Code128, Code39. Returns SVG. x402 micropayment.",
+    "summary": "Generate barcodes — EAN-13, UPC-A, Code128, Code39. Returns SVG. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -130345,7 +130345,7 @@
     "name": "Color Palette Generator API",
     "slug": "color-palette",
     "kind": "mcp",
-    "summary": "Generate harmonious color palettes â€” complementary, analogous, triadic. x402 micropayment.",
+    "summary": "Generate harmonious color palettes — complementary, analogous, triadic. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -218182,7 +218182,7 @@
     "name": "Diff Checker API",
     "slug": "diff-checker",
     "kind": "mcp",
-    "summary": "Compare two texts line-by-line â€” additions, deletions, unchanged. x402 micropayment.",
+    "summary": "Compare two texts line-by-line — additions, deletions, unchanged. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -221218,7 +221218,7 @@
     "name": "DNS Lookup API",
     "slug": "dns-lookup",
     "kind": "mcp",
-    "summary": "DNS record lookup â€” A, AAAA, MX, TXT, CNAME, NS via Cloudflare. x402 micropayment.",
+    "summary": "DNS record lookup — A, AAAA, MX, TXT, CNAME, NS via Cloudflare. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -278695,7 +278695,7 @@
     "name": "Gas Estimator API",
     "slug": "gas-estimator",
     "kind": "mcp",
-    "summary": "Multi-chain gas estimation â€” ETH, Base, Polygon, Arbitrum, BSC. x402 micropayment.",
+    "summary": "Multi-chain gas estimation — ETH, Base, Polygon, Arbitrum, BSC. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -315748,7 +315748,7 @@
     "name": "HTTP Headers Analyzer API",
     "slug": "http-headers",
     "kind": "mcp",
-    "summary": "HTTP header analysis â€” security headers, cache, server detection. x402 micropayment.",
+    "summary": "HTTP header analysis — security headers, cache, server detection. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -322993,7 +322993,7 @@
     "name": "Image Resize API",
     "slug": "image-resize",
     "kind": "mcp",
-    "summary": "Resize images from URL â€” PNG, JPEG, WebP output. x402 micropayment.",
+    "summary": "Resize images from URL — PNG, JPEG, WebP output. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -372811,7 +372811,7 @@
     "name": "io.github.CrazymakER23/convergealpha",
     "slug": "convergealpha",
     "kind": "mcp",
-    "summary": "AI stock signal convergence � 13 sources, Bayesian scoring, verified outcomes.",
+    "summary": "AI stock signal convergence — 13 sources, Bayesian scoring, verified outcomes.",
     "category": "Developer Tools",
     "publisher": {
       "name": "CrazymakER23",
@@ -541585,7 +541585,7 @@
     "name": "io.github.truecallerabreham/mcp-server-digitalocean",
     "slug": "mcp-server-digitalocean",
     "kind": "mcp",
-    "summary": "MCP server for DigitalOcean â€” manage Droplets, databases, domains, and more",
+    "summary": "MCP server for DigitalOcean — manage Droplets, databases, domains, and more",
     "category": "Developer Tools",
     "publisher": {
       "name": "truecallerabreham",
@@ -583560,7 +583560,7 @@
     "name": "JWT Decoder API",
     "slug": "jwt-decoder",
     "kind": "mcp",
-    "summary": "Decode JWT tokens â€” inspect header, payload, claims, expiry. x402 micropayment.",
+    "summary": "Decode JWT tokens — inspect header, payload, claims, expiry. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -613690,7 +613690,7 @@
     "name": "Lorem Ipsum Generator API",
     "slug": "lorem-ipsum",
     "kind": "mcp",
-    "summary": "Generate placeholder text â€” paragraphs, sentences, words. x402 micropayment.",
+    "summary": "Generate placeholder text — paragraphs, sentences, words. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -664267,7 +664267,7 @@
     "name": "NFT Metadata API",
     "slug": "nft-metadata",
     "kind": "mcp",
-    "summary": "Fetch NFT metadata â€” name, image, traits from contract+tokenId. x402 micropayment.",
+    "summary": "Fetch NFT metadata — name, image, traits from contract+tokenId. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -713418,7 +713418,7 @@
     "name": "Port Scanner API",
     "slug": "port-scanner",
     "kind": "mcp",
-    "summary": "TCP port scanning â€” check open ports on any host. x402 micropayment.",
+    "summary": "TCP port scanning — check open ports on any host. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -794378,7 +794378,7 @@
     "name": "SMS Validator API",
     "slug": "sms-validator",
     "kind": "mcp",
-    "summary": "Validate SMS-capable phone numbers â€” mobile vs landline, E.164 format. x402 micropayment.",
+    "summary": "Validate SMS-capable phone numbers — mobile vs landline, E.164 format. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -805625,7 +805625,7 @@
     "name": "SSL Checker API",
     "slug": "ssl-checker",
     "kind": "mcp",
-    "summary": "SSL certificate check â€” validity, expiry, issuer, chain, grade. x402 micropayment.",
+    "summary": "SSL certificate check — validity, expiry, issuer, chain, grade. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -810248,7 +810248,7 @@
     "name": "Stock Price API",
     "slug": "stock-price",
     "kind": "mcp",
-    "summary": "Real-time stock quotes â€” price, change, volume, market cap. x402 micropayment.",
+    "summary": "Real-time stock quotes — price, change, volume, market cap. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -839711,7 +839711,7 @@
     "name": "Token Price API",
     "slug": "token-price",
     "kind": "mcp",
-    "summary": "Real-time crypto token prices â€” price, 24h change, market cap, volume. x402 micropayment.",
+    "summary": "Real-time crypto token prices — price, 24h change, market cap, volume. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -864643,7 +864643,7 @@
     "name": "Unit Converter API",
     "slug": "unit-converter",
     "kind": "mcp",
-    "summary": "Unit conversion â€” length, weight, temperature, volume, speed, data. x402 micropayment.",
+    "summary": "Unit conversion — length, weight, temperature, volume, speed, data. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -871129,7 +871129,7 @@
     "name": "User Agent Parser API",
     "slug": "user-agent-parser",
     "kind": "mcp",
-    "summary": "Parse user agents â€” browser, OS, device, bot detection. x402 micropayment.",
+    "summary": "Parse user agents — browser, OS, device, bot detection. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
@@ -895256,7 +895256,7 @@
     "name": "Webhook Tester API",
     "slug": "webhook-tester",
     "kind": "mcp",
-    "summary": "Test webhook endpoints â€” send requests, measure latency, validate responses. x402 micropayment.",
+    "summary": "Test webhook endpoints — send requests, measure latency, validate responses. x402 micropayment.",
     "category": "Developer Tools",
     "publisher": {
       "name": "Br0ski777",
