@@ -38,7 +38,10 @@ export function InstallBand({
   if (!availability.installable || incompatible || !command) {
     return (
       <div className="mt-4 rounded-xl border border-rule-2 bg-sunken px-4 py-4">
-        <p className="text-[13px] font-semibold text-ink">Install unavailable for this selection</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" disabled className="btn shrink-0" title={availability.plain}>Install unavailable</button>
+          <p className="text-[13px] font-semibold text-ink">Install unavailable for this selection</p>
+        </div>
         <p className="mt-1 text-[12.5px] leading-relaxed text-ink-2">
           {incompatible
             ? `${agent?.label} is not a confirmed install target for this entry. Choose another agent below.`
