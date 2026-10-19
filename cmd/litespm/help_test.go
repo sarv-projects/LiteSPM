@@ -279,8 +279,11 @@ func TestDefaultHelpAdvertisesOnlyShippedCommands(t *testing.T) {
 		}
 	}
 	// Explicitly: none of the designed-but-unshipped verbs may appear.
+	// (`adopt` left this list when it shipped: it is now a dispatched
+	// command, and the check above proves the default page advertises only
+	// commands that dispatch.)
 	for _, verb := range []string{
-		"status", "diff", "why", "outdated", "profile", "verify", "adopt",
+		"status", "diff", "why", "outdated", "profile", "verify",
 		"unmanage", "trust", "completion", "clone", "migrate", "mirror",
 		"matrix", "sync", "info",
 	} {

@@ -58,7 +58,7 @@ type helpGroup struct {
 var helpGroups = []helpGroup{
 	{"DISCOVER", []string{"search", "agent", "catalog"}},
 	{"VIEW", []string{"list", "inventory"}},
-	{"MANAGE", []string{"install", "copy", "lock", "skills", "grant", "approve"}},
+	{"MANAGE", []string{"install", "copy", "lock", "skills", "grant", "approve", "adopt"}},
 	{"RECOVER", []string{"restore", "doctor", "uninstall"}},
 	{"CONFIGURE", []string{"setup", "host", "daemon", "bridge", "auth"}},
 	{"SYSTEM", []string{"self-update", "version", "capabilities", "invoke"}},
@@ -443,6 +443,29 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm auth logout prof_github",
 			},
 			SeeAlso: []string{"install", "list", "doctor"},
+		},
+		{
+			Canonical: "adopt",
+			Group:     "MANAGE",
+			Purpose:   "Take ownership of a server an agent already has, without touching its config.",
+			Synopsis: []string{
+				"litespm adopt <name> --host <host-id>",
+			},
+			Does: []string{
+				"Records a server that is already registered in an agent's configuration as LiteSPM's, so `litespm list` reports it as managed instead of merely observed.",
+				"It writes NOTHING to the agent's configuration: the entry is already there, and it stays byte-for-byte as it is. Only LiteSPM's own ledger changes.",
+				"The adoption records the entry's current image, so undoing it — or `litespm install remove <installId>` — restores the entry instead of deleting it, and keeps any edit you made to it in the meantime.",
+			},
+			DoesNot: []string{
+				"Does not adopt a name the host's configuration does not register: that is refused with LPSM-HOST-CONFIG-NOT-FOUND, because ownership of a node that is not there would have nothing to restore.",
+				"Does not probe, start or install the server, and does not download anything: adoption is about ownership, not about the server's bytes.",
+			},
+			Examples: []string{
+				"litespm adopt github --host claude-code",
+				"litespm host detect   # find the host id first",
+				"litespm install remove inst_user_adopt_claude-code_github",
+			},
+			SeeAlso: []string{"install", "list", "host"},
 		},
 		{
 			Canonical: "setup",

@@ -57,6 +57,48 @@ const (
 	ReconcileMissing ReconcileOutcome = "missing"
 )
 
+// OwnerAdopted marks a ledger row that records an ADOPTION: LiteSPM now owns
+// a node it did not write.
+//
+// An adopted row is the one case where the pre-image and the post-image are
+// the SAME image — LiteSPM wrote nothing, so the node is exactly as it was —
+// and the prior entry is the node's own text. That is what makes a later
+// removal RESTORE the node instead of deleting it: the thing that was there
+// before LiteSPM took ownership is the thing that is put back.
+const OwnerAdopted = "adopted"
+
+// Adoption builds the deployment-ledger row for a node LiteSPM adopts.
+//
+// The arguments are the same ones OwnedWrite takes, with one difference in
+// meaning: preImage and postImage are the fingerprint of the node as it
+// stands, because nothing was written; priorEntry is the node's canonical
+// text, so a removal can put it back.
+//
+// The row is deliberately NOT a write record: a reader that finds
+// Owner == OwnerAdopted knows that the host config was never touched, and
+// that removing the ownership must leave that file alone.
+func Adoption(installID, capabilityID, hostID, scope, filePath, structureType, locator, fingerprint, priorEntry string) *Mutation {
+	return &Mutation{
+		InstallID:     installID,
+		CapabilityID:  capabilityID,
+		HostID:        hostID,
+		Scope:         scope,
+		FilePath:      filePath,
+		StructureType: structureType,
+		Locator:       locator,
+		PreImageHash:  fingerprint,
+		PostImageHash: fingerprint,
+		PriorEntry:    priorEntry,
+		Owner:         OwnerAdopted,
+	}
+}
+
+// IsAdoption reports whether a recorded mutation is an adoption rather than a
+// write LiteSPM made.
+func IsAdoption(m Mutation) bool {
+	return m.Owner == OwnerAdopted
+}
+
 // ReconcileReport is the read-only result of reconciling one mutation.
 type ReconcileReport struct {
 	Mutation Mutation

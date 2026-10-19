@@ -203,7 +203,12 @@ type EntryRemoveResult struct {
 	Removed bool
 	// Restored is true when the prior (user-authored) entry was put back.
 	Restored bool
-	Reason   string
+	// Unchanged is true when the entry already held the recorded image, so
+	// the file was left exactly as it was. It is the ADOPTION case: LiteSPM
+	// never wrote the node, so undoing its ownership must not rewrite the
+	// user's configuration — not even to the same bytes in a new layout.
+	Unchanged bool
+	Reason    string
 }
 
 // RemoveServerEntry deletes the named server entry from a host config, touching
@@ -272,6 +277,17 @@ func RemoveServerEntry(ctx context.Context, hostID, name string, scope domain.In
 			continue
 		}
 		if restorePrior != "" {
+			// A restore that would write back exactly what is already there is
+			// not a write. This is the ADOPTION case: LiteSPM never wrote
+			// the node, so undoing its ownership must leave the user's file
+			// byte-identical — down to the formatting of the entry, which a
+			// re-serialised restore would change.
+			if current, present, cerr := entryStateAt(attemptSpec, original, name); cerr == nil && present && current == restorePrior {
+				proposed, found = original, true
+				res.Restored = true
+				res.Unchanged = true
+				break
+			}
 			restored, rerr := restoreEntry(attemptSpec, original, name, restorePrior)
 			if rerr != nil {
 				return nil, fmt.Errorf("%s: restoring prior entry %q: %w", adapter.Descriptor().HostID, name, rerr)
@@ -295,6 +311,13 @@ func RemoveServerEntry(ctx context.Context, hostID, name string, scope domain.In
 			return nil, fmt.Errorf("%s: %w", adapter.Descriptor().DisplayName, firstErr)
 		}
 		res.Reason = fmt.Sprintf("entry %q is not present in this file", name)
+		return res, nil
+	}
+
+	// Nothing to write: the entry already holds the recorded image, so the
+	// file is left exactly as it was found — no backup, no rewrite.
+	if res.Unchanged {
+		res.Reason = fmt.Sprintf("entry %q already holds the recorded image; the file was not written", name)
 		return res, nil
 	}
 
