@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { CompareViewProps } from "./CompareView";
 import CompareRoute from "./CompareRoute";
-import { assertAdapterSourcesMatchRegistry, compareData } from "./compareRows";
+import { assertAdapterSourcesMatchRegistry, assertCompareCountsAgree, compareData } from "./compareRows";
 
 /**
  * `/compare` — which agents LiteSPM can set up, and what it changes when it
@@ -33,6 +33,7 @@ export default function ComparePage() {
   // Cheap, and it fails the build rather than letting `/trending`'s docs
   // column link a source file the registry no longer lists as hand-written.
   assertAdapterSourcesMatchRegistry();
+  assertCompareCountsAgree();
 
   const props: CompareViewProps = { data: compareData() };
 

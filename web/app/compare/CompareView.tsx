@@ -408,9 +408,13 @@ export default function CompareView({ data }: CompareViewProps) {
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
           LiteSPM sets an agent up by adding one entry to a config file the agent already reads; the
-          rest of the file is left as it is. That one entry is why every MCP server in the catalog (
-          {formatCount(data.serverCount)}) can be installed into any agent in the first list, and
-          every skill ({formatCount(data.skillCount)}) into any agent on this page.
+          rest of the file is left as it is. That one entry is why{" "}
+          {formatCount(data.installableServerCount)} of the {formatCount(data.serverCount)} MCP
+          servers in the catalog can be installed — into the {data.remoteHostCount} agents that take
+          a remote server — and {formatCount(data.installableSkillCount)} of the{" "}
+          {formatCount(data.skillCount)} skills into the {data.skillHostCount} agents that have a
+          skills directory. The rest are listed for discovery: their publisher publishes no launch
+          line, so there is nothing to install.
         </p>
 
         {data.groups.map((group) =>

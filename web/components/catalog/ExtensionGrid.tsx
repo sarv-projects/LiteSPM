@@ -178,7 +178,17 @@ export function ExtensionGrid({
           >
             {settled === false
               ? "searching…"
-              : `${formatCount(reported)} ${reported === 1 ? "entry" : "entries"}`}
+              : reported === 1
+                ? "1 entry"
+                : // A count that dwarfs the list is not a result count, it is a
+                  // measure of how many rows mention the word. "github" appears
+                  // in the web address of most of the catalog, so the bare
+                  // number reads as a broken filter; saying what the number
+                  // means keeps the ranking (which is good — the official
+                  // GitHub server is first) in front of the reader.
+                  reported > 200
+                  ? `${formatCount(reported)} matched — showing the most relevant`
+                  : `${formatCount(reported)} entries`}
           </span>
         </div>
         {toolbar}
@@ -257,7 +267,9 @@ export function ExtensionGrid({
             <p className="text-[13px] text-ink-2">
               {query ? (
                 <>
-                  No entry matches “{query}”{filtersActive ? " with the current filters" : ""}.
+                  No entry matches “{query}”{filtersActive ? " with the current filters" : ""}. We
+                  match the <em>start</em> of each word, so a misspelling finds nothing — check the
+                  spelling and try the first part of the name.
                 </>
               ) : (
                 <>No entry matches these filters. Try a wider kind or goal, or another agent.</>

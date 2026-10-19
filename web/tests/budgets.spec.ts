@@ -114,41 +114,54 @@ test(`First Load JS for / stays under ${FIRST_LOAD_JS_BUDGET} bytes`, () => {
   expect(bytes, "First Load JS for the home route").toBeLessThanOrEqual(FIRST_LOAD_JS_BUDGET);
 });
 
-test.describe("no horizontal overflow at 390px", () => {
-  test.use({ viewport: { width: 390, height: 844 } });
+const OVERFLOW_ROUTES = [
+  "/",
+  "/explore/",
+  "/agents/",
+  "/agents/claude-code/",
+  "/categories/",
+  "/compare/",
+  "/trending/",
+  "/package/",
+  preRendered.href,
+  nonPreRendered.href,
+  flagship.href,
+  flagship.queryHref,
+];
 
-  const ROUTES = [
-    "/",
-    "/explore/",
-    "/agents/",
-    "/agents/claude-code/",
-    "/categories/",
-    "/compare/",
-    "/trending/",
-    "/package/",
-    preRendered.href,
-    nonPreRendered.href,
-    flagship.href,
-    flagship.queryHref,
-  ];
+/**
+ * A page must not scroll sideways: `scrollWidth` may not exceed the viewport.
+ *
+ * The 320 px width is here because 390 px is not the narrowest phone there
+ * is, and the gap between them is where a grid with no explicit column count
+ * shows up: an `auto` track takes its floor from the content's min-content
+ * width, so a card that cannot shrink overflows the page instead of wrapping.
+ * The home page's agent strip was 338 px wide inside a 278 px column at
+ * 320 px — invisible at 390, a 34 px sideways scroll on a real phone.
+ */
+for (const width of [320, 390]) {
+  test.describe(`no horizontal overflow at ${width}px`, () => {
+    test.use({ viewport: { width, height: 844 } });
 
-  for (const path of ROUTES) {
-    test(`${path} does not scroll sideways`, async ({ page }) => {
-      await gotoSettled(page, path);
-      const metrics = await page.evaluate(() => ({
-        documentScrollWidth: document.documentElement.scrollWidth,
-        documentClientWidth: document.documentElement.clientWidth,
-        bodyScrollWidth: document.body.scrollWidth,
-        viewportWidth: window.innerWidth,
-      }));
-      console.log(`overflow 390px ${path}:`, metrics);
-      expect(
-        metrics.documentScrollWidth,
-        `document scrollWidth vs clientWidth on ${path}`
-      ).toBeLessThanOrEqual(metrics.documentClientWidth);
-      expect(metrics.bodyScrollWidth, `body scrollWidth vs viewport on ${path}`).toBeLessThanOrEqual(
-        metrics.viewportWidth
-      );
-    });
-  }
-});
+    for (const path of OVERFLOW_ROUTES) {
+      test(`${path} does not scroll sideways`, async ({ page }) => {
+        await gotoSettled(page, path);
+        const metrics = await page.evaluate(() => ({
+          documentScrollWidth: document.documentElement.scrollWidth,
+          documentClientWidth: document.documentElement.clientWidth,
+          bodyScrollWidth: document.body.scrollWidth,
+          viewportWidth: window.innerWidth,
+        }));
+        console.log(`overflow ${width}px ${path}:`, metrics);
+        expect(
+          metrics.documentScrollWidth,
+          `document scrollWidth vs clientWidth on ${path} at ${width}px`
+        ).toBeLessThanOrEqual(metrics.documentClientWidth);
+        expect(
+          metrics.bodyScrollWidth,
+          `body scrollWidth vs viewport on ${path} at ${width}px`
+        ).toBeLessThanOrEqual(metrics.viewportWidth);
+      });
+    }
+  });
+}

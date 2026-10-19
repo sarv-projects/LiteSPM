@@ -53,7 +53,7 @@ export function AtlasTeaser() {
         </Link>
       </div>
 
-      <ul className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <ul className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {TEASER_IDS.map((id) => {
           const host = hostAdapter(id);
           const skill = skillTarget(id);

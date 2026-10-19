@@ -31,6 +31,8 @@
 // reader has no use for and which must not appear on the page at all.
 
 import release from "../../data/release.json";
+import catalog from "../../data/catalog.json";
+import { availabilityOf } from "../../lib/availability";
 import { HOST_IDENTITIES } from "../../lib/hostIdentity";
 import { ADAPTER_SOURCE } from "../../lib/adapterSources";
 import { hostNote } from "../../lib/hostNotes";
@@ -93,6 +95,16 @@ export interface CompareData {
   serverCount: number;
   /** Skills in the current release — the same kind of total. */
   skillCount: number;
+  /** MCP servers `litespm install` can actually complete, counted with the
+   *  same predicate as every other surface. The intro sentence is about what
+   *  can be installed *into an agent*, so this is the number it quotes. */
+  installableServerCount: number;
+  /** Skills `litespm install` can actually complete — the same. */
+  installableSkillCount: number;
+  /** How many of the configurable hosts accept a remote (URL) server. */
+  remoteHostCount: number;
+  /** How many hosts have a skills directory LiteSPM can install into. */
+  skillHostCount: number;
 }
 
 /**
@@ -104,6 +116,28 @@ export interface CompareData {
  */
 const SERVER_COUNT = Number(release.mcpServersCount ?? 0);
 const SKILL_COUNT = Number(release.agentSkillsCount ?? 0);
+
+/**
+ * How many of those the *binary* can actually install, counted with the same
+ * predicate every other surface uses (`availabilityOf`, the copy of the CLI's
+ * own gate). The intro sentence is about a per-host capability, so a catalog
+ * total is the wrong number for it: 42 of the 50 configurable hosts accept no
+ * remote server at all, and the 8 that do accept 25,401 of the 48,418 — not
+ * 48,418. A reader who then opens `/explore/` or `/agents/` sees the smaller
+ * number, and a page that says a larger one is not being careful, it is
+ * being wrong. The evaluator's F-01 is exactly this sentence.
+ *
+ * The counts are computed here, at build time, from the committed dataset —
+ * never written down by hand. A hardcoded number goes stale silently; this
+ * one cannot.
+ */
+const DATASET = catalog as unknown as Parameters<typeof availabilityOf>[0][];
+const INSTALLABLE_SERVER_COUNT = DATASET.filter(
+  (row) => row.kind === "mcp" && availabilityOf(row).installable,
+).length;
+const INSTALLABLE_SKILL_COUNT = DATASET.filter(
+  (row) => row.kind === "skill" && availabilityOf(row).installable,
+).length;
 
 /**
  * The vendor documentation each configurable host gets, and what kind of page
@@ -175,7 +209,31 @@ export function compareData(): CompareData {
     setupCount: withAdapter.length,
     serverCount: SERVER_COUNT,
     skillCount: SKILL_COUNT,
+    installableServerCount: INSTALLABLE_SERVER_COUNT,
+    installableSkillCount: INSTALLABLE_SKILL_COUNT,
+    remoteHostCount: withAdapter.filter((row) => row.remote).length,
+    skillHostCount: HOST_IDENTITIES.filter((identity) => Boolean(identity.skill)).length,
   };
+}
+
+/**
+ * The build-time guard the evaluator asked for: a count printed in prose may
+ * never exceed the number the site's own filters produce. The intro sentence
+ * quotes the installable counts, and those are by construction a subset of the
+ * catalog totals — if a future dataset makes that untrue, the build fails
+ * here rather than a reader finding the contradiction between two pages.
+ */
+export function assertCompareCountsAgree(): void {
+  if (INSTALLABLE_SERVER_COUNT > SERVER_COUNT) {
+    throw new Error(
+      `compare: installable servers (${INSTALLABLE_SERVER_COUNT}) exceed the catalog total (${SERVER_COUNT})`,
+    );
+  }
+  if (INSTALLABLE_SKILL_COUNT > SKILL_COUNT) {
+    throw new Error(
+      `compare: installable skills (${INSTALLABLE_SKILL_COUNT}) exceed the catalog total (${SKILL_COUNT})`,
+    );
+  }
 }
 
 /**

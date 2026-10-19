@@ -545,7 +545,17 @@ function ExploreContent(props: ExploreViewProps) {
       // The publisher's own name, compared the way `publisherFacets` counts
       // it (trimmed). This is the filter the Coverage boards link to; a text
       // search for the same string measures something else entirely.
-      if (publisher && (item.publisher?.name ?? "").trim() !== publisher) return false;
+      // The publisher filter is a name a reader typed, so it is compared the
+      // way a reader means it: case-folded, then a prefix, then a contains.
+      // An exact case-sensitive comparison turned the most natural input —
+      // `?publisher=anthropic` — into a silent zero, while `?publisher=Anthropic`
+      // found one row. A filter that returns nothing without saying why reads
+      // as a broken page.
+      if (publisher) {
+        const wanted = publisher.trim().toLowerCase();
+        const name = (item.publisher?.name ?? "").trim().toLowerCase();
+        if (name !== wanted && !name.startsWith(wanted) && !name.includes(wanted)) return false;
+      }
       if (source && !matchesSource(item, source)) return false;
       if (verifiedOnly && !item.publisher?.verified) return false;
       if (installableOnly && !isInstallable(item)) return false;
