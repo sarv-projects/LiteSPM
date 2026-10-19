@@ -20,6 +20,8 @@ failures to zero across four rounds.
 | `litespm audit` + `internal/scan` | **new** — six catalogue rules, SARIF 2.1.0, the receipt chain checked; 1 error and 248 warnings on `rel-2026-10-17-01` |
 | `litespm doctor` per-check duration | **new** — `CheckResult.DurationMs`, `DoctorReport.DurationMs` |
 | The CAS promotion scratch (`m6`) | **fixed** — the partial copy is staged under `casRoot/tmp`, not inside `trees/<algo>/` as `<digest>.tmp-<nanos>` |
+| The policy engine's grant tier | **fails closed now** — a database that cannot answer its own grant table used to turn every drift check off, silently (`internal/policy/engine.go`, `LPSM-POLICY-GRANT-UNAVAILABLE`) |
+| The approval subject binding | **audited, not changed** — the production paths recompute the plan hash at the approve step and at the execute step, consume the approval atomically against it, and the plan seals the resolved descriptor, the immutable refs and the host changes; the engine's plan-less path (subject = listing, version, scope) has no production caller and is the shape left to tighten |
 
 **The build had to be unblocked first.** The suite's server could not start, because the export
 had never been produced: `next build` was being killed during static generation, which printed
@@ -69,8 +71,12 @@ runner, so the brand marks are stubbed for that test — they are not what it as
 
 1. The lifecycle write-ahead journal: a crash between the host-config write and the SQLite commit
    still loses the ledger row.
-2. The P1 security findings: the approval is not bound to the *subject* it approved, and the policy
-   engine fails open on some database paths.
+2. The P1 security findings, after this session: the policy engine's fail-open database paths are
+   closed, and the approval subject binding was audited and found bound on every production path
+   (the plan-less engine path is the exception, and no production caller reaches it). What is left
+   of the batch: the auth broker's https/state/verifier/mutex items, the IPC `SO_PEERCRED` and
+   deadline items, the bridge `-race` guard gap, and making the plan mandatory in the engine's
+   own API.
 3. `litespm audit --ci` is not wired into any CI workflow yet; the scratch replay (replaying the
    deployment ledger against the disk) is still `DESIGNED`.
 4. Publishing 0.5.0 to npm needs `NPM_TOKEN` — or a deliberate `ALLOW_NPM_SKIP=true`.
