@@ -36,6 +36,11 @@ type CheckResult struct {
 	Message        string         `json:"message"`
 	Recommendation string         `json:"recommendation,omitempty"`
 	Details        map[string]any `json:"details,omitempty"`
+	// DurationMs is how long the check took, in milliseconds. A diagnostic
+	// that takes four seconds is a different finding from one that takes
+	// four milliseconds, and without a measurement the operator cannot tell
+	// which is which (ARCH/31 §9).
+	DurationMs int64 `json:"durationMs"`
 }
 
 // DoctorReport aggregates all diagnostic check results.
@@ -46,6 +51,8 @@ type DoctorReport struct {
 	PassedCount   int           `json:"passedCount"`
 	WarnCount     int           `json:"warnCount"`
 	FailCount     int           `json:"failCount"`
+	// DurationMs is the whole run's wall time, in milliseconds.
+	DurationMs int64 `json:"durationMs"`
 }
 
 // RepairAction defines an automated corrective step.

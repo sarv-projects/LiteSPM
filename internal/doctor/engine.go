@@ -71,36 +71,48 @@ func classify(c CheckResult) CheckResult {
 func (e *Engine) RunChecks(ctx context.Context) *DoctorReport {
 	var checks []CheckResult
 	now := time.Now().UTC()
+	started := time.Now()
+
+	// timed measures one check. A diagnostic that takes four seconds is a
+	// different finding from one that takes four milliseconds, and the
+	// operator cannot tell which is which without a measurement
+	// (ARCH/31 §9).
+	timed := func(fn func() CheckResult) CheckResult {
+		start := time.Now()
+		result := classify(fn())
+		result.DurationMs = time.Since(start).Milliseconds()
+		return result
+	}
 
 	// 1. Check Platform Directories
-	checks = append(checks, classify(e.checkDirectories()))
+	checks = append(checks, timed(e.checkDirectories))
 
 	// 2. Check SQLite State Database
-	checks = append(checks, classify(e.checkDatabase(ctx)))
+	checks = append(checks, timed(func() CheckResult { return e.checkDatabase(ctx) }))
 
 	// 3. Check Incomplete Operation Journal
-	checks = append(checks, classify(e.checkOperationJournal(ctx)))
+	checks = append(checks, timed(func() CheckResult { return e.checkOperationJournal(ctx) }))
 
 	// 4. Check CAS Store Integrity
-	checks = append(checks, classify(e.checkCASStore()))
+	checks = append(checks, timed(e.checkCASStore))
 
 	// 5. Check Staging Directory Hygiene
-	checks = append(checks, classify(e.checkStagingHygiene()))
+	checks = append(checks, timed(e.checkStagingHygiene))
 
 	// 6. Check OS Secret Store
-	checks = append(checks, classify(e.checkSecretVault(ctx)))
+	checks = append(checks, timed(func() CheckResult { return e.checkSecretVault(ctx) }))
 
 	// 7. Check Host Registrations
-	checks = append(checks, classify(e.checkHostRegistrations(ctx)))
+	checks = append(checks, timed(func() CheckResult { return e.checkHostRegistrations(ctx) }))
 
 	// 8. Check Host Backups
-	checks = append(checks, classify(e.checkHostBackups()))
+	checks = append(checks, timed(e.checkHostBackups))
 
 	// 9. Check Provider Runtimes
-	checks = append(checks, classify(e.checkRuntimes()))
+	checks = append(checks, timed(e.checkRuntimes))
 
 	// 10. Check Disk Availability
-	checks = append(checks, classify(e.checkDiskSpace()))
+	checks = append(checks, timed(e.checkDiskSpace))
 
 	// Aggregate counts
 	passed, warns, fails := 0, 0, 0
@@ -130,6 +142,7 @@ func (e *Engine) RunChecks(ctx context.Context) *DoctorReport {
 		PassedCount:   passed,
 		WarnCount:     warns,
 		FailCount:     fails,
+		DurationMs:    time.Since(started).Milliseconds(),
 	}
 }
 

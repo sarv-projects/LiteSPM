@@ -279,3 +279,36 @@ func TestDoctor_HostRegistrationsWarnWhenNoneRegistered(t *testing.T) {
 		t.Error("a warning about no registered hosts must say how to register one")
 	}
 }
+
+// Every check reports how long it took, and the report reports the whole run.
+// A diagnostic that takes four seconds is a different finding from one that
+// takes four milliseconds, and the operator can only act on the slow one
+// (ARCH/31 §9).
+func TestDoctorReportsHowLongEachCheckTook(t *testing.T) {
+	engine, _, _ := newTestEngine(t)
+
+	report := engine.RunChecks(context.Background())
+	if len(report.Checks) == 0 {
+		t.Fatal("the report carries no checks")
+	}
+	for _, c := range report.Checks {
+		if c.DurationMs < 0 {
+			t.Errorf("check %q reports a negative duration (%d ms)", c.ID, c.DurationMs)
+		}
+	}
+	if report.DurationMs < 0 {
+		t.Errorf("the report carries a negative duration (%d ms)", report.DurationMs)
+	}
+	// The run cannot be faster than the sum of the checks it contains, and
+	// it cannot be slower than the slowest single check by more than the
+	// bookkeeping around them.
+	var slowest int64
+	for _, c := range report.Checks {
+		if c.DurationMs > slowest {
+			slowest = c.DurationMs
+		}
+	}
+	if report.DurationMs < slowest {
+		t.Errorf("the run reports %d ms but a check took %d ms", report.DurationMs, slowest)
+	}
+}

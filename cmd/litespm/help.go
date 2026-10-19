@@ -59,7 +59,7 @@ var helpGroups = []helpGroup{
 	{"DISCOVER", []string{"search", "agent", "catalog"}},
 	{"VIEW", []string{"list", "inventory"}},
 	{"MANAGE", []string{"install", "copy", "lock", "skills", "grant", "approve", "adopt"}},
-	{"RECOVER", []string{"restore", "doctor", "uninstall"}},
+	{"RECOVER", []string{"restore", "doctor", "audit", "uninstall"}},
 	{"CONFIGURE", []string{"setup", "host", "daemon", "bridge", "auth"}},
 	{"SYSTEM", []string{"self-update", "version", "capabilities", "invoke"}},
 	{"HELP", []string{"help"}},
@@ -397,6 +397,27 @@ func buildHelpCatalog() map[string]commandHelp {
 			},
 			SeeAlso:  []string{"capabilities", "list", "restore"},
 			ExitNote: "a failed check also returns its category code: 10 catalog · 20 resolve · 30 approval · 40 install · 50 provider · 60 host · 70 state; the most severe failed category wins (ARCH/20).",
+		},
+		{
+			Canonical: "audit",
+			Group:     "RECOVER",
+			Purpose:   "Check the published catalogue and the local receipt chain for content that must not ship.",
+			Synopsis:  []string{"litespm audit [--ci] [--sarif <path>] [--dataset <path>] [--json]"},
+			Does: []string{
+				"Checks the catalogue with the rules in `internal/scan`: a discovery-only row that carries a launch line, a plugin with no fetchable source, an internal skill published publicly, a credential in a public URL.",
+				"Verifies the machine's receipt chain, when it has one: the per-provider hash chain is what makes a receipt tamper-evident (ARCH/34 §6).",
+				"`--sarif` writes a SARIF 2.1.0 report whose rule ids are stable, so a CI consumer can match on them.",
+			},
+			DoesNot: []string{
+				"Repairs nothing, and decides nothing about your release: it reports.",
+				"Audits the catalogue AS PUBLISHED - the cached shards the origin served - unless `--dataset` names a file that has not been published yet.",
+			},
+			Examples: []string{
+				"litespm audit",
+				"litespm audit --ci --sarif audit.sarif",
+			},
+			SeeAlso:  []string{"doctor", "install", "list"},
+			ExitNote: "1 when a finding has error severity, 2 for a usage error, 0 otherwise.",
 		},
 		{
 			Canonical: "uninstall",

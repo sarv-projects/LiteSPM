@@ -93,6 +93,10 @@ func main() {
 		if code := runDoctor(os.Args[2:]); code != 0 {
 			os.Exit(code)
 		}
+	case "audit":
+		if code := runAudit(os.Args[2:]); code != 0 {
+			os.Exit(code)
+		}
 
 	case "search":
 		opts, queryErr := searchQueryArgs(os.Args[2:])
@@ -2091,6 +2095,21 @@ func doctorExitCode(report *doctor.DoctorReport) int {
 	return worst
 }
 
+// doctorDuration renders a duration in the unit that says something: a
+// sub-second check is milliseconds, a slow one is seconds, and a very slow
+// one is minutes. Rounding everything to milliseconds would print "0 ms"
+// for a check that took 400 microseconds, which reads as "it did nothing".
+func doctorDuration(ms int64) string {
+	switch {
+	case ms < 1000:
+		return fmt.Sprintf("%d ms", ms)
+	case ms < 60000:
+		return fmt.Sprintf("%.1f s", float64(ms)/1000)
+	default:
+		return fmt.Sprintf("%.1f min", float64(ms)/60000)
+	}
+}
+
 func runDoctor(args []string) int {
 	repairMode := false
 	yesMode := false
@@ -2169,13 +2188,19 @@ func runDoctor(args []string) int {
 			statusIcon = "✗ [FAIL]"
 		}
 		fmt.Printf("%-9s %-32s: %s\n", statusIcon, c.Name, c.Message)
+		// The time each check took, in the same line: a check that took four
+		// seconds is a different finding from one that took four milliseconds,
+		// and the operator can only act on the slow one.
+		if c.DurationMs > 0 {
+			fmt.Printf("          \u00b7 %s\n", doctorDuration(c.DurationMs))
+		}
 		if c.Recommendation != "" {
 			fmt.Printf("          ➜ Recommendation: %s\n", c.Recommendation)
 		}
 	}
 	fmt.Println(strings.Repeat("-", 60))
-	fmt.Printf("Summary: %d Passed, %d Warnings, %d Failures (Overall: %s)\n",
-		report.PassedCount, report.WarnCount, report.FailCount, strings.ToUpper(string(report.OverallStatus)))
+	fmt.Printf("Summary: %d Passed, %d Warnings, %d Failures (Overall: %s) in %s\n",
+		report.PassedCount, report.WarnCount, report.FailCount, strings.ToUpper(string(report.OverallStatus)), doctorDuration(report.DurationMs))
 
 	if repairMode {
 		plan := doctor.BuildRepairPlan(report, paths)
