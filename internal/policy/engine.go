@@ -516,7 +516,19 @@ func (e *Engine) checkCapabilityGrant(ctx context.Context, input PolicyInput) (P
 
 	rows, err := e.db.Raw().QueryContext(ctx, query, input.CapabilityID)
 	if err != nil || rows == nil {
-		return PolicyDecision{}, false
+		// The grant tier could not be evaluated. Skipping it silently fails
+		// OPEN: a database that cannot answer its own grant table would turn
+		// every drift check off, and the next tier would allow the call. A
+		// policy engine that cannot read its evidence must deny.
+		detail := "the capability grant table could not be read"
+		if err != nil {
+			detail = fmt.Sprintf("%s: %v", detail, err)
+		}
+		return PolicyDecision{
+			Decision:    DecisionDeny,
+			ReasonCodes: []string{"LPSM-POLICY-GRANT-UNAVAILABLE"},
+			Detail:      detail,
+		}, false
 	}
 	defer rows.Close()
 
@@ -526,7 +538,14 @@ func (e *Engine) checkCapabilityGrant(ctx context.Context, input PolicyInput) (P
 		var status string
 
 		if err := rows.Scan(&grantID, &expectedFP, &casDigest, &endpointOrigin, &serverVer, &status); err != nil {
-			continue
+			// A row that cannot be read is a grant whose bindings cannot be
+			// checked. Skipping it would skip the drift check for exactly the
+			// grant that needs it, so the read failure denies.
+			return PolicyDecision{
+				Decision:    DecisionDeny,
+				ReasonCodes: []string{"LPSM-POLICY-GRANT-UNREADABLE"},
+				Detail:      fmt.Sprintf("a capability grant row could not be read: %v", err),
+			}, false
 		}
 
 		// Integrity re-verification of the grant is the engine's fail-closed
@@ -597,6 +616,16 @@ func (e *Engine) checkCapabilityGrant(ctx context.Context, input PolicyInput) (P
 		}, true
 	}
 
+	// The rows were read and the iteration failed part way through: the same
+	// fail-open as a query that never ran.
+	if err := rows.Err(); err != nil {
+		return PolicyDecision{
+			Decision:    DecisionDeny,
+			ReasonCodes: []string{"LPSM-POLICY-GRANT-UNAVAILABLE"},
+			Detail:      fmt.Sprintf("the capability grant table could not be read: %v", err),
+		}, false
+	}
+
 	return PolicyDecision{}, false
 }
 
@@ -615,6 +644,12 @@ func (s *sqlNullStr) Scan(value any) error {
 		s.String, s.Valid = v, true
 	case []byte:
 		s.String, s.Valid = string(v), true
+	default:
+		// A value this reader cannot interpret is not an empty string. Reading
+		// it as one would compare a binding against a blank and call it
+		// drift - or, worse, call it a match. The caller denies on a scan
+		// error, so the evidence fails closed.
+		return fmt.Errorf("cannot read a %T into a text column", value)
 	}
 	return nil
 }
