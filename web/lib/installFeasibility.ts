@@ -70,7 +70,7 @@
 //
 // Measured against the 2026-10-17 release (69,376 rows):
 //
-//   supported      26,165  25,401 remote MCP rows + 764 skills
+//   supported      26,555  25,401 remote MCP rows + 764 skills + 390 plugins
 //   discovery-only 42,573  23,017 MCP + 19,556 skills with no launch line
 //   plugin             390  plugins that publish a pinned git tree
 //   unsupported       248  plugins with no fetchable pinned source
@@ -705,7 +705,7 @@ function scopeLimitations(mode: FeasibilityMode, count: number): string[] {
 /**
  * The counts for a set of rows, on the same scale the site already prints.
  *
- * The numbers this must produce for the current release are 26,165
+ * The numbers this must produce for the current release are 26,555
  * supported, 42,573 discovery-only, 248 unsupported, and nothing in the two
  * open states — the same split `lib/availability.ts` publishes, because the
  * host axis does not change whether a row can be installed, only where.

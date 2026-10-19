@@ -16,11 +16,24 @@ per-track plans beside it; the tracks execute in dependency order, gated G1–G5
 | Track | Scope | Plan file | State |
 |---|---|---|---|
 | 0 | Documentation reconciliation (stale prose, not status) | program plan, Task 0 | **done** — see below |
-| 1 | ARCH/34 — invocation registry, engine, receipts | `…-arch34-invocation-engine.md` | **code done** (tasks 1–4); the status reconciliation is done too — what is *not* implemented is stated as plainly as what is |
-| 2 | Phase K — sources & supply chain | `…-phase-k-sources-supply-chain.md` | **partly done** — the mcpservers.org origin is now probed and its refusal recorded; the registry fetch, the snapshot completion and the parity harness are still open |
-| 3 | Wiring — the unwired subsystems | `…-wiring-unwired-subsystems.md` | **partly done** — the two ingest paths now agree on installability; the rest is planned |
-| 4 | Phase J + Blueprint P1/P2 — product surface | `…-phase-j-product-surface.md` | **the blocker and four majors are fixed**; the evaluation report is the spec |
-| 5 | Defect fixes + final status reconciliation | `…-defect-fixes-and-status-reconciliation.md` | partly done — the zip-bomb bound, the silent npm publish, the unrun Python suites and the broken vendored tests are fixed; the final reconciliation is open |
+| 1 | ARCH/34 — invocation registry, engine, receipts | `…-arch34-invocation-engine.md` | **done** — the registry, the engine (deadline, per-provider concurrency, `LPSM-PROVIDER-BUSY` backpressure, cancellation, redaction, bounded output) and the receipts are wired, and what is *not* implemented is stated as plainly as what is |
+| 2 | Phase K — sources & supply chain | `…-phase-k-sources-supply-chain.md` | **the parity is proven and D4 is adjudicated** — 69,376 of 69,376 rows agree between the Go builder and the Python producer; `ARCH/07` D-022 now ratifies the split. The mcpservers.org origin is probed and its refusal recorded. The live registry fetch and the snapshot promotion are still open |
+| 3 | Wiring — the unwired subsystems | `…-wiring-unwired-subsystems.md` | **partly done** — secrets are resolved at launch, `litespm auth` exists, `litespm adopt` exists, and the two ingest paths agree on installability |
+| 4 | Phase J + Blueprint P1/P2 — product surface | `…-phase-j-product-surface.md` | **shipped** — the evaluation's blocker and four majors are fixed, the homepage is rebuilt, five new routes land, Explore decomposes, and the search index no longer makes an address host searchable |
+| 5 | Defect fixes + final status reconciliation | `…-defect-fixes-and-status-reconciliation.md` | **partly done** — the zip-bomb bound, the silent npm publish, the unrun Python suites, the broken vendored tests and the unformatted file are fixed; the final reconciliation is in this commit |
+
+**The headline of the second half: plugins install.** A plugin listing that publishes a **pinned git
+tree** now installs: the tree is fetched at that exact commit and verified, the plugin's own
+manifest is parsed, and the MCP servers the manifest declares are registered in the target host's
+config — through the same writer, backup, ledger and removal as an MCP server. Running it against
+the catalogue's own plugins found four defects in the path (a manifest lookup that stopped at the
+first absent name, an allowed-member set missing six fields real manifests carry, only one of the
+two manifest schemas accepted, and the Claude Code format's references into the plugin's own tree
+not followed). Verified end to end with `plugin:claude-official:mongodb`: the plan sealed commit
+`1e72df25`, the tree verified, the server registered, `litespm list` reports it managed, and
+`litespm install remove` takes it back out. 390 of the 638 published plugin rows publish a pinned
+git tree; the other 248 publish no fetchable source and are refused with that reason. The site
+now says the same thing.
 
 **The site was evaluated adversarially, and the report is committed:**
 `docs/superpowers/evaluations/2026-10-19-site-evaluation.md` — 39 findings (1 blocker, 10 major,

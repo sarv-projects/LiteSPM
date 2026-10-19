@@ -131,7 +131,29 @@ open); the rationale is preserved rather than back-ported into the earlier serie
 *   **Context:** Two builders existed in the tree: `internal/catalogbuild.CompileRelease` (Go, deterministic, no non-test caller) and `scripts/build_full_catalog.py` (Python, the producer of everything actually deployed: `web/data/catalog.json`, `web/public/v1/current.json`).
 *   **Decision (D4 in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md)):** the Go `catalogbuild` is the single builder; canonical listing IDs are 4-segment.
 *   **Honest status (updated 2026-10-05):** the code now runs a **split** — `litespm catalog build` owns the served pointer, release id/sequence, and `/v1/releases/` tree (byte-for-byte materialization at deploy, end-to-end tested), while the Python script is narrowed to dataset ingestion (`web/data/catalog.json` + stats) and no longer writes `web/public/v1/*`. The Go builder is no longer dead code, but **the contest is not closed**: the split itself has not been accepted or overruled as D4's resolution ([ARCH/31 §4.3](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#43-decision-d4-is-contradicted-by-the-repository--there-are-two-catalog-builders), [STATUS.md](../STATUS.md) §2/§6). The tree does reach the live origin: `scripts/deploy-pages.sh` packages and signs it, `ci.yml` executes that script in its `build-web` job, and the origin serves `/v1/current.json` plus the release tree (probe 2026-10-05, [STATUS.md](../STATUS.md) §1/§2).
-*   **Status:** Accepted as written; **contest open** (implemented as split, awaiting adjudication).
+*   **Adjudication (2026-10-19):** the contest is **closed by amendment, not by reversal.** D4's
+    intent — one authoritative builder, no second opinion about what a listing is — is kept, and the
+    split is ratified as the shape that satisfies it:
+    *   **the Python producer owns INGESTION**: it fetches the upstreams, normalises them, stamps
+        provenance, and writes `web/data/catalog.json` plus the dataset stats. It does not write the
+        pointer or the release tree.
+    *   **the Go builder owns PUBLICATION**: it validates the dataset fail-closed, compiles the
+        immutable release tree, and owns the release id, the sequence and the served pointer.
+    *   **the two are proven to agree**, which is what the single-builder rule was protecting.
+        `scripts/test_builder_parity.py` compiles the Go release over the committed dataset and
+        compares it with the producer row by row: on the 2026-10-17 release, **69,376 of 69,376
+        rows agree** on id, kind, name, summary, version, installability, source, publisher, url and
+        transport, with **0 differing**. The harness names the four field-ownership splits the two
+        answer differently BY DESIGN (publisher-url-fallback, runtime-carries-transport,
+        version-list, installability-default) rather than hiding them.
+    *   **canonical listing IDs remain 4-segment**; the Go builder enforces the source vocabulary
+        (`catalogbuild.ProducerSourceIDs`), so a row whose `source` names no upstream the producer
+        can ingest fails the build instead of shipping an untraceable provenance claim.
+*   **What this does NOT do:** it does not make the Go builder fetch anything. The Go ingest path
+    (`internal/source`) still has only test callers; making it the producer is a separate piece of
+    work, and until then the Python producer is the only thing that fetches.
+*   **Status:** Accepted as amended on 2026-10-19. The contest is **closed**; the remaining work
+    ("the Go pipeline becomes the fetcher too") is no longer a decision, it is a backlog row.
 
 ### D-023: Binding Evidence-State Vocabulary
 *   **Context:** "Done" previously meant at least four different things across documents, which allowed claims a stricter reading of the code did not support.
