@@ -897,6 +897,15 @@ async function trustRootUnobtainableCase(binName) {
     return;
   }
   const fixtureDir = path.join(os.tmpdir(), "litespm-npm-fixtures");
+  // The fixture directory only exists once something was downloaded into it.
+  // Before the release named by this package version exists — which is the
+  // normal state while the release is being cut — there is nothing to read
+  // and the directory was never created, so the case skips rather than
+  // throwing ENOENT and failing the release job.
+  if (!fs.existsSync(fixtureDir)) {
+    skip("trust root unobtainable", "the real release fixtures are unavailable");
+    return;
+  }
   const binary = fs
     .readdirSync(fixtureDir)
     .find((f) => f.endsWith(binName) && f.startsWith(`v${VERSION}-`) && !f.endsWith(".json"));

@@ -9,6 +9,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.5.0] - 2026-10-19
+
+The release where the invocation registry stopped being a design, the site stopped
+overstating what it can install, and the release process stopped being able to
+publish to GitHub while quietly skipping npm.
+
+### Added
+
+- **An invocation registry, an invocation engine, and tamper-evident receipts**
+  (`ARCH/34` §2–§3, §5–§6). `litespm install` and the agent-driven install path
+  already invoked a tool; what was missing was the record of the call. Now:
+  - `internal/receipts` is one durable registry — one JSON line per invocation,
+    one hash chain per provider instance, verifiable with `VerifyChain`.
+  - `internal/invocation` is the engine around it: a clamped **deadline**, a
+    **per-provider concurrency limit**, **queue backpressure** that fails fast
+    with `LPSM-PROVIDER-BUSY` instead of growing, **cooperative cancellation**,
+    **redaction** of provider stdout/stderr and result payloads, and **bounded
+    output** that truncates with an explicit marker and the original digest.
+  - `invocation.get` and `invocation.cancel` (and the Bridge's
+    `get_invocation` / `cancel_invocation`) answer from it. An id that was never
+    issued is a typed `LPSM-INVOCATION-NOT-FOUND` — not a `-32601` stub, which
+    is what they returned before.
+  - `provider.invoke` keeps its synchronous contract and its `{"output",
+    "isError"}` response, and now also returns the `invocationId` and the
+    receipt. `async: true` returns `{"invocationId", "state"}` and the call
+    outlives the request.
+  - **Still `DESIGNED`, and now written down as such:** provider health states
+    and the circuit breaker (`ARCH/34` §4), provider restart (§3), and
+    cross-provider fallback (§7).
+- **`litespm doctor --repair` stays unprompted-proof**: it previews every action
+  and applies none without a confirmation.
+
+### Fixed
+
+- **The 100:1 compression-ratio bound `ARCH/05` §2.1 requires now exists.**
+  `internal/artifact` enforced size, file-count, path and single-file limits,
+  but a zip bomb was bounded only by those: 8 MiB of zeroes is a few KiB on the
+  wire and an unremarkable 8 MiB on disk. The ratio is now checked *during*
+  extraction, against the bytes actually streamed (so a file that lies about its
+  own length is caught too), on both the zip and the tar.gz path.
+- **A release can no longer publish to GitHub and silently skip npm.** The
+  npm-publish step was skipped when `NPM_TOKEN` was absent and the job went
+  green — which is exactly how the `v0.4.0` incident shipped to GitHub while
+  every npm-installed user stayed on a binary that could not sync the published
+  catalog. The step now **fails loudly**, and a release that is deliberately
+  GitHub-only must say so with the repository variable `ALLOW_NPM_SKIP=true`.
+- **The two catalog ingest paths agree on what is installable.** The Go path
+  classified a remote-only record as `discovery_only` while the published
+  catalog marked the same rows `metadata_verified` — so a record was installable
+  from the published release and not installable from the Go one. A published
+  **endpoint** is a launch line (the runtime descriptor comes from a version's
+  command *or* a version-less component's endpoint), and it now counts. The
+  anti-fabrication half is unchanged: a remote-only row still claims no version,
+  no version string and no artifact.
+- **A shard download no longer has to fit a 30-second metadata budget.** The
+  release tree is split at 20 MiB because Cloudflare refuses a larger asset, so
+  one shard is up to 20 MiB of JSON; on a slow or contended link the sync failed
+  with `context deadline exceeded` and left the cache untouched. Shards now
+  carry their own budget, and an explicitly configured timeout
+  (`LITESPM_NETWORK_TIMEOUT_SEC`) still governs every exchange.
+- **The site stopped claiming more than it can do** — the one blocker in an
+  adversarial evaluation of the live site:
+  - `/compare/` said every MCP server in the catalog (48,418) and every skill
+    (20,320) could be installed into any agent on the page, while the site's own
+    `/explore` and `/agents` filters report 25,401 and 764 — 42 of the 50
+    configurable hosts take no remote server at all. The page now quotes the
+    installable counts, computed with the same predicate as every other surface,
+    and a build-time assertion fails if an installable count ever exceeds its
+    catalog total.
+  - The home page scrolled sideways by 34 px at 320 px (a grid track with no
+    column count takes its floor from the card's min-content width). The
+    overflow suite now asserts 320 px as well as 390 px.
+  - The publisher filter was case-sensitive, so `?publisher=anthropic` was a
+    silent zero while `?publisher=Anthropic` found one row.
+  - A search matching more than 200 rows now reads "N matched — showing the most
+    relevant" instead of a count that reads as a broken filter, and the empty
+    state states the prefix rule instead of failing a misspelling silently.
+- **`mcpservers.org` is fetched or its refusal is recorded.** The source had a
+  code path and zero snapshots since it was wired. The directory's robots.txt
+  permits `/servers/*`, so the origin is a permitted request path — it answers
+  automation with a bot challenge, which the run records and does not try to
+  defeat, then falls back to the public capture index that carries the same
+  pages.
+- **A binary built from the source tree no longer claims to be a release.** The
+  compiled-in default was `0.3.0` while npm published `0.4.1`; it is now
+  `dev`, and the release build stamps the real version.
+
+### Changed
+
+- **CI runs the producer's own test suites.** The six Python suites (513 checks,
+  all offline) were manual-only, so a regression in the ingestion safety rules,
+  the snapshot lifecycle, skill promotion or the crawl logic reached a release
+  with no signal.
+- **The vendored `ui-ux-pro-max` test modules skip instead of erroring.** Four of
+  them anchored to the upstream repository layout, which is not vendored here;
+  they now skip with a reason rather than failing at import (141 tests, 0
+  failures, 4 skips).
+
+### Fixed in the repository itself
+
+- **`main` was red.** `gofmt -l .` reported `internal/host/remove.go`, so CI's
+  formatting gate failed on every push — the "CI has been green since
+  2026-10-15" note was not true.
+- **The Pi fixture tested a container Pi does not read.** It used `mcp.servers`
+  while the adapter writes only `mcpServers`, and the test parsed the JSON by
+  hand instead of driving the adapter. Both now exercise the real container.
+- **The npm dependency inventory was wrong.** `npm/NOTICE` and the license
+  inventory said the launcher "has no runtime dependencies"; it declares three
+  `@sigstore/*` packages, and the default install path needs them to verify the
+  release's bundle.
+
 ## [0.4.1] - 2026-10-15
 
 ### Added

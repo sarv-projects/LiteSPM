@@ -40,9 +40,12 @@ type SyncResult struct {
 // predates signing — unless LITESPM_REQUIRE_CATALOG_SIGNATURE=1. A full
 // TUF root/timestamp/snapshot envelope remains DESIGNED, not shipped.
 type Client struct {
-	baseURL          string
-	cacheDir         string
-	httpClient       *http.Client
+	baseURL    string
+	cacheDir   string
+	httpClient *http.Client
+	// shardClient carries the shard download budget: a shard is up to 20 MiB,
+	// so it does not fit the metadata bound. See defaultShardTimeout.
+	shardClient      *http.Client
 	index            *SearchIndex
 	currentReleaseID string
 	currentSequence  int
@@ -69,6 +72,32 @@ const maxCatalogFileBytes = 64 << 20
 // configured. It matches config.DefaultConfig's Network.Timeout, so a caller
 // that never looks at configuration still gets the documented 30s.
 const defaultCatalogTimeout = 30 * time.Second
+
+// shardHTTPClient returns the client that carries the shard download budget.
+// A client built as a struct literal (tests do) has no shard client, so it
+// falls back to the general one rather than panicking.
+func (c *Client) shardHTTPClient() *http.Client {
+	if c.shardClient != nil {
+		return c.shardClient
+	}
+	return c.httpClient
+}
+
+// defaultShardTimeout bounds ONE shard download when the caller did not
+// configure a timeout.
+//
+// The metadata exchanges (the pointer, the manifest, a signature bundle) are
+// kilobytes, and 30 seconds is generous for them. A shard is not: the
+// release tree is split at 20 MiB because Cloudflare refuses a larger
+// asset, so one shard is up to 20 MiB of JSON. On a slow or contended link
+// that takes longer than 30 seconds and the sync fails with "context
+// deadline exceeded" while the cache is left untouched — the 2026-10-19
+// functional check hit exactly this on listings-0003.json. A bound too tight
+// for the body it carries is not a safety property.
+//
+// An explicitly configured timeout (LITESPM_NETWORK_TIMEOUT_SEC, [network])
+// still governs every exchange, shards included: the operator asked for it.
+const defaultShardTimeout = 5 * time.Minute
 
 // --- Egress guard -------------------------------------------------------
 //
@@ -108,30 +137,50 @@ func NewClient(baseURL, cacheDir string, httpClient *http.Client) *Client {
 // keeps its configured timeout while receiving the catalog URL/redirect
 // guards and, for net/http transports, the checked-IP dialer.
 func NewClientWithTimeout(baseURL, cacheDir string, timeout time.Duration, httpClient *http.Client) *Client {
+	// The shard budget is separate from the metadata budget, and only when
+	// nobody configured one: a shard carries up to 20 MiB, and the default
+	// metadata bound is not a bound that fits it.
+	shardTimeout := timeout
+	if shardTimeout <= 0 {
+		shardTimeout = defaultShardTimeout
+	}
 	if httpClient == nil {
 		httpClient = secureCatalogHTTPClient(timeout, baseURL)
-	} else {
-		// Do not mutate a caller-owned client: the catalog's redirect and
-		// destination policy belongs to this client instance.
-		clone := *httpClient
-		callerRedirect := clone.CheckRedirect
-		clone.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			if err := catalogCheckRedirect(req, via); err != nil {
-				return err
-			}
-			if callerRedirect != nil {
-				return callerRedirect(req, via)
-			}
-			return nil
+		shardClient := secureCatalogHTTPClient(shardTimeout, baseURL)
+		c := &Client{
+			baseURL:     baseURL,
+			cacheDir:    cacheDir,
+			httpClient:  httpClient,
+			shardClient: shardClient,
+			index:       NewSearchIndex(),
 		}
-		clone.Transport = guardedCatalogTransport(clone.Transport, configuredPrivateHost(baseURL))
-		httpClient = &clone
+		// Try loading cached release on startup
+		_ = c.LoadFromCache()
+		return c
 	}
+	// Do not mutate a caller-owned client: the catalog's redirect and
+	// destination policy belongs to this client instance.
+	clone := *httpClient
+	callerRedirect := clone.CheckRedirect
+	clone.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if err := catalogCheckRedirect(req, via); err != nil {
+			return err
+		}
+		if callerRedirect != nil {
+			return callerRedirect(req, via)
+		}
+		return nil
+	}
+	clone.Transport = guardedCatalogTransport(clone.Transport, configuredPrivateHost(baseURL))
+	httpClient = &clone
 	c := &Client{
 		baseURL:    baseURL,
 		cacheDir:   cacheDir,
 		httpClient: httpClient,
-		index:      NewSearchIndex(),
+		// A caller-owned client keeps its own timeout; the shard budget the
+		// caller configured (or that client carries) governs the shards too.
+		shardClient: httpClient,
+		index:       NewSearchIndex(),
 	}
 	// Try loading cached release on startup
 	_ = c.LoadFromCache()
@@ -638,7 +687,7 @@ func (c *Client) fetchListings(ctx context.Context, releaseID string, manifest *
 		if err != nil {
 			return nil, err
 		}
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.shardHTTPClient().Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -683,7 +732,7 @@ func (c *Client) fetchVersions(ctx context.Context, releaseID string, manifest *
 		if err != nil {
 			return nil, err
 		}
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.shardHTTPClient().Do(req)
 		if err != nil {
 			return nil, err
 		}

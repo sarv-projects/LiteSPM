@@ -67,3 +67,28 @@ func TestConfiguredTimeoutBoundsFetch(t *testing.T) {
 		t.Errorf("fetch ran %v, well beyond the 100ms bound", elapsed)
 	}
 }
+
+// A shard is up to 20 MiB; the metadata bound is 30s. The two budgets are
+// separate, and an explicitly configured timeout still governs both — the
+// operator asked for it.
+func TestShardDownloadsCarryTheirOwnBudget(t *testing.T) {
+	unconfigured := NewClientWithTimeout("https://registry.invalid", t.TempDir(), 0, nil)
+	if got := unconfigured.httpClient.Timeout; got != defaultCatalogTimeout {
+		t.Errorf("metadata budget = %v, want %v", got, defaultCatalogTimeout)
+	}
+	if got := unconfigured.shardClient.Timeout; got != defaultShardTimeout {
+		t.Errorf("shard budget = %v, want %v", got, defaultShardTimeout)
+	}
+	if defaultShardTimeout <= defaultCatalogTimeout {
+		t.Errorf("the shard budget (%v) must exceed the metadata budget (%v)",
+			defaultShardTimeout, defaultCatalogTimeout)
+	}
+
+	configured := NewClientWithTimeout("https://registry.invalid", t.TempDir(), 7*time.Second, nil)
+	if got := configured.httpClient.Timeout; got != 7*time.Second {
+		t.Errorf("configured metadata budget = %v, want 7s", got)
+	}
+	if got := configured.shardClient.Timeout; got != 7*time.Second {
+		t.Errorf("configured shard budget = %v, want 7s — a configured timeout governs shards too", got)
+	}
+}

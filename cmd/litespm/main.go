@@ -46,7 +46,12 @@ import (
 // -ldflags "-X main.Version=<v>" (see scripts/build-release.sh). Keep this
 // value in sync with npm/package.json — the npm postinstall downloads the
 // release asset named after the npm package version.
-var Version = "0.3.0"
+//
+// The default is "dev", not a version number: a binary built from the source
+// tree is not a release, and a stale number is a false claim. (It was
+// "0.3.0" for a long time while npm published 0.4.1, so a locally built
+// binary told a user it was three releases old.)
+var Version = "dev"
 
 const (
 	ProtocolVersion = "2026-07-28"
@@ -66,7 +71,12 @@ func main() {
 
 	switch command {
 	case "version", "--version", "-v":
-		fmt.Printf("LiteSPM v%s (Protocol %s, %s/%s, %s)\n", Version, ProtocolVersion, runtime.GOOS, runtime.GOARCH, runtime.Version())
+		// An unstamped build is "dev", and "vdev" is not a version.
+		label := Version
+		if label != "dev" {
+			label = "v" + label
+		}
+		fmt.Printf("LiteSPM %s (Protocol %s, %s/%s, %s)\n", label, ProtocolVersion, runtime.GOOS, runtime.GOARCH, runtime.Version())
 
 	case "setup":
 		runSetup(os.Args[2:])
