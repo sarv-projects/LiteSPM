@@ -29,9 +29,11 @@ import (
 	"github.com/sarv-projects/litespm/internal/fslock"
 	"github.com/sarv-projects/litespm/internal/host"
 	"github.com/sarv-projects/litespm/internal/install"
+	"github.com/sarv-projects/litespm/internal/invocation"
 	"github.com/sarv-projects/litespm/internal/ipc"
 	"github.com/sarv-projects/litespm/internal/policy"
 	"github.com/sarv-projects/litespm/internal/provider"
+	"github.com/sarv-projects/litespm/internal/receipts"
 	"github.com/sarv-projects/litespm/internal/resolver"
 	"github.com/sarv-projects/litespm/internal/secrets"
 	"github.com/sarv-projects/litespm/internal/skills"
@@ -2326,6 +2328,41 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 	}
 	installEngine.SetPolicy(policyEngine)
 
+	// ARCH/34 §3/§6: the invocation registry and the engine around it. The
+	// store is durable — one receipt chain per provider instance — and the
+	// engine owns the deadline, the per-provider concurrency limit, the
+	// queue backpressure, the cancellation path and the redaction of every
+	// result. There is exactly one registry in the tree: this one.
+	receiptStore, receiptErr := receipts.Open(paths.ReceiptsPath())
+	if receiptErr != nil {
+		return fmt.Errorf("open the receipt store: %w", receiptErr)
+	}
+	engine := invocation.NewEngine(invocation.Options{
+		Store: receiptStore,
+		Invoker: func(ctx context.Context, capabilityID string, arguments json.RawMessage) (invocation.Output, error) {
+			// The policy gate (ARCH/15) stays exactly where it was: with the
+			// engine attached, an ungranted invocation is refused as "ask"
+			// (a grant is required) instead of the old "no policy engine
+			// configured" blanket deny, and a granted one passes through
+			// Tier 3 with schema-drift re-verification. The engine is the
+			// wrapper around the call, never a way around discover.WithPolicy.
+			result, err := discover.Invoke(ctx, db, capabilityID, arguments,
+				discover.WithPolicy(policyEngine))
+			if err != nil {
+				// The audit row is written with a context that outlives the
+				// call: a cancelled invocation must still leave a row, or
+				// the attempt nobody can see is the attempt nobody can
+				// audit.
+				recordAudit(context.WithoutCancel(ctx), db, "agent", "capability.invoke", capabilityID,
+					"deny", "", "", "refused", err.Error())
+				return invocation.Output{}, err
+			}
+			recordAudit(context.WithoutCancel(ctx), db, "agent", "capability.invoke", capabilityID,
+				"allow", "", "", "ok", "")
+			return invocation.Output{Text: result.Output, IsError: result.IsError}, nil
+		},
+	})
+
 	// 1. tools.list returns installed capabilities & external detected tools.
 	// Truthfulness: LiteSPM does not health-check or verify installed
 	// capabilities at runtime, so Verified stays false and Status/Transport are
@@ -3050,56 +3087,102 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 		return snap, nil
 	})
 
-	// 13. provider.invoke stays unimplemented with the concrete reason: the
-	// daemon writes no capability rows (nothing to resolve a capabilityId
-	// against) and the supervisor has no MCP session dispatch to call into.
+	// 13. provider.invoke stays synchronous by contract (ARCH/06 §4) and
+	// keeps returning {"output","isError"} — but the call now runs through
+	// the invocation engine (ARCH/34 §3), so every call leaves a receipt
+	// behind and the response carries the invocation id.
 	server.RegisterHandler("provider.invoke", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
 		var req struct {
 			CapabilityID string          `json:"capabilityId"`
 			Arguments    json.RawMessage `json:"arguments"`
+			DeadlineMs   int             `json:"deadlineMs,omitempty"`
+			Async        bool            `json:"async,omitempty"`
 		}
 		if err := json.Unmarshal(params, &req); err != nil || strings.TrimSpace(req.CapabilityID) == "" {
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "capabilityId is required"}
 		}
-		// The policy gate (ARCH/15): with the engine attached, an ungranted
-		// invocation is refused as "ask" (a grant is required) instead of the
-		// old "no policy engine configured" blanket deny, and a granted one
-		// passes through Tier 3 with schema-drift re-verification. Without
-		// this option discover.Invoke fails closed for every effectful
-		// invocation — the gate existed but was never reachable, so the
-		// marketplace's invoke_capability could never succeed.
-		result, err := discover.Invoke(ctx, db, req.CapabilityID, req.Arguments,
-			discover.WithPolicy(policyEngine))
+		if req.DeadlineMs < 0 {
+			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "deadlineMs must not be negative"}
+		}
+		deadline := time.Duration(req.DeadlineMs) * time.Millisecond
+
+		if req.Async {
+			// The call outlives the request: only the invocation's own
+			// deadline and an explicit invocation.cancel end it.
+			inv, err := engine.Submit(context.WithoutCancel(ctx), req.CapabilityID, req.Arguments, deadline)
+			if err != nil {
+				return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}
+			}
+			return map[string]any{
+				"invocationId": inv.InvocationID,
+				"state":        inv.State,
+			}, nil
+		}
+
+		// The synchronous path: the call runs to completion in the request,
+		// and the receipt it produced is reported alongside the result.
+		inv, err := engine.SubmitAndWait(ctx, req.CapabilityID, req.Arguments, deadline)
 		if err != nil {
 			// A tool that is not installed, not discovered, whose schema
 			// drifted, or that policy refused is the caller's problem to fix,
 			// not an internal failure.
-			recordAudit(ctx, db, "agent", "capability.invoke", req.CapabilityID,
-				"deny", "", "", "refused", err.Error())
+			return nil, &ipc.RPCError{
+				Code:    ipc.CodeInvalidParams,
+				Message: err.Error(),
+				Data:    invocationErrorData(inv),
+			}
+		}
+		result, _ := engine.Result(inv.InvocationID)
+		return map[string]any{
+			"output":       result.Text,
+			"isError":      result.IsError,
+			"invocationId": inv.InvocationID,
+			"receipt":      inv.Receipt,
+		}, nil
+	})
+
+	// 14. invocation.get answers from the invocation registry: the state and
+	// the receipt of one invocation, by id. An id that was never issued is a
+	// typed not-found (-32602), never a "not implemented" stub.
+	server.RegisterHandler("invocation.get", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
+		var req struct {
+			InvocationID string `json:"invocationId"`
+		}
+		if len(params) > 0 {
+			if err := json.Unmarshal(params, &req); err != nil {
+				return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params"}
+			}
+		}
+		if strings.TrimSpace(req.InvocationID) == "" {
+			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invocationId is required"}
+		}
+		inv, err := engine.Get(req.InvocationID)
+		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}
 		}
-		recordAudit(ctx, db, "agent", "capability.invoke", req.CapabilityID,
-			"allow", "", "", "ok", "")
-		return map[string]any{"output": result.Output, "isError": result.IsError}, nil
+		return inv, nil
 	})
 
-	// 14. invocation.get stays unimplemented, with the reason narrowed: the
-	// asynchronous invocation registry is ARCH/34, still DESIGNED. provider.invoke
-	// is synchronous by contract (ARCH/06 §4), so nothing here invents a row.
-	server.RegisterHandler("invocation.get", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
-		return nil, &ipc.RPCError{
-			Code:    ipc.CodeMethodNotFound,
-			Message: "not implemented: there is no invocation registry to look up. provider.invoke is synchronous by contract (ARCH/06 §4); the asynchronous registry is ARCH/34, still DESIGNED",
-		}
-	})
-
-	// 15. invocation.cancel: without an invocation registry there is nothing to
-	// cancel; the supervisor only manages provider processes.
+	// 15. invocation.cancel stops an in-flight invocation and records the
+	// cancellation. It is idempotent: a repeated cancel returns the same
+	// terminal invocation.
 	server.RegisterHandler("invocation.cancel", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
-		return nil, &ipc.RPCError{
-			Code:    ipc.CodeMethodNotFound,
-			Message: "not implemented: there is no invocation registry to cancel from. provider.invoke is synchronous and runs to completion in the request (ARCH/06 §4); the cancellable registry is ARCH/34, still DESIGNED",
+		var req struct {
+			InvocationID string `json:"invocationId"`
 		}
+		if len(params) > 0 {
+			if err := json.Unmarshal(params, &req); err != nil {
+				return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params"}
+			}
+		}
+		if strings.TrimSpace(req.InvocationID) == "" {
+			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invocationId is required"}
+		}
+		inv, err := engine.Cancel(req.InvocationID)
+		if err != nil {
+			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}
+		}
+		return inv, nil
 	})
 
 	// 16. host.detect_config probes configured agent hosts
@@ -3158,6 +3241,20 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 	})
 
 	return nil
+}
+
+// invocationErrorData names the invocation a failed call belongs to, so the
+// caller can fetch its receipt with invocation.get even though the call
+// itself failed. It is empty when no invocation was recorded.
+func invocationErrorData(inv *receipts.Invocation) json.RawMessage {
+	if inv == nil || inv.InvocationID == "" {
+		return nil
+	}
+	b, err := json.Marshal(map[string]any{"invocationId": inv.InvocationID})
+	if err != nil {
+		return nil
+	}
+	return b
 }
 
 // auditCLIInstall records one `litespm install` attempt.

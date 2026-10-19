@@ -224,6 +224,14 @@ func (p *PlatformPaths) StagingPath() string {
 	return filepath.Join(p.DataRoot, "staging")
 }
 
+// ReceiptsPath returns the path to the invocation receipt chain in DATA_ROOT.
+//
+// The receipts are the durable record of every invocation (ARCH/34 §6): one
+// JSON line per invocation, one hash chain per provider instance.
+func (p *PlatformPaths) ReceiptsPath() string {
+	return filepath.Join(p.DataRoot, "receipts.jsonl")
+}
+
 // EnsureDirectories creates all standard directories with restrictive permissions (0700).
 //
 // The runtime root is created through ensureRuntimeRoot rather than plain

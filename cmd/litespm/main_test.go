@@ -17,6 +17,7 @@ import (
 
 	"github.com/sarv-projects/litespm/internal/catalog"
 	"github.com/sarv-projects/litespm/internal/config"
+	"github.com/sarv-projects/litespm/internal/discover"
 	"github.com/sarv-projects/litespm/internal/doctor"
 	"github.com/sarv-projects/litespm/internal/domain"
 	"github.com/sarv-projects/litespm/internal/install"
@@ -628,32 +629,235 @@ func TestRegisteredHandlers_RealBehavior(t *testing.T) {
 		}
 	})
 
-	unimplemented := []struct {
-		method   string
-		mustSay  string
-		otherSay string
-	}{
-		// The asynchronous invocation registry is ARCH/34, still DESIGNED.
-		// provider.invoke is synchronous by contract (ARCH/06 §4), so these two
-		// stay honest stubs rather than inventing a row that outlives its process.
-		{"invocation.get", "invocation registry", "ARCH/34"},
-		{"invocation.cancel", "invocation registry", "ARCH/34"},
-	}
-	for _, tc := range unimplemented {
-		t.Run(tc.method, func(t *testing.T) {
+	// The invocation registry is ARCH/34 and it is wired: invocation.get and
+	// invocation.cancel answer from the registry, and an id that was never
+	// issued is a typed not-found — not a "not implemented" stub.
+	for _, method := range []string{"invocation.get", "invocation.cancel"} {
+		t.Run(method, func(t *testing.T) {
 			var raw json.RawMessage
-			err := h.client.Call(ctx, tc.method, map[string]any{"invocationId": "inv_x"}, &raw)
-			if code := rpcCode(t, err); code != ipc.CodeMethodNotFound {
-				t.Errorf("code=%d, want %d (err=%v)", code, ipc.CodeMethodNotFound, err)
+			err := h.client.Call(ctx, method, map[string]any{"invocationId": "inv_x"}, &raw)
+			if code := rpcCode(t, err); code != ipc.CodeInvalidParams {
+				t.Errorf("code=%d, want %d (err=%v)", code, ipc.CodeInvalidParams, err)
 			}
-			if !strings.Contains(err.Error(), tc.mustSay) {
-				t.Errorf("reason %q must mention %q", err, tc.mustSay)
-			}
-			if tc.otherSay != "" && !strings.Contains(err.Error(), tc.otherSay) {
-				t.Errorf("reason %q must point at %s", err, tc.otherSay)
+			if !strings.Contains(err.Error(), "LPSM-INVOCATION-NOT-FOUND") {
+				t.Errorf("reason %q must name the typed not-found", err)
 			}
 		})
 	}
+}
+
+// invocationFixture is one remote MCP server the daemon can really call.
+type invocationFixture struct {
+	endpoint string
+	release  func()
+}
+
+// newInvocationFixture starts a streamable-HTTP MCP server. With block set,
+// its tools/call waits until the test releases it: a call that is still in
+// flight when the test cancels it.
+func newInvocationFixture(t *testing.T, block bool) *invocationFixture {
+	t.Helper()
+	releaseCh := make(chan struct{})
+	var once sync.Once
+	release := func() { once.Do(func() { close(releaseCh) }) }
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		reply := func(result string) {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0", "id": json.RawMessage(req.ID), "result": json.RawMessage(result),
+			})
+		}
+		switch req.Method {
+		case "tools/list":
+			reply(`{"tools":[{"name":"echo","description":"Echo a message",
+				"inputSchema":{"type":"object","properties":{"message":{"type":"string"}},"required":["message"]}}]}`)
+		case "tools/call":
+			if block {
+				select {
+				case <-releaseCh:
+				case <-r.Context().Done():
+					return
+				}
+			}
+			reply(`{"content":[{"type":"text","text":"remote-ok"}]}`)
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0", "id": json.RawMessage(req.ID),
+				"error": map[string]any{"code": -32601, "message": "Method not found"},
+			})
+		}
+	}))
+	t.Cleanup(func() {
+		release()
+		server.Close()
+	})
+	return &invocationFixture{endpoint: server.URL + "/mcp", release: release}
+}
+
+// seedInvocationCapability discovers the fixture and grants the capability it
+// exposes, so a daemon-side invocation reaches the provider instead of the
+// policy gate.
+func seedInvocationCapability(t *testing.T, db *state.DB, endpoint string) string {
+	t.Helper()
+	ctx := context.Background()
+	const installID = "inst_user_mcp_invocation_demo_1_0_0"
+	const component = "invocation-demo"
+	seedCapabilityInstall(t, db, installID, "mcp:example:invocation-demo", component)
+
+	found, err := discover.Discover(ctx, db, discover.ProviderSpec{
+		InstallID: installID, ComponentName: component,
+		Endpoint: endpoint, Transport: "streamable-http",
+	})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(found.Capabilities) == 0 {
+		t.Fatal("the fixture must expose one capability")
+	}
+	capabilityID := found.Capabilities[0].CapabilityID
+	if _, err := issueCapabilityGrant(ctx, db, capabilityID); err != nil {
+		t.Fatalf("issueCapabilityGrant: %v", err)
+	}
+	return capabilityID
+}
+
+// The daemon's provider.invoke writes a receipt, and invocation.get returns
+// that same receipt for the invocation id the call reported.
+func TestInvocationGetReturnsARecordedInvocation(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	fixture := newInvocationFixture(t, false)
+	capabilityID := seedInvocationCapability(t, h.db, fixture.endpoint)
+
+	var invoked struct {
+		Output       string `json:"output"`
+		IsError      bool   `json:"isError"`
+		InvocationID string `json:"invocationId"`
+		Receipt      struct {
+			ReceiptHash string `json:"receiptHash"`
+			Outcome     string `json:"outcome"`
+		} `json:"receipt"`
+	}
+	if err := h.client.Call(ctx, "provider.invoke", map[string]any{
+		"capabilityId": capabilityID,
+		"arguments":    map[string]any{"message": "hi"},
+	}, &invoked); err != nil {
+		t.Fatalf("provider.invoke: %v", err)
+	}
+	if invoked.InvocationID == "" {
+		t.Fatal("provider.invoke must report the invocation id")
+	}
+	if invoked.Receipt.ReceiptHash == "" {
+		t.Fatal("provider.invoke must report the receipt")
+	}
+	if invoked.Receipt.Outcome != "succeeded" {
+		t.Errorf("receipt outcome = %q, want %q", invoked.Receipt.Outcome, "succeeded")
+	}
+	if !strings.Contains(invoked.Output, "remote-ok") {
+		t.Errorf("unexpected output: %q", invoked.Output)
+	}
+
+	var got struct {
+		State   string `json:"state"`
+		Receipt struct {
+			ReceiptHash string `json:"receiptHash"`
+		} `json:"receipt"`
+	}
+	if err := h.client.Call(ctx, "invocation.get", map[string]any{
+		"invocationId": invoked.InvocationID,
+	}, &got); err != nil {
+		t.Fatalf("invocation.get: %v", err)
+	}
+	if got.State != "succeeded" {
+		t.Errorf("state = %q, want a terminal state", got.State)
+	}
+	if got.Receipt.ReceiptHash != invoked.Receipt.ReceiptHash {
+		t.Errorf("invocation.get returned receipt %q, want %q",
+			got.Receipt.ReceiptHash, invoked.Receipt.ReceiptHash)
+	}
+}
+
+// Cancellation over the wire: the in-flight call is stopped, the invocation
+// ends as cancelled, and a repeated cancel is idempotent.
+func TestInvocationCancelOverIPC(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	fixture := newInvocationFixture(t, true)
+	capabilityID := seedInvocationCapability(t, h.db, fixture.endpoint)
+
+	var submitted struct {
+		InvocationID string `json:"invocationId"`
+		State        string `json:"state"`
+	}
+	if err := h.client.Call(ctx, "provider.invoke", map[string]any{
+		"capabilityId": capabilityID,
+		"arguments":    map[string]any{"message": "hi"},
+		"async":        true,
+	}, &submitted); err != nil {
+		t.Fatalf("provider.invoke: %v", err)
+	}
+	if submitted.InvocationID == "" {
+		t.Fatal("an asynchronous submission must report the invocation id")
+	}
+
+	// Wait until the call is really in flight, then cancel it.
+	waitForInvocationState(t, h, submitted.InvocationID, "running")
+
+	var cancelled struct {
+		State     string `json:"state"`
+		Cancelled bool   `json:"cancelled"`
+	}
+	if err := h.client.Call(ctx, "invocation.cancel", map[string]any{
+		"invocationId": submitted.InvocationID,
+	}, &cancelled); err != nil {
+		t.Fatalf("invocation.cancel: %v", err)
+	}
+	if cancelled.State != "cancelled" {
+		t.Errorf("state = %q, want %q", cancelled.State, "cancelled")
+	}
+
+	// Idempotent over the wire: a second cancel returns the same state.
+	var again struct {
+		State string `json:"state"`
+	}
+	if err := h.client.Call(ctx, "invocation.cancel", map[string]any{
+		"invocationId": submitted.InvocationID,
+	}, &again); err != nil {
+		t.Fatalf("second invocation.cancel: %v", err)
+	}
+	if again.State != "cancelled" {
+		t.Errorf("the second cancel changed the state: %q", again.State)
+	}
+}
+
+// waitForInvocationState polls invocation.get until the invocation reaches a
+// state, and fails the test when it never does.
+func waitForInvocationState(t *testing.T, h *harness, id, want string) {
+	t.Helper()
+	ctx := context.Background()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		var inv struct {
+			State string `json:"state"`
+		}
+		if err := h.client.Call(ctx, "invocation.get", map[string]any{"invocationId": id}, &inv); err != nil {
+			t.Fatalf("invocation.get: %v", err)
+		}
+		if inv.State == want {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("the invocation never reached %q", want)
 }
 
 func TestRunStartupRecovery_ReportsTruthfully(t *testing.T) {

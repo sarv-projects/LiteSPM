@@ -599,16 +599,18 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 			return MCPToolResult{}, rpcErr
 		}
 
-		var resp struct {
-			Cancelled bool `json:"cancelled"`
-		}
+		// The daemon owns the invocation: the tool renders what the daemon
+		// cancelled, including the receipt it wrote. A local "cancelled"
+		// claim would be a state this process never observed.
+		var resp any
 		err := s.client.Call(ctx, "invocation.cancel", map[string]any{
 			"invocationId": req.InvocationID,
 		}, &resp)
 		if err != nil {
 			return FormatErrorResult(err), nil
 		}
-		return MCPToolResult{Content: []MCPContent{{Type: "text", Text: fmt.Sprintf("Invocation %s cancelled: %v", req.InvocationID, resp.Cancelled)}}}, nil
+		outBytes, _ := json.MarshalIndent(resp, "", "  ")
+		return MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(outBytes)}}}, nil
 
 	default:
 		return FormatErrorResult(domain.ErrNotFound("tool", name)), nil
