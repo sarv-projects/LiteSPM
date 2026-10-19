@@ -1,11 +1,9 @@
 {
   "model": "anthropic:claude-3-5-sonnet",
-  "mcp": {
-    "servers": {
-      "local_bash": {
-        "command": "/bin/bash",
-        "args": ["-l"]
-      }
+  "mcpServers": {
+    "local_bash": {
+      "command": "/bin/bash",
+      "args": ["-l"]
     }
   }
 }

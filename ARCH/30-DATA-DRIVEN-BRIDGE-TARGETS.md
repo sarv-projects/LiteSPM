@@ -161,6 +161,6 @@ the key the vendor documents), not just that our own writer round-trips.
 Two different registries, deliberately not conflated:
 
 * **Bridge targets** (this document, 44 rows) — agents whose **config file LiteSPM can edit** to register the MCP bridge.
-* **Skill install targets** (`internal/skills/agents.go`, 81 targets) — agents where LiteSPM can **write a `SKILL.md`** into a skills directory. The 77 transcribed rows plus the `universal`/`warp`/`grok`/`pi` ids appended 2026-10-14; the generated `web/data/skill-targets.json` still lists the old 77 until `go run scripts/gen_hosts_ts.go` is re-run.
+* **Skill install targets** (`internal/skills/agents.go`, 81 targets) — agents where LiteSPM can **write a `SKILL.md`** into a skills directory. The 77 transcribed rows plus the `universal`/`warp`/`grok`/`pi` ids appended 2026-10-14; the generated `web/data/skill-targets.json` was regenerated on 2026-10-15 and now lists all **81**, matching `skills.AgentTargets()` — the CI gate "Verify Generated Host Data Is Current" passes.
 
 The sets overlap but are not equal. 67 agents were researched for bridge support: **44 shipped** and **23 fully excluded**. (The §3 exclusion table names 24 agents, but `roo` is excluded only at user scope; its repo-scope target is shipped, so it is counted among the 44, not among the 23.) Some skill targets are IDE extensions with no CLI config file; some bridge targets are cloud products with no skills directory. `litespm host list` reports bridge adapters only — it does not claim skill coverage.

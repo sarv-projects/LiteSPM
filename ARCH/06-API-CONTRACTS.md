@@ -54,7 +54,7 @@ Shape as typed by `catalogbuild.CurrentPointer` (`internal/catalogbuild/compiler
 ```json
 {
   "schemaVersion": 1,
-  "releaseId": "rel-2026-10-11-02",
+  "releaseId": "rel-2026-10-17-01",
   "sequence": 147,
   "manifestDigest": "sha256:c1364c17618db41d03c10781d316d014410a34d90acebab538a2d28c35a45009",
   "itemCount": 69376,

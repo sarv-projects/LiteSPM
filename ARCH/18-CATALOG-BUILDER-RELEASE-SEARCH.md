@@ -31,7 +31,7 @@
 >     Go = publication) is what the code does; locked decision D4 itself is still unadjudicated
 >     (`STATUS.md` §2).
 > *   The committed `web/public/v1/current.json` is Go-built (`schemaVersion`, digest over
->     `manifest.json`, second-precision timestamps) and names **`rel-2026-10-11-02`**, sequence 147,
+>     `manifest.json`, second-precision timestamps) and names **`rel-2026-10-17-01`**, sequence 149,
 >     **69,376 items** (probe 2026-10-13). Earlier pointers this file used to name
 >     (`rel-2026-10-07-01`, `rel-2026-10-05-01`) have since been **replaced at the origin** and now
 >     return 404, so a probe is evidence only for the release it names.

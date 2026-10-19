@@ -54,7 +54,7 @@ Highest honest state per phase, with the subsystem rows that back it in [STATUS.
 |---|---|---|
 | A — Architecture Freeze & Schemas | `DESIGNED` | `ARCH/00`–`ARCH/38` exist; the specification is written, not verified |
 | B — Foundations, Storage & IPC | `TESTED` | `domain` / `state` / `ipc` tests bind; no independent falsification pass yet (STATUS §1) |
-| C — Static Catalog & Discovery | `SHIPPED` for the compiler, `catalog build` and `catalog sync` | the release tree is published and `catalog sync` was verified against the live origin; the origin now names **`rel-2026-10-11-02`** (sequence 147, 69,376 items, sharded — probe 2026-10-13), and the `rel-2026-10-05-01` tree the 2026-10-05 probe cited has since been replaced. `index.json`/`shards/` remain `DESIGNED`; transport sharding is `IMPLEMENTED` (STATUS §2) |
+| C — Static Catalog & Discovery | `SHIPPED` for the compiler, `catalog build` and `catalog sync` | the release tree is published and `catalog sync` was verified against the live origin; the origin now names **`rel-2026-10-17-01`** (sequence 149, 69,376 items, sharded — probe 2026-10-19), and the `rel-2026-10-05-01` tree the 2026-10-05 probe cited has since been replaced. `index.json`/`shards/` remain `DESIGNED`; transport sharding is `IMPLEMENTED` (STATUS §2) |
 | D — Extraction, Resolver & Skills | `WIRED` (resolver, skills); `IMPLEMENTED` (install engine); `TESTED` (artifact) | skills and MCP servers install end to end through `/marketplace`; `install.execute` still has no artifact source for plugins (STATUS §3) |
 | E — Supervision, Bridge & Hosts | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | provider rows are written at install time (`m4` closed 2026-10-13, `state.SaveProviderExec` inside the install transaction); `autostart` stays `0`, so nothing starts a provider at boot (STATUS §4) |
 | F — MCP profiles, Secrets & OAuth | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | `mcpclient`'s first production importer is `internal/discover`; `auth` still has zero production importers (STATUS §1, §4) |
@@ -108,7 +108,7 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 *   **Current state:** byte-determinism is demonstrated for the Go compiler
     (`TODO.md` `LPSM-C002`), the deploy allowlist/leak audit exists (`deploy-pages.sh`), and the
     **user-visible gate — a `catalog sync` that succeeds against the live origin — passes**
-    (verified 2026-10-05: release `rel-2026-10-05-01`, 5,814 indexed — that tree has since been replaced, so the figures record that run; the origin now serves `rel-2026-10-11-02`; STATUS §2).
+    (verified 2026-10-05: release `rel-2026-10-05-01`, 5,814 indexed — that tree has since been replaced, so the figures record that run; the origin now serves `rel-2026-10-17-01`; STATUS §2).
     Two builders also remain in tree (D4 contested).
 
 ### Phase D: Safe Artifact Extraction & Skill Management

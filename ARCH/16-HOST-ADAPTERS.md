@@ -283,10 +283,10 @@ URL-only entry — one transport, spelled exactly the way that host spells it:
     credentials, no fragment, default port, no non-public IP literal:
     `scripts/build_full_catalog.py:586-651`, row emission `:696-723`); `internal/catalogbuild`
     carries `url` into `RuntimeDescriptor.Endpoint` (`dataset.go:45`, `:329-341`). Nothing at
-    install time fetches, probes or guesses a URL. As of this writing the dataset on disk and the
-    live release were both built **before** that producer change, so no published row carries `url`
-    yet ([STATUS.md](../STATUS.md) §3) — the path below is implemented and tested, not yet fed by a
-    release.
+    install time fetches, probes or guesses a URL.
+    **Measured 2026-10-19:** the published release `rel-2026-10-17-01` carries **25,401 rows with a
+    non-null `url`**, and those are exactly the 25,401 `metadata_verified` MCP listings — the producer
+    change is live, so the path below is fed by a release ([STATUS.md](../STATUS.md) §2–§3).
 *   **8 of 50 hosts are verified capable:** the six bespoke adapters (`claude-code`, `cline`,
     `opencode`, `codex`, `pi-agent`, `grok-build`) plus the two data rows whose exact remote entry
     object was read from the row's `DocsURL` (`cursor`, `zed`).

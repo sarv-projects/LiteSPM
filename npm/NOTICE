@@ -23,9 +23,13 @@ Third-party components
 
 The LiteSPM Go binary statically links the following direct modules declared in
 `go.mod`. Each is distributed under the license shown; the complete license text
-ships with the module source. The npm launcher has no runtime dependencies and
-uses only Node.js built-ins. See `.github/DEPENDENCY-LICENSE-INVENTORY.md` for
-source URLs and verification status.
+ships with the module source. The **npm launcher declares three runtime
+dependencies** — `@sigstore/bundle`, `@sigstore/tuf` and `@sigstore/verify` —
+which the default install path requires in order to verify the release's
+Sigstore bundle before anything is installed. All three are Apache-2.0 and
+resolve to five packages in `npm/package-lock.json`. See
+`.github/DEPENDENCY-LICENSE-INVENTORY.md` for source URLs and verification
+status.
 
 | Module | License |
 | --- | --- |

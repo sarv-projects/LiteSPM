@@ -1,6 +1,6 @@
 # `scripts/` — repository scripts
 
-Twenty-three scripts live in this directory. **Four of them are executed on a push or pull request.**
+Twenty-four scripts live in this directory. **Four of them are executed on a push or pull request.**
 `.github/workflows/ci.yml` *checks the syntax* of every script (`bash -n scripts/*.sh`,
 `python3 -m py_compile scripts/*.py`) and **executes** `gen_hosts_ts.go` (regeneration gate),
 `deploy-pages.sh` (in its `build-web` job, so the staged bundle is packaged and leak-audited on
@@ -162,12 +162,13 @@ proves they parse, not that they pass. Run them by hand before touching the prod
 - **Inputs.** `host.ListAdapters()` (bridge adapters) and `skills.AgentTargets()` (skill install
   targets). It fakes `HOME` to `/tmp/__litespm_home__` so no maintainer path leaks into the output.
 - **Outputs.** `web/data/hosts.json` (**50** bridge hosts) and `web/data/skill-targets.json`
-  (**77** as committed; the generator now emits **81** from `skills.AgentTargets()`, so the
-  committed file is stale — see the drift note under "Coverage summary").
+  (**81** as committed; the generator emits 81 from `skills.AgentTargets()`, and the committed file
+  was regenerated on 2026-10-15 — the CI regeneration gate passes).
 - **Who runs it.** Manual, whenever an adapter or skill target is added/renamed, and **before**
   `build_full_catalog.py`.
-- **Truthfulness gaps.** No workflow runs it, so the committed JSON can lag the registry until
-  someone re-runs it. Windows user paths are deliberately not synthesised (registry policy,
+- **Truthfulness gaps.** The committed JSON can only lag the registry if someone changes the
+  registry without re-running the generator — but the CI `static-checks` job **does** run it and
+  fails on a diff, so the gate is automated. Windows user paths are deliberately not synthesised (registry policy,
   `ARCH/30`) — `userPath` is the Unix resolution with `~` substitution, or `<project>`.
 
 ## `check_ci.py` — latest CI run status
@@ -221,10 +222,9 @@ not ingestion: the ingestion path they informed is `build_full_catalog.py`.
   (Not a script, but the same workflow: the release/publication step
   `go run ./cmd/litespm catalog build --out web/public` is also manual, and `deploy-pages.sh` runs
   its `-materialize` form on every packaging run.)
-- **Known drift:** `gen_hosts_ts.go` emits **81** skill targets from `skills.AgentTargets()`, but
-  the committed `web/data/skill-targets.json` still lists **77** — the four ids appended on
-  2026-10-14 were never regenerated — so the CI regeneration gate fails until the generator is
-  re-run and committed.
+- **Known drift:** none outstanding for the host registries — `gen_hosts_ts.go` emits **81** skill
+  targets from `skills.AgentTargets()` and the committed `web/data/skill-targets.json` lists the
+  same 81, so the CI regeneration gate passes.
 - **Assertion-less (never fail on bad content):** `build_full_catalog.py` (no row/schema checks of
   its own — validation happens fail-closed later in `catalogbuild.ParseDataset` at release build
   time), `fetch_test.py` (always exits 0), and the six research probes.

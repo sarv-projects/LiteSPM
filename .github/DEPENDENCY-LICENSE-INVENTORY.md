@@ -53,7 +53,9 @@ modules, re-verify that the notices are preserved per their terms.
 
 | Dependency | Version | License | Source URL | Verified |
 | --- | --- | --- | --- | --- |
-| _(none)_ | — | — | — | The package declares no `dependencies`, `devDependencies`, `peerDependencies`, or `optionalDependencies`. It uses only Node.js built-in modules (`assert`, `child_process`, `crypto`, `fs`, `https`, `os`, `path`). |
+| `@sigstore/bundle` | ^5 (resolved 5.0.0) | Apache-2.0 | https://github.com/sigstore/bundle | Required by the default install path: it parses and verifies the release's Sigstore bundle before the binary is installed. |
+| `@sigstore/tuf` | ^5 (resolved 5.0.0) | Apache-2.0 | https://github.com/sigstore/tuf | Supplies the TUF trust root the bundle verification anchors on. |
+| `@sigstore/verify` | ^4 (resolved 4.1.2) | Apache-2.0 | https://github.com/sigstore/sigstore-js | Performs the signature, Fulcio chain, CT-log SCT and Rekor inclusion checks. |
 
 ## Unresolved
 

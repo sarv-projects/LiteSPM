@@ -1,5 +1,64 @@
 # Current Run Handover
 
+> **How to read this file.** It is **newest-first**: the section at the top is the current state,
+> and every section below it is a dated record of what that session did. Two sections near the
+> bottom (`## Final Next Steps` and `## Active Goal`) are explicitly marked *superseded* — they are
+> kept as a dated record, not as instructions. If you are picking the repo up, read this header and
+> the top section; ignore the rest until you need the history.
+
+## Session 2026-10-19 — the program: Phase K, ARCH/34, Phase J, and the wiring
+
+**Read this first if you are picking the repo up.** A five-track program was opened on 2026-10-19 to
+close the honest-open work in `TODO.md` and to fix the defects the last handover recorded. The
+program plan is `docs/superpowers/plans/2026-10-19-program-phase-k-arch34-phase-j-wiring.md`, with
+per-track plans beside it; the tracks execute in dependency order, gated G1–G5.
+
+| Track | Scope | Plan file | State |
+|---|---|---|---|
+| 0 | Documentation reconciliation (stale prose, not status) | program plan, Task 0 | **done this session** — see below |
+| 1 | ARCH/34 — invocation registry, engine, receipts | `…-arch34-invocation-engine.md` | in progress |
+| 2 | Phase K — sources & supply chain | `…-phase-k-sources-supply-chain.md` | not started |
+| 3 | Wiring — the unwired subsystems | `…-wiring-unwired-subsystems.md` | not started |
+| 4 | Phase J + Blueprint P1/P2 — product surface | `…-phase-j-product-surface.md` | not started (waits on the evaluator report) |
+| 5 | Defect fixes + final status reconciliation | `…-defect-fixes-and-status-reconciliation.md` | not started |
+
+**Track 0 closed five things that were factually wrong on disk, each corrected against a fresh
+measurement rather than against another document:**
+
+1. **The deploy had happened.** The handover said the live origin was behind HEAD and served
+   `rel-2026-10-15-01` (seq 148). A probe on 2026-10-19 shows the live `/v1/current.json` returns
+   **`rel-2026-10-17-01` (seq 149)**, byte-identical to the committed pointer, with `manifest.json`
+   and all six shards returning 200 and the previous tree 404ing. Every document that named the
+   old pointer was updated: `STATUS.md` §2, `ARCH/00`, `ARCH/02`, `ARCH/06`, `ARCH/08`, `ARCH/13`,
+   `ARCH/18`, `TODO.md`, `web/README.md`. **The live pointer carries no `.sigstore.json` bundle** —
+   the deploy ran without an OIDC identity, so `deploy-pages.sh` printed its skip; the verification
+   path exists and `LITESPM_REQUIRE_CATALOG_SIGNATURE=1` refuses an unsigned pointer, but the
+   published pointer is unsigned today.
+2. **`main` was red.** `gofmt -l .` reported `internal/host/remove.go` — a mis-indented composite
+   literal committed in `3ce3b2b`. CI's "Check gofmt Formatting" step fails on it, so the claim
+   "CI has been green on `main` since 2026-10-15" was false. Fixed (`gofmt -w`).
+3. **The Pi fixture tested a shape Pi does not read.** `fixtures/hosts/pi/valid_mcp.json` used
+   `mcp.servers`, and `TestGoldenFixturesCompliance/PiAgent_Nested` parsed it by hand — so it
+   asserted that a JSON file is JSON, while the adapter writes only `mcpServers`. The fixture now
+   uses `mcpServers`, and the test drives `PiAgentAdapter.PlanSetupAt` and asserts the merge keeps
+   the pre-existing server, writes the bridge into `mcpServers`, and writes nothing into a
+   container Pi does not read.
+4. **The npm dependency truth was wrong in two files.** `npm/NOTICE` and
+   `.github/DEPENDENCY-LICENSE-INVENTORY.md` said the launcher "has no runtime dependencies"; it
+   declares three (`@sigstore/bundle`, `@sigstore/tuf`, `@sigstore/verify`, all Apache-2.0, resolved
+   5.0.0/5.0.0/4.1.2), and the default install path needs them to verify the release's bundle.
+5. **Stale counts and claims:** `ARCH/26`'s 4,079 / 1,103 / 632 rows → 48,418 / 20,320 / 638;
+   `ARCH/16`'s "no published row carries `url`" → 25,401 do; `ARCH/30`'s "the generated file still
+   lists 77" → it lists 81 and the CI gate passes; `ARCH/00`'s ARCH/33 row `DESIGNED` →
+   `IMPLEMENTED`; `web/README.md`'s release id, 53,969,379-byte size and 77-target drift;
+   `scripts/README.md`'s "Twenty-three scripts" (24) and its "no workflow runs `gen_hosts_ts.go`"
+   (CI does); `TODO.md`'s duplicate `LPSM-D004` (the second row is now `LPSM-D004B`) and its three
+   superseded rows (the tag *was* pushed, npm *does* serve 0.4.1, the host-data gate *does* pass,
+   and `self-update` verifies a Sigstore bundle, not only a hash).
+
+**Baseline before the program:** `go test ./...` — 43/43 packages green; `gofmt -l .` — one file
+(the one above). Nothing in this program publishes: no tag, no npm publish, no deploy.
+
 ## Session 2026-10-16/18 — the product-page pass (site reads as a product, not a project)
 
 **Read this first if you are picking the repo up.** Everything below is committed and pushed as of

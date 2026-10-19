@@ -58,7 +58,7 @@ authoritative one.
 
 A listing that publishes no versions — `listing.Versions == []`, which was 5,811 of the 5,825
 listings in `rel-2026-10-07-01` and is **29,279 of 69,376** in the current release
-(`rel-2026-10-11-02`, probe 2026-10-13) — used to fail inside `Resolve` with `LPSM-RESOLVE-CONFLICT`
+(`rel-2026-10-17-01`, probe 2026-10-19) — used to fail inside `Resolve` with `LPSM-RESOLVE-CONFLICT`
 ("no versions available in catalog"). Recommendation A2 changed the resolver contract as follows:
 
 *   **The pin is the release's existing implicit version**, `resolver.ImplicitVersion`

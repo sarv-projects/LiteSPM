@@ -3,7 +3,7 @@
 ## 1. System Topology & Architecture
 
 LiteSPM is bifurcated into two strictly isolated environments:
-1.  **Public Discovery Plane (Cloud):** A static, read-only distribution. The deployed catalog data is produced by `scripts/build_full_catalog.py` (the Python builder is the deployed producer; CI does not run it — [STATUS.md](../STATUS.md) §6) and served from a static origin: `/v1/current.json` **and** the immutable `/v1/releases/<id>/…` trees are live today — the current release is `rel-2026-10-11-02` (sequence 147, 69,376 items; probe 2026-10-13), whose manifest and six shard files all return `200` ([STATUS.md](../STATUS.md) §2).
+1.  **Public Discovery Plane (Cloud):** A static, read-only distribution. The deployed catalog data is produced by `scripts/build_full_catalog.py` (the Python builder is the deployed producer; CI does not run it — [STATUS.md](../STATUS.md) §6) and served from a static origin: `/v1/current.json` **and** the immutable `/v1/releases/<id>/…` trees are live today — the current release is `rel-2026-10-17-01` (sequence 149, 69,376 items; probe 2026-10-19), whose manifest and six shard files all return `200` ([STATUS.md](../STATUS.md) §2).
 2.  **Local Control Plane (Workstation):** A client-side system consisting of thin, host-specific **Bridge Shims** communicating via secure local IPC with a persistent, single-writer **LiteSPM Daemon**.
 
 ```text

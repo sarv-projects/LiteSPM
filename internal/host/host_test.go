@@ -575,7 +575,7 @@ func TestGoldenFixturesCompliance(t *testing.T) {
 		_ = comps // verify detection method exists and runs
 	})
 
-	// 2. Pi Agent Golden Fixture (mcp.servers layout)
+	// 2. Pi Agent Golden Fixture (mcpServers layout — the only container Pi reads)
 	t.Run("PiAgent_Nested", func(t *testing.T) {
 		data, err := os.ReadFile("../../fixtures/hosts/pi/valid_mcp.json")
 		if err != nil {
@@ -584,16 +584,38 @@ func TestGoldenFixturesCompliance(t *testing.T) {
 		tempFile := filepath.Join(t.TempDir(), "mcp.json")
 		_ = os.WriteFile(tempFile, data, 0600)
 
-		// Test manual parsing of the fixture
-		var rootMap map[string]any
-		_ = json.Unmarshal(data, &rootMap)
-		mcpVal, ok := rootMap["mcp"].(map[string]any)
-		if !ok {
-			t.Fatalf("expected mcp root key")
+		// The fixture must be read through the adapter, not parsed by hand:
+		// parsing the file inside the test only proved the fixture is valid
+		// JSON, not that LiteSPM reads the container Pi reads. The adapter
+		// writes `mcpServers` and only `mcpServers` (internal/host/piagent.go),
+		// so a fixture in any other shape could never be merged into.
+		adapter := &PiAgentAdapter{}
+		plan, err := adapter.PlanSetupAt(context.Background(), "/usr/local/bin/litespm", t.TempDir(), tempFile)
+		if err != nil {
+			t.Fatalf("PlanSetupAt failed: %v", err)
 		}
-		serversVal, ok := mcpVal["servers"].(map[string]any)
-		if !ok || serversVal["local_bash"] == nil {
-			t.Fatalf("expected local_bash under mcp.servers")
+		var proposed map[string]any
+		if err := json.Unmarshal([]byte(plan.ProposedContent), &proposed); err != nil {
+			t.Fatalf("proposed content is not valid JSON: %v", err)
+		}
+		mcpServers, ok := proposed["mcpServers"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected the bridge under the mcpServers container, got %v", proposed)
+		}
+		if mcpServers["local_bash"] == nil {
+			t.Fatalf("the pre-existing server was not preserved: %v", mcpServers)
+		}
+		bridge, ok := mcpServers["litespm"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected a litespm bridge entry under mcpServers, got %v", mcpServers)
+		}
+		args, _ := bridge["args"].([]any)
+		if len(args) != 4 || args[3] != "pi-agent" {
+			t.Fatalf("expected the bridge args to name the pi-agent host, got %v", args)
+		}
+		// A container Pi does not read must never be written.
+		if _, ok := proposed["mcp"]; ok {
+			t.Fatalf("the bridge was also written into an unread `mcp` container: %v", proposed)
 		}
 	})
 

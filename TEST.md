@@ -52,17 +52,15 @@ fixtures/hosts/
 ```json
 {
   "model": "anthropic:claude-3-5-sonnet",
-  "mcp": {
-    "servers": {
-      "local_bash": {
-        "command": "/bin/bash",
-        "args": ["-l"]
-      }
+  "mcpServers": {
+    "local_bash": {
+      "command": "/bin/bash",
+      "args": ["-l"]
     }
   }
 }
 ```
-Pi's current configuration key is `mcpServers`; this fixture exercises the nested `mcp.servers` shape. Project scope is `.pi/mcp.json` (trust-gated).
+Pi's configuration key is `mcpServers`, and it is the only container LiteSPM writes or reads for Pi (`internal/host/piagent.go`). The fixture matches that key, and `TestGoldenFixturesCompliance/PiAgent_Nested` merges the bridge into `mcpServers`, asserts the pre-existing `local_bash` server survives, and asserts nothing is written into a container Pi does not read. Project scope is `.pi/mcp.json` (trust-gated).
 
 ### 1.3 Mock Grok Build Fixture
 `fixtures/hosts/grok/valid_grok_config.toml` (located at `~/.grok/config.toml`; project scope `.grok/config.toml`):

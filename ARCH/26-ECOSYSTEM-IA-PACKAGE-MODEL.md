@@ -140,9 +140,9 @@ Which v1 types are backed by real rows in the current catalog (`web/data/catalog
 
 | v1 type | v1 catalog data | Rendering rule |
 |---|---|---|
-| `mcp` | Yes — 4,079 rows | Normal listing |
-| `skill` | Yes — 1,103 rows | Normal listing |
-| `plugin` | Yes — 632 rows | Normal listing |
+| `mcp` | Yes — 48,418 rows | Normal listing |
+| `skill` | Yes — 20,320 rows | Normal listing |
+| `plugin` | Yes — 638 rows | Normal listing |
 | `agent` | No rows | Render as "no packages yet"; never fabricate entries |
 | `rule` | No rows | Render as "no packages yet"; never fabricate entries |
 | `hook` | No rows | Render as "no packages yet"; never fabricate entries |
