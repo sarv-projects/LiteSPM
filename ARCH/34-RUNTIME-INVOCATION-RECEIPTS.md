@@ -1,8 +1,8 @@
 # Runtime, Invocation Engine & Receipts
 
-Status: **`DESIGNED`.** This document specifies the capability registry, the real invocation handlers, the invocation engine (deadlines, cancellation, concurrency, backpressure, restart, schema-drift, redaction), provider health and circuit breaking, bounded output, tamper-evident receipts, and cross-provider fallback rules. **No invocation registry, no capability registry, and no receipt store exist** ([STATUS.md](../STATUS.md) §4). Do not present the engine below as implemented.
+Status: **`WIRED` for the invocation registry, the engine and the receipts; `DESIGNED` for §4 (provider health and the circuit breaker) and §7 (cross-provider fallback).** The invocation registry, the invocation engine and the receipt chain **exist and are reachable from production code** as of 2026-10-19: `internal/receipts` is the one durable registry (one JSON line per invocation, one hash chain per provider instance), `internal/invocation` is the engine around it (deadline, per-provider concurrency limit, queue backpressure, cooperative cancellation, redaction, bounded output), and the daemon's `invocation.get` / `invocation.cancel` answer from it. **§4's health states and circuit breaker are not implemented, and §7's cross-provider fallback is not implemented** — a provider that dies is not restarted and not triped, and no call is ever substituted across providers.
 
-**Reality today:** `internal/provider` start/stop/probe is `WIRED`, and `internal/discover` now writes real `providers` and `capabilities` rows and invokes a tool synchronously — so `provider.invoke` / Bridge `invoke_capability` **resolve**. `invocation.get` and `invocation.cancel` (and Bridge `get_invocation` / `cancel_invocation`) remain `IMPLEMENTED` but return JSON-RPC `-32601` with an explicit reason: no asynchronous invocation registry exists ([STATUS.md](../STATUS.md) §4). Do not present any of the engine below as implemented.
+**Reality today:** `internal/provider` start/stop/probe is `WIRED`, `internal/discover` writes real `providers` and `capabilities` rows, and `provider.invoke` calls a tool through the policy gate — every call now runs inside the invocation engine, so it leaves a receipt behind and the response carries an `invocationId`. `invocation.get` and `invocation.cancel` (and the Bridge `get_invocation` / `cancel_invocation`) **resolve**: an id that was never issued is a typed `LPSM-INVOCATION-NOT-FOUND` (-32602), never a `-32601` stub. What remains `DESIGNED` is stated above and in §3, §4 and §7 below.
 
 ---
 
@@ -63,9 +63,16 @@ type InvocationState struct {
 
 Rules:
 
-* Every handler validates the capability, the grant, and the schema fingerprint **before** dispatch; a `-32601` remains correct only for an unimplemented method, never for a missing registry row.
+* Every handler validates the capability, the grant, and the schema fingerprint **before** dispatch; a `-32601` remains correct only for an unimplemented method, never for a missing registry row. *(Implemented 2026-10-19: the grant and schema checks stay in `internal/discover` — the engine wraps the call, it is never a way around them.)*
 * `arguments` are validated against `InputSchemaJSON` before the provider sees them.
 * Invocation IDs use the same Crockford base32 scheme as plan IDs ([23 §2](23-SCHEMAS-EXAMPLES.md)).
+
+**`provider.invoke` is synchronous by default and has two modes** (2026-10-19). The contract in
+[06 §4](06-API-CONTRACTS.md) is unchanged: the default call runs to completion in the request and
+returns `{"output", "isError"}`. It now also returns `invocationId` and the `receipt` the call
+produced, and accepts two optional fields: `deadlineMs` (clamped by the server) and `async: true`,
+which returns `{"invocationId", "state"}` immediately and lets the call outlive the request. A failed
+call returns the `invocationId` in the error's `data`, so a caller can still fetch its receipt.
 
 ---
 
@@ -81,13 +88,13 @@ Rules:
 
 Required behaviours:
 
-* **Deadline.** Every invocation has a bounded deadline (client-supplied, server-clamped to a maximum). Expiry cancels the call and yields `deadline_exceeded` with a receipt.
-* **Cancellation.** `invocation.cancel` propagates through the Go context to the provider child process (kill on timeout), and is idempotent.
-* **Concurrency.** A per-provider concurrency limit bounds in-flight calls; excess calls queue with backpressure rather than pile up unbounded.
-* **Backpressure.** When the queue is full, `provider.invoke` fails fast with a typed `LPSM-PROVIDER-BUSY` rather than growing memory or blocking the daemon.
-* **Restart.** A crashed provider is restarted under the supervisor; in-flight invocations fail with a typed error and are **not** transparently retried across a restart unless the call is declared idempotent by the caller (`idempotencyKey`). See §7.
-* **Schema drift.** If the provider's live `inputSchema` fingerprint no longer matches the grant, the invocation is denied with `LPSM-PROVIDER-SCHEMA-DRIFT` before dispatch (reusing the existing grant-check logic in [15 §4](15-POLICY-APPROVALS.md)).
-* **Redaction.** Provider stdout/stderr and result payloads pass a redaction pass (known secret patterns, connection strings, tokens) before persisting or returning. Redaction failures fail closed.
+* **Deadline.** Every invocation has a bounded deadline (client-supplied, server-clamped to a maximum). Expiry cancels the call and yields `deadline_exceeded` with a receipt. **Implemented** (`internal/invocation` `clampDeadline`; a request larger than the maximum is clamped down).
+* **Cancellation.** `invocation.cancel` propagates through the Go context to the provider child process (kill on timeout), and is idempotent. **Implemented** — the cancel is recorded in the store, the call's context is cancelled, the child is stopped by the supervisor, and a repeated cancel returns the same terminal invocation.
+* **Concurrency.** A per-provider concurrency limit bounds in-flight calls; excess calls queue with backpressure rather than pile up unbounded. **Implemented** (`providerSlot`, one slot per provider).
+* **Backpressure.** When the queue is full, `provider.invoke` fails fast with a typed `LPSM-PROVIDER-BUSY` rather than growing memory or blocking the daemon. **Implemented.**
+* **Restart.** A crashed provider is restarted under the supervisor; in-flight invocations fail with a typed error and are **not** transparently retried across a restart unless the call is declared idempotent by the caller (`idempotencyKey`). See §7. **Not implemented (2026-10-19):** the engine does not restart a provider. A provider that dies fails its invocation with a typed error, and the call is not retried anywhere — so the "not retried" half holds by construction, and the "restarted" half does not. `idempotencyKey` is not read.
+* **Schema drift.** If the provider's live `inputSchema` fingerprint no longer matches the grant, the invocation is denied with `LPSM-PROVIDER-SCHEMA-DRIFT` before dispatch (reusing the existing grant-check logic in [15 §4](15-POLICY-APPROVALS.md)). **Implemented** — this check predates the engine and still runs inside it.
+* **Redaction.** Provider stdout/stderr and result payloads pass a redaction pass (known secret patterns, connection strings, tokens) before persisting or returning. Redaction failures fail closed. **Implemented** (`internal/invocation/redact.go`; GitHub, `sk-`, AWS and `Bearer` token forms, and `scheme://user:password@host` connection strings).
 
 ---
 
@@ -113,6 +120,11 @@ STARTING ──▶ READY ──▶ DEGRADED ──▶ UNHEALTHY ──▶ BACKOF
 
 The circuit breaker trips on consecutive failures/timeouts into `UNHEALTHY`, then `BACKOFF`, and closes again only after a successful probe. Health is derived from observed probe results — never fabricated ([AGENTS.md](../AGENTS.md) Tab 4). `doctor` reports the observed state, not a claim.
 
+**Not implemented (2026-10-19).** None of the states above is derived anywhere: there is no health
+field on the provider row, no `DEGRADED`/`UNHEALTHY`/`BACKOFF` transition, and no breaker that opens
+on consecutive failures. A provider that fails fails its invocation; nothing observes the pattern.
+The state names above stay a design, and no surface may report them.
+
 ---
 
 ## 5. Bounded Output
@@ -125,6 +137,11 @@ Provider output is untrusted and potentially unbounded.
 * Result size is bounded; an oversized result is truncated with `truncated: true` and the original digest, rather than returned whole.
 
 These rules are the missing half of the existing bounded-buffer work ([31 §9](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md)).
+
+**Implemented 2026-10-19** for the invocation result: `internal/invocation/bounds.go` truncates an
+oversized result with an explicit marker and the original byte count, records `truncated: true` and
+the digest of the **original** bytes, and the provider's stderr is redacted and never returned in a
+result. The provider supervisor's own 64 KiB rotating stderr buffer is unchanged.
 
 ---
 
@@ -167,6 +184,11 @@ Governed by the binding decision in [15 §5](15-POLICY-APPROVALS.md):
 * **Same-provider restart/retry is allowed** within the deadline and circuit-breaker state; a retry consumes the same grant and policy decision.
 * **Blind cross-provider semantic fallback is forbidden for writes.** No automatic substitution among providers for any effectful capability.
 * **Read-only equivalence declarations only.** A cross-provider substitute requires a read-only capability plus an explicit, individually approvable equivalence declaration asserting equivalent schemas and semantics. Similarity of names/descriptions is never sufficient.
+
+**Not implemented (2026-10-19).** No call is ever substituted across providers, and no call is
+retried — which satisfies the second and third rules by doing nothing, but leaves the first
+(`same-provider restart/retry`) unimplemented along with the restart it depends on (§3). The
+equivalence declaration has no schema and no storage.
 
 ---
 
