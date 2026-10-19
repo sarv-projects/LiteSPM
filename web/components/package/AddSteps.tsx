@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
 import { availabilityOf } from "../../lib/availability";
+import { feasibilityFor } from "../../lib/installFeasibility";
 import { WEBSITE_CATALOG_SYNC_COMMAND, WEBSITE_SETUP_COMMAND, websiteInstallCommandFor } from "../../lib/installCommand";
 import { TabList } from "../ui/TabList";
 import { CopyButton } from "./CopyButton";
@@ -85,7 +86,10 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
   const avail = availabilityOf(item);
   // The same availability result powers the search cards and the first-screen
   // InstallBand; a pinned plugin is not unconditionally unavailable.
-  const liteSPMInstallable = avail.installable;
+  const chosenHostId = agent && agent.id !== "other" ? agent.id : null;
+  const targetFeasibility = chosenHostId ? feasibilityFor(item, chosenHostId) : null;
+  const invalidSelectedHost = Boolean(chosenHostId && targetFeasibility?.state !== "supported");
+  const liteSPMInstallable = avail.installable && !invalidSelectedHost;
   const targeted = liteSPMInstallable && agent !== null && agent.hosts.length > 0 && item.kind !== "skill";
 
   /**
@@ -228,7 +232,9 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
               Install unavailable
             </button>
             <p className="text-[12px] leading-relaxed text-dark-ink-2" title={avail.plain}>
-              {avail.plain}
+              {invalidSelectedHost
+                ? `${agent?.label} is not a supported installation target for this entry. Select another host.`
+                : avail.plain}
             </p>
           </div>
         ) : targeted ? (
