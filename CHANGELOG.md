@@ -188,6 +188,37 @@ publish to GitHub while quietly skipping npm.
   The suite now asks Chromium to use `/tmp` instead (its own advice for a
   small `/dev/shm`), and the host walk gives each chunk of hosts its own
   browser context.
+- **Twenty-one catalog rows published corrupted text.** Nineteen carried an
+  em dash as the three characters `â€”` — UTF-8 bytes that were decoded as
+  cp1252 on the way in — and two carried a replacement character for a byte an
+  upstream producer had destroyed before publishing. The producer now repairs
+  the decoding when it writes the dataset, and the two rows whose byte was
+  lost carry the intended character in an explicit table rather than a guess.
+- **The home page's navigation is a menu on a phone.** Below 768 px the
+  primary rail was a horizontal scroller with a faded edge and two chevrons:
+  it worked, and it hid the shape of the site behind a swipe. It is now a
+  native `<details>` — a menu that opens without scripting, so the no-JS
+  contract still holds, with every destination one tap away at 320, 360, 390
+  and 430 px. From 768 px up the rail is unchanged.
+- **The hero says what the product is.** The eyebrow reads "one local bridge,
+  multiple agents", the description names the four agents a reader is most
+  likely to own and the three things LiteSPM does with a change, the search
+  field's placeholder names the catalog instead of repeating a count, the
+  field's frame is a one-pixel rule rather than a two-pixel black one, and
+  the heading is fluid between the sizes the page already used.
+- **The bridge figure names the six tailored adapters.** Claude Code, Codex,
+  OpenCode, Cline, Pi Agent and Grok Build — the hosts LiteSPM configures by
+  hand — with the bridge's four operations under it: discover, preview,
+  install, manage.
+- **An Explore result row is not one giant link.** The row's link is its
+  title, with the whole row still clickable; a link whose accessible name
+  was a summary while its visible text was the publisher, the transport, the
+  version and the provenance broke WCAG 2.5.3.
+- **Sorting the catalog stopped recomputing its keys.** The comparator built
+  a row's sort key inside every comparison, so sorting 69,376 rows computed
+  two million keys; the keys are computed once per row now, with one collator
+  for every name comparison. The order is unchanged — a check over the real
+  dataset asserts it.
 
 ## [0.4.1] - 2026-10-15
 

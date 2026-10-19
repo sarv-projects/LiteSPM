@@ -1,14 +1,20 @@
-// The primary navigation rail (F-06).
+// The primary navigation (F-06).
 //
-// The defect this file guards: the rail is a horizontal scroller, and at
-// 320 px "Coverage" sat at x=313–385 — entirely off a 320 px screen — with
-// nothing to say so. A destination the site names and a reader cannot reach
-// is a broken navigation, and the no-JS contract means the fix cannot be a
-// drawer: the links have to stay in the DOM.
+// The defect this file was written against: the rail is a horizontal
+// scroller, and at 320 px "Coverage" sat at x=313–385 — entirely off a 320 px
+// screen — with nothing to say so. A destination the site names and a reader
+// cannot reach is a broken navigation, and the no-JS contract means the fix
+// cannot be a drawer that only exists with scripting: the links have to stay
+// in the DOM.
 //
-// So the rail keeps every destination, fades the edge that has more past it,
-// and carries two chevrons that scroll it. This file asserts all three, at
-// the three widths the finding was measured at.
+// So the site has both answers, and this file holds each to its own terms:
+//
+//   * below 768 px the rail becomes a MENU — a native <details>, so it opens
+//     without scripting and every destination is one tap away, with nothing
+//     clipped at any width;
+//   * from 768 px up the rail is a scroller that fades the edge with more
+//     past it and carries chevrons that scroll it, so a destination off the
+//     right edge is announced, visible as a fade, and one click away.
 //
 // It also guards the header's call to action: it used to truncate from
 // "Install LiteSPM" to "Install" below 640 px, and the truncation was the
@@ -20,7 +26,14 @@ import { gotoSettled } from "./support/site";
 /** Every destination the primary rail names. */
 const DESTINATIONS = ["Explore", "Agent hosts", "Compare", "Categories", "Insights"];
 
-const WIDTHS = [320, 375, 412];
+/** Below this width the navigation is a menu rather than a rail. */
+const MENU_BELOW = 768;
+
+/** The widths the menu answers for. */
+const MENU_WIDTHS = [320, 360, 390, 430];
+
+/** The widths the rail answers for. */
+const RAIL_WIDTHS = [768, 1024];
 
 async function railState(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
@@ -45,7 +58,56 @@ async function railState(page: import("@playwright/test").Page) {
   });
 }
 
-for (const width of WIDTHS) {
+for (const width of MENU_WIDTHS) {
+  test.describe(`the menu at ${width}px`, () => {
+    test.use({ viewport: { width, height: 844 } });
+
+    test("every destination is one tap away, and nothing is clipped", async ({ page }) => {
+      await gotoSettled(page, "/");
+
+      // The menu is a native disclosure, so it opens without scripting.
+      const menu = page.locator("details").filter({ has: page.getByText("Menu", { exact: true }) });
+      await expect(menu, "the navigation menu is not there").toBeVisible();
+
+      await menu.locator("summary").click();
+
+      const links = menu.locator("a");
+      await expect(links, "the menu opened with no destinations in it").toHaveCount(
+        DESTINATIONS.length
+      );
+      for (const destination of DESTINATIONS) {
+        await expect(
+          menu.getByRole("link", { name: destination, exact: true }),
+          `${destination} is not in the menu`
+        ).toBeVisible();
+      }
+
+      // And the page itself does not scroll sideways at this width.
+      const metrics = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(
+        metrics.scrollWidth,
+        `the page scrolls sideways at ${width}px with the menu open`
+      ).toBeLessThanOrEqual(metrics.clientWidth);
+    });
+
+    test("Escape closes the menu and returns the focus to the button", async ({ page }) => {
+      await gotoSettled(page, "/");
+      const menu = page.locator("details").filter({ has: page.getByText("Menu", { exact: true }) });
+      const summary = menu.locator("summary");
+      await summary.click();
+      await expect(menu.locator("a").first()).toBeVisible();
+
+      await page.keyboard.press("Escape");
+      await expect(menu.locator("a").first()).toBeHidden();
+      await expect(summary).toBeFocused();
+    });
+  });
+}
+
+for (const width of RAIL_WIDTHS) {
   test.describe(`the primary rail at ${width}px`, () => {
     test.use({ viewport: { width, height: 844 } });
 

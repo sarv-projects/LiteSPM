@@ -21,6 +21,11 @@ failures to zero across four rounds.
 | `litespm doctor` per-check duration | **new** — `CheckResult.DurationMs`, `DoctorReport.DurationMs` |
 | The CAS promotion scratch (`m6`) | **fixed** — the partial copy is staged under `casRoot/tmp`, not inside `trees/<algo>/` as `<digest>.tmp-<nanos>` |
 | The policy engine's grant tier | **fails closed now** — a database that cannot answer its own grant table used to turn every drift check off, silently (`internal/policy/engine.go`, `LPSM-POLICY-GRANT-UNAVAILABLE`) |
+| The catalog's corrupted text | **repaired** — 21 rows carried UTF-8 bytes decoded as cp1252 (or a byte an upstream producer destroyed); the producer repairs the decoding on write and the two unrecoverable rows carry an explicit fix |
+| The home page on a phone | **a menu below 768 px** — a native `<details>`, so it opens without scripting; the rail's scroller, its faded edges and its chevrons stay from 768 px up |
+| The hero | **re-copied** — "one local bridge, multiple agents", the three things LiteSPM does with a change, a one-pixel search frame, a fluid heading, and the six tailored adapters in the bridge figure |
+| The Explore filter delay | **partly fixed** — the sort no longer recomputes its keys per comparison, and the fetch starts when the reader reaches for the filters; the structural fix (a facet artifact + lazy hydration) is written down in `TODO.md` with the measurements |
+| The site's accessibility | **gated** — `npm run audit:a11y` runs axe over the built site; it is clean on all 13 routes |
 | The approval subject binding | **audited, not changed** — the production paths recompute the plan hash at the approve step and at the execute step, consume the approval atomically against it, and the plan seals the resolved descriptor, the immutable refs and the host changes; the engine's plan-less path (subject = listing, version, scope) has no production caller and is the shape left to tighten |
 
 **The build had to be unblocked first.** The suite's server could not start, because the export

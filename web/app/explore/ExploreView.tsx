@@ -587,6 +587,7 @@ function ExploreContent(props: ExploreViewProps) {
             setInstallableOnly={setInstallableOnly}
             hasFilters={hasFilters}
             clear={clear}
+            onIntent={request}
           />
 
         </div>

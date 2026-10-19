@@ -144,12 +144,8 @@ test("a settled query's first row navigates to that entry", async ({ page }) => 
 test("the palette's rows are Explore's ranking for the same query", async ({ page }) => {
   await gotoSettled(page, "/explore/?q=github");
   await waitForSearchGrid(page, "github");
-  const exploreFirst = await page
-    .locator("main a[data-kind]")
-    .first()
-    .locator("span.truncate")
-    .first()
-    .textContent();
+  // The Explore row's link is its title, so the link's own text is the name.
+  const exploreFirst = await page.locator("main a[data-kind]").first().textContent();
 
   await page.keyboard.press("Control+k");
   const dialog = page.locator(DIALOG);

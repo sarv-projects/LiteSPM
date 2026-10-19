@@ -101,6 +101,18 @@ export interface ExploreFiltersProps {
 
   hasFilters: boolean;
   clear: () => void;
+
+  /**
+   * Called when the reader shows intent to filter.
+   *
+   * The whole row set is 5 MiB, and the first filter pays for fetching and
+   * hydrating it. A reader who moves the pointer toward the controls — or
+   * tabs into one — is about to filter, so the fetch starts then: the wait
+   * happens while the pointer is still travelling, and a reader who never
+   * filters never pays for it. The call is idempotent; the second one is a
+   * no-op.
+   */
+  onIntent?: () => void;
 }
 
 /**
@@ -147,6 +159,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
     setInstallableOnly,
     hasFilters,
     clear,
+    onIntent,
   } = props;
 
   /**
@@ -182,7 +195,11 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           source category from a deep link is a chip: the upstream labels
           are provenance, and `/categories/` is the browse-by-category
           surface, so they are not a second facet row here. */}
-      <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-rule py-3">
+      <div
+        className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-rule py-3"
+        onPointerEnter={onIntent}
+        onFocusCapture={onIntent}
+      >
         <div
           className="flex items-center gap-0.5 border border-ink-3 bg-sunken p-0.5"
           role="group"

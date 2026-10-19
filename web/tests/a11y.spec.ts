@@ -198,7 +198,7 @@ test("keyboard: Enter on the skip link moves focus into #main, not just the view
   expect(next, "focus should land on the main region").toBe(true);
 });
 
-test("narrow screens: an overflowing primary rail shows the edge fade, and wider headers show none", async ({
+test("narrow screens: the navigation is a menu; wider headers show a rail that fits", async ({
   page,
 }) => {
   const rail = page.locator('nav[aria-label="Primary"]');
@@ -214,20 +214,25 @@ test("narrow screens: an overflowing primary rail shows the edge fade, and wider
       };
     });
 
-  // Phones below 412px: the rail scrolls, and the fade is the only sign.
+  // Below 768px the rail is a menu: every destination is one tap away and
+  // nothing is clipped, so there is no edge to fade.
   for (const width of [320, 360, 390]) {
     await page.setViewportSize({ width, height: 720 });
     await gotoSettled(page, "/");
+    const menu = page.locator("details").filter({
+      has: page.getByText("Menu", { exact: true }),
+    });
+    await expect(menu, `the navigation menu is missing at ${width}px`).toBeVisible();
+    await menu.locator("summary").click();
+    await expect(menu.locator("a"), `the menu is empty at ${width}px`).toHaveCount(5);
     const narrow = await read();
-    expect(narrow.overflows, `the five-link rail should overflow a ${width}px viewport`).toBe(true);
-    expect(narrow.faded, `an overflowing rail must signal it at ${width}px`).toBe(true);
-    expect(narrow.painted, `the signal must actually paint at ${width}px`).toBe(true);
+    expect(narrow.overflows, `the rail is not on the screen at ${width}px`).toBe(false);
+    expect(narrow.faded, `nothing is past the edge at ${width}px, so nothing should fade`).toBe(false);
   }
 
-  // 768px is the case that motivated the `lg` breakpoint: the one-line header
-  // left the rail 315px for 387px of links and cut "Coverage" to "Cov" with no
-  // signal at all. With navigation back on its own row the rail has ~710px.
-  for (const width of [412, 768, 1024, 1280]) {
+  // From 768px up the rail is back, on its own row until the header goes
+  // single-line, and it fits: nothing is past its edge, so nothing fades.
+  for (const width of [768, 1024, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     await gotoSettled(page, "/");
     const wide = await read();

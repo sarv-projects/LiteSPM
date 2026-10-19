@@ -17,12 +17,17 @@ interface Row {
 }
 
 async function listingRows(page: import("@playwright/test").Page): Promise<Row[]> {
-  return page.locator("main a[data-kind]").evaluateAll((rows) =>
-    rows.map((row) => ({
-      name: row.querySelector("span.truncate")?.textContent?.trim() ?? "",
-      badge: row.querySelector("span.rounded-chip")?.textContent?.trim() ?? "",
-      href: row.getAttribute("href") ?? "",
-    }))
+  // The row's link is its title, so the name is the link's text; the badge
+  // belongs to the row around it, not to the link.
+  return page.locator("main a[data-kind]").evaluateAll((links) =>
+    links.map((link) => {
+      const row = link.closest("[data-row]") ?? link.parentElement;
+      return {
+        name: link.textContent?.trim() ?? "",
+        badge: row?.querySelector("span.rounded-chip")?.textContent?.trim() ?? "",
+        href: link.getAttribute("href") ?? "",
+      };
+    })
   );
 }
 

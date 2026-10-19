@@ -1715,8 +1715,7 @@
     .dg-stage[data-phase="up"] .dg-kind[data-src] .dg-kind-link {
       animation: dg-send 620ms ease-out both;
     }
-    .dg-stage[data-phase="land"] .dg-agent[data-dst] .dg-agent-link,
-    .dg-stage[data-phase="land"] .dg-agent[data-dst] .dg-agent-still {
+    .dg-stage[data-phase="land"] .dg-agent[data-dst] .dg-agent-link {
       animation: dg-arrive 340ms ease-out both;
     }
     .dg-stage[data-phase="land"] .dg-agent[data-dst] .dg-agent-name {
@@ -1767,8 +1766,7 @@
     }
   }
 
-  .dg-agent-link,
-  .dg-agent-still {
+  .dg-agent-link {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1823,11 +1821,6 @@
     transform: scale(1.06);
   }
 
-  /* The honest sixth: no mark, because there is no mark we could attribute. */
-  .dg-agent-other .dg-agent-still {
-    border-style: dashed;
-    --dg-tile-bg: var(--sunken);
-  }
   .dg-agent-mark {
     display: inline-flex;
     align-items: center;
@@ -1965,9 +1958,7 @@
   .dg-stage[data-hot-agent="2"] .dg-agent[data-i="2"] .dg-agent-link,
   .dg-stage[data-hot-agent="3"] .dg-agent[data-i="3"] .dg-agent-link,
   .dg-stage[data-hot-agent="4"] .dg-agent[data-i="4"] .dg-agent-link,
-  .dg-stage[data-hot-agent="5"] .dg-agent[data-i="5"] .dg-agent-still,
   .dg-agent:hover .dg-agent-link,
-  .dg-agent:hover .dg-agent-still,
   .dg-agent-link:focus-visible {
     border-color: var(--accent);
     background-color: var(--accent-wash);
@@ -2003,8 +1994,7 @@
   .dg-stage[data-hot-kind="plugin"] .dg-kind[data-kind="plugin"] {
     opacity: 1;
   }
-  .dg-stage[data-hot-kind] .dg-agent-link,
-  .dg-stage[data-hot-kind] .dg-agent-still {
+  .dg-stage[data-hot-kind] .dg-agent-link {
     border-color: var(--accent);
   }
   .dg-stage[data-hot-kind="mcp"] .dg-trace-out[data-kind="mcp"],

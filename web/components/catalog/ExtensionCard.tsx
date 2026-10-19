@@ -67,12 +67,16 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
     .join(". ");
 
   return (
-    <Link
-      href={listingHref(item)}
-      data-kind={item.kind}
-      aria-label={`${item.name}. ${detail}`}
-      className="group relative flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule bg-surface py-3 pl-0 pr-3 transition-colors duration-state ease-out hover:bg-hover focus-visible:bg-hover"
-      prefetch={false}
+    // The row is the card, and the card is one link — but the LINK is the
+    // title, not the whole row. A link whose accessible name is a summary
+    // while its visible text is the entire row breaks WCAG 2.5.3 (Label in
+    // Name): the name has to contain the text a reader can see, and here that
+    // text is the publisher, the transport, the version and the provenance
+    // too. The title link carries an overlay (`after:inset-0`) so the whole
+    // row stays clickable, exactly as it was.
+    <div
+      data-row=""
+      className="group relative flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule bg-surface py-3 pl-0 pr-3 transition-colors duration-state ease-out hover:bg-hover"
     >
       {/* Kind spine: 3px, the row's left edge. */}
       <span
@@ -90,9 +94,15 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
       <PublisherTile item={item} size={40} />
 
       <span className="min-w-0 flex-1 basis-[60%]">
-        <span className="block truncate text-[15px] font-semibold leading-snug tracking-tight text-ink underline-offset-2 group-hover:underline">
+        <Link
+          href={listingHref(item)}
+          data-kind={item.kind}
+          aria-label={`${item.name}. ${detail}`}
+          className="block truncate text-[15px] font-semibold leading-snug tracking-tight text-ink underline-offset-2 after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink group-hover:underline"
+          prefetch={false}
+        >
           {item.name}
-        </span>
+        </Link>
         {item.summary && (
           <span className="mt-0.5 line-clamp-2 min-h-[42px] max-w-[110ch] text-[13px] leading-relaxed text-ink-2">
             {item.summary}
@@ -136,6 +146,6 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
           {provenance}
         </span>
       </span>
-    </Link>
+    </div>
   );
 }

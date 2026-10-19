@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Search, SquareTerminal } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Search, SquareTerminal } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -82,6 +82,42 @@ export function Header({ onNavigate }: HeaderProps) {
   const navRef = React.useRef<HTMLElement | null>(null);
   const [moreRight, setMoreRight] = React.useState(false);
   const [moreLeft, setMoreLeft] = React.useState(false);
+
+  /** The mobile menu, and whether it is open. */
+  const menuRef = React.useRef<HTMLDetailsElement | null>(null);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+
+  /**
+   * The menu closes on an outside click and on Escape.
+   *
+   * A native <details> does neither, and a menu that stays open over the page
+   * after the reader has moved on is worse than no menu. Both are the
+   * behaviour a reader expects from a menu; both are additions to what the
+   * disclosure already does without scripting.
+   */
+  React.useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const menu = menuRef.current;
+      if (!menu) return;
+      if (event.target instanceof Node && menu.contains(event.target)) return;
+      menu.open = false;
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const menu = menuRef.current;
+      if (!menu) return;
+      menu.open = false;
+      const summary = menu.querySelector("summary");
+      if (summary instanceof HTMLElement) summary.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
   React.useEffect(() => {
     const el = navRef.current;
@@ -208,7 +244,57 @@ export function Header({ onNavigate }: HeaderProps) {
             and fades the edge while there is more to reach, and the two
             chevrons scroll it — so a destination off the right edge is
             announced, visible as a fade, and one click away. */}
-        <div className="relative col-span-2 row-start-2 -mb-px flex min-w-0 items-stretch self-stretch lg:col-auto lg:row-auto lg:w-auto lg:flex-1">
+        {/* The menu, below 768px. The rail becomes a scroller there, which
+            works — but a swipe hides the shape of the site, and a reader who
+            cannot swipe has no way to know there is more. A menu says what
+            the site has.
+
+            It is a <details>, not a script: the links are in the document and
+            the disclosure opens without JavaScript, so the no-JS contract
+            holds. The script only adds what a native disclosure cannot do —
+            closing on an outside click and on Escape. */}
+        <details
+          ref={menuRef}
+          className="group/menu relative col-span-2 row-start-2 -mb-px md:hidden"
+          onToggle={(event) => {
+            if (event.currentTarget.open) setMenuOpen(true);
+            else setMenuOpen(false);
+          }}
+        >
+          <summary className="flex h-11 cursor-pointer list-none items-center justify-between px-1 text-[13px] font-medium text-ink-2 hover:text-ink focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink [&::-webkit-details-marker]:hidden">
+            <span>Menu</span>
+            <ChevronDown
+              className="h-4 w-4 transition-transform duration-state ease-out group-open/menu:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
+          <ul className="absolute left-0 right-0 top-full z-50 mt-px border-b border-rule bg-surface py-1 shadow-[0_12px_24px_-12px_rgba(16,24,40,0.28)]">
+            {PRIMARY_NAV.map((item) => {
+              const active = pathname?.startsWith(item.href.replace(/\/$/, ""));
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    prefetch={false}
+                    title={item.title}
+                    aria-current={active ? "page" : undefined}
+                    onClick={() => {
+                      if (menuRef.current) menuRef.current.open = false;
+                      onNavigate?.();
+                    }}
+                    className={`flex min-h-[44px] items-center px-2 text-[14px] font-medium transition-colors duration-state ease-out ${
+                      active ? "text-accent-text" : "text-ink-2 hover:text-ink"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+
+        <div className="relative col-span-2 row-start-2 -mb-px hidden min-w-0 items-stretch self-stretch md:flex lg:col-auto lg:row-auto lg:w-auto lg:flex-1">
           <nav
             ref={navRef}
             className="no-scrollbar flex w-full min-w-0 items-stretch overflow-x-auto lg:w-auto lg:flex-1"

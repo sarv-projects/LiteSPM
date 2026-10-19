@@ -87,7 +87,10 @@ export function LandingHero({
     <section className="shell hero-glow pb-10 pt-9 md:pb-14 md:pt-14">
       <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-12">
         <div className="enter-rise">
-          <p className="kicker">Tools &amp; skills for AI coding agents</p>
+          {/* The eyebrow. It says what the product is in three words: one
+              local bridge, and the agents that reach it. The catalog sits
+              underneath it, not in place of it. */}
+          <p className="kicker">One local bridge, multiple agents</p>
 
           {/*
             The one number the hero carries.
@@ -117,13 +120,18 @@ export function LandingHero({
             <span>snapshot</span>
           </p>
 
-          <h1 className="mt-4 max-w-[20ch] text-[34px] font-semibold leading-[1.06] tracking-tight text-ink sm:text-[42px] lg:text-[52px]">
+          {/* Fluid between the sizes the page already used: 34px on a phone,
+              42px on a tablet, 52px on a desktop, without a breakpoint
+              staircase between them. The two-line shape on a wide screen is
+              the same one the fixed sizes gave. */}
+          <h1 className="mt-4 max-w-[20ch] text-[clamp(2.125rem,1.35rem+3.1vw,3.25rem)] font-semibold leading-[1.06] tracking-tight text-ink">
             Give your coding agents the tools they&rsquo;re missing &mdash; safely.
           </h1>
 
           <p className="mt-5 max-w-prose text-[15px] leading-relaxed text-ink-2 sm:text-[16px]">
-            Add MCP servers and agent skills to Claude Code, Codex, Cursor, OpenCode and more, from
-            one command. You see the exact config change before it happens, and you can undo it.
+            Find MCP servers and agent skills for Claude Code, Codex, OpenCode, Cline and more.
+            LiteSPM previews supported changes before you approve them, backs up affected
+            configuration, and tracks what it installs.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">

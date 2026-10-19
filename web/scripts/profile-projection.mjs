@@ -1,5 +1,13 @@
-// One-off measurement: where the time goes when the browser hydrates the
-// display projection. Run: node scripts/profile-projection.mjs
+// Where the time goes when the browser hydrates the display projection.
+//
+// The numbers this prints are the ones the TODO's "Explore filter path" row
+// records: the projection is 5 MiB on the wire, inflates to 13.5 MiB, and
+// hydrating all 69,376 rows into objects costs a few hundred milliseconds
+// (about a second in a browser). Hydrating the 24 rows a reader actually sees
+// is free — which is why the structural fix is a facet artifact plus lazy
+// hydration, and not a smaller download.
+//
+// Run: node scripts/profile-projection.mjs
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";

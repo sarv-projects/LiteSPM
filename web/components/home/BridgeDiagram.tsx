@@ -123,8 +123,9 @@ const AGENTS = [
   { id: "claude-code", name: "Claude Code" },
   { id: "codex", name: "Codex" },
   { id: "opencode", name: "OpenCode" },
-  { id: "cursor", name: "Cursor" },
   { id: "cline", name: "Cline" },
+  { id: "pi-agent", name: "Pi Agent" },
+  { id: "grok-build", name: "Grok Build" },
 ] as const;
 
 /**
@@ -157,11 +158,22 @@ const INSTALLABLE_KINDS = KINDS.map((kind, index) => (kind.installable ? index :
 
 
 /** Six tiles: the five named agents, then the honest sixth. */
-const TILES = AGENTS.length + 1;
+/**
+ * The row is six across on a desktop and two rows of three on a phone, so
+ * the figure draws the six tailored adapters and the caption names the 44
+ * registered hosts that reach the same bridge through the generic adapter.
+ */
+const TILES = AGENTS.length;
 
-/** The bridge's four operations, in the order the hub prints them. The figure
- *  lights them one at a time, so the line reads as the sequence it describes. */
-const VERBS = ["discover", "install", "manage", "undo"] as const;
+/**
+ * The bridge's four operations, in the order the hub prints them.
+ *
+ * They are the product's sequence, not a slogan: discover what exists,
+ * preview the change, install it, and keep track of what is installed. The
+ * fifth thing the product does — undo — is real (`litespm remove`,
+ * `litespm restore`), and it is what the four steps exist to make safe.
+ */
+const VERBS = ["discover", "preview", "install", "manage"] as const;
 
 /** One journey — the packet's whole cycle through the figure, in ms. The verb
  *  readout runs on the same clock (a quarter of it per verb), so the two
@@ -356,28 +368,6 @@ export function BridgeDiagram() {
               </Link>
             </li>
           ))}
-          <li
-            className="dg-agent dg-agent-other"
-            data-i={TILES - 1}
-            data-dst={TILES - 1 === agentIndex ? "" : undefined}
-          >
-            {/* No link and no mark. There is no logo that means "other
-                agents", and there is no page for it either; the tile is here
-                because the catalog is not five products wide, and a reader on
-                a host we did not draw has to find themselves in the picture.
-
-                The tile used to carry a "+" glyph above the label. It was a
-                stand-in for a mark that does not exist, and it read as an
-                "add" affordance on a diagram that cannot be added to — so the
-                label now stands alone, which is what it always meant. */}
-            <span
-              className="dg-agent-still"
-              onPointerEnter={() => setHot({ by: "agent", i: TILES - 1 })}
-              onPointerLeave={() => setHot(null)}
-            >
-              <span className="dg-agent-name">other agents</span>
-            </span>
-          </li>
         </ul>
 
         <ul className="dg-kinds">
@@ -420,11 +410,12 @@ export function BridgeDiagram() {
           yet. The sentence it replaced — "every agent connects to all three
           kinds" — was the one overstatement the page used to make. */}
       <figcaption className="sr-only">
-        Claude Code, Codex, OpenCode, Cursor, Cline and other agents each connect down into a single
-        local LiteSPM bridge, which connects out to MCP servers and agent skills. Any agent reaches
-        either kind. A plugin whose publisher ships a pinned source reaches the same bridge through
-        its own manifest, so the path to that exit is drawn; a plugin with no fetchable source is
-        refused with the reason.
+        Claude Code, Codex, OpenCode, Cline, Pi Agent and Grok Build are the six tailored
+        adapters, and each of them connects down into a single local LiteSPM bridge; the other 44
+        registered hosts reach the same bridge through the generic adapter. The bridge connects out
+        to MCP servers and agent skills, and any agent reaches either kind. A plugin whose publisher
+        ships a pinned source reaches the same bridge through its own manifest, so the path to that
+        exit is drawn; a plugin with no fetchable source is refused with the reason.
       </figcaption>
     </figure>
   );

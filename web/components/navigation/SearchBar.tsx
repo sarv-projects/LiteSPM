@@ -10,6 +10,14 @@ interface SearchBarProps {
   query: string;
   setQuery: (q: string) => void;
   totalMatches?: number;
+  /**
+   * Rows in the catalog.
+   *
+   * Not printed any more: the placeholder names the catalog instead of
+   * repeating a count the page already states, and a placeholder showing a
+   * different figure from the one beside it invites a comparison that was
+   * never the same measure.
+   */
   totalCount: number;
   /**
    * Whether `totalMatches` was measured for the *current* query.
@@ -49,7 +57,9 @@ export function SearchBar({
   setQuery,
   totalMatches,
   settled,
-  totalCount,
+  // `totalCount` is carried for the page's own use and is deliberately not
+  // printed here; see the prop's note.
+  totalCount: _totalCount,
   className = "",
   autoFocusOnMount = false,
   placeholder,
@@ -122,11 +132,13 @@ export function SearchBar({
     router.push(q ? `/explore/?q=${encodeURIComponent(q)}` : "/explore/");
   };
 
+  // The placeholder names the catalog, not a count: the number beside it on
+  // the page is the one that matters, and a placeholder that repeats a
+  // different number invites the reader to compare two figures that were
+  // never the same measure. The examples are the real ones the catalog
+  // answers to, spelled as a reader would type them.
   const resolvedPlaceholder =
-    placeholder ??
-    (narrow
-      ? `Search ${formatCount(totalCount)} capabilities`
-      : `Search ${formatCount(totalCount)} capabilities — postgres, github, playwright…`);
+    placeholder ?? (narrow ? "Search the catalog…" : "Search the catalog — postgres, GitHub, Playwright…");
 
   /**
    * Clearing the field is also a URL change on Explore: the query lives in
@@ -161,7 +173,11 @@ export function SearchBar({
           indigo outline is 5.49:1, on the dark surface 3.30:1 against what it
           sits on. 48px tall so the clear button can be a full 44px target.
         */}
-        <div className="flex h-12 items-center gap-2 border-2 border-ink bg-surface px-2.5 transition-colors duration-state ease-out focus-within:outline-solid focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+        {/* A one-pixel rule, not a two-pixel black frame: the field sat in the
+            page like a barcode, and the accent focus ring is what says "this
+            is the live control" — it stays, and it is the only heavy thing
+            here. */}
+        <div className="flex h-12 items-center gap-2 border border-rule-2 bg-surface px-2.5 transition-colors duration-state ease-out focus-within:border-accent focus-within:outline-solid focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
           <Search className="h-4 w-4 shrink-0 text-ink-3" aria-hidden="true" />
           <input
             ref={inputRef}

@@ -118,8 +118,9 @@ test("sort applies, lands in the URL, and orders the rows", async ({ page }) => 
   await page.locator("#explore-sort").selectOption("name");
   await expect(page).toHaveURL(/sort=name/);
 
+  // The row's link is its title, so the link's own text is the name.
   const names = await page.locator("main a[data-kind]").evaluateAll((rows) =>
-    rows.slice(0, 6).map((row) => row.querySelector("span.truncate")?.textContent?.trim() ?? "")
+    rows.slice(0, 6).map((row) => row.textContent?.trim() ?? "")
   );
   expect(names.length).toBeGreaterThan(1);
   const sorted = [...names].sort((a, b) => a.localeCompare(b));
