@@ -44,7 +44,25 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 900 },
+        /**
+         * Chromium's renderer keeps its shared memory in /dev/shm, which is
+         * 64 MB in most containers. The renderer then dies partway through a
+         * long run — "Target crashed" — with nothing wrong with the page it
+         * was on. This is Chromium's own advice for a small /dev/shm
+         * (crbug.com/536903): use /tmp instead. It costs nothing on a machine
+         * with a large one, and it is the difference between a suite that
+         * measures the site and a suite that measures the runner.
+         */
+        launchOptions: { args: ["--disable-dev-shm-usage"] },
+      },
+    },
+  ],
   webServer: {
     // The suite's own server: the built export through the real Worker on the
     // runtime it ships to (see `tests/serve.mjs` for why this is Miniflare

@@ -169,6 +169,25 @@ publish to GitHub while quietly skipping npm.
     320 px. 41 grids now name their base column.
   - three places still said plugins cannot be installed, and the hero's figure
     did not say it was a snapshot. Both now state what is true.
+- **The policy engine's grant tier failed open.** The tier that binds a call
+  to the schema, the code and the endpoint an operator approved once read the
+  grant table and, when the database could not answer it, returned "no
+  decision" — and the next tier allowed the call. A database that could not
+  read its own grants turned every drift check off, silently. A query that
+  fails, a row that cannot be read and an iteration that dies part way through
+  now deny, naming the evidence the engine could not read.
+- **A CAS promotion staged its copy inside the tree store.** A promotion that
+  had to copy wrote the partial tree beside its destination, as
+  `<digest>.tmp-<nanos>`, inside `trees/<algo>/` — so a crash between the copy
+  and the rename left a half-populated directory where every reader of that
+  directory had to know to ignore it, and nothing swept it. The scratch is now
+  a dedicated directory under the CAS root, one unique entry per promotion.
+- **The browser suite measured the runner, not the site.** Chromium keeps its
+  shared memory in `/dev/shm`, which is 64 MB in most containers: the renderer
+  died part way through a long run with nothing wrong with the page it was on.
+  The suite now asks Chromium to use `/tmp` instead (its own advice for a
+  small `/dev/shm`), and the host walk gives each chunk of hosts its own
+  browser context.
 
 ## [0.4.1] - 2026-10-15
 

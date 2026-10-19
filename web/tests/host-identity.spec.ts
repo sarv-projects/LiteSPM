@@ -26,6 +26,7 @@
 import { expect, test } from "./support/site";
 import {
   gotoSettled,
+  installHermeticRouting,
   parseCount,
   resultCount,
   stubImages,
@@ -69,60 +70,76 @@ async function hostPageCount(page: import("@playwright/test").Page): Promise<num
 }
 
 test("every host page's count equals its own Explore link and its /agents/ row", async ({
-  page,
+  browser,
 }) => {
-  // Fifty host pages, each followed by its Explore link: a few minutes of real
+  // Every host page, each followed by its Explore link: a few minutes of real
   // navigation, deliberately — the point is to check every page, not a sample.
   test.setTimeout(900_000);
 
-  // Seventy-nine host pages in one context: the brand marks are decorative
-  // here, and decoding them on every navigation was enough to crash the
-  // browser target on the 8 GB runner.
-  await stubImages(page);
-
-  await gotoSettled(page, "/agents/");
-  const rows = await readAgentIndex(page);
+  // The index is read in its own context, and the walk that follows runs in
+  // chunks with a context each. One context for the whole walk meant one
+  // renderer held every page it had ever loaded, and on the 8 GB runner it
+  // died part way through ("Page crashed") with nothing wrong with the page
+  // it was on. The brand marks are stubbed for the same reason: they are
+  // decorative here, and decoding them on every navigation is what the
+  // renderer was spending its memory on.
+  const index = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await installHermeticRouting(index);
+  await stubImages(index);
+  const indexPage = await index.newPage();
+  await gotoSettled(indexPage, "/agents/");
+  const rows = await readAgentIndex(indexPage);
+  await index.close();
   // Every adapter host has a page, and so does every host identity that takes
   // skills and no configuration (the site no longer publishes a name that
   // leads nowhere). The adapter hosts are the fifty that LiteSPM configures.
   expect(rows.length, "the index lists every adapter host").toBeGreaterThanOrEqual(50);
 
   const failures: string[] = [];
-  for (const row of rows) {
-    await page.goto(row.href);
-    await expect(page.locator("h1")).toBeVisible();
+  const CHUNK = 20;
+  for (let start = 0; start < rows.length; start += CHUNK) {
+    const chunk = rows.slice(start, start + CHUNK);
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await installHermeticRouting(context);
+    await stubImages(context);
+    const page = await context.newPage();
+    for (const row of chunk) {
+      await page.goto(row.href);
+      await expect(page.locator("h1")).toBeVisible();
 
-    const pageCount = await hostPageCount(page);
-    if (pageCount !== row.total) {
-      failures.push(
-        `${row.name}: host page prints ${pageCount}, its /agents/ row totals ${row.total}`
-      );
+      const pageCount = await hostPageCount(page);
+      if (pageCount !== row.total) {
+        failures.push(
+          `${row.name}: host page prints ${pageCount}, its /agents/ row totals ${row.total}`
+        );
+      }
+
+      // The headline under "What works with it" is the same measurement.
+      const headline = await page
+        .locator('section[aria-labelledby="agent-works-title"] span.t-tabular')
+        .first()
+        .textContent();
+      if (parseCount(headline) !== pageCount) {
+        failures.push(
+          `${row.name}: aside says ${pageCount}, the headline says ${parseCount(headline)}`
+        );
+      }
+
+      const browse = page.getByRole("link", { name: "Browse them", exact: true });
+      const href = await browse.getAttribute("href");
+      const host = new URL(href ?? "", "http://localhost").searchParams.get("host") ?? "";
+      expect(host, `the Browse link on ${row.href} names a host filter`).not.toBe("");
+
+      await browse.click();
+      await waitForFilteredGrid(page, { host });
+      const exploreCount = parseCount(await resultCount(page).textContent());
+      if (exploreCount !== pageCount) {
+        failures.push(
+          `${row.name}: host page says ${pageCount}, its Explore link (?host=${host}) returns ${exploreCount}`
+        );
+      }
     }
-
-    // The headline under "What works with it" is the same measurement.
-    const headline = await page
-      .locator('section[aria-labelledby="agent-works-title"] span.t-tabular')
-      .first()
-      .textContent();
-    if (parseCount(headline) !== pageCount) {
-      failures.push(
-        `${row.name}: aside says ${pageCount}, the headline says ${parseCount(headline)}`
-      );
-    }
-
-    const browse = page.getByRole("link", { name: "Browse them", exact: true });
-    const href = await browse.getAttribute("href");
-    const host = new URL(href ?? "", "http://localhost").searchParams.get("host") ?? "";
-    expect(host, `the Browse link on ${row.href} names a host filter`).not.toBe("");
-
-    await browse.click();
-    await waitForFilteredGrid(page, { host });
-    const exploreCount = parseCount(await resultCount(page).textContent());
-    if (exploreCount !== pageCount) {
-      failures.push(
-        `${row.name}: host page says ${pageCount}, its Explore link (?host=${host}) returns ${exploreCount}`
-      );
-    }
+    await context.close();
   }
 
   expect(failures, `host page figures disagree:\n${failures.join("\n")}`).toEqual([]);

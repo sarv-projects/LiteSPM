@@ -6,6 +6,77 @@
 > kept as a dated record, not as instructions. If you are picking the repo up, read this header and
 > the top section; ignore the rest until you need the history.
 
+## Session 2026-10-19 (later) — the site's first browser run, the audit command, and the CAS scratch fix
+
+**Read this first if you are picking the repo up.** The site's browser suite ran for the *first*
+time in this session, and the defects it found are the subject of it. The build itself had to be
+unblocked first (see "the build had to be unblocked" below), and the suite then went from 32
+failures to zero across four rounds.
+
+| What | State |
+|---|---|
+| The web build on a small machine | **fixed** — `experimental.cpus: 1` in `web/next.config.ts`; 2 workers were killed mid-page-generation on the 8 GB runner with no error message, 1 worker completes all 4,101 pages |
+| The browser suite (201 assertions) | **green** — it was 32 failed / 169 passed, then 26, then 14, then 3, then 0 |
+| `litespm audit` + `internal/scan` | **new** — six catalogue rules, SARIF 2.1.0, the receipt chain checked; 1 error and 248 warnings on `rel-2026-10-17-01` |
+| `litespm doctor` per-check duration | **new** — `CheckResult.DurationMs`, `DoctorReport.DurationMs` |
+| The CAS promotion scratch (`m6`) | **fixed** — the partial copy is staged under `casRoot/tmp`, not inside `trees/<algo>/` as `<digest>.tmp-<nanos>` |
+
+**The build had to be unblocked first.** The suite's server could not start, because the export
+had never been produced: `next build` was being killed during static generation, which printed
+nothing and looked like a code failure. The measurement is in the config file's comment: on this
+8 GB machine two page-generation workers are OOM-killed, one completes all 4,101 pages.
+
+**What the first browser run found, and what was done about it.**
+
+- **Every page that lists entries filled the console with 404s.** Next prefetches an entry's RSC
+  payload (`index.txt`), which exists only for the 4,101 pre-rendered entries, so ~65,000 of them
+  answered 404. Entry links no longer prefetch — and neither does the site chrome: the header rail,
+  the hero's two calls to action and the five agent links prefetched 12 RSC payloads and 7 route
+  chunks on a cold load, which was 19 of the 41 same-origin requests the budget allows 36.
+- **The Coverage board's publisher counts disagreed with its own filter** (249 against 250) because
+  the board grouped publisher names case-sensitively and the filter case-folded, and the dataset
+  spells one vendor `nvidia` 249 times and `NVIDIA` once. All three now share one rule, and the
+  gate that holds them together (`check-publisher-counts.mjs`) is wired into `npm run lint`.
+- **The hero's count and the Explore filter disagreed**: 26,555 against 26,165, because one of them
+  counted the 390 plugins that publish a pinned git tree and the other did not. The plugin rule
+  lives in `lib/availability.ts` and `lib/installFeasibility.ts` now, and the test compares the
+  module with the predicate row for row.
+- **A no-JS reader saw "checking the catalog…" forever**, with a dot pulsing at them: the shelf's
+  freshness chip rendered its *loading* state into the server HTML, and without scripting no
+  request was ever made. The chip now says "bundled snapshot" until the component is mounted.
+- **The Explore page explained itself between the controls and the first row**, in two paragraphs
+  (78 px and 20 px) that pushed the first result to y≈586 of a 900 px viewport. The filter rule is
+  a disclosure under the bar; the order's rule is a disclosure below the rows. The first row is
+  back inside the fold.
+- **An entry page carried two `rel=canonical` links** after hydration — the edge Worker's, which
+  names the entry, and the route's own, which names the index. A crawler may keep the wrong one.
+  The client now keeps one canonical and points it at the entry, and the address bar is moved to
+  the same form (Next renders the entry links without the trailing slash the Worker's canonical
+  carries, so the bar disagreed with the page's own tag by one character).
+- **A scrollable code block had no keyboard access**, a select's intrinsic width pushed `/explore/`
+  5 px sideways at 320 px, and the two Explore checkboxes were 20 px across (the WCAG 2.2 floor is
+  24 px). All three are fixed; `npm run audit:a11y` now runs axe over the built site.
+
+**What the suite itself got wrong, and why that matters.** Two failures were the *test* being
+stale rather than the site: the primary-rail test asserted a right-edge fade for every off-screen
+destination, including the ones that were off-screen to the *left* after the rail had scrolled, and
+it used a snapshot taken before the first click. The honest-open rule applies to the tests too: a
+test that encodes a falsehood has to be corrected to the truth, and the correction has to name
+why. The same applies to the 79 host pages: the walk crashed its browser target on the 8 GB
+runner, so the brand marks are stubbed for that test — they are not what it asserts on.
+
+**Still open, in the order it should be picked up.**
+
+1. The lifecycle write-ahead journal: a crash between the host-config write and the SQLite commit
+   still loses the ledger row.
+2. The P1 security findings: the approval is not bound to the *subject* it approved, and the policy
+   engine fails open on some database paths.
+3. `litespm audit --ci` is not wired into any CI workflow yet; the scratch replay (replaying the
+   deployment ledger against the disk) is still `DESIGNED`.
+4. Publishing 0.5.0 to npm needs `NPM_TOKEN` — or a deliberate `ALLOW_NPM_SKIP=true`.
+5. The site still wants a real product recording (the hero's proof frame is a placeholder), `/docs`,
+   `/tour`, a mobile filter bottom-sheet, a Compact/Cards toggle and a quick-preview drawer.
+
 ## Session 2026-10-19 — the program: Phase K, ARCH/34, Phase J, and the wiring
 
 **Read this first if you are picking the repo up.** A five-track program was opened on 2026-10-19 to
