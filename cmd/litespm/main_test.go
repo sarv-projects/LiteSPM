@@ -69,6 +69,10 @@ type harness struct {
 	supervisor *provider.Supervisor
 	client     *ipc.Client
 	catClient  *catalog.Client
+	// store is the vault the daemon was wired with. It is the same object
+	// registerCoreHandlers received, so a test can put a credential in it and
+	// watch the daemon's own launch path resolve it.
+	store *secrets.MemorySecretStore
 }
 
 // newHarness builds the daemon's real handler set over an in-memory pipe.
@@ -181,7 +185,7 @@ func newHarnessFull(t *testing.T, extra []*domain.Listing, extraRecords []*domai
 	listener.conns <- serverConn
 	client := ipc.NewClientFromConn(clientConn)
 
-	h := &harness{paths: paths, db: db, engine: engine, supervisor: supervisor, client: client, catClient: catClient}
+	h := &harness{paths: paths, db: db, engine: engine, supervisor: supervisor, client: client, catClient: catClient, store: store}
 	t.Cleanup(func() {
 		supervisor.StopAll(context.Background())
 		_ = client.Close()
@@ -1474,5 +1478,88 @@ func TestSearchQueryArgsParsesFlags(t *testing.T) {
 				t.Errorf("searchQueryArgs(%v) = %+v, want %+v", tc.args, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestDaemonInvokeResolvesSecretReferences proves the daemon hands its vault
+// to the launcher: a `secret:<ns>/<key>` reference in a provider's recorded
+// environment is resolved from the daemon's own store AT LAUNCH.
+//
+// The probe is deliberately a command that cannot start. The invocation must
+// therefore fail at the SPAWN — which proves the reference was resolved and
+// the launch got that far — and must NOT fail with LPSM-SECRET-UNRESOLVED,
+// which would mean the daemon launched without a vault to resolve it.
+func TestDaemonInvokeResolvesSecretReferences(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	const (
+		installID  = "inst_user_mcp_demo_secret_1_0_0"
+		component  = "secret-demo"
+		toolName   = "echo"
+		reference  = "secret:acme/daemon-canary"
+		secretText = "sk-live-daemon-canary-7b31"
+	)
+	now := time.Now().UTC()
+	if err := h.db.SaveInstall(ctx, &domain.InstallRecord{
+		InstallID: installID, ListingID: "mcp:demo:" + component, Version: "1.0.0",
+		Scope: domain.ScopeUser, Status: domain.InstallActive, InstalledAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("SaveInstall: %v", err)
+	}
+	if err := h.db.SaveInstallComponent(ctx, &domain.InstallComponentRecord{
+		InstallID: installID, Kind: domain.ComponentMCPProvider, ComponentName: component,
+	}); err != nil {
+		t.Fatalf("SaveInstallComponent: %v", err)
+	}
+	providerID := discover.ProviderIDFor(installID, component)
+	if err := h.db.SaveProvider(ctx, &domain.ProviderRecord{
+		ProviderID: providerID, InstallID: installID, ComponentName: component,
+		Transport: "stdio",
+		// A path that does not exist: the launch must fail HERE, after the
+		// environment was resolved.
+		Command: filepath.Join(t.TempDir(), "no-such-provider-binary"),
+		EnvJSON: `{"LITESPM_SECRET_CANARY":"` + reference + `"}`,
+		Status:  "active", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("SaveProvider: %v", err)
+	}
+	capabilityID := string(domain.NewCapabilityID(domain.InstallID(installID), component, toolName))
+	if err := h.db.SaveCapability(ctx, &domain.CapabilityRecord{
+		CapabilityID: capabilityID, ProviderID: providerID, Name: toolName,
+		InputSchemaJSON: `{"type":"object"}`, SchemaFingerprint: "sha256:daemon-canary",
+		DiscoveredAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("SaveCapability: %v", err)
+	}
+	// The grant is what turns the policy's "ask" into an allow, so the
+	// invocation reaches the launcher at all.
+	if err := h.db.SaveCapabilityGrant(ctx, &domain.CapabilityGrant{
+		GrantID:           "grant_daemon_canary",
+		CapabilityID:      capabilityID,
+		SchemaFingerprint: "sha256:daemon-canary",
+		Status:            "active",
+		CreatedAt:         now,
+	}, "human-cli"); err != nil {
+		t.Fatalf("SaveCapabilityGrant: %v", err)
+	}
+	// The credential the reference points at lives in the daemon's vault.
+	if _, err := h.store.Put(ctx, "acme", "daemon-canary", []byte(secretText)); err != nil {
+		t.Fatalf("store the secret: %v", err)
+	}
+
+	var raw json.RawMessage
+	err := h.client.Call(ctx, "provider.invoke", map[string]any{
+		"capabilityId": capabilityID,
+		"arguments":    map[string]any{},
+	}, &raw)
+	if err == nil {
+		t.Fatal("the invocation succeeded against a command that does not exist")
+	}
+	if strings.Contains(err.Error(), discover.CodeSecretUnresolved) {
+		t.Errorf("the daemon launched without resolving the secret reference: %v", err)
+	}
+	if strings.Contains(err.Error(), secretText) {
+		t.Errorf("the secret value reached an error message: %v", err)
 	}
 }

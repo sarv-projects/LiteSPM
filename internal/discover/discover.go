@@ -59,6 +59,7 @@ import (
 	"github.com/sarv-projects/litespm/internal/mcpclient"
 	"github.com/sarv-projects/litespm/internal/policy"
 	"github.com/sarv-projects/litespm/internal/provider"
+	"github.com/sarv-projects/litespm/internal/secrets"
 	"github.com/sarv-projects/litespm/internal/state"
 )
 
@@ -78,6 +79,10 @@ type options struct {
 	actor      string
 	hostID     string
 	effects    []policy.EffectDeclaration
+	// secrets is the vault a `secret:<ns>/<key>` environment reference is
+	// resolved from. It is nil when the caller has no vault, and a reference
+	// then fails the launch closed rather than being passed through.
+	secrets secrets.SecretStore
 }
 
 // WithPolicy routes Invoke through a policy engine. Without it Invoke is
@@ -102,6 +107,19 @@ func WithHostID(hostID string) Option { return func(o *options) { o.hostID = hos
 // read-only for the no-policy fail-closed rule.
 func WithEffects(effects ...policy.EffectDeclaration) Option {
 	return func(o *options) { o.effects = append([]policy.EffectDeclaration(nil), effects...) }
+}
+
+// WithSecretStore hands the launcher the vault it resolves a
+// `secret:<ns>/<key>` environment reference from.
+//
+// A reference is a POINTER, not a value: it is what a provider row, a host
+// config and a plan may record. The value behind it is resolved here, at the
+// last possible moment, and exists only in the child process's environment
+// for the life of the call. Without a store, a reference is a refusal
+// (LPSM-SECRET-UNRESOLVED): the provider is not started with the reference
+// string in its environment, and not started with the variable absent.
+func WithSecretStore(store secrets.SecretStore) Option {
+	return func(o *options) { o.secrets = store }
 }
 
 func newOptions(opts []Option) *options {
@@ -327,7 +345,8 @@ func Discover(ctx context.Context, db *state.DB, spec ProviderSpec, opts ...Opti
 		return nil, err
 	}
 
-	session, cleanup, err := dial(ctx, spec, newOptions(opts).supervisor)
+	o := newOptions(opts)
+	session, cleanup, err := dial(ctx, spec, o)
 	if err != nil {
 		return nil, err
 	}
@@ -472,7 +491,7 @@ func Invoke(ctx context.Context, db *state.DB, capabilityID string, arguments js
 		return nil, err
 	}
 
-	session, cleanup, err := dial(ctx, spec, o.supervisor)
+	session, cleanup, err := dial(ctx, spec, o)
 	if err != nil {
 		return nil, err
 	}
@@ -536,12 +555,50 @@ func flattenContent(parts []mcpclient.ToolContent) string {
 
 var dialSeq atomic.Uint64
 
+// SecretRefPrefix marks a stored environment value as a vault reference
+// rather than a value: `secret:<namespace>/<key>`.
+const SecretRefPrefix = "secret:"
+
+// CodeSecretUnresolved is the typed refusal for a `secret:<ns>/<key>`
+// environment reference that could not be resolved at launch: the vault is
+// unavailable, the key is missing, or the reference is malformed. The
+// provider is NOT started. It is minted here (rather than in internal/domain,
+// which another lane owns) through domain.NewError, and satisfies
+// schemas/errors.schema.json's ^LPSM-[A-Z]+-[A-Z0-9_-]+$ pattern.
+const CodeSecretUnresolved = "LPSM-SECRET-UNRESOLVED"
+
+// secretUnresolvedError builds the typed refusal. It names the reference (a
+// pointer) and never a value: the message travels into logs, audit rows and
+// error surfaces, and a value must not travel with it.
+func secretUnresolvedError(spec ProviderSpec, envVar, ref string, cause error) error {
+	details := map[string]any{
+		"component": spec.ComponentName,
+		"installId": spec.InstallID,
+	}
+	if envVar != "" {
+		details["env"] = envVar
+	}
+	if ref != "" {
+		details["ref"] = ref
+	}
+	e := domain.NewError(CodeSecretUnresolved,
+		fmt.Sprintf("provider %q needs a secret that could not be resolved; the server was not started", spec.ComponentName),
+		details)
+	e.Cause = cause
+	return e
+}
+
 // resolveEnv turns the stored environment (references, names, or values) into
 // the concrete variables the server is given. It resolves only variables the
 // stored spec names; nothing else from this process's environment is forwarded.
-func resolveEnv(spec ProviderSpec) map[string]string {
+//
+// A stored value of the form `secret:<ns>/<key>` is a vault REFERENCE: it is
+// resolved here, at launch, through the caller's secret store. The reference
+// never reaches the child — the value does — and a reference that cannot be
+// resolved is a typed refusal, not a variable that is quietly missing.
+func resolveEnv(ctx context.Context, spec ProviderSpec, store secrets.SecretStore) (map[string]string, error) {
 	if len(spec.Env) == 0 {
-		return nil
+		return nil, nil
 	}
 	// A name-list host (Codex) stores only the name, so its read-back value
 	// is empty; a reference-host stores the reference text. Both resolve here,
@@ -550,7 +607,17 @@ func resolveEnv(spec ProviderSpec) map[string]string {
 	hostSpec, _ := envref.SpecFor(spec.HostID)
 	lookup := func(k string) (string, bool) { return os.LookupEnv(k) }
 	out := make(map[string]string, len(spec.Env))
+	secretRefs := make(map[string]string, len(spec.Env))
 	for k, v := range spec.Env {
+		if strings.HasPrefix(v, SecretRefPrefix) {
+			// A malformed reference is refused here, not handed to the vault
+			// and not passed to the child.
+			if _, err := secrets.ParseSecretRef(v); err != nil {
+				return nil, secretUnresolvedError(spec, k, v, err)
+			}
+			secretRefs[k] = v
+			continue
+		}
 		// Only pass a value we actually have. An unset reference resolves to
 		// its own text and a name-list host stores no value; passing either
 		// through would hand the server a literal `${VAR}` or an empty string
@@ -561,7 +628,27 @@ func resolveEnv(spec ProviderSpec) map[string]string {
 		}
 		out[k] = resolved
 	}
-	return out
+	if len(secretRefs) == 0 {
+		return out, nil
+	}
+	if store == nil {
+		return nil, secretUnresolvedError(spec, "", "",
+			errors.New("no secret store is configured, so a secret reference cannot be resolved"))
+	}
+	// One reference at a time, so a refusal names the environment variable and
+	// the reference that failed instead of "one of them did". The value is
+	// still resolved by the vault's own resolver, which owns the rules about
+	// which variable names may carry a secret at all.
+	for k, ref := range secretRefs {
+		resolved, err := secrets.ResolveLaunchSecrets(ctx, store, map[string]string{k: ref})
+		if err != nil {
+			return nil, secretUnresolvedError(spec, k, ref, err)
+		}
+		for ek, ev := range resolved {
+			out[ek] = ev
+		}
+	}
+	return out, nil
 }
 
 // dial opens an MCP session with the provider.
@@ -574,7 +661,10 @@ func resolveEnv(spec ProviderSpec) map[string]string {
 // cleanup closes the session and, for a stdio dial, terminates the process
 // tree; for a remote dial it closes the HTTP session (releasing a legacy
 // server-side session with DELETE when one was assigned).
-func dial(ctx context.Context, spec ProviderSpec, sup *provider.Supervisor) (mcpclient.ClientSession, func(), error) {
+func dial(ctx context.Context, spec ProviderSpec, o *options) (mcpclient.ClientSession, func(), error) {
+	if o == nil {
+		o = newOptions(nil)
+	}
 	if isRemoteSpec(spec) {
 		if strings.TrimSpace(spec.Command) != "" {
 			// Defence in depth: Discover and Invoke validate first, but a
@@ -592,8 +682,16 @@ func dial(ctx context.Context, spec ProviderSpec, sup *provider.Supervisor) (mcp
 		return nil, nil, fmt.Errorf("provider %q uses transport %q, which is not supported yet without a recorded endpoint",
 			spec.ComponentName, spec.Transport)
 	}
+	sup := o.supervisor
 	if sup == nil {
 		sup = provider.NewSupervisor()
+	}
+	// The environment is resolved BEFORE the process exists: a secret
+	// reference that cannot be resolved must stop the launch, not produce a
+	// server running without its credential.
+	env, err := resolveEnv(ctx, spec, o.secrets)
+	if err != nil {
+		return nil, nil, err
 	}
 	// A unique id per spawn: StartProvider reuses a still-running provider with
 	// the same id, which must never happen for a one-shot call.
@@ -601,7 +699,7 @@ func dial(ctx context.Context, spec ProviderSpec, sup *provider.Supervisor) (mcp
 	handle, err := sup.StartProvider(ctx, handleID, provider.LaunchSpec{
 		Executable: spec.Command,
 		Args:       spec.Args,
-		Env:        resolveEnv(spec),
+		Env:        env,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("start %s: %w", spec.Command, err)

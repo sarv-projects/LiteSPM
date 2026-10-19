@@ -2356,8 +2356,14 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			// configured" blanket deny, and a granted one passes through
 			// Tier 3 with schema-drift re-verification. The engine is the
 			// wrapper around the call, never a way around discover.WithPolicy.
+			//
+			// The vault is handed over so a `secret:<ns>/<key>` reference in a
+			// provider's recorded environment is resolved AT LAUNCH, into the
+			// child process's environment only. The reference is what a row
+			// may hold; the value never leaves this process (ARCH/19 §3).
 			result, err := discover.Invoke(ctx, db, capabilityID, arguments,
-				discover.WithPolicy(policyEngine))
+				discover.WithPolicy(policyEngine),
+				discover.WithSecretStore(secretStore))
 			if err != nil {
 				// The audit row is written with a context that outlives the
 				// call: a cancelled invocation must still leave a row, or

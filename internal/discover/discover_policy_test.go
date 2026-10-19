@@ -213,10 +213,13 @@ func TestInvokeAndDiscoverDoNotLeakParentEnvironment(t *testing.T) {
 func TestResolveEnvOnlyForwardsNamedVariables(t *testing.T) {
 	t.Setenv("LITESPM_DISCOVER_CANARY", "c")
 	t.Setenv("LITESPM_NAMED", "named-value")
-	got := resolveEnv(ProviderSpec{HostID: "opencode", Env: map[string]string{
+	got, err := resolveEnv(context.Background(), ProviderSpec{HostID: "opencode", Env: map[string]string{
 		"WANTED":  "${env:LITESPM_NAMED}",
 		"LITERAL": "plain",
-	}})
+	}}, nil)
+	if err != nil {
+		t.Fatalf("resolveEnv: %v", err)
+	}
 	if _, leaked := got["LITESPM_DISCOVER_CANARY"]; leaked {
 		t.Error("unnamed parent variable forwarded")
 	}
