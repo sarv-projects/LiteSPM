@@ -101,16 +101,32 @@ func TestMCPRegistryUnversionedPackageIsDiscoveryOnly(t *testing.T) {
 }
 
 func TestMCPInstallabilityRejectsEmptyVersionSummaries(t *testing.T) {
-	if got := mcpInstallability(nil); got != domain.InstallabilityDiscoveryOnly {
+	if got := mcpInstallability(nil, false); got != domain.InstallabilityDiscoveryOnly {
 		t.Errorf("no versions = %q, want discovery_only", got)
 	}
-	if got := mcpInstallability([]domain.VersionSummary{{Version: ""}}); got != domain.InstallabilityDiscoveryOnly {
+	if got := mcpInstallability([]domain.VersionSummary{{Version: ""}}, false); got != domain.InstallabilityDiscoveryOnly {
 		t.Errorf("an empty version string is not a version: got %q, want discovery_only", got)
 	}
-	if got := mcpInstallability([]domain.VersionSummary{{Version: "  "}}); got != domain.InstallabilityDiscoveryOnly {
+	if got := mcpInstallability([]domain.VersionSummary{{Version: "  "}}, false); got != domain.InstallabilityDiscoveryOnly {
 		t.Errorf("a blank version string is not a version: got %q, want discovery_only", got)
 	}
-	if got := mcpInstallability([]domain.VersionSummary{{Version: ""}, {Version: "0.3.1"}}); got != domain.InstallabilityMetadataVerified {
+	if got := mcpInstallability([]domain.VersionSummary{{Version: ""}, {Version: "0.3.1"}}, false); got != domain.InstallabilityMetadataVerified {
 		t.Errorf("one proven version = %q, want metadata_verified", got)
+	}
+}
+
+// An endpoint is a launch line. The published release agrees: 25,401 remote
+// MCP rows are `metadata_verified` there, `litespm install` registers the
+// endpoint itself (the runtime descriptor comes from a version's command
+// **or** a version-less component's endpoint), and the site's own
+// availability rule counts a row with a transport as installable. The Go
+// ingest path used to disagree, which meant the same record was installable
+// from the published catalog and not installable from the Go one.
+func TestMCPInstallabilityAcceptsAPublishedEndpoint(t *testing.T) {
+	if got := mcpInstallability(nil, true); got != domain.InstallabilityMetadataVerified {
+		t.Errorf("an endpoint with no version = %q, want metadata_verified", got)
+	}
+	if got := mcpInstallability([]domain.VersionSummary{{Version: ""}}, true); got != domain.InstallabilityMetadataVerified {
+		t.Errorf("an endpoint with an empty version = %q, want metadata_verified", got)
 	}
 }

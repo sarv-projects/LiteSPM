@@ -432,6 +432,9 @@ func (a *MCPRegistryAdapter) Ingest(ctx context.Context, snapshotID string) (*In
 		// "discovery" — the same convention internal/catalogbuild/dataset.go
 		// uses for a row with no proven version. Inventing a version number to
 		// fill that slot is exactly what this file must not do.
+		// A published endpoint is a launch line, so a record that has one is
+		// installable even when it published no package version.
+		hasEndpoint := false
 		for _, rem := range srv.Remotes {
 			component := domain.Component{
 				ID:   string(domain.NewComponentID(listingID, versionlessComponentVersion, domain.ComponentMCPProvider, "server")),
@@ -452,6 +455,7 @@ func (a *MCPRegistryAdapter) Ingest(ctx context.Context, snapshotID string) (*In
 				FetchedAt:        now,
 			}
 			versions = append(versions, verRecord)
+			hasEndpoint = true
 		}
 
 		status := domain.ListingStatusActive
@@ -486,11 +490,10 @@ func (a *MCPRegistryAdapter) Ingest(ctx context.Context, snapshotID string) (*In
 				IngestedAt:       now,
 			},
 			Status: status,
-			// Only a registry entry that published a package with a version
-			// proved something installable. An endpoint with no published
-			// version proves it exists, not what would be launched, so it
-			// stays discovery_only.
-			Installability: mcpInstallability(versionSummaries),
+			// A published version proves a local install path; a published
+			// endpoint proves a remote one. Either is something the catalog
+			// can stand behind; neither means the record can only be listed.
+			Installability: mcpInstallability(versionSummaries, hasEndpoint),
 		}
 
 		listings = append(listings, listing)
@@ -525,14 +528,30 @@ const versionlessComponentVersion = "discovery"
 // meet a listing that claims metadata_verified while being unable to name the
 // version it would install. Remote endpoints publish no version and therefore
 // add no summary: a listing that only has one is discovery_only.
-func mcpInstallability(versionSummaries []domain.VersionSummary) domain.Installability {
+// mcpInstallability decides whether the catalog can stand behind an install
+// for this record.
+//
+// A published version proves a *local* install path: a package coordinate and
+// the artifact digest that goes with it. A published *endpoint* proves a
+// remote one — the endpoint is the launch line, not a hint of one. The
+// runtime descriptor comes from a version's command **or** a version-less
+// component's endpoint (`RuntimeForListing`, `internal/catalog/client.go`),
+// and `litespm install` registers exactly that descriptor in the host's
+// config. The published release agrees: its 25,401 remote MCP rows are
+// `metadata_verified`, and the site's availability rule — a copy of the
+// CLI's own gate — counts a row with a transport as installable.
+//
+// A record with neither a proven version nor a proven endpoint stays
+// `discovery_only`. That is the honest answer, and it is the case the
+// catalog can only list.
+func mcpInstallability(versionSummaries []domain.VersionSummary, hasEndpoint bool) domain.Installability {
 	proven := 0
 	for _, summary := range versionSummaries {
 		if strings.TrimSpace(summary.Version) != "" {
 			proven++
 		}
 	}
-	if proven == 0 {
+	if proven == 0 && !hasEndpoint {
 		return domain.InstallabilityDiscoveryOnly
 	}
 	return domain.InstallabilityMetadataVerified

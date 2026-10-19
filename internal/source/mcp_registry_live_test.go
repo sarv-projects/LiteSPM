@@ -45,13 +45,18 @@ func TestMCPRegistryLiveSubsetIngestsWithoutLaunchLines(t *testing.T) {
 		t.Errorf("bev-door versions = %+v, want 0.2.5", bev.Versions)
 	}
 
-	// Remote-only entries publish no version and stay discovery_only.
+	// Remote-only entries publish no version — and a published *endpoint* is
+	// what gets registered in the host's config, so the row is installable
+	// (2026-10-19). What it still may not do is invent a launch line: the
+	// assertion above about an empty Runtime.Command still holds, and the
+	// endpoint lives in Runtime.Endpoint, which is a different field.
 	remoteOnly, ok := byName["ac.inference.sh/mcp"]
 	if !ok {
 		t.Fatalf("missing ac.inference.sh/mcp, got %v", keysOfListings(res))
 	}
-	if remoteOnly.Installability != domain.InstallabilityDiscoveryOnly {
-		t.Errorf("remote-only installability = %q", remoteOnly.Installability)
+	if remoteOnly.Installability != domain.InstallabilityMetadataVerified {
+		t.Errorf("remote-only installability = %q, want %q: a published endpoint is a launch line",
+			remoteOnly.Installability, domain.InstallabilityMetadataVerified)
 	}
 
 	// A versionless package (the OCI entry publishes none) contributes no

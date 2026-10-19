@@ -6,10 +6,23 @@ package source
 // The adapter used to stamp the sentinel version "remote" on every remote
 // entry: a version string the upstream registry never published, and one that
 // mcpInstallability counted as proven, so a row holding nothing but an endpoint
-// could claim metadata_verified and look installable. The honest shape of such
-// a row is zero version summaries and discovery_only. The endpoint itself is
+// could claim metadata_verified and look installable. The endpoint itself is
 // real metadata and still has to survive ingestion — it lands on a version-less
 // record, which is why these tests check both halves at once.
+//
+// **The installability half of that rule changed on 2026-10-19.** A row that
+// publishes *no* version is still exactly that: no version summary, no version
+// string, no artifact, nothing fetched. But a published **endpoint is a launch
+// line**, not a hint of one — the runtime descriptor comes from a version's
+// command *or* a version-less component's endpoint (`RuntimeForListing`), and
+// `litespm install` registers exactly that descriptor in the host's config. The
+// published release agrees: its 25,401 remote MCP rows are `metadata_verified`,
+// and the site's availability rule — a copy of the CLI's own gate — counts a
+// row with a transport as installable. The Go path used to disagree with both,
+// which meant the same record was installable from the published catalog and
+// not installable from the Go one. The anti-fabrication assertions below are
+// unchanged and must stay: a row never claims a version the upstream did not
+// publish.
 
 import (
 	"context"
@@ -42,11 +55,12 @@ func TestMCPRegistryRemoteOnlyListingClaimsNoVersion(t *testing.T) {
 	if len(listing.Versions) != 0 {
 		t.Errorf("a remote entry must contribute no version summary, got %+v", listing.Versions)
 	}
-	if listing.Installability != domain.InstallabilityDiscoveryOnly {
-		t.Errorf("installability = %q, want %q", listing.Installability, domain.InstallabilityDiscoveryOnly)
+	if listing.Installability != domain.InstallabilityMetadataVerified {
+		t.Errorf("installability = %q, want %q: a published endpoint is a launch line",
+			listing.Installability, domain.InstallabilityMetadataVerified)
 	}
-	if listing.IsInstallable() {
-		t.Error("a listing with no published version must not be installable")
+	if !listing.IsInstallable() {
+		t.Error("a listing that publishes an endpoint is installable: the endpoint is what gets registered")
 	}
 
 	// The endpoint is still carried, on a record that claims no version and no
