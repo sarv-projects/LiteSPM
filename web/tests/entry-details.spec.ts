@@ -77,7 +77,7 @@ test("the entry page's install command is the one the CLI accepts, and the id is
   // The command the page prints, and the id it names, are the same id the
   // catalog holds — the site's own gate (`scripts/check-install-command.mjs`)
   // checks the form against the CLI's own flag parser.
-  const command = page.locator("code").filter({ hasText: /litespm install/ }).first();
+  const command = page.locator("code").filter({ hasText: /litespm@latest install/ }).first();
   await expect(command).toBeVisible();
   await expect(command).toHaveText(`npx --yes litespm@latest install ${flagship.row.id}`);
 
