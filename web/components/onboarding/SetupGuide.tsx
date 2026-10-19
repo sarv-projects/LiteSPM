@@ -343,7 +343,7 @@ function Guide({
         <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
           To put things back the way they were:
         </p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <CommandCopy
             command="litespm restore"
             label="Roll a config file back to its backup"

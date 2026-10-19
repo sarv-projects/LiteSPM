@@ -163,7 +163,7 @@ export function FaqSection() {
         What LiteSPM does to your machine, and what it does not do.
       </p>
 
-      <div className="mt-7 grid gap-x-10 md:grid-cols-2">
+      <div className="mt-7 grid grid-cols-1 gap-x-10 md:grid-cols-2">
         {FAQS.map((item) => (
           <details key={item.q} name="faq" className="group border-b border-rule py-4">
             <summary className="flex min-h-[44px] w-full cursor-pointer items-start justify-between gap-4 text-left">

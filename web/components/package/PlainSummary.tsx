@@ -104,7 +104,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
         <span className="section-note">in plain words</span>
       </div>
 
-      <dl className="mt-3 grid gap-x-10 gap-y-4 border-b border-rule pb-4 md:grid-cols-2">
+      <dl className="mt-3 grid grid-cols-1 gap-x-10 gap-y-4 border-b border-rule pb-4 md:grid-cols-2">
         <Fact term="What it is" detail={detailLink("overview", "details: Overview →")}>
           {KIND_PLAIN[item.kind]}{" "}
           <span className="text-ink-3">

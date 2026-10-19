@@ -439,7 +439,7 @@ function SecurityPanel({ item }: { item: Listing }) {
   const installability = item.installability ? INSTALLABILITY[item.installability] : null;
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <div className="border-t border-rule pt-3">
         <h3 className="text-[14px] font-semibold tracking-tight text-ink">What LiteSPM has read</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -496,7 +496,7 @@ function VersionsPanel({
   const createdAt = typeof release.createdAt === "string" ? release.createdAt : null;
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <div>
         <div className="section-head">
           <h3 className="text-[13px] font-semibold tracking-tight text-ink">This entry</h3>

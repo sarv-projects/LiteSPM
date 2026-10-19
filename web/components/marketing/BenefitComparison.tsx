@@ -122,7 +122,7 @@ export function BenefitComparison() {
         preview before it happens and a way back afterwards.
       </p>
 
-      <div className="mt-7 grid gap-4 lg:grid-cols-2">
+      <div className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="Adding a tool by hand" note="today" steps={BY_HAND} tone="plain" />
         <Panel
           title="Adding a tool with LiteSPM"

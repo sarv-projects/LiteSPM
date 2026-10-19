@@ -166,7 +166,7 @@ export function Shelves({ groups, agent, telemetry }: ShelvesProps) {
             </Link>
           </div>
 
-          <ul className="mt-4 grid auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="mt-4 grid grid-cols-1 auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {group.entries.map((entry, index) => (
               <ShelfCard
                 key={entry.id}

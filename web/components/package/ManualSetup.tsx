@@ -92,7 +92,7 @@ export function ManualSetup() {
           </select>
         </label>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <p className="t-mono text-[10px] text-ink-3">Config file</p>
             <div className="mt-1 flex items-start gap-2">

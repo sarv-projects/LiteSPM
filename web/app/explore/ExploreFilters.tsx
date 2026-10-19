@@ -404,7 +404,9 @@ export function ExploreFilters(props: ExploreFiltersProps) {
             type="checkbox"
             checked={verifiedOnly}
             onChange={(e) => setVerifiedOnly(e.target.checked)}
-            className="h-5 w-5 shrink-0 accent-ink"
+            // 24px, not 20: WCAG 2.2 SC 2.5.8 asks for a 24x24 target, and
+            // the visible control is what a reader aims at.
+            className="h-6 w-6 shrink-0 accent-ink"
           />
           Only entries from publisher manifests
         </label>
@@ -419,7 +421,9 @@ export function ExploreFilters(props: ExploreFiltersProps) {
             type="checkbox"
             checked={installableOnly}
             onChange={(e) => setInstallableOnly(e.target.checked)}
-            className="h-5 w-5 shrink-0 accent-ink"
+            // 24px, not 20: WCAG 2.2 SC 2.5.8 asks for a 24x24 target, and
+            // the visible control is what a reader aims at.
+            className="h-6 w-6 shrink-0 accent-ink"
           />
           Only entries LiteSPM can install
         </label>

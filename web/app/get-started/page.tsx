@@ -77,7 +77,7 @@ export default function GetStartedPage() {
 
         <div className="mt-10 max-w-[72ch] border-t border-rule pt-6">
           <h2 className="text-[15px] font-semibold text-ink">Elsewhere on this site</h2>
-          <ul className="mt-3 grid gap-2 text-[13px] text-ink-2 sm:grid-cols-2">
+          <ul className="mt-3 grid grid-cols-1 gap-2 text-[13px] text-ink-2 sm:grid-cols-2">
             <li>
               <Link href="/how-it-works/" className="link touch-link">
                 How it works

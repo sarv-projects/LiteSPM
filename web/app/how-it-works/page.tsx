@@ -186,7 +186,7 @@ Removal is the same in reverse. \`litespm install remove <id>\` takes out the en
             </p>
           </div>
 
-          <div className="mt-7 grid gap-4 lg:grid-cols-2">
+          <div className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded-card border border-rule bg-surface p-5">
               <p className="kicker">Before — by hand</p>
               <h3 className="mt-2 text-[16px] font-semibold tracking-tight text-ink">
@@ -241,7 +241,7 @@ Removal is the same in reverse. \`litespm install remove <id>\` takes out the en
             </p>
           </div>
 
-          <div className="mt-7 grid gap-4 lg:grid-cols-2">
+          <div className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded-card border border-rule bg-surface p-5">
               <h3 className="text-[15px] font-semibold tracking-tight text-ink">This website</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
@@ -286,7 +286,7 @@ Removal is the same in reverse. \`litespm install remove <id>\` takes out the en
             </p>
           </div>
 
-          <ol className="mt-7 grid gap-4 lg:grid-cols-3">
+          <ol className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <li className="rounded-card border border-rule bg-surface p-5">
               <span className="t-mono text-[12px] font-medium tracking-wider text-accent-text">01</span>
               <h3 className="mt-2 text-[16px] font-semibold tracking-tight text-ink">The command</h3>
@@ -374,7 +374,7 @@ Removal is the same in reverse. \`litespm install remove <id>\` takes out the en
             </p>
           </div>
 
-          <div className="mt-7 grid gap-4 lg:grid-cols-3">
+          <div className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="rounded-card border border-rule bg-surface p-5">
               <span className="meta-kind meta-kind-mcp">MCP server</span>
               <h3 className="mt-2.5 text-[15px] font-semibold tracking-tight text-ink">
@@ -432,7 +432,7 @@ Removal is the same in reverse. \`litespm install remove <id>\` takes out the en
             </p>
           </div>
 
-          <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-card border border-rule bg-surface p-5">
               <Sub title="A backup before every write">
                 <p>

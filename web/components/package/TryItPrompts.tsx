@@ -31,7 +31,7 @@ export function TryItPrompts({ item }: { item: Listing }) {
         Once the install above has run, paste one of these into the agent you installed it for.
       </p>
 
-      <ul className="mt-4 grid gap-3 md:grid-cols-2">
+      <ul className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
         {prompts.map((prompt) => (
           <li key={prompt.id} className="flex flex-col border border-rule-2 bg-surface p-3.5">
             <p className="t-mono text-[10px] uppercase tracking-wider text-ink-3">

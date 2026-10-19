@@ -315,7 +315,7 @@ function ConfigureSection({ group }: { group: CompareGroup }) {
           rendered from the same cells. The config file — the one fact this
           page exists to state — keeps its own full-width line here: a 108px
           label column would wrap the paths a phone reader came for. */}
-      <ul className="mt-4 grid gap-3 lg:hidden">
+      <ul className="mt-4 grid grid-cols-1 gap-3 lg:hidden">
         {group.rows.map((row) => (
           <li key={row.id} className="rounded-card border border-rule bg-surface p-3.5">
             {identityCell(row, "card")}
@@ -364,7 +364,7 @@ function SkillsSection({ group }: { group: CompareGroup }) {
         them.
       </p>
 
-      <ul className="mt-2 grid gap-x-10 sm:grid-cols-2">
+      <ul className="mt-2 grid grid-cols-1 gap-x-10 sm:grid-cols-2">
         {group.rows.map((row) => (
           <li
             key={row.id}

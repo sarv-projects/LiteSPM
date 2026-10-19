@@ -84,7 +84,7 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
         <h2 className="mt-8 band-title">Browse by goal</h2>
         <p className="band-sub mt-2">Each card opens Explore filtered to that goal.</p>
 
-        <ul className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {goals.map((facet) => (
             <li key={facet.id}>
               <DiscoveryCard href={`/explore/?goal=${encodeURIComponent(facet.id)}`} className="h-full">

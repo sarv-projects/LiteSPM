@@ -97,7 +97,7 @@ export function DeveloperZone() {
           </Link>
         </div>
 
-        <ul className="mt-6 grid gap-4 lg:grid-cols-2">
+        <ul className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           {SNIPPETS.map((s) => (
             <li
               key={s.cmd}

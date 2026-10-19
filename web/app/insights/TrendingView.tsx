@@ -380,7 +380,7 @@ export default function InsightsPage({ total, boards, hosts, boardTotals }: Tren
           <HostBoard rows={hosts} />
         </div>
 
-        <div className="mt-9 grid items-start gap-x-10 gap-y-9 lg:grid-cols-3">
+        <div className="mt-9 grid grid-cols-1 items-start gap-x-10 gap-y-9 lg:grid-cols-3">
           <CountBoard
             title="By capability kind"
             note="Every entry is an MCP server, an agent skill or a plugin."

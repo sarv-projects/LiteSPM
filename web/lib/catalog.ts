@@ -334,14 +334,40 @@ export function matchesHost(item: Listing, agentName: string | null): boolean {
   return itemMatchesHost(item, agentName);
 }
 
+/**
+ * The publishers worth browsing, with the count each one published.
+ *
+ * A publisher's IDENTITY is its name case-folded: the dataset spells the same
+ * vendor both "nvidia" (249 rows) and "NVIDIA" (1 row), and a reader who
+ * filters on either spelling must get the same rows. So the rows are counted
+ * under the case-folded name, and the row is labelled with the spelling that
+ * most of its rows use.
+ *
+ * This is the same rule the filter uses (`lib/publisherFilter.ts`) and the
+ * same rule the emitted facet list uses (`scripts/emit-catalog-shards.mjs`),
+ * and `scripts/check-publisher-counts.mjs` holds the three together over the
+ * real dataset. Counting case-SENSITIVELY is what made the Coverage board
+ * say 249 for nvidia while the link beside it opened 250.
+ */
 export function publisherFacets(items: Listing[], limit = 24): Array<{ name: string; count: number }> {
-  const counts = new Map<string, number>();
+  const counts = new Map<string, { count: number; spellings: Map<string, number> }>();
   for (const item of items) {
     const name = item.publisher?.name?.trim();
     if (!name) continue;
-    counts.set(name, (counts.get(name) ?? 0) + 1);
+    const key = name.toLowerCase();
+    const entry = counts.get(key) ?? { count: 0, spellings: new Map<string, number>() };
+    entry.count += 1;
+    entry.spellings.set(name, (entry.spellings.get(name) ?? 0) + 1);
+    counts.set(key, entry);
   }
-  return Array.from(counts, ([name, count]) => ({ name, count }))
+  return Array.from(counts, ([key, entry]) => {
+    // The spelling most of the rows use; ties go to the first in sort order,
+    // so the label is stable between runs.
+    const spellings = Array.from(entry.spellings, ([name, n]) => ({ name, n })).sort(
+      (a, b) => b.n - a.n || a.name.localeCompare(b.name)
+    );
+    return { name: spellings[0]?.name ?? key, count: entry.count };
+  })
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, limit);
 }

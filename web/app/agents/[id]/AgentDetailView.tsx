@@ -218,7 +218,7 @@ export default function AgentDetailView({
         )}
 
         {capabilities && capabilities.length > 0 && (
-          <ul className="mt-5 grid gap-2.5 sm:grid-cols-3">
+          <ul className="mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
             {capabilities.map((capability) => (
               <li
                 key={capability}

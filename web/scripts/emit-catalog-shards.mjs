@@ -474,13 +474,29 @@ console.log(
 // rule reads, so the number beside a name is the number the filter returns.
 // ---------------------------------------------------------------------------
 const PUBLISHERS_FILE = "catalog-publishers.json";
+// A publisher's IDENTITY is its name case-folded: the dataset spells the same
+// vendor both "nvidia" (249 rows) and "NVIDIA" (1 row). The filter matches
+// case-folded, so the count published beside a name has to be the count that
+// filter returns - which means counting the spellings together and labelling
+// the group with the spelling most of its rows use. The gate
+// `scripts/check-publisher-counts.mjs` holds this, the site's board
+// (`lib/catalog.ts` `publisherFacets`) and the filter together.
 const publisherCounts = new Map();
 for (const row of rows) {
   const name = row.publisher?.name?.trim();
   if (!name) continue;
-  publisherCounts.set(name, (publisherCounts.get(name) ?? 0) + 1);
+  const key = name.toLowerCase();
+  const entry = publisherCounts.get(key) ?? { count: 0, spellings: new Map() };
+  entry.count += 1;
+  entry.spellings.set(name, (entry.spellings.get(name) ?? 0) + 1);
+  publisherCounts.set(key, entry);
 }
-const publisherFacets = Array.from(publisherCounts, ([name, count]) => ({ name, count }))
+const publisherFacets = Array.from(publisherCounts, ([key, entry]) => {
+  const spellings = Array.from(entry.spellings, ([name, n]) => ({ name, n })).sort(
+    (a, b) => b.n - a.n || a.name.localeCompare(b.name)
+  );
+  return { name: spellings[0]?.name ?? key, count: entry.count };
+})
   .filter((facet) => facet.count > 1)
   .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 const publishersDoc = {

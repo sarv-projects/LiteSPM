@@ -21,6 +21,21 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   trailingSlash: true,
+  /**
+   * One build worker, not one per CPU.
+   *
+   * The export prerenders 4,101 pages, and each worker holds the page graph
+   * plus the 54 MB dataset in memory. On a machine with a few cores and 8 GB
+   * of RAM the default worker count is what kills the build: the Next worker
+   * is terminated mid-run with no error message, which looks like a code
+   * failure and is not one. (Measured here: two workers finish the type
+   * check and die in the page-generation phase; one worker completes the
+   * whole build.) The cost is wall-clock time, and it is paid by CI rather
+   * than by a contributor's laptop — raise it on a machine with more RAM.
+   */
+  experimental: {
+    cpus: 1,
+  },
 };
 
 export default nextConfig;

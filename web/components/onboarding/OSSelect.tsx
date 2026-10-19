@@ -56,7 +56,7 @@ export function OSSelect({
         This picks the file path the guide prints and the terminal to open. It is not read from
         your computer.
       </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {OS_CHOICES.map((choice) => (
           <label
             key={choice.id}

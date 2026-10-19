@@ -152,7 +152,7 @@ export function SearchResults({
       )}
 
       {items.length > 0 ? (
-        <ul className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visibleItems.map((item) => (
             <li key={item.id}>
               <CapabilityCard item={item} agent={agent} className="h-full" />
@@ -160,7 +160,7 @@ export function SearchResults({
           ))}
         </ul>
       ) : showSkeleton ? (
-        <ul className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-hidden="true">
+        <ul className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-hidden="true">
           {Array.from({ length: 6 }).map((_, i) => (
             <DiscoveryCard as="li" key={i}>
               <span className="block h-3.5 w-1/2 animate-pulse rounded-chip bg-sunken-2" />
