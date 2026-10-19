@@ -219,6 +219,9 @@ publish to GitHub while quietly skipping npm.
   two million keys; the keys are computed once per row now, with one collator
   for every name comparison. The order is unchanged — a check over the real
   dataset asserts it.
+- **The release page says "catalog entries", not "capabilities".** A capability
+  that 42,573 of the catalog's rows are not is still a catalog entry, and the
+  page that publishes the totals should say what they are.
 
 ## [0.4.1] - 2026-10-15
 

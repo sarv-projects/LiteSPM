@@ -284,7 +284,16 @@ npm run lint
 npx playwright test
 ```
 
-The `npm run lint` command is the website's documented lint gate.
+The `npm run lint` command is the website's documented lint gate. Two more
+checks answer questions the browser suite cannot:
+
+```bash
+npm run check:sort-order   # the catalog's order did not change
+npm run audit:a11y         # axe over the built site (needs the export served)
+```
+
+`audit:a11y` needs a server for the export — `node tests/serve.mjs` in another
+shell — and exits non-zero on any violation.
 
 ## License
 

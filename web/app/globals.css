@@ -1314,8 +1314,11 @@
         color-mix(in srgb, var(--accent) 8%, transparent),
         transparent 62%
       ),
-      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 0);
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 0);
     background-size: auto, 18px 18px;
+    /* The dot ground is at 6% ink, down from 9%: the grid is texture, not a
+       pattern to be read, and at 9% it competed with the three kind colours
+       the figure is actually about. */
   }
 
   @media (max-width: 639px) {

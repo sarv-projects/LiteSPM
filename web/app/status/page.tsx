@@ -83,7 +83,7 @@ export default function StatusPage() {
             immutable, so a release is never rewritten in place.
           </Fact>
           <Fact label="Entries">
-            {itemCount.toLocaleString()} capabilities in this release:{" "}
+            {itemCount.toLocaleString()} catalog entries in this release:{" "}
             {Number(release.mcpServersCount ?? 0).toLocaleString()} MCP servers,{" "}
             {Number(release.agentSkillsCount ?? 0).toLocaleString()} skills and{" "}
             {Number(release.pluginsCount ?? 0).toLocaleString()} plugins.
