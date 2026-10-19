@@ -74,6 +74,15 @@ type PluginInstallManifest struct {
 	// MCPServers are the servers the manifest declares, sorted by name so
 	// the install order is deterministic.
 	MCPServers []PluginMCPServer
+	// MCPServersRef is a REFERENCE to the file that declares the servers,
+	// relative to the plugin's own tree ("mcpServers": "./mcp.json"). The
+	// Claude Code plugin format declares its components that way, and the
+	// Agent Plugins format declares them inline; both are in the wild.
+	//
+	// The reference is resolved by the INSTALLER, not here: this parser
+	// sees one file, and the referenced file lives inside the pinned,
+	// digest-verified tree the installer holds.
+	MCPServersRef string
 	// NotInstalled counts the components the manifest declares that
 	// LiteSPM does not install ("commands", "agents", "hooks", "skills",
 	// "lspServers", "disabled servers"). They are reported so an install
@@ -97,13 +106,32 @@ var pluginInstallMembers = map[string]bool{
 	"repository":  true,
 	"license":     true,
 	"keywords":    true,
-	"mcpServers":  true,
-	"lspServers":  true,
-	"commands":    true,
-	"agents":      true,
-	"hooks":       true,
-	"skills":      true,
-	"source":      true,
+	// category is a taxonomy term the Agent Plugins spec defines and real
+	// vendor manifests carry (the 42Crunch plugin publishes one). A member
+	// the spec defines is not an unknown member, and refusing a manifest for
+	// carrying it would refuse a plugin over a field LiteSPM simply does not
+	// read.
+	"category": true,
+	// displayName is the Claude Code plugin manifest's own spelling of a
+	// human-facing name; icon and the documentation/support/privacy/terms
+	// URLs are the marketplace fields. LiteSPM does not read them, and
+	// refusing a vendor manifest for carrying a field the format defines
+	// would refuse the plugin over a field LiteSPM simply ignores. (Measured
+	// across real manifests: mongodb/agent-skills, pendo-io, SynthFlowAI and
+	// Bigdata-com all carry members outside the Agent Plugins 1.0.0 schema.)
+	"displayName":       true,
+	"icon":              true,
+	"documentationUrl":  true,
+	"supportUrl":        true,
+	"privacyPolicyUrl":  true,
+	"termsOfServiceUrl": true,
+	"mcpServers":        true,
+	"lspServers":        true,
+	"commands":          true,
+	"agents":            true,
+	"hooks":             true,
+	"skills":            true,
+	"source":            true,
 }
 
 // pluginServerMembers is the closed set of members one MCP server
@@ -153,9 +181,9 @@ func ParsePluginInstallManifest(data []byte) (*PluginInstallManifest, error) {
 		if err := decodeStrict(raw, &schema); err != nil {
 			return nil, errorf(ErrCodeSchema, "$schema: %s", errDetail(err))
 		}
-		if schema != PluginSchema100 {
+		if !PluginInstallSchemas[schema] {
 			return nil, errorf(ErrCodeSchema,
-				"unsupported $schema %q (this install supports Agent Plugins 1.0.0: %s)", schema, PluginSchema100)
+				"unsupported $schema %q (this install supports %s)", schema, PluginInstallSchemaList)
 		}
 	}
 
@@ -231,10 +259,85 @@ func ParsePluginInstallManifest(data []byte) (*PluginInstallManifest, error) {
 	return doc, nil
 }
 
+// ParsePluginMCPServersDocument parses a standalone MCP server document: the
+// file a manifest may point its servers at ("mcpServers": "./mcp.json").
+//
+// Two shapes are accepted, because the MCP configuration format has both:
+// the wrapped one ({"mcpServers": {...}}) and the bare map of servers
+// ({"name": {...}}). The file is untrusted input like any other: it goes
+// through the same bounds and the same strict member rules.
+func ParsePluginMCPServersDocument(data []byte) ([]PluginMCPServer, int, error) {
+	if err := ValidateInput(data); err != nil {
+		return nil, 0, err
+	}
+	root, err := decodeRoot(data)
+	if err != nil {
+		return nil, 0, err
+	}
+	// The wrapped shape.
+	if raw, ok := root["mcpServers"]; ok {
+		var members map[string]json.RawMessage
+		if err := decodeStrict(raw, &members); err != nil {
+			return nil, 0, errorf(ErrCodeSchema, "mcpServers: %s", errDetail(err))
+		}
+		return parsePluginMCPServerMembers(members)
+	}
+	// The bare map of servers.
+	members := make(map[string]json.RawMessage, len(root))
+	for name, raw := range root {
+		members[name] = raw
+	}
+	if len(members) == 0 {
+		return nil, 0, errorf(ErrCodeSchema, "the file declares no MCP server")
+	}
+	return parsePluginMCPServerMembers(members)
+}
+
+// parsePluginMCPServerMembers reads a map of server declarations.
+func parsePluginMCPServerMembers(members map[string]json.RawMessage) ([]PluginMCPServer, int, error) {
+	if members == nil {
+		return nil, 0, nil
+	}
+	names := make([]string, 0, len(members))
+	for name := range members {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	servers := make([]PluginMCPServer, 0, len(names))
+	disabled := 0
+	for _, name := range names {
+		server, isDisabled, err := parsePluginMCPServer(name, members[name])
+		if err != nil {
+			return nil, 0, err
+		}
+		if isDisabled {
+			// A disabled server is declared but not run: it is reported, not
+			// installed, and it is never a reason to fail the install.
+			disabled++
+			continue
+		}
+		servers = append(servers, server)
+	}
+	return servers, disabled, nil
+}
+
 // parsePluginMCPServers reads the servers the manifest declares.
 func parsePluginMCPServers(root map[string]json.RawMessage, doc *PluginInstallManifest) ([]PluginMCPServer, error) {
 	raw, ok := root["mcpServers"]
 	if !ok {
+		return nil, nil
+	}
+	// A string here is a reference to a file inside the plugin's own tree
+	// ("mcpServers": "./mcp.json") - the Claude Code plugin format. It is
+	// recorded, not resolved: the file lives in the pinned tree the
+	// installer holds, and this parser sees one file.
+	var asText string
+	if err := decodeStrict(raw, &asText); err == nil {
+		ref := strings.TrimSpace(asText)
+		if ref == "" {
+			return nil, errorf(ErrCodeSchema, "mcpServers: the reference is empty")
+		}
+		doc.MCPServersRef = ref
 		return nil, nil
 	}
 	var members map[string]json.RawMessage

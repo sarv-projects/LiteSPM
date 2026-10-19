@@ -1608,8 +1608,26 @@ func runInstall(args []string) {
 			ExplicitHosts: len(flags.hosts) > 0,
 		}
 	}
+	if listing.Kind == domain.KindPlugin {
+		// A plugin's target set is the same question an MCP install asks: which
+		// hosts will be written. A plugin has no runtime to filter by (the
+		// launch lines come out of its own manifest, inside the pinned tree),
+		// so the set is the explicit --host set, or the registered bridge
+		// hosts — and a host that cannot take the entry fails the whole
+		// install rather than being dropped from it.
+		targetHosts := flags.hosts
+		if len(targetHosts) == 0 {
+			targetHosts = host.RegisteredBridgeHosts(ctx, flags.scope)
+		}
+		mcpBinding = &mcpInstallBinding{
+			Hosts:         uniqueHostIDs(targetHosts),
+			EnvNames:      append([]string(nil), flags.envNames...),
+			Force:         flags.force,
+			ExplicitHosts: len(flags.hosts) > 0,
+		}
+	}
 	var grant *installGrant
-	if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP {
+	if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP || listing.Kind == domain.KindPlugin {
 		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, projectRoot, mcpBinding)
 		if gerr != nil {
 			// The gate refused before any effect; it is still a refusal, and the
@@ -3618,6 +3636,30 @@ func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, versio
 	// user-facing answer before this point; this one guarantees the invariant.
 	if refusal := installKindRefusal(listing); refusal != nil {
 		return nil, nil, installRPCError(refusal)
+	}
+
+	// A plugin's plan seals the pinned ARTIFACT and the target hosts; the
+	// entry names come out of the plugin's own manifest, which lives inside
+	// the pinned tree, so the commit id is what binds them. The plan is
+	// therefore a different document from an MCP plan, and it is built by the
+	// plugin path.
+	if listing != nil && listing.Kind == domain.KindPlugin {
+		var hosts []string
+		explicit := false
+		force := false
+		var envNames []string
+		if mcpBinding != nil {
+			hosts = mcpBinding.Hosts
+			explicit = mcpBinding.ExplicitHosts
+			force = mcpBinding.Force
+			envNames = mcpBinding.EnvNames
+		}
+		plan, drops, perr := buildPluginInstallPlan(ctx, catClient, listing, version, scope, projectRoot,
+			hosts, explicit, force, envNames)
+		if perr != nil {
+			return nil, nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: perr.Error()}
+		}
+		return plan, drops, nil
 	}
 
 	r := resolver.NewResolver(&catalogResolutionProvider{client: catClient})

@@ -68,6 +68,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -759,7 +760,12 @@ func readPluginManifest(treeDir string, listingID string) (*interop.PluginInstal
 		path := filepath.Join(treeDir, name)
 		data, err := interop.ReadFileBounded(path)
 		if err != nil {
-			if os.IsNotExist(err) {
+			// errors.Is, not os.IsNotExist: the reader wraps the syscall
+			// error, and os.IsNotExist does not look through a wrapper — so
+			// the first name that is absent would abort the search and the
+			// second name (the Agent Plugins directory) would never be
+			// tried.
+			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
 			return nil, fmt.Errorf("read the plugin manifest %s: %w", name, err)
@@ -768,10 +774,63 @@ func readPluginManifest(treeDir string, listingID string) (*interop.PluginInstal
 		if err != nil {
 			return nil, fmt.Errorf("the plugin manifest %s is not usable: %w", name, err)
 		}
+		if manifest.MCPServersRef != "" {
+			servers, disabled, rerr := resolvePluginServerReference(treeDir, manifest.MCPServersRef, listingID)
+			if rerr != nil {
+				return nil, rerr
+			}
+			manifest.MCPServers = servers
+			manifest.NotInstalled["disabled servers"] += disabled
+		}
 		return manifest, nil
 	}
 	return nil, domain.ErrArtifactUnavailable(listingID,
 		"the plugin's tree declares no manifest: LiteSPM looked for plugin.json and .claude-plugin/plugin.json")
+}
+
+// resolvePluginServerReference reads the file a manifest points its MCP
+// servers at ("mcpServers": "./mcp.json") and returns the servers it
+// declares.
+//
+// The reference is relative to the PLUGIN'S OWN TREE - the pinned,
+// digest-verified tree the fetcher produced - so reading it reads the same
+// bytes the commit id names. A reference that leaves the tree, or that
+// names something that is not a file, is refused.
+//
+// The referenced file is the standard MCP configuration shape: either
+// {"mcpServers": {...}} or the bare map of servers.
+func resolvePluginServerReference(treeDir, ref, listingID string) ([]interop.PluginMCPServer, int, error) {
+	clean := strings.TrimSpace(ref)
+	if clean == "" {
+		return nil, 0, domain.ErrArtifactUnavailable(listingID, "the plugin's manifest names an empty file for its MCP servers")
+	}
+	if filepath.IsAbs(clean) {
+		return nil, 0, domain.ErrArtifactUnavailable(listingID,
+			fmt.Sprintf("the plugin's manifest points its MCP servers at %q, which is an absolute path; a plugin may only reference files inside its own tree", ref))
+	}
+	root, err := filepath.Abs(treeDir)
+	if err != nil {
+		return nil, 0, fmt.Errorf("resolve the plugin's MCP server reference: %w", err)
+	}
+	resolved, err := filepath.Abs(filepath.Join(treeDir, filepath.FromSlash(clean)))
+	if err != nil {
+		return nil, 0, fmt.Errorf("resolve the plugin's MCP server reference: %w", err)
+	}
+	if resolved != root && !strings.HasPrefix(resolved, root+string(filepath.Separator)) {
+		return nil, 0, domain.ErrArtifactUnavailable(listingID,
+			fmt.Sprintf("the plugin's manifest points its MCP servers at %q, which is outside the plugin's own tree", ref))
+	}
+	data, err := interop.ReadFileBounded(resolved)
+	if err != nil {
+		return nil, 0, domain.ErrArtifactUnavailable(listingID,
+			fmt.Sprintf("the plugin's manifest points its MCP servers at %q, which could not be read: %v", ref, err))
+	}
+	servers, disabled, err := interop.ParsePluginMCPServersDocument(data)
+	if err != nil {
+		return nil, 0, domain.ErrArtifactUnavailable(listingID,
+			fmt.Sprintf("the file the plugin's manifest points its MCP servers at (%q) is not usable: %v", ref, err))
+	}
+	return servers, disabled, nil
 }
 
 // pluginServerEntries turns the manifest's servers into the entries a host

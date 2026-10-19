@@ -38,6 +38,29 @@ import (
 // supports exactly one pinned version and does not guess at others.
 const PluginSchema100 = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 
+// PluginSchemaClaudeCode is the $schema value the Claude Code plugin
+// marketplace publishes. It is a DIFFERENT manifest format from Agent Plugins
+// 1.0.0: it carries the members LiteSPM installs from (`mcpServers`,
+// `commands`, `agents`, `hooks`, `skills`) that the Agent Plugins schema
+// keeps in an `extensions` namespace, and it names the display fields
+// (`displayName`, `category`, `icon`) the Agent Plugins schema does not have
+// at all.
+//
+// Both formats are in the wild and both appear in the catalog's plugin rows,
+// so an install that refuses one of them refuses most of the catalogue.
+const PluginSchemaClaudeCode = "https://json.schemastore.org/claude-code-plugin-manifest.json"
+
+// PluginInstallSchemas are the manifest schemas an install understands.
+var PluginInstallSchemas = map[string]bool{
+	PluginSchema100:        true,
+	PluginSchemaClaudeCode: true,
+}
+
+// PluginInstallSchemaList names the supported schemas in a refusal, so the
+// message says what would have been accepted.
+const PluginInstallSchemaList = "Agent Plugins 1.0.0 (" + PluginSchema100 +
+	") and the Claude Code plugin manifest (" + PluginSchemaClaudeCode + ")"
+
 // pluginKeys is the closed top-level field set of the pinned schema:
 // {"$schema","name","version","description","author","homepage",
 // "repository","license","keywords","extensions"}.
