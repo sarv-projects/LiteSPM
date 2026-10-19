@@ -80,6 +80,7 @@ export function SearchResults({
             {query ? <>Results for &ldquo;{query}&rdquo;</> : "Search the catalog"}
           </h2>
           <p
+            data-testid="result-count"
             className="mt-0.5 text-[12.5px] text-ink-3"
             role="status"
             aria-live="polite"

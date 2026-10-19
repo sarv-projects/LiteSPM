@@ -144,7 +144,7 @@ const AGENTS = [
 const KINDS = [
   { token: "mcp", label: "MCP servers", note: "apps & data", installable: true },
   { token: "skill", label: "Agent skills", note: "workflows", installable: true },
-  { token: "plugin", label: "Plugins", note: "not installable", installable: false },
+  { token: "plugin", label: "Plugins", note: "pinned sources", installable: true },
 ] as const;
 
 /**
@@ -422,8 +422,9 @@ export function BridgeDiagram() {
       <figcaption className="sr-only">
         Claude Code, Codex, OpenCode, Cursor, Cline and other agents each connect down into a single
         local LiteSPM bridge, which connects out to MCP servers and agent skills. Any agent reaches
-        either kind. Plugins are listed in the catalog, but LiteSPM cannot install them yet, so no
-        path is drawn to that exit.
+        either kind. A plugin whose publisher ships a pinned source reaches the same bridge through
+        its own manifest, so the path to that exit is drawn; a plugin with no fetchable source is
+        refused with the reason.
       </figcaption>
     </figure>
   );

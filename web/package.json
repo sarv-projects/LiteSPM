@@ -12,7 +12,8 @@
     "check:search-index": "node scripts/check-search-index.mjs",
     "gen:brands": "node scripts/gen_brand_logos.mjs",
     "type-check": "tsc --noEmit",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "audit:a11y": "node scripts/audit-a11y.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

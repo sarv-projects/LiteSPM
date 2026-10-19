@@ -72,9 +72,8 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
       data-kind={item.kind}
       aria-label={`${item.name}. ${detail}`}
       className="group relative flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule bg-surface py-3 pl-0 pr-3 transition-colors duration-state ease-out hover:bg-hover focus-visible:bg-hover"
-    
       prefetch={false}
->
+    >
       {/* Kind spine: 3px, the row's left edge. */}
       <span
         aria-hidden="true"

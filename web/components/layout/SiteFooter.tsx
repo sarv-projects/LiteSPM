@@ -29,7 +29,7 @@ const COUNTS = {
 export function SiteFooter() {
   return (
     <footer className="mt-auto border-t border-rule bg-surface">
-      <div className="shell grid gap-8 py-10 md:grid-cols-[1.6fr_1fr]">
+      <div className="shell grid gap-8 py-10 md:grid-cols-[1.6fr_1fr_1fr]">
         <div>
           <p className="text-[15px] font-semibold text-ink">LiteSPM Market</p>
           <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-ink-2">
@@ -66,6 +66,39 @@ export function SiteFooter() {
             <li>
               <Link href="/insights/" className="link touch-link">
                 Coverage
+              </Link>
+            </li>
+          </ul>
+        </nav>
+
+        <nav aria-labelledby="footer-trust-title">
+          <p id="footer-trust-title" className="t-mono text-[11px] font-medium text-ink">
+            How it works
+          </p>
+          <ul className="mt-2 space-y-1.5 text-[13px] text-ink-2">
+            <li>
+              <Link href="/how-it-works/" className="link touch-link">
+                What it does to your machine
+              </Link>
+            </li>
+            <li>
+              <Link href="/get-started/" className="link touch-link">
+                Get started
+              </Link>
+            </li>
+            <li>
+              <Link href="/status/" className="link touch-link">
+                Release status
+              </Link>
+            </li>
+            <li>
+              <Link href="/security/" className="link touch-link">
+                Security
+              </Link>
+            </li>
+            <li>
+              <Link href="/support/" className="link touch-link">
+                Support
               </Link>
             </li>
           </ul>

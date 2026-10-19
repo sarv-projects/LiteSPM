@@ -223,7 +223,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           ))}
         </div>
 
-        <label htmlFor="explore-goal" className="flex items-center gap-2 text-[12px] text-ink-2">
+        <label htmlFor="explore-goal" className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2">
           Goal
           <select
             id="explore-goal"
@@ -251,7 +251,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           </select>
         </label>
 
-        <label htmlFor="explore-host" className="flex items-center gap-2 text-[12px] text-ink-2">
+        <label htmlFor="explore-host" className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2">
           Works with
           <select
             id="explore-host"
@@ -313,7 +313,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
 
         <label
           htmlFor="explore-category"
-          className="flex items-center gap-2 text-[12px] text-ink-2"
+          className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2"
         >
           Category
           <select
@@ -333,7 +333,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           </select>
         </label>
 
-        <label htmlFor="explore-source" className="flex items-center gap-2 text-[12px] text-ink-2">
+        <label htmlFor="explore-source" className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2">
           Source
           <select
             id="explore-source"
@@ -352,7 +352,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           </select>
         </label>
 
-        <label htmlFor="explore-publisher" className="flex items-center gap-2 text-[12px] text-ink-2">
+        <label htmlFor="explore-publisher" className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2">
           Publisher
           <select
             id="explore-publisher"
@@ -490,8 +490,15 @@ export function ExploreFilters(props: ExploreFiltersProps) {
         )}
       </div>
 
-      {/* The rule each filter follows. */}
-      <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-ink-3">{FILTER_WHY}</p>
+      {/* The rule each filter follows, collapsed: it is reference, and as a
+          paragraph it sat between the controls and the first result, which is
+          where the reader is looking. The test below opens it. */}
+      <details className="mt-2 text-[12px] leading-relaxed text-ink-3">
+        <summary className="cursor-pointer text-[12px] text-ink-2">
+          What each filter does
+        </summary>
+        <p className="mt-1 max-w-prose">{FILTER_WHY}</p>
+      </details>
     </>
   );
 }

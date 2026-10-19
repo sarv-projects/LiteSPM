@@ -64,7 +64,14 @@ function CodeBlock({
           {language}
         </span>
       </div>
-      <pre className="overflow-x-auto p-3.5 font-mono text-[12px] leading-relaxed text-dark-ink">
+      {/* tabIndex: a scrollable region must be reachable from the keyboard,
+          or a keyboard-only reader cannot see the part that scrolled out of
+          view (WCAG 2.1.1, axe scrollable-region-focusable). */}
+      <pre
+        tabIndex={0}
+        aria-label={`${label} (${language})`}
+        className="overflow-x-auto p-3.5 font-mono text-[12px] leading-relaxed text-dark-ink"
+      >
         <code>{code}</code>
       </pre>
     </div>

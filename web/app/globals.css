@@ -967,6 +967,11 @@
     background-color: var(--surface);
     font-size: 13px;
     color: var(--ink);
+    /* A select is a flex item by default, and a flex item's min-width is
+       `auto` - so it refuses to shrink below its longest option and pushes
+       the page sideways on a 320px screen. It may shrink to its container. */
+    min-width: 0;
+    max-width: 100%;
   }
 
   /* Touch viewports get a 44px floor on every interactive control class above.

@@ -65,10 +65,17 @@ const rowsById = new Map<string, Listing>(catalogRows().map((row) => [row.id, ro
  * what the page is allowed to claim.
  */
 function isInstallable(row: Listing): boolean {
-  if (row.kind === "plugin") return false;
   const established = ["metadata_verified", "runtime_verified", "litespm_tested"];
   if (!established.includes(row.installability ?? "")) return false;
   if (row.kind === "mcp" && !row.transport) return false;
+  // A plugin installs when its publisher ships a pinned git tree: that is the
+  // source LiteSPM fetches, and the plugin's own manifest is what registers
+  // the servers. A plugin with no such source is refused, and this predicate
+  // agrees with the module that decides it.
+  if (row.kind === "plugin") {
+    const artifact = (row as { artifact?: { type?: string; pinned?: boolean; sha?: string } }).artifact;
+    return artifact?.type === "git-tree" && artifact.pinned === true && Boolean(artifact.sha);
+  }
   return true;
 }
 
@@ -178,7 +185,9 @@ test("the shelf shows exactly the curated set, and each card links to its entry"
   const shelf = page.locator('section[aria-labelledby="start-here-title"]');
   await expect(shelf).toBeVisible();
 
-  const cards = shelf.locator("a[href^='/package/?slug=']");
+  // The canonical form is the PATH (/package/<key>/), not the query form:
+  // one entry, one address (the F-21 fix).
+  const cards = shelf.locator("a[href^='/package/']");
   expect(
     await cards.count(),
     "the shelf shows the curated entries and nothing else — the five old shelves are gone"
@@ -186,7 +195,10 @@ test("the shelf shows exactly the curated set, and each card links to its entry"
 
   for (const entry of featured.entries) {
     const row = rowsById.get(entry.id)!;
-    const link = shelf.locator(`a[href='/package/?slug=${encodeURIComponent(keyOf(row))}']`);
+    // Next renders the href without the trailing slash even though the
+    // canonical form (and the sitemap) carries one; both resolve to the same
+    // entry, so match the path and let the canonical tag name the address.
+    const link = shelf.locator(`a[href^='/package/${encodeURIComponent(keyOf(row))}']`);
     await expect(link, `${entry.id} must be on the shelf`).toHaveCount(1);
   }
 });
@@ -204,7 +216,7 @@ test("the product demo renders its poster frame and its transcript", async ({ pa
   await expect(poster).toContainText("not published");
 
   // The captions: five beats, each with its own line.
-  await expect(demo.locator("ol > li")).toHaveCount(5);
+  await expect(demo.locator("#product-demo-captions > li")).toHaveCount(5);
 
   // The transcript, in the document, for a reader with no JavaScript, no
   // screen, and no interest in watching a video.
@@ -214,21 +226,23 @@ test("the product demo renders its poster frame and its transcript", async ({ pa
   await expect(transcript).toContainText("Remove it again");
 });
 
-test("nothing on the home page presents a plugin as installable", async ({ page }) => {
+test("the home page never presents a plugin it cannot fetch as installable", async ({ page }) => {
   await gotoSettled(page, "/");
 
-  // No card on the page is a plugin.
+  // The curated shelf is MCP servers and skills: a recommendation is a claim
+  // about what works, and a plugin's installability depends on its publisher's
+  // source, so none is curated.
   await expect(page.locator(".meta-kind-plugin")).toHaveCount(0);
 
-  // The bridge figure names the third kind and says what it is.
+  // The bridge figure names the third kind, says which plugins install, and
+  // its caption says the rest are refused with the reason.
   const pluginExit = page.locator(".dg-kind[data-kind='plugin']");
   await expect(pluginExit).toBeVisible();
-  await expect(pluginExit).toContainText("not installable");
+  await expect(pluginExit).toContainText("pinned sources");
 
-  // And the figure's own caption says plugins cannot be installed — the
-  // sentence it used to get wrong, in the direction it used to get wrong.
-  const caption = page.locator("figcaption").filter({ hasText: "plugins" });
-  await expect(caption).toContainText("cannot install them yet");
+  const caption = page.locator("figcaption").filter({ hasText: "pinned source" });
+  await expect(caption).toContainText("ships a pinned source");
+  await expect(caption).toContainText("refused with the reason");
 });
 
 test("the hero's count is stable, and is the number the site's own filter produces", async ({

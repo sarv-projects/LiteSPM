@@ -64,7 +64,7 @@ import {
   type EntryFixture,
   type Listing,
 } from "./support/catalog";
-import { availabilityCounts } from "../lib/availability";
+import { availabilityCounts, availabilityOf } from "../lib/availability";
 import { feasibilityCounts, feasibilityFor } from "../lib/installFeasibility";
 import type { Listing as CatalogListing } from "../lib/telemetry";
 
@@ -390,12 +390,35 @@ test("a skill needs a skills directory, and the scope decides whether the target
   }
 });
 
-test("a plugin is unsupported and a discovery-only row is discovery-only", () => {
+test("a plugin with no fetchable source is unsupported, and a discovery-only row is discovery-only", () => {
+  // The plugin install path exists (2026-10-19): a plugin that publishes a
+  // PINNED git tree installs - the tree is fetched at that commit and the MCP
+  // servers the plugin's own manifest declares are registered in the host. A
+  // plugin with no fetchable source is refused, and the reason says which.
   const plugin = feasibilityFor(PLUGIN.row as unknown as CatalogListing);
   expect(plugin.state).toBe("unsupported");
   expect(plugin.mode).toBe("plugin");
-  expect(plugin.reasons).toContain("LiteSPM cannot install plugins yet");
-  expect(plugin.supportedHostIds, "no plugin is installable into any agent").toEqual([]);
+  expect(plugin.reasons.length, "the refusal names the reason").toBeGreaterThan(0);
+  expect(plugin.supportedHostIds, "a plugin LiteSPM cannot fetch is installable nowhere").toEqual([]);
+
+  // The pinned plugin IS installable, and the hosts that can take a server
+  // entry are named.
+  const pinned = feasibilityFor(
+    {
+      ...(PLUGIN.row as unknown as CatalogListing),
+      artifact: {
+        type: "git-tree",
+        repo: "https://github.com/example/plugins.git",
+        path: "plugins/demo",
+        ref: "v1.0.0",
+        sha: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        pinned: true,
+      },
+    },
+    undefined
+  );
+  expect(pinned.state, "a pinned plugin installs").toBe("supported");
+  expect(pinned.supportedHostIds.length, "the hosts that can take a server entry are named").toBeGreaterThan(0);
 
   const discovery = feasibilityFor(DISCOVERY_MCP.row as unknown as CatalogListing);
   expect(discovery.state).toBe("discovery-only");
@@ -408,11 +431,19 @@ test("the counts the site prints equal the counts the module computes", () => {
   const printed = availabilityCounts(rows);
   const computed = feasibilityCounts(rows);
 
-  expect(printed.remote + printed.source, "the site prints 26,165 installable rows").toBe(26165);
+  // The three installable buckets: remote MCP rows, skills, and the plugins
+  // that publish a pinned git tree. `printed.plugin` is that third bucket, not
+  // a fourth state — `availabilityOf` classifies a plugin by whether the
+  // installer can fetch it.
+  expect(
+    printed.remote + printed.source + printed.plugin,
+    "the site prints 26,555 installable rows"
+  ).toBe(26555);
+  expect(printed.plugin, "390 of them are plugins with a pinned source").toBe(390);
   expect(printed.discovery, "and 42,573 discovery-only rows").toBe(42573);
-  expect(printed.unsupported, "and 638 plugins it cannot install").toBe(638);
+  expect(printed.unsupported, "and 248 plugins it cannot fetch a pinned source for").toBe(248);
 
-  expect(computed.supported).toBe(printed.remote + printed.source);
+  expect(computed.supported).toBe(printed.remote + printed.source + printed.plugin);
   expect(computed["discovery-only"]).toBe(printed.discovery);
   expect(computed.unsupported).toBe(printed.unsupported);
   expect(computed.unknown, "no row in this release leaves the host axis open").toBe(0);
@@ -431,14 +462,24 @@ test("the module never contradicts the predicate the site already publishes", ()
   const mismatches: string[] = [];
   for (const row of catalogRows() as unknown as CatalogListing[]) {
     const verdict = feasibilityFor(row);
+    // The site's published predicate is `availabilityOf` — the badge and the
+    // chip on every row — and the three availability states map one to one:
+    // remote/source/plugin install, discovery-only is listed and not
+    // installable, unsupported is refused for a reason the row itself carries
+    // (a plugin with no fetchable source). The host axis may narrow where an
+    // entry lands; it may not change whether it can be installed at all.
+    const availability = availabilityOf(row).id;
     const expected =
-      row.kind === "plugin"
-        ? "unsupported"
-        : verdict.supportedHostIds.length > 0
-          ? "supported"
-          : "discovery-only";
+      availability === "discovery"
+        ? "discovery-only"
+        : availability === "unsupported"
+          ? "unsupported"
+          : "supported";
     if (verdict.state !== expected) {
       mismatches.push(`${row.id}: module says ${verdict.state}, the site's predicate implies ${expected}`);
+    }
+    if (expected === "supported" && verdict.supportedHostIds.length === 0) {
+      mismatches.push(`${row.id}: installable, but the module names no host that can take it`);
     }
   }
   expect(

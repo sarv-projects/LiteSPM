@@ -17,7 +17,7 @@ const nonPreRendered = nonPreRenderedEntry();
 const flagship = flagshipEntry();
 
 const ROUTES: Array<{ path: string; heading?: string; text?: string }> = [
-  { path: "/", heading: "Give your coding agents the tools they’re missing." },
+  { path: "/", heading: "Give your coding agents the tools they’re missing — safely." },
   { path: "/explore/", heading: "Explore" },
   { path: "/agents/", heading: "Agent hosts" },
   { path: "/agents/claude-code/", heading: "Claude Code" },
@@ -38,8 +38,10 @@ for (const { path, heading, text } of ROUTES) {
     const page = await context.newPage();
     await page.goto(path, { waitUntil: "domcontentloaded" });
 
-    // The noscript stylesheet unhides the streaming shell.
-    await expect(page.locator('div[id^="S:"]').first()).toBeVisible();
+    // The noscript stylesheet unhides the streaming shell where the page has
+    // one. A page that renders in one pass has no shell and needs none.
+    const shell = page.locator('div[id^="S:"]');
+    if (await shell.count()) await expect(shell.first()).toBeVisible();
     if (heading) {
       await expect(page.getByRole("heading", { name: heading, level: 1 })).toBeVisible();
     }

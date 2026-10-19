@@ -191,9 +191,8 @@ export function RelatedRail({
                 <Link
                   href={listingHref(row)}
                   className="grid grid-cols-[3px_minmax(0,1fr)_auto] items-center gap-3 border-b border-rule py-2.5 transition-colors hover:bg-hover"
-                
                   prefetch={false}
->
+                >
                   <span
                     aria-hidden="true"
                     className="h-7 w-[3px] rounded-[1px]"

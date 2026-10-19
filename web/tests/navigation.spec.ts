@@ -58,7 +58,26 @@ for (const width of WIDTHS) {
       expect(state!.links.map((l) => l.text)).toEqual(DESTINATIONS);
 
       for (const link of state!.links) {
-        if (link.visible) continue;
+        // Where the destination is NOW: the loop scrolls the rail, so the
+        // snapshot taken before the first click is stale by the time the
+        // later destinations are checked.
+        const placement = await page.evaluate((text) => {
+          const nav = document.querySelector('nav[aria-label="Primary"]');
+          const target = Array.from(nav?.querySelectorAll("a") ?? []).find(
+            (a) => (a.textContent ?? "").trim() === text
+          );
+          if (!nav || !target) return null;
+          const navRect = nav.getBoundingClientRect();
+          const rect = target.getBoundingClientRect();
+          return {
+            visible: rect.left >= navRect.left - 1 && rect.right <= navRect.right + 1,
+            // A link that straddles the right edge is to the RIGHT: scrolling
+            // forward is what brings it in. Only a link whose left edge is
+            // before the rail's own is to the left.
+            side: rect.left < navRect.left ? "left" : "right",
+          };
+        }, link.text);
+        if (!placement || placement.visible) continue;
 
         // Off-screen: the rail has to be a scroller, and it has to say so.
         expect(
@@ -70,13 +89,21 @@ for (const width of WIDTHS) {
           `${link.text} is off-screen but the rail has nothing to scroll to`
         ).toBeGreaterThan(state!.clientWidth);
 
-        // The fade: the edge that has more past it is faded.
-        const fade = page.locator("header div.bg-gradient-to-l");
-        await expect(fade, "the rail's right edge is not faded").toBeVisible();
+        // The affordance is on the side the destination is on. This loop
+        // scrolls the rail, so a later destination can be off-screen to the
+        // LEFT — and then the right edge has nothing past it and correctly
+        // shows no right fade; the left edge is the one that has to say so.
+        const fade = page.locator(
+          placement.side === "right" ? "header div.bg-gradient-to-l" : "header div.bg-gradient-to-r"
+        );
+        await expect(fade, `the rail's ${placement.side} edge is not faded`).toBeVisible();
 
-        // The chevron: a control that scrolls the rail, reachable by keyboard
-        // and named for what it does.
-        const next = page.getByRole("button", { name: "Scroll the navigation forward" });
+        // The chevron: a control that scrolls the rail toward the
+        // destination, reachable by keyboard and named for what it does.
+        const next = page.getByRole("button", {
+          name:
+            placement.side === "right" ? "Scroll the navigation forward" : "Scroll the navigation back",
+        });
         await expect(next, "the rail has no scroll control").toBeVisible();
 
         // And the control works: the destination comes into view.

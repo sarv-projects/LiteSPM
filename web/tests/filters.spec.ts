@@ -142,9 +142,15 @@ test("the active filters are visible and can be removed", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Clear the .* source filter/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Reset$/ })).toBeVisible();
 
-  // The page-level "why": one line saying what each filter does (F-26).
+  // The page-level "why" (F-26): one line saying what each filter does. It is
+  // a disclosure under the bar rather than a paragraph in front of the rows,
+  // so the test opens it.
+  const filterWhy = page
+    .locator("details")
+    .filter({ has: page.getByText("What each filter does") });
+  await filterWhy.locator("summary").click();
   await expect(
-    page.getByText("Every filter narrows the same list.", { exact: false })
+    filterWhy.getByText("Every filter narrows the same list.", { exact: false })
   ).toBeVisible();
 });
 
@@ -169,9 +175,16 @@ test("every sort option says what it does, and the control shows the order in fo
   }
   // The default browse order is the curated one, and the control says so.
   await expect(control).toHaveValue("curated");
-  // The rule is stated under the filter row.
+  // The rule is stated below the rows it orders, in a disclosure: the
+  // ordering evidence follows the result set, never precedes it. The reader
+  // opens it; the test opens it too.
+  const ordering = page.locator("details").filter({
+    has: page.getByText("How these rows are ordered"),
+  });
+  await expect(ordering, "the order in force is never explained").toBeVisible();
+  await ordering.locator("summary").click();
   await expect(
-    page.getByText("Official skills first, then entries from the publisher's own manifest", {
+    ordering.getByText("Official skills first, then entries from the publisher's own manifest", {
       exact: false,
     })
   ).toBeVisible();

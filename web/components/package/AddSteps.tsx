@@ -319,7 +319,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
               hidden={mode !== "command"}
               className="mt-4"
             >
-              <ol className="space-y-5">
+              <ol id="pkg-steps" className="space-y-5">
                 <li>
                   <div className="flex items-baseline gap-3">
                     <span className="t-mono t-tabular shrink-0 text-[12px] font-medium text-dark-signal">

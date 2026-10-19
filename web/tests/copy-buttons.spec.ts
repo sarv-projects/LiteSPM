@@ -27,9 +27,11 @@ test("the entry page's copy button writes the exact install command", async ({ p
   expect(clipboard).toBe(expected);
 });
 
-test("the home hero's copy button writes the quickstart command", async ({ page }) => {
+test("the home page's quickstart command is copyable", async ({ page }) => {
   await gotoSettled(page, "/");
-  const button = page.getByRole("button", { name: "Copy the install command" });
+  // The button names the command it copies, which is more use to a reader
+  // than a generic "Copy the install command".
+  const button = page.getByRole("button", { name: "Copy: npm install -g litespm" });
   await expect(button).toBeVisible();
   await button.click();
 

@@ -159,7 +159,11 @@ export function ExploreResults(props: ExploreResultsProps) {
       filtersActive={filtersActive}
       settled={settled}
       toolbar={
-        <div className="flex shrink-0 items-center gap-2">
+        // `min-w-0`: the sort control is a flex item, and a select's intrinsic
+        // width is its longest option — 273 px of "Best match — by where the
+        // query matched" — which at 320 px pushed the page 5 px sideways. It
+        // may shrink; the option text clips.
+        <div className="flex min-w-0 max-w-full items-center gap-2">
           <label htmlFor="explore-sort" className="t-mono text-[11px] text-ink-3">
             Sort
           </label>

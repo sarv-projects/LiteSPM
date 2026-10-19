@@ -97,6 +97,13 @@ export function Header({ onNavigate }: HeaderProps) {
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(el);
     window.addEventListener("resize", measure);
+    // The links' widths change when the webfont arrives, and the nav's own box
+    // does not, so the observer above never fires for that reflow. Measure once
+    // more when the fonts settle, or a rail that overflowed only in the real
+    // face shows no fade and no chevron.
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      document.fonts.ready.then(measure).catch(() => {});
+    }
     return () => {
       el.removeEventListener("scroll", measure);
       observer?.disconnect();
@@ -213,6 +220,8 @@ export function Header({ onNavigate }: HeaderProps) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  // Not prefetched: see the request budget in tests/budgets.
+                  prefetch={false}
                   title={item.title}
                   aria-current={active ? "page" : undefined}
                   onClick={onNavigate}

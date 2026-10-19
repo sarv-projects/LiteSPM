@@ -221,7 +221,7 @@ export function ProductDemo({ data = PRODUCT_DEMO }: ProductDemoProps) {
         </p>
 
         {/* The captions. */}
-        <ol className="mt-4 space-y-2.5">
+        <ol id="product-demo-captions" className="mt-4 space-y-2.5">
           {data.chapters.map((chapter) => (
             <li key={chapter.id} className="flex gap-2.5">
               <span

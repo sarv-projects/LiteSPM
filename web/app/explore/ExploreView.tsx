@@ -589,14 +589,6 @@ function ExploreContent(props: ExploreViewProps) {
             clear={clear}
           />
 
-          {/* The active order's rule, stated wherever that order is active —
-              browsing or searching. It used to hide during a search, which is
-              exactly when a reader asks why an entry they did not search for
-              is first, and it named only the curated order, which left the
-              other five unexplained. */}
-          <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
-            {SORT_NOTES[effectiveSort]}
-          </p>
         </div>
 
         <div className="pt-7">
@@ -625,6 +617,20 @@ function ExploreContent(props: ExploreViewProps) {
               setSort={setSort}
             />
           )}
+
+          {/* The active order's rule, below the rows it orders. It states
+              wherever that order is active — browsing or searching — and it
+              used to sit above the grid, where the measured first row started
+              at y≈586 of a 900px viewport. The rule that put the ranking
+              evidence below the rows applies to this evidence too. */}
+          <details className="mt-4 border border-rule bg-sunken px-4 py-3">
+            <summary className="cursor-pointer text-[13px] font-medium text-ink">
+              How these rows are ordered
+            </summary>
+            <p className="mt-2 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
+              {SORT_NOTES[effectiveSort]}
+            </p>
+          </details>
 
           {/* The ordering evidence, below the rows it explains. A search's
               first answer has to be the matching rows; the analysis of their

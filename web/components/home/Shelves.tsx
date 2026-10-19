@@ -101,6 +101,21 @@ function CatalogStamp({ telemetry }: { telemetry: TelemetryState }) {
     .join(" · ");
   const updated = releaseDateLabel(data.createdAt);
 
+  /**
+   * The live check is a post-hydration refinement, never the server render.
+   *
+   * `status` is "loading" until the telemetry request comes back, so the
+   * pre-hydration HTML used to read "checking the catalog…" — and a reader
+   * whose JavaScript never ran saw that forever, with a dot pulsing at them.
+   * Nothing was checking: the page is the bundled snapshot, and without
+   * scripting no request will be made. So the first render (server and the
+   * hydration pass that must match it) says "bundled snapshot"; only after the
+   * component is mounted may it say a check is in flight.
+   */
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  const live = mounted ? status : "offline";
+
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
       {updated && (
@@ -116,12 +131,12 @@ function CatalogStamp({ telemetry }: { telemetry: TelemetryState }) {
         <span
           aria-hidden="true"
           className={`h-1.5 w-1.5 rounded-full ${
-            status === "ready" ? "bg-accent" : status === "loading" ? "animate-pulse bg-ink-3" : "bg-ink-3/50"
+            live === "ready" ? "bg-accent" : live === "loading" ? "animate-pulse bg-ink-3" : "bg-ink-3/50"
           }`}
         />
-        {status === "loading" && "checking the catalog…"}
-        {status === "ready" && "catalog is current"}
-        {status === "offline" && "bundled snapshot"}
+        {live === "loading" && "checking the catalog…"}
+        {live === "ready" && "catalog is current"}
+        {live === "offline" && "bundled snapshot"}
       </span>
     </p>
   );

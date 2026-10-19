@@ -114,7 +114,12 @@ test("one step, one command: the entry page and the home page agree on setup", a
   page,
 }) => {
   await gotoSettled(page, flagship.href);
-  const steps = await page.locator("code").allTextContents();
+  // The COMMANDS the steps give, not every mention of the binary's name: the
+  // manual-setup prose legitimately says "the one `litespm` entry LiteSPM
+  // adds". What must not appear is a step whose command is the bare
+  // `litespm` - that is a second spelling of the same step, and a reader
+  // cannot tell which one to run.
+  const steps = await page.locator("#pkg-steps code").allTextContents();
   const setup = steps.filter((text) => text.trim() === "litespm setup");
   expect(setup.length, "the entry page does not print `litespm setup`").toBeGreaterThan(0);
   // The bare wizard invocation is not a second spelling of the same step.
@@ -126,16 +131,19 @@ test("one step, one command: the entry page and the home page agree on setup", a
 
 test("every host the catalog names has a page", async ({ page }) => {
   await gotoSettled(page, "/agents/");
-  const links = await page.locator("main ul li a").evaluateAll((nodes) =>
-    nodes.map((n) => (n as HTMLAnchorElement).getAttribute("href") ?? "")
-  );
-  expect(links.length, "the host index lists no hosts").toBeGreaterThan(50);
+  const rows = await page.locator("main ul > li").count();
+  expect(rows, "the host index lists no hosts").toBeGreaterThan(50);
 
-  const hostLinks = links.filter((href) => href.startsWith("/agents/"));
+  // Every host's NAME links to that host's own page. The counts beside the
+  // name link to Explore filtered by that host, which is a different thing
+  // and is meant to be.
+  const hostLinks = await page
+    .locator("main ul > li a[href^='/agents/']")
+    .evaluateAll((nodes) => nodes.map((n) => (n as HTMLAnchorElement).getAttribute("href") ?? ""));
   expect(
     hostLinks.length,
     "some host rows still link somewhere that is not a host page"
-  ).toBe(links.length);
+  ).toBe(rows);
 
   // Every one of them answers with the host's own page.
   for (const href of hostLinks) {

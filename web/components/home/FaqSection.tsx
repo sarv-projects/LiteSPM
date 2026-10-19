@@ -146,8 +146,9 @@ export function FaqSection() {
       q: "What about plugins?",
       a: (
         <>
-          You can browse them, but you cannot install them yet. LiteSPM refuses the install rather
-          than doing half of it.
+          A plugin whose publisher ships a pinned source installs: LiteSPM fetches that exact commit,
+          reads the plugin's own manifest, and registers the MCP servers it declares. A plugin with no
+          fetchable source is refused with the reason, rather than half-installed.
         </>
       ),
     },

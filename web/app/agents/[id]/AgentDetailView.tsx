@@ -357,7 +357,10 @@ export default function AgentDetailView({
                   message="Bridge entry copied"
                 />
               </div>
-              <pre className="overflow-x-auto whitespace-pre-wrap p-3.5 font-mono text-[12px] leading-relaxed text-ink">
+              <pre
+                tabIndex={0}
+                aria-label="The bridge entry, as written to the config file"
+                className="overflow-x-auto whitespace-pre-wrap p-3.5 font-mono text-[12px] leading-relaxed text-ink">
                 {snippet}
               </pre>
             </div>

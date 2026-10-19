@@ -35,6 +35,25 @@ export async function installHermeticRouting(context: BrowserContext): Promise<v
   });
 }
 
+/**
+ * Serve every image request from the local placeholder.
+ *
+ * A test that walks tens of real pages in one browser context pays for every
+ * brand mark on every load; on the 8 GB runner the host-identity walk crashed
+ * its target doing exactly that. The images are not what those tests assert on.
+ * `fallback()` rather than `continue()`: page routes run before the context's
+ * hermetic route, and this one has to hand anything that is not an image back
+ * to it.
+ */
+export async function stubImages(page: Page): Promise<void> {
+  await page.route("**/*", (route) => {
+    if (route.request().resourceType() === "image") {
+      return route.fulfill({ status: 200, contentType: "image/png", body: PLACEHOLDER_PNG });
+    }
+    return route.fallback();
+  });
+}
+
 export const test = base.extend({
   context: async ({ context }, use) => {
     await installHermeticRouting(context);

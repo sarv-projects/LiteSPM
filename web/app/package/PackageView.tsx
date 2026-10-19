@@ -155,6 +155,7 @@ function PackageIndexShell({
                 <Link
                   href={listingHref(item)}
                   className="grid grid-cols-[3px_minmax(0,1fr)] items-center gap-3 border-b border-rule py-2.5 transition-colors hover:bg-hover"
+                  prefetch={false}
                 >
                   <span
                     aria-hidden="true"
@@ -267,7 +268,11 @@ function useSlugParam(): { slug: string | null; resolved: boolean } {
     // history length. Anyone who lands on the old form now gets a path-form
     // address in the bar, so what they copy or bookmark is the canonical one.
     if (fromQuery && !fromPath) {
-      window.history.replaceState(null, "", `/package/${encodeURIComponent(fromQuery)}`);
+      // The trailing slash is the Worker's canonical form (`worker/index.js`
+      // writes `.../package/<key>/`), so the address this moves to has to
+      // carry it; without it the bar disagreed with the page's own canonical
+      // tag by one character.
+      window.history.replaceState(null, "", `/package/${encodeURIComponent(fromQuery)}/`);
     }
     setState({ slug: param, resolved: true });
   }, []);
@@ -404,6 +409,53 @@ function PackageContent({
       restoreOgDescription();
     };
   }, [docTitle, docSummary]);
+
+  /**
+   * The address bar and the canonical tag name the same entry — always.
+   *
+   * Three spellings reach this page: `?slug=<key>` (what the route shipped
+   * with), `/package/<key>/` (the canonical path form the edge Worker serves
+   * and stamps into the head), and `/package/<key>` (what the site's own entry
+   * links render — Next drops the trailing slash). The Worker's canonical tag
+   * names the trailing-slash form on all three, so that is where the address
+   * bar goes.
+   *
+   * The head needs the same treatment on a non-pre-rendered entry: the Worker
+   * rewrites the shell's canonical, and hydration then adds the `/package/`
+   * route's own metadata canonical — the index. Two `rel=canonical` links
+   * naming different pages is invalid, and a crawler may keep the wrong one,
+   * so this keeps one link and points it at the entry.
+   *
+   * Client-side only, like the title rewrite above: what a crawler sees in the
+   * served HTML is the Worker's tag, which is already correct.
+   */
+  const canonicalKey = item ? (item.linkKey ?? item.id) : null;
+  const canonicalHref = canonicalKey
+    ? `${SITE_URL}/package/${encodeURIComponent(canonicalKey)}/`
+    : null;
+  useEffect(() => {
+    if (!canonicalKey || !canonicalHref) return;
+    const path = `/package/${encodeURIComponent(canonicalKey)}/`;
+    if (window.location.pathname !== path) {
+      window.history.replaceState(null, "", path);
+    }
+    const links = Array.from(
+      document.head.querySelectorAll<HTMLLinkElement>('link[rel="canonical"]')
+    );
+    // The last one is the node React owns; removing React's and keeping the
+    // Worker's would make a later render re-add a second tag.
+    const keep = links[links.length - 1];
+    if (!keep) return;
+    for (const link of links) {
+      if (link !== keep) link.remove();
+    }
+    const previous = keep.getAttribute("href");
+    keep.setAttribute("href", canonicalHref);
+    return () => {
+      if (previous === null) keep.removeAttribute("href");
+      else keep.setAttribute("href", previous);
+    };
+  }, [canonicalKey, canonicalHref]);
 
   /**
    * An address that names no entry still answers 200 with this shell on the

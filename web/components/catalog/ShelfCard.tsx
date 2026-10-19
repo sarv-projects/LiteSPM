@@ -82,9 +82,8 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
                 href={listingHref(item)}
                 aria-label={`${item.name}. ${detail}`}
                 className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-              
                 prefetch={false}
->
+              >
                 {item.name}
               </Link>
             </h3>

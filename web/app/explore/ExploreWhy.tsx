@@ -95,6 +95,7 @@ export function ExploreWhy({
             <Link
               href={listingHref(item)}
               className="font-medium text-ink hover:text-accent-text hover:underline"
+              prefetch={false}
             >
               {item.name}
             </Link>

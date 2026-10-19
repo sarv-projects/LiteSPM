@@ -56,7 +56,13 @@ export function CommandCopy({
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-dark-ink">
+      {/* Keyboard-reachable: a scrollable region a keyboard cannot enter
+          hides part of its content from a keyboard-only reader. */}
+      <pre
+        tabIndex={0}
+        aria-label={`${label}: ${command}`}
+        className="overflow-x-auto p-3.5 font-mono text-[12.5px] leading-relaxed text-dark-ink"
+      >
         <code>{command}</code>
       </pre>
       {note ? <p className="px-3.5 pb-3 pt-0 text-[12px] leading-relaxed text-dark-ink-2">{note}</p> : null}

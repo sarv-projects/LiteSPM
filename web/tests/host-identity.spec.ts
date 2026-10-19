@@ -28,6 +28,7 @@ import {
   gotoSettled,
   parseCount,
   resultCount,
+  stubImages,
   waitForFilteredGrid,
   worksWithSelect,
 } from "./support/site";
@@ -74,9 +75,17 @@ test("every host page's count equals its own Explore link and its /agents/ row",
   // navigation, deliberately — the point is to check every page, not a sample.
   test.setTimeout(900_000);
 
+  // Seventy-nine host pages in one context: the brand marks are decorative
+  // here, and decoding them on every navigation was enough to crash the
+  // browser target on the 8 GB runner.
+  await stubImages(page);
+
   await gotoSettled(page, "/agents/");
   const rows = await readAgentIndex(page);
-  expect(rows.length, "the index lists every adapter host").toBe(50);
+  // Every adapter host has a page, and so does every host identity that takes
+  // skills and no configuration (the site no longer publishes a name that
+  // leads nowhere). The adapter hosts are the fifty that LiteSPM configures.
+  expect(rows.length, "the index lists every adapter host").toBeGreaterThanOrEqual(50);
 
   const failures: string[] = [];
   for (const row of rows) {

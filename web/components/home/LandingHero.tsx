@@ -110,6 +110,11 @@ export function LandingHero({
               {formatCount(installable)}
             </span>
             <span>capabilities LiteSPM can install</span>
+            {/* A snapshot, not a live figure: the numbers are counted at
+                build time from one release, and a reader who takes them for a
+                live feed would be wrong about what the page knows. */}
+            <span className="text-ink-3">· catalog</span>
+            <span>snapshot</span>
           </p>
 
           <h1 className="mt-4 max-w-[20ch] text-[34px] font-semibold leading-[1.06] tracking-tight text-ink sm:text-[42px] lg:text-[52px]">
@@ -122,11 +127,11 @@ export function LandingHero({
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Link href="/get-started/" className="btn btn-solid btn-lg">
+            <Link href="/get-started/" prefetch={false} className="btn btn-solid btn-lg">
               Get LiteSPM
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
-            <Link href="/how-it-works/" className="btn btn-lg">
+            <Link href="/how-it-works/" prefetch={false} className="btn btn-lg">
               See how it works
             </Link>
           </div>
@@ -167,6 +172,7 @@ export function LandingHero({
                 <li key={agent.id}>
                   <Link
                     href={`/agents/${agent.id}/`}
+                    prefetch={false}
                     className="flex items-center gap-2 rounded-chip text-[12.5px] text-ink-2 transition-colors duration-state ease-out hover:text-ink"
                   >
                     <AgentLogo id={agent.id} name={agent.label} size={22} />
