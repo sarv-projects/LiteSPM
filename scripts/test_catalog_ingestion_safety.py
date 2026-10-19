@@ -165,6 +165,106 @@ def test_registry_fetch_is_bounded(ok):
        f"a non-github registry root was rewritten: {owner!r} {url!r}")
 
 
+def _other_source_ids():
+    """Every source id the producer can ingest EXCEPT the registry.
+
+    Derived from the producer's own tables, so a new source cannot slip past
+    a test that skips "the others" by accident.
+    """
+    ids = {
+        producer.FEED_AWESOME_MCP[1],
+        producer.FEED_AWESOME_SKILLS[1],
+        producer.FEED_OFFICIAL_SERVERS[1],
+        producer.FEED_SKILLSH[1],
+        producer.FEED_MCPSERVERS[1],
+        producer.FEED_MCPMARKET[1],
+    }
+    for src in producer.MARKETPLACE_SOURCES:
+        ids.add(src["source_id"])
+    return frozenset(ids)
+
+
+def test_registry_replay_is_offline_and_byte_reproducible(ok):
+    """A recorded registry replays offline and reproduces the same dataset.
+
+    K001 asks for the official registry API to be fetched, RECORDED and
+    replayable offline. The bounded-fetch test above pins the request shape;
+    this pins the recording half, with no network at all:
+
+      * the first run fetches two canned pages and records them;
+      * the second run replays those recordings -- the fetcher is replaced by
+        a function that FAILS the test if it is ever called, so a replay that
+        quietly re-fetched would be caught;
+      * the two runs must produce byte-identical datasets, because a replay
+        that differs from the recording has drifted from it;
+      * every recorded page is completed with the rows it produced, and every
+        row carries the registry's own namespace.
+    """
+    first_url = f"{producer.REGISTRY_API}?limit={producer.REGISTRY_PAGE_LIMIT}"
+    second_url = f"{producer.REGISTRY_API}?limit={producer.REGISTRY_PAGE_LIMIT}&cursor=cursor-1"
+    pages = {
+        first_url: _registry_page(
+            [_registry_element("io.github.acme/demo-mcp", "A demo server.")],
+            next_cursor="cursor-1"),
+        second_url: _registry_page(
+            [_registry_element("ai.smithery/another", "Another server.")]),
+    }
+    skip = _other_source_ids()
+
+    def run(out_dir, root, fetcher):
+        with mock.patch.dict(os.environ,
+                             {"LITESPM_SOURCE_SNAPSHOT_DIR": root,
+                              "CATALOG_OUT_DIR": out_dir}), \
+                mock.patch.object(producer, "_http_get", side_effect=fetcher):
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                producer.build_full_catalog(skip_sources=skip)
+            return buffer.getvalue()
+
+    with tempfile.TemporaryDirectory() as root:
+        out_fetched = os.path.join(root, "fetched")
+        out_replayed = os.path.join(root, "replayed")
+
+        def fake_http_get(url, timeout, etag=None, source_id=None):
+            if url in pages:
+                return 200, {}, pages[url]
+            raise OSError(f"no canned response for {url}")
+
+        run(out_fetched, root, fake_http_get)
+
+        def no_network(url, timeout, etag=None, source_id=None):
+            raise AssertionError(f"the replay touched the network: {url}")
+
+        run(out_replayed, root, no_network)
+
+        fetched = open(os.path.join(out_fetched, "catalog.json"), "rb").read()
+        replayed = open(os.path.join(out_replayed, "catalog.json"), "rb").read()
+        ok(fetched == replayed,
+           "the offline replay did not reproduce the recorded dataset byte for byte")
+
+        rows = json.loads(fetched.decode("utf-8"))
+        ok(len(rows) == 2,
+           f"the two canned registry pages must produce 2 rows, got {len(rows)}")
+        for row in rows:
+            ok(row["source"] == producer.REGISTRY_SOURCE,
+               f"a registry row lost its source: {row.get('source')!r}")
+            ok(row["id"].startswith("mcp:builtin:mcp-registry:"),
+               f"a registry row is not namespaced under the registry: {row['id']!r}")
+            ok(row["version"] is not None,
+               "a registry row must publish the version the record declared")
+
+        # Every recorded page is completed with the rows it produced, and the
+        # recording survives the replay unchanged.
+        for url, expected in ((first_url, 1), (second_url, 1)):
+            _body, meta = snapshot_store.load_snapshot(root, url)
+            snap = meta["snapshot"]
+            ok(snap["status"] == "healthy",
+               f"the recorded registry page stayed {snap['status']!r}: {url}")
+            ok(snap.get("itemCount") == expected,
+               f"the registry page must carry {expected} row(s), got "
+               f"{snap.get('itemCount')!r}")
+
+
 def main():
     checks = 0
 
@@ -378,6 +478,10 @@ def main():
 
     # The registry fetch path: bounded, recorded, namespace-faithful.
     test_registry_fetch_is_bounded(ok)
+
+    # The registry recording: a replay reproduces the recorded dataset
+    # offline, byte for byte.
+    test_registry_replay_is_offline_and_byte_reproducible(ok)
 
     print(f"CATALOG INGESTION SAFETY TEST OK ({checks} checks)")
     return 0

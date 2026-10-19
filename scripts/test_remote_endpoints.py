@@ -196,6 +196,167 @@ def test_mcpservers_feed_is_fetched_or_refused(ok):
            "the capture index was consulted although the origin served the page")
 
 
+def _store_records(store_root):
+    """Every recorded snapshot in a store: {sourceId: [(url, itemCount), ...]}.
+
+    The current record of each recorded URL is read; the history entries are
+    superseded fetches and are not what a dataset row was built from.
+    """
+    records = {}
+    if not os.path.isdir(store_root):
+        return records
+    for name in sorted(os.listdir(store_root)):
+        meta_path = os.path.join(store_root, name, snapshot_store.META_FILE)
+        if not os.path.isfile(meta_path):
+            continue
+        with open(meta_path, encoding="utf-8") as handle:
+            meta = json.load(handle)
+        snapshot = meta.get("snapshot") or {}
+        fetch = meta.get("fetch") or {}
+        records.setdefault(snapshot.get("sourceId") or "", []).append(
+            (fetch.get("url") or "", snapshot.get("itemCount")))
+    return records
+
+
+def provenance_report(dataset_path, store_root):
+    """Per source id: the dataset's rows, the recordings behind them, the gap.
+
+    A dataset row whose source has no recording is a fabrication: nothing was
+    fetched for it, so nothing about it was ingested. The report is the
+    measurement of that gap, and it is deliberately not a pass/fail verdict
+    here -- the caller decides what a given store means.
+    """
+    records = _store_records(store_root)
+    with open(dataset_path, encoding="utf-8") as handle:
+        rows = json.load(handle)
+
+    sources = {}
+    for row in rows:
+        source = row.get("source") or ""
+        entry = sources.setdefault(source, {
+            "rows": 0, "recordings": 0, "attributedRows": 0, "documents": []})
+        entry["rows"] += 1
+        publisher = row.get("publisher") or {}
+        document = publisher.get("url") or ""
+        if document:
+            entry["documents"].append(document)
+
+    for source, entry in sources.items():
+        recorded = records.get(source, [])
+        entry["recordings"] = len(recorded)
+        entry["attributedRows"] = sum(
+            count for _url, count in recorded if isinstance(count, int))
+        entry["unbackedRows"] = max(0, entry["rows"] - entry["attributedRows"])
+        # A row is backed when a recording carries the document that produced
+        # it. The fallback path records the capture's replay URL, which ends
+        # with the page's own URL, so both forms count.
+        recorded_urls = [url for url, _count in recorded]
+        entry["unbackedDocuments"] = [
+            document for document in entry["documents"]
+            if not any(url == document or url.endswith(document)
+                       for url in recorded_urls)]
+    return sources
+
+
+def test_dataset_rows_have_a_recording_behind_them(ok):
+    """A dataset row whose source was never recorded is a fabrication.
+
+    K003's invariant, checked on the dataset a run really wrote: every row
+    carries the source it was ingested from, and every one of those rows has
+    a recording behind it. The check has teeth both ways -- the run's own
+    rows are backed, and a row that names a source nothing was fetched for is
+    reported as unbacked.
+
+    The run is offline: the feed's documents are canned bytes, and the
+    dataset is written to a temp directory, so nothing here depends on an
+    upstream.
+    """
+    index_url = "https://mcpservers.org/sitemap.xml"
+    submap_url = "https://mcpservers.org/sitemaps/servers/1.xml"
+    page_url = "https://mcpservers.org/servers/acme/demo"
+    cdx_root = "https://web.archive.org/cdx/search/cdx?url=mcpservers.org/servers/*"
+    cdx_count_url = cdx_root + "&showNumPages=true"
+    cdx_page_url = cdx_root + "&output=json&fl=original,timestamp,statuscode&page=0"
+    replay_url = "https://web.archive.org/web/20260101000000id_/" + page_url
+
+    index_body = ("<?xml version='1.0' encoding='UTF-8'?><sitemapindex><sitemap>"
+                  "<loc>" + submap_url + "</loc></sitemap></sitemapindex>").encode()
+    submap_body = ("<urlset><url><loc>" + page_url + "</loc></url></urlset>").encode()
+    cdx_body = json.dumps([
+        ["original", "timestamp", "statuscode"],
+        [page_url, "20260101000000", "200"],
+    ]).encode()
+    page_body = (b'<html><head><title>Demo Server | Awesome MCP Servers</title>'
+                 b'<meta name="description" content="A demo server listed in the '
+                 b'directory."></head><body></body></html>')
+
+    def fake_http_get(url, timeout, etag=None, source_id=None):
+        if url == index_url:
+            return 200, {}, index_body
+        if url == submap_url:
+            return 200, {}, submap_body
+        if url == page_url:
+            raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+        if url == cdx_count_url:
+            return 200, {}, b"1"
+        if url == cdx_page_url:
+            return 200, {}, cdx_body
+        if url == replay_url:
+            return 200, {}, page_body
+        raise OSError(f"no canned response for {url}")
+
+    skip = frozenset(
+        {producer.REGISTRY_SOURCE, producer.FEED_AWESOME_MCP[1],
+         producer.FEED_AWESOME_SKILLS[1], producer.FEED_OFFICIAL_SERVERS[1],
+         producer.FEED_SKILLSH[1], producer.FEED_MCPMARKET[1]}
+        | {src["source_id"] for src in producer.MARKETPLACE_SOURCES})
+
+    with tempfile.TemporaryDirectory() as root:
+        out_dir = os.path.join(root, "out")
+        with mock.patch.dict(os.environ,
+                             {"LITESPM_SOURCE_SNAPSHOT_DIR": root,
+                              "CATALOG_OUT_DIR": out_dir}), \
+                mock.patch.object(producer, "_http_get",
+                                  side_effect=fake_http_get):
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                producer.build_full_catalog(skip_sources=skip)
+        dataset_path = os.path.join(out_dir, "catalog.json")
+        ok(os.path.isfile(dataset_path),
+           f"the run wrote no dataset:\n{buffer.getvalue()}")
+
+        sources = provenance_report(dataset_path, root)
+        feed = sources.get(producer.FEED_MCPSERVERS[1], {})
+        ok(feed.get("rows", 0) == 1,
+           f"the canned feed must produce exactly one row, got {feed.get('rows')}")
+        ok(feed.get("unbackedRows", 0) == 0,
+           f"a row was published without a recording behind it: {feed}")
+        ok(feed.get("unbackedDocuments", [""]) == [],
+           f"a row names a document nothing was fetched for: {feed}")
+        ok(feed.get("recordings", 0) >= 1,
+           "the feed left no recording at all")
+
+        # The check has teeth: a row that names a source nothing was fetched
+        # for is reported as unbacked, not quietly accepted.
+        with open(dataset_path, encoding="utf-8") as handle:
+            rows = json.load(handle)
+        rows.append({
+            "id": "mcp:acme:invented",
+            "kind": "mcp",
+            "name": "Invented",
+            "summary": "A row no fetch ever produced.",
+            "publisher": {"name": "acme", "url": "https://example.com/never"},
+            "installability": "discovery_only",
+            "source": "feed:never-fetched",
+        })
+        with open(dataset_path, "w", encoding="utf-8") as handle:
+            json.dump(rows, handle)
+        sources = provenance_report(dataset_path, root)
+        invented = sources.get("feed:never-fetched", {})
+        ok(invented.get("rows") == 1 and invented.get("unbackedRows") == 1,
+           f"a row with no recording behind it was not reported: {invented}")
+
+
 def main():
     checks = 0
 
@@ -332,9 +493,44 @@ def main():
     # The mcpservers.org directory feed: a real fetch or a recorded refusal.
     test_mcpservers_feed_is_fetched_or_refused(ok)
 
+    # The dataset invariant behind that: a row whose source was never
+    # recorded is a fabrication.
+    test_dataset_rows_have_a_recording_behind_them(ok)
+
     print(f"REMOTE ENDPOINT TEST OK ({checks} checks)")
     return 0
 
 
+def report_live_provenance():
+    """Print the provenance report for the committed dataset and the local store.
+
+    This is the operator's view of the same invariant the test proves
+    offline: how many rows each source contributed to the committed dataset,
+    how many recordings stand behind them, and how many rows have neither.
+    The store is local state (gitignored by design), so this mode reports
+    what the local recording holds -- it never invents one.
+    """
+    dataset = os.environ.get("LITESPM_PARITY_DATASET") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "web", "data", "catalog.json")
+    store = snapshot_store.default_root()
+    sources = provenance_report(dataset, store)
+    report = {}
+    for source, entry in sorted(sources.items()):
+        report[source] = {
+            "rows": entry["rows"],
+            "recordings": entry["recordings"],
+            "attributedRows": entry["attributedRows"],
+            "unbackedRows": entry["unbackedRows"],
+            "unbackedDocuments": len(entry["unbackedDocuments"]),
+        }
+    print("DATASET_PROVENANCE " + json.dumps(
+        {"dataset": os.path.relpath(dataset, os.getcwd()),
+         "store": store, "sources": report}, sort_keys=True))
+    return 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--report":
+        raise SystemExit(report_live_provenance())
     raise SystemExit(main())
