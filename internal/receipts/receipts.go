@@ -68,12 +68,16 @@ type Receipt struct {
 
 // Invocation is the registry view: current state plus the terminal receipt.
 type Invocation struct {
-	InvocationID string    `json:"invocationId"`
-	CapabilityID string    `json:"capabilityId"`
-	State        string    `json:"state"`
-	Cancelled    bool      `json:"cancelled,omitempty"`
-	Receipt      *Receipt  `json:"receipt,omitempty"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	InvocationID string `json:"invocationId"`
+	CapabilityID string `json:"capabilityId"`
+	// ProviderInstance names the provider that serves this invocation. It is
+	// known from the moment the invocation is registered, so a cancellation
+	// receipt lands in the same provider chain as the receipts around it.
+	ProviderInstance string    `json:"providerInstance,omitempty"`
+	State            string    `json:"state"`
+	Cancelled        bool      `json:"cancelled,omitempty"`
+	Receipt          *Receipt  `json:"receipt,omitempty"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 // Store is a durable invocation registry + receipt chain.
@@ -200,6 +204,7 @@ func (s *Store) RecordReceipt(r Receipt) (*Invocation, error) {
 		s.nextSeq++
 	}
 	inv.CapabilityID = r.CapabilityID
+	inv.ProviderInstance = r.ProviderInstance
 	inv.State = r.Outcome
 	inv.Cancelled = r.Outcome == OutcomeCancelled
 	inv.Receipt = &r
@@ -311,12 +316,19 @@ func (s *Store) Cancel(id string) (*Invocation, error) {
 		return &cp, nil
 	}
 	now := time.Now().UTC()
+	// The invocation started when it was last moved (registered, then
+	// dispatched), so the receipt names when the call began — not when the
+	// cancellation arrived.
+	started := inv.UpdatedAt
+	if started.IsZero() {
+		started = now
+	}
 	r := &Receipt{
 		InvocationID:     inv.InvocationID,
 		CapabilityID:     inv.CapabilityID,
 		ProviderInstance: instanceOf(inv),
 		Outcome:          OutcomeCancelled,
-		StartedAt:        now,
+		StartedAt:        started,
 		EndedAt:          now,
 		PrevReceiptHash:  s.lastHashLocked(instanceOf(inv)),
 	}
@@ -345,15 +357,20 @@ func (s *Store) Cancel(id string) (*Invocation, error) {
 // RegisterPending tracks a queued/running invocation so Cancel has
 // something idempotent to act on before a terminal Record lands. The
 // invocation starts in the queued state: it has been accepted, not dispatched.
-func (s *Store) RegisterPending(id, capabilityID string) {
+//
+// The provider instance is recorded with it, so the cancellation receipt of a
+// pending invocation lands in the same provider chain as the receipts around
+// it instead of in an anonymous one.
+func (s *Store) RegisterPending(id, capabilityID, providerInstance string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.invocs[id]; !ok {
 		s.invocs[id] = &Invocation{
-			InvocationID: id,
-			CapabilityID: capabilityID,
-			State:        StateQueued,
-			UpdatedAt:    time.Now().UTC(),
+			InvocationID:     id,
+			CapabilityID:     capabilityID,
+			ProviderInstance: providerInstance,
+			State:            StateQueued,
+			UpdatedAt:        time.Now().UTC(),
 		}
 		s.seq[id] = s.nextSeq
 		s.nextSeq++
@@ -470,6 +487,9 @@ func hashReceipt(r *Receipt) string {
 }
 
 func instanceOf(inv *Invocation) string {
+	if inv.ProviderInstance != "" {
+		return inv.ProviderInstance
+	}
 	if inv.Receipt != nil && inv.Receipt.ProviderInstance != "" {
 		return inv.Receipt.ProviderInstance
 	}

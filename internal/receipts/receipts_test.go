@@ -158,7 +158,7 @@ func TestRecordReceiptRefusesAnUnknownOutcome(t *testing.T) {
 // it. An unknown id is a typed not-found, never a silent no-op.
 func TestSetStateRejectsTerminalAndUnknown(t *testing.T) {
 	s, _ := Open("")
-	s.RegisterPending("invocation_pending_1", "cap/a")
+	s.RegisterPending("invocation_pending_1", "cap/a", "prov-1")
 
 	if err := s.SetState("invocation_pending_1", StateRunning); err != nil {
 		t.Fatalf("SetState: %v", err)
@@ -204,7 +204,7 @@ func TestSetStateRejectsTerminalAndUnknown(t *testing.T) {
 // and does not signal the call a second time.
 func TestAttachCancelIsCalledOnceAndIsIdempotent(t *testing.T) {
 	s, _ := Open("")
-	s.RegisterPending("invocation_pending_2", "cap/a")
+	s.RegisterPending("invocation_pending_2", "cap/a", "prov-1")
 
 	calls := 0
 	if err := s.AttachCancel("invocation_pending_2", func() { calls++ }); err != nil {
@@ -267,8 +267,8 @@ func TestAttachCancelIsANoOpOnTerminalInvocations(t *testing.T) {
 // first: a caller that drains the list in order sees them in issue order.
 func TestPendingListsNonTerminalInvocationsOldestFirst(t *testing.T) {
 	s, _ := Open("")
-	s.RegisterPending("invocation_p1", "cap/a")
-	s.RegisterPending("invocation_p2", "cap/b")
+	s.RegisterPending("invocation_p1", "cap/a", "prov-1")
+	s.RegisterPending("invocation_p2", "cap/b", "prov-1")
 	if _, err := s.RecordReceipt(Receipt{
 		InvocationID: "invocation_p3",
 		CapabilityID: "cap/c",
