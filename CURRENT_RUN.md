@@ -15,12 +15,61 @@ per-track plans beside it; the tracks execute in dependency order, gated G1–G5
 
 | Track | Scope | Plan file | State |
 |---|---|---|---|
-| 0 | Documentation reconciliation (stale prose, not status) | program plan, Task 0 | **done this session** — see below |
-| 1 | ARCH/34 — invocation registry, engine, receipts | `…-arch34-invocation-engine.md` | in progress |
-| 2 | Phase K — sources & supply chain | `…-phase-k-sources-supply-chain.md` | not started |
-| 3 | Wiring — the unwired subsystems | `…-wiring-unwired-subsystems.md` | not started |
-| 4 | Phase J + Blueprint P1/P2 — product surface | `…-phase-j-product-surface.md` | not started (waits on the evaluator report) |
-| 5 | Defect fixes + final status reconciliation | `…-defect-fixes-and-status-reconciliation.md` | not started |
+| 0 | Documentation reconciliation (stale prose, not status) | program plan, Task 0 | **done** — see below |
+| 1 | ARCH/34 — invocation registry, engine, receipts | `…-arch34-invocation-engine.md` | **code done** (tasks 1–4); the status reconciliation is done too — what is *not* implemented is stated as plainly as what is |
+| 2 | Phase K — sources & supply chain | `…-phase-k-sources-supply-chain.md` | **partly done** — the mcpservers.org origin is now probed and its refusal recorded; the registry fetch, the snapshot completion and the parity harness are still open |
+| 3 | Wiring — the unwired subsystems | `…-wiring-unwired-subsystems.md` | **partly done** — the two ingest paths now agree on installability; the rest is planned |
+| 4 | Phase J + Blueprint P1/P2 — product surface | `…-phase-j-product-surface.md` | **the blocker and four majors are fixed**; the evaluation report is the spec |
+| 5 | Defect fixes + final status reconciliation | `…-defect-fixes-and-status-reconciliation.md` | partly done — the zip-bomb bound, the silent npm publish, the unrun Python suites and the broken vendored tests are fixed; the final reconciliation is open |
+
+**The site was evaluated adversarially, and the report is committed:**
+`docs/superpowers/evaluations/2026-10-19-site-evaluation.md` — 39 findings (1 blocker, 10 major,
+16 minor, 9 nit), every one with a URL, a repro and the expected-versus-actual. The evaluator
+acted as a non-developer user, a sceptical reviewer and a keyboard/mobile user, and visited the
+competitors (skills.sh, mcpservers.org, PulseMCP, mcp.so, Smithery, Glama) rather than reasoning
+about them from memory. Its verdict: **the site is not problematic for a non-technical user** —
+one honest catalogue with an unusually good ranking explanation, zero axe WCAG A/AA violations,
+CLS 0, no console or network errors, and exemplary impossible-action states. The real risks are
+narrow: the `/compare/` overstatement, one mobile layout bug, search precision, and a missing
+category of signal (popularity, which the product deliberately omits — and now explains where it
+is felt).
+
+**Fixed from that evaluation (commit `90b3796`):** the `/compare/` blocker (F-01) — the page
+claimed every MCP server and every skill could be installed into any agent, while the site's own
+filters report 25,401 and 764; it now quotes the installable counts, computed at build time with
+the same predicate as every other surface, with a build-time assertion that an installable count
+can never exceed its catalog total. F-02 (34 px of sideways scroll at 320 px, a grid track with no
+column count) — fixed, and the overflow suite now asserts 320 px as well as 390 px. F-08 (the
+publisher filter was case-sensitive, so `?publisher=anthropic` was a silent zero). F-03 (a match
+set larger than 200 rows now says "N matched — showing the most relevant"). F-04 (the empty state
+now states the prefix rule).
+
+**ARCH/34 is wired (commits `9c597cc`, `eb2e1f6`, `3d716b0`, `365cf76`, `7990a6c`).** The
+invocation registry is `internal/receipts` (one JSON line per invocation, one hash chain per
+provider instance), the engine around it is `internal/invocation` (deadline, per-provider
+concurrency limit, queue backpressure with `LPSM-PROVIDER-BUSY`, cooperative cancellation,
+redaction, bounded output), and the daemon's `invocation.get` / `invocation.cancel` answer from
+it — an id that was never issued is a typed `LPSM-INVOCATION-NOT-FOUND`, not a `-32601` stub.
+`provider.invoke` keeps its synchronous contract and now also returns an `invocationId` and a
+receipt; `async: true` returns the id and the state. **What is still not implemented is now
+written down:** `ARCH/34` §4's provider health states and circuit breaker, §3's provider restart,
+and §7's cross-provider fallback.
+
+**Two defects that had their own truthfulness cost (commits `4f4c331`, `ac3379f`):** the 100:1
+zip-bomb bound `ARCH/05` required and `internal/artifact` never had; and the release workflow's
+*silent* npm skip, which is how the v0.4.0 defect reached GitHub while every npm user stayed on
+an older binary. The Go ingest path also classified a remote-only record as `discovery_only`
+while the published catalog marked the same rows `metadata_verified` — the endpoint **is** the
+launch line, so the two paths now agree.
+
+**One environmental finding, recorded so nobody re-litigates it:** `npm run build` cannot
+complete in this container. The build worker is SIGTERM'd during the type-check phase — with
+*and* without this program's changes, so it is not the dataset import. The box has 7.9 GB with
+~5.3 GB already used by the editor, the agent runtime and the MCP servers; the build needs more
+headroom than that. `npm run type-check` and all four lint gates pass, and `tsc --noEmit` passes
+once `web/.next` (593 MB of generated types) is out of the way — CI type-checks *before* it
+builds, so CI is unaffected.
+
 
 **Track 0 closed five things that were factually wrong on disk, each corrected against a fresh
 measurement rather than against another document:**
