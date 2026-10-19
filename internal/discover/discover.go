@@ -226,6 +226,11 @@ type ProviderSpec struct {
 	// provider; non-empty makes the spec remote regardless of which side
 	// filled it.
 	Endpoint string
+	// AuthProfileID names the credential profile this provider authenticates
+	// with. It is a POINTER to a profile row, never a token: the token behind
+	// it is read from the vault at dial time and exists only in the request
+	// that carries it. An empty id means the provider expects no credential.
+	AuthProfileID string
 }
 
 // Remote failure codes. domain has no remote-connect/auth code today and
@@ -346,7 +351,7 @@ func Discover(ctx context.Context, db *state.DB, spec ProviderSpec, opts ...Opti
 	}
 
 	o := newOptions(opts)
-	session, cleanup, err := dial(ctx, spec, o)
+	session, cleanup, err := dial(ctx, db, spec, o)
 	if err != nil {
 		return nil, err
 	}
@@ -386,6 +391,10 @@ func Discover(ctx context.Context, db *state.DB, spec ProviderSpec, opts ...Opti
 		Status:    "active",
 		CreatedAt: now,
 		UpdatedAt: now,
+		// The credential the provider uses is recorded as a profile POINTER.
+		// A token never reaches a row: the vault holds it, and the row says
+		// which profile to read.
+		AuthProfileID: spec.AuthProfileID,
 	}); err != nil {
 		return nil, fmt.Errorf("record provider: %w", err)
 	}
@@ -461,6 +470,9 @@ func Invoke(ctx context.Context, db *state.DB, capabilityID string, arguments js
 		Command:       provider.Command,
 		Endpoint:      provider.Endpoint,
 		Transport:     provider.Transport,
+		// The credential the row names is a POINTER to a profile, never a
+		// token: it is resolved from the vault at dial time.
+		AuthProfileID: provider.AuthProfileID,
 	}
 	if provider.ArgsJSON != "" {
 		if err := json.Unmarshal([]byte(provider.ArgsJSON), &spec.Args); err != nil {
@@ -491,7 +503,7 @@ func Invoke(ctx context.Context, db *state.DB, capabilityID string, arguments js
 		return nil, err
 	}
 
-	session, cleanup, err := dial(ctx, spec, o)
+	session, cleanup, err := dial(ctx, db, spec, o)
 	if err != nil {
 		return nil, err
 	}
@@ -661,7 +673,7 @@ func resolveEnv(ctx context.Context, spec ProviderSpec, store secrets.SecretStor
 // cleanup closes the session and, for a stdio dial, terminates the process
 // tree; for a remote dial it closes the HTTP session (releasing a legacy
 // server-side session with DELETE when one was assigned).
-func dial(ctx context.Context, spec ProviderSpec, o *options) (mcpclient.ClientSession, func(), error) {
+func dial(ctx context.Context, db *state.DB, spec ProviderSpec, o *options) (mcpclient.ClientSession, func(), error) {
 	if o == nil {
 		o = newOptions(nil)
 	}
@@ -672,7 +684,13 @@ func dial(ctx context.Context, spec ProviderSpec, o *options) (mcpclient.ClientS
 			// it honours, so refuse at the boundary that actually connects.
 			return nil, nil, ambiguousTargetError(fmt.Sprintf("%q", spec.ComponentName))
 		}
-		return dialRemote(ctx, spec)
+		// The credential is resolved BEFORE the connection: a provider that
+		// names a profile and cannot use it must not be dialled anonymously.
+		headers, herr := remoteAuthHeaders(ctx, db, spec, o)
+		if herr != nil {
+			return nil, nil, herr
+		}
+		return dialRemote(ctx, spec, headers)
 	}
 	if !isStdioTransport(spec.Transport) {
 		// A remote transport with no endpoint records nothing to dial. The
@@ -768,7 +786,7 @@ func isRemoteTransport(t string) bool {
 // profile is stateless: no initialize, no session id), so a streamable-http
 // refusal surfaces from the first probe; the legacy connector handshakes
 // eagerly, so its refusal surfaces here. Both are classified the same way.
-func dialRemote(ctx context.Context, spec ProviderSpec) (mcpclient.ClientSession, func(), error) {
+func dialRemote(ctx context.Context, spec ProviderSpec, headers map[string]string) (mcpclient.ClientSession, func(), error) {
 	endpoint := strings.TrimSpace(spec.Endpoint)
 	connector, err := remoteConnectorFor(spec.Transport)
 	if err != nil {
@@ -776,13 +794,13 @@ func dialRemote(ctx context.Context, spec ProviderSpec) (mcpclient.ClientSession
 	}
 	switch connector {
 	case connectorLegacy:
-		client, lerr := mcpclient.ConnectLegacy(ctx, endpoint, nil, nil)
+		client, lerr := mcpclient.ConnectLegacy(ctx, endpoint, headers, nil)
 		if lerr != nil {
 			return nil, nil, classifyRemoteFailure(spec, lerr)
 		}
 		return client, func() { _ = client.CloseSession() }, nil
 	default:
-		client, cerr := mcpclient.ConnectStreamableHTTP(ctx, endpoint, nil, nil)
+		client, cerr := mcpclient.ConnectStreamableHTTP(ctx, endpoint, headers, nil)
 		if cerr != nil {
 			return nil, nil, classifyRemoteFailure(spec, cerr)
 		}

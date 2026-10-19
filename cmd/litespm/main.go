@@ -102,6 +102,11 @@ func main() {
 		}
 		runSearch(opts)
 
+	case "auth":
+		if code := runAuth(os.Args[2:]); code != 0 {
+			os.Exit(code)
+		}
+
 	case "install", "add", "i":
 		runInstall(os.Args[2:])
 

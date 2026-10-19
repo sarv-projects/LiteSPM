@@ -60,7 +60,7 @@ var helpGroups = []helpGroup{
 	{"VIEW", []string{"list", "inventory"}},
 	{"MANAGE", []string{"install", "copy", "lock", "skills", "grant", "approve"}},
 	{"RECOVER", []string{"restore", "doctor", "uninstall"}},
-	{"CONFIGURE", []string{"setup", "host", "daemon", "bridge"}},
+	{"CONFIGURE", []string{"setup", "host", "daemon", "bridge", "auth"}},
 	{"SYSTEM", []string{"self-update", "version", "capabilities", "invoke"}},
 	{"HELP", []string{"help"}},
 }
@@ -417,6 +417,32 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm uninstall",
 			},
 			SeeAlso: []string{"host", "skills", "install", "restore"},
+		},
+		{
+			Canonical: "auth",
+			Group:     "CONFIGURE",
+			Purpose:   "Store, report and revoke the credentials a remote provider authenticates with.",
+			Synopsis: []string{
+				"litespm auth login <provider> --client-id <id> --auth-url <url> --token-url <url>",
+				"              [--client-secret-env <VAR>] [--scope <scope>]... [--timeout <seconds>]",
+				"litespm auth status [provider]",
+				"litespm auth logout <profile-id>",
+			},
+			Does: []string{
+				"`login` runs an OAuth 2.0 PKCE flow through a loopback listener on 127.0.0.1, exchanges the authorization code once, and stores the credential in the platform vault. A remote (URL) MCP provider that names the profile then sends the stored token as its bearer credential.",
+				"`status` reports what is stored: the provider, the profile id, the status and the vault reference. `logout` revokes the credential — purging it from the vault — and drops the profile row unless a provider still names it, in which case the row is kept as revoked so that provider is refused rather than dialled anonymously.",
+			},
+			DoesNot: []string{
+				"Never prints a token, and never writes one to a file: the rows hold a pointer to a vault entry, and only the pointer is shown.",
+				"Does not print the authorization code, and does not keep it: it is exchanged once and dropped.",
+				"Does not refresh a credential on its own and does not talk to any provider — it only stores, reports and revokes credentials.",
+			},
+			Examples: []string{
+				"litespm auth status",
+				"litespm auth login github --client-id abc --auth-url https://idp/authorize --token-url https://idp/token",
+				"litespm auth logout prof_github",
+			},
+			SeeAlso: []string{"install", "list", "doctor"},
 		},
 		{
 			Canonical: "setup",

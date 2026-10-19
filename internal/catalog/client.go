@@ -79,7 +79,16 @@ const defaultCatalogTimeout = 30 * time.Second
 // not a policy decision, and the release tree is 54 MB across six shards: a
 // sync that gave up on one timed-out lookup had to be started again from the
 // first shard.
-const catalogRequestAttempts = 3
+//
+// The waits between attempts grow, because a resolver that timed out once
+// usually times out again immediately after. The total stays inside the
+// client's own budget (see doCatalogRequest), so a caller that asked for
+// 100ms still gets a fetch that finishes in about 100ms.
+const catalogRequestAttempts = 4
+
+// catalogRetryBackoff is the wait before the second, third and fourth
+// attempt.
+var catalogRetryBackoff = []time.Duration{2 * time.Second, 6 * time.Second, 15 * time.Second}
 
 // isTransientCatalogError reports whether a failed exchange is worth
 // repeating.
@@ -119,7 +128,7 @@ func doCatalogRequest(ctx context.Context, client *http.Client, req *http.Reques
 	}
 	for attempt := 1; attempt <= catalogRequestAttempts; attempt++ {
 		if attempt > 1 {
-			wait := time.Duration(attempt-1) * time.Second
+			wait := catalogRetryBackoff[min(attempt-2, len(catalogRetryBackoff)-1)]
 			if !deadline.IsZero() {
 				remaining := time.Until(deadline)
 				if remaining <= 0 {
