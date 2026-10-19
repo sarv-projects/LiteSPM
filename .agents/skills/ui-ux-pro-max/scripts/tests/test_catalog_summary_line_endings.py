@@ -14,10 +14,24 @@ import tempfile
 import unittest
 from pathlib import Path
 
-REPO = next(
-    parent for parent in Path(__file__).resolve().parents
-    if (parent / "scripts" / "generate-catalog-summary.py").is_file()
-)
+def _find_repo():
+    """The upstream repository root, or None when it is not in this checkout.
+
+    This skill is vendored into .agents/skills/ without the repository that
+    generated it, so the script these tests exercise is not here. The module
+    then skips rather than fails.
+    """
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "scripts" / "generate-catalog-summary.py").is_file():
+            return parent
+    return None
+
+
+REPO = _find_repo()
+if REPO is None:
+    raise unittest.SkipTest(
+        "the upstream ui-ux-pro-max repository layout is not present in this checkout"
+    )
 DATA = REPO / "src/ui-ux-pro-max/data"
 SNAPSHOT_FILES = (
     "google-fonts.csv",

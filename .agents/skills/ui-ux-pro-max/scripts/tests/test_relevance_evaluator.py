@@ -6,8 +6,24 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = next(parent for parent in Path(__file__).resolve().parents
-            if (parent / "scripts/evaluate-relevance.py").exists())
+def _find_root():
+    """The upstream repository root, or None when it is not in this checkout.
+
+    This skill is vendored into .agents/skills/ without the repository that
+    generated it, so the evaluator script these tests exercise is not here.
+    The module then skips rather than fails.
+    """
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "scripts/evaluate-relevance.py").exists():
+            return parent
+    return None
+
+
+ROOT = _find_root()
+if ROOT is None:
+    raise unittest.SkipTest(
+        "the upstream ui-ux-pro-max repository layout is not present in this checkout"
+    )
 MODULE_PATH = ROOT / "scripts/evaluate-relevance.py"
 SPEC = importlib.util.spec_from_file_location("evaluate_relevance", MODULE_PATH)
 evaluator = importlib.util.module_from_spec(SPEC)

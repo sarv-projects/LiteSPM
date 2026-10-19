@@ -45,6 +45,21 @@ jobs:
       - name: Byte-compile Python Scripts
         run: python3 -m py_compile scripts/*.py
 
+      # The producer's own test suites exercise the ingestion safety rules
+      # (host allowlists, DNS pinning, redirect and size bounds), the snapshot
+      # lifecycle, skill promotion and the mcpmarket crawl logic. They were
+      # manual-only until now, which meant a regression in any of them reached
+      # a release without a signal. They run offline: every suite feeds canned
+      # bytes through a patched fetcher, so this step needs no network and
+      # cannot flake on an upstream.
+      - name: Run Python Test Suites
+        run: |
+          for suite in scripts/test_*.py; do
+            echo "::group::$suite"
+            python3 "$suite"
+            echo "::endgroup::"
+          done
+
       - name: Check Node.js Entry Points
         run: |
           node --check npm/bin/litespm.js

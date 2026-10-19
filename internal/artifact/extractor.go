@@ -32,6 +32,20 @@ const (
 
 	// DefaultMaxPathLength is the maximum length of a relative file path.
 	DefaultMaxPathLength int = 1024
+
+	// DefaultMaxCompressionRatio is the maximum permitted ratio of extracted
+	// bytes to compressed bytes (100:1) — ARCH/05 §2.1. The absolute size
+	// limits alone do not stop a bomb: 8 MiB of zeroes is a few KiB on the
+	// wire and an unremarkable 8 MiB on disk, so the ratio is what separates
+	// "a package that compresses" from "an archive that expands".
+	DefaultMaxCompressionRatio int64 = 100
+
+	// DefaultMinRatioBytes is the smallest extracted total the ratio bound
+	// applies to. A tiny archive of highly compressible content can exceed
+	// 100:1 while meaning nothing by it — the absolute limits still govern
+	// that case — so the ratio only speaks once the expansion is big enough
+	// to be worth refusing.
+	DefaultMinRatioBytes int64 = 1 << 20
 )
 
 // ExtractionLimits defines resource constraints during artifact decompression.
@@ -41,15 +55,47 @@ type ExtractionLimits struct {
 	MaxFileCount      int
 	MaxSingleFileSize int64
 	MaxPathLength     int
+	// MaxCompressionRatio bounds extracted bytes as a multiple of the
+	// compressed archive size. Zero means DefaultMaxCompressionRatio.
+	MaxCompressionRatio int64
 }
 
 // DefaultExtractionLimits provides production default limits.
 var DefaultExtractionLimits = ExtractionLimits{
-	MaxArchiveSize:    DefaultMaxArchiveSize,
-	MaxTreeSize:       DefaultMaxTreeSize,
-	MaxFileCount:      DefaultMaxFileCount,
-	MaxSingleFileSize: DefaultMaxSingleFileSize,
-	MaxPathLength:     DefaultMaxPathLength,
+	MaxArchiveSize:      DefaultMaxArchiveSize,
+	MaxTreeSize:         DefaultMaxTreeSize,
+	MaxFileCount:        DefaultMaxFileCount,
+	MaxSingleFileSize:   DefaultMaxSingleFileSize,
+	MaxPathLength:       DefaultMaxPathLength,
+	MaxCompressionRatio: DefaultMaxCompressionRatio,
+}
+
+// checkCompressionRatio refuses an archive whose extracted bytes exceed the
+// permitted multiple of its compressed size (ARCH/05 §2.1).
+//
+// It is called while the tree is being written, not after it is complete, so
+// a bomb is stopped while it expands rather than once the disk is full. The
+// comparison is written so it cannot overflow: an archive large enough to
+// overflow the product is refused by the absolute size limits first.
+func checkCompressionRatio(totalBytes, archiveSize int64, limits ExtractionLimits) error {
+	ratio := limits.MaxCompressionRatio
+	if ratio <= 0 {
+		ratio = DefaultMaxCompressionRatio
+	}
+	if archiveSize <= 0 || totalBytes < DefaultMinRatioBytes {
+		return nil
+	}
+	if archiveSize > math.MaxInt64/ratio {
+		// The product cannot overflow: the absolute tree-size limit is far
+		// below this, so the ratio bound is not the operative limit here.
+		return nil
+	}
+	if totalBytes > archiveSize*ratio {
+		return domain.ErrArchiveSlip(fmt.Sprintf(
+			"archive compression ratio %d:1 exceeds the limit of %d:1 (%d extracted bytes from %d compressed bytes)",
+			totalBytes/archiveSize, ratio, totalBytes, archiveSize))
+	}
+	return nil
 }
 
 // SpoolDownloadBounded streams data from r into tempFile while enforcing maxBytes limit.
@@ -145,6 +191,11 @@ func extractZip(r io.ReaderAt, size int64, stagingDir string, limits ExtractionL
 		return nil, fmt.Errorf("invalid or corrupt zip archive: %w", err)
 	}
 
+	// The compressed size of the archive itself, kept before the per-file
+	// `size` below shadows it: the compression-ratio bound compares extracted
+	// bytes against the bytes on the wire.
+	archiveSize := size
+
 	var totalBytes int64
 	var fileCount int
 	seenLower := make(map[string]string)
@@ -187,6 +238,9 @@ func extractZip(r io.ReaderAt, size int64, stagingDir string, limits ExtractionL
 			return nil, domain.ErrArchiveSlip(fmt.Sprintf("archive exceeds total extracted size limit (%d bytes)", limits.MaxTreeSize))
 		}
 		totalBytes += size
+		if err := checkCompressionRatio(totalBytes, archiveSize, limits); err != nil {
+			return nil, err
+		}
 
 		// Ensure parent directory exists
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
@@ -291,6 +345,9 @@ func extractTarGz(r io.ReaderAt, size int64, stagingDir string, limits Extractio
 		totalBytes += hdr.Size
 		if totalBytes > limits.MaxTreeSize {
 			return nil, domain.ErrArchiveSlip(fmt.Sprintf("archive exceeds total extracted size limit (%d bytes)", limits.MaxTreeSize))
+		}
+		if err := checkCompressionRatio(totalBytes, size, limits); err != nil {
+			return nil, err
 		}
 
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {

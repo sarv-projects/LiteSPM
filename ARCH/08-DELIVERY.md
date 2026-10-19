@@ -113,7 +113,7 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 
 ### Phase D: Safe Artifact Extraction & Skill Management
 *   **Deliverables:**
-    *   `internal/artifact`: bounded spooling and extraction enforcing the documented caps — 256 MiB download, 1 GiB extracted, 20,000 files, 128 MiB per file, 1,024-byte paths, case-fold checks, canonical tree digests, path-traversal rejection — `TESTED` (STATUS §3). **The 100:1 compression-ratio (zip-bomb) check is not implemented** ([ARCH/05 §2.1](05-SECURITY.md#21-extraction-safety-thresholds)).
+    *   `internal/artifact`: bounded spooling and extraction enforcing the documented caps — 256 MiB download, 1 GiB extracted, 20,000 files, 128 MiB per file, 1,024-byte paths, case-fold checks, and (2026-10-19) the 100:1 compression-ratio bound of `ARCH/05` §2.1, applied while the tree is written, canonical tree digests, path-traversal rejection — `TESTED` (STATUS §3). **The 100:1 compression-ratio (zip-bomb) check is not implemented** ([ARCH/05 §2.1](05-SECURITY.md#21-extraction-safety-thresholds)).
     *   `internal/resolver`: pure dependency resolver with constraint intersection and cycle detection — `WIRED` (STATUS §3).
     *   `internal/install`: two-phase atomic staging, CAS rollback, SQLite commit — `IMPLEMENTED`; refuses an `Execute` with neither `TreeSource` nor `ArchiveSource` (`internal/install/engine.go:204-207`).
     *   `internal/skills`: atomic skill install/update/remove with provenance ledger — `WIRED` (STATUS §1).

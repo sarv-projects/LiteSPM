@@ -134,16 +134,28 @@ jobs:
       #
       # NODE_AUTH_TOKEN is scoped to this step only: a job-level env would
       # expose the token to every preceding step (build, test, packaging).
-      # The `secrets` context is not available in `if:`, so the presence
-      # check reads the step's own env (`env` is available there).
-      # Set the NPM_TOKEN repository secret to enable this step. Unset, the
-      # release is still built and published to GitHub.
+      #
+      # This step must never be a *silent* skip. A release published to GitHub
+      # but not to npm leaves every npm-installed user on an older binary, and
+      # that is exactly the v0.4.0 incident (the tag predated the shard-aware
+      # client, so `npm i -g litespm` could not sync the published tree at
+      # all). The token check therefore fails the job loudly rather than
+      # skipping, unless the release is deliberately marked npm-free with the
+      # repository variable ALLOW_NPM_SKIP=true.
       - name: Publish npm package
-        if: ${{ env.NODE_AUTH_TOKEN != '' }}
         working-directory: ./npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          ALLOW_NPM_SKIP: ${{ vars.ALLOW_NPM_SKIP }}
         run: |
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            if [ "${ALLOW_NPM_SKIP}" = "true" ]; then
+              echo "::warning title=NPM publish skipped::NPM_TOKEN is absent and ALLOW_NPM_SKIP=true, so this release is deliberately GitHub-only. Every npm-installed user stays on the previous version."
+              exit 0
+            fi
+            echo "::error title=NPM publish required::NPM_TOKEN is absent. Publishing to GitHub alone would leave every npm-installed user on an older binary (the v0.4.0 incident). Set the NPM_TOKEN secret, or set the repository variable ALLOW_NPM_SKIP=true to publish to GitHub deliberately without npm."
+            exit 1
+          fi
           printf '//registry.npmjs.org/:_authToken=%s\n' "${NODE_AUTH_TOKEN}" > .npmrc
           npm publish --provenance --access public
 

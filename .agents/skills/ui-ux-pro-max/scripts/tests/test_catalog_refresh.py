@@ -10,12 +10,28 @@ import tempfile
 import unittest
 from pathlib import Path
 
-REPO = next(
-    parent for parent in Path(__file__).resolve().parents
-    if all((parent / "scripts" / script).is_file() for script in (
-        "refresh-google-fonts.py", "refresh-icon-catalog.py",
-    ))
-)
+def _find_repo():
+    """The upstream repository root, or None when it is not in this checkout.
+
+    This skill is vendored into .agents/skills/ without the repository that
+    generated it, so the scripts these tests exercise are simply not here.
+    The module then skips rather than fails: the behaviour it asserts belongs
+    to files that were never vendored, and a red suite would train everyone
+    to ignore this skill's tests.
+    """
+    for parent in Path(__file__).resolve().parents:
+        if all((parent / "scripts" / script).is_file() for script in (
+            "refresh-google-fonts.py", "refresh-icon-catalog.py",
+        )):
+            return parent
+    return None
+
+
+REPO = _find_repo()
+if REPO is None:
+    raise unittest.SkipTest(
+        "the upstream ui-ux-pro-max repository layout is not present in this checkout"
+    )
 FIXTURES = Path(__file__).parent / "fixtures" / "catalogs"
 FONT_SCRIPT = REPO / "scripts" / "refresh-google-fonts.py"
 ICON_SCRIPT = REPO / "scripts" / "refresh-icon-catalog.py"
