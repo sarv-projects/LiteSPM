@@ -87,12 +87,28 @@ type Store struct {
 	// whose link no longer matches its recorded predecessor, leaves the
 	// recorded order unsatisfiable.
 	order map[string][]string
+	// seq numbers every invocation this store knows about, in the order it
+	// learned them. Pending() orders by it: UpdatedAt alone can tie (two
+	// invocations registered inside one clock tick), and "newest last" must
+	// still be a total order.
+	seq     map[string]uint64
+	nextSeq uint64
+	// cancels holds the in-flight cancellation function of every non-terminal
+	// invocation. Cancel calls it exactly once and drops it, so a repeated
+	// cancel is a no-op rather than a second signal to the same call.
+	cancels map[string]func()
 }
 
 // Open creates or replays the store at path. An empty path means
 // memory-only (used by tests).
 func Open(path string) (*Store, error) {
-	s := &Store{path: path, invocs: map[string]*Invocation{}, order: map[string][]string{}}
+	s := &Store{
+		path:    path,
+		invocs:  map[string]*Invocation{},
+		order:   map[string][]string{},
+		seq:     map[string]uint64{},
+		cancels: map[string]func(){},
+	}
 	if path == "" {
 		return s, nil
 	}
@@ -114,6 +130,8 @@ func Open(path string) (*Store, error) {
 		}
 		cp := inv
 		s.invocs[cp.InvocationID] = &cp
+		s.seq[cp.InvocationID] = s.nextSeq
+		s.nextSeq++
 		if cp.Receipt != nil && cp.Receipt.ReceiptHash != "" {
 			s.order[cp.Receipt.ProviderInstance] = append(s.order[cp.Receipt.ProviderInstance], cp.Receipt.ReceiptHash)
 		}
@@ -124,39 +142,142 @@ func Open(path string) (*Store, error) {
 // Record appends a terminal invocation with its receipt, chaining and
 // hashing it. It returns the stored copy.
 func (s *Store) Record(capabilityID, providerInstance, outcome string, started, ended time.Time, inputDigest, outputDigest string) (*Invocation, error) {
-	switch outcome {
-	case OutcomeSucceeded, OutcomeFailed, OutcomeCancelled, OutcomeDeadlineExceeded:
-	default:
-		return nil, fmt.Errorf("LPSM-RECEIPTS-OUTCOME: %q", outcome)
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	id := nextID()
-	r := &Receipt{
-		InvocationID:     id,
+	return s.RecordReceipt(Receipt{
 		CapabilityID:     capabilityID,
 		ProviderInstance: providerInstance,
 		Outcome:          outcome,
-		StartedAt:        started.UTC(),
-		EndedAt:          ended.UTC(),
+		StartedAt:        started,
+		EndedAt:          ended,
 		InputDigest:      inputDigest,
 		OutputDigest:     outputDigest,
-		PrevReceiptHash:  s.lastHashLocked(providerInstance),
+	})
+}
+
+// RecordReceipt records a fully-populated receipt: it links the receipt to the
+// previous one issued for the same provider instance, hashes it over the
+// canonical projection of every field except the hash itself, chains it and
+// persists it.
+//
+// The first terminal receipt for an invocation wins. Recording over an
+// invocation that already reached a terminal state changes nothing and adds no
+// link to the chain: that is what makes a cancellation race deterministic — a
+// call that returned at the same moment a cancel landed keeps whichever
+// terminal state was recorded first, and the chain stays verifiable.
+//
+// A receipt with an empty InvocationID gets a fresh one; a receipt with a
+// caller-chosen id is recorded under that id, which is how an engine that
+// allocated the id up front (so it could return it to the caller) attaches the
+// receipt to the invocation it already registered.
+func (s *Store) RecordReceipt(r Receipt) (*Invocation, error) {
+	switch r.Outcome {
+	case OutcomeSucceeded, OutcomeFailed, OutcomeCancelled, OutcomeDeadlineExceeded:
+	default:
+		return nil, fmt.Errorf("LPSM-RECEIPTS-OUTCOME: %q", r.Outcome)
 	}
-	r.ReceiptHash = hashReceipt(r)
-	inv := &Invocation{
-		InvocationID: id,
-		CapabilityID: capabilityID,
-		State:        outcome,
-		Receipt:      r,
-		UpdatedAt:    time.Now().UTC(),
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	id := r.InvocationID
+	if id == "" {
+		id = nextID()
 	}
-	s.invocs[id] = inv
-	s.order[providerInstance] = append(s.order[providerInstance], r.ReceiptHash)
+	if existing, ok := s.invocs[id]; ok && isTerminalState(existing.State) {
+		cp := *existing
+		return &cp, nil
+	}
+
+	r.InvocationID = id
+	r.StartedAt = r.StartedAt.UTC()
+	r.EndedAt = r.EndedAt.UTC()
+	r.PrevReceiptHash = s.lastHashLocked(r.ProviderInstance)
+	r.ReceiptHash = hashReceipt(&r)
+
+	inv, ok := s.invocs[id]
+	if !ok {
+		inv = &Invocation{InvocationID: id}
+		s.invocs[id] = inv
+		s.seq[id] = s.nextSeq
+		s.nextSeq++
+	}
+	inv.CapabilityID = r.CapabilityID
+	inv.State = r.Outcome
+	inv.Cancelled = r.Outcome == OutcomeCancelled
+	inv.Receipt = &r
+	inv.UpdatedAt = time.Now().UTC()
+	s.order[r.ProviderInstance] = append(s.order[r.ProviderInstance], r.ReceiptHash)
+	// The invocation is terminal: nothing is left to cancel.
+	delete(s.cancels, id)
 	if err := s.appendLocked(inv); err != nil {
 		return nil, err
 	}
 	return inv, nil
+}
+
+// SetState moves a pending invocation to another non-terminal state (queued or
+// running). A terminal invocation is never moved: its receipt is the record of
+// what happened, and a later state would contradict it. An unknown id is a
+// typed not-found, never a silent no-op.
+//
+// The state change is not persisted: the durable record of an invocation is
+// its receipt, and a pending invocation has none.
+func (s *Store) SetState(id, state string) error {
+	switch state {
+	case StateQueued, StateRunning:
+	default:
+		return fmt.Errorf("LPSM-RECEIPTS-STATE: %q", state)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inv, ok := s.invocs[id]
+	if !ok {
+		return fmt.Errorf("LPSM-INVOCATION-NOT-FOUND: %q", id)
+	}
+	if isTerminalState(inv.State) {
+		return fmt.Errorf("LPSM-RECEIPTS-TERMINAL: invocation %q is already %s", id, inv.State)
+	}
+	inv.State = state
+	inv.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// AttachCancel attaches the in-flight cancellation function to a pending
+// invocation. Attaching to a terminal invocation is a no-op (there is nothing
+// left to cancel), and attaching twice replaces the function.
+func (s *Store) AttachCancel(id string, cancel func()) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inv, ok := s.invocs[id]
+	if !ok {
+		return fmt.Errorf("LPSM-INVOCATION-NOT-FOUND: %q", id)
+	}
+	if isTerminalState(inv.State) {
+		return nil
+	}
+	if cancel == nil {
+		delete(s.cancels, id)
+		return nil
+	}
+	s.cancels[id] = cancel
+	return nil
+}
+
+// Pending returns every invocation that has not reached a terminal state,
+// oldest first (newest last).
+func (s *Store) Pending() []*Invocation {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]*Invocation, 0, len(s.invocs))
+	for _, inv := range s.invocs {
+		if isTerminalState(inv.State) {
+			continue
+		}
+		cp := *inv
+		out = append(out, &cp)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return s.seq[out[i].InvocationID] < s.seq[out[j].InvocationID]
+	})
+	return out
 }
 
 // Get fetches an invocation by id. Unknown ids are a caller error, not a
@@ -174,17 +295,19 @@ func (s *Store) Get(id string) (*Invocation, error) {
 
 // Cancel requests cooperative cancellation. It is idempotent: terminal
 // states return cancelled=false with no error; queued/running states flip
-// to cancelled and record a cancellation receipt.
+// to cancelled, record a cancellation receipt and signal the attached
+// cancellation function exactly once.
 func (s *Store) Cancel(id string) (*Invocation, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	inv, ok := s.invocs[id]
 	if !ok {
+		s.mu.Unlock()
 		return nil, fmt.Errorf("LPSM-INVOCATION-NOT-FOUND: %q", id)
 	}
 	switch inv.State {
 	case StateSucceeded, StateFailed, StateCancelled, StateDeadlineExceeded:
 		cp := *inv
+		s.mu.Unlock()
 		return &cp, nil
 	}
 	now := time.Now().UTC()
@@ -203,15 +326,25 @@ func (s *Store) Cancel(id string) (*Invocation, error) {
 	inv.Receipt = r
 	inv.UpdatedAt = now
 	s.order[instanceOf(inv)] = append(s.order[instanceOf(inv)], r.ReceiptHash)
-	if err := s.appendLocked(inv); err != nil {
+	// The cancel function fires exactly once: it is dropped here, so a
+	// repeated cancel cannot signal the same call a second time.
+	cancel := s.cancels[id]
+	delete(s.cancels, id)
+	cp := *inv
+	err := s.appendLocked(inv)
+	s.mu.Unlock()
+	if err != nil {
 		return nil, err
 	}
-	cp := *inv
+	if cancel != nil {
+		cancel()
+	}
 	return &cp, nil
 }
 
 // RegisterPending tracks a queued/running invocation so Cancel has
-// something idempotent to act on before a terminal Record lands.
+// something idempotent to act on before a terminal Record lands. The
+// invocation starts in the queued state: it has been accepted, not dispatched.
 func (s *Store) RegisterPending(id, capabilityID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -219,9 +352,11 @@ func (s *Store) RegisterPending(id, capabilityID string) {
 		s.invocs[id] = &Invocation{
 			InvocationID: id,
 			CapabilityID: capabilityID,
-			State:        StateRunning,
+			State:        StateQueued,
 			UpdatedAt:    time.Now().UTC(),
 		}
+		s.seq[id] = s.nextSeq
+		s.nextSeq++
 	}
 }
 
@@ -339,4 +474,14 @@ func instanceOf(inv *Invocation) string {
 		return inv.Receipt.ProviderInstance
 	}
 	return "unknown"
+}
+
+// isTerminalState reports whether an invocation reached a state it can never
+// leave. A terminal invocation's receipt is the record of what happened.
+func isTerminalState(state string) bool {
+	switch state {
+	case StateSucceeded, StateFailed, StateCancelled, StateDeadlineExceeded:
+		return true
+	}
+	return false
 }
