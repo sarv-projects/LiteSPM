@@ -137,6 +137,13 @@ func Scan(row Row) []Finding {
 	}
 
 	// 3. An internal skill must not be published.
+	//
+	// The published row carries no `metadata` block today - checked over the
+	// 2026-10-17 release: 0 of 69,376 rows have one - so this rule finds nothing
+	// because the field is absent, not because the catalogue is clean of
+	// internal skills. The producer hides those before publication. The rule is
+	// defensive: it becomes live the day a released dataset carries the marker,
+	// and it is declared either way so a reader can see what is checked.
 	if row.Kind == "skill" && isInternal(row.Metadata) {
 		add(RuleInternalSkillPublished, SeverityError,
 			"the row is published from an INTERNAL source; internal skills are hidden by INSTALL_INTERNAL_SKILLS and must not be in the public catalogue")

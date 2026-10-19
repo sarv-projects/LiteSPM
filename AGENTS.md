@@ -2,12 +2,14 @@
 
 **LiteSPM** — *the package manager for AI agents*. It connects once to your AI agent host, enabling you to discover, install, update, and monitor MCP servers, skills, and plugins through a single unified interface.
 
-> **State.** An install completes for **skills and MCP servers** — plan, human approval, then the
-> skills ledger or a host-config registration. A **plugin** install cannot complete: there is no
-> plugin artifact source, so it fails closed with `LPSM-ARTIFACT-UNAVAILABLE` rather than
-> installing half a bundle. The catalog release tree is published and the live origin serves it.
-> [STATUS.md](STATUS.md) is the single source of truth for what each subsystem actually does; this
-> guide states the wiring, not the aspiration.
+> **State.** An install completes for **skills, MCP servers and plugins** — plan, human approval,
+> then the skills ledger, a host-config registration, or (for a plugin) its pinned tree fetched at
+> that commit and the MCP servers its own manifest declares registered in each target host. A
+> plugin row that publishes no fetchable source — only a local directory, or an unpinned ref — is
+> refused with that reason rather than half-installed; 390 of the 638 published plugin rows publish
+> a pinned git tree, and the site says the same thing about the other 248. The catalog release tree
+> is published and the live origin serves it. [STATUS.md](STATUS.md) is the single source of truth
+> for what each subsystem actually does; this guide states the wiring, not the aspiration.
 
 ## 0. The skills CLI (a first-class surface, not a bridge detail)
 
@@ -113,7 +115,8 @@ action it offers delegates to the same shared implementation the CLI uses.
     *   `[2] Find and install a capability` — searches the local index and installs through the
         **same plan → approval → policy gate** as `litespm install`: `authorizeHumanInstall`, then
         `installSkillFromListing` (skills) or `installMCPFromListing` (MCP servers). There is no
-        wizard-only installer; plugin listings refuse honestly with `LPSM-ARTIFACT-UNAVAILABLE`.
+        wizard-only installer; plugin listings go through the same gate (a pinned source installs, and one
+        with no fetchable source is refused with the reason).
     *   `[3] Remove something LiteSPM installed` — lists what the install records and the skills
         ledger hold, shows every destination, and removes through `removeInstalledPackage` (ledger
         reconcile: only what LiteSPM wrote, user-edited nodes kept) or `executeSkillsRemove` for
@@ -135,7 +138,7 @@ Once configured, simply launch your agent and type:
 ```
 
 ### UX Architecture: Portable Contract vs. Rich Host UI
-*   **Portable Text / MCP Contract:** For terminal CLI agents (`claude`, `codex`, `grok`, `opencode`), `/marketplace` exposes 12 Bridge tools. Those that resolve against the daemon today: `search_catalog`, `get_extension`, `prepare_install`, `list_installed`, `load_skill`, `read_skill_resource`, `search_capabilities`, `describe_capability`, `invoke_capability`. `request_install` reaches `install.execute`, which — behind the plan + human-approval gate in `cmd/litespm/install_authz.go` — **completes for skill listings** (real skill files through the skills ledger) **and for MCP-server listings** (the server is registered in each target host's config), and fails closed with `LPSM-ARTIFACT-UNAVAILABLE` for **plugin** listings only, whose artifact source is not wired ([STATUS.md](STATUS.md) §3). Only `get_invocation` and `cancel_invocation` return JSON-RPC `-32601` ("not implemented"), because the asynchronous invocation registry is `ARCH/34` (`DESIGNED`).
+*   **Portable Text / MCP Contract:** For terminal CLI agents (`claude`, `codex`, `grok`, `opencode`), `/marketplace` exposes 12 Bridge tools. Those that resolve against the daemon today: `search_catalog`, `get_extension`, `prepare_install`, `list_installed`, `load_skill`, `read_skill_resource`, `search_capabilities`, `describe_capability`, `invoke_capability`. `request_install` reaches `install.execute`, which — behind the plan + human-approval gate in `cmd/litespm/install_authz.go` — **completes for skill listings** (real skill files through the skills ledger), **for MCP-server listings** (the server is registered in each target host's config) and **for plugin listings whose publisher ships a pinned git tree** (the tree is fetched at that commit, its manifest read, and the servers it declares registered); a plugin with no fetchable source fails closed with the reason it cannot be installed. `get_invocation` and `cancel_invocation` answer from the invocation registry (`ARCH/34`): an id that was never issued is a typed `LPSM-INVOCATION-NOT-FOUND`, not a `-32601` stub.
 *   **Rich Host Renderer:** In hosts supporting rich extension panels or terminal TUIs (e.g. Cline in VS Code or Pi Agent TUI), `/marketplace` opens the **LiteSPM Capability Panel** with 4 dedicated tabs:
 
 ```text
@@ -153,7 +156,7 @@ reads `[INSTALLED (0)]` on an empty install and grows with the ledger plus detec
 ### Tab 1: MCP Servers
 *   Full search bar filtering by name, category, or transport (`stdio` / `Streamable HTTP`).
 *   Displays verified badges and upstream GitHub links. No star, download or install counts are shown: no upstream source exposes them, so the catalog publishes none rather than an estimate.
-*   One-click install button that prepares an `InstallPlan`. **Execution completes for skills** (installs files through the skills ledger) **and for MCP servers** (registers the server in each target host's config), both behind the plan + human-approval gate; **plugin** listings still need an artifact source ([STATUS.md](STATUS.md) §3).
+*   One-click install button that prepares an `InstallPlan`. **Execution completes for skills** (installs files through the skills ledger), **for MCP servers** (registers the server in each target host's config) and **for plugins with a pinned source** (fetches that commit and registers the servers its manifest declares), all behind the plan + human-approval gate; a plugin with no fetchable source is refused with its reason ([STATUS.md](STATUS.md) §3).
 
 ### Tab 2: Agent Skills
 *   Search portable `SKILL.md` workflows from `agentskills.io`.

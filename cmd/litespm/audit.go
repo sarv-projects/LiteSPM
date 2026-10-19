@@ -30,7 +30,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sarv-projects/litespm/internal/catalog"
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/receipts"
 	"github.com/sarv-projects/litespm/internal/scan"
@@ -188,13 +187,11 @@ func auditCatalogueRows(ctx context.Context, paths *config.PlatformPaths, datase
 		return rows, datasetPath, nil
 	}
 
-	client := catalog.NewClient(config.DefaultRegistryURL, paths.DataRoot, nil)
 	releaseID, err := cachedReleaseID(paths)
 	if err != nil {
 		return nil, "", err
 	}
-	_ = client
-	rows, err := cachedListingRows(ctx, paths, releaseID)
+	rows, err := cachedListingRows(paths, releaseID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -223,7 +220,7 @@ func cachedReleaseID(paths *config.PlatformPaths) (string, error) {
 // cachedListingRows reads the listing shards of the cached release. The
 // shards are the bytes the origin served, so the audit reads what is
 // published rather than a re-serialization of it.
-func cachedListingRows(ctx context.Context, paths *config.PlatformPaths, releaseID string) ([]scan.Row, error) {
+func cachedListingRows(paths *config.PlatformPaths, releaseID string) ([]scan.Row, error) {
 	releaseDir := filepath.Join(paths.DataRoot, "v1", "releases", releaseID)
 	manifestData, err := os.ReadFile(filepath.Join(releaseDir, "manifest.json"))
 	if err != nil {

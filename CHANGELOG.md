@@ -40,6 +40,33 @@ publish to GitHub while quietly skipping npm.
     cross-provider fallback (§7).
 - **`litespm doctor --repair` stays unprompted-proof**: it previews every action
   and applies none without a confirmation.
+- **`litespm audit` checks the catalogue for content that must not ship.** The
+  catalogue is 69,376 rows of third-party metadata in a public file, and several
+  promises are made about it that nothing checked. `internal/scan` now checks
+  them row by row — a discovery-only row that carries a launch line (a claim the
+  installer cannot honour), a plugin with no fetchable source, an internal skill
+  published publicly, a credential in a public URL, a version with no traceable
+  source — and `litespm audit` runs the scan over the catalogue **as published**
+  (the cached shards the origin served, digest-verified), verifies the receipt
+  chain when the machine has one, and writes SARIF 2.1.0 with stable rule ids
+  and every rule declared, so a CI consumer can tell "checked and clean" from
+  "not checked". Run against `rel-2026-10-17-01` it reports one error and 248
+  warnings: one published URL carries a demo token, and 248 plugins publish a
+  source LiteSPM cannot fetch — which the site already says, so those are
+  warnings rather than contradictions.
+- **A plugin now installs when its publisher ships a pinned source.** LiteSPM
+  fetches that exact commit, reads the plugin's own manifest (both the
+  `plugin.json` and the Claude Code `$schema` shapes, including an
+  `mcpServers: "./mcp.json"` reference resolved inside the pinned tree), and
+  registers the MCP servers it declares in each target host. A plugin that
+  publishes only a local directory, or an unpinned ref, is refused with the
+  reason rather than half-installed; the site says the same thing about the same
+  rows.
+- **A diagnostic says how long it took.** `litespm doctor` now reports the
+  duration of each check and of the whole run (`CheckResult.DurationMs`,
+  `DoctorReport.DurationMs`, shown in the human output): a check that takes four
+  seconds is a different finding from one that takes four milliseconds, and
+  without a measurement the operator cannot tell which is which.
 
 ### Fixed
 
@@ -119,6 +146,29 @@ publish to GitHub while quietly skipping npm.
   inventory said the launcher "has no runtime dependencies"; it declares three
   `@sigstore/*` packages, and the default install path needs them to verify the
   release's bundle.
+- **The site's browser suite ran for the first time, and 32 of its 201 assertions
+  failed.** The export prerenders 4,101 pages and the default build worker count
+  was killed mid-run on an 8 GB machine with no error message, which looked like
+  a code failure and was not one; one worker completes the build, so the suite
+  could finally execute. What it found, now fixed:
+  - every page that lists entries filled the console with 404s: Next prefetches
+    an entry's RSC payload (`index.txt`), which exists only for the prerendered
+    entries, so ~65,000 answered 404 — and the prefetches spent the page's
+    request budget. Entry links no longer prefetch.
+  - the Coverage board said a publisher published 249 entries and the link beside
+    it opened 250: the board grouped publisher names case-sensitively and the
+    filter case-folded, and the dataset spells one vendor both `nvidia` (249
+    rows) and `NVIDIA` (1 row). The board, the emitted facet list and the filter
+    now share one rule — a publisher's identity is its name case-folded — and the
+    gate that holds the two sides together (`check-publisher-counts.mjs`), which
+    had been written but never run, is wired into `npm run lint`.
+  - the two Explore checkboxes were 20 px across, under the WCAG 2.2 SC 2.5.8
+    floor of 24 px; a scrollable code block had no keyboard access; and a grid
+    without an explicit base column kept an `auto` track whose floor is the
+    content's min-content width, which pushed `/explore/` 32 px sideways at
+    320 px. 41 grids now name their base column.
+  - three places still said plugins cannot be installed, and the hero's figure
+    did not say it was a snapshot. Both now state what is true.
 
 ## [0.4.1] - 2026-10-15
 
