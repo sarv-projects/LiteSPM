@@ -509,7 +509,7 @@ func (e *Engine) promoteAndCommit(ctx context.Context, opID, stagingDir, extract
 		if err := os.MkdirAll(filepath.Dir(casTreePath), 0700); err != nil {
 			return fail(fmt.Errorf("failed to create CAS tree parent dir: %w", err))
 		}
-		created, perr := promoteTree(extractedDir, casTreePath)
+		created, perr := promoteTree(extractedDir, casTreePath, filepath.Join(e.casRoot, "tmp"))
 		if perr != nil {
 			return fail(fmt.Errorf("failed to promote tree to CAS store %s: %w", casTreePath, perr))
 		}
@@ -620,7 +620,16 @@ func (e *Engine) quarantineTree(treeDigest, treePath string) (string, error) {
 // created reports whether dst was created by this call; false means dst already
 // existed (this caller lost a promotion race) and src is left for the caller to
 // discard.
-func promoteTree(src, dst string) (created bool, err error) {
+//
+// The cross-device path copies into a scratch directory first, then renames the
+// finished copy into place so dst never exists half-populated. The scratch
+// lives in `casRoot/tmp`, NOT beside dst: `dst.tmp-<nanos>` put a partial tree
+// inside the CAS tree store, where a crash between the copy and the rename left
+// a directory that every reader of `trees/<algo>/` had to know to ignore. A
+// directory under `casRoot/tmp` is never a tree, so an orphan there is visibly
+// scratch — and the next promotion to the same destination is unaffected
+// because the name is unique per call (os.MkdirTemp), not per digest.
+func promoteTree(src, dst, scratchRoot string) (created bool, err error) {
 	if err := os.Rename(src, dst); err == nil {
 		return true, nil
 	}
@@ -629,7 +638,13 @@ func promoteTree(src, dst string) (created bool, err error) {
 	}
 	// Cross-device or similar: copy beside the destination, then rename into
 	// place so dst never exists half-populated.
-	tmp := fmt.Sprintf("%s.tmp-%d", dst, time.Now().UnixNano())
+	if err := os.MkdirAll(scratchRoot, 0700); err != nil {
+		return false, fmt.Errorf("failed to create promotion scratch dir %s: %w", scratchRoot, err)
+	}
+	tmp, err := os.MkdirTemp(scratchRoot, "promote-")
+	if err != nil {
+		return false, fmt.Errorf("failed to create promotion scratch dir: %w", err)
+	}
 	if err := moveOrCopyDir(src, tmp); err != nil {
 		_ = os.RemoveAll(tmp)
 		return false, err

@@ -151,7 +151,7 @@ func TestE6_PromoteTreeDoesNotMergeIntoExistingDestination(t *testing.T) {
 	_ = os.MkdirAll(dst, 0o700)
 	_ = os.WriteFile(filepath.Join(src, "new.txt"), []byte("n"), 0o600)
 	_ = os.WriteFile(filepath.Join(dst, "keep.txt"), []byte("k"), 0o600)
-	created, err := promoteTree(src, dst)
+	created, err := promoteTree(src, dst, filepath.Join(dir, "tmp"))
 	if err != nil || created {
 		t.Fatalf("created=%v err=%v; losing a race must report created=false", created, err)
 	}
