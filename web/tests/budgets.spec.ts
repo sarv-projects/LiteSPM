@@ -121,7 +121,7 @@ const OVERFLOW_ROUTES = [
   "/agents/claude-code/",
   "/categories/",
   "/compare/",
-  "/trending/",
+  "/insights/",
   "/package/",
   preRendered.href,
   nonPreRendered.href,

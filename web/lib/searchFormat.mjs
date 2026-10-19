@@ -49,9 +49,23 @@
 // rows carried it; the hydrated ones could not. v3 interns `source` as an
 // eleventh dictionary and appends a 2-byte index to the fixed block (11 → 13
 // bytes), so both paths render the same origin for the same row.
+//
+// **Format v4 — the address's host is not searchable.** Every id the MCP
+// registry publishes reads `<kind>:<source>:<host>.<account>-<repo>`, and the
+// host is where the entry is *served from*, not what it *is*: 25,903 of the
+// 69,376 rows sit under the single namespace `io.github`. v3 tokenized that
+// host, so the query `github` matched 26,864 rows — 38.7% of the catalog —
+// 16,044 of them on the address alone, with nothing about the row itself
+// saying "GitHub". v4 excludes the address's host segment from the token set
+// (`addressHost` / `searchableId` below), which drops the `github` match set
+// to 10,820 rows (15.6%): every remaining row names GitHub in its name, its
+// publisher, its summary or its web address. The byte layout of the index is
+// unchanged — only the vocabulary is — but the vocabulary is the artifact, so
+// the version moves and a stale index is refused rather than silently
+// answering the old question.
 
 /** Bumped when the byte layout changes; every reader refuses a mismatch. */
-export const SEARCH_FORMAT_VERSION = 3;
+export const SEARCH_FORMAT_VERSION = 4;
 
 /** ASCII magic at the head of both artifacts. */
 const MAGIC = "LSPMSRCH";
@@ -92,12 +106,76 @@ export function queryTokens(query) {
 }
 
 /**
+ * The host segment of a row's catalog address — the part of the id that says
+ * *where the entry is served from* rather than *what the entry is*.
+ *
+ * An id the MCP registry publishes reads `<kind>:<source>:<host>.<account>-<repo>`.
+ * The host is the reverse-DNS namespace the registry files the server under
+ * (`io.github` for a server hosted in a GitHub repository, `com.notion` for
+ * one hosted on Notion's own domain), and the account that follows it is the
+ * publisher's own name.
+ *
+ * The host is found by locating the publisher's account inside the id's last
+ * segment — the account is the one thing both the id and the publisher field
+ * agree on. Two cases are deliberately NOT treated as a host:
+ *
+ *   * the account is the whole leading part of the segment (`ai.thetickeris-
+ *     agent-rail`): the publisher's own name *is* the address's host, and the
+ *     publisher field already carries it at a stronger match class, so nothing
+ *     is lost by leaving the id alone;
+ *   * the account cannot be located in the segment (a spelling the id does
+ *     not use — the registry's punycode form, for one): the rule never
+ *     guesses, and the row keeps its whole id.
+ *
+ * @param {string} id the row's catalog id
+ * @param {string | null | undefined} publisherName the row's publisher name
+ * @returns {string} the host labels, or "" when there is none to exclude
+ */
+export function addressHost(id, publisherName) {
+  const text = String(id ?? "");
+  const last = text.slice(text.lastIndexOf(":") + 1);
+  const account = String(publisherName ?? "").trim();
+  if (!account) return "";
+  const at = last.indexOf(account);
+  if (at <= 0) return "";
+  // The account must start a label: `io.github.nirholas-…` puts it after a
+  // dot, so the labels before it are the host.
+  if (last[at - 1] !== ".") return "";
+  return last.slice(0, at - 1);
+}
+
+/**
+ * The part of a row's id that search may match: the id without its host.
+ *
+ * The id itself stays the unambiguous key everywhere else — the install
+ * command, the entry page, the ledger. This is only about what the *token
+ * set* of a row contains, and it is the one place the address's host is
+ * dropped.
+ *
+ * @param {string} id the row's catalog id
+ * @param {string | null | undefined} publisherName the row's publisher name
+ * @returns {string}
+ */
+export function searchableId(id, publisherName) {
+  const text = String(id ?? "");
+  const host = addressHost(text, publisherName);
+  if (!host) return text;
+  const last = text.slice(text.lastIndexOf(":") + 1);
+  const at = last.indexOf(host) + host.length + 1; // past "host."
+  return text.slice(0, text.length - last.length) + last.slice(at);
+}
+
+/**
  * The text a listing exposes to search, in one fixed order.
  *
  * This is the definition of "what search covers". `matchesQuery` and the index
  * emitter both call this function, so a field added here is added to both — and
  * the agreement gate fails if the emitter is ever changed to tokenize something
  * else.
+ *
+ * The id contributes everything except its host segment (see `searchableId`):
+ * the host says where the entry lives, and a query for it says nothing about
+ * the entry.
  *
  * @param {any} item
  * @returns {string}
@@ -108,7 +186,7 @@ export function listingText(item) {
     item.summary,
     item.category,
     item.publisher?.name,
-    item.id,
+    searchableId(item.id, item.publisher?.name),
     item.slug,
     item.runtime,
     item.transport,
@@ -135,10 +213,11 @@ export function listingText(item) {
  *   slug                           the URL key names it
  *   body                           summary, category, runtime, transport,
  *                                  tool names and descriptions
- *   catalog id                     the registry identifier. Last on purpose:
- *                                  `io.github.<publisher>` is a namespace, not
- *                                  content, and it matched ~60% of the rows a
- *                                  `github` query returned under v1.
+ *   catalog id                     the registry identifier, outside its host
+ *                                  segment. Last on purpose: `io.github.
+ *                                  <publisher>` is a namespace, not content,
+ *                                  and the host part of it is not searchable
+ *                                  at all (see `searchableId`).
  *
  * A later token that starts with the query token counts as a name match even
  * when it is a prefix (`github30`), because token-prefix is the matcher's
@@ -148,8 +227,7 @@ export function listingText(item) {
 /** Query token found in the body: summary, category, runtime, transport, tools. */
 export const MATCH_BODY = 0;
 /** Query token found only in the catalog id. Lowest class. */
-export const MATCH_ID = 1;
-/** Query token found in the slug. */
+export const MATCH_ID = 1;/** Query token found in the slug. */
 export const MATCH_SLUG = 2;
 /** Query token found in the publisher name. */
 export const MATCH_PUBLISHER = 3;
@@ -189,7 +267,9 @@ export function matchFieldTokens(item) {
     publisher: tokenizeText(item.publisher?.name ?? ""),
     slug: tokenizeText(item.slug ?? ""),
     body: [...new Set(tokenizeText(bodyParts.filter(Boolean).join(" ")))],
-    id: [...new Set(tokenizeText(item.id ?? ""))],
+    // The id without its host segment: the host says where the entry is
+    // served from, and a query for it says nothing about the entry.
+    id: [...new Set(tokenizeText(searchableId(item.id, item.publisher?.name)))],
   };
 }
 
@@ -930,7 +1010,9 @@ function explainToken(item, token) {
     ["category", item.category ?? "", MATCH_BODY],
     ["runtime", item.runtime ?? "", MATCH_BODY],
     ["transport", item.transport ?? "", MATCH_BODY],
-    ["id", item.id ?? "", MATCH_ID],
+    // The id without its host segment, exactly as the matcher tokenized it:
+    // an explanation must not name a field the match did not come from.
+    ["id", searchableId(item.id, item.publisher?.name), MATCH_ID],
   ];
   for (const [field, text, className] of candidates) {
     if (!text) continue;

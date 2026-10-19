@@ -1,6 +1,6 @@
 // Board figures agree with what their links open.
 //
-// The historical contradiction: `/trending/` linked each publisher to
+// The historical contradiction: `/insights/` linked each publisher to
 // `/explore/?q=<name>` — a text search — while showing a publisher count. Two
 // measurements presented as one: `mcp-dir 1,113` opened a page reading 1,801.
 // The link is now `/explore/?publisher=<name>`, the same comparison
@@ -48,7 +48,7 @@ async function readBoard(
   return { rows, note };
 }
 
-/** The `/trending/` host table: name, the agent page it opens, its figure. */
+/** The `/insights/` host table: name, the agent page it opens, its figure. */
 async function readHostTable(
   page: import("@playwright/test").Page
 ): Promise<Array<{ label: string; href: string; entries: string }>> {
@@ -68,7 +68,7 @@ async function readHostTable(
 
 test("the publisher board: every figure matches the page its link opens", async ({ page }) => {
   test.setTimeout(180_000);
-  await gotoSettled(page, "/trending/");
+  await gotoSettled(page, "/insights/");
   const { rows, note } = await readBoard(page, "Publishers by entries shipped");
 
   expect(rows.length).toBe(15);
@@ -87,13 +87,13 @@ test("the publisher board: every figure matches the page its link opens", async 
     const shown = parseCount(await resultCount(page).textContent());
     expect(shown, `publisher ${row.label}: board says ${row.count}`).toBe(parseCount(row.count));
     await page.goBack();
-    await expect(page.getByRole("heading", { name: "Coverage", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Insights", level: 1 })).toBeVisible();
   }
 });
 
 test("the agent-host table: the figure, the host page and Explore all agree", async ({ page }) => {
   test.setTimeout(180_000);
-  await gotoSettled(page, "/trending/");
+  await gotoSettled(page, "/insights/");
   const rows = (await readHostTable(page)).filter(
     (row) => row.href.startsWith("/agents/") && /^[\d,]+$/.test(row.entries)
   );
@@ -140,7 +140,7 @@ test("the agent-host table: the figure, the host page and Explore all agree", as
 
 test("the category board links to the category filter and its figure matches", async ({ page }) => {
   test.setTimeout(120_000);
-  await gotoSettled(page, "/trending/");
+  await gotoSettled(page, "/insights/");
   const { rows } = await readBoard(page, "Categories by entry count");
   expect(rows.length).toBeGreaterThan(0);
   // Three samples: the largest, a middle row, the last.

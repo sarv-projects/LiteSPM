@@ -3,10 +3,15 @@ import Link from "next/link";
 import { HOSTS } from "../../lib/hosts";
 import { formatCount } from "../../lib/format";
 /**
- * The questions someone asks before they install anything: what is this, does it
- * work with my agent, can I install it from here, what does it touch, how do I
- * undo it, can anyone see my credentials, what about plugins, and is any of it
- * security-checked.
+ * The questions someone asks before they install anything, in the order a
+ * first-time visitor asks them.
+ *
+ * The order is the point: "what is this?" first, then "can I do it from
+ * here?" — the answer to which is *no* — and only then the vocabulary, the
+ * agent list, the account, the provenance, the risks and the undo. The old
+ * order put the vocabulary second and the "can I install from this website?"
+ * question fifth, behind three technical ones, which is how a reader who
+ * never found the answer came to believe the site could install things.
  *
  * Answers are short and in the customer's words. Provenance counts, read-depth
  * grades and version coverage are not here. They describe how the catalog is
@@ -18,8 +23,8 @@ import { formatCount } from "../../lib/format";
  *
  * Native `<details>`/`<summary>`, not a hand-rolled button: the previous markup
  * was a `<dl>` whose `<dd>` only mounted while open, so before any interaction
- * the document carried ten `<dt>`s and zero `<dd>`s, an invalid list that strips
- * the term/definition relationship, and an answer could not be reached by
+ * the document carried ten `<dt>`s and zero `<dd>`s, an invalid list that strips the
+ * term/definition relationship, and an answer could not be reached by
  * in-page find until its row was clicked. `name="faq"` keeps the
  * one-open-at-a-time behaviour; the expanded state is exposed by `<summary>`
  * itself, and the marker CSS lives in globals.css.
@@ -30,27 +35,30 @@ export function FaqSection() {
       q: "What is LiteSPM?",
       a: (
         <>
-          A package manager for AI coding agents. It sets your agent up once, then installs and
-          removes tools for you, so you stop editing config files by hand.
+          A package manager for AI coding agents. It connects to your agent once, then installs and
+          removes tools for you — with a preview before anything changes, and a way back
+          afterwards.
         </>
       ),
     },
     {
-      q: "What is an MCP server?",
+      q: "Can I install from this website?",
       a: (
         <>
-          MCP, the Model Context Protocol, is the open standard for connecting an AI agent to
-          outside tools. An MCP server is a small program the agent connects to and calls: one for
-          Postgres, one for your browser, one for your issue tracker.
+          No. This site is for finding and comparing. Installs run in your terminal, and LiteSPM
+          shows you the change before it makes it.
         </>
       ),
     },
     {
-      q: "Is it free?",
+      q: "What is an MCP server, and what is a skill?",
       a: (
         <>
-          Yes, and there is no account to create. LiteSPM is Apache-2.0 and runs on your machine.
-          Individual servers may need their own credentials, which stay in your keychain.
+          An <strong className="font-medium text-ink">MCP server</strong> is a small program your
+          agent connects to and calls — one for Postgres, one for your browser, one for your issue
+          tracker. A <strong className="font-medium text-ink">skill</strong> is a folder of
+          instructions the agent reads when it needs them: a workflow, a house style, a document
+          format. No program, no process — just files in the directory the agent already uses.
         </>
       ),
     },
@@ -61,17 +69,47 @@ export function FaqSection() {
           <Link href="/agents/" className="link">
             {formatCount(HOSTS.length)} agent hosts
           </Link>{" "}
-          have a built-in adapter, including Claude Code, Codex, Cursor, OpenCode, Cline and Pi.
-          Use one of them, or all of them, from the same command.
+          have a built-in adapter, including Claude Code, Codex, Cursor, OpenCode, Cline and Pi. Use
+          one of them, or all of them, from the same command.
         </>
       ),
     },
     {
-      q: "Can I install from this website?",
+      q: "Do I need an account?",
       a: (
         <>
-          No. This site is for finding and comparing. Installs run in your terminal, and LiteSPM
-          shows you the change before it makes it.
+          No, and there is nothing to sign up for. LiteSPM is free and Apache-2.0, and it runs on
+          your machine. An individual server may need its own credentials, which stay in your
+          keychain.
+        </>
+      ),
+    },
+    {
+      q: "How do you decide what to publish?",
+      a: (
+        <>
+          Every row records where it was read from: the publisher&rsquo;s own manifest, or a
+          third-party list. The label on a card says which one it was — and that is a statement
+          about the source, never a review of the software.
+        </>
+      ),
+    },
+    {
+      q: "Is anything here security-checked?",
+      a: (
+        <>
+          No. We index listings, we do not audit code. A publisher or source label tells you where
+          the data came from, not that anyone reviewed the software.
+        </>
+      ),
+    },
+    {
+      q: "What can go wrong?",
+      a: (
+        <>
+          An install can put a tool in front of your agent that behaves badly, and LiteSPM does not
+          run what it lists. Read the source on the entry page, keep the preview on, and remove it
+          with one command if it misbehaves.
         </>
       ),
     },
@@ -89,7 +127,8 @@ export function FaqSection() {
       a: (
         <>
           <code className="t-mono">litespm restore</code> puts a config file back the way it was.{" "}
-          <code className="t-mono">litespm install remove</code> takes out a tool LiteSPM installed.
+          <code className="t-mono">litespm install remove</code> takes out a tool LiteSPM
+          installed.
         </>
       ),
     },
@@ -109,15 +148,6 @@ export function FaqSection() {
         <>
           You can browse them, but you cannot install them yet. LiteSPM refuses the install rather
           than doing half of it.
-        </>
-      ),
-    },
-    {
-      q: "Is anything here security-checked?",
-      a: (
-        <>
-          No. We index listings, we do not audit code. A publisher or source label tells you where
-          the data came from, not that anyone reviewed the software.
         </>
       ),
     },

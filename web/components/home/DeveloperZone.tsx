@@ -2,13 +2,13 @@
 
 import React from "react";
 import Link from "next/link";
-import { Check, Copy, Github } from "lucide-react";
+import { ArrowRight, Check, Copy, Github } from "lucide-react";
 import { copyText } from "../../lib/clipboard";
 import { ARCHITECTURE_URL, DOCS_URL, REPO_URL } from "../../lib/site";
 
 /**
- * Developer zone — and the `#install` anchor the header's Install button and
- * the hero's "Install instructions" both point at.
+ * The get-started band — and the `#install` anchor the header's install button
+ * and the hero's calls to action both point at.
  *
  * Every snippet is a command `cmd/litespm/main.go` dispatches today:
  * `version`, `setup`, `doctor`, `search`, `install`, `install remove`,
@@ -16,6 +16,11 @@ import { ARCHITECTURE_URL, DOCS_URL, REPO_URL } from "../../lib/site";
  * `uninstall`, `agent`, `skills`, `capabilities`, `invoke`, `help`.
  * `litespm list`, `litespm copy` and `litespm sync` are backlog rows
  * (`LPSM-J010`, `LPSM-J011`), so they are not advertised here.
+ *
+ * The five benefits that used to sit at the bottom of this panel are now their
+ * own section, one screen earlier, under "Why LiteSPM" — a reader who is
+ * already past the commands is not deciding anything, and the reasons to use
+ * the tool belong before the commands.
  */
 const SNIPPETS: Array<{ cmd: string; note: string }> = [
   { cmd: "npm install -g litespm", note: "Install the CLI" },
@@ -23,54 +28,6 @@ const SNIPPETS: Array<{ cmd: string; note: string }> = [
   { cmd: "litespm search github", note: "Search the catalog" },
   { cmd: "litespm install <id>", note: "See what it will run and change, then install it" },
   { cmd: "litespm doctor", note: "Check your local setup and report anything wrong" },
-];
-
-const FEATURES: Array<{ title: string; body: React.ReactNode }> = [
-  {
-    title: "Everything stays on your machine",
-    body: (
-      <>
-        No account, no analytics, no install telemetry. Your configs, catalog and history are files
-        on your disk — nowhere else.
-      </>
-    ),
-  },
-  {
-    title: "You can see where it came from",
-    body: (
-      <>
-        Every install records the source it came from, and the catalog is checked against a
-        signature every time it updates.
-      </>
-    ),
-  },
-  {
-    title: "Undo, exactly",
-    body: (
-      <>
-        <code className="t-mono">litespm restore</code> puts a config file back exactly as it was
-        before we touched it.
-      </>
-    ),
-  },
-  {
-    title: "It only touches its own line",
-    body: (
-      <>
-        Your other servers, your comments and your formatting survive. We add, replace or remove the
-        one entry we own — nothing else in the file.
-      </>
-    ),
-  },
-  {
-    title: "Locks that hold in CI",
-    body: (
-      <>
-        Pin what you resolved to <code className="t-mono">litespm.lock</code>, commit it, and let CI
-        fail if anything drifted underneath you.
-      </>
-    ),
-  },
 ];
 
 function Snippet({ cmd, note }: { cmd: string; note: string }) {
@@ -134,6 +91,10 @@ export function DeveloperZone() {
               terminal, and it tells you what it is about to change before it does.
             </p>
           </div>
+          <Link href="/get-started/" className="btn btn-solid btn-lg">
+            Step-by-step setup
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
         </div>
 
         <ul className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -146,15 +107,6 @@ export function DeveloperZone() {
             </li>
           ))}
         </ul>
-
-        <div className="mt-8 grid gap-x-8 gap-y-4 border-t border-rule pt-6 md:grid-cols-2 xl:grid-cols-3">
-          {FEATURES.map((feature) => (
-            <div key={feature.title}>
-              <h3 className="text-[14px] font-semibold tracking-tight text-ink">{feature.title}</h3>
-              <p className="mt-1 text-[13px] leading-relaxed text-ink-2">{feature.body}</p>
-            </div>
-          ))}
-        </div>
 
         <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-rule pt-5">
           <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="btn">

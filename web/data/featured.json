@@ -1,0 +1,94 @@
+{
+  "_comment": "The home page's curated shelf. Two groups, twelve entries, and every one of them is checked against the dataset at build time by `deriveShelves` in `lib/landing.ts`: an id that is not in the catalog, an entry LiteSPM cannot install, an entry whose source is not the one declared here, or an entry that depends on a host whose vendor has ended, fails the build. Nothing here may be invented - the id is the catalog's own id, and the use-case line is editorial prose that must not contradict the row's own summary. Each group is one provenance, so the line a reader is shown about where a row came from is true of every row in it.",
+  "schema": 1,
+  "groups": [
+    {
+      "id": "registry",
+      "title": "From the publisher's own manifest",
+      "blurb": "Published in the Official MCP Registry and read from the publisher's own manifest - the capabilities that cover code, documentation, design, data and deploys.",
+      "viewAllLabel": "Browse the registry",
+      "viewAllHref": "/explore/?source=builtin%3Amcp-registry&installable=1"
+    },
+    {
+      "id": "skills",
+      "title": "Official skills, as the source list marks them",
+      "blurb": "Skills a source list marks as official. We publish the label the list gives them; we have not audited them, and LiteSPM does not run what it lists.",
+      "viewAllLabel": "Browse official skills",
+      "viewAllHref": "/explore/?category=Official%20Skills%20by&installable=1"
+    }
+  ],
+  "entries": [
+    {
+      "id": "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Read a repository, open an issue, comment on a pull request - without leaving the agent."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:io.github.upstash-context7",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Pull the current library documentation into the agent, so it stops guessing the API."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:com.figma.mcp-mcp",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Bring a Figma design into the agent, where it can turn the file into code."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:com.notion-mcp",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Search the pages a team writes in Notion, and update the ones the work touches."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:com.cloudflare.mcp-mcp",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Ask about Workers, DNS and logs from inside the agent."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:com.neon-mcp",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Manage a Postgres project and its branches from the agent."
+    },
+    {
+      "id": "skill:anthropics:pdf",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Read a PDF, pull the tables out of it, merge pages, fill in a form."
+    },
+    {
+      "id": "skill:anthropics:docx",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Write a Word document with the headings, tables and letterhead the brief asked for."
+    },
+    {
+      "id": "skill:anthropics:xlsx",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Build or repair a spreadsheet, with formulas and charts in the cells."
+    },
+    {
+      "id": "skill:anthropics:pptx",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Put a deck together, read one back, or edit the slides that changed."
+    },
+    {
+      "id": "skill:anthropics:frontend-design",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Give a new interface a deliberate look, instead of a default one."
+    },
+    {
+      "id": "skill:anthropics:webapp-testing",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Open the app you just built in a real browser and check the flow works."
+    }
+  ]
+}

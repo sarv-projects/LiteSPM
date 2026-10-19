@@ -73,7 +73,7 @@ export const PALETTE_PAGES: PaletteDestination[] = [
     key: "page:coverage",
     label: "Coverage",
     detail: "Where the catalog's rows come from — counts, not stars",
-    href: "/trending/",
+    href: "/insights/",
   },
   {
     key: "page:install",

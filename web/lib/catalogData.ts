@@ -64,6 +64,21 @@ export const SEARCH_INDEX_PATH = "/data/catalog-search-index.bin.gz";
 export const CATEGORIES_PATH = "/data/catalog-categories.json";
 
 /**
+ * Publisher facets: the publishers worth filtering by, with the count each
+ * one's filter returns.
+ *
+ * The catalog has 30,269 distinct publishers and 5,286 of them published more
+ * than one entry. A publisher with a single entry is a row rather than a
+ * publisher to browse, so the list is the ones with two or more — and the
+ * control says how many of the whole set it holds.
+ *
+ * Like the category facets, this is its own document, fetched when the reader
+ * opens the control: 5,286 names do not belong in a JavaScript chunk, and they
+ * do not belong in a page's first paint either.
+ */
+export const PUBLISHERS_PATH = "/data/catalog-publishers.json";
+
+/**
  * Sharded display projection: one self-contained container per
  * `SEARCH_SHARD_ROWS` rows, under a path that names the shard size so a layout
  * change can never be answered by a cached file from the previous layout.
@@ -88,6 +103,7 @@ export const CATALOG_URL = `${CATALOG_PATH}${DATASET_VERSION}`;
 export const SEARCH_ROWS_URL = `${SEARCH_ROWS_PATH}${DATASET_VERSION}`;
 export const SEARCH_INDEX_URL = `${SEARCH_INDEX_PATH}${DATASET_VERSION}`;
 export const CATEGORIES_URL = `${CATEGORIES_PATH}${DATASET_VERSION}`;
+export const PUBLISHERS_URL = `${PUBLISHERS_PATH}${DATASET_VERSION}`;
 
 /** URL of one shard of the sharded display projection. */
 export function searchShardUrl(shardIndex: number): string {
@@ -579,4 +595,93 @@ export function loadCatalogCategories(): Promise<CategoryCount[]> {
       throw err;
     });
   return categoriesInflight;
+}
+
+// ---------------------------------------------------------------------------
+// Publisher facets.
+//
+// One document — the publishers that published more than one entry, with the
+// count each one's filter returns — so Explore's Publisher control can offer a
+// list before the reader has typed anything. The bytes are the build's own
+// counts, not a live measurement, so a count printed from here is settled by
+// construction, exactly like the category facets and the prerendered facets on
+// `/categories/`.
+// ---------------------------------------------------------------------------
+
+/** One row of `/data/catalog-publishers.json`. */
+export interface PublisherCount {
+  name: string;
+  count: number;
+}
+
+export interface PublisherFacets {
+  /** The publishers with more than one entry, largest first. */
+  publishers: PublisherCount[];
+  /** Every distinct publisher in the snapshot, listed or not. */
+  publisherCount: number;
+}
+
+interface PublishersDocument {
+  schema?: string;
+  rowCount?: number;
+  datasetDigest?: string;
+  publisherCount?: unknown;
+  publishers?: unknown;
+}
+
+let publishersCache: PublisherFacets | null = null;
+let publishersInflight: Promise<PublisherFacets> | null = null;
+
+/**
+ * Fetch the publisher facets, once per session.
+ *
+ * Called when the reader opens the Publisher control — an interaction. A
+ * passive visit fetches nothing, which is the same contract the category
+ * facets keep.
+ *
+ * A response that carries no usable list is an error, not an empty catalog: a
+ * stale or foreign document must render as "unavailable", never as "there are
+ * no publishers". Entries with a non-string name or a non-numeric count are
+ * dropped rather than coerced, so a malformed row cannot print a made-up
+ * number.
+ */
+export function loadCatalogPublishers(): Promise<PublisherFacets> {
+  if (publishersCache) return Promise.resolve(publishersCache);
+  if (publishersInflight) return publishersInflight;
+  publishersInflight = fetch(PUBLISHERS_URL, { cache: "no-cache" })
+    .then((res) => {
+      if (!res.ok) throw new Error(`publishers fetch failed: HTTP ${res.status}`);
+      return res.json() as Promise<unknown>;
+    })
+    .then((raw) => {
+      const doc = raw as PublishersDocument;
+      if (!Array.isArray(doc?.publishers)) {
+        throw new Error("publishers document carried no publisher list");
+      }
+      const clean: PublisherCount[] = [];
+      for (const entry of doc.publishers as Array<Record<string, unknown>>) {
+        const { name, count } = entry ?? {};
+        if (
+          typeof name === "string" &&
+          name.length > 0 &&
+          typeof count === "number" &&
+          Number.isFinite(count)
+        ) {
+          clean.push({ name, count });
+        }
+      }
+      if (clean.length === 0) throw new Error("publishers document listed no publishers");
+      const total =
+        typeof doc.publisherCount === "number" && Number.isFinite(doc.publisherCount)
+          ? doc.publisherCount
+          : clean.length;
+      publishersCache = { publishers: clean, publisherCount: total };
+      publishersInflight = null;
+      return publishersCache;
+    })
+    .catch((err) => {
+      publishersInflight = null;
+      throw err;
+    });
+  return publishersInflight;
 }

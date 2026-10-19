@@ -348,20 +348,32 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
   );
 }
 
-export default function CoveragePage({ total, boards, hosts, boardTotals }: TrendingViewProps) {
+export default function InsightsPage({ total, boards, hosts, boardTotals }: TrendingViewProps) {
   return (
     <div className="flex min-h-screen flex-col" style={{ ["--stack-top" as string]: "var(--site-header-height)" }}>
       <Header />
 
       <main id="main" tabIndex={-1} className="shell flex-1 pt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Coverage</h1>
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Insights</h1>
           <p className="t-mono text-[11px] text-ink-3">{formatCount(total)} entries</p>
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
           Every entry in the catalog, counted by agent host, capability kind, category and
           publisher.
+        </p>
+
+        {/*
+            The line the route name used to deny. This page was served at
+            `/trending/`, so every competitor-shaped expectation ("trending",
+            "this week", "most popular") landed on a page that answers none of
+            them — and the site never said why. It is a census: no source
+            publishes usage data, so nothing here is ranked by popularity and
+            nothing here moves.
+        */}
+        <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-3">
+          There is no trending list here: no source publishes usage data. This is a census.
         </p>
 
         <div className="mt-7">

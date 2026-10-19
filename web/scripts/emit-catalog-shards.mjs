@@ -454,3 +454,47 @@ console.log(
   `✔ palette categories: ${categoriesDoc.categories.length} categor(ies), ` +
     `${(categoriesBytes.length / 1024).toFixed(1)} KiB → ${CATEGORIES_FILE}`,
 );
+
+// ---------------------------------------------------------------------------
+// Publisher facets.
+//
+// The Explore page's Publisher filter needs a list a reader can pick from, and
+// the catalog has 30,269 distinct publishers — of which 5,286 published more
+// than one entry. A publisher with a single entry is a row, not a publisher to
+// browse, so the list is the ones worth filtering by, and the control says so.
+//
+// It is a separate document for the same reason the categories are: 5,286 rows
+// of names and counts do not belong in a JavaScript chunk, and they do not
+// belong in a page's first paint either. The Explore page asks for this file
+// when the reader opens the Publisher control — an interaction, never a passive
+// visit.
+//
+// The counting rule is the one `lib/catalog.ts` `publisherFacets` states —
+// trim, count, sort by count desc then name — over exactly the field that
+// rule reads, so the number beside a name is the number the filter returns.
+// ---------------------------------------------------------------------------
+const PUBLISHERS_FILE = "catalog-publishers.json";
+const publisherCounts = new Map();
+for (const row of rows) {
+  const name = row.publisher?.name?.trim();
+  if (!name) continue;
+  publisherCounts.set(name, (publisherCounts.get(name) ?? 0) + 1);
+}
+const publisherFacets = Array.from(publisherCounts, ([name, count]) => ({ name, count }))
+  .filter((facet) => facet.count > 1)
+  .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+const publishersDoc = {
+  datasetDigest: sha256(source),
+  rowCount: rows.length,
+  // Every distinct publisher in the snapshot, so the control can say how many
+  // of them the list holds instead of implying the list is the whole set.
+  publisherCount: publisherCounts.size,
+  schema: "litespm-web-publishers/v1",
+  publishers: publisherFacets,
+};
+const publishersBytes = Buffer.from(`${JSON.stringify(publishersDoc)}\n`, "utf8");
+writeFileSync(path.join(outDir, PUBLISHERS_FILE), publishersBytes);
+console.log(
+  `✔ publisher facets: ${publishersDoc.publishers.length} publisher(s) of ` +
+    `${publishersDoc.publisherCount}, ${(publishersBytes.length / 1024).toFixed(1)} KiB → ${PUBLISHERS_FILE}`,
+);

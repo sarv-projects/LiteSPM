@@ -48,6 +48,15 @@ export interface AgentDetailViewProps {
   snippet: string;
   /** Config format from the adapter registry. */
   format: "json" | "toml";
+  /**
+   * True when the host takes skills and has no MCP configuration adapter.
+   *
+   * Twenty-nine of the seventy-nine hosts the catalog names are like this:
+   * LiteSPM installs agent skills into them and writes no configuration file
+   * for them. Their page says that, instead of showing a config file and a
+   * bridge entry the host does not have.
+   */
+  skillsOnly?: boolean;
   /** Project config path relative to the repo root, when the adapter has one. */
   repoConfigPath?: string;
   /** True when `SKILL_TARGETS` registers a skills directory for this host. */
@@ -90,12 +99,13 @@ export default function AgentDetailView({
   format,
   repoConfigPath,
   skillsSupported,
+  skillsOnly = false,
   count,
   docsHref,
   capabilities,
   discontinued,
 }: AgentDetailViewProps) {
-  const command = `litespm host setup ${id}`;
+  const command = skillsOnly ? "litespm skills add <source>" : `litespm host setup ${id}`;
   // Explore resolves every spelling of a host to one identity, and the page's
   // own name is one of them, so the link opens exactly the count above it.
   const exploreHref = `/explore/?host=${encodeURIComponent(name)}`;
@@ -176,6 +186,17 @@ export default function AgentDetailView({
 
         {summary ? (
           <p className="mt-5 max-w-[62ch] text-[14px] leading-relaxed text-ink-2">{summary}</p>
+        ) : skillsOnly ? (
+          /* A host with no MCP configuration adapter. It is not a lesser
+             entry: it is a host LiteSPM installs skills into, and the page
+             says exactly that instead of describing a config file it does
+             not have. */
+          <p className="mt-5 max-w-[62ch] text-[14px] leading-relaxed text-ink-2">
+            LiteSPM installs agent skills into {name}. It has no MCP configuration file, so
+            there is no bridge entry to write — what LiteSPM does here is put a{" "}
+            <code className="t-mono text-[13px]">SKILL.md</code> in the host&rsquo;s skills
+            directory.
+          </p>
         ) : (
           <p className="mt-5 max-w-prose text-[14px] leading-relaxed text-ink-2">
             No write-up for {name} yet — what&rsquo;s below is the setup LiteSPM uses
@@ -232,26 +253,44 @@ export default function AgentDetailView({
             What LiteSPM does here
           </h2>
           <dl className="spec-list mt-2">
-            <div>
-              <dt>Config file</dt>
-              <dd>
-                <code className="t-mono text-[11.5px] break-all">{filePath}</code>
-              </dd>
-            </div>
-            <div>
-              <dt>Format</dt>
-              <dd>{format === "toml" ? "TOML" : "JSON"}</dd>
-            </div>
-            <div>
-              <dt>Project config</dt>
-              <dd>
-                {repoConfigPath ? (
-                  <code className="t-mono text-[11.5px] break-all">{repoConfigPath}</code>
-                ) : (
-                  "No — one config for the whole machine."
-                )}
-              </dd>
-            </div>
+            {/*
+                A skills-only host has no config file, no format and no
+                project config — printing them empty would be three rows of
+                "—", which reads as "we do not know" rather than "there is
+                no such thing here".
+            */}
+            {!skillsOnly && (
+              <div>
+                <dt>Config file</dt>
+                <dd>
+                  <code className="t-mono text-[11.5px] break-all">{filePath}</code>
+                </dd>
+              </div>
+            )}
+            {!skillsOnly && (
+              <div>
+                <dt>Format</dt>
+                <dd>{format === "toml" ? "TOML" : "JSON"}</dd>
+              </div>
+            )}
+            {!skillsOnly && (
+              <div>
+                <dt>Project config</dt>
+                <dd>
+                  {repoConfigPath ? (
+                    <code className="t-mono text-[11.5px] break-all">{repoConfigPath}</code>
+                  ) : (
+                    "No — one config for the whole machine."
+                  )}
+                </dd>
+              </div>
+            )}
+            {skillsOnly && (
+              <div>
+                <dt>MCP config</dt>
+                <dd>None — LiteSPM writes no config file for this host.</dd>
+              </div>
+            )}
             <div>
               <dt>Skills</dt>
               <dd>
@@ -279,41 +318,63 @@ export default function AgentDetailView({
         </aside>
         </div>
 
-        <section className="mt-10" aria-labelledby="agent-file-title">
-          <div className="section-head">
-            <h2 id="agent-file-title">Config file</h2>
-            <span className="section-note">one bridge entry</span>
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-card border border-rule bg-surface shadow-card">
-            <div className="flex items-center justify-between gap-3 border-b border-rule bg-sunken px-3 py-2">
-              <span
-                className="t-mono min-w-0 truncate text-[12px] text-ink-2"
-                title={filePath}
-              >
-                {filePath}
-              </span>
-              <CopyButton
-                text={snippet}
-                label="Copy the bridge entry"
-                message="Bridge entry copied"
-              />
+        {skillsOnly ? (
+          /* A host with no configuration file: there is no file card to
+             show, and a card with an empty body would be a card about
+             nothing. The section states the one thing that is true. */
+          <section className="mt-10" aria-labelledby="agent-skills-title">
+            <div className="section-head">
+              <h2 id="agent-skills-title">Skills</h2>
+              <span className="section-note">a directory, not a config</span>
             </div>
-            <pre className="overflow-x-auto whitespace-pre-wrap p-3.5 font-mono text-[12px] leading-relaxed text-ink">
-              {snippet}
-            </pre>
-          </div>
 
-          <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            This is the only file LiteSPM changes.
-          </p>
-        </section>
+            <div className="mt-4 rounded-card border border-rule bg-surface p-3.5">
+              <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
+                LiteSPM installs a skill into {name} by writing its{" "}
+                <code className="t-mono text-[12px]">SKILL.md</code> into the host&rsquo;s skills
+                directory. It records every file it wrote, so the install can be undone.
+              </p>
+            </div>
+          </section>
+        ) : (
+          <section className="mt-10" aria-labelledby="agent-file-title">
+            <div className="section-head">
+              <h2 id="agent-file-title">Config file</h2>
+              <span className="section-note">one bridge entry</span>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-card border border-rule bg-surface shadow-card">
+              <div className="flex items-center justify-between gap-3 border-b border-rule bg-sunken px-3 py-2">
+                <span
+                  className="t-mono min-w-0 truncate text-[12px] text-ink-2"
+                  title={filePath}
+                >
+                  {filePath}
+                </span>
+                <CopyButton
+                  text={snippet}
+                  label="Copy the bridge entry"
+                  message="Bridge entry copied"
+                />
+              </div>
+              <pre className="overflow-x-auto whitespace-pre-wrap p-3.5 font-mono text-[12px] leading-relaxed text-ink">
+                {snippet}
+              </pre>
+            </div>
+
+            <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
+              This is the only file LiteSPM changes.
+            </p>
+          </section>
+        )}
 
         {/* ---- one command ----------------------------------------------- */}
         <section className="mt-9" aria-labelledby="agent-command-title">
           <div className="section-head">
             <h2 id="agent-command-title">One command</h2>
-            <span className="section-note">writes the same entry</span>
+            <span className="section-note">
+              {skillsOnly ? "installs a skill here" : "writes the same entry"}
+            </span>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-rule bg-sunken px-3 py-2.5">
@@ -326,6 +387,14 @@ export default function AgentDetailView({
               message="Command copied"
             />
           </div>
+
+          {skillsOnly && (
+            <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
+              There is no setup command for this host: LiteSPM has no configuration file to
+              write for it. A skill install writes into every skills directory LiteSPM finds on
+              your machine, this one included.
+            </p>
+          )}
         </section>
 
         {/* ---- what works with it ----------------------------------------- */}

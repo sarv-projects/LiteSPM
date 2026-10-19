@@ -11,10 +11,14 @@ import type { Listing } from "./telemetry";
  * installability. The badge has to agree with the binary or it advertises
  * installs that fail, so the rule here is copied rather than invented:
  *
- *   1. **plugin** → never. `AddSteps` excludes the kind and the CLI fails closed
- *      with `LPSM-ARTIFACT-UNAVAILABLE`; the catalog carries each plugin's
- *      published source descriptor but no fetch path is wired for it, so a
- *      plugin is refused *even when its metadata is verified* (all 638 are).
+ *   1. **plugin** → only when it publishes a FETCHABLE, PINNED source: a
+ *      `git-tree` with a commit id. The install path exists (2026-10-19): the
+ *      pinned tree is fetched and verified, the plugin's manifest is parsed,
+ *      and the MCP servers the manifest declares are registered in each target
+ *      host's config. A plugin that publishes no artifact, an unpinned one, or
+ *      a `local-dir` one is refused by the plugin installer with its own
+ *      reason (`LPSM-ARTIFACT-UNAVAILABLE`). Measured on the 2026-10-17
+ *      release: 390 of the 638 plugin rows publish a pinned git tree.
  *   2. **installability is `discovery_only`** → never. That is the provenance
  *      half, gated in `install_skill.go:73` and `install_mcp.go:378` and
  *      refused with `LPSM-NOT-INSTALLABLE`.
@@ -28,15 +32,16 @@ import type { Listing } from "./telemetry";
  *
  *   remote       25,401  MCP, metadata_verified, with an endpoint
  *   source          764  skills that are metadata_verified
+ *   plugin          390  plugins that publish a pinned git tree
  *   discovery    42,573  MCP (23,017) and skills (19,556) that are discovery_only
- *   unsupported     638  plugins
+ *   unsupported     248  plugins with no fetchable pinned source
  *
- * **26,165 of 69,376 rows install (38%).** An earlier revision of this module
+ * **26,555 of 69,376 rows install (38%).** An earlier revision of this module
  * marked every skill installable — 20,320 rather than 764 — because it read the
  * *kind* and ignored `installability`. Skills are not exempt from the gate;
  * only 764 of them carry verified metadata.
  */
-export type AvailabilityId = "remote" | "source" | "discovery" | "unsupported";
+export type AvailabilityId = "remote" | "source" | "plugin" | "discovery" | "unsupported";
 
 export interface Availability {
   id: AvailabilityId;
@@ -75,10 +80,19 @@ const DISCOVERY: Availability = {
   installable: false,
 };
 
+const PLUGIN: Availability = {
+  id: "plugin",
+  label: "Installs a plugin",
+  plain:
+    "LiteSPM fetches the plugin's pinned source, reads its own manifest, and registers the MCP servers that manifest declares.",
+  installable: true,
+};
+
 const UNSUPPORTED: Availability = {
   id: "unsupported",
   label: "Not installable",
-  plain: "Plugin installs are not supported yet — LiteSPM will not install a partial bundle.",
+  plain:
+    "LiteSPM cannot fetch this entry: it publishes no source, or a source it cannot fetch (a local directory, or a tree that is not pinned to a commit).",
   installable: false,
 };
 
@@ -93,12 +107,22 @@ const UNSUPPORTED: Availability = {
  */
 export function availabilityOf(
   item: Pick<Listing, "kind"> &
-    Partial<Pick<Listing, "skillSource" | "installability">> & {
+    Partial<Pick<Listing, "skillSource" | "installability" | "artifact">> & {
       transport?: string | null;
     }
 ): Availability {
-  // 1. Plugin installs are refused by kind, before any metadata is consulted.
-  if (item.kind === "plugin") return UNSUPPORTED;
+  // 1. A plugin installs only when it publishes a FETCHABLE, PINNED source:
+  //    a git tree with a commit id. The install path fetches that commit,
+  //    verifies the tree, and registers the MCP servers the plugin's own
+  //    manifest declares. A local directory is not something a user of the
+  //    catalogue can fetch, and an unpinned tree is a mutable source.
+  if (item.kind === "plugin") {
+    const artifact = item.artifact;
+    if (!artifact) return UNSUPPORTED;
+    if (artifact.type !== "git-tree") return UNSUPPORTED;
+    if (!artifact.pinned || !artifact.sha) return UNSUPPORTED;
+    return PLUGIN;
+  }
 
   // 2. The CLI's own gate: `installability != "discovery_only"`.
   const installabilityEstablished =
@@ -120,6 +144,7 @@ export function availabilityCounts(items: Listing[]): Record<AvailabilityId, num
   const counts: Record<AvailabilityId, number> = {
     remote: 0,
     source: 0,
+    plugin: 0,
     discovery: 0,
     unsupported: 0,
   };

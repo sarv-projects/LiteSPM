@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 };
 
 export default function ComparePage() {
-  // Cheap, and it fails the build rather than letting `/trending`'s docs
+  // Cheap, and it fails the build rather than letting `/insights`'s docs
   // column link a source file the registry no longer lists as hand-written.
   assertAdapterSourcesMatchRegistry();
   assertCompareCountsAgree();

@@ -5,13 +5,12 @@ import { Check } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
 import { availabilityOf } from "../../lib/availability";
+import { installCommandFor } from "../../lib/installCommand";
 import { TabList } from "../ui/TabList";
 import { CopyButton } from "./CopyButton";
 import { DarkCmd } from "./DarkCmd";
 import { ManageInstall, installMarkKey } from "./ManageInstall";
 import { ManualSetup } from "./ManualSetup";
-
-const INSTALL_COMMAND_PREFIX = "litespm install ";
 
 /**
  * The two ways to take the third step. "Command" is the CLI line the reader
@@ -171,6 +170,15 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
   const [mode, setMode] = useState<Mode>("command");
 
   /**
+   * The install command, in the form the CLI accepts.
+   *
+   * Read from `lib/installCommand.ts` — the one module that knows whether the
+   * binary takes a short term or only the exact id — so this panel and the
+   * band above the fold cannot print two different commands for one entry.
+   */
+  const installCommand = installCommandFor(item);
+
+  /**
    * The CTA in the state strip always lands on the install command. When the
    * reader is on the Prompt tab, "pkg-step-add" is not in the DOM yet, so the
    * tab is switched first and the scroll happens on the frame after the
@@ -273,7 +281,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
               )}
             </p>
             <DarkCmd
-              text={`${INSTALL_COMMAND_PREFIX}${item.id}`}
+              text={installCommand.command}
               label="Copy install command"
               message="Install command copied"
             />
@@ -341,12 +349,13 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                         Connect {targeted ? agent?.label : "your agent"}
                       </h3>
                       <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
-                        Run the setup wizard and pick your agent. It finds that agent&rsquo;s config
-                        file, adds the one LiteSPM entry, and keeps a backup of what was there.
+                        Detects your agents, finds the config file each one keeps, adds the one
+                        LiteSPM entry, and keeps a backup of what was there. It shows you the change
+                        before it makes it.
                       </p>
                     </div>
                   </div>
-                  <DarkCmd text="litespm" label="Copy setup command" message="Setup command copied" />
+                  <DarkCmd text="litespm setup" label="Copy setup command" message="Setup command copied" />
                 </li>
     
                 <li id="pkg-step-add" tabIndex={-1} className="scroll-mt-16">
@@ -364,10 +373,21 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                     </div>
                   </div>
                   <DarkCmd
-                    text={`${INSTALL_COMMAND_PREFIX}${item.id}`}
+                    text={installCommand.command}
                     label="Copy install command"
                     message="Install command copied"
                   />
+
+                  {/* The exact id, when the headline command is the short
+                      form: the id names this entry and nothing else, and a
+                      reader who wants the install to be exact needs it in
+                      reach. */}
+                  {installCommand.short && (
+                    <p className="mt-2 text-[12px] leading-relaxed text-dark-ink-2">
+                      The exact id, if you want it exact:{" "}
+                      <code className="t-mono break-all text-dark-ink">{item.id}</code>
+                    </p>
+                  )}
     
                   <p className="mt-2 text-[12px] leading-relaxed text-dark-ink-2">
                     Or run <code className="t-mono text-dark-ink">/marketplace</code> inside your agent and

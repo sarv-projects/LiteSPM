@@ -36,13 +36,14 @@
  *
  *   light  --ink #111827 on --paper .............. 14.98:1
  *          --ink-2 #3c495e on --surface .......... 8.80:1
- *          --ink-3 #55627a on --paper ............ 5.19:1
+ *          --ink-3 #485468 on --paper ............ 6.46:1
  *          white on --accent #3157f6 ............. 5.49:1
  *          --accent #3157f6 on --surface ......... 5.31:1
- *          --rule-2 #79879c on --surface ......... 3.52:1  (1.4.11)
- *          --ink-3 #55627a on --sunken ........... 4.77:1  (the dashed
+ *          --rule-2 #748299 on --surface ......... 3.76:1  (1.4.11)
+ *          --ink-3 #485468 on --sunken ........... 5.94:1  (the dashed
  *              "not installable" chip border; --rule-2 only reaches 2.83:1
  *              against --sunken, so it no longer bounds that chip)
+ *          --ink-3 #485468 on --sunken-2 ......... 5.44:1
  *          each kind hue on its own wash ......... >= 5.26:1 (11px tile text)
  *   dark   --ink #edf1f7 on --paper #0b0e14 ...... 17.04:1
  *          --ink-3 #97a3b6 on --paper ............ 7.57:1
@@ -103,16 +104,28 @@
     --sel: #c6d7fb;
 
     --rule: #d2d9e6;
-    /* Clears 3:1 on --surface (3.52:1) and on --paper (3.08:1), so --rule-2
-       can bound anything that has to be locatable rather than merely
-       separated — except a boundary drawn ON --sunken, which is what the
+    /* Clears 3:1 on --surface (3.76:1), on --paper (3.29:1), on --hover
+       (3.20:1) and on --sunken (3.02:1), so --rule-2 can bound anything that
+       has to be locatable rather than merely separated, on every surface the
+       site prints it on. It was #79879c, which measured 2.99:1 on --hover —
+       a hair under the floor — and 2.83:1 on --sunken, which is what the
        "not installable" chip's --ink-3 border exists for. */
-    --rule-2: #79879c;
+    --rule-2: #748299;
 
     --ink: #111827;
     --ink-2: #3c495e;
-    /* 5.19:1 on --paper, so 11px meta text still clears AA. */
-    --ink-3: #55627a;
+    /* 6.46:1 on --paper, 5.94:1 on --sunken and 5.44:1 on --sunken-2, so
+       11px meta text clears AA on every surface it is printed on with
+       margin. It was #55627a, which measured 5.19:1 on --paper and 4.77:1 on
+       --sunken — 0.27 of a point of headroom over the 4.5:1 floor, and
+       4.37:1 on --sunken-2, under the floor.
+
+       AAA (7:1) on --paper is not reachable from here: --ink-2 already
+       measures 7.9:1 on --paper, so a --ink-3 that reached 7:1 would be
+       darker than --ink-2 and the three-step ink hierarchy would invert.
+       The gate `scripts/check-contrast.mjs` reads these values out of this
+       file and holds every ink/surface pair at AA. */
+    --ink-3: #485468;
 
     /* Brand indigo. `--accent` IS the brand token: solid CTAs, selected chips,
        the search focus ring and the active nav. White on it clears 5.49:1.

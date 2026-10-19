@@ -1,26 +1,43 @@
-// Landing-page structures: the "what do you want your AI to do?" taxonomy, the
-// "what do you use?" agent strip, the labelled shelves the home page is built
-// from, and the provenance counts the trust section prints.
+// Landing-page structures: the goal tiles the home page opens with, the
+// curated shelf of installable entries, the "what do you use?" agent strip,
+// and the counts the trust section is allowed to print.
 //
 // Everything here is a pure function over a row set handed in from above, or a
-// table of constants. No JSON import, no `"use client"`, no fetch: the Server
-// Component in `app/page.tsx` calls the derivations at build time so the counts
-// are in the prerendered HTML, and the client calls `rowWorksWithAgent` over
-// rows it already has. Nothing in this module can ask for the dataset.
+// table of constants. No dataset import, no `"use client"`, no fetch: the
+// Server Component in `app/page.tsx` calls the derivations at build time so the
+// counts are in the prerendered HTML, and the client calls `rowWorksWithAgent`
+// over rows it already has. Nothing in this module can ask for the dataset.
 //
-// The topic table maps a hand-written friendly label onto a REAL Explore
-// parameter: either an exact `?category=` value from `data/catalog.json` (63
-// categories, matched case-sensitively by `useCatalogSearch`) or a `?q=` term
-// matched by the same `matchesQuery` the Explore results use. A label that
-// cannot name an honest category says so by using `q` — it never invents a slug.
+// ## The two tables the page is built from
+//
+// **The goal tiles** are a browse axis, not a search. Every tile opens
+// Explore's own `?goal=` filter, so a tile and the page it opens are the same
+// filter over the same rows - one taxonomy, one mapping, no tile that quietly
+// means something else. The goal ids are Explore's own values
+// (`lib/taxonomy.ts` owns the taxonomy; this file only names the eight goals
+// the home page leads with), and the browser suite asserts that each tile
+// opens a real, non-empty result set.
+//
+// **The curated shelf** is the opposite of a rule: it is an editorial list, in
+// `data/featured.json`, of catalog **ids** - never display names. A name is
+// not an identity ("Figma" is fourteen rows, and the one the old shelf picked
+// was a discovery-only row that could not be installed), so the shelf names
+// the row it means and the build checks it.
+//
+// The check is the point. `deriveShelves` refuses to build when a curated id
+// is not in the catalog, when the row it names cannot be installed, when the
+// row came from a different source than the file declares, or when the row
+// depends on a host whose vendor has ended. A curated set that has drifted out
+// of the dataset is a build failure, not a page that quietly advertises a
+// package that no longer exists.
 
 import type { Listing } from "./telemetry";
-import { matchesQuery } from "./query";
 import { HOSTS, SKILL_TARGETS } from "./hosts";
 import { itemMatchesHost } from "./hostIdentity";
 import { isDiscontinued } from "./lifecycle";
-import { GRID_PAGE, OFFICIAL_SKILLS_CATEGORY, sortListings } from "./catalog";
 import { availabilityOf } from "./availability";
+import { OFFICIAL_SKILLS_CATEGORY } from "./catalog";
+import featuredData from "../data/featured.json";
 
 /**
  * Re-exported from `lib/catalog.ts`, where the constant lives beside the
@@ -28,158 +45,112 @@ import { availabilityOf } from "./availability";
  */
 export { OFFICIAL_SKILLS_CATEGORY };
 
+/* ------------------------------------------------------------------ *
+ * Goal tiles - "what do you want your AI to do?"
+ * ------------------------------------------------------------------ */
+
 export interface Topic {
   id: string;
+  /**
+   * The goal id Explore filters on (`?goal=`). This is `lib/taxonomy.ts`'s own
+   * vocabulary, not a second one: the tile and the page it opens are the same
+   * filter over the same rows.
+   */
+  goal: string;
   label: string;
   blurb: string;
-  /** Exact `?category=` value Explore accepts, when the dataset has one. */
-  category?: string;
-  /** `?q=` term, for topics the category vocabulary does not cover. */
-  query?: string;
-  /**
-   * Preferred example names, in display order. Verified against the FIRST PAGE
-   * of the view the tile links to at build time — a name that is not among the
-   * rows Explore shows first is dropped and the gap is backfilled from that
-   * page, so the tile cannot advertise a name its own link buries behind a
-   * page of results. (It used to be checked against the whole result set,
-   * which let a tile show three names none of its first 48 rows contained.)
-   */
-  examples: string[];
 }
 
+/**
+ * The eight goals the home page leads with.
+ *
+ * The taxonomy has eleven. Three are left off the home page on purpose:
+ * "Media & Content" and "Communication & Social" are the two a reader reaches
+ * for a specific product (a transcript, an inbox) rather than a task, and
+ * "Business & Finance" is covered by the payment server in the curated shelf.
+ * The two goals that cover documents and tasks are one tile here - the
+ * taxonomy's own "Productivity & Workflow" goal is "tasks, notes, documents,
+ * calendars and project management", and splitting it would put the same
+ * filter under two different labels.
+ */
 export const TOPICS: Topic[] = [
   {
-    id: "code",
-    label: "Code & Git",
-    blurb: "Repositories, reviews, CI and the languages your agent writes.",
-    category: "Developer Tools",
-    // Drawn from this category's first curated page (the rows Explore shows
-    // first); a name that is not there is dropped and backfilled.
-    examples: ["21st.dev", "0nMCP — Universal AI API Orchestrator", "0xArchive Market Data"],
+    id: "coding",
+    goal: "coding",
+    label: "Work with code",
+    blurb: "Read a repository, open a pull request, run the tests.",
   },
   {
-    id: "browser",
-    label: "Browser",
-    blurb: "Drive a real browser: navigate, scrape, screenshot, test.",
-    category: "Browser Automation",
-    examples: ["playwright-mcp", "chrome-mcp-secure", "browser-use-mcp-server"],
-  },
-  {
-    id: "files",
-    label: "Files & Documents",
-    blurb: "Read and write docs, PDFs, spreadsheets and notes.",
-    query: "document",
-    examples: ["document-skills", "Document Tools", "Document Api Endpoint"],
-  },
-  {
-    id: "databases",
-    label: "Databases",
-    blurb: "Query, migrate and reason about the data your app keeps.",
-    category: "Databases",
-    examples: ["mongodb", "supabase", "clickhouse"],
-  },
-  {
-    id: "cloud",
-    label: "Cloud & DevOps",
-    blurb: "Deployments, infrastructure and the pipelines around them.",
-    category: "Cloud Infrastructure",
-    examples: ["cloudflare", "vercel", "deploy-on-aws"],
+    id: "documents",
+    goal: "productivity",
+    label: "Documents, notes and tasks",
+    blurb: "Read a PDF or a Word file, keep notes, and track the work in between.",
   },
   {
     id: "design",
-    label: "Design",
-    blurb: "Design files, image work and the creative tools in between.",
-    category: "Multimedia",
-    examples: ["figma", "canva", "Adobe"],
+    goal: "web",
+    label: "Work with designs",
+    blurb: "Design files, front-ends, brand assets and the components around them.",
+  },
+  {
+    id: "browser",
+    goal: "automation",
+    label: "Automate the browser",
+    blurb: "Drive a real browser: navigate, scrape, screenshot, test.",
   },
   {
     id: "research",
-    label: "Research & Search",
-    blurb: "Web search, papers, citations and evidence gathering.",
-    category: "Search & Retrieval",
-    examples: ["zotero", "brave-search-mcp", "arxiv-mcp-server"],
+    goal: "research",
+    label: "Research and summarise",
+    blurb: "Search, papers, documentation and an agent's own memory.",
   },
   {
-    id: "communication",
-    label: "Communication",
-    blurb: "Mail, chat, meetings and the inboxes you already live in.",
-    category: "Communication",
-    examples: ["slack", "gmail", "zoom"],
+    id: "data",
+    goal: "data",
+    label: "Connect databases",
+    blurb: "Query Postgres and the rest, and read the numbers behind the app.",
   },
   {
-    id: "productivity",
-    label: "Productivity",
-    blurb: "Tasks, calendars, docs and the workflow around your team.",
-    category: "Productivity & Workflow",
-    examples: ["asana", "clickup", "airtable"],
-  },
-  {
-    id: "knowledge",
-    label: "Knowledge & Memory",
-    blurb: "Give an agent durable notes it can recall later.",
-    category: "Knowledge & Memory",
-    examples: ["apple-notes-mcp", "basic-memory", "assistant-mcp"],
+    id: "infrastructure",
+    goal: "infrastructure",
+    label: "Ship and deploy",
+    blurb: "Deployments, containers, DNS, logs and the pipelines around them.",
   },
   {
     id: "security",
-    label: "Security & Testing",
-    blurb: "Scans, test runners and the checks that catch regressions.",
-    category: "Security & Testing",
-    examples: ["auth0", "semgrep", "sonarqube"],
+    goal: "security",
+    label: "Keep secrets safe",
+    blurb: "Authentication, secret storage, scanning and compliance.",
   },
 ];
 
 export interface TopicStat extends Topic {
-  count: number;
-  examples: string[];
+  /** The Explore view this tile opens. */
   href: string;
 }
 
-function topicPredicate(topic: Topic): (item: Listing) => boolean {
-  if (topic.category) return (item) => item.category === topic.category;
-  const q = topic.query ?? "";
-  return (item) => matchesQuery(item, q);
-}
-
-function topicHref(topic: Topic): string {
-  if (topic.category) return `/explore/?category=${encodeURIComponent(topic.category)}`;
-  return `/explore/?q=${encodeURIComponent(topic.query ?? "")}`;
-}
-
 /**
- * Count and fill each topic against the full row set. Runs at build time in
- * `app/page.tsx`, so the numbers beside the tiles are the same numbers Explore
- * will report after it fetches — both come from this predicate over these rows.
+ * The goal tiles.
  *
- * Example names come from the FIRST PAGE of the view the tile links to, not
- * from the whole result set: a category topic is ordered the way Explore's
- * browse default orders it (`sortListings(matches, "curated")`), and a query
- * topic is ordered by the caller's `rankQuery` — `app/page.tsx` passes the
- * search index's own ranking (with validation fixtures demoted, exactly as
- * Explore's query path does). A regenerated dataset therefore cannot put a
- * name on a tile that the reader will not see when they follow the tile.
+ * The parameters are kept so the call site in `app/page.tsx` does not have to
+ * change, but the tiles no longer need either: a goal tile is a link to a
+ * filter, not a search, so it needs no ranking over the rows and no examples
+ * drawn from them. The tile deliberately prints **no count** - the proposal
+ * this page is built from asks for an icon, a plain benefit and a chevron, and
+ * a raw count on a goal tile is the number most likely to be read as a
+ * promise the site cannot keep.
+ *
+ * The browser suite is what checks the tiles: it opens each one and asserts a
+ * real, non-empty result set comes back.
  */
 export function deriveTopics(
-  items: Listing[],
-  rankQuery?: (query: string) => Listing[]
+  _items?: Listing[],
+  _rankQuery?: (query: string) => Listing[]
 ): TopicStat[] {
-  return TOPICS.map((topic) => {
-    const matches = items.filter(topicPredicate(topic));
-    const ordered = topic.category
-      ? sortListings(matches, "curated")
-      : rankQuery?.(topic.query ?? "") ?? matches;
-    const firstPage = ordered.slice(0, GRID_PAGE);
-    const present = new Set(firstPage.map((m) => m.name));
-    const examples: string[] = [];
-    for (const name of topic.examples) {
-      if (present.has(name) && examples.length < 3) examples.push(name);
-    }
-    for (const item of firstPage) {
-      if (examples.length >= 3) break;
-      if (!examples.includes(item.name)) examples.push(item.name);
-    }
-    return { ...topic, count: matches.length, examples, href: topicHref(topic) };
-  });
+  return TOPICS.map((topic) => ({
+    ...topic,
+    href: `/explore/?goal=${encodeURIComponent(topic.goal)}`,
+  }));
 }
 
 /* ------------------------------------------------------------------ *
@@ -262,7 +233,7 @@ export function rowWorksWithAgent(item: Listing, choice: AgentChoice | null): bo
 }
 
 /* ------------------------------------------------------------------ *
- * Source labels — re-exported from `lib/catalog.ts`, where `rowProvenance`
+ * Source labels - re-exported from `lib/catalog.ts`, where `rowProvenance`
  * renders them. Kept exported from here because that is where the Explore
  * source filter and the shelf headings have always imported them from.
  * ------------------------------------------------------------------ */
@@ -273,171 +244,133 @@ export { SOURCE_LABELS, sourceLabel } from "./catalog";
 export const MCP_REGISTRY_SOURCE = "builtin:mcp-registry";
 
 /* ------------------------------------------------------------------ *
- * Shelves — labelled sections, each a real Explore query
+ * The curated shelf - an editorial list of installable entries
  * ------------------------------------------------------------------ */
 
-/**
- * One shelf: a heading, a count, a "view all" link, and a handful of rows.
- *
- * The shelf is the structure the home page is built from (mcpmarket.com's
- * model: six labelled shelves, each with a view-all). What makes it honest
- * here is the pairing: `matches` is the rule, `href` opens an Explore view
- * that applies the *same* rule, and `preferred` only decides which of the
- * matching rows lead — verified against the shelf's own rows at build time,
- * so a name that no longer matches is dropped rather than advertised.
- */
-export interface ShelfSpec {
+/** One curated entry: the catalog id, the row it resolved to, and the line. */
+export interface CuratedEntry {
+  /** The catalog id, exactly as the dataset carries it. */
+  id: string;
+  /** The row this id resolved to. */
+  item: Listing;
+  /** The editorial use-case line. Plain language; must not contradict the row. */
+  useCase: string;
+}
+
+/** One group of curated entries, with the link that lists all of them. */
+export interface CuratedGroup {
   id: string;
   title: string;
-  /** Explore link that returns exactly the rows `matches` selects. */
-  href: string;
-  matches: (item: Listing) => boolean;
-  /**
-   * Preferred example names, in display order. A name that is not in the
-   * shelf's result set is dropped and the head is backfilled from real rows
-   * in the curated order, so a regenerated dataset cannot put a stranger's
-   * name on a shelf that no longer contains it.
-   */
-  preferred: string[];
+  blurb: string;
+  viewAll: { label: string; href: string };
+  entries: CuratedEntry[];
 }
-
-export interface Shelf extends Omit<ShelfSpec, "matches" | "preferred"> {
-  count: number;
-  items: Listing[];
-}
-
-/** Rows shown per shelf: two rows of three on wide screens, like mcpmarket's. */
-export const SHELF_SIZE = 6;
-
-export const SHELVES: ShelfSpec[] = [
-  {
-    id: "installable",
-    title: "Installable right now",
-    href: "/explore/?installable=1",
-    matches: (item) => {
-      // The same predicate `litespm install` applies (see lib/availability).
-      return availabilityOf(item).installable;
-    },
-    preferred: [
-      "GitHub",
-      "Context7",
-      "Figma MCP Server",
-      "Canva MCP",
-      "Supabase",
-      "Linear",
-      "Neon",
-      "Firecrawl MCP Server",
-      "io.github.getsentry/sentry-mcp",
-    ],
-  },
-  {
-    id: "official-mcp",
-    title: "From the Official MCP Registry",
-    href: `/explore/?source=${encodeURIComponent(MCP_REGISTRY_SOURCE)}`,
-    matches: (item) => item.source === MCP_REGISTRY_SOURCE,
-    preferred: [
-      "Neon",
-      "Firecrawl MCP Server",
-      "com.notion/mcp",
-      "com.stripe/mcp",
-      "io.github.getsentry/sentry-mcp",
-      "com.cloudflare.mcp/mcp",
-      "io.github.zoom/zoom-meetings",
-      "Supabase",
-    ],
-  },
-  {
-    id: "official-skills",
-    title: "Official agent skills",
-    href: `/explore/?category=${encodeURIComponent(OFFICIAL_SKILLS_CATEGORY)}`,
-    matches: (item) => item.category === OFFICIAL_SKILLS_CATEGORY,
-    preferred: [
-      "Brand Guidelines",
-      "Frontend Design",
-      "Docx",
-      "Cloudflare",
-      "Clickhouse Best Practices",
-      "Building Secure Contracts",
-      "Agents Sdk",
-      "Canvas Design",
-    ],
-  },
-  {
-    id: "skills",
-    title: "Agent skills",
-    href: "/explore/?kind=skill",
-    matches: (item) => item.kind === "skill",
-    preferred: [
-      "Figma",
-      "Linear",
-      "Sentry",
-      "Gemini Api Dev",
-      "Expo Api Routes",
-      "Hugging Face Datasets",
-      "Netlify Ai Gateway",
-      "Cloudflare Deploy",
-    ],
-  },
-  {
-    id: "plugins",
-    title: "Plugins",
-    href: "/explore/?kind=plugin",
-    matches: (item) => item.kind === "plugin",
-    preferred: [
-      "github",
-      "linear",
-      "notion",
-      "stripe",
-      "datadog",
-      "figma",
-      "playwright",
-      "hubspot",
-      "shopify",
-      "chrome-devtools",
-    ],
-  },
-];
 
 /**
- * Count and fill each shelf against the full row set. Runs at build time in
- * `app/page.tsx`, so the numbers beside the headings are the same numbers
- * Explore reports after it applies the shelf's own `href` — both come from
- * this rule over these rows.
+ * Resolve the curated shelf against the dataset.
+ *
+ * Every id in `data/featured.json` is checked, and the build fails when one
+ * does not hold:
+ *
+ *  1. **The id must exist.** A curated set may not name a package that is not
+ *     in the snapshot. The site never invents a package.
+ *  2. **The row must be installable.** The predicate is `availabilityOf` -
+ *     the same one `litespm install` applies, and the same one Explore's
+ *     "installable" filter uses. A discovery-only row and a plugin are both
+ *     refused, which is what stops the shelf from advertising an install that
+ *     the binary would reject.
+ *  3. **The source must be the one declared.** The file says where each entry
+ *     came from; the dataset has to agree.
+ *  4. **No discontinued host.** A host whose vendor has ended cannot carry a
+ *     recommendation. (`lib/lifecycle.ts` records those; only a plugin names
+ *     hosts explicitly - the check is here so the rule survives the next kind
+ *     that does.)
+ *
+ * The errors are build errors on purpose: a curated set that has drifted out
+ * of the dataset should stop the build, not reach a reader as a dead link.
  */
-export function deriveShelves(items: Listing[], size = SHELF_SIZE): Shelf[] {
-  const shelves: Shelf[] = [];
-  for (const spec of SHELVES) {
-    const matches = items.filter(spec.matches);
-    if (matches.length === 0) continue;
+export function deriveShelves(items: Listing[]): CuratedGroup[] {
+  const rows = new Map<string, Listing>();
+  for (const item of items) rows.set(item.id, item);
 
-    const present = new Set(matches.map((m) => m.name));
-    const items_: Listing[] = [];
-    const taken = new Set<string>();
-    for (const name of spec.preferred) {
-      if (items_.length >= size) break;
-      if (!present.has(name) || taken.has(name)) continue;
-      const row = matches.find((m) => m.name === name);
-      if (row) {
-        items_.push(row);
-        taken.add(name);
+  const groups = new Map<string, CuratedGroup>();
+  for (const group of featuredData.groups) {
+    if (groups.has(group.id)) {
+      throw new Error(
+        `data/featured.json declares the group "${group.id}" twice. Every group id must be unique.`
+      );
+    }
+    groups.set(group.id, {
+      id: group.id,
+      title: group.title,
+      blurb: group.blurb,
+      viewAll: { label: group.viewAllLabel, href: group.viewAllHref },
+      entries: [],
+    });
+  }
+
+  const seen = new Set<string>();
+  for (const entry of featuredData.entries) {
+    const group = groups.get(entry.group);
+    if (!group) {
+      throw new Error(
+        `data/featured.json puts "${entry.id}" in the group "${entry.group}", which is not one of the groups it declares (${[
+          ...groups.keys(),
+        ].join(", ")}).`
+      );
+    }
+    if (seen.has(entry.id)) {
+      throw new Error(
+        `data/featured.json lists "${entry.id}" twice. One id may appear once, or the shelf would show the same entry twice.`
+      );
+    }
+    seen.add(entry.id);
+
+    const item = rows.get(entry.id);
+    if (!item) {
+      throw new Error(
+        `data/featured.json names "${entry.id}", and the catalog snapshot does not contain it. ` +
+          `Remove it from the curated set, or re-publish the catalog.`
+      );
+    }
+
+    const availability = availabilityOf(item);
+    if (!availability.installable) {
+      throw new Error(
+        `data/featured.json names "${entry.id}", and LiteSPM cannot install it: ${availability.plain} ` +
+          `A curated entry has to be installable, or the shelf would advertise an install the binary refuses.`
+      );
+    }
+
+    if (item.source !== entry.source) {
+      throw new Error(
+        `data/featured.json says "${entry.id}" came from "${entry.source}", and the catalog says ` +
+          `"${item.source ?? "no source at all"}". The curated set must state the row's own source.`
+      );
+    }
+
+    for (const host of item.compatibleHosts ?? []) {
+      if (isDiscontinued(host)) {
+        throw new Error(
+          `data/featured.json names "${entry.id}", whose declared host "${host}" has ended. ` +
+            `A host whose vendor has shut it down cannot carry a recommendation.`
+        );
       }
     }
-    // Backfill in the curated order — the same order Explore's default uses —
-    // so the tail of a shelf is deterministic and cannot be a random slice.
-    for (const row of sortListings(matches, "curated")) {
-      if (items_.length >= size) break;
-      if (taken.has(row.name)) continue;
-      items_.push(row);
-      taken.add(row.name);
-    }
 
-    shelves.push({ id: spec.id, title: spec.title, href: spec.href, count: matches.length, items: items_ });
+    group.entries.push({ id: entry.id, item, useCase: entry.useCase });
   }
-  return shelves;
+
+  // A group with nothing in it is not a group; drop it rather than render an
+  // empty heading. The ids are checked above, so this can only happen when a
+  // group is declared and never filled.
+  return featuredData.groups
+    .map((group) => groups.get(group.id))
+    .filter((group): group is CuratedGroup => group !== undefined && group.entries.length > 0);
 }
 
 /* ------------------------------------------------------------------ *
- * Provenance — what the trust section is allowed to claim
+ * Provenance - what the trust section is allowed to claim
  * ------------------------------------------------------------------ */
 
 export interface ProvenanceStats {
@@ -453,6 +386,12 @@ export interface ProvenanceStats {
   litespmTested: number;
   /** Rows that carry a proven version string. */
   versioned: number;
+  /**
+   * Rows `litespm install` can actually complete for — the same predicate
+   * Explore's "installable" filter uses, so the number on the page is the
+   * number the page's own filter produces.
+   */
+  installable: number;
 }
 
 export function deriveProvenance(items: Listing[]): ProvenanceStats {
@@ -465,6 +404,7 @@ export function deriveProvenance(items: Listing[]): ProvenanceStats {
     runtimeVerified: 0,
     litespmTested: 0,
     versioned: 0,
+    installable: 0,
   };
   for (const item of items) {
     if (item.publisher?.verified) stats.vendorManifest += 1;
@@ -483,6 +423,7 @@ export function deriveProvenance(items: Listing[]): ProvenanceStats {
         stats.discoveryOnly += 1;
     }
     if (item.version) stats.versioned += 1;
+    if (availabilityOf(item).installable) stats.installable += 1;
   }
   return stats;
 }

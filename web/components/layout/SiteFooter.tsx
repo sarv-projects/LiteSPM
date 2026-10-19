@@ -64,7 +64,7 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
-              <Link href="/trending/" className="link touch-link">
+              <Link href="/insights/" className="link touch-link">
                 Coverage
               </Link>
             </li>

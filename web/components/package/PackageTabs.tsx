@@ -108,7 +108,17 @@ function SpecRow({ label, children }: { label: string; children: React.ReactNode
 
 function externalLink(href: string, text: string) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1 break-all">
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      // `min-h-[24px]` is the WCAG 2.2 AA target-size floor (SC 2.5.8). The
+      // link was 18px tall — a real violation axe reported as serious on
+      // every entry page, because the publisher link sits in a definition
+      // list rather than in a sentence (so the inline exception does not
+      // apply to it).
+      className="link inline-flex min-h-[24px] items-center gap-1 break-all"
+    >
       {text}
       <ExternalLink className="h-3 w-3 shrink-0 text-ink-3" aria-hidden="true" />
     </a>
@@ -184,6 +194,65 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
     ? `${item.command}${item.args?.length ? ` ${item.args.join(" ")}` : ""}`
     : null;
 
+  /**
+   * The panel's rows, split into the ones the catalog publishes and the ones
+   * it does not.
+   *
+   * A skill's Capabilities tab used to be five consecutive "not published"
+   * rows — Tools, Runtime, Transport, Launch line, Install from source — with
+   * the one useful fact (the skill's source repository) last. A list of
+   * absences is not a capability list, and a reader who came for the skill's
+   * instructions found the repository link after all five. So the published
+   * facts come first, the source link leads them, and the absences collapse
+   * into one sentence that says which fields are missing.
+   */
+  const published: Array<[string, React.ReactNode]> = [];
+  const absent: string[] = [];
+
+  if (item.skillSource) {
+    published.push([
+      "Skill source",
+      <span className="t-mono break-all text-[12px]!">{item.skillSource}</span>,
+    ]);
+  }
+  if (item.tools?.length) {
+    published.push([
+      "Tools",
+      <span className="t-mono text-[12px]!">{item.tools.length} declared</span>,
+    ]);
+  } else {
+    absent.push("tool list");
+  }
+  if (item.runtime) {
+    published.push([
+      "Runtime",
+      <span className="t-mono text-[12px]!">{item.runtime}</span>,
+    ]);
+  } else {
+    absent.push("runtime");
+  }
+  if (item.transport) {
+    published.push([
+      "Transport",
+      <span className="t-mono text-[12px]!">{item.transport}</span>,
+    ]);
+  } else {
+    absent.push("transport");
+  }
+  if (launch) {
+    published.push(["Launch line", <span className="t-mono break-all text-[12px]!">{launch}</span>]);
+  } else {
+    absent.push("launch line");
+  }
+  if (item.installHint) {
+    published.push([
+      item.kind === "skill" ? "Install from source" : "Host command",
+      <span className="t-mono break-all text-[12px]!">{item.installHint}</span>,
+    ]);
+  } else {
+    absent.push(item.kind === "skill" ? "install command" : "host command");
+  }
+
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div>
@@ -206,46 +275,30 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
         </p>
       </div>
 
-      <dl className="spec-list">
-        <SpecRow label="Tools">
-          {item.tools?.length ? (
-            <span className="t-mono text-[12px]!">{item.tools.length} declared</span>
-          ) : (
-            <Absent />
-          )}
-        </SpecRow>
-        <SpecRow label="Runtime">
-          {item.runtime ? (
-            <span className="t-mono text-[12px]!">{item.runtime}</span>
-          ) : (
-            <Absent text="not published" />
-          )}
-        </SpecRow>
-        <SpecRow label="Transport">
-          {item.transport ? (
-            <span className="t-mono text-[12px]!">{item.transport}</span>
-          ) : (
-            <Absent text="not published" />
-          )}
-        </SpecRow>
-        <SpecRow label="Launch line">
-          {launch ? <span className="t-mono break-all text-[12px]!">{launch}</span> : <Absent text="not published" />}
-        </SpecRow>
-        <SpecRow label={item.kind === "skill" ? "Install from source" : "Host command"}>
-          {item.installHint ? (
-            <span className="t-mono break-all text-[12px]!">{item.installHint}</span>
-          ) : (
-          <Absent text="not published" />
-          )}
-        </SpecRow>
-        <SpecRow label="Skill source">
-          {item.skillSource ? (
-            <span className="t-mono break-all text-[12px]!">{item.skillSource}</span>
-          ) : (
-            <Absent text="not published" />
-          )}
-        </SpecRow>
-      </dl>
+      <div>
+        {published.length > 0 && (
+          <dl className="spec-list">
+            {published.map(([label, value]) => (
+              <SpecRow key={label} label={label}>
+                {value}
+              </SpecRow>
+            ))}
+          </dl>
+        )}
+
+        {/*
+            The absences, in one sentence. Five rows of "not published" told
+            the reader the catalog was empty; one sentence tells them which
+            fields the source does not publish — which is a fact about the
+            source, not about this entry.
+        */}
+        {absent.length > 0 && (
+          <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
+            The catalog publishes no {absent.slice(0, -1).join(", ")} or {absent[absent.length - 1]} for
+            this entry.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -490,23 +543,37 @@ function VersionsPanel({
 
 function SourcePanel({ item }: { item: Listing }) {
   return (
-    <dl className="spec-list max-w-xl">
-      <SpecRow label="Where it was read">{sourceSentence(item)}</SpecRow>
-      <SpecRow label="Publisher URL">
-        {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
-          externalLink(item.publisher.url, item.publisher.url)
-        ) : (
-          <Absent text="not published" />
-        )}
-      </SpecRow>
-      <SpecRow label="Skill source">
-        {item.skillSource ? (
-          externalLink(item.skillSource, item.skillSource)
-        ) : (
-          <Absent text="not published" />
-        )}
-      </SpecRow>
-    </dl>
+    <div className="max-w-xl">
+      <dl className="spec-list">
+        <SpecRow label="Where it was read">{sourceSentence(item)}</SpecRow>
+        <SpecRow label="Publisher URL">
+          {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
+            externalLink(item.publisher.url, item.publisher.url)
+          ) : (
+            <Absent text="not published" />
+          )}
+        </SpecRow>
+        <SpecRow label="Skill source">
+          {item.skillSource ? (
+            externalLink(item.skillSource, item.skillSource)
+          ) : (
+            <Absent text="not published" />
+          )}
+        </SpecRow>
+      </dl>
+
+      {/*
+          The absence of a popularity figure, stated where the absence is
+          felt. Every competitor's entry page prints a star count, a download
+          count or an install count; this catalog publishes none, and a reader
+          arriving from one of those pages should not have to read `/terms/`
+          to find out why. One line, in the block that is about what the
+          source published.
+      */}
+      <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
+        No star or download count exists for this entry — no upstream source publishes one.
+      </p>
+    </div>
   );
 }
 

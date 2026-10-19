@@ -15,11 +15,11 @@ import type { Metadata } from "next";
 import TrendingRoute from "./TrendingRoute";
 
 export const metadata: Metadata = {
-  title: "Coverage",
+  title: "Insights",
   description:
     "What the catalog contains: entries per capability kind, agent host, category and publisher.",
-  alternates: { canonical: "/trending/" },
-  openGraph: { title: "Coverage · LiteSPM Market", url: "/trending/" },
+  alternates: { canonical: "/insights/" },
+  openGraph: { title: "Insights · LiteSPM Market", url: "/insights/" },
 };
 
 /**
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
  * `/compare` render, and the per-host counts come from `buildAgentRows`, so
  * the three pages cannot disagree about a host's compatible-entry total.
  */
-export default function TrendingPage() {
+export default function InsightsPage() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);
 
   const categories = categoryIndex(items);

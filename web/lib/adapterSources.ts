@@ -6,7 +6,7 @@
 // taken from `internal/host/registry.go`, which names the type behind each id,
 // and from `AGENTS.md` §1, which lists the file per host. It is the only thing
 // on the surfaces that use it that is not read from a generated file, so it is
-// kept in one place — `/compare`'s evidence column and `/trending`'s docs
+// kept in one place — `/compare`'s evidence column and `/insights`'s docs
 // column both read it — and `/compare` asserts the ids against the registry at
 // build time (`assertAdapterSourcesMatchRegistry`), so a registry move fails
 // the build instead of shipping a wrong link.

@@ -26,6 +26,13 @@
 // what a fresh build produces, so a stale artifact cannot ship beside a new
 // dataset.
 //
+// One more rule is asserted here, because it is a rule about what a row's
+// address may contribute: the host segment of an address (`io.github.` in the
+// registry's ids) says where the entry is served from, not what it is, so it is
+// not searchable. The gate pins both halves — the named row that carries the
+// word only in its host does not match, and the word's match set stays inside
+// the measured share of the catalog.
+//
 // Usage: node scripts/check-search-index.mjs [--root <dir>]
 
 import { readFileSync, existsSync } from "node:fs";
@@ -73,15 +80,21 @@ const ROWS_GZ_BUDGET = 5.5 * 1024 * 1024; // measured 4.98 MiB
 const SHARD_GZ_BUDGET = 6.5 * 1024 * 1024; // measured 5.90 MiB across 1,024 shards
 const SHARD_MAX_BUDGET = 32 * 1024; // measured largest ~6 KiB
 // The first window is what a first search costs on top of the index. Measured
-// over the corpus below: `postgres` 120 KiB in 22 shards, worst 223 KiB in 41.
-// This is the regression the whole layout exists to prevent — if a change ever
-// makes the first search fetch the full projection again, it fails here.
-const WINDOW_GZ_BUDGET = 512 * 1024;
+// over the corpus below: the worst case is `context7` at 103,958 B (0.0991 MiB)
+// spread over 16 shards, because 23 matches scattered across 16 shards cost
+// more than 200 matches packed into four. This is the regression the whole
+// layout exists to prevent — if a change ever makes the first search fetch the
+// full projection again, it fails here. The budget is the plan's 0.10 MiB;
+// the measured value sits 0.9% under it.
+const WINDOW_GZ_BUDGET = Math.round(0.1 * 1024 * 1024);
 const WINDOW_SHARD_BUDGET = 64;
 
 const QUERIES = [
   "playwright", // single token
   "github mcp", // multi-token: every token must match
+  "github", // the address's host: a wide match set that must stay wide-but-honest
+  "notion", // the narrowest common brand query
+  "postgres", // the query the layout was measured on
   "play", // prefix
   "sign", // mid-word: must NOT match `design` / `codesign`
   "", // browse
@@ -98,6 +111,25 @@ const QUERIES = [
   "weather",
   "memory",
 ];
+
+/**
+ * The address's host is not searchable.
+ *
+ * 25,903 of the 69,376 rows are filed under the single registry namespace
+ * `io.github`, so before format v4 the query `github` matched 26,864 rows —
+ * 38.7% of the catalog — and 16,044 of them carried the word nowhere except
+ * in the address that says where the entry is served from.
+ *
+ * The rule is pinned here rather than left to a comment: a row whose only
+ * mention of the word is its address's host must not match, and the match set
+ * for the word must stay a set of rows that actually say it. The measured
+ * number is 10,820 rows (15.6%); the budget below is that measurement with a
+ * small margin, so a change that widens the set again fails here.
+ */
+const HOST_MATCH_BUDGET_RATIO = 0.16;
+
+/** The row the rule is stated on: `github` in its address host and nowhere else. */
+const HOST_PROBE_ID = "mcp:builtin:mcp-registry:io.github.nirholas-three-token-mcp";
 
 function fail(message) {
   console.error(`FAIL search index — ${message}`);
@@ -232,6 +264,31 @@ async function main() {
   const cjkMatches = querySearchIndex(decoded, "数据库").length;
   if (cjkMatches === 0) fail("the CJK query `数据库` matched nothing — tokenization dropped it");
 
+  // -- 1b. The address's host is not searchable -------------------------------
+  // The rule format v4 introduced, stated as a fact rather than left to a
+  // comment: a row whose address carries the word and whose own fields do not
+  // must not match the word, and the word's match set must not grow back to
+  // the share of the catalog it used to cover.
+  const hostProbe = rows.findIndex((row) => row.id === HOST_PROBE_ID);
+  if (hostProbe === -1) {
+    fail(`the host probe row ${HOST_PROBE_ID} is not in the dataset`);
+  }
+  if (matchesQuery(rows[hostProbe], "github")) {
+    fail(
+      "`github` matched a row that carries it only in its address's host " +
+        "(`io.github.`) — the host segment is not searchable"
+    );
+  }
+  const hostMatches = querySearchIndex(decoded, "github").length;
+  const hostRatio = hostMatches / rows.length;
+  if (hostRatio > HOST_MATCH_BUDGET_RATIO) {
+    fail(
+      `the query \`github\` matches ${hostMatches} of ${rows.length} rows ` +
+        `(${(hostRatio * 100).toFixed(1)}%), over the ${(HOST_MATCH_BUDGET_RATIO * 100).toFixed(0)}% budget — ` +
+        "the address's host is searchable again"
+    );
+  }
+
   // -- 2. Determinism -------------------------------------------------------
   const second = buildArtifacts(rows);
   const sameIndex = Buffer.from(first.indexRaw).equals(Buffer.from(second.indexRaw));
@@ -351,6 +408,8 @@ async function main() {
       `(largest ${(shardGzMax / 1024).toFixed(1)} KiB); ` +
       `first window (${SEARCH_RESULT_WINDOW} rows) worst ${fmt(worstWindow.bytes)} in ` +
       `${worstWindow.shards} shard(s) for ${JSON.stringify(worstWindow.query)}; ` +
+      `\`github\` matches ${hostMatches.toLocaleString("en-US")} rows ` +
+      `(${(hostRatio * 100).toFixed(1)}% — the address's host is not searchable); ` +
       `${QUERIES.length} queries agree with matchesQuery over all ` +
       `${rows.length.toLocaleString("en-US")} rows; a second build is byte-identical`
   );

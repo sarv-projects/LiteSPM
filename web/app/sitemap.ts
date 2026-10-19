@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import release from "../data/release.json";
-import { HOSTS } from "../lib/hosts";
+import { HOST_IDENTITIES } from "../lib/hostIdentity";
 import { SITE_URL } from "../lib/site";
 
 /**
@@ -14,11 +14,13 @@ import { SITE_URL } from "../lib/site";
  * its MCP config — were reachable only by following links a crawler had no
  * reason to find. Nothing pointed at them.
  *
- * The URL list is exactly the set of routes this export emits: the six catalog
+ * The URL list is exactly the set of routes this export emits: the catalog
  * index pages, the three information pages, plus one page per host in the
- * compiled-in registry (`HOSTS`, the same array `app/agents/[id]/page.tsx` uses
- * for `generateStaticParams`, so the sitemap cannot name a page the build did
- * not produce).
+ * catalog's host registry (`HOST_IDENTITIES`, the same array
+ * `app/agents/[id]/page.tsx` uses for `generateStaticParams`, so the sitemap
+ * cannot name a page the build did not produce). Every host the catalog names
+ * has a page: the fifty with a compiled-in configuration adapter and the
+ * twenty-nine that take skills only.
  *
  * `/package/` is deliberately absent. It resolves an entry from `?slug=` in
  * the browser and answers an unknown slug with HTTP 200, so it presents a
@@ -46,7 +48,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/compare/",
     "/categories/",
     "/explore/",
-    "/trending/",
+    "/insights/",
     "/privacy/",
     "/contact/",
     "/terms/",
@@ -54,6 +56,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     ...indexRoutes.map((path) => ({ url: `${SITE_URL}${path}`, lastModified })),
-    ...HOSTS.map((host) => ({ url: `${SITE_URL}/agents/${host.id}/`, lastModified })),
+    ...HOST_IDENTITIES.map((identity) => ({
+      url: `${SITE_URL}/agents/${identity.id}/`,
+      lastModified,
+    })),
   ];
 }

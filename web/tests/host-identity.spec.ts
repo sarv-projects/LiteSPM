@@ -3,7 +3,7 @@
 // The defect this file was written against: nine of the fifty host pages
 // counted only the catalog rows that name the host the way the MCP registry
 // spells it ("Claude Code CLI") while the same host's row on `/agents/`, its
-// `/trending/` figure and its own Explore link counted every row that names
+// `/insights/` figure and its own Explore link counted every row that names
 // the host ("Claude Code" for skills too). The boards spec samples five host
 // pages and every sample happened to be a host whose two registry spellings
 // are identical, so all nine wrong pages passed it.

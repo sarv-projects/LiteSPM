@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 /**
  * Server Component: host coverage is an aggregate over the full snapshot,
  * computed at build time and passed as props. Like `/categories/` and
- * `/trending/`, this route never requests the dataset in the browser.
+ * `/insights/`, this route never requests the dataset in the browser.
  */
 export default function AgentsPage() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);

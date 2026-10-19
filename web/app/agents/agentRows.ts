@@ -35,6 +35,16 @@ export interface KindCount {
 export interface AgentRow {
   /** React key; the registry id (a slug of the name for an unresolved host). */
   slug: string;
+  /**
+   * The host's own page, when it has one.
+   *
+   * Every host the catalog names has a page now (`/agents/<id>/`): the fifty
+   * with a compiled-in configuration adapter and the twenty-nine that take
+   * skills only. A spelling no registry resolves has no page — there is no
+   * registry row to build one from — and its row links to Explore instead, so
+   * the index never names a destination that 404s.
+   */
+  pageId?: string;
   /** Display name: the vendor's own spelling for a host with an adapter. */
   name: string;
   /** Present when LiteSPM has a compiled-in adapter for this host. */
@@ -65,6 +75,7 @@ export function buildAgentRows(items: Listing[]): AgentRow[] {
     const counts = tally.get(identity.id);
     return {
       slug: identity.id,
+      pageId: identity.id,
       name: identity.name,
       hostId: identity.adapter?.id,
       strings: identity.strings.slice(),

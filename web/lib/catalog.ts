@@ -266,6 +266,17 @@ export interface AgentFacet {
   name: string;
   /** Compatible entries, counted once per item (lib/hostIdentity). */
   count: number;
+  /**
+   * The count by kind. The Works-with control shows these beside the total,
+   * because the total is 764 for seventy-one of the seventy-nine hosts: the
+   * reader cannot otherwise tell a host LiteSPM can write an MCP config for
+   * from one that only has a skills directory.
+   */
+  mcp: number;
+  skill: number;
+  plugin: number;
+  /** True when LiteSPM has a compiled-in adapter for this host. */
+  managed: boolean;
 }
 
 /**
@@ -281,14 +292,29 @@ export interface AgentFacet {
  */
 export function agentFacets(items: Listing[]): AgentFacet[] {
   const tally = tallyHosts(items);
-  const facets: AgentFacet[] = HOST_IDENTITIES.map((identity) => ({
-    id: identity.id,
-    name: identity.name,
-    count: tally.get(identity.id)?.total ?? 0,
-  }));
+  const facets: AgentFacet[] = HOST_IDENTITIES.map((identity) => {
+    const counts = tally.get(identity.id);
+    return {
+      id: identity.id,
+      name: identity.name,
+      count: counts?.total ?? 0,
+      mcp: counts?.mcp ?? 0,
+      skill: counts?.skill ?? 0,
+      plugin: counts?.plugin ?? 0,
+      managed: Boolean(identity.adapter),
+    };
+  });
   for (const [key, host] of tally) {
     if (!key.startsWith("raw:")) continue;
-    facets.push({ id: key, name: host.name, count: host.total });
+    facets.push({
+      id: key,
+      name: host.name,
+      count: host.total,
+      mcp: host.mcp,
+      skill: host.skill,
+      plugin: host.plugin,
+      managed: false,
+    });
   }
   return facets.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
@@ -383,6 +409,40 @@ export function categoryFacets(items: Listing[], limit = 16): Array<{ name: stri
 }
 
 /**
+ * Every distinct category, with counts — the whole vocabulary, not a slice.
+ *
+ * The Explore page's Category control offers the labels the sources
+ * themselves publish, and a truncated list would make the control lie about
+ * what it can filter: `?category=` accepts any of them, so the control must
+ * offer any of them too. 64 of them on the 2026-10-17 snapshot.
+ */
+export function allCategoryFacets(items: Listing[]): Array<{ name: string; count: number }> {
+  return categoryFacets(items, Number.MAX_SAFE_INTEGER);
+}
+
+/**
+ * Every distinct ingest source, with counts and the label the site shows.
+ *
+ * The source is where the row was read from — the publisher's own manifest, a
+ * directory, a git repository — and it is one of the ten filters the site
+ * links to (every shelf's "View all" and every source board opens one). It had
+ * no control until this one.
+ */
+export function sourceFacets(
+  items: Listing[]
+): Array<{ id: string; label: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const id = item.source;
+    if (!id) continue;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return Array.from(counts, ([id, count]) => ({ id, label: sourceLabel(id), count })).sort(
+    (a, b) => b.count - a.count || a.label.localeCompare(b.label)
+  );
+}
+
+/**
  * `slug` is NOT unique in this dataset: 5,217 of its 57,112 distinct slugs are
  * shared by 17,481 rows (up to 1,906 answer to one slug, `mcp`). Emitting
  * `?slug=<slug>` for those would send a reader to whichever entry happened to
@@ -410,12 +470,29 @@ export function withLinkKeys(items: Listing[]): Listing[] {
   }));
 }
 
-/** Canonical link target for a listing. Always `/package/?slug=<key>`. */
+/**
+ * The canonical link target for a listing: `/package/<key>/`.
+ *
+ * One address per entry. The site used to link to `/package/?slug=<key>` — a
+ * query string — while its own entries sitemap advertised the path form
+ * `/package/<key>/`, and the client rewrote the address bar to the path form
+ * on arrival. Two shapes for one entry means a link copied out of the page
+ * and a link copied out of the sitemap are different URLs for the same
+ * thing, and a shared link that lands on the query form carries the old
+ * spelling forever.
+ *
+ * The path form is the canonical one: the edge Worker serves every entry at
+ * it (`worker/index.js` answers any `/package/<key>/` — a pre-rendered file
+ * when there is one, the shell with the entry's own title and identity block
+ * when there is not), and the client still rewrites a `?slug=` arrival to the
+ * path form, so the old spelling keeps working and stops being the shape
+ * anything links to.
+ */
 export function listingHref(item: Listing): string {
   // `linkKey` is absent only for a row that never passed `withLinkKeys`; the id
   // always resolves, so that is the safe fallback (never the ambiguous slug).
   const key = item.linkKey ?? item.id;
-  return `/package/?slug=${encodeURIComponent(key)}`;
+  return `/package/${encodeURIComponent(key)}/`;
 }
 
 /** Category counts broken down by kind, for the categories index. */

@@ -12,10 +12,12 @@ import { AtlasTeaser } from "../components/home/AtlasTeaser";
 import { FaqSection } from "../components/home/FaqSection";
 import { DeveloperZone } from "../components/home/DeveloperZone";
 import { SearchResults } from "../components/home/SearchResults";
+import { BenefitComparison } from "../components/marketing/BenefitComparison";
+import { WhyLiteSPM } from "../components/marketing/WhyLiteSPM";
 import { Listing, useTelemetry } from "../lib/telemetry";
 import { useCatalogSearch } from "../lib/useCatalogSearch";
 import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice } from "../lib/landing";
-import type { ProvenanceStats, Shelf, TopicStat } from "../lib/landing";
+import type { ProvenanceStats, CuratedGroup, TopicStat } from "../lib/landing";
 
 /**
  * The landing page. Every field here is computed by `app/page.tsx` — a Server
@@ -25,19 +27,42 @@ import type { ProvenanceStats, Shelf, TopicStat } from "../lib/landing";
  * sees the whole page before any dataset request happens.
  *
  * Exactly one interaction asks for the full row set: typing in the hero
- * search. Everything else — the agent preference, the topic tiles, the
- * shelves — runs off the server slice or off what a row's kind derives. A
- * passive visit therefore fetches `/v1/current.json`
- * (release liveness, bundled-snapshot fallback) and nothing else;
- * `/data/catalog.json` waits for a keystroke.
+ * search. Everything else — the agent preference, the goal tiles, the curated
+ * shelf — runs off the server slice. A passive visit therefore fetches
+ * `/v1/current.json` (release liveness, bundled-snapshot fallback) and nothing
+ * else; `/data/catalog.json` waits for a keystroke.
+ *
+ * ## The order of the page
+ *
+ * It used to be: hero, agent strip, five catalog shelves, goal tiles, five
+ * steps, agent teaser, FAQ, install panel. The three catalog shelves came
+ * second and the five of them were 42% of the scroll, so a first-time visitor
+ * met a catalogue before they met a product, and met five shelves that all
+ * said the same thing.
+ *
+ * Now:
+ *
+ *   1. hero — the promise, and the product's own recording
+ *   2. what do you want your AI to do? — eight goal tiles
+ *   3. start here — one curated, installable set, and one secondary group
+ *   4. what LiteSPM changes — the lifecycle, before and after
+ *   5. how it works — three steps, with the commands
+ *   6. choose your agent — the preference, and what each agent gets
+ *   7. why LiteSPM — the four reasons to use it over a config file
+ *   8. FAQ — the questions, in the order they are asked
+ *   9. get started — the commands
+ *
+ * The goal tiles move up to second because they are the fastest way in for
+ * someone who does not know the vocabulary; the agent strip moves down to
+ * sixth because it is a preference, not an entrance.
  */
 export interface HomeViewProps {
   total: number;
   kindCounts: { all: number; mcp: number; skill: number; plugin: number };
   provenance: ProvenanceStats;
   topics: TopicStat[];
-  /** The labelled shelves, resolved at build time from their own rules. */
-  shelves: Shelf[];
+  /** The curated groups, resolved at build time from `data/featured.json`. */
+  shelves: CuratedGroup[];
   /**
    * Catalog-wide counts per agent choice, counted at build time from the same
    * rows the client used to count them from. The landing page no longer loads
@@ -103,8 +128,7 @@ export default function Home(props: HomeViewProps) {
       <main id="main" tabIndex={-1} className="flex-1">
         <LandingHero
           total={total}
-          kindCounts={kindCounts}
-          telemetry={telemetry}
+          installable={props.provenance.installable}
           query={searchQuery}
           setQuery={setQuery}
           totalMatches={deferredQuery ? totalMatches : undefined}
@@ -128,30 +152,44 @@ export default function Home(props: HomeViewProps) {
           />
         ) : (
           <>
-            <AgentStrip
-              choice={agent}
-              onChange={changeAgent}
-              counts={agentCounts}
-              total={total}
-            />
-            <Shelves shelves={props.shelves} agent={agent} />
+            {/* 2 — the fastest way in for a visitor without the vocabulary. */}
             <TopicTiles topics={props.topics} />
+
+            {/* 3 — one curated, installable set and one secondary group. */}
+            <Shelves groups={props.shelves} agent={agent} telemetry={telemetry} />
+
+            {/* 4 — the lifecycle, before and after. */}
+            <BenefitComparison />
           </>
         )}
 
+        {/* 5 — three steps, with the commands in the open. */}
         <HowItWorks />
+
         {/* Elevation rhythm: the page was one flat --paper field from the hero
-            to the footer, so every band read as the same band. These two carry
-            their own plane instead (--sunken), which separates the reader's
-            path into three readable stretches — action, reference, then the
-            developer/install close — without striping the page: the FAQ and
-            the cards between them stay on --paper. The dark install panel is
-            untouched and remains the highest-contrast surface on the page. */}
+            to the footer, so every band read as the same band. This stretch
+            carries its own plane (--sunken), which separates the reader's path
+            into readable stretches — product, then reference, then the
+            developer close — without striping the page. */}
         <div className="bg-sunken">
+          {/* 6 — the preference, and what each agent gets. */}
+          <AgentStrip
+            choice={agent}
+            onChange={changeAgent}
+            counts={agentCounts}
+            total={total}
+          />
           <AtlasTeaser />
         </div>
+
+        {/* 7 — the four reasons. */}
+        <WhyLiteSPM />
+
+        {/* 8 — the questions. */}
         <FaqSection />
+
         <div className="bg-sunken">
+          {/* 9 — the commands. */}
           <DeveloperZone />
         </div>
       </main>

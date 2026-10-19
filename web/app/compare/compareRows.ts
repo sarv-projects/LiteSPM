@@ -39,7 +39,7 @@ import { hostNote } from "../../lib/hostNotes";
 
 /**
  * The hand-written adapters' source files live in `lib/adapterSources.ts`:
- * `/trending` renders them as its docs column, and `assertAdapterSourcesMatchRegistry`
+ * `/insights` renders them as its docs column, and `assertAdapterSourcesMatchRegistry`
  * below pins the map against `hosts.json`'s `generic` flag at build time.
  * `/compare` no longer publishes a link to a source file — a product page
  * shows the vendor's documentation, not this repository's — but the assertion
@@ -237,7 +237,7 @@ export function assertCompareCountsAgree(): void {
 }
 
 /**
- * The adapter ids `hosts.json` reports as hand-written, so `/trending` cannot
+ * The adapter ids `hosts.json` reports as hand-written, so `/insights` cannot
  * go on claiming `ADAPTER_SOURCE` for a host the registry has moved to the
  * data-driven table (or vice versa). Called at build time; a mismatch fails the
  * build rather than shipping a wrong evidence link.

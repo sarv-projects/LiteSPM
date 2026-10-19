@@ -2,20 +2,21 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { UseCaseGrid } from "../marketing/UseCaseGrid";
 import type { TopicStat } from "../../lib/landing";
-import { formatCount } from "../../lib/format";
-import { DiscoveryCard } from "../ui/DiscoveryCard";
 
 /**
- * The normalized "what do you want your AI to do?" taxonomy.
+ * "What do you want your AI to do?" — the goal tiles, and the first thing on
+ * the page after the hero.
  *
- * Every tile is a real link into Explore: either an exact `?category=` value
- * the dataset publishes (63 of them, matched case-sensitively) or a `?q=` term
- * the same matcher Explore runs. The friendly label is hand-written; the count
- * and the three example names are computed at build time from the rows the tile
- * actually selects, so a tile can never advertise a capability that its own
- * link would not return.
+ * It used to sit fourth, behind three shelves of catalog rows. That order
+ * told a visitor what the site *is* before it told them what to *do*, and the
+ * answer it gave first — five shelves of rows — is the one every directory
+ * gives. A goal-first entry is the honest substitute: a first-time visitor
+ * knows what they want done, and does not know the catalog's vocabulary.
+ *
+ * The grid itself is `components/marketing/UseCaseGrid.tsx`; this file is the
+ * section around it.
  */
 export function TopicTiles({ topics }: { topics: TopicStat[] }) {
   return (
@@ -24,56 +25,21 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
         <div>
           <p className="kicker">Common goals</p>
           <h2 id="topics-title" className="band-title mt-2">
-            What are you trying to get done?
+            What do you want your AI to do?
           </h2>
           <p className="band-sub">
-            Pick the goal that matches what you&rsquo;re working on — every tile opens that search.
+            Pick the goal that matches the work in front of you — every tile opens that search.
           </p>
         </div>
-        <Link href="/categories/" className="touch-link text-[13px] text-ink-2 hover:text-accent-text hover:underline">
+        <Link
+          href="/categories/"
+          className="touch-link text-[13px] text-ink-2 hover:text-accent-text hover:underline"
+        >
           All categories →
         </Link>
       </div>
 
-      <ul className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {topics.map((topic, index) => (
-          <li
-            key={topic.id}
-            className="rise-item"
-            style={{ "--rise-i": index } as React.CSSProperties}
-          >
-            <DiscoveryCard href={topic.href} className="h-full">
-              <div className="flex items-baseline justify-between gap-3">
-                <h3 className="text-[15px] font-semibold tracking-tight text-ink">{topic.label}</h3>
-                <span className="t-mono t-tabular shrink-0 text-[12px] text-ink-3">
-                  {formatCount(topic.count)}
-                </span>
-              </div>
-
-              <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">{topic.blurb}</p>
-
-              <ul className="mt-3 flex flex-wrap gap-1.5">
-                {topic.examples.map((name) => (
-                  <li
-                    key={name}
-                    className="t-mono max-w-full truncate rounded-chip border border-rule bg-sunken px-1.5 py-0.5 text-[10.5px] text-ink-2"
-                  >
-                    {name}
-                  </li>
-                ))}
-              </ul>
-
-              <span className="mt-4 flex items-center gap-1.5 text-[12.5px] font-medium text-ink-3 transition-colors duration-state ease-out group-hover:text-accent-text">
-                Explore
-                <ArrowRight
-                  className="card-arrow h-3.5 w-3.5"
-                  aria-hidden="true"
-                />
-              </span>
-            </DiscoveryCard>
-          </li>
-        ))}
-      </ul>
+      <UseCaseGrid topics={topics} />
     </section>
   );
 }

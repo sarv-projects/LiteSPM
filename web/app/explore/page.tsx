@@ -2,10 +2,12 @@ import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import {
   agentFacets,
+  allCategoryFacets,
   deriveKindCounts,
   GRID_PAGE,
   withLinkKeys,
   sortListings,
+  sourceFacets,
   DEFAULT_SORT,
 } from "../../lib/catalog";
 import { taxonomyFacets } from "../../lib/taxonomy";
@@ -45,6 +47,15 @@ export default function ExplorePage() {
       count: facet.count,
     })),
     agents: agentFacets(items),
+    // The three filters that had no control (F-07). The category list is the
+    // whole vocabulary — `?category=` accepts every one of them, so a control
+    // that offered a slice would be a control that lied about what it could
+    // filter — and the source list is the twelve places rows are read from.
+    // Both are counted here, at build time, over the same rows the browser
+    // later filters, so the number beside a name is the number the filter
+    // returns.
+    categories: allCategoryFacets(items),
+    sources: sourceFacets(items),
     // Sorted with the same function and the same default the browser uses, so
     // the prerendered page and the hydrated one agree on what "first" means.
     gridRows: sortListings(items, DEFAULT_SORT).slice(0, GRID_PAGE),

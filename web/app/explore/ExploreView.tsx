@@ -1,68 +1,48 @@
 "use client";
 
-import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RotateCw, X } from "lucide-react";
 import { Header } from "../../components/navigation/Header";
 import { SearchBar } from "../../components/navigation/SearchBar";
-import { ExtensionGrid } from "../../components/catalog/ExtensionGrid";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { Listing } from "../../lib/telemetry";
 import { useCatalogSearch } from "../../lib/useCatalogSearch";
-import { useCatalog } from "../../lib/catalogData";
+import { useCatalog, loadCatalogPublishers } from "../../lib/catalogData";
+import type { PublisherCount } from "../../lib/catalogData";
 import {
   agentFacets,
-  CURATED_NOTE,
   demoteValidationFixtures,
   deriveKindCounts,
   isInstallable,
   kindLabel,
-  listingHref,
   matchesHost,
   matchesSource,
-  OFFICIAL_SKILLS_CATEGORY,
   sortByCompatibility,
   sortListings,
   DEFAULT_SORT,
   SortMode,
 } from "../../lib/catalog";
-import { availabilityOf } from "../../lib/availability";
+import type { AgentFacet } from "../../lib/catalog";
 import { resolveHostId } from "../../lib/hostIdentity";
-import {
-  explainMatch,
-  MATCH_BODY,
-  MATCH_ID,
-  MATCH_NAME_EXACT,
-  MATCH_NAME_PREFIX,
-  MATCH_NAME_TOKEN,
-  MATCH_PUBLISHER,
-  MATCH_SLUG,
-} from "../../lib/searchFormat.mjs";
-import { formatCount } from "../../lib/format";
+import { publisherMatches } from "../../lib/publisherFilter";
+import { explainMatch } from "../../lib/searchFormat.mjs";
 import { classifyListing, taxonomyFacets } from "../../lib/taxonomy";
 import { AGENT_STORAGE_KEY, findAgentChoice, sourceLabel } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { categoryLabel } from "../categories/categoryLabel";
-
-const KINDS = ["all", "mcp", "skill", "plugin"] as const;
-const SORTS: Array<{ id: SortMode; label: string }> = [
-  // "Best match" is the order the search itself produces: the field the query
-  // matched in (exact name, name prefix, a name word, publisher, slug,
-  // summary/tools, catalog id), then installability, publisher-manifest
-  // verified, and the upstream official-skills classification. "Curated first"
-  // stays the browse default and stays selectable during a search; its rule is
-  // stated under the filter row whenever it is the active order.
-  { id: "relevance", label: "Best match" },
-  { id: DEFAULT_SORT, label: "Curated first" },
-  { id: "installable", label: "Installable first" },
-  { id: "name", label: "Name A–Z" },
-  { id: "publisher", label: "Publisher" },
-  { id: "index", label: "Catalog order" },
-];
+import { ExploreFilters } from "./ExploreFilters";
+import {
+  ExploreLoadError,
+  ExploreResults,
+  ExploreSearchSkeleton,
+  SORT_NOTES,
+} from "./ExploreResults";
+import { ExploreWhy } from "./ExploreWhy";
 
 const KINDS_SET = new Set<string>(["all", "mcp", "skill", "plugin"]);
-const SORTS_SET = new Set<string>(SORTS.map((s) => s.id));
+
+/** The sort values the control accepts. */
+const SORTS_SET = new Set<string>(["relevance", "curated", "installable", "index", "name", "publisher"]);
 
 /**
  * Facets and the first page of rows are computed at build time by
@@ -78,7 +58,15 @@ export interface ExploreViewProps {
   /** The editorial goal facets (`lib/taxonomy`), largest first. */
   goals: Array<{ id: string; label: string; count: number }>;
   /** One facet per host identity (`lib/hostIdentity`), largest first. */
-  agents: Array<{ id: string; name: string; count: number }>;
+  agents: AgentFacet[];
+  /**
+   * Every source category, with its count. The whole vocabulary, because
+   * `?category=` accepts every one of them and a control that offered a slice
+   * would be a control that lied about what it could filter.
+   */
+  categories: Array<{ name: string; count: number }>;
+  /** Every ingest source, with its count and the label the site shows. */
+  sources: Array<{ id: string; label: string; count: number }>;
   gridRows: Listing[];
 }
 
@@ -166,182 +154,6 @@ function useQueryFilters(request: () => void) {
   return [filters, setFilters, urlSortPinned, hydrated] as const;
 }
 
-/** Human names for the fields `explainMatch` reports. */
-const EXPLAIN_FIELD_LABELS: Record<string, string> = {
-  name: "name",
-  publisher: "publisher",
-  slug: "web address",
-  summary: "summary",
-  category: "category",
-  runtime: "runtime",
-  transport: "transport",
-  id: "ID",
-  tool: "tool name or description",
-};
-
-/** The class behind each explanation, in words. */
-const EXPLAIN_CLASS_LABELS: Record<number, string> = {
-  [MATCH_NAME_EXACT]: "exact name",
-  [MATCH_NAME_PREFIX]: "name starts with the query",
-  [MATCH_NAME_TOKEN]: "name word",
-  [MATCH_PUBLISHER]: "publisher name",
-  [MATCH_SLUG]: "web address",
-  [MATCH_BODY]: "summary or tool text",
-  [MATCH_ID]: "ID",
-};
-
-/**
- * Why the leading results are the leading results.
- *
- * It renders AFTER the result set, collapsed — the answer has to precede the
- * analysis of its order. Before that it sat above the rows, expanded, and on a
- * search the first result started around y≈900 at 1440×900: a reader had to
- * pass an essay to see whether anything matched. The content is kept whole
- * because no competitor explains *why* a row ranked; it just is not the thing
- * to read first.
- *
- * The evidence for the *ordering* lives here: each of the first results, the
- * field the query was found in, the fragment around the match, and the class
- * that rank came from. The rule line states the whole order, so the
- * explanation also covers the rows further down without a sentence per row.
- */
-function MatchExplanationPanel({
-  entries,
-  host,
-}: {
-  entries: Array<{ item: Listing; reason: ReturnType<typeof explainMatch> }>;
-  host: string | null;
-}) {
-  return (
-    <details className="border border-rule bg-sunken px-4 py-3">
-      <summary className="cursor-pointer text-[13px] font-medium text-ink">
-        Why these results?
-      </summary>
-      <p className="mt-2 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
-        Results rank by where the query was found — the name first, then the publisher, web
-        address and description. Ties go to entries LiteSPM can install, then to publisher
-        manifests and official skills.
-        {host && (
-          <>
-            {" "}
-            Entries that work with <strong className="font-medium text-ink">{host}</strong> rank
-            first.
-          </>
-        )}
-      </p>
-      <ol className="mt-3 space-y-1.5">
-        {entries.map(({ item, reason }, index) => (
-          <li key={item.id} className="flex flex-wrap items-baseline gap-x-1.5 text-[12.5px]">
-            <span className="t-mono t-tabular w-4 shrink-0 text-right text-[11px] text-ink-3">
-              {index + 1}
-            </span>
-            <Link
-              href={listingHref(item)}
-              className="font-medium text-ink hover:text-accent-text hover:underline"
-            >
-              {item.name}
-            </Link>
-            <span className="text-ink-3">—</span>
-            {reason ? (
-              reason.tokens.map((part, partIndex) => (
-                <React.Fragment key={`${part.token}-${partIndex}`}>
-                  {partIndex > 0 && <span className="text-ink-3">+</span>}
-                  <span className="text-ink-2">
-                    {EXPLAIN_FIELD_LABELS[part.field] ?? part.field}
-                    {part.fragment ? (
-                      <>
-                        {" “"}
-                        <span className="t-mono text-[11.5px]">
-                          {part.fragment.text.slice(0, part.fragment.start)}
-                          <mark className="bg-transparent font-semibold text-ink underline decoration-accent decoration-2 underline-offset-2">
-                            {part.fragment.text.slice(part.fragment.start, part.fragment.end)}
-                          </mark>
-                          {part.fragment.text.slice(part.fragment.end)}
-                        </span>
-                        {"”"}
-                      </>
-                    ) : (
-                      " (not shown in the result list)"
-                    )}
-                  </span>
-                  <span className="text-ink-3">
-                    {EXPLAIN_CLASS_LABELS[part.className] ?? ""}
-                  </span>
-                </React.Fragment>
-              ))
-            ) : (
-              <span className="text-ink-3">matched</span>
-            )}
-            {/* Why this row beat the next one at the same class: the tie-break
-                signals, strongest first, exactly as the index weighed them. */}
-            <span className="t-mono text-[10.5px] text-ink-3">
-              {[
-                availabilityOf(item).installable ? "installable" : null,
-                item.publisher?.verified ? "publisher manifest" : null,
-                item.category === OFFICIAL_SKILLS_CATEGORY ? "official skills" : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </details>
-  );
-}
-
-/**
- * The full row set is being fetched for a search or filter. The grid cannot
- * render yet — and must not print a count, because there is no measurement to
- * print. (It used to fall back to the catalog total here, which read as
- * “search returned everything” on a page that had not searched anything yet.)
- */
-function ExploreSearchSkeleton() {
-  return (
-    <section className="shell pb-16">
-      <p className="sr-only" role="status">
-        Searching the catalog…
-      </p>
-      <ul aria-hidden="true" className="pt-px">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <li
-            key={i}
-            className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule bg-surface py-3 pr-3"
-          >
-            <span className="self-stretch rounded-[1px] bg-rule" style={{ width: 3 }} />
-            <span className="h-7 w-7 shrink-0 rounded-[6px] border border-rule bg-sunken-2" />
-            <span className="min-w-0 flex-1 basis-[60%]">
-              <span className="block h-3.5 w-2/5 animate-pulse bg-sunken-2" />
-              <span className="mt-2 block h-2.5 w-2/3 animate-pulse bg-sunken" />
-              <span className="mt-2 block h-2.5 w-1/3 animate-pulse bg-sunken" />
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/** The row-set fetch failed before any count existed; say so, offer a retry. */
-function ExploreLoadError({ onRetry }: { onRetry: () => void }) {
-  return (
-    <section className="shell pb-16">
-      <div className="border-b border-rule py-14">
-        <div className="flex max-w-prose flex-col items-start gap-3">
-          <RotateCw className="h-6 w-6 text-ink-3" aria-hidden="true" />
-          <h3 className="text-[15px] font-semibold">The catalog could not be loaded</h3>
-          <p className="text-[13px] text-ink-2">
-            The full catalog didn&rsquo;t load, so search and filtering are unavailable right now.
-          </p>
-          <button type="button" onClick={onRetry} className="btn btn-solid mt-2">
-            Try again
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function ExploreContent(props: ExploreViewProps) {
   const { status, items: full, request } = useCatalog();
   const [filters, setFilters, urlSortPinned, hydrated] = useQueryFilters(request);
@@ -355,6 +167,31 @@ function ExploreContent(props: ExploreViewProps) {
    * not a reason to download 3.8 MB, and the first keystroke already is.
    */
   const [focusSearch, setFocusSearch] = useState(false);
+
+  /**
+   * The publisher list.
+   *
+   * 5,286 publishers shipped more than one entry; the list is fetched when
+   * the reader opens the control, so a passive visit fetches nothing under
+   * `/data/` and the page's first paint does not carry 5,286 names.
+   */
+  const [publishers, setPublishers] = useState<PublisherCount[]>([]);
+  const [publisherTotal, setPublisherTotal] = useState(0);
+  const [publishersLoading, setPublishersLoading] = useState(false);
+  const [publishersFailed, setPublishersFailed] = useState(false);
+  const loadPublishers = useCallback(() => {
+    setPublishersLoading(true);
+    loadCatalogPublishers()
+      .then((facets) => {
+        setPublishers(facets.publishers);
+        setPublisherTotal(facets.publisherCount);
+        setPublishersLoading(false);
+      })
+      .catch(() => {
+        setPublishersFailed(true);
+        setPublishersLoading(false);
+      });
+  }, []);
 
   /**
    * The agent chosen on the home page.
@@ -545,17 +382,19 @@ function ExploreContent(props: ExploreViewProps) {
       // The publisher's own name, compared the way `publisherFacets` counts
       // it (trimmed). This is the filter the Coverage boards link to; a text
       // search for the same string measures something else entirely.
-      // The publisher filter is a name a reader typed, so it is compared the
-      // way a reader means it: case-folded, then a prefix, then a contains.
-      // An exact case-sensitive comparison turned the most natural input —
-      // `?publisher=anthropic` — into a silent zero, while `?publisher=Anthropic`
-      // found one row. A filter that returns nothing without saying why reads
-      // as a broken page.
-      if (publisher) {
-        const wanted = publisher.trim().toLowerCase();
-        const name = (item.publisher?.name ?? "").trim().toLowerCase();
-        if (name !== wanted && !name.startsWith(wanted) && !name.includes(wanted)) return false;
-      }
+      //
+      // The rule lives in `lib/publisherFilter.ts` and is case-folded and
+      // exact on purpose. A prefix or contains fallback looks friendlier —
+      // `?publisher=anthropic` finds "Anthropic" — but it breaks the one rule
+      // the site cannot break: a count printed next to a name must be the
+      // count that name's filter returns. "Anthropic" shipped 443 entries and
+      // "anthropics" shipped 416; a prefix match for "Anthropic" returns 861,
+      // so the Coverage board would print 443 and open 861 (the same for
+      // "github", "servers" and "nvidia" — four of the board's fifteen rows).
+      // The Publisher control offers the names, so a reader never has to type
+      // one, and the gate `scripts/check-publisher-counts.mjs` holds the two
+      // sides together over the real dataset.
+      if (!publisherMatches(item.publisher?.name, publisher)) return false;
       if (source && !matchesSource(item, source)) return false;
       if (verifiedOnly && !item.publisher?.verified) return false;
       if (installableOnly && !isInstallable(item)) return false;
@@ -719,186 +558,45 @@ function ExploreContent(props: ExploreViewProps) {
             />
           </div>
 
-          {/* Filters are a single ruled row. Kind is segmented; goal and agent
-              are selects because 12 and 79 options do not fit as chips. A
-              source category from a deep link is a chip: the upstream labels
-              are provenance, and `/categories/` is the browse-by-category
-              surface, so they are not a second facet row here. */}
-          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-rule py-3">
-            <div
-              className="flex items-center gap-0.5 border border-ink-3 bg-sunken p-0.5"
-              role="group"
-              aria-label="Capability kind"
-            >
-              {KINDS.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  aria-pressed={kind === k}
-                  onClick={() => setKind(k)}
-                  className={`flex min-h-[44px] items-center gap-1.5 rounded-[3px] px-2.5 text-[12px] font-medium transition-colors duration-state ease-out md:h-9 md:min-h-0 ${
-                    kind === k ? "bg-ink text-surface" : "text-ink-2 hover:text-ink"
-                  }`}
-                >
-                  {k !== "all" && (
-                    <span
-                      aria-hidden="true"
-                      className="h-2.5 w-[3px] rounded-[1px]"
-                      style={{ backgroundColor: kind === k ? "currentColor" : `var(--${k})` }}
-                    />
-                  )}
-                  {k === "all" ? "All types" : kindLabel(k)}
-                  {/* Counts are whole-catalog figures, exactly like the Goal
-                      and Works with selects below — never "matching your
-                      filters", which would take a per-filter derivation this
-                      rail does not have. Hidden under md: four counts make
-                      this rail wider than a phone, and the labels are what the
-                      control is for. */}
-                  <span
-                    className={`t-mono t-tabular hidden text-[11px] md:inline ${
-                      kind === k ? "text-surface/75" : "text-ink-3"
-                    }`}
-                  >
-                    {formatCount(kindCounts[k])}
-                  </span>
-                </button>
-              ))}
-            </div>
+          <ExploreFilters
+            kind={kind}
+            setKind={setKind}
+            kindCounts={kindCounts}
+            goal={goal}
+            setGoal={setGoal}
+            goals={goals}
+            agent={agent}
+            setAgent={setAgent}
+            agents={agents}
+            category={category}
+            setCategory={setCategory}
+            categories={props.categories}
+            publisher={publisher}
+            setPublisher={setPublisher}
+            publishers={publishers}
+            publisherTotal={publisherTotal}
+            publishersLoading={publishersLoading}
+            publishersFailed={publishersFailed}
+            onOpenPublishers={loadPublishers}
+            source={source}
+            setSource={setSource}
+            sources={props.sources}
+            verifiedOnly={verifiedOnly}
+            setVerifiedOnly={setVerifiedOnly}
+            installableOnly={installableOnly}
+            setInstallableOnly={setInstallableOnly}
+            hasFilters={hasFilters}
+            clear={clear}
+          />
 
-            <label className="flex items-center gap-2 text-[12px] text-ink-2">
-              Goal
-              <select
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                title="Grouped by what the capability is for."
-                className="field"
-              >
-                <option value="all">All goals</option>
-                {goals
-                  .filter((g) => g.id !== "other")
-                  .map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.label} ({formatCount(g.count)})
-                    </option>
-                  ))}
-                {goals
-                  .filter((g) => g.id === "other")
-                  .map((g) => (
-                    <option key={g.id} value={g.id}>
-                      Other — no goal placed ({formatCount(g.count)})
-                    </option>
-                  ))}
-              </select>
-            </label>
-
-            <label className="flex items-center gap-2 text-[12px] text-ink-2">
-              Works with
-              <select value={agent} onChange={(e) => setAgent(e.target.value)} className="field">
-                <option value="all">Any agent</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.name}>
-                    {a.name} ({formatCount(a.count)})
-                  </option>
-                ))}
-                {/* A `?host=` that names nothing this catalog lists is still
-                    applied, so it is shown rather than silently rendering
-                    "Any agent" beside an empty list. Its count is 0 because no
-                    row's host list carries the name. */}
-                {agent !== "all" && !agents.some((a) => a.name === agent) && (
-                  <option value={agent}>{agent} — not a host in this catalog (0)</option>
-                )}
-              </select>
-            </label>
-
-            <label className="flex min-h-[44px] items-center gap-2 text-[12px] text-ink-2 md:min-h-0">
-              <input
-                type="checkbox"
-                checked={verifiedOnly}
-                onChange={(e) => setVerifiedOnly(e.target.checked)}
-                className="h-3.5 w-3.5 accent-ink"
-              />
-              Only entries from publisher manifests
-            </label>
-
-            <label className="flex min-h-[44px] items-center gap-2 text-[12px] text-ink-2 md:min-h-0">
-              <input
-                type="checkbox"
-                checked={installableOnly}
-                onChange={(e) => setInstallableOnly(e.target.checked)}
-                className="h-3.5 w-3.5 accent-ink"
-              />
-              Only entries LiteSPM can install
-            </label>
-
-            {/* A category set by a deep link or an old bookmark. The upstream
-                labels are not offered as a browse axis here — `/categories/`
-                is — but a link that carries one still applies it, so the chip
-                keeps that filter visible and clearable like every other. */}
-            {category !== "all" && (
-              <span className="inline-flex items-center gap-1.5 rounded-chip border border-rule bg-sunken px-2 py-1 text-[12px] text-ink-2">
-                <span className="t-mono text-[11px] text-ink-3">category</span>
-                {categoryLabel(category)}
-                <button
-                  type="button"
-                  onClick={() => setCategory("all")}
-                  aria-label={`Clear the ${categoryLabel(category)} category filter`}
-                  className="btn h-5 min-h-0 px-1! py-0!"
-                >
-                  <X className="h-3 w-3" aria-hidden="true" />
-                </button>
-              </span>
-            )}
-
-            {/* A source set from a shelf's "View all" link. Shown as a chip so
-                the filter is visible and clearable like every other one. */}
-            {source && (
-              <span className="inline-flex items-center gap-1.5 rounded-chip border border-rule bg-sunken px-2 py-1 text-[12px] text-ink-2">
-                <span className="t-mono text-[11px] text-ink-3">source</span>
-                {sourceLabel(source)}
-                <button
-                  type="button"
-                  onClick={() => setSource("")}
-                  aria-label={`Clear the ${sourceLabel(source)} source filter`}
-                  className="btn h-5 min-h-0 px-1! py-0!"
-                >
-                  <X className="h-3 w-3" aria-hidden="true" />
-                </button>
-              </span>
-            )}
-
-            {/* A publisher set by a Coverage board's link. Publishers number in
-                the tens of thousands, so there is no select for them; the chip
-                is the whole control. */}
-            {publisher && (
-              <span className="inline-flex items-center gap-1.5 rounded-chip border border-rule bg-sunken px-2 py-1 text-[12px] text-ink-2">
-                <span className="t-mono text-[11px] text-ink-3">publisher</span>
-                {publisher}
-                <button
-                  type="button"
-                  onClick={() => setPublisher("")}
-                  aria-label={`Clear the ${publisher} publisher filter`}
-                  className="btn h-5 min-h-0 px-1! py-0!"
-                >
-                  <X className="h-3 w-3" aria-hidden="true" />
-                </button>
-              </span>
-            )}
-
-            {hasFilters && (
-              <button type="button" onClick={clear} className="btn ml-auto">
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-                Reset
-              </button>
-            )}
-          </div>
-
-          {/* The curated order's rule, stated wherever that order is active —
+          {/* The active order's rule, stated wherever that order is active —
               browsing or searching. It used to hide during a search, which is
               exactly when a reader asks why an entry they did not search for
-              is first. */}
-          {effectiveSort === "curated" && (
-            <p className="mt-2 text-[12px] leading-relaxed text-ink-3">{CURATED_NOTE}</p>
-          )}
+              is first, and it named only the curated order, which left the
+              other five unexplained. */}
+          <p className="mt-2 text-[12px] leading-relaxed text-ink-3">
+            {SORT_NOTES[effectiveSort]}
+          </p>
         </div>
 
         <div className="pt-7">
@@ -909,7 +607,7 @@ function ExploreContent(props: ExploreViewProps) {
               <ExploreSearchSkeleton />
             )
           ) : (
-            <ExtensionGrid
+            <ExploreResults
               items={gridItems}
               query={deferredQuery}
               heading={gridHeading}
@@ -923,31 +621,8 @@ function ExploreContent(props: ExploreViewProps) {
               onSuggestion={setQuery}
               filtersActive={narrowing}
               settled={gridCountSettled}
-
-              toolbar={
-                <div className="flex shrink-0 items-center gap-2">
-                  <label htmlFor="explore-sort" className="t-mono text-[11px] text-ink-3">
-                    Sort
-                  </label>
-                  <select
-                    id="explore-sort"
-                    value={effectiveSort}
-                    onChange={(e) => setSort(e.target.value as SortMode)}
-                    title={
-                      effectiveSort === "curated"
-                        ? CURATED_NOTE
-                        : "Best match orders by where the query matched."
-                    }
-                    className="field py-0! text-[12px]"
-                  >
-                    {SORTS.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              }
+              effectiveSort={effectiveSort}
+              setSort={setSort}
             />
           )}
 
@@ -957,7 +632,7 @@ function ExploreContent(props: ExploreViewProps) {
               after the result set and never a block in front of it. */}
           {explanation && (
             <div className="shell pb-16">
-              <MatchExplanationPanel entries={explanation} host={rankAgent?.label ?? null} />
+              <ExploreWhy entries={explanation} host={rankAgent?.label ?? null} />
             </div>
           )}
         </div>

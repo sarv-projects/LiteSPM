@@ -22,11 +22,13 @@
  *
  * 2. **The path was decoration.** A capability's journey is the product, so
  *    the geometry now says so: every agent drops one trace into a bus, the bus
- *    feeds the bridge, and the bridge fans out to the three kinds — drawn as
- *    an actual circuit with a bus, pins and a device in the middle, rather
- *    than as nine disconnected lines. Hovering an agent lights its trace, the
- *    bridge, and all three exits at once, which is the claim ("any agent
- *    reaches any kind") stated as an interaction instead of as a sentence.
+ *    feeds the bridge, and the bridge fans out to the kinds it can carry —
+ *    drawn as an actual circuit with a bus, pins and a device in the middle,
+ *    rather than as nine disconnected lines. Hovering an agent lights its
+ *    trace, the bridge, and the exits it can reach. Hovering the *plugins*
+ *    exit lights nothing: LiteSPM cannot install a plugin, so there is no
+ *    live path out of it, and the figure says so in the tile, in the caption,
+ *    and in the fact that the travelling packet never leaves from it.
  *
  * 3. **Nothing moved** — the previous header argued the figure was deliberately
  *    static, which contradicted `ARCH/25` §6.3 ("one subtle connector-path
@@ -58,12 +60,12 @@
  *    while the figure is in view, motion is allowed, and no pointer holds a
  *    path open — the same condition that starts the packets):
  *
- *    - **the verbs are a readout.** `discover · install · manage · undo` lights
- *      one word at a time, in the order the line prints them, on the journey's
- *      own 1.98 s clock. They are *not* pinned to the four phases: that would
- *      assert that the bridge's operations happen in that order within one
- *      packet's trip, which is a claim the product does not make. The sequence
- *      is the label, cycled.
+ *    - **the verbs are a label.** `discover · install · manage · undo` is
+ *      printed once, in the muted ink, and stays put. It used to light one
+ *      word at a time on the journey's own clock — a second rotating element
+ *      in the most-read position on the page, next to a count that rotated as
+ *      well. Two rotations competing for one reader is one too many, and
+ *      neither carried information.
  *    - **the bus carries a slow light** (4.4 s, deliberately not a divisor of
  *      the journey) so the figure is not inert between packets. It is a
  *      translucent wash travelling *over* the bus, never a change to the bus's
@@ -110,7 +112,7 @@
  */
 
 import Link from "next/link";
-import { Fragment, useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { AgentLogo } from "../AgentLogo";
 import { useInView, useReducedMotion } from "../motion/useInView";
 
@@ -125,13 +127,34 @@ const AGENTS = [
   { id: "cline", name: "Cline" },
 ] as const;
 
-/** The three capability kinds, in the three kind hues the catalog already
- *  uses. The notes are the same two words each kind has always carried. */
+/**
+ * The three capability kinds the catalog holds, in the three kind hues the
+ * catalog already uses. The notes are the same two words each kind has always
+ * carried.
+ *
+ * **The third one cannot be installed.** `litespm install` refuses a plugin
+ * outright (`LPSM-ARTIFACT-UNAVAILABLE` — there is no plugin artifact source
+ * yet), so the plugin exit is drawn as what it is: a kind the catalog lists
+ * and LiteSPM cannot yet carry. It says so in the tile, the travelling packet
+ * never leaves from it, and hovering it lights no path. The old figure
+ * claimed the opposite — "any agent reaches any kind of capability", with a
+ * packet that flew out of the plugin exit on a third of its cycles — which
+ * was the one place on the page that promised an install the binary refuses.
+ */
 const KINDS = [
-  { token: "mcp", label: "MCP servers", note: "apps & data" },
-  { token: "skill", label: "Agent skills", note: "workflows" },
-  { token: "plugin", label: "Plugins", note: "toolkits" },
+  { token: "mcp", label: "MCP servers", note: "apps & data", installable: true },
+  { token: "skill", label: "Agent skills", note: "workflows", installable: true },
+  { token: "plugin", label: "Plugins", note: "not installable", installable: false },
 ] as const;
+
+/**
+ * The kinds LiteSPM can actually install — the only exits the travelling
+ * packet may leave from, and the only ones a hover may light.
+ */
+const INSTALLABLE_KINDS = KINDS.map((kind, index) => (kind.installable ? index : -1)).filter(
+  (index) => index >= 0
+);
+
 
 /** Six tiles: the five named agents, then the honest sixth. */
 const TILES = AGENTS.length + 1;
@@ -175,7 +198,9 @@ export function BridgeDiagram() {
   const running = inView && !reduced && hot === null;
 
   const agentIndex = step % TILES;
-  const kindIndex = step % KINDS.length;
+  // The packet only ever leaves from a kind LiteSPM can install. The plugin
+  // exit is drawn, linked and labelled, but nothing travels out of it.
+  const kindIndex = INSTALLABLE_KINDS[step % INSTALLABLE_KINDS.length];
 
   useEffect(() => {
     if (!running) {
@@ -247,24 +272,24 @@ export function BridgeDiagram() {
 
         <div className="dg-hub">
           <span className="dg-hub-title">one local bridge</span>
-          {/* The verbs are a readout, not a caption: one word lights at a time,
-              in the order the line prints them. Split into spans so the
-              stylesheet can stagger them; the text content — including the
-              spaces and the dots — is byte-for-byte what it always was, so the
-              still, no-JS and reduced-motion figures are unchanged. */}
-          <span className="dg-hub-verbs t-mono">
-            {VERBS.map((verb, i) => (
-              <Fragment key={verb}>
-                {i > 0 ? " · " : null}
-                <span
-                  className="dg-verb"
-                  style={{ "--dg-verb-i": i } as CSSProperties}
-                >
-                  {verb}
-                </span>
-              </Fragment>
-            ))}
-          </span>
+          {/*
+            The verbs are a label, not a readout any more.
+
+            They used to light one at a time, on the journey's own clock — a
+            second rotating thing in the most-read position on the page, next
+            to a number that used to rotate as well. Two animations competing
+            for the same attention is one too many, and neither carried
+            information: the four words are the same four words in the same
+            order every time, so the rotation was movement without meaning.
+
+            The line is now static text, in the muted ink the container
+            already sets. The `dg-verb` class is deliberately not applied: it
+            is what the stylesheet's per-word keyframe targets, and the point
+            is that there is no per-word keyframe any more. The packet that
+            travels the figure is the one motion here, and it answers
+            something.
+          */}
+          <span className="dg-hub-verbs t-mono">{VERBS.join(" · ")}</span>
         </div>
 
         {/* Three exits, one per kind. `data-src` marks the one this journey's
@@ -367,9 +392,16 @@ export function BridgeDiagram() {
                 href={`/explore/?kind=${kind.token}`}
                 prefetch={false}
                 className="dg-kind-link"
-                onPointerEnter={() => setHot({ by: "kind", i })}
+                // A kind LiteSPM cannot install lights no path: there is no
+                // route out of that exit, and the hover glow is this figure's
+                // one language for "this path is live".
+                onPointerEnter={() => {
+                  if (kind.installable) setHot({ by: "kind", i });
+                }}
                 onPointerLeave={() => setHot(null)}
-                onFocus={() => setHot({ by: "kind", i })}
+                onFocus={() => {
+                  if (kind.installable) setHot({ by: "kind", i });
+                }}
                 onBlur={() => setHot(null)}
               >
                 <span className="dg-kind-label">{kind.label}</span>
@@ -381,11 +413,17 @@ export function BridgeDiagram() {
       </div>
 
       {/* The same claim the figure makes, in words — for a screen reader, and
-          for anyone who reads the page with images and styles off. */}
+          for anyone who reads the page with images and styles off.
+
+          The claim is now the one the product can keep: an agent reaches MCP
+          servers and agent skills, and plugins are listed but not installed
+          yet. The sentence it replaced — "every agent connects to all three
+          kinds" — was the one overstatement the page used to make. */}
       <figcaption className="sr-only">
         Claude Code, Codex, OpenCode, Cursor, Cline and other agents each connect down into a single
-        local LiteSPM bridge, which connects out to MCP servers, agent skills and plugins. Any agent
-        reaches any kind of capability: every agent connects to all three kinds.
+        local LiteSPM bridge, which connects out to MCP servers and agent skills. Any agent reaches
+        either kind. Plugins are listed in the catalog, but LiteSPM cannot install them yet, so no
+        path is drawn to that exit.
       </figcaption>
     </figure>
   );

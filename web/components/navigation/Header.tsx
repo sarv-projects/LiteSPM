@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, SquareTerminal } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, SquareTerminal } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -12,7 +12,7 @@ import { ThemeToggle } from "./ThemeToggle";
  * theme toggle and the install CTA.
  *
  * The rail only lists routes that exist (`/explore`, `/agents`, `/compare`,
- * `/categories`, `/trending`) — Docs and Tour are not links until they are
+ * `/categories`, `/insights`) — Docs and Tour are not links until they are
  * pages. The kind tabs that used to sit on a second row are gone: filtering by
  * kind is what `/explore` is for, and the discover surface traded that row for
  * a spacious hero. `--stack-top` follows the responsive height so sticky
@@ -25,6 +25,14 @@ import { ThemeToggle } from "./ThemeToggle";
  * against the search button with no sign anything was missing. Below `lg` the
  * rail is the full shell width again (720px at 768px) and fits comfortably.
  * `--site-header-height` moves with it: 92px below `lg`, 48px at and above.
+ *
+ * The rail is a scroller at every width, and a scroller that hides a
+ * destination is a broken navigation: at 320px "Coverage" sat at x=313–385,
+ * off the screen entirely, with nothing to hint at it. So the rail keeps its
+ * destinations in the DOM (no drawer, no hamburger — the no-JS contract is a
+ * product promise), fades the edge that has more past it, and carries two
+ * chevrons that scroll it. The chevrons are buttons, so they are in the tab
+ * order and announced; the fades are the visual half of the same fact.
  *
  * The search affordance opens the command palette (LPSM-J009) on a plain
  * click, which is what it now advertises (⌘K on its tooltip and the palette's
@@ -43,7 +51,14 @@ const PRIMARY_NAV = [
   { href: "/agents/", label: "Agent hosts" },
   { href: "/compare/", label: "Compare" },
   { href: "/categories/", label: "Categories" },
-  { href: "/trending/", label: "Coverage" },
+  {
+    href: "/insights/",
+    label: "Insights",
+    // The route used to be `/trending/`, a name that promised a trending list
+    // the catalog cannot publish. The tooltip says what the page is instead:
+    // a census of everything the catalog holds.
+    title: "The catalog counted by kind, host, category and publisher — not a trending list",
+  },
 ];
 
 export function Header({ onNavigate }: HeaderProps) {
@@ -53,7 +68,7 @@ export function Header({ onNavigate }: HeaderProps) {
   const searchRef = React.useRef<HTMLAnchorElement>(null);
 
   /**
-   * Whether the primary rail has links beyond its right edge right now.
+   * Whether the primary rail has links beyond either of its edges right now.
    *
    * The rail is a scroller at every width. It fits wherever it has the shell
    * to itself, but the five links need 367px and a 320px viewport leaves 278px,
@@ -66,13 +81,16 @@ export function Header({ onNavigate }: HeaderProps) {
    */
   const navRef = React.useRef<HTMLElement | null>(null);
   const [moreRight, setMoreRight] = React.useState(false);
+  const [moreLeft, setMoreLeft] = React.useState(false);
 
   React.useEffect(() => {
     const el = navRef.current;
     if (!el) return;
     const measure = () => {
-      const more = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
-      setMoreRight((prev) => (prev === more ? prev : more));
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      const left = el.scrollLeft > 1;
+      setMoreRight((prev) => (prev === right ? prev : right));
+      setMoreLeft((prev) => (prev === left ? prev : left));
     };
     measure();
     el.addEventListener("scroll", measure, { passive: true });
@@ -84,6 +102,28 @@ export function Header({ onNavigate }: HeaderProps) {
       observer?.disconnect();
       window.removeEventListener("resize", measure);
     };
+  }, []);
+
+  /**
+   * Scroll the rail one screenful.
+   *
+   * The rail is a scroller, and a scroller with no sign that it scrolls hides
+   * a destination: at 320px "Coverage" sat at x=313–385, entirely off a 320px
+   * screen, with nothing to say so. The fade says "there is more" and this
+   * says "go there" — and it is a button, so it is reachable by keyboard and
+   * announced, which a CSS scroll-snap hint is not.
+   *
+   * The destinations are NOT hidden behind a menu: the no-JS contract is a
+   * product promise, and a drawer would take it away from the reader whose
+   * JavaScript did not run (and from the crawler). The rail stays a rail; it
+   * just admits that it scrolls.
+   */
+  const scrollRail = React.useCallback((direction: 1 | -1) => {
+    const el = navRef.current;
+    if (!el) return;
+    const step = Math.max(160, Math.floor(el.clientWidth * 0.8));
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollBy({ left: direction * step, behavior: reduce ? "auto" : "smooth" });
   }, []);
 
   /**
@@ -158,7 +198,9 @@ export function Header({ onNavigate }: HeaderProps) {
         {/* The rail gets a full-width mobile row, then returns to the header's
             single-line layout at desktop widths. Links keep 44px touch targets.
             The row is a scroller, not a clipping box: the wrapper measures it
-            and fades the right edge while there is more to reach. */}
+            and fades the edge while there is more to reach, and the two
+            chevrons scroll it — so a destination off the right edge is
+            announced, visible as a fade, and one click away. */}
         <div className="relative col-span-2 row-start-2 -mb-px flex min-w-0 items-stretch self-stretch lg:col-auto lg:row-auto lg:w-auto lg:flex-1">
           <nav
             ref={navRef}
@@ -171,6 +213,7 @@ export function Header({ onNavigate }: HeaderProps) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  title={item.title}
                   aria-current={active ? "page" : undefined}
                   onClick={onNavigate}
                   className={`flex shrink-0 items-center border-b-2 px-2 text-[13px] font-medium transition-colors duration-state ease-out lg:px-2.5 ${
@@ -184,15 +227,52 @@ export function Header({ onNavigate }: HeaderProps) {
               );
             })}
           </nav>
+
+          {/* The fades: the edge of the rail says there is more past it. They
+              are decoration — the chevrons below are the control. */}
+          {moreLeft && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 left-0 top-0 w-8 bg-gradient-to-r from-surface via-surface/80 to-transparent"
+            />
+          )}
           {moreRight && (
             <div
               aria-hidden="true"
               className="pointer-events-none absolute bottom-0 right-0 top-0 w-10 bg-gradient-to-l from-surface via-surface/80 to-transparent"
             />
           )}
+
+          {/*
+            The chevrons. 24px is the WCAG 2.2 AA target-size floor and these
+            are 28px, so the control is usable with a thumb as well as a
+            mouse; they are buttons, so they are in the tab order and the
+            screen reader announces what they do. They appear only when there
+            is somewhere to scroll to, so a rail that fits shows nothing.
+          */}
+          {moreLeft && (
+            <button
+              type="button"
+              onClick={() => scrollRail(-1)}
+              aria-label="Scroll the navigation back"
+              className="absolute bottom-0 left-0 top-0 flex w-7 items-center justify-center text-ink-2 hover:text-ink"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+          {moreRight && (
+            <button
+              type="button"
+              onClick={() => scrollRail(1)}
+              aria-label="Scroll the navigation forward"
+              className="absolute bottom-0 right-0 top-0 flex w-7 items-center justify-center text-ink-2 hover:text-ink"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
         </div>
 
-        <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-2">
+        <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1.5 sm:gap-2">
           <Link
             ref={searchRef}
             href="/explore/?focus=search"
@@ -206,9 +286,22 @@ export function Header({ onNavigate }: HeaderProps) {
             <Search className="h-4 w-4" aria-hidden="true" />
           </Link>
           <ThemeToggle />
-          <Link href="/#install" onClick={onInstallClick} className="btn btn-solid btn-lg whitespace-nowrap">
-            <span className="hidden sm:inline">Install LiteSPM</span>
-            <span className="sm:hidden">Install</span>
+          {/*
+            The CTA keeps its whole label at every width.
+            It used to swap "Install LiteSPM" for "Install" below 640px, which
+            is the one place the header says what the product is — and the
+            truncation was the only cue (the two words were also rendered at
+            different sizes, which is why axe flagged the pair). Below `sm` the
+            label is one size and the padding is tighter, so the whole phrase
+            fits beside the logo, the search control and the theme toggle on a
+            320px screen: 288px of shell, and the label needs about 115px.
+          */}
+          <Link
+            href="/#install"
+            onClick={onInstallClick}
+            className="btn btn-solid btn-lg whitespace-nowrap px-2.5! text-[13px]! sm:px-[18px]! sm:text-[14px]!"
+          >
+            Install LiteSPM
           </Link>
         </div>
       </div>

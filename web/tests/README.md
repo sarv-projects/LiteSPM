@@ -7,7 +7,7 @@ now:
 | Was found by hand | Is asserted by |
 |---|---|
 | `/package/?slug=<id>` served one generic "Entry detail" shell to cold loads, crawlers and no-JS readers — the flagship GitHub MCP server included | `entry-pages.spec.ts` (the entry's own name and title in the *served HTML*, for a pre-rendered entry, a non-pre-rendered one and a colon-bearing id) |
-| `/trending/`'s publisher boards linked to a text search while showing a publisher count (`1,113` opened `1,801`) | `boards.spec.ts` (every row's figure is checked against the page its own link opens) |
+| `/insights/`'s publisher boards linked to a text search while showing a publisher count (`1,113` opened `1,801`) | `boards.spec.ts` (every row's figure is checked against the page its own link opens) |
 | `/explore/?q=github` buried its first result at y≈600 | `explore-search.spec.ts` (first row under 560px, ordering panel after the rows) |
 | Reset cleared the filters but left them in the address bar | `explore-search.spec.ts` (Reset leaves no query string; a reload shows the same screen) |
 | an unknown `?host=` filtered silently while the select read "Any agent" | `explore-search.spec.ts` (the unknown host is shown as applied, with its 0 count) |

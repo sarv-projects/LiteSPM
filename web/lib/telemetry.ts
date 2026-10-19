@@ -33,6 +33,26 @@ export interface Listing {
   transport?: string;
   runtime?: string;
   /**
+   * The artifact a plugin row publishes: where its own source lives, and
+   * whether that source is pinned. A plugin is installable only when it
+   * publishes a FETCHABLE, PINNED source: a `git-tree` with a commit id.
+   *
+   * Measured on the 2026-10-17 release (638 plugin rows): 390 pinned git
+   * trees (installable), 3 unpinned git trees, 243 local directories and 2
+   * rows with no artifact at all (not installable — a local directory is not
+   * something a user of the catalogue can fetch).
+   */
+  artifact?: {
+    type?: "git-tree" | "local-dir" | string;
+    declaredAs?: string;
+    repo?: string;
+    path?: string;
+    ref?: string;
+    sha?: string;
+    /** True when the source is pinned to an immutable commit. */
+    pinned?: boolean;
+  };
+  /**
    * Always null in this dataset. The upstream sources expose no
    * machine-readable star, download or install counts, so the builder publishes
    * none. Kept in the type because the field exists in the wire format and a

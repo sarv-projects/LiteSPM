@@ -137,8 +137,8 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                   <div className="flex min-w-0 items-center gap-2">
                     <Link
                       href={
-                        host
-                          ? `/agents/${host.id}/`
+                        agent.pageId
+                          ? `/agents/${agent.pageId}/`
                           : `/explore/?host=${encodeURIComponent(agent.name)}`
                       }
                       // Measured: each scroll-past row is a ~9.5 KB speculative

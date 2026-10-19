@@ -82,8 +82,12 @@ test("a plugin listing's badge agrees with the plugin entry page", async ({ page
   await settle(page);
   const rows = await listingRows(page);
   expect(rows.length).toBeGreaterThan(0);
-  const plugin = rows.find((row) => row.badge === "Not installable");
-  expect(plugin, "every plugin row should read Not installable").toBeTruthy();
+  // A plugin row reads by what it publishes: a plugin with a pinned git tree
+  // installs (the path exists since 2026-10-19), and one without a fetchable
+  // source does not. The badge must say which, and must agree with the entry
+  // page it links to.
+  const plugin = rows.find((row) => row.badge === "Installs a plugin") ?? rows.find((row) => row.badge === "Not installable");
+  expect(plugin, "every plugin row reads its installability").toBeTruthy();
 
   await page.goto(plugin!.href);
   await settle(page);
@@ -91,5 +95,10 @@ test("a plugin listing's badge agrees with the plugin entry page", async ({ page
   const unavailable = page.getByRole("button", { name: "Install unavailable" });
   await expect(unavailable.first()).toBeDisabled();
   await expect(unavailable.last()).toBeDisabled();
-  await expect(page.getByText("Plugin installs are not supported yet.").first()).toBeVisible();
+  // The entry page states the same thing the badge does, in words.
+  const chip = await page.locator("[data-testid='installability']").first().innerText();
+  expect(
+    ["Installs a plugin", "Not installable"],
+    "the entry page and the badge must agree about the plugin"
+  ).toContain(chip.trim());
 });

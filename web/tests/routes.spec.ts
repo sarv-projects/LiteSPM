@@ -21,7 +21,7 @@ const ROUTES: Array<{ path: string; heading?: string }> = [
   { path: "/agents/claude-code/", heading: "Claude Code" },
   { path: "/categories/", heading: "Categories" },
   { path: "/compare/", heading: "Compare agent hosts" },
-  { path: "/trending/", heading: "Coverage" },
+  { path: "/insights/", heading: "Insights" },
   { path: "/package/", heading: "Find a package" },
   { path: "/privacy/", heading: "Privacy" },
   { path: "/contact/", heading: "Contact" },
