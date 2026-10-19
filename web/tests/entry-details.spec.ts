@@ -79,7 +79,7 @@ test("the entry page's install command is the one the CLI accepts, and the id is
   // checks the form against the CLI's own flag parser.
   const command = page.locator("code").filter({ hasText: /litespm install/ }).first();
   await expect(command).toBeVisible();
-  await expect(command).toHaveText(`litespm install ${flagship.row.id}`);
+  await expect(command).toHaveText(`npx --yes litespm@latest install ${flagship.row.id}`);
 
   // The exact id is always on the page, in copyable form: either the headline
   // command (the id form) or the "Details" disclosure (the short form).
@@ -120,8 +120,8 @@ test("one step, one command: the entry page and the home page agree on setup", a
   // `litespm` - that is a second spelling of the same step, and a reader
   // cannot tell which one to run.
   const steps = await page.locator("#pkg-steps code").allTextContents();
-  const setup = steps.filter((text) => text.trim() === "litespm setup");
-  expect(setup.length, "the entry page does not print `litespm setup`").toBeGreaterThan(0);
+  const setup = steps.filter((text) => text.trim() === "npx --yes litespm@latest setup");
+  expect(setup.length, "the entry page does not print `npx --yes litespm@latest setup`").toBeGreaterThan(0);
   // The bare wizard invocation is not a second spelling of the same step.
   expect(
     steps.filter((text) => text.trim() === "litespm"),
