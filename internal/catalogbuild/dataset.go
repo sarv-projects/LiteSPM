@@ -20,6 +20,52 @@ type DatasetPublisher struct {
 	URL  string `json:"url"`
 }
 
+// ProducerSourceIDs is the closed vocabulary of source ids the Python
+// producer (scripts/build_full_catalog.py) can stamp on a row.
+//
+// It mirrors that producer's own source table: the `source_id` of every
+// upstream it reads (the official registry, the awesome-lists, the directory
+// feeds and the vendor marketplaces). The list is a CONTRACT, not a
+// convenience: a row whose `source` is grammar-valid but not in this list
+// names an upstream the producer cannot have ingested, so it is a typo (or a
+// row that was never really ingested) and the release must not be built from
+// it. Adding an upstream to the producer means adding it here too -- the two
+// lists are the D4 parity contract that scripts/test_builder_parity.py
+// measures.
+//
+// The ids follow the domain.SourceID grammar
+// (`^[a-z0-9_-]{3,32}:[a-z0-9_-]{3,64}$`).
+var ProducerSourceIDs = []string{
+	// The official MCP Registry API (paginated /v0/servers).
+	"builtin:mcp-registry",
+	// The awesome-lists: one README each, one row per listed entry.
+	"feed:punkpeye-awesome-mcp-servers",
+	"feed:voltagent-awesome-agent-skills",
+	"feed:modelcontextprotocol-servers",
+	// The directory feeds: a sitemap in, one row per listing page.
+	"feed:skills-sh",
+	"feed:mcpservers-org",
+	"feed:mcpmarket-com",
+	// The vendor marketplaces: one manifest each, one row per plugin.
+	"git:claude-plugins-official",
+	"git:knowledge-work-plugins",
+	"git:anthropics-skills",
+	"git:openai-plugins",
+	"git:cursor-plugins",
+	"git:xai-plugin-marketplace",
+}
+
+// IsProducerSourceID reports whether id is one of the source ids the
+// producer can emit.
+func IsProducerSourceID(id string) bool {
+	for _, known := range ProducerSourceIDs {
+		if known == id {
+			return true
+		}
+	}
+	return false
+}
+
 // sha40 is the pinning bar the producer adopts for git commits (xAI's
 // marketplace README states it, and scripts/build_full_catalog.py's
 // manifest_artifact_descriptor enforces it): a descriptor is pinned only when
@@ -127,7 +173,8 @@ type DatasetRow struct {
 
 // ParseDataset decodes and validates dataset bytes fail-closed. Every row must
 // carry a domain-valid listing id whose kind segment agrees with the row, a
-// non-empty name and -- for MCP rows that claim more than discovery_only -- the
+// non-empty name, a `source` the producer can emit (the provenance contract,
+// K002) and -- for MCP rows that claim more than discovery_only -- the
 // version, transport and a launch line a future install would use (command+args
 // for stdio, or the publisher's remote endpoint); ids must be
 // unique. The generator normalizes
@@ -145,6 +192,7 @@ func ParseDataset(raw []byte) ([]DatasetRow, error) {
 
 	var problems []string
 	seen := make(map[string]int, len(rows))
+	withSource := 0
 	for i, r := range rows {
 		fail := func(format string, args ...any) {
 			problems = append(problems, fmt.Sprintf("row %d (%q): %s", i, r.ID, fmt.Sprintf(format, args...)))
@@ -163,9 +211,16 @@ func ParseDataset(raw []byte) ([]DatasetRow, error) {
 		if r.Name == "" {
 			fail("missing name")
 		}
+		// The provenance contract (K002): a row names the source it was
+		// ingested from, and that source is one the producer can actually
+		// emit. A grammar-valid but unknown id is a typo, and a typo that
+		// ships is a provenance claim nobody can trace back to an upstream.
 		if r.Source != "" {
+			withSource++
 			if _, err := domain.ParseSourceID(r.Source); err != nil {
 				fail("source is not a valid domain SourceID: %v", err)
+			} else if !IsProducerSourceID(r.Source) {
+				fail("source %q is not a source the producer can emit", r.Source)
 			}
 		}
 		if !domain.Installability(r.Installability).Valid() {
@@ -204,6 +259,19 @@ func ParseDataset(raw []byte) ([]DatasetRow, error) {
 		} else if r.URL != "" {
 			fail("discovery_only row carries a remote endpoint; endpoints must be proven from a manifest")
 		}
+	}
+	// Provenance is stamped per source, so a dataset where SOME rows carry
+	// their source and others do not is a producer defect, not a legacy
+	// shape: the rows that lost their `source` are rows whose provenance
+	// cannot be traced, and a release must not be built from a dataset that
+	// mixes traced and untraced rows. A dataset where NO row carries a
+	// source is the honest legacy shape (an older dataset published before
+	// provenance was stamped); it is refused by the dataset contract test,
+	// which holds the whole committed corpus to the rule.
+	if withSource > 0 && withSource != len(rows) {
+		problems = append(problems, fmt.Sprintf(
+			"dataset mixes provenance: %d of %d rows carry a source, %d do not",
+			withSource, len(rows), len(rows)-withSource))
 	}
 	if len(problems) > 0 {
 		shown := problems

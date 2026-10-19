@@ -500,6 +500,12 @@ func TestDatasetPipelineAgainstRealCatalog(t *testing.T) {
 	// domain.SourceID it was ingested from. A missing or grammar-invalid
 	// `source` means the producer stopped stamping provenance, and the
 	// dataset must not build silently without it.
+	//
+	// The contract is proved over the WHOLE committed corpus (every row of
+	// web/data/catalog.json, not a fixture) and it is proved twice: once
+	// here, where a row that lost its source or names a source the
+	// producer cannot emit fails the test, and once inside ParseDataset,
+	// where a dataset that mixes traced and untraced rows fails the build.
 	var provenance []struct {
 		ID     string `json:"id"`
 		Source string `json:"source"`
@@ -510,10 +516,23 @@ func TestDatasetPipelineAgainstRealCatalog(t *testing.T) {
 	if len(provenance) != len(control) {
 		t.Fatalf("decoded %d provenance rows but dataset has %d", len(provenance), len(control))
 	}
+	distinctSources := map[string]int{}
 	for i, r := range provenance {
 		if _, err := domain.ParseSourceID(r.Source); err != nil {
 			t.Fatalf("row %d (%s): missing or invalid source %q: %v", i, r.ID, r.Source, err)
 		}
+		// A grammar-valid id is not enough: it must name an upstream the
+		// producer can actually emit. `feed:skill-sh` is a typo of
+		// `feed:skills-sh` and would otherwise ship as a provenance claim
+		// nobody can trace back to a fetch.
+		if !IsProducerSourceID(r.Source) {
+			t.Fatalf("row %d (%s): source %q is not a source the producer can emit",
+				i, r.ID, r.Source)
+		}
+		distinctSources[r.Source]++
+	}
+	if len(distinctSources) == 0 {
+		t.Fatalf("the committed dataset carries no source provenance at all")
 	}
 
 	rows, err := ParseDataset(raw)
