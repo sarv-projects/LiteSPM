@@ -140,7 +140,7 @@ test("keyboard: every tab stop paints a visible focus indicator, and the primary
   }
 
   const labels = stops.map((stop) => stop.label).join(" | ");
-  for (const expected of ["Search the catalog", "Install LiteSPM", "Explore"]) {
+  for (const expected of ["Search the catalog", "Install LiteSPM", "Marketplace"]) {
     expect(labels, `expected "${expected}" among the first 14 stops`).toContain(expected);
   }
 });
