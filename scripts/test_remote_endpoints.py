@@ -1,4 +1,5 @@
-"""Offline regression checks for the remote (URL) MCP endpoint data path (B1).
+"""Offline regression checks for the remote (URL) MCP endpoint data path (B1)
+and for the mcpservers.org directory feed (K003).
 
 The Official MCP Registry's server.json declares endpoints in `remotes[]`
 ([{type, url}, ...]); multiple endpoints per server are the norm upstream (a
@@ -13,14 +14,28 @@ producer half of the contract, with no network and no recorded snapshots:
   * the honesty rules: metadata_verified only when an endpoint was actually
     published, command/args/runtime always null, version only from the
     document, and no invented launch line of any kind.
+
+The mcpservers.org feed (K003) has one invariant of its own: the feed is
+either really fetched -- a recorded snapshot per document it read, completed
+with the rows it produced -- or its refusal is recorded with the stage and
+the error. A row whose source is the feed must never exist without that
+evidence, and a refused path must never be worked around by inventing a
+document.
 """
 
+import contextlib
+import io
+import json
 import os
 import sys
+import tempfile
+import urllib.error
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import build_full_catalog as producer  # noqa: E402
+import snapshot_store  # noqa: E402
 
 ITEM_ID = "mcp:builtin:mcp-registry:io.github.acme-remote-mcp"
 
@@ -50,6 +65,135 @@ def build_row(srv):
         "https://github.com/acme",
         srv,
     )
+
+
+def test_mcpservers_feed_is_fetched_or_refused(ok):
+    """feed:mcpservers-org: a real fetch, or a recorded refusal -- never rows
+    without evidence.
+
+    mcpservers.org's robots.txt allows /servers/*, so the origin is a
+    permitted request path; it answers automation with a bot challenge
+    (HTTP 403). The producer therefore probes the origin once and falls back
+    to the public capture index when the origin refuses. Both branches are
+    pinned here, with no network:
+
+      * origin refuses: the refusal is recorded in failures.jsonl with the
+        stage and the error, NO snapshot is written for the refused URL (a
+        failed fetch never fabricates one), every document the run did read is
+        recorded and completed, and the feed's rows come from the public
+        capture;
+      * origin serves: the page is read from the origin, its snapshot is
+        completed with the row it produced, and the capture index is not
+        consulted at all.
+    """
+    index_url = "https://mcpservers.org/sitemap.xml"
+    submap_url = "https://mcpservers.org/sitemaps/servers/1.xml"
+    page_url = "https://mcpservers.org/servers/acme/demo"
+    cdx_root = "https://web.archive.org/cdx/search/cdx?url=mcpservers.org/servers/*"
+    cdx_count_url = cdx_root + "&showNumPages=true"
+    cdx_page_url = cdx_root + "&output=json&fl=original,timestamp,statuscode&page=0"
+    replay_url = "https://web.archive.org/web/20260101000000id_/" + page_url
+
+    index_body = ("<?xml version='1.0' encoding='UTF-8'?><sitemapindex><sitemap>"
+                  "<loc>" + submap_url + "</loc></sitemap></sitemapindex>").encode()
+    submap_body = ("<urlset><url><loc>" + page_url + "</loc></url>"
+                   "<url><loc>https://mcpservers.org/es/servers/acme/demo</loc>"
+                   "</url></urlset>").encode()
+    cdx_body = json.dumps([
+        ["original", "timestamp", "statuscode"],
+        ["https://mcpservers.org/servers/acme/demo", "20260101000000", "200"],
+    ]).encode()
+    page_body = (b'<html><head><title>Demo Server | Awesome MCP Servers</title>'
+                 b'<meta name="description" content="A demo server listed in the '
+                 b'directory."></head><body></body></html>')
+
+    def run_feed(origin_serves, root):
+        """Run the feed's block offline; return (requested urls, run log)."""
+        requested = []
+
+        def fake_http_get(url, timeout, etag=None, source_id=None):
+            requested.append(url)
+            if url == index_url:
+                return 200, {}, index_body
+            if url == submap_url:
+                return 200, {}, submap_body
+            if url == page_url:
+                if origin_serves:
+                    return 200, {}, page_body
+                raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+            if url == cdx_count_url:
+                return 200, {}, b"1"
+            if url == cdx_page_url:
+                return 200, {}, cdx_body
+            if url == replay_url:
+                return 200, {}, page_body
+            raise OSError(f"no canned response for {url}")
+
+        buffer = io.StringIO()
+        with mock.patch.dict(os.environ,
+                             {"LITESPM_SOURCE_SNAPSHOT_DIR": root}), \
+                mock.patch.object(producer, "_http_get", side_effect=fake_http_get):
+            with contextlib.redirect_stdout(buffer):
+                producer.build_full_catalog(
+                    only_source=producer.FEED_MCPSERVERS[1])
+        return requested, buffer.getvalue()
+
+    def failures(root):
+        path = os.path.join(root, snapshot_store.FAILURES_FILE)
+        if not os.path.isfile(path):
+            return []
+        with open(path, encoding="utf-8") as f:
+            return [json.loads(line) for line in f.read().splitlines() if line]
+
+    # --- the origin refuses -------------------------------------------
+    with tempfile.TemporaryDirectory() as root:
+        requested, log = run_feed(False, root)
+
+        refused = [f for f in failures(root) if f.get("url") == page_url]
+        ok(len(refused) == 1,
+           f"the origin's refusal was not recorded exactly once: {failures(root)}")
+        ok("403" in refused[0].get("error", ""),
+           f"the recorded refusal does not name the status: {refused[0]}")
+        ok(bool(refused[0].get("stage")),
+           "the recorded refusal names no stage")
+        ok(not os.path.exists(snapshot_store.snapshot_dir(root, page_url)),
+           "a refused fetch wrote a snapshot (fabricated bytes)")
+        ok("mcpservers.org: +1 rows" in log,
+           f"the feed produced no row from the public capture:\n{log}")
+        ok("refusedLocs" in log,
+           f"the run did not report the refused location:\n{log}")
+
+        # Every document the run really read is recorded and completed.
+        for url, rows in ((index_url, 0), (submap_url, 0), (cdx_count_url, 0),
+                          (cdx_page_url, 0), (replay_url, 1)):
+            _body, meta = snapshot_store.load_snapshot(root, url)
+            snap = meta["snapshot"]
+            ok(snap["sourceId"] == producer.FEED_MCPSERVERS[1],
+               f"{url} was recorded under {snap['sourceId']!r}")
+            ok(snap["status"] == "healthy",
+               f"the parsed document {url} stayed {snap['status']!r}")
+            ok(snap.get("itemCount") == rows,
+               f"{url} must carry {rows} row(s), got {snap.get('itemCount')!r}")
+        ok(any("cdx" in url for url in requested),
+           "the fallback did not consult the public capture index")
+
+    # --- the origin serves --------------------------------------------
+    with tempfile.TemporaryDirectory() as root:
+        requested, log = run_feed(True, root)
+
+        ok(not [f for f in failures(root) if f.get("url") == page_url],
+           f"a served page was recorded as a refusal: {failures(root)}")
+        _body, meta = snapshot_store.load_snapshot(root, page_url)
+        snap = meta["snapshot"]
+        ok(snap["status"] == "healthy",
+           f"the origin page stayed {snap['status']!r}")
+        ok(snap.get("itemCount") == 1,
+           f"the origin page must carry the 1 row it produced, got "
+           f"{snap.get('itemCount')!r}")
+        ok("mcpservers.org: +1 rows" in log,
+           f"the feed produced no row from the origin:\n{log}")
+        ok(not any("cdx" in url for url in requested),
+           "the capture index was consulted although the origin served the page")
 
 
 def main():
@@ -184,6 +328,9 @@ def main():
        f"dropped-endpoint count missing from the log line: {line}")
     ok(f"{refused_rows} row(s) declared an endpoint that was not publishable" in line,
        f"refused-endpoint count missing from the log line: {line}")
+
+    # The mcpservers.org directory feed: a real fetch or a recorded refusal.
+    test_mcpservers_feed_is_fetched_or_refused(ok)
 
     print(f"REMOTE ENDPOINT TEST OK ({checks} checks)")
     return 0

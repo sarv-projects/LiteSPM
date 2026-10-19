@@ -2,10 +2,12 @@
 
 import contextlib
 import io
+import json
 import socket
 import os
 import sys
 import tempfile
+import urllib.parse
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,6 +18,151 @@ import snapshot_store  # noqa: E402
 
 def _public_dns(host, port, type=None):
     return [(None, None, None, None, ("93.184.216.34", port))]
+
+
+def _registry_page(servers, next_cursor=None):
+    """One /v0/servers envelope in the shape the registry publishes it."""
+    metadata = {"count": len(servers)}
+    if next_cursor is not None:
+        metadata["nextCursor"] = next_cursor
+    return json.dumps({"servers": servers, "metadata": metadata}).encode("utf-8")
+
+
+def _registry_element(name, description, version="1.0.0", latest=True):
+    """One wrapped server.json record with its official _meta block."""
+    return {
+        "server": {"name": name, "description": description, "version": version},
+        "_meta": {producer.REGISTRY_META_KEY: {"status": "active", "isLatest": latest}},
+    }
+
+
+def test_registry_fetch_is_bounded(ok):
+    """The registry fetch path is bounded, recorded and namespace-faithful.
+
+    K001 asks for the official registry API to be fetched, recorded and
+    replayable offline. The bounds are part of that contract, so they are
+    pinned here (no network, no live upstream):
+
+      * every request addresses the registry host over https and asks for at
+        most REGISTRY_PAGE_LIMIT records;
+      * pagination stops at REGISTRY_MAX_PAGES pages, and stops earlier when
+        the upstream cursor stops advancing (an unbounded cursor walk would
+        hammer the API);
+      * every page the run parsed is recorded as a snapshot under the
+        registry's own source id and completed with the rows it produced;
+      * the rows keep the registry's own namespace -- the id is namespaced
+        under builtin:mcp-registry and the publisher is the reverse-DNS root
+        the registry itself published, never a rewritten form.
+    """
+    saved_max_pages = producer.REGISTRY_MAX_PAGES
+    try:
+        # A three-page walk with a page cap of 2: the run must stop at the cap.
+        producer.REGISTRY_MAX_PAGES = 2
+        pages = {
+            None: _registry_page(
+                [_registry_element("io.github.acme/demo-mcp", "A demo server.")],
+                next_cursor="cursor-1"),
+            "cursor-1": _registry_page(
+                [_registry_element("ai.smithery/another", "Another server.")],
+                next_cursor="cursor-2"),
+            "cursor-2": _registry_page(
+                [_registry_element("io.github.acme/third", "A third server.")]),
+        }
+        requested = []
+
+        def fake_http_get(url, timeout, etag=None, source_id=None):
+            requested.append(url)
+            parsed = urllib.parse.urlsplit(url)
+            params = urllib.parse.parse_qs(parsed.query)
+            cursor = (params.get("cursor") or [None])[0]
+            body = pages.get(cursor)
+            if body is None:
+                raise OSError(f"no canned registry page for cursor {cursor!r}")
+            return 200, {}, body
+
+        with tempfile.TemporaryDirectory() as root:
+            with mock.patch.dict(os.environ,
+                                 {"LITESPM_SOURCE_SNAPSHOT_DIR": root}), \
+                    mock.patch.object(producer, "_http_get",
+                                      side_effect=fake_http_get):
+                buffer = io.StringIO()
+                with contextlib.redirect_stdout(buffer):
+                    producer.build_full_catalog(
+                        only_source=producer.REGISTRY_SOURCE)
+            log = buffer.getvalue()
+
+            ok(len(requested) == 2,
+               f"the page cap was not honoured: {len(requested)} pages fetched")
+            for url in requested:
+                parsed = urllib.parse.urlsplit(url)
+                ok(parsed.scheme == "https" and
+                   parsed.hostname == "registry.modelcontextprotocol.io" and
+                   parsed.path == "/v0/servers",
+                   f"the registry fetch addressed an unexpected URL: {url}")
+                params = urllib.parse.parse_qs(parsed.query)
+                limit = int((params.get("limit") or ["0"])[0])
+                ok(0 < limit <= producer.REGISTRY_PAGE_LIMIT,
+                   f"the registry fetch asked for {limit} records per page")
+                ok(params.get("limit") == [str(producer.REGISTRY_PAGE_LIMIT)],
+                   f"the registry fetch did not use the page limit: {url}")
+
+            # Every parsed page is recorded under the registry's own source id
+            # and completed with the rows it produced.
+            for url in requested:
+                _body, meta = snapshot_store.load_snapshot(root, url)
+                snap = meta["snapshot"]
+                ok(snap["sourceId"] == producer.REGISTRY_SOURCE,
+                   f"page snapshot carries source {snap['sourceId']!r}")
+                ok(snap["status"] == "healthy",
+                   f"the parsed registry page stayed {snap['status']!r}: {url}")
+                ok(snap.get("itemCount") == 1,
+                   f"the registry page must carry the 1 row it produced, got "
+                   f"{snap.get('itemCount')!r}")
+            ok("registry: PAGINATION INCOMPLETE" in log,
+               "the run did not report that the page cap stopped the walk")
+
+        # A cursor that never advances must stop the walk, not spin.
+        requested2 = []
+
+        def stuck_http_get(url, timeout, etag=None, source_id=None):
+            requested2.append(url)
+            return 200, {}, _registry_page(
+                [_registry_element("io.github.acme/stuck", "A stuck server.")],
+                next_cursor="same-cursor")
+
+        with tempfile.TemporaryDirectory() as root:
+            with mock.patch.dict(os.environ,
+                                 {"LITESPM_SOURCE_SNAPSHOT_DIR": root}), \
+                    mock.patch.object(producer, "_http_get",
+                                      side_effect=stuck_http_get):
+                buffer = io.StringIO()
+                with contextlib.redirect_stdout(buffer):
+                    producer.build_full_catalog(
+                        only_source=producer.REGISTRY_SOURCE)
+            ok(len(requested2) == 2,
+               f"a stuck cursor must stop the walk after 2 pages, got "
+               f"{len(requested2)}")
+            ok("upstream cursor did not advance" in buffer.getvalue(),
+               "the run did not report the cursor that did not advance")
+    finally:
+        producer.REGISTRY_MAX_PAGES = saved_max_pages
+
+    # The row namespace is the registry's own: the id is namespaced under the
+    # registry's source id and the publisher is the reverse-DNS root the
+    # registry published, not a rewritten form of it.
+    item_id = producer.canonical_id("mcp", producer.REGISTRY_SOURCE,
+                                    "io.github.acme/demo-mcp")
+    ok(item_id.startswith("mcp:builtin:mcp-registry:"),
+       f"the registry row id is not namespaced under the registry: {item_id}")
+    owner, url = producer.registry_publisher(
+        "io.github.acme/demo-mcp",
+        {"name": "io.github.acme/demo-mcp", "description": "x"})
+    ok(owner == "acme" and url == "https://github.com/acme",
+       f"the io.github namespace was rewritten: {owner!r} {url!r}")
+    owner, url = producer.registry_publisher(
+        "ai.smithery/another", {"name": "ai.smithery/another", "description": "x"})
+    ok(owner == "ai.smithery" and url == "",
+       f"a non-github registry root was rewritten: {owner!r} {url!r}")
 
 
 def main():
@@ -228,6 +375,9 @@ def main():
         ok(result == b"<sitemap/>", "refresh failure did not use the recorded bytes")
         ok('"staleSources": ["feed:skills-sh"]' in output.getvalue(),
            "stale fallback was omitted from structured ingestion status")
+
+    # The registry fetch path: bounded, recorded, namespace-faithful.
+    test_registry_fetch_is_bounded(ok)
 
     print(f"CATALOG INGESTION SAFETY TEST OK ({checks} checks)")
     return 0

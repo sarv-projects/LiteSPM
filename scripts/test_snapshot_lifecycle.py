@@ -24,17 +24,118 @@ them. This test pins the fixed behaviour of the run ledger
      oldest-first history (record + bytes exactly as they stood) instead of
      destroying it, and a never-recorded URL has no history either.
 
+It also drives the producer's OWN parse path (the skills.sh block, the source
+whose records were stuck `partial`) against a temp snapshot store with the
+network replaced by canned bytes, so the property is proved end to end and not
+only against the ledger's own API.
+
 Run: python3 scripts/test_snapshot_lifecycle.py
 """
 
+import contextlib
+import io
 import os
 import sys
 import tempfile
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import build_full_catalog as producer  # noqa: E402
 import snapshot_store  # noqa: E402
+
+
+def test_every_parsed_snapshot_is_completed() -> int:
+    """The producer's own parse path completes every snapshot it parses.
+
+    K004's complaint was that the build parsed snapshots and left them
+    `partial` (138 skills.sh records never reached `healthy`). This drives
+    the real skills.sh block -- the source whose records were stuck -- against
+    a temp snapshot store with the network replaced by canned bytes, and pins
+    the property the row asks for:
+
+      * the per-skill record the block parsed is `healthy` with the one row
+        it contributed;
+      * the navigation documents it parsed (the sitemap index and the
+        sub-sitemap) are `healthy` with 0 rows -- they enumerated URLs, not
+        rows;
+      * a recorded snapshot the run never parsed stays `partial`.
+
+    The last one is the honesty half: completion is earned by a parse, never
+    stamped onto a recording.
+    """
+    checks = 0
+
+    def ok(cond, msg):
+        nonlocal checks
+        if not cond:
+            raise AssertionError(msg)
+        checks += 1
+
+    index_url = "https://skills.sh/sitemap.xml"
+    sub_url = "https://www.skills.sh/sitemap-skills-1.xml"
+    page_url = "https://www.skills.sh/acme/demo-repo/demo-skill"
+    cold_url = "https://www.skills.sh/acme/cold-repo/cold-skill"
+
+    index_body = ("<?xml version='1.0' encoding='UTF-8'?>"
+                  "<sitemapindex><sitemap><loc>" + sub_url +
+                  "</loc></sitemap></sitemapindex>").encode("utf-8")
+    sub_body = ("<?xml version='1.0' encoding='UTF-8'?><urlset><url><loc>"
+                + page_url + "</loc></url></urlset>").encode("utf-8")
+    page_body = (b"<html><head><script type=\"application/ld+json\">"
+                 b"{\"@type\":\"SoftwareApplication\",\"description\":"
+                 b"\"A demo skill published on its listing page.\"}"
+                 b"</script></head><body></body></html>")
+
+    responses = {index_url: index_body, sub_url: sub_body, page_url: page_body}
+
+    def fake_http_get(url, timeout, etag=None, source_id=None):
+        body = responses.get(url)
+        if body is None:
+            raise OSError(f"no canned response for {url}")
+        return 200, {}, body
+
+    with tempfile.TemporaryDirectory() as root:
+        # A recording the run will never parse: it is in no sitemap, so the
+        # run never opens it. It must stay `partial` forever.
+        snapshot_store.write_snapshot(root, cold_url, "feed:skills-sh", None,
+                                      200, b"{}")
+
+        with mock.patch.dict(os.environ,
+                             {"LITESPM_SOURCE_SNAPSHOT_DIR": root}), \
+                mock.patch.object(producer, "_http_get",
+                                  side_effect=fake_http_get):
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                producer.build_full_catalog(only_source=producer.FEED_SKILLSH[1])
+        log = buffer.getvalue()
+
+        ok("skills.sh: +1 rows" in log,
+           f"the canned listing page produced no row:\n{log}")
+
+        _, meta = snapshot_store.load_snapshot(root, page_url)
+        snap = meta["snapshot"]
+        ok(snap["status"] == "healthy",
+           f"the parsed per-skill record is not healthy: {snap.get('status')!r}")
+        ok(snap.get("itemCount") == 1,
+           f"the per-skill record must carry the 1 row it produced, got "
+           f"{snap.get('itemCount')!r}")
+        ok(bool(snap.get("completedAt")),
+           "the completed per-skill record carries no completedAt")
+
+        for nav_url, label in ((index_url, "sitemap index"),
+                               (sub_url, "sub-sitemap")):
+            _, meta = snapshot_store.load_snapshot(root, nav_url)
+            nav = meta["snapshot"]
+            ok(nav["status"] == "healthy" and nav.get("itemCount") == 0,
+               f"the {label} was not completed with 0 rows: {nav!r}")
+
+        _, meta = snapshot_store.load_snapshot(root, cold_url)
+        ok(meta["snapshot"]["status"] == "partial",
+           "a recording the run never parsed was promoted (completion is "
+           "earned by a parse, never stamped)")
+
+    return checks
 
 
 def main() -> int:
@@ -149,6 +250,10 @@ def main() -> int:
            "history entries stay ordered oldest-first")
         ok(len(snapshot_store.list_history(root, never_url)) == 0,
            "a URL never recorded has no history (never fabricated)")
+
+    # The producer's own parse path (not just the ledger API): every snapshot
+    # the run parses is completed, and one it never parses stays `partial`.
+    checks += test_every_parsed_snapshot_is_completed()
 
     print(f"SNAPSHOT LIFECYCLE TEST OK ({checks} checks)")
     return 0

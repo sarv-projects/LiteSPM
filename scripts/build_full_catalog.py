@@ -3000,14 +3000,14 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
             snapshot_store.log_failure(snapshot_store.default_root(),
                                        skillsh_index, "ingest", str(e))
 
-    # --- mcpservers.org: directory pages, content via the Wayback Machine ---
+    # --- mcpservers.org: directory pages, origin first, public captures second ---
     # The sitemap supplies the URL list (locale-prefixed variants are
-    # filtered out); page content comes from public Wayback captures, never
-    # from mcpservers.org itself (its API paths are robots-disallowed).
-    # Pages with no capture, and captures lacking title+description, are
-    # skipped and counted -- never filled in. Snapshot lifecycle: the
-    # sitemap/CDX documents are navigation (consumed, 0 rows); each page
-    # replay is consumed with the 0/1 rows its parse produced.
+    # filtered out); page content comes from the origin when it serves
+    # automation and from public Wayback captures when it does not. Pages with
+    # no capture, and captures lacking title+description, are skipped and
+    # counted -- never filled in. Snapshot lifecycle: the sitemap/CDX
+    # documents are navigation (consumed, 0 rows); each page the run reads is
+    # consumed with the 0/1 rows its parse produced.
     print("6/7 mcpservers.org...")
     mcps_source = FEED_MCPSERVERS[1]
     mcps_index = FEED_MCPSERVERS[0]
@@ -3041,11 +3041,22 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                 for loc in re.findall(r"<loc>([^<]+)</loc>", sm_text):
                     if not loc.startswith("https://mcpservers.org/"):
                         continue
-                    path = loc[len("https://mcpservers.org"):]  # /servers/{owner}/{slug}
+                    path = loc[len("https://mcpservers.org"):]
+                    # The directory publishes /servers/{owner}/{slug} (observed
+                    # 2026-10-19: 1,987 listing pages in sitemap 1 alone) and
+                    # the same paths under a locale prefix
+                    # (/{locale}/servers/{owner}/{slug}). The older
+                    # /servers/{slug} shape is still accepted so the ids the
+                    # dataset already carries stay stable. Anything else (a
+                    # locale variant, a nested path) is not a listing page and
+                    # is skipped.
                     seg = [t for t in path.split("/") if t]
-                    if len(seg) != 2 or seg[0] != "servers":
+                    if seg and seg[0] == "servers" and len(seg) == 3:
+                        owner, sslug = seg[1], seg[2]
+                    elif seg and seg[0] == "servers" and len(seg) == 2:
+                        owner, sslug = "servers", seg[1]
+                    else:
                         continue  # locale-prefixed paths open with a locale code
-                    owner, sslug = seg
                     item_id = canonical_id("mcp", owner, canonical_slug(sslug.lower()))
                     if item_id in seen_ids:
                         mcps_seen += 1
@@ -3056,58 +3067,112 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                     new_page_ids.add(item_id)
                     new_pages.append((loc, path, owner, sslug, item_id))
             print(f"  mcpservers.org: {len(new_pages)} servers not yet in the catalog "
-                  f"({mcps_seen} already present); loading capture index...")
+                  f"({mcps_seen} already present)")
 
-            # Capture index: paginate the CDX query (collapse is applied in
-            # Python below -- collapsing inside the query shrinks each page and
-            # loses coverage), keeping the latest 200-status capture per path.
-            cdx_root = ("https://web.archive.org/cdx/search/cdx"
-                        "?url=mcpservers.org/servers/*")
-            cdx_base = cdx_root + "&output=json&fl=original,timestamp,statuscode"
-            # showNumPages answers a PLAIN-TEXT page count and is IGNORED when
-            # output=json rides along: the API then returns an empty JSON table
-            # whose null cell made int() throw, which skipped the whole source
-            # on its first real fetch (2026-10-07). The count is therefore
-            # requested on its own, without output=json.
-            cdx_count_url = cdx_root + "&showNumPages=true"
-            pages_doc = _obtain_bulk(cdx_count_url, mcps_source,
-                                     40, refresh, "CDX page count", fatal=True)
-            n_pages = int(pages_doc.decode("utf-8", errors="replace").strip())
-            if n_pages < 0 or n_pages > REGISTRY_MAX_PAGES:
-                raise ValueError(f"CDX page count {n_pages} exceeds the safe bound")
-            _consume(cdx_count_url, mcps_source)
+            # The origin first, the public capture second.
+            #
+            # mcpservers.org's robots.txt allows /servers/* (only /api/,
+            # /admin and /submit-success are disallowed), so the origin itself
+            # is a permitted request path and the freshest content. It
+            # answers automation with a Cloudflare bot challenge (HTTP 403,
+            # cf-mitigated: challenge) -- a policy we do not try to defeat.
+            # The refusal is recorded (failures.jsonl, with the stage and the
+            # error) and the run falls back to the public Wayback captures,
+            # which are permitted for everyone and carry the same pages. ONE
+            # probe decides the path: a per-page origin attempt would spend
+            # thousands of requests on refusals.
+            origin_ready = False
+            origin_bodies = {}
+            if new_pages:
+                probe_url = new_pages[0][0]
+                was_incomplete = mcps_source in _INCOMPLETE_SOURCES
+                try:
+                    probe = obtain(probe_url, mcps_source, 25, refresh,
+                                   "mcpservers origin listing")
+                except snapshot_store.SnapshotIntegrityError:
+                    raise
+                except Exception as exc:
+                    # The origin refused this path. The fetch layer recorded the
+                    # refusal (failures.jsonl, with the stage and the error).
+                    # The source is NOT incomplete: the public capture index
+                    # below carries the same pages, so the refusal is a
+                    # refused location, not a coverage gap.
+                    if not was_incomplete:
+                        _INCOMPLETE_SOURCES.discard(mcps_source)
+                    _mark_refused(mcps_source)
+                    print(f"  mcpservers.org: the origin refused the listing page "
+                          f"({exc}); falling back to the public capture index")
+                else:
+                    origin_ready = True
+                    origin_bodies[probe_url] = probe
+                    # The probe's bytes are parsed below like every other page.
+                    _consume(probe_url, mcps_source)
+                    print("  mcpservers.org: the origin serves listing pages; "
+                          "reading them directly")
+
             captures = {}
-            for page_no in range(n_pages):
-                cdx_page_url = f"{cdx_base}&page={page_no}"
-                rows_doc = _obtain_bulk(cdx_page_url, mcps_source,
-                                        60, refresh, f"CDX page {page_no}", fatal=True)
-                rows = json.loads(rows_doc)
-                _consume(cdx_page_url, mcps_source)
-                for original, ts, status in rows[1:]:
-                    if status != "200" or "?" in original or "#" in original:
-                        continue
-                    if not original.startswith("https://mcpservers.org/servers/"):
-                        continue
-                    path = original[len("https://mcpservers.org"):]
-                    prev = captures.get(path)
-                    if prev is None or ts > prev:
-                        captures[path] = ts
-                print(f"  mcpservers.org: capture index page {page_no + 1}/{n_pages} "
-                      f"({len(captures)} unique captured pages)")
-                time.sleep(1.0)  # pacing against archive.org
+            if not origin_ready:
+                # Capture index: paginate the CDX query (collapse is applied in
+                # Python below -- collapsing inside the query shrinks each page and
+                # loses coverage), keeping the latest 200-status capture per path.
+                cdx_root = ("https://web.archive.org/cdx/search/cdx"
+                            "?url=mcpservers.org/servers/*")
+                cdx_base = cdx_root + "&output=json&fl=original,timestamp,statuscode"
+                # showNumPages answers a PLAIN-TEXT page count and is IGNORED when
+                # output=json rides along: the API then returns an empty JSON table
+                # whose null cell made int() throw, which skipped the whole source
+                # on its first real fetch (2026-10-07). The count is therefore
+                # requested on its own, without output=json.
+                cdx_count_url = cdx_root + "&showNumPages=true"
+                pages_doc = _obtain_bulk(cdx_count_url, mcps_source,
+                                         40, refresh, "CDX page count", fatal=True)
+                n_pages = int(pages_doc.decode("utf-8", errors="replace").strip())
+                if n_pages < 0 or n_pages > REGISTRY_MAX_PAGES:
+                    raise ValueError(f"CDX page count {n_pages} exceeds the safe bound")
+                _consume(cdx_count_url, mcps_source)
+                for page_no in range(n_pages):
+                    cdx_page_url = f"{cdx_base}&page={page_no}"
+                    rows_doc = _obtain_bulk(cdx_page_url, mcps_source,
+                                            60, refresh, f"CDX page {page_no}", fatal=True)
+                    rows = json.loads(rows_doc)
+                    _consume(cdx_page_url, mcps_source)
+                    for original, ts, status in rows[1:]:
+                        if status != "200" or "?" in original or "#" in original:
+                            continue
+                        if not original.startswith("https://mcpservers.org/servers/"):
+                            continue
+                        path = original[len("https://mcpservers.org"):]
+                        prev = captures.get(path)
+                        if prev is None or ts > prev:
+                            captures[path] = ts
+                    print(f"  mcpservers.org: capture index page {page_no + 1}/{n_pages} "
+                          f"({len(captures)} unique captured pages)")
+                    time.sleep(1.0)  # pacing against archive.org
             for n, (loc, path, owner, sslug, item_id) in enumerate(new_pages, 1):
-                ts = captures.get(path)
-                if ts is None:
-                    mcps_nocapture += 1
-                    continue
-                replay_url = f"https://web.archive.org/web/{ts}id_/{loc}"
-                page = _obtain_bulk(replay_url, mcps_source, 30, refresh,
-                                    "mcpservers page replay")
+                page = origin_bodies.pop(loc, None)
+                page_url = loc
+                if page is None and origin_ready:
+                    page = _obtain_bulk(loc, mcps_source, 30, refresh,
+                                        "mcpservers origin listing")
+                    if page is None:
+                        mcps_failed += 1
+                        continue
+                    # The page parses below either way: consumed here.
+                    _consume(loc, mcps_source)
                 if page is None:
-                    mcps_failed += 1
-                    continue
-                # The replayed page parses below either way: consumed here.
-                _consume(replay_url, mcps_source)
+                    ts = captures.get(path)
+                    if ts is None:
+                        mcps_nocapture += 1
+                        continue
+                    replay_url = f"https://web.archive.org/web/{ts}id_/{loc}"
+                    page = _obtain_bulk(replay_url, mcps_source, 30, refresh,
+                                        "mcpservers page replay")
+                    if page is None:
+                        mcps_failed += 1
+                        continue
+                    # The replayed page parses below either way: consumed here.
+                    _consume(replay_url, mcps_source)
+                    page_url = replay_url
                 name, summary = mcpservers_page_fields(page)
                 if not name or not summary:
                     mcps_nodesc += 1
@@ -3134,7 +3199,7 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                     "source": mcps_source,
                 })
                 mcps_added += 1
-                attribute_rows(replay_url, 1)
+                attribute_rows(page_url, 1)
                 if n % 500 == 0:
                     print(f"  mcpservers.org: {n}/{len(new_pages)} processed "
                           f"({mcps_added} added)")
