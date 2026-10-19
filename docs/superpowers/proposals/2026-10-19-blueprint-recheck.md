@@ -78,6 +78,66 @@ design, documented in `worker/index.js`, `public/robots.txt` and `PackageView.ts
 it 404 needs a decision (canonical URLs for real entries, 404 for everything else) and a
 redirect for the query form, not a patch.
 
+## 2a. Measured, new, and not in the blueprint either
+
+The fourth audit (data truthfulness) transpiled the site's own modules and ran them
+against the real dataset. Two findings are new:
+
+**1. A second transport axis the site does not model — 3,660 overstated claims.**
+The site knows which hosts can take a *remote* entry (8 of 50, and it now gets that
+right — the 50-host over-claim was fixed on 18 Oct). But the CLI gates on the
+**transport** as well: only **claude-code, cline and cursor** of those 8 accept `sse`;
+codex, grok-build, opencode, pi-agent and zed are `streamable-http` only
+(`RemoteEntrySpec.Supports`, `internal/host/target.go:139`). The generated
+`web/data/hosts.json` carries a boolean `remote` and no transport capability, so:
+
+- **732** published rows carry `transport: "sse"`. The site claims all 8 remote hosts
+  for each; the CLI would accept 3 and refuse 5 with `LPSM-HOST-REMOTE-UNSUPPORTED`.
+- **732 × 5 = 3,660** host claims are overstated today. The 24,669 `streamable-http`
+  rows are exact.
+
+A concrete row: `mcp:builtin:mcp-registry:io.github.jghiglia2380-0latency` (sse,
+`https://mcp.0latency.ai/mcp?key={api_key}`) — the site says "works with 8 agents";
+the CLI accepts 3.
+
+**2. The "Agent skills" shelf serves the wrong rows of the right names.** The shelves
+are driven by `web/lib/landing.ts::SHELVES[].preferred`, a list of **display names**;
+`deriveShelves` takes the **first** name match in dataset order. "Figma" matches 14
+rows, "Linear" 24, "Supabase" 13 — and the match chosen is often a `discovery_only` row
+while an installable row of the same name sits later in the dataset. Measured: the
+"Agent skills" shelf shows **5 of 6** discovery-only rows, and the shelf "Official
+agent skills" shows 1 of 6. The first shelf ("Installable right now") is clean (0 of 6),
+because it filters on installability.
+
+This is the "discovery-only rows should not dominate first-time recommendations"
+complaint, in its sharpest form: the editorial shelf *is* the mechanism, and it picks
+by name without asking whether the row can be installed. The replacement curated set
+(`featured.json`, ids rather than names) fixes it by construction.
+
+**3. Where the site and the CLI disagree today, in full.** The audit enumerated fifteen
+CLI gates; the site encodes **one** of them at listing level (the kind gate). The rest,
+each of which the site must either mirror or explicitly not claim:
+
+| gate | owner | site mirror? |
+|---|---|---|
+| kind (plugin refused) | `internal/domain/models.go` | yes |
+| provenance (`discovery_only` refused) | `internal/domain/models.go` | yes |
+| launch line: command XOR endpoint | `cmd/litespm/install_mcp.go` | partially (listing's `transport`, never the resolved descriptor) |
+| skill source parses to a git repo | `internal/skills/install.go` | no |
+| transport normalisation (`sse` vs `streamable-http`) | `internal/host/target.go` | **no** |
+| host remote capability (8 of 50) | `internal/host/entry_install.go` | yes |
+| per-transport host capability | `internal/host/target.go` | **no** |
+| target-set semantics (default set filtered, explicit host fails by name) | `cmd/litespm/main.go` | no |
+| scope (project scope needs a documented path) | `internal/host/entry_install.go` | no |
+| env forwarding (a remote entry refuses `--env`) | `internal/host/entry_install.go` | no |
+| egress on the endpoint | `cmd/litespm/install_mcp.go` | no (and the site must never claim approval) |
+| entry-name validity, `litespm` reserved | `internal/host/entry_install.go` | no |
+| name collision unless `--force` | `cmd/litespm/install_mcp.go` | no |
+| plan/approval binding | `cmd/litespm/install_authz.go` | no |
+| plugin artifact source (not wired) | `cmd/litespm/install_kind.go` | yes |
+
+The last row is the one the plugin workstream is closing.
+
 ## 3. What the recheck changes about the plan
 
 1. **The truthfulness contract lands first.** Half the copy in the blueprint is a claim
