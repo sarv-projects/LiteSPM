@@ -207,7 +207,7 @@ function Guide({
       {/* ---- 3. install ---------------------------------------------------- */}
       <section className="mt-7" aria-labelledby="guide-install">
         <h3 id="guide-install" className="text-[14px] font-semibold text-ink">
-          Step 1 — install the CLI
+          Step 1 — install LiteSPM (or run it using npx)
         </h3>
         <div className="mt-3">
           <CommandCopy
@@ -217,7 +217,8 @@ function Guide({
           />
         </div>
         <p className="mt-2.5 max-w-prose text-[12.5px] leading-relaxed text-ink-3">
-          The same platform binaries are published on the{" "}
+          You can also run <code className="t-mono text-ink">npx --yes litespm@latest setup</code>
+          without permanently installing the npm command. The same platform binaries are published on the{" "}
           <a
             href="https://github.com/sarv-projects/LiteSPM/releases"
             target="_blank"
@@ -274,7 +275,7 @@ function Guide({
       {/* ---- 5. the catalog -------------------------------------------------- */}
       <section className="mt-7" aria-labelledby="guide-catalog">
         <h3 id="guide-catalog" className="text-[14px] font-semibold text-ink">
-          Step 3 — optional: update the catalog
+          Step 3 — download the catalog (required for catalog installs)
         </h3>
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
           The CLI ships with no catalog of its own. This command fetches the release pointer and the
@@ -334,10 +335,10 @@ function Guide({
             pick an entry the site marks as installable.
           </li>
           <li>
-            <strong className="font-semibold text-ink">It is a plugin</strong> (
-            <code className="t-mono text-ink-2">LPSM-ARTIFACT-UNAVAILABLE</code>). LiteSPM does not
-            install plugins: the catalog lists them, but there is no plugin artifact source yet, so
-            the command refuses rather than installing half a bundle.
+            <strong className="font-semibold text-ink">A plugin source is unsupported</strong> (
+            <code className="t-mono text-ink-2">LPSM-ARTIFACT-UNAVAILABLE</code>). Some plugins
+            with a pinned, fetchable Git tree have a LiteSPM install path. Others lack a
+            supported source or manifest and will be refused before installation.
           </li>
         </ul>
         <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
