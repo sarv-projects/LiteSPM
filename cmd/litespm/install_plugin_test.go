@@ -492,6 +492,50 @@ func TestInstallPluginRefusesAnEntryNameThatCollides(t *testing.T) {
 	}
 }
 
+// TestInstallPluginRollsBackWhenAHostWriteFails is the failure-injection
+// case: the first host's config is written, the second host's write fails,
+// and the machine must end up byte-identical to how it started — the first
+// host's config restored, and no state row describing an install that did
+// not happen.
+func TestInstallPluginRollsBackWhenAHostWriteFails(t *testing.T) {
+	allowLocalPluginFetch(t)
+	db := openTestState(t)
+	dataRoot := t.TempDir()
+	_, configPath := homeWithBridge(t)
+	original, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The second host's config path is a DIRECTORY, so its write fails after
+	// the first host's write already happened.
+	codexHome := t.TempDir()
+	t.Setenv("CODEX_HOME", codexHome)
+	if err := os.MkdirAll(filepath.Join(codexHome, "config.toml"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	repo, commit := pluginFixtureRepo(t, demoPluginFiles)
+	listing := pluginListing("plugin:example:demo-plugin")
+	catClient := pluginCatalog(t, listing, pluginGitRef(repo, commit))
+
+	_, err = installDemoPlugin(t, db, dataRoot, listing, catClient, []string{"claude-code", "codex"})
+	if err == nil {
+		t.Fatal("an install whose second host write fails reported success")
+	}
+	after, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(after) != string(original) {
+		t.Fatalf("the failed install left the first host's config changed:\n%s", after)
+	}
+	// No install row: a failed install leaves no state behind.
+	rows, err := db.ListInstalls(context.Background(), domain.ScopeUser, "")
+	if err == nil && len(rows) != 0 {
+		t.Errorf("the failed install left %d install row(s) behind", len(rows))
+	}
+}
+
 func TestPluginFetchOptionsAreTheStrictProductionOnes(t *testing.T) {
 	// The test seam must not weaken the production posture: the local-file
 	// opt-in is off unless a test turns it on.

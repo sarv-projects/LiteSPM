@@ -107,6 +107,11 @@ func main() {
 			os.Exit(code)
 		}
 
+	case "adopt":
+		if code := runAdopt(os.Args[2:]); code != 0 {
+			os.Exit(code)
+		}
+
 	case "install", "add", "i":
 		runInstall(os.Args[2:])
 
@@ -1666,6 +1671,24 @@ func runInstall(args []string) {
 		return
 	}
 
+	if listing.Kind == domain.KindPlugin {
+		// The sealed plan names the pinned artifact and the target hosts; the
+		// entry names come out of the plugin's own manifest, which lives
+		// inside the pinned tree, so the commit id is what binds them.
+		plannedBinding, err := pluginInstallBindingFromPlan(ctx, grant.Plan, listing, flags.scope)
+		if err != nil {
+			failInstall(err)
+		}
+		outcome, err := installPluginFromListing(ctx, db, paths.DataRoot, listing, grant.Version, flags.scope,
+			projectRoot, plannedBinding)
+		if err != nil {
+			failInstall(err)
+		}
+		auditCLIInstall(ctx, db, flags.listingID, approvalID, "allow", "ok", "")
+		printPluginInstall(outcome)
+		return
+	}
+
 	// Fail-closed invariant: InstallWired() (checked above) admits only skill
 	// and mcp, and both branches returned. Reaching here means the two lists
 	// disagree, and refusing with the artifact gap is the safe answer —
@@ -2662,7 +2685,7 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			// Skill and MCP installs are effectful: they need a recorded plan and
 			// a human-recorded approval bound to that plan's hash. The request
 			// reaching this handler is never itself the authorization.
-			if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP {
+			if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP || listing.Kind == domain.KindPlugin {
 				// Every attempt is audited, including the ones the authorization
 				// gate refuses before any effect: an audit trail that records
 				// only successes cannot answer "was this asked for?". The defer
@@ -2711,6 +2734,59 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 						"planId":       req.PlanID,
 					}, nil
 				}
+				if listing.Kind == domain.KindPlugin {
+					// The sealed plan names the pinned artifact and the target
+					// hosts; the entry names come out of the plugin's own
+					// manifest, which lives inside the pinned tree, so the
+					// commit id is what binds them.
+					pluginBinding, berr := pluginInstallBindingFromPlan(ctx, grant.Plan, listing, scope)
+					if berr != nil {
+						auditDetail = berr.Error()
+						return nil, installRPCError(berr)
+					}
+					outcome, ierr := installPluginFromListing(ctx, db, paths.DataRoot, listing, versionOrLatest(version),
+						scope, grant.Plan.Request.ProjectRoot, pluginBinding)
+					if ierr != nil {
+						auditDetail = ierr.Error()
+						return nil, installRPCError(ierr)
+					}
+					installed = true
+					auditOutcome = "ok"
+					servers := make([]map[string]any, 0, len(outcome.Servers))
+					for _, s := range outcome.Servers {
+						servers = append(servers, map[string]any{
+							"name":      s.Name,
+							"command":   s.Command,
+							"args":      s.Args,
+							"endpoint":  s.Endpoint,
+							"transport": s.Transport,
+						})
+					}
+					hosts := make([]map[string]any, 0, len(outcome.Hosts))
+					for _, h := range outcome.Hosts {
+						hosts = append(hosts, map[string]any{
+							"hostId":     h.HostID,
+							"configPath": h.ConfigPath,
+							"entryName":  h.Name,
+							"replaced":   h.Replaced,
+							"created":    h.Created,
+						})
+					}
+					return map[string]any{
+						"installId":  outcome.InstallID,
+						"status":     string(domain.InstallActive),
+						"kind":       string(domain.KindPlugin),
+						"treeDigest": outcome.TreeDigest,
+						"artifact": map[string]any{
+							"repo":   outcome.Artifact.Repo,
+							"commit": outcome.Artifact.Commit,
+							"path":   outcome.Artifact.Path,
+						},
+						"servers": servers,
+						"hosts":   hosts,
+						"planId":  req.PlanID,
+					}, nil
+				}
 				mcpBinding, berr := mcpInstallBindingFromPlan(ctx, grant.Plan, listing, scope)
 				if berr != nil {
 					auditDetail = berr.Error()
@@ -2753,10 +2829,10 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 					"planId":              req.PlanID,
 				}, nil
 			}
-			// Fail-closed invariant: InstallWired() (checked above) admits only
-			// skill and mcp, and both branches returned. Reaching here means
-			// the two lists disagree; refusing beats handing the install to
-			// the archive engine, which cannot complete it.
+			// Fail-closed invariant: InstallWired() (checked above) admits
+			// skill, mcp and plugin, and every branch returned. Reaching here
+			// means the two lists disagree; refusing beats handing the install
+			// to the archive engine, which cannot complete it.
 			return nil, installRPCError(domain.ErrArtifactUnavailable(listingID,
 				fmt.Sprintf("kind %q is marked install-wired but no install path handles it; refusing rather than half-installing", listing.Kind)))
 		}

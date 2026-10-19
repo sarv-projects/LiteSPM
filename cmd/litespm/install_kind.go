@@ -43,10 +43,16 @@ import (
 // The gate and the dispatch are ONE change, and the flag keeps them together:
 // opening the gate without the dispatch would make the daemon seal a plan it
 // cannot execute and the wizard ask a question whose answer could not change
-// anything — both of which the existing tests pin as refusals. Flipping this
-// next to the dispatch itself is a one-line change; until then the gate
-// refuses a plugin with the reason that is actually true.
-var pluginInstallDispatched = false
+// anything.
+//
+// The dispatch EXISTS as of 2026-10-19: `runInstall` routes kind=plugin to
+// `installPluginFromListing` through the same plan, approval, transaction and
+// removal path as an MCP server, and the daemon's `install.execute` does the
+// same through `install_plugin.go`. The artifact-level refusals (no artifact,
+// an unpinned one, an unknown type, a manifest that cannot be parsed) are
+// raised by the plugin installer itself, with their own reasons — the kind
+// gate no longer has to speak for them.
+var pluginInstallDispatched = true
 
 // installKindRefusal returns the typed refusal for a listing whose kind this
 // build has no install path for, or nil when the kind is installable in

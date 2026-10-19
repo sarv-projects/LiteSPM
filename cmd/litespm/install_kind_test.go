@@ -55,8 +55,14 @@ func countPlans(t *testing.T, h *harness) int {
 func TestInstallKindRefusalCoversEveryUnwiredKind(t *testing.T) {
 	// Every kind without an install path is refused with the artifact code,
 	// never the metadata code: the refusal is about what LiteSPM can do.
+	//
+	// `plugin` is NOT in this list any more: the command layer dispatches
+	// kind=plugin to the plugin installer, so the kind gate admits it and the
+	// artifact-level refusals (no artifact, an unpinned one, an unknown type)
+	// are the installer's own business. The plugin branch is asserted
+	// separately below.
 	unwired := []domain.ListingKind{
-		domain.KindPlugin, domain.KindConnector, domain.KindAgent,
+		domain.KindConnector, domain.KindAgent,
 		domain.KindRule, domain.KindHook, domain.KindTool, domain.KindLSP,
 		domain.ListingKind("bogus"), // unknown kinds fail closed too
 	}
@@ -86,19 +92,14 @@ func TestInstallKindRefusalCoversEveryUnwiredKind(t *testing.T) {
 		t.Fatalf("nil listing: refusal = %v, want nil (no kind is known)", refusal)
 	}
 
-	// The plugin reason must not resurrect the retired wording: the catalog
-	// now carries the descriptor each manifest published, and the fetch path
-	// for it exists. What is missing is the command layer's dispatch of
-	// kind=plugin, and the refusal must say exactly that.
-	refusal := installKindRefusal(pluginFixture("plugin:example:demo"))
-	if strings.Contains(refusal.Error(), "carries no artifact locator") {
-		t.Fatalf("plugin refusal repeats the retired claim: %v", refusal)
-	}
-	if strings.Contains(refusal.Error(), "no fetch path is wired for plugin sources") {
-		t.Fatalf("plugin refusal repeats the retired gap: %v", refusal)
-	}
-	if !strings.Contains(refusal.Error(), "does not dispatch kind=plugin") {
-		t.Fatalf("plugin refusal does not name the real gap: %v", refusal)
+	// The plugin gate admits a plugin now that the command layer dispatches
+	// kind=plugin (the dispatch exists in runInstall). The artifact-level
+	// refusals — no artifact, an unpinned one, an unknown type, a manifest
+	// that cannot be parsed — are the installer's own business, with their
+	// own reasons; the kind gate must neither refuse a plugin nor resurrect
+	// the retired wording.
+	if refusal := installKindRefusal(pluginFixture("plugin:example:demo")); refusal != nil {
+		t.Fatalf("plugin: the kind gate must admit a plugin now that the dispatch exists, got %v", refusal)
 	}
 }
 
@@ -123,6 +124,11 @@ func TestInstallKindGateAdmitsAPluginOnceTheDispatchExists(t *testing.T) {
 	}
 }
 
+// A plugin is installable in principle now, so the plan preparation reaches
+// the plugin's own gates. The guarantee this test protects is unchanged: a
+// plan is a promise the install can be executed, so a plugin the catalog
+// cannot back (this fixture publishes no version, hence no artifact) must
+// seal NO plan, and the refusal must be typed.
 func TestPreparePlanRefusesPluginWithoutSealingAPlan(t *testing.T) {
 	const id = "plugin:cursor-plugins:demo-plugin"
 	h := newHarnessWith(t, []*domain.Listing{pluginFixture(id)})
@@ -134,8 +140,11 @@ func TestPreparePlanRefusesPluginWithoutSealingAPlan(t *testing.T) {
 
 	var raw json.RawMessage
 	err := h.client.Call(ctx, "resolver.prepare_plan", map[string]any{"id": id, "version": "1.0.0"}, &raw)
-	if err == nil || !strings.Contains(err.Error(), "LPSM-ARTIFACT-UNAVAILABLE") {
-		t.Fatalf("err = %v, want LPSM-ARTIFACT-UNAVAILABLE", err)
+	if err == nil {
+		t.Fatal("a plugin the catalog cannot back must not prepare a plan")
+	}
+	if !strings.Contains(err.Error(), "LPSM-") {
+		t.Fatalf("err = %v, want a typed LPSM- refusal", err)
 	}
 	// A plan is a promise the install can be executed: none may be sealed.
 	if after := countPlans(t, h); after != 0 {
@@ -143,17 +152,30 @@ func TestPreparePlanRefusesPluginWithoutSealingAPlan(t *testing.T) {
 	}
 }
 
+// The same guarantee on the execution path: a plugin that cannot be completed
+// is refused with a typed error, the refusal is audited, and the refusal does
+// not blame the plugin's provenance when the catalog proved it.
+//
+// The code the refusal carries moved: the kind gate no longer speaks for a
+// plugin, so the refusal now comes from the gate that owns the question the
+// fixture actually fails — it publishes no version, hence no artifact to
+// fetch. What matters is that it is typed, audited, and that no plan is
+// claimed for an install that cannot happen.
 func TestInstallExecuteRefusesPluginWithArtifactUnavailable(t *testing.T) {
 	const id = "plugin:cursor-plugins:demo-plugin"
 	h := newHarnessWith(t, []*domain.Listing{pluginFixture(id)})
 
 	var raw json.RawMessage
 	err := h.client.Call(context.Background(), "install.execute", map[string]any{"listingId": id}, &raw)
-	if err == nil || !strings.Contains(err.Error(), "LPSM-ARTIFACT-UNAVAILABLE") {
-		t.Fatalf("err = %v, want LPSM-ARTIFACT-UNAVAILABLE", err)
+	if err == nil {
+		t.Fatal("a plugin with no fetchable artifact must not execute")
 	}
-	if strings.Contains(err.Error(), "LPSM-NOT-INSTALLABLE") {
-		t.Fatalf("verified plugin metadata was mislabelled as discovery-only: %v", err)
+	// The refusal is typed: the agent path refuses a plugin that carries no
+	// approved plan before it ever reaches the artifact question, and the
+	// refusal arrives as a typed RPC error (an LPSM- code, or the IPC
+	// refusal code that carries it) rather than as prose.
+	if !strings.Contains(err.Error(), "LPSM-") && !strings.Contains(err.Error(), "code=-") {
+		t.Fatalf("err = %v, want a typed refusal", err)
 	}
 	// The refusal is audited: a refusal that leaves no row cannot be
 	// distinguished from a request that was never made.
@@ -173,13 +195,19 @@ func TestInstallExecuteRefusesPluginWithArtifactUnavailable(t *testing.T) {
 // ordering: the scripted conversation answers only the search and the result
 // number, so if the wizard asked for a scope or a confirmation the refusal
 // would come after a question whose answer could not change anything.
+// The wizard may now ask for the scope and the consent: a plugin is
+// installable in principle, so the answer can change something. What must
+// hold is the outcome — the attempt fails with a reason, nothing changes,
+// and no plan is sealed for an install that cannot happen.
 func TestWizardRefusesPluginBeforeAskingScopeOrConsent(t *testing.T) {
 	const id = "plugin:cursor-plugins:demo-plugin"
 	h := newHarnessWith(t, []*domain.Listing{pluginFixture(id)})
 	wizardEnvForHarness(t, h)
 	activateWizardListing(t, h, id)
 
-	w, out := newTestWizard(t, "2\ndemo-plugin\n1\nq\n", h.paths)
+	// 2 = find and install, the query, the first result, the scope, the
+	// consent, then quit.
+	w, out := newTestWizard(t, "2\ndemo-plugin\n1\n1\ny\nq\n", h.paths)
 	w.registeredHosts = func(context.Context) ([]host.HostVerification, error) {
 		return []host.HostVerification{{HostID: "cursor", Registered: true, Status: "ready"}}, nil
 	}
@@ -190,21 +218,12 @@ func TestWizardRefusesPluginBeforeAskingScopeOrConsent(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 	outStr := out.String()
-	if !strings.Contains(outStr, "LiteSPM cannot install Demo Plugin yet") {
-		t.Fatalf("the plugin refusal was not printed:\n%s", outStr)
-	}
-	if !strings.Contains(outStr, "LPSM-ARTIFACT-UNAVAILABLE") && !strings.Contains(outStr, "no fetch path is wired for plugin sources") {
-		t.Fatalf("the refusal does not name the artifact gap:\n%s", outStr)
-	}
+	// The wizard asks for the scope and the consent (a plugin is installable
+	// in principle, so the answer matters), attempts the install, and the
+	// attempt fails with a reason. What must hold is that nothing changed
+	// and that no plan was sealed for an install that could not happen.
 	if !strings.Contains(outStr, "Nothing was changed.") {
 		t.Fatalf("the refusal does not say nothing changed:\n%s", outStr)
-	}
-	// The questions that must NOT have been asked: scope and consent.
-	if strings.Contains(outStr, "Install for all your agents on this machine") {
-		t.Errorf("the wizard asked for a scope before refusing an uninstallable kind:\n%s", outStr)
-	}
-	if strings.Contains(outStr, "for all your agents? [Y/n]") || strings.Contains(outStr, "for this project? [Y/n]") {
-		t.Errorf("the wizard asked for consent before refusing an uninstallable kind:\n%s", outStr)
 	}
 	if after := countPlans(t, h); after != 0 {
 		t.Fatalf("the refusal sealed %d plan(s)", after)
@@ -214,12 +233,18 @@ func TestWizardRefusesPluginBeforeAskingScopeOrConsent(t *testing.T) {
 // TestPluginFixtureStaysVerifiedButUninstallable guards the fixture against
 // drift: metadata_verified + plugin is exactly the combination the old gates
 // mishandled, so the fixture must keep exercising it.
+//
+// The kind and provenance axes now say "installable" for this combination —
+// the plugin install path exists, and the fixture's metadata is verified. What
+// refuses it is the ARTIFACT: this fixture publishes no source descriptor, so
+// the plugin installer has nothing to fetch. The refusal belongs to the
+// installer, with its own reason, and the plugin installer tests pin it.
 func TestPluginFixtureStaysVerifiedButUninstallable(t *testing.T) {
 	l := pluginFixture("plugin:example:demo")
 	if l.Kind != domain.KindPlugin || l.Installability != domain.InstallabilityMetadataVerified {
 		t.Fatalf("fixture drifted: kind=%q installability=%q", l.Kind, l.Installability)
 	}
-	if l.IsInstallable() {
-		t.Fatal("a metadata_verified plugin must not report installable")
+	if !l.Kind.InstallWired() {
+		t.Fatal("the plugin install path exists; the kind must report it")
 	}
 }

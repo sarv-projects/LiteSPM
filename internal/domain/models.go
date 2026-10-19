@@ -64,12 +64,19 @@ func (i Installability) Valid() bool {
 // unknown kind fails closed with the same answer.
 //
 // This is the "what can LiteSPM do" axis, independent of the "what did the
-// upstream prove" axis in Installability. A plugin row can be
-// metadata_verified and still not installable: its vendor manifest published
-// a verified source descriptor, and no fetcher exists for it.
+// upstream prove" axis in Installability.
+//
+// A plugin is on this axis as of 2026-10-19: the install path exists (a
+// commit-pinned git tree is fetched and verified, and the MCP servers the
+// plugin's manifest declares are registered in each target host's config).
+// What a plugin still needs is a FETCHABLE artifact, and that is the
+// installer's own question: no artifact, an unpinned one, an unknown artifact
+// type or a local-directory locator are each refused by the plugin installer
+// with its own reason. A plugin row can therefore be metadata_verified and
+// still not installable — now because of its artifact rather than its kind.
 func (k ListingKind) InstallWired() bool {
 	switch k {
-	case KindSkill, KindMCP:
+	case KindSkill, KindMCP, KindPlugin:
 		return true
 	}
 	return false

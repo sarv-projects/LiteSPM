@@ -156,10 +156,16 @@ func TestInstallabilityRequiresWiredKindAndProvenance(t *testing.T) {
 		t.Fatal("a discovery_only mcp row must not be installable")
 	}
 	// A kind with no wired install path is never installable, however proven
-	// its metadata: 636 plugin rows are metadata_verified from vendor
-	// manifests and still have no fetcher, and an unknown kind fails closed
-	// with the same answer.
-	unwired := []ListingKind{KindPlugin, KindConnector, KindAgent, KindRule, KindHook, KindTool, KindLSP, ListingKind("bogus")}
+	// its metadata, and an unknown kind fails closed with the same answer.
+	//
+	// `plugin` is NOT in this list any more: the install path exists (a
+	// commit-pinned git tree is fetched and verified, and the MCP servers the
+	// plugin's manifest declares are registered in each target host's config).
+	// What a plugin still needs is a FETCHABLE artifact, and that is the
+	// installer's question, not the kind's: 636 plugin rows are
+	// metadata_verified, and the ones without a pinned git tree are refused
+	// by the plugin installer with their own reason.
+	unwired := []ListingKind{KindConnector, KindAgent, KindRule, KindHook, KindTool, KindLSP, ListingKind("bogus")}
 	for _, kind := range unwired {
 		if kind.InstallWired() {
 			t.Fatalf("kind %q must not report an install path", kind)
@@ -168,7 +174,7 @@ func TestInstallabilityRequiresWiredKindAndProvenance(t *testing.T) {
 			t.Fatalf("kind %q must never be installable: no install path is wired for it", kind)
 		}
 	}
-	for _, kind := range []ListingKind{KindSkill, KindMCP} {
+	for _, kind := range []ListingKind{KindSkill, KindMCP, KindPlugin} {
 		if !kind.InstallWired() {
 			t.Fatalf("kind %q has an install path and must report one", kind)
 		}
