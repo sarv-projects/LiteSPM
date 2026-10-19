@@ -362,7 +362,7 @@ func buildPluginInstallPlan(
 			string(policy.EffectNetworkOutbound),
 		},
 		Preconditions:   domain.PlanPreconditions{},
-		HostChanges:     pluginHostChanges(ctx, kept, scope, binding),
+		HostChanges:     pluginHostChanges(ctx, kept, scope, projectRoot, binding),
 		RequestedAccess: nil,
 	}
 	planHash, err := domain.ComputePlanHash(plan)
@@ -375,19 +375,18 @@ func buildPluginInstallPlan(
 
 // pluginHostChanges lists the config files the install will write.
 //
+// The path is resolved the way the WRITE resolves it (host.InstallServerEntry
+// opens the project's own config file at project scope, not the user's), so
+// the plan names the file that will actually be touched.
+//
 // The EntryKey is empty on purpose: the key each server is stored under is
 // named by the plugin's manifest, which lives inside the pinned tree, so it
 // is not knowable at plan time. The pinned commit in the sealed value is
 // what binds it.
-func pluginHostChanges(ctx context.Context, hosts []string, scope domain.InstallScope, binding *pluginInstallBinding) []domain.HostChange {
+func pluginHostChanges(ctx context.Context, hosts []string, scope domain.InstallScope, projectRoot string, binding *pluginInstallBinding) []domain.HostChange {
 	changes := make([]domain.HostChange, 0, len(hosts))
 	for _, hostID := range hosts {
-		configPath := ""
-		if adapter, aerr := host.GetAdapter(hostID); aerr == nil {
-			if p, derr := adapter.DetectConfig(ctx, scope); derr == nil {
-				configPath = p
-			}
-		}
+		configPath := pluginConfigPathFor(ctx, hostID, scope, projectRoot)
 		changes = append(changes, domain.HostChange{
 			HostID:     hostID,
 			ConfigPath: configPath,
@@ -397,6 +396,28 @@ func pluginHostChanges(ctx context.Context, hosts []string, scope domain.Install
 		})
 	}
 	return changes
+}
+
+// pluginConfigPathFor resolves the config file a host's server entry is
+// written to at the given scope: the user's own file at user scope, and the
+// project's own file at project scope (a host that documents no project file
+// is refused by the capability gate before this is asked).
+func pluginConfigPathFor(ctx context.Context, hostID string, scope domain.InstallScope, projectRoot string) string {
+	adapter, err := host.GetAdapter(hostID)
+	if err != nil {
+		return ""
+	}
+	if scope == domain.ScopeProject {
+		if path, ok := host.ProjectConfigPathFor(adapter, projectRoot); ok {
+			return path
+		}
+		return ""
+	}
+	path, err := adapter.DetectConfig(ctx, scope)
+	if err != nil {
+		return ""
+	}
+	return path
 }
 
 // pluginHostCapabilityReason answers "can this host take an MCP server
@@ -439,12 +460,11 @@ func pluginInstallBindingFromPlan(ctx context.Context, plan *domain.InstallPlan,
 		if change.Action != "register_command" || change.ConfigPath == "" {
 			return nil, domain.ErrPlanStale(plan.PlanID, fmt.Sprintf("the plugin host change for %q is incomplete", change.HostID))
 		}
-		adapter, err := host.GetAdapter(change.HostID)
-		if err != nil {
+		if _, err := host.GetAdapter(change.HostID); err != nil {
 			return nil, domain.ErrPlanStale(plan.PlanID, fmt.Sprintf("the plugin target host %q is no longer supported", change.HostID))
 		}
-		currentPath, err := adapter.DetectConfig(ctx, scope)
-		if err != nil || filepath.Clean(currentPath) != filepath.Clean(change.ConfigPath) {
+		currentPath := pluginConfigPathFor(ctx, change.HostID, scope, plan.Request.ProjectRoot)
+		if currentPath == "" || filepath.Clean(currentPath) != filepath.Clean(change.ConfigPath) {
 			return nil, domain.ErrPlanStale(plan.PlanID, fmt.Sprintf("the config target for host %q changed after the plan was prepared", change.HostID))
 		}
 		var value pluginInstallPlanValue
@@ -527,7 +547,7 @@ func installPluginFromListing(
 
 	// The manifest. It is untrusted input from a stranger's repository, and
 	// the parser refuses what it does not understand.
-	manifest, err := readPluginManifest(treeDir)
+	manifest, err := readPluginManifest(treeDir, listing.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -734,7 +754,7 @@ func fetchPluginTree(ctx context.Context, listingID string, art pluginArtifact) 
 // interop rules. A tree with no manifest is refused: LiteSPM installs what
 // the manifest declares, and a tree that declares nothing is not a plugin
 // this build can install.
-func readPluginManifest(treeDir string) (*interop.PluginInstallManifest, error) {
+func readPluginManifest(treeDir string, listingID string) (*interop.PluginInstallManifest, error) {
 	for _, name := range pluginManifestNames {
 		path := filepath.Join(treeDir, name)
 		data, err := interop.ReadFileBounded(path)
@@ -750,7 +770,7 @@ func readPluginManifest(treeDir string) (*interop.PluginInstallManifest, error) 
 		}
 		return manifest, nil
 	}
-	return nil, domain.ErrArtifactUnavailable("",
+	return nil, domain.ErrArtifactUnavailable(listingID,
 		"the plugin's tree declares no manifest: LiteSPM looked for plugin.json and .claude-plugin/plugin.json")
 }
 

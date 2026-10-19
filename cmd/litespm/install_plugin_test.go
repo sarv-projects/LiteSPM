@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -501,4 +502,108 @@ func TestPluginFetchOptionsAreTheStrictProductionOnes(t *testing.T) {
 		t.Error("the production fetch has no timeout")
 	}
 	_ = artifact.DefaultGitFetcherOptions()
+}
+
+// TestPluginPlanSealsThePinnedArtifact pins what the approval covers: the
+// repository, the pinned COMMIT and the path inside it. The entry names are
+// not in the plan — they are named by the plugin's own manifest, which lives
+// inside the pinned tree — so the commit is what binds them.
+func TestPluginPlanSealsThePinnedArtifact(t *testing.T) {
+	db := openTestState(t)
+	repo, commit := pluginFixtureRepo(t, demoPluginFiles)
+	listing := pluginListing("plugin:example:demo-plugin")
+	ref := pluginGitRef(repo, commit)
+	catClient := pluginCatalog(t, listing, ref)
+
+	grant, _, err := authorizeHumanPluginInstall(context.Background(), db, catClient, listing, "1.0.0",
+		domain.ScopeUser, "", []string{"claude-code"}, true, false, nil)
+	if err != nil {
+		t.Fatalf("authorize: %v", err)
+	}
+	plan := grant.Plan
+	if len(plan.Resolved.ImmutableRefs) != 1 || plan.Resolved.ImmutableRefs[0] != commit {
+		t.Errorf("immutable refs = %v, want the pinned commit %s", plan.Resolved.ImmutableRefs, commit)
+	}
+	if len(plan.Resolved.Artifacts) != 1 || plan.Resolved.Artifacts[0].Locator != ref.Locator {
+		t.Errorf("artifacts = %+v, want the pinned repository", plan.Resolved.Artifacts)
+	}
+	if len(plan.HostChanges) != 1 {
+		t.Fatalf("host changes = %d, want 1", len(plan.HostChanges))
+	}
+	var value pluginInstallPlanValue
+	if err := json.Unmarshal([]byte(plan.HostChanges[0].ValueJSON), &value); err != nil {
+		t.Fatalf("the sealed value does not parse: %v", err)
+	}
+	if value.Artifact.Commit != commit || value.Artifact.Repo != ref.Locator {
+		t.Errorf("the sealed artifact = %+v, want the pinned commit and repository", value.Artifact)
+	}
+	if value.Artifact.Path != ref.Subpath {
+		t.Errorf("the sealed path = %q, want %q", value.Artifact.Path, ref.Subpath)
+	}
+	// The approval prompt must show the artifact: that is what the human is
+	// approving.
+	var prompt strings.Builder
+	writeApprovalPrompt(&prompt, plan)
+	if !strings.Contains(prompt.String(), commit) {
+		t.Errorf("the approval prompt does not name the pinned commit:\n%s", prompt.String())
+	}
+}
+
+// TestInstallPluginIntoAProjectScope writes the project's own config file
+// (and not the user's), and removes it again.
+func TestInstallPluginIntoAProjectScope(t *testing.T) {
+	allowLocalPluginFetch(t)
+	db := openTestState(t)
+	dataRoot := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	project := t.TempDir()
+
+	repo, commit := pluginFixtureRepo(t, demoPluginFiles)
+	listing := pluginListing("plugin:example:demo-plugin")
+	catClient := pluginCatalog(t, listing, pluginGitRef(repo, commit))
+
+	ctx := context.Background()
+	grant, _, err := authorizeHumanPluginInstall(ctx, db, catClient, listing, "1.0.0",
+		domain.ScopeProject, project, []string{"claude-code"}, true, false, nil)
+	if err != nil {
+		t.Fatalf("authorize: %v", err)
+	}
+	// The plan names the project's config file, not the user's.
+	wantPath := filepath.Join(project, ".mcp.json")
+	if grant.Plan.HostChanges[0].ConfigPath != wantPath {
+		t.Fatalf("the plan names %q, want the project's own file %q", grant.Plan.HostChanges[0].ConfigPath, wantPath)
+	}
+	binding, err := pluginInstallBindingFromPlan(ctx, grant.Plan, listing, domain.ScopeProject)
+	if err != nil {
+		t.Fatalf("binding: %v", err)
+	}
+	outcome, err := installPluginFromListing(grant.context(ctx), db, dataRoot, listing, grant.Version,
+		domain.ScopeProject, project, binding)
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	written, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatalf("read the project config: %v", err)
+	}
+	if !strings.Contains(string(written), `"demo-scanner"`) {
+		t.Fatalf("the project config did not gain the entry:\n%s", written)
+	}
+	rec, err := db.GetInstall(ctx, outcome.InstallID)
+	if err != nil {
+		t.Fatalf("install record: %v", err)
+	}
+	if rec.Scope != domain.ScopeProject || rec.ProjectRoot != project {
+		t.Errorf("the install row does not name the project: %+v", rec)
+	}
+	if err := removeInstalledPackage(ctx, db, dataRoot, outcome.InstallID); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	after, _ := os.ReadFile(wantPath)
+	if strings.Contains(string(after), `"demo-scanner"`) {
+		t.Errorf("the project entry survived the removal:\n%s", after)
+	}
 }
