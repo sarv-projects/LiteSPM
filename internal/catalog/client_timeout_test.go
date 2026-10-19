@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/sarv-projects/litespm/internal/domain"
 )
 
 func TestNewClientUsesDefaultTimeout(t *testing.T) {
@@ -91,4 +93,60 @@ func TestShardDownloadsCarryTheirOwnBudget(t *testing.T) {
 	if got := configured.shardClient.Timeout; got != 7*time.Second {
 		t.Errorf("configured shard budget = %v, want 7s — a configured timeout governs shards too", got)
 	}
+}
+
+// A resolver blip is infrastructure, not a policy decision: the same lookup may
+// succeed a second later. The client repeats a transient failure and does not
+// repeat a permanent one.
+type transientRT struct {
+	attempts int
+	fail     int
+}
+
+func (t *transientRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.attempts++
+	if t.attempts <= t.fail {
+		return nil, domain.ErrEgressTransient("catalog.invalid", "DNS resolution failed: i/o timeout")
+	}
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Header: http.Header{}}, nil
+}
+
+func TestCatalogRequestRepeatsATransientFailure(t *testing.T) {
+	rt := &transientRT{fail: 2}
+	client := &http.Client{Transport: rt}
+	req, err := http.NewRequest(http.MethodGet, "https://catalog.invalid/v1/current.json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := doCatalogRequest(context.Background(), client, req)
+	if err != nil {
+		t.Fatalf("a transient failure must be retried, got: %v", err)
+	}
+	defer resp.Body.Close()
+	if rt.attempts != 3 {
+		t.Errorf("attempts = %d, want 3 (two transient failures, then success)", rt.attempts)
+	}
+}
+
+func TestCatalogRequestDoesNotRepeatAPermanentFailure(t *testing.T) {
+	rt := &permanentRT{}
+	client := &http.Client{Transport: rt}
+	req, err := http.NewRequest(http.MethodGet, "https://catalog.invalid/v1/current.json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := doCatalogRequest(context.Background(), client, req); err == nil {
+		t.Fatal("expected the permanent refusal to be returned")
+	}
+	if rt.attempts != 1 {
+		t.Errorf("attempts = %d, want 1 — a policy refusal is not retried", rt.attempts)
+	}
+}
+
+// permanentRT always refuses the way the guard refuses a private destination.
+type permanentRT struct{ attempts int }
+
+func (p *permanentRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	p.attempts++
+	return nil, domain.ErrEgressBlocked("catalog.invalid", "host resolves into a private range")
 }

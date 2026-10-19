@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -72,6 +73,79 @@ const maxCatalogFileBytes = 64 << 20
 // configured. It matches config.DefaultConfig's Network.Timeout, so a caller
 // that never looks at configuration still gets the documented 30s.
 const defaultCatalogTimeout = 30 * time.Second
+
+// catalogRequestAttempts is how many times one catalog exchange is attempted
+// when the failure is transient. A resolver blip or a dropped connection is
+// not a policy decision, and the release tree is 54 MB across six shards: a
+// sync that gave up on one timed-out lookup had to be started again from the
+// first shard.
+const catalogRequestAttempts = 3
+
+// isTransientCatalogError reports whether a failed exchange is worth
+// repeating.
+//
+// It is deliberately narrow: a refusal (the guard's policy answer), a
+// non-200 status, and anything that is not a timeout or an explicitly
+// retryable error is permanent, and repeating it would only hammer the
+// origin. The error's own `retryable` flag is the signal for "this may pass".
+func isTransientCatalogError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var lpsmErr *domain.LPSMError
+	if errors.As(err, &lpsmErr) {
+		return lpsmErr.Retryable
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return netErr.Timeout()
+	}
+	return false
+}
+
+// doCatalogRequest performs one catalog GET, repeating a transient failure a
+// bounded number of times. The request carries no body, so it can be sent
+// again unchanged; a non-transient failure is returned at once.
+//
+// The repeats happen *inside* the configured budget: the client's timeout is
+// the bound on the whole exchange, not on each attempt. A caller that asked
+// for 100ms gets a fetch that finishes in about 100ms, however many
+// transient failures happen inside it.
+func doCatalogRequest(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
+	var lastErr error
+	var deadline time.Time
+	if client.Timeout > 0 {
+		deadline = time.Now().Add(client.Timeout)
+	}
+	for attempt := 1; attempt <= catalogRequestAttempts; attempt++ {
+		if attempt > 1 {
+			wait := time.Duration(attempt-1) * time.Second
+			if !deadline.IsZero() {
+				remaining := time.Until(deadline)
+				if remaining <= 0 {
+					return nil, lastErr
+				}
+				if wait > remaining {
+					wait = remaining
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(wait):
+			}
+		}
+		resp, err := client.Do(req)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if !isTransientCatalogError(err) {
+			return nil, err
+		}
+	}
+	return nil, lastErr
+}
 
 // shardHTTPClient returns the client that carries the shard download budget.
 // A client built as a struct literal (tests do) has no shard client, so it
@@ -481,7 +555,7 @@ func (c *Client) fetchSignatureBundle(ctx context.Context, bundleURL string) ([]
 	if err != nil {
 		return nil, false, err
 	}
-	resp, err := c.httpClient.Do(req)
+	resp, err := doCatalogRequest(ctx, c.httpClient, req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -523,7 +597,7 @@ func (c *Client) fetchCurrent(ctx context.Context) (*catalogbuild.CurrentPointer
 		return nil, nil, err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := doCatalogRequest(ctx, c.httpClient, req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch /v1/current.json: %w", err)
 	}
@@ -570,7 +644,7 @@ func (c *Client) fetchManifest(ctx context.Context, releaseID string) (*catalogb
 		return nil, nil, err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := doCatalogRequest(ctx, c.httpClient, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -687,7 +761,7 @@ func (c *Client) fetchListings(ctx context.Context, releaseID string, manifest *
 		if err != nil {
 			return nil, err
 		}
-		resp, err := c.shardHTTPClient().Do(req)
+		resp, err := doCatalogRequest(ctx, c.shardHTTPClient(), req)
 		if err != nil {
 			return nil, err
 		}
@@ -732,7 +806,7 @@ func (c *Client) fetchVersions(ctx context.Context, releaseID string, manifest *
 		if err != nil {
 			return nil, err
 		}
-		resp, err := c.shardHTTPClient().Do(req)
+		resp, err := doCatalogRequest(ctx, c.shardHTTPClient(), req)
 		if err != nil {
 			return nil, err
 		}

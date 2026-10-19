@@ -329,10 +329,15 @@ func resolveHost(ctx context.Context, host string, lookup Lookup) ([]net.IP, err
 	}
 	addrs, err := lookup(ctx, host)
 	if err != nil {
-		return nil, domain.ErrEgressBlocked(host, fmt.Sprintf("DNS resolution failed: %v", err))
+		// A resolver failure is infrastructure, not a policy decision about
+		// this destination: the same lookup may succeed a second later. It
+		// is reported with the same code (nothing about the destination was
+		// decided — it was never reached) but marked retryable, so a caller
+		// does not treat one timed-out lookup as a permanent refusal.
+		return nil, domain.ErrEgressTransient(host, fmt.Sprintf("DNS resolution failed: %v", err))
 	}
 	if len(addrs) == 0 {
-		return nil, domain.ErrEgressBlocked(host, "DNS returned no addresses")
+		return nil, domain.ErrEgressTransient(host, "DNS returned no addresses")
 	}
 	ips := make([]net.IP, 0, len(addrs))
 	for _, addr := range addrs {

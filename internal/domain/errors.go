@@ -356,6 +356,21 @@ func ErrEgressBlocked(target, reason string) *LPSMError {
 	}
 }
 
+// ErrEgressTransient reports a fetch the guard could not complete for a reason
+// that may pass — a DNS failure, not a policy decision.
+//
+// The code is the same as a policy refusal (the destination was never
+// reached, so nothing about it was decided), but the error says the attempt is
+// worth repeating. Without the distinction a resolver blip is reported as a
+// permanent refusal, and a caller that respects the flag never retries: a
+// 54 MB catalog sync then fails on one timed-out lookup and has to be started
+// again from the first shard.
+func ErrEgressTransient(target, reason string) *LPSMError {
+	e := ErrEgressBlocked(target, reason)
+	e.Retryable = true
+	return e
+}
+
 // ErrCatalogRollback reports that the remote pointer moved backwards: its
 // sequence is older than the locally cached release. Accepting it would
 // re-install superseded metadata (rollback/freeze attack), so sync fails
