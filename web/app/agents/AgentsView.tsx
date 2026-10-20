@@ -101,7 +101,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
 
       <main id="main" tabIndex={-1} className="shell flex-1 pt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Supported AI agents</h1>
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Browse AI agents</h1>
           <p className="t-mono text-[11px] text-ink-3">
             {formatCount(hostCount)} hosts · {formatCount(HOSTS.length)} LiteSPM can set up
           </p>
