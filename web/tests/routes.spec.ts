@@ -17,7 +17,7 @@ const flagship = flagshipEntry();
 const ROUTES: Array<{ path: string; heading?: string }> = [
   { path: "/", heading: "Find the right tools for your AI agents." },
   { path: "/explore/", heading: "Explore the marketplace" },
-  { path: "/agents/", heading: "Supported AI agents" },
+  { path: "/agents/", heading: "Browse AI agents" },
   { path: "/agents/claude-code/", heading: "Claude Code" },
   { path: "/categories/", heading: "Categories" },
   { path: "/compare/", heading: "Compare agent hosts" },
