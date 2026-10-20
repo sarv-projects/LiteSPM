@@ -15,7 +15,7 @@ function Command({ children }: { children: string }) {
   return (
     <pre
       tabIndex={0}
-      className="mt-3 overflow-x-auto rounded-panel bg-dark px-4 py-3 font-mono text-[12.5px] leading-relaxed text-dark-ink"
+      className="on-dark mt-3 overflow-x-auto rounded-panel bg-dark px-4 py-3 font-mono text-[12.5px] leading-relaxed text-dark-ink"
     >
       <code>{children}</code>
     </pre>
