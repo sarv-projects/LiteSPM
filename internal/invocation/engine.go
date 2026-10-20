@@ -306,17 +306,39 @@ func (e *Engine) run(ctx context.Context, id, capabilityID string, arguments jso
 	}()
 
 	var res callOutcome
-	expired := false
+	got := false
 	select {
 	case res = <-outcome:
+		got = true
 	case <-ctx.Done():
 		select {
 		case res = <-outcome:
-			// The call returned at the same moment the context ended: the
-			// result is real, so it is recorded.
+			// The call returned at the same moment the context ended.
+			got = true
 		default:
-			expired = true
 		}
+	}
+
+	// The deadline is the engine's own bound, and it wins over a result.
+	//
+	// A provider that was cancelled by the deadline usually returns right
+	// after - it woke up because its context ended - and that "success" is
+	// the engine's own cancellation coming back as a result. Recording it
+	// would report a call that overran its bound as a call that finished.
+	// The old form read the channel first and only then asked whether the
+	// context had ended, so which of the two the select happened to take
+	// decided the outcome; under the race detector the late result was
+	// usually there first, and a call that overran its deadline was
+	// recorded as a success.
+	//
+	// A cancellation is different: the caller's context ended, and a result
+	// that arrived with it is real work that got done.
+	expired := false
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		expired = true
+	case ctx.Err() != nil && !got:
+		expired = true
 	}
 	ended := e.clock()
 
