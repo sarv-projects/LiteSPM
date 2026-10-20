@@ -522,20 +522,19 @@ function ExploreContent(props: ExploreViewProps) {
 
       <main id="main" tabIndex={-1} className="flex-1">
         <div className="shell pt-8">
-          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Explore</h1>
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Explore the marketplace</h1>
 
           {savedTarget && savedAgent && (
             <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-rule bg-sunken px-4 py-3">
               <p className="text-[13px] text-ink-2">
-                You picked <strong className="font-medium text-ink">{savedAgent.label}</strong> on
-                the home page.
+                Browse capabilities for <strong className="font-medium text-ink">{savedAgent.label}</strong>.
               </p>
               <button
                 type="button"
                 className="btn h-7 text-[11.5px]!"
                 onClick={() => setFilters((f) => ({ ...f, agent: savedTarget }))}
               >
-                Show only what works with {savedAgent.label}
+                Filter for {savedAgent.label}
               </button>
               <button
                 type="button"
@@ -626,7 +625,7 @@ function ExploreContent(props: ExploreViewProps) {
               evidence below the rows applies to this evidence too. */}
           <details className="mt-4 border border-rule bg-sunken px-4 py-3">
             <summary className="cursor-pointer text-[13px] font-medium text-ink">
-              How these rows are ordered
+              How results are sorted
             </summary>
             <p className="mt-2 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
               {SORT_NOTES[effectiveSort]}
