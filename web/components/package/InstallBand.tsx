@@ -104,7 +104,7 @@ export function InstallBand({
         </p>
       </details>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px]">
-        <button type="button" onClick={onSeeSteps} className="font-medium text-accent-text hover:underline">
+        <button type="button" onClick={onSeeSteps} className="font-medium text-ink hover:underline">
           Full installation guide ↓
         </button>
         <Link href="/get-started/" className="text-ink-2 hover:text-ink hover:underline">
