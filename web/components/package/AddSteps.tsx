@@ -5,7 +5,8 @@ import { Check } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
 import { availabilityOf } from "../../lib/availability";
-import { installCommandFor } from "../../lib/installCommand";
+import { feasibilityFor } from "../../lib/installFeasibility";
+import { WEBSITE_CATALOG_SYNC_COMMAND, WEBSITE_SETUP_COMMAND, websiteInstallCommandFor } from "../../lib/installCommand";
 import { TabList } from "../ui/TabList";
 import { CopyButton } from "./CopyButton";
 import { DarkCmd } from "./DarkCmd";
@@ -15,9 +16,8 @@ import { ManualSetup } from "./ManualSetup";
 /**
  * The two ways to take the third step. "Command" is the CLI line the reader
  * types; "Prompt" is the same install handed to the agent through the bridge
- * instead. Only shown for entries `litespm install` can actually complete
- * (skills and MCP servers) — a plugin never reaches this panel, so the prompt
- * can never promise a plugin install.
+ * instead. Shown when the same installability gate used by the catalog allows installation.
+ * Pinned plugins may be supported; other plugin listings remain discovery only.
  */
 const MODES = [
   { id: "command", label: "Command" },
@@ -83,21 +83,14 @@ export interface AddStepsProps {
  * and nowhere else on the page.
  */
 export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
-  // The CLI treats an unset installability value as discovery-only. Plugins
-  // also fail closed today because their artifact source is not wired.
-  const installabilityEstablished =
-    item.installability === "metadata_verified" ||
-    item.installability === "runtime_verified" ||
-    item.installability === "litespm_tested";
-  // An MCP row needs a launch line as well: `install_mcp.go` refuses one with
-  // neither a command nor an endpoint at LPSM-ARTIFACT-UNAVAILABLE whatever its
-  // metadata says. Kept in step with `availabilityOf`, which states the same
-  // rule for the badges.
-  const hasLaunchLine = item.kind !== "mcp" || Boolean(item.transport);
-  const liteSPMInstallable =
-    item.kind !== "plugin" && installabilityEstablished && hasLaunchLine;
-  const targeted = liteSPMInstallable && agent !== null && agent.hosts.length > 0;
   const avail = availabilityOf(item);
+  // The same availability result powers the search cards and the first-screen
+  // InstallBand; a pinned plugin is not unconditionally unavailable.
+  const chosenHostId = agent && agent.id !== "other" ? agent.id : null;
+  const targetFeasibility = chosenHostId ? feasibilityFor(item, chosenHostId) : null;
+  const invalidSelectedHost = Boolean(chosenHostId && targetFeasibility?.state !== "supported");
+  const liteSPMInstallable = avail.installable && !invalidSelectedHost;
+  const targeted = liteSPMInstallable && agent !== null && agent.hosts.length > 0 && item.kind !== "skill";
 
   /**
    * The install → manage transition (VS Code's extension button, as far as a
@@ -176,7 +169,9 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
    * binary takes a short term or only the exact id — so this panel and the
    * band above the fold cannot print two different commands for one entry.
    */
-  const installCommand = installCommandFor(item);
+  const installCommand = liteSPMInstallable
+    ? websiteInstallCommandFor(item, agent && agent.id !== "other" && item.kind !== "skill" ? agent.id : null)
+    : null;
 
   /**
    * The CTA in the state strip always lands on the install command. When the
@@ -237,9 +232,9 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
               Install unavailable
             </button>
             <p className="text-[12px] leading-relaxed text-dark-ink-2" title={avail.plain}>
-              {item.kind === "plugin"
-                ? "Plugin installs are not supported yet."
-                : "No command or endpoint is published for this entry."}
+              {invalidSelectedHost
+                ? `${agent?.label} is not a supported installation target for this entry. Select another host.`
+                : avail.plain}
             </p>
           </div>
         ) : targeted ? (
@@ -270,18 +265,19 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                 <>
                   You chose{" "}
                   <strong className="font-medium text-dark-ink">&ldquo;{agent.label}&rdquo;</strong>.
-                  That doesn&rsquo;t name an install target, so this command stays general — it
-                  installs for every agent LiteSPM finds on your machine.
+                  {item.kind === "skill"
+                    ? " The published catalog installer uses detected skill targets, not only this selected agent."
+                    : " The CLI will check the selected host before installation."}
                 </>
               ) : (
                 <>
-                  Works with any agent: this command installs for every agent LiteSPM finds on your
-                  machine, so there is nothing to choose first.
+                  This command installs into detected skill targets or configured MCP hosts.
+                  The CLI will not automatically configure a missing agent.
                 </>
               )}
             </p>
             <DarkCmd
-              text={installCommand.command}
+              text={installCommand?.command ?? ""}
               label="Copy install command"
               message="Install command copied"
             />
@@ -290,7 +286,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                 Choose your agent
               </button>
               <p className="text-[12px] leading-relaxed text-dark-ink-2">
-                Optional — picking one shapes the rest of this page, not the command.
+                MCP/plugin commands can target one host; catalog skill installs currently cannot.
               </p>
             </div>
           </div>
@@ -326,14 +322,14 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                       01
                     </span>
                     <div className="min-w-0">
-                      <h3 className="text-[14px] font-semibold text-dark-ink">Install LiteSPM</h3>
+                      <h3 className="text-[14px] font-semibold text-dark-ink">Connect your agent with LiteSPM</h3>
                       <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
-                        One CLI for every agent you use.
+                        npx obtains the CLI when needed; follow the prompts to configure your agent.
                       </p>
                     </div>
                   </div>
                   <DarkCmd
-                    text="npm install -g litespm"
+                    text={WEBSITE_SETUP_COMMAND}
                     label="Copy install command"
                     message="Install command copied"
                   />
@@ -346,16 +342,15 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                     </span>
                     <div className="min-w-0">
                       <h3 className="text-[14px] font-semibold text-dark-ink">
-                        Connect {targeted ? agent?.label : "your agent"}
+                        Download the capability catalog
                       </h3>
                       <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
-                        Detects your agents, finds the config file each one keeps, adds the one
-                        LiteSPM entry, and keeps a backup of what was there. It shows you the change
-                        before it makes it.
+                        LiteSPM needs a local copy of the published catalog before it can install
+                        an exact listing ID. Sync it once before the install command.
                       </p>
                     </div>
                   </div>
-                  <DarkCmd text="litespm setup" label="Copy setup command" message="Setup command copied" />
+                  <DarkCmd text={WEBSITE_CATALOG_SYNC_COMMAND} label="Copy catalog sync command" message="Catalog command copied" />
                 </li>
     
                 <li id="pkg-step-add" tabIndex={-1} className="scroll-mt-16">
@@ -367,13 +362,15 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                       <h3 className="text-[14px] font-semibold text-dark-ink">Add {item.name}</h3>
                       <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
                         {targeted
-                          ? `Installs for every agent LiteSPM finds on this machine — ${agent?.label} included.`
-                          : "Installs for every agent LiteSPM finds on this machine."}
+                          ? `Targets ${agent?.label} with --host, after the target has been configured.`
+                          : item.kind === "skill"
+                            ? "The catalog skill installer writes to detected skill targets; the agent choice here is not an install restriction."
+                            : "Uses configured MCP hosts. Configure the intended agent before running this command."}
                       </p>
                     </div>
                   </div>
                   <DarkCmd
-                    text={installCommand.command}
+                    text={installCommand?.command ?? ""}
                     label="Copy install command"
                     message="Install command copied"
                   />
@@ -382,7 +379,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                       form: the id names this entry and nothing else, and a
                       reader who wants the install to be exact needs it in
                       reach. */}
-                  {installCommand.short && (
+                  {installCommand?.short && (
                     <p className="mt-2 text-[12px] leading-relaxed text-dark-ink-2">
                       The exact id, if you want it exact:{" "}
                       <code className="t-mono break-all text-dark-ink">{item.id}</code>

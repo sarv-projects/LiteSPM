@@ -320,7 +320,7 @@ const SIGNAL_OFFICIAL = 1;
 /**
  * The installability predicate, mirroring `lib/availability.ts` `availabilityOf`
  * (which mirrors `domain.Listing.IsInstallable()` + the launch-line rule):
- * plugins never install, a row must carry established installability, and an
+ * pinned plugin sources install in principle; other kinds require established installability, and an
  * MCP row additionally needs a transport. Duplicated in plain JS because the
  * index is built by Node scripts that cannot import TypeScript; if
  * `availability.ts` changes its rule, this must change with it.
@@ -329,7 +329,13 @@ const SIGNAL_OFFICIAL = 1;
  * @returns {boolean}
  */
 function rowInstalls(item) {
-  if (item.kind === "plugin") return false;
+  // Keep in sync with availabilityOf in lib/availability.ts. A plugin with
+  // a fetchable, commit-pinned Git tree has a wired install path, subject to
+  // per-host and manifest validation at install time.
+  if (item.kind === "plugin") {
+    const artifact = item.artifact;
+    return Boolean(artifact && artifact.type === "git-tree" && artifact.pinned && artifact.sha);
+  }
   const established =
     item.installability === "metadata_verified" ||
     item.installability === "runtime_verified" ||

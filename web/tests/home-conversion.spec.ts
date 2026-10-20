@@ -83,7 +83,7 @@ test("the H1 states the outcome, and claims only what the site can prove", async
   await gotoSettled(page, "/");
 
   const h1 = page.getByRole("heading", { level: 1 });
-  await expect(h1).toHaveText("Give your coding agents the tools they’re missing — safely.");
+  await expect(h1).toHaveText("Find skills, MCP servers, and plugins for your AI agents.");
 
   // The one word that makes the claim checkable.
   await expect(h1).toContainText("safely");

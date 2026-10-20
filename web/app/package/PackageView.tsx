@@ -729,7 +729,7 @@ function PackageContent({
              * thing they came for without scrolling. The guided flow stays
              * in "How do I add it?"; the band's link is the path to it.
              */}
-            <InstallBand item={item} onSeeSteps={() => scrollToSection("pkg-add")} />
+            <InstallBand item={item} agent={agent} onSeeSteps={() => scrollToSection("pkg-add")} />
           </header>
 
           {/* ---- 1b. The short version -------------------------------- */}

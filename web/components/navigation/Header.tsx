@@ -47,9 +47,10 @@ interface HeaderProps {
 }
 
 const PRIMARY_NAV = [
-  { href: "/explore/", label: "Explore" },
+  { href: "/explore/", label: "Marketplace" },
   { href: "/agents/", label: "Agent hosts" },
   { href: "/compare/", label: "Compare" },
+  { href: "/how-it-works/", label: "How it works" },
   { href: "/categories/", label: "Categories" },
   {
     href: "/insights/",
@@ -228,13 +229,13 @@ export function Header({ onNavigate }: HeaderProps) {
       {/* The header is opaque, not glassy. A blur layer over a ruled table
           costs paint on every scroll frame and buys nothing here. */}
       <div className="shell grid h-[92px] grid-cols-[auto_minmax(0,1fr)] grid-rows-[48px_44px] items-center gap-x-3 lg:flex lg:h-12 lg:gap-4">
-        <Link href="/" className="col-start-1 row-start-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center gap-2" aria-label="LiteSPM Market home">
+        <Link href="/" className="col-start-1 row-start-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center gap-2" aria-label="LiteSPM marketplace home">
           {/* The logo tile is one of the six places the brand indigo is allowed. */}
           <span className="flex h-7 w-7 items-center justify-center rounded-chip bg-accent">
             <SquareTerminal className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden="true" />
           </span>
           <span className="hidden text-[15px] font-semibold tracking-tight text-ink sm:inline">
-            LiteSPM Market
+            LiteSPM
           </span>
         </Link>
 

@@ -268,7 +268,7 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
           )}
           {item.kind === "plugin" && (
             <>
-              Your agent host installs this plugin and its components; what it adds shows up
+              LiteSPM can install supported plugins from verified, pinned Git trees; what a plugin declares shows up
               afterwards.
             </>
           )}

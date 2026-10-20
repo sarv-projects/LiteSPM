@@ -68,7 +68,7 @@ test("a search listing's badge is the entry page's availability, both directions
       await expect(unavailable.last()).toBeDisabled();
     } else {
       await expect(
-        page.locator("code").filter({ hasText: /litespm install / }).first()
+        page.locator("code").filter({ hasText: /litespm(?:@latest)? install / }).first()
       ).toBeVisible();
     }
   }

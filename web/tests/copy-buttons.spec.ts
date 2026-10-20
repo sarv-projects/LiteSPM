@@ -16,7 +16,7 @@ const preRendered = preRenderedEntry();
 
 test("the entry page's copy button writes the exact install command", async ({ page }) => {
   await gotoSettled(page, preRendered.href);
-  const expected = `litespm install ${preRendered.row.id}`;
+  const expected = `npx --yes litespm@latest install ${preRendered.row.id}`;
 
   const button = page.getByRole("button", { name: "Copy install command" }).first();
   await expect(button).toBeVisible();
