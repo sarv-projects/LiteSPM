@@ -35,9 +35,8 @@ export function FaqSection() {
       q: "What is LiteSPM?",
       a: (
         <>
-          A package manager for AI coding agents. It connects to your agent once, then installs and
-          removes tools for you — with a preview before anything changes, and a way back
-          afterwards.
+          LiteSPM helps you discover, install, and manage supported MCP servers, skills, and plugins
+          across AI coding agents. Installations and configuration changes run locally.
         </>
       ),
     },
@@ -45,8 +44,8 @@ export function FaqSection() {
       q: "Can I install from this website?",
       a: (
         <>
-          No. This site is for finding and comparing. Installs run in your terminal, and LiteSPM
-          shows you the change before it makes it.
+          Choose a package in the marketplace and copy its LiteSPM command. Run that command
+          in your terminal; the website cannot access or change your local configuration.
         </>
       ),
     },
@@ -78,9 +77,8 @@ export function FaqSection() {
       q: "Do I need an account?",
       a: (
         <>
-          No, and there is nothing to sign up for. LiteSPM is free and Apache-2.0, and it runs on
-          your machine. An individual server may need its own credentials, which stay in your
-          keychain.
+          No LiteSPM marketplace account is required. The CLI is free and open source.
+          Individual integrations may require their own sign-in or API credentials.
         </>
       ),
     },
@@ -88,9 +86,8 @@ export function FaqSection() {
       q: "How do you decide what to publish?",
       a: (
         <>
-          Every row records where it was read from: the publisher&rsquo;s own manifest, or a
-          third-party list. The label on a card says which one it was — and that is a statement
-          about the source, never a review of the software.
+          Listings identify their originating registry, publisher manifest, or catalog feed so
+          you can review the original source before installation.
         </>
       ),
     },
@@ -98,8 +95,8 @@ export function FaqSection() {
       q: "Is anything here security-checked?",
       a: (
         <>
-          No. We index listings, we do not audit code. A publisher or source label tells you where
-          the data came from, not that anyone reviewed the software.
+          Source information and compatibility labels are not security audits. Review third-party
+          code, permissions, and requested access before using a package.
         </>
       ),
     },
@@ -107,9 +104,8 @@ export function FaqSection() {
       q: "What can go wrong?",
       a: (
         <>
-          An install can put a tool in front of your agent that behaves badly, and LiteSPM does not
-          run what it lists. Read the source on the entry page, keep the preview on, and remove it
-          with one command if it misbehaves.
+          Third-party capabilities may access files, external services, or sensitive data depending
+          on how they run. Check the publisher, documentation, and required access before installing.
         </>
       ),
     },
@@ -117,8 +113,9 @@ export function FaqSection() {
       q: "What does it change on my computer?",
       a: (
         <>
-          One config file per agent, and it backs the file up first. It adds a single entry for
-          itself and leaves your other servers, comments and formatting alone.
+          Depending on the package, LiteSPM may register a server in your agent configuration or
+          copy skill files into an agent directory. It maintains local installation records
+          and backups for supported configuration changes.
         </>
       ),
     },
@@ -136,9 +133,9 @@ export function FaqSection() {
       q: "Do my API keys leave my machine?",
       a: (
         <>
-          No. Credentials stay in your operating system&rsquo;s keychain, and search runs in your
-          browser. The only outside requests are public images: GitHub avatars and Google favicons
-          for the publisher marks on a row.
+          Browsing the public catalog does not require your API keys. Some integrations need
+          credentials and may communicate with external services. Their privacy and
+          credential handling depend on the integration you choose.
         </>
       ),
     },
@@ -146,9 +143,8 @@ export function FaqSection() {
       q: "What about plugins?",
       a: (
         <>
-          A plugin whose publisher ships a pinned source installs: LiteSPM fetches that exact commit,
-          reads the plugin's own manifest, and registers the MCP servers it declares. A plugin with no
-          fetchable source is refused with the reason, rather than half-installed.
+          LiteSPM can install a subset of plugins with supported pinned sources and manifests.
+          Other plugins are available for discovery but cannot be installed through LiteSPM yet.
         </>
       ),
     },
@@ -161,7 +157,7 @@ export function FaqSection() {
         Before you install
       </h2>
       <p className="band-sub">
-        What LiteSPM does to your machine, and what it does not do.
+        Answers about compatibility, installation, privacy, and managing your setup.
       </p>
 
       <div className="mt-7 grid grid-cols-1 gap-x-10 md:grid-cols-2">
