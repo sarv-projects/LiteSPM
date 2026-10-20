@@ -48,7 +48,7 @@ interface HeaderProps {
 
 const PRIMARY_NAV = [
   { href: "/explore/", label: "Marketplace" },
-  { href: "/agents/", label: "Agent hosts" },
+  { href: "/agents/", label: "Agents" },
   { href: "/compare/", label: "Compare" },
   { href: "/how-it-works/", label: "How it works" },
   { href: "/categories/", label: "Categories" },
