@@ -17,9 +17,9 @@ const nonPreRendered = nonPreRenderedEntry();
 const flagship = flagshipEntry();
 
 const ROUTES: Array<{ path: string; heading?: string; text?: string }> = [
-  { path: "/", heading: "Find skills, MCP servers, and plugins for your AI agents." },
-  { path: "/explore/", heading: "Explore" },
-  { path: "/agents/", heading: "Agent hosts" },
+  { path: "/", heading: "Find the right tools for your AI agents." },
+  { path: "/explore/", heading: "Explore the marketplace" },
+  { path: "/agents/", heading: "Supported AI agents" },
   { path: "/agents/claude-code/", heading: "Claude Code" },
   { path: "/categories/", heading: "Categories" },
   { path: "/compare/", heading: "Compare agent hosts" },
