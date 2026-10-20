@@ -36,47 +36,43 @@ interface Benefit {
 const BENEFITS: Benefit[] = [
   {
     id: "agents",
-    title: "One control surface, every agent you use",
+    title: "Manage capabilities across your agents",
     body: (
       <>
-        Claude Code, Codex, OpenCode, Cursor, Cline and the rest are configured from the same
-        command and recorded in the same ledger. A capability is installed once and lands in the
-        agents you chose — not once per agent, by hand.
+        Use one CLI to work with supported MCP servers, skills, and plugins across multiple
+        coding agents. LiteSPM keeps a local record of the installations it manages.
       </>
     ),
-    cmd: "litespm install <id> --agent claude-code,codex",
+    cmd: "litespm install <id> --host codex",
   },
   {
     id: "preview",
-    title: "Every edit is previewed and backed up",
+    title: "Keep track of changes",
     body: (
       <>
-        An install is a plan before it is a write. You see the exact lines it will add, you approve
-        them, and the file is copied first. Undo takes out the one entry LiteSPM wrote and leaves
-        the rest of the file alone.
+        Review host setup changes before applying them. LiteSPM backs up managed configuration
+        files and offers removal and restoration commands.
       </>
     ),
-    cmd: "litespm restore <file>",
+    cmd: "litespm restore <installId>",
   },
   {
     id: "local",
-    title: "Local-first, and free of accounts",
+    title: "Local by design",
     body: (
       <>
-        No account, no cookie, no analytics, no telemetry, no host service. Your configs, your
-        catalog and your install history are files on your disk. The website you are reading
-        installs nothing, and it cannot read your machine.
+        Explore the marketplace without an account. The CLI runs locally, keeping your agent
+        configuration and installation history on your own computer.
       </>
     ),
   },
   {
     id: "surfaces",
-    title: "The terminal, and the agent itself",
+    title: "Fits your coding workflow",
     body: (
       <>
-        Everything is a command, so it scripts, so it fits CI. Where the agent supports it, the
-        same capability list is available from inside the agent with{" "}
-        <code className="t-mono">/marketplace</code> — the bridge, not a second implementation.
+        Use LiteSPM from the terminal or, for supported agents, find capabilities through{" "}
+        <code className="t-mono">/marketplace</code> in your agent.
       </>
     ),
   },
@@ -87,11 +83,11 @@ export function WhyLiteSPM() {
     <section className="shell band" aria-labelledby="why-title">
       <p className="kicker">Why LiteSPM</p>
       <h2 id="why-title" className="band-title mt-2">
-        What you get that a config file does not give you
+        A simpler way to extend your agents
       </h2>
       <p className="band-sub">
-        The catalog is the same idea everywhere. These four are the reasons to run it through
-        LiteSPM instead of editing the file yourself.
+        Discover capabilities, manage supported installations, and keep changes traceable
+        without editing every agent's configuration by hand.
       </p>
 
       <ul className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -113,7 +109,7 @@ export function WhyLiteSPM() {
       <p className="mt-6 text-[13px] text-ink-3">
         Free and Apache-2.0.{" "}
         <Link href="/explore/" className="link">
-          Browse what is in the catalog
+          Explore the marketplace
         </Link>{" "}
         first, if you would rather look before you install.
       </p>
