@@ -4,15 +4,15 @@
   "groups": [
     {
       "id": "registry",
-      "title": "From the publisher's own manifest",
-      "blurb": "Published in the Official MCP Registry and read from the publisher's own manifest - the capabilities that cover code, documentation, design, data and deploys.",
+      "title": "MCP integrations",
+      "blurb": "Explore MCP servers for development, documentation, design, and infrastructure. These listings originate from the official MCP registry.",
       "viewAllLabel": "Browse the registry",
       "viewAllHref": "/explore/?source=builtin%3Amcp-registry&installable=1"
     },
     {
       "id": "skills",
-      "title": "Official skills, as the source list marks them",
-      "blurb": "Skills a source list marks as official. We publish the label the list gives them; we have not audited them, and LiteSPM does not run what it lists.",
+      "title": "Featured agent skills",
+      "blurb": "Discover skills for documents, spreadsheets, presentations, web design, and application testing. Source labels reflect the upstream catalog.",
       "viewAllLabel": "Browse official skills",
       "viewAllHref": "/explore/?category=Official%20Skills%20by&installable=1"
     }
@@ -22,73 +22,73 @@
       "id": "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
       "group": "registry",
       "source": "builtin:mcp-registry",
-      "useCase": "Read a repository, open an issue, comment on a pull request - without leaving the agent."
+      "useCase": "Work with GitHub repositories, issues, and pull requests from your agent."
     },
     {
       "id": "mcp:builtin:mcp-registry:io.github.upstash-context7",
       "group": "registry",
       "source": "builtin:mcp-registry",
-      "useCase": "Pull the current library documentation into the agent, so it stops guessing the API."
+      "useCase": "Bring up-to-date library documentation into your coding workflow."
     },
     {
       "id": "mcp:builtin:mcp-registry:com.figma.mcp-mcp",
       "group": "registry",
       "source": "builtin:mcp-registry",
-      "useCase": "Bring a Figma design into the agent, where it can turn the file into code."
+      "useCase": "Access Figma design context while implementing user interfaces."
     },
     {
       "id": "mcp:builtin:mcp-registry:com.notion-mcp",
       "group": "registry",
       "source": "builtin:mcp-registry",
-      "useCase": "Search the pages a team writes in Notion, and update the ones the work touches."
+      "useCase": "Search and update supported Notion content from your agent."
     },
     {
       "id": "mcp:builtin:mcp-registry:com.cloudflare.mcp-mcp",
       "group": "registry",
       "source": "builtin:mcp-registry",
-      "useCase": "Ask about Workers, DNS and logs from inside the agent."
+      "useCase": "Work with supported Cloudflare services and project information."
     },
     {
       "id": "mcp:builtin:mcp-registry:com.neon-mcp",
       "group": "registry",
       "source": "builtin:mcp-registry",
-      "useCase": "Manage a Postgres project and its branches from the agent."
+      "useCase": "Access supported Postgres database and branch-management workflows."
     },
     {
       "id": "skill:anthropics:pdf",
       "group": "skills",
       "source": "feed:voltagent-awesome-agent-skills",
-      "useCase": "Read a PDF, pull the tables out of it, merge pages, fill in a form."
+      "useCase": "Work with PDF documents, forms, and extracted content."
     },
     {
       "id": "skill:anthropics:docx",
       "group": "skills",
       "source": "feed:voltagent-awesome-agent-skills",
-      "useCase": "Write a Word document with the headings, tables and letterhead the brief asked for."
+      "useCase": "Create and edit Word documents with structured formatting."
     },
     {
       "id": "skill:anthropics:xlsx",
       "group": "skills",
       "source": "feed:voltagent-awesome-agent-skills",
-      "useCase": "Build or repair a spreadsheet, with formulas and charts in the cells."
+      "useCase": "Create, inspect, and update spreadsheets with formulas and charts."
     },
     {
       "id": "skill:anthropics:pptx",
       "group": "skills",
       "source": "feed:voltagent-awesome-agent-skills",
-      "useCase": "Put a deck together, read one back, or edit the slides that changed."
+      "useCase": "Create and edit presentations using reusable slide workflows."
     },
     {
       "id": "skill:anthropics:frontend-design",
       "group": "skills",
       "source": "feed:voltagent-awesome-agent-skills",
-      "useCase": "Give a new interface a deliberate look, instead of a default one."
+      "useCase": "Design and improve interfaces with consistent visual direction."
     },
     {
       "id": "skill:anthropics:webapp-testing",
       "group": "skills",
       "source": "feed:voltagent-awesome-agent-skills",
-      "useCase": "Open the app you just built in a real browser and check the flow works."
+      "useCase": "Test web application behavior through browser-based workflows."
     }
   ]
 }
