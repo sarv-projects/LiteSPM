@@ -67,7 +67,7 @@ export function AtlasTeaser() {
     <section className="shell band" aria-labelledby="atlas-title">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="kicker">Agent hosts</p>
+          <p className="kicker">Agent integrations</p>
           <h2 id="atlas-title" className="band-title mt-2">
             Works with the agents you already use
           </h2>
