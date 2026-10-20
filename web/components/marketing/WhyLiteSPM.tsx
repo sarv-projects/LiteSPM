@@ -43,7 +43,7 @@ const BENEFITS: Benefit[] = [
         coding agents. LiteSPM keeps a local record of the installations it manages.
       </>
     ),
-    cmd: "litespm install <id> --host codex",
+    cmd: "litespm install <mcp-id> --host codex",
   },
   {
     id: "preview",
