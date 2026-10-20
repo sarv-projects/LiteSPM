@@ -43,7 +43,7 @@ interface Route {
 const ROUTES: Route[] = [
   {
     path: "/how-it-works/",
-    heading: "Find a useful capability. Preview the change. Keep control of your setup.",
+    heading: "From discovery to installation, without the config-file hassle.",
     section: /how it works/i,
   },
   { path: "/get-started/", heading: "Get started", section: /your guide/i },

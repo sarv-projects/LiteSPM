@@ -42,27 +42,22 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
   if (!choice) {
     status = (
       <>
-        Pick one, and the entries on this page will show whether they work with it. This is a
-        preference kept in your browser — it is not a detection of what is on your machine, and
-        nothing is sent anywhere.
+        Choose an agent to highlight relevant capabilities. Your selection stays in this browser.
       </>
     );
   } else if (choice.hosts.length === 0) {
     status = (
       <>
-        There is no compatibility list to check{" "}
-        <strong className="font-medium text-ink-2">&ldquo;{choice.label}&rdquo;</strong> against,
-        so no badges will show. Pick a named agent above to see its matches.
+        Select a supported agent to see its catalog compatibility information.
       </>
     );
   } else if (countFor !== null) {
     status = (
       <>
-        <span className="t-mono t-tabular text-ink">{formatCount(countFor)}</span> of{" "}
-        <span className="t-mono t-tabular text-ink">{formatCount(total)}</span> entries declare
-        support for{" "}
-        <strong className="font-medium text-ink-2">{choice.label}</strong>, from the adapter
-        registries and the publishers&rsquo; own lists. None of them has been tested by us.
+        <strong className="font-medium text-ink-2">{choice.label}</strong> appears in the compatibility
+        information for <span className="t-mono t-tabular text-ink">{formatCount(countFor)}</span>{" "}
+        of <span className="t-mono t-tabular text-ink">{formatCount(total)}</span> catalog entries.
+        Compatibility is declared, not independently tested.
       </>
     );
   } else {
@@ -82,7 +77,7 @@ export function AgentStrip({ choice, onChange, counts, total }: AgentStripProps)
           <h2 id="agent-strip-title" className="text-[19px] font-semibold tracking-tight text-ink">
             Choose your agent
           </h2>
-          <p className="text-[12px] text-ink-3">Saved in this browser only</p>
+          <p className="text-[12px] text-ink-3">Saved on this device</p>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">

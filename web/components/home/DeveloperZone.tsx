@@ -25,9 +25,9 @@ import { ARCHITECTURE_URL, DOCS_URL, REPO_URL } from "../../lib/site";
 const SNIPPETS: Array<{ cmd: string; note: string }> = [
   { cmd: "npm install -g litespm", note: "Install the CLI" },
   { cmd: "litespm setup", note: "Detect your agents, preview the change, approve it" },
-  { cmd: "litespm search github", note: "Search the catalog" },
-  { cmd: "litespm install <id>", note: "See what it will run and change, then install it" },
-  { cmd: "litespm doctor", note: "Check your local setup and report anything wrong" },
+  { cmd: "litespm catalog sync", note: "Download the capability catalog" },
+  { cmd: "litespm install <id>", note: "Install an eligible package from its exact catalog ID" },
+  { cmd: "litespm doctor", note: "Check installation status and common setup issues" },
 ];
 
 function Snippet({ cmd, note }: { cmd: string; note: string }) {
@@ -87,8 +87,8 @@ export function DeveloperZone() {
               Install and manage from the terminal
             </h2>
             <p className="band-sub">
-              This page is for browsing. Everything that changes your machine happens in your
-              terminal, and it tells you what it is about to change before it does.
+              Install LiteSPM from your terminal, connect a supported agent, and start adding
+              capabilities from the marketplace. First-time catalog installation requires a sync.
             </p>
           </div>
           <Link href="/get-started/" className="btn btn-solid btn-lg">

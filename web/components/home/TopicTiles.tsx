@@ -6,7 +6,7 @@ import { UseCaseGrid } from "../marketing/UseCaseGrid";
 import type { TopicStat } from "../../lib/landing";
 
 /**
- * "What do you want your AI to do?" — the goal tiles, and the first thing on
+ * "Explore by what you want to do" — the goal tiles, and the first thing on
  * the page after the hero.
  *
  * It used to sit fourth, behind three shelves of catalog rows. That order
@@ -25,10 +25,10 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
         <div>
           <p className="kicker">Common goals</p>
           <h2 id="topics-title" className="band-title mt-2">
-            What do you want your AI to do?
+            Explore by what you want to do
           </h2>
           <p className="band-sub">
-            Pick the goal that matches the work in front of you — every tile opens that search.
+            Choose a task to discover relevant tools, skills, and integrations.
           </p>
         </div>
         <Link

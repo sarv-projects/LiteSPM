@@ -101,17 +101,15 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
 
       <main id="main" tabIndex={-1} className="shell flex-1 pt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Agent hosts</h1>
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Browse AI agents</h1>
           <p className="t-mono text-[11px] text-ink-3">
             {formatCount(hostCount)} hosts · {formatCount(HOSTS.length)} LiteSPM can set up
           </p>
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Every host this catalog knows. Rows marked managed are the ones LiteSPM can configure;
-          the rest are still indexed, because some entries name them. MCP servers work in any
-          managed host, skills in any host with a skills directory, and plugins only in the hosts
-          their publisher lists.
+          See which coding agents LiteSPM can configure and discover available MCP servers,
+          skills, and plugins for each one. Support varies by agent and package.
         </p>
 
         <div className="mt-7 border-b border-ink pb-2">
@@ -119,10 +117,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
           {/* Column order must match the rendered cell order, which the rows
               set with md:order-2 (adapter) and md:order-3 (compatible counts). */}
           <div className="t-mono hidden grid-cols-[minmax(0,1fr)_92px_100px_minmax(0,1fr)] items-center gap-3 text-[10px] text-ink-3 md:grid">
-            <span>Host</span>
-            <span>LiteSPM setup</span>
-            <span className="text-right">Compatible</span>
-            <span>Config file this host uses</span>
+            <span>AI agent</span>
+            <span>Setup</span>
+            <span className="text-right">Catalog entries</span>
+            <span>Configuration path</span>
           </div>
         </div>
 
@@ -259,8 +257,8 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         </ul>
 
         <p className="mt-6 max-w-prose text-[12px] leading-relaxed text-ink-3">
-          Compatibility is declared — by LiteSPM for MCP servers and skills, by the publisher for
-          plugins — not tested.
+          Compatibility counts are based on catalog metadata and host adapters; they are not a guarantee
+          that each capability has been tested with the agent.
         </p>
       </main>
 

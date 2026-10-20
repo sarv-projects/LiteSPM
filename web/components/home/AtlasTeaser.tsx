@@ -67,18 +67,17 @@ export function AtlasTeaser() {
     <section className="shell band" aria-labelledby="atlas-title">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="kicker">Agent hosts</p>
+          <p className="kicker">Agent integrations</p>
           <h2 id="atlas-title" className="band-title mt-2">
-            What LiteSPM adds to each one
+            Works with the agents you already use
           </h2>
           <p className="band-sub">
-            One bridge entry in the agent&rsquo;s own config file, and skills in the directory it
-            already uses. The change is previewed before it is written, and removed exactly when
-            you ask. Compatibility here is declared by the registry, not tested by us.
+            Explore available MCP and skill integrations for popular coding agents. Installation
+            options and scopes vary by host.
           </p>
         </div>
         <Link href="/agents/" className="btn">
-          Explore all agent hosts
+          Browse supported agents
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </div>

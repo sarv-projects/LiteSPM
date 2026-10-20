@@ -77,12 +77,12 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Goals group entries by what they help you do. Source categories are the labels the
-          catalog&rsquo;s sources use.
+          Find capabilities for the tasks you care about, from writing and research to
+          development and automation.
         </p>
 
-        <h2 className="mt-8 band-title">Browse by goal</h2>
-        <p className="band-sub mt-2">Each card opens Explore filtered to that goal.</p>
+        <h2 className="mt-8 band-title">Browse by task</h2>
+        <p className="band-sub mt-2">Start with a task to find relevant skills, tools, and integrations.</p>
 
         <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {goals.map((facet) => (
@@ -106,7 +106,7 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
 
                 {facet.topCategories.length > 0 && (
                   <p className="mt-3 text-[11.5px] leading-relaxed text-ink-3">
-                    Mostly from{" "}
+                    Common categories: {" "}
                     {facet.topCategories
                       .map((category) => `${categoryLabel(category.name)} (${formatCount(category.count)})`)
                       .join(", ")}
@@ -147,7 +147,7 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
 
         <div className="mt-10 border-b border-ink pb-2">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <h2 className="band-title">Source categories</h2>
+            <h2 className="band-title">All categories</h2>
             <p className="t-mono text-[11px] text-ink-3">
               {formatCount(categories.length)} source labels
             </p>
@@ -161,7 +161,7 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
             <span>Category</span>
             <span className="text-right">Entries</span>
             <span className="hidden md:block">Kind mix</span>
-            <span className="hidden md:block">Share of the largest category</span>
+            <span className="hidden md:block">Relative size</span>
           </div>
         </div>
 

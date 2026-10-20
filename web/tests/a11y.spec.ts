@@ -224,7 +224,7 @@ test("narrow screens: the navigation is a menu; wider headers show a rail that f
     });
     await expect(menu, `the navigation menu is missing at ${width}px`).toBeVisible();
     await menu.locator("summary").click();
-    await expect(menu.locator("a"), `the menu is empty at ${width}px`).toHaveCount(5);
+    await expect(menu.locator("a"), `the menu is empty at ${width}px`).toHaveCount(6);
     const narrow = await read();
     expect(narrow.overflows, `the rail is not on the screen at ${width}px`).toBe(false);
     expect(narrow.faded, `nothing is past the edge at ${width}px, so nothing should fade`).toBe(false);

@@ -31,33 +31,33 @@ interface PanelStep {
 
 const BY_HAND: PanelStep[] = [
   {
-    text: "Find the agent's config file. There is one per agent, and each host keeps it somewhere else.",
+    text: "Locate each agent's configuration file.",
   },
   {
-    text: "Work out the shape that host expects for a server entry, and write it yourself.",
+    text: "Learn the configuration format and add the integration manually.",
   },
   {
-    text: "Do it again for every other agent you use — the entry is per agent, not per capability.",
+    text: "Repeat the process for every agent you use.",
   },
   {
-    text: "Nothing records what you changed, so nothing can put it back when the entry turns out to be wrong.",
+    text: "Track your edits and backups if you need to undo them.",
   },
 ];
 
 const WITH_LITESPM: PanelStep[] = [
   {
     cmd: "litespm install <id>",
-    text: "One command finds your agents, builds a plan, and shows the exact lines it will add to each agent's own config file.",
+    text: "Install supported packages into configured agents using exact catalog commands.",
   },
   {
-    text: "Nothing is written until you approve that plan. The file is copied to a backup first.",
+    text: "Review host setup changes and keep a backup of managed configuration files.",
   },
   {
-    text: "The edit adds one entry and leaves your other servers, comments and formatting alone — and the install is recorded in a ledger on your machine.",
+    text: "LiteSPM records what it manages in a local installation ledger.",
   },
   {
-    cmd: "litespm install remove <id>",
-    text: "Takes the entry back out. A restore rolls the whole file back to the copy it took before the first edit.",
+    cmd: "litespm install remove <installId>",
+    text: "Remove LiteSPM-managed entries or restore a saved configuration.",
   },
 ];
 
@@ -114,19 +114,18 @@ export function BenefitComparison() {
     <section className="shell band" aria-labelledby="changes-title">
       <p className="kicker">What LiteSPM changes</p>
       <h2 id="changes-title" className="band-title mt-2">
-        The catalog is the easy part. The lifecycle is the product.
+        Spend less time configuring agents.
       </h2>
       <p className="band-sub">
-        Every directory has a list of tools. What changes is everything between &ldquo;I want this
-        one&rdquo; and &ldquo;it is running on my machine&rdquo; — done once per agent, with a
-        preview before it happens and a way back afterwards.
+        Adding capabilities across multiple coding agents shouldn't require repeating the same setup.
+        LiteSPM helps you install supported packages and track managed changes.
       </p>
 
       <div className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Adding a tool by hand" note="today" steps={BY_HAND} tone="plain" />
+        <Panel title="Without LiteSPM" note="Manual setup" steps={BY_HAND} tone="plain" />
         <Panel
-          title="Adding a tool with LiteSPM"
-          note="the same task"
+          title="With LiteSPM"
+          note="Managed setup"
           steps={WITH_LITESPM}
           tone="accent"
         />
