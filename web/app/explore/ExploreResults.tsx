@@ -28,12 +28,12 @@ export const SORTS: Array<{ id: SortMode; label: string }> = [
   // Every option says what it does. "Curated first" and "Catalog order" were
   // two names that appeared nowhere else on the page, so a reader could not
   // tell what the control would do to the list.
-  { id: "relevance", label: "Best match — by where the query matched" },
-  { id: DEFAULT_SORT, label: "Curated first — official, manifest, installable" },
-  { id: "installable", label: "Installable first — then verified, then name" },
+  { id: "relevance", label: "Best match" },
+  { id: DEFAULT_SORT, label: "Recommended order" },
+  { id: "installable", label: "Installable first" },
   { id: "name", label: "Name A–Z" },
   { id: "publisher", label: "Publisher A–Z" },
-  { id: "index", label: "Catalog order — as the catalog lists it" },
+  { id: "index", label: "Catalog order" },
 ];
 
 /**
@@ -43,14 +43,14 @@ export const SORTS: Array<{ id: SortMode; label: string }> = [
  */
 export const SORT_NOTES: Record<SortMode, string> = {
   relevance:
-    "Best match ranks by where the query was found: the name first, then the publisher, the web address and the description.",
+    "Ranks results by relevance to your search terms.",
   curated: CURATED_NOTE,
   installable:
-    "Installable first puts the entries LiteSPM can install on top, then the entries read from a publisher's own manifest, then the name.",
-  name: "Name A–Z orders the rows by the name of the entry.",
-  publisher: "Publisher A–Z orders the rows by the publisher's own name, then by the name of the entry.",
+    "Shows available LiteSPM installations before discovery-only listings.",
+  name: "Sorts capabilities alphabetically by name.",
+  publisher: "Sorts by publisher, then package name.",
   index:
-    "Catalog order is the order the catalog itself lists: publisher manifests first, then kind, then name.",
+    "Uses the order of the published catalog.",
 };
 
 /**
