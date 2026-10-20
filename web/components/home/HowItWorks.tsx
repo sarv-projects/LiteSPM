@@ -66,9 +66,9 @@ const STEPS: Step[] = [
     technical: (
       <>
         <p>
-          The plan carries the file to write, the lines to add, and the launch line for the
-          capability. Nothing is written until the plan is approved, and the file is copied to a
-          backup directory first.
+          The CLI resolves the package against your synced catalog and checks its published
+          installation requirements. Host setup changes are previewed, and managed configuration
+          files are backed up before modification.
         </p>
         <p className="mt-2">
           LiteSPM installs only supported package sources. Eligible pinned plugins can be installed;
