@@ -90,7 +90,7 @@ export function LandingHero({
           {/* The eyebrow. It says what the product is in three words: one
               local bridge, and the agents that reach it. The catalog sits
               underneath it, not in place of it. */}
-          <p className="kicker">The AI agent marketplace and local manager</p>
+          <p className="kicker">The marketplace for AI agent capabilities</p>
 
           {/*
             The one number the hero carries.
@@ -125,13 +125,12 @@ export function LandingHero({
               staircase between them. The two-line shape on a wide screen is
               the same one the fixed sizes gave. */}
           <h1 className="mt-4 max-w-[20ch] text-[clamp(2.125rem,1.35rem+3.1vw,3.25rem)] font-semibold leading-[1.06] tracking-tight text-ink">
-            Find skills, MCP servers, and plugins for your AI agents.
+            Find the right tools for your AI agents.
           </h1>
 
           <p className="mt-5 max-w-prose text-[15px] leading-relaxed text-ink-2 sm:text-[16px]">
-            Browse the marketplace, inspect compatibility and copy an exact LiteSPM install command.
-            Run it locally to add supported capabilities to Claude Code, Codex, OpenCode and
-            other agents — with no marketplace account.
+            Discover MCP servers, skills, and plugins for Claude Code, Codex, OpenCode, and more.
+            Compare options, check compatibility, and install supported capabilities with LiteSPM.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
