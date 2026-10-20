@@ -83,10 +83,10 @@ test("the H1 states the outcome, and claims only what the site can prove", async
   await gotoSettled(page, "/");
 
   const h1 = page.getByRole("heading", { level: 1 });
-  await expect(h1).toHaveText("Find skills, MCP servers, and plugins for your AI agents.");
+  await expect(h1).toHaveText("Find the right tools for your AI agents.");
 
   // The one word that makes the claim checkable.
-  await expect(h1).toContainText("safely");
+  await expect(h1).toContainText("right tools");
   // The site cannot know what an agent is missing, so it must not say that it
   // does: the claim is about safety, not about knowledge.
   await expect(h1).not.toContainText("knows what");
@@ -213,7 +213,7 @@ test("the product demo renders its poster frame and its transcript", async ({ pa
   // exist yet, and a play button over an empty frame would promise one.
   const poster = page.locator("#product-demo-poster");
   await expect(poster).toBeVisible();
-  await expect(poster).toContainText("not published");
+  await expect(poster).toContainText("Installation workflow");
 
   // The captions: five beats, each with its own line.
   await expect(demo.locator("#product-demo-captions > li")).toHaveCount(5);
@@ -221,9 +221,9 @@ test("the product demo renders its poster frame and its transcript", async ({ pa
   // The transcript, in the document, for a reader with no JavaScript, no
   // screen, and no interest in watching a video.
   const transcript = page.locator("#product-demo-transcript");
-  await expect(transcript).toContainText("Pick an agent");
-  await expect(transcript).toContainText("See the config diff");
-  await expect(transcript).toContainText("Remove it again");
+  await expect(transcript).toContainText("LiteSPM runs locally");
+  await expect(transcript).toContainText("the initial agent setup");
+  await expect(transcript).toContainText("removal");
 });
 
 test("the home page never presents a plugin it cannot fetch as installable", async ({ page }) => {
