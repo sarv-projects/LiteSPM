@@ -122,10 +122,10 @@ export function BenefitComparison() {
       </p>
 
       <div className="mt-7 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Panel title="Without LiteSPM" note="today" steps={BY_HAND} tone="plain" />
+        <Panel title="Without LiteSPM" note="Manual setup" steps={BY_HAND} tone="plain" />
         <Panel
           title="With LiteSPM"
-          note="the same task"
+          note="Managed setup"
           steps={WITH_LITESPM}
           tone="accent"
         />
