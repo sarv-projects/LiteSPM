@@ -39,8 +39,8 @@ interface Step {
 const STEPS: Step[] = [
   {
     n: "01",
-    title: "Point it at your agent",
-    plain: "It finds the agents on this machine and asks which one to wire up.",
+    title: "Connect your coding agent",
+    plain: "Use the setup wizard to connect LiteSPM to a supported agent.",
     cmd: "litespm setup",
     technical: (
       <>
@@ -60,8 +60,8 @@ const STEPS: Step[] = [
   },
   {
     n: "02",
-    title: "See the change, then approve it",
-    plain: "An install is a plan first: the exact lines it will add, and what it will run.",
+    title: "Find and install a capability",
+    plain: "Copy an exact package command from the marketplace and run it locally.",
     cmd: "litespm install <id>",
     technical: (
       <>
@@ -71,17 +71,17 @@ const STEPS: Step[] = [
           backup directory first.
         </p>
         <p className="mt-2">
-          A row LiteSPM cannot install is refused rather than half-done: a plugin, or an entry
-          with no published command or endpoint, fails closed with a reason.
+          LiteSPM installs only supported package sources. Eligible pinned plugins can be installed;
+          discovery-only entries and unsupported artifacts are refused with a reason.
         </p>
       </>
     ),
   },
   {
     n: "03",
-    title: "Take it back",
-    plain: "One command removes the entry it wrote, and a restore puts the whole file back.",
-    cmd: "litespm install remove <id>",
+    title: "Manage or remove installed tools",
+    plain: "See managed installations and remove or restore them when needed.",
+    cmd: "litespm install remove <installId>",
     technical: (
       <>
         <p>
@@ -107,15 +107,14 @@ export function HowItWorks() {
         <div>
           <p className="kicker">How LiteSPM works</p>
           <h2 id="how-title" className="band-title mt-2">
-            Three steps, and a way back
+            From discovery to local installation
           </h2>
           <p className="band-sub">
-            Point it at an agent, see the change before it happens, and take it back whenever you
-            want. The whole lifecycle fits on one screen.
+            Connect your agent, install supported capabilities, and manage what LiteSPM changes.
           </p>
         </div>
         <Link href="/how-it-works/" className="btn">
-          The full walkthrough
+          How LiteSPM works
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </div>
