@@ -107,9 +107,9 @@ function CatalogStamp({ telemetry }: { telemetry: TelemetryState }) {
    * `status` is "loading" until the telemetry request comes back, so the
    * pre-hydration HTML used to read "checking the catalog…" — and a reader
    * whose JavaScript never ran saw that forever, with a dot pulsing at them.
-   * Nothing was checking: the page is the bundled snapshot, and without
+   * Nothing was checking: the page is the Offline catalog, and without
    * scripting no request will be made. So the first render (server and the
-   * hydration pass that must match it) says "bundled snapshot"; only after the
+   * hydration pass that must match it) says "Offline catalog"; only after the
    * component is mounted may it say a check is in flight.
    */
   const [mounted, setMounted] = React.useState(false);
@@ -120,7 +120,7 @@ function CatalogStamp({ telemetry }: { telemetry: TelemetryState }) {
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
       {updated && (
         <>
-          <span>Catalog snapshot, {updated}</span>
+          <span>Catalog updated {updated}</span>
           <span aria-hidden="true">·</span>
         </>
       )}
@@ -135,8 +135,8 @@ function CatalogStamp({ telemetry }: { telemetry: TelemetryState }) {
           }`}
         />
         {live === "loading" && "checking the catalog…"}
-        {live === "ready" && "catalog is current"}
-        {live === "offline" && "bundled snapshot"}
+        {live === "ready" && "Catalog available"}
+        {live === "offline" && "Offline catalog"}
       </span>
     </p>
   );
@@ -151,13 +151,11 @@ export function Shelves({ groups, agent, telemetry }: ShelvesProps) {
         <div>
           <p className="kicker">Start here</p>
           <h2 id="start-here-title" className="band-title mt-2">
-            A hand-picked set from the whole catalog
+            Featured capabilities
           </h2>
           <p className="band-sub">
-            Every entry below is one LiteSPM can install today — no discovery-only rows, no
-            plugins. Each one is a catalog id, checked against the dataset when this page is built.
-            The one line on each card is ours; the publisher&rsquo;s own summary is on its entry
-            page.
+            Explore a curated selection of useful tools and skills. Review their capabilities,
+            compatibility, and source before installing.
           </p>
         </div>
         <CatalogStamp telemetry={telemetry} />
