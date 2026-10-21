@@ -103,7 +103,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Browse AI agents</h1>
           <p className="t-mono text-[11px] text-ink-3">
-            {formatCount(hostCount)} hosts · {formatCount(HOSTS.length)} LiteSPM can set up
+            {formatCount(hostCount)} hosts · {formatCount(HOSTS.length)} that LiteSPM configures
           </p>
         </div>
 
@@ -257,8 +257,8 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
         </ul>
 
         <p className="mt-6 max-w-prose text-[12px] leading-relaxed text-ink-3">
-          Compatibility counts are based on catalog metadata and host adapters; they are not a guarantee
-          that each capability has been tested with the agent.
+          Counts come from catalog metadata and each host's adapter. LiteSPM has not run every
+          capability against every agent.
         </p>
       </main>
 

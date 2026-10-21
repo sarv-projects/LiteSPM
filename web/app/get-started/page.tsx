@@ -107,23 +107,23 @@ export default function GetStartedPage() {
                 Security
               </Link>
               <span className="block text-[12px] text-ink-3">
-                What LiteSPM is trusted to do, and what it does not claim.
+                Permissions, secrets, and what a config write can change.
               </span>
             </li>
           </ul>
         </div>
 
         <p className="mt-10 max-w-[72ch] text-[12px] leading-relaxed text-ink-3">
-          This page is part of the source.{" "}
+          Something missing?{" "}
           <a
-            href={`${REPO_URL}/blob/main/web/app/get-started/page.tsx`}
+            href={`${REPO_URL}/issues`}
             target="_blank"
             rel="noopener noreferrer"
             className="link"
           >
-            Read web/app/get-started/page.tsx on GitHub
-          </a>
-          .
+            Open an issue
+          </a>{" "}
+          and tell us which step did not work.
         </p>
       </main>
 
