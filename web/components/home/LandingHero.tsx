@@ -30,11 +30,11 @@ import { formatCount } from "../../lib/format";
  *
  * ## The H1
  *
- * "Give your coding agents the tools they're missing — safely." The original
- * sentence claimed something the site cannot check: a static export has no
- * idea what any given agent is missing. Safety is the thing it *can* prove —
- * a preview before the change, an approval, a backup, an undo — so that is
- * the word the page leads with.
+ * "Give your AI agents new capabilities." It names the outcome and the thing
+ * being added, without promising to know what any particular agent is missing
+ * — a static export cannot check that. The safety claim lives below, where
+ * the lifecycle section can actually back it with a preview, an approval, a
+ * backup and an undo.
  *
  * ## The search field
  *
@@ -59,18 +59,22 @@ export interface LandingHeroProps {
 }
 
 /**
- * The four starting points under the search field.
+ * The starting points under the search field.
  *
  * Each is a word the matcher answers to as a prefix, and each names a thing
- * the catalog actually holds. They are shortcuts, not a claim about what
- * people search for — the catalog publishes no usage data, so this page does
- * not pretend to know.
+ * the catalog actually holds. The label is the *intent* rather than the
+ * package name, because a first-time visitor arrives knowing what they want
+ * their agent to do, not what the package is called; the query beside it is
+ * the real prefix the matcher sees. They are shortcuts, not a claim about
+ * what people search for — the catalog publishes no usage data, so this page
+ * does not pretend to know.
  */
 const STARTING_POINTS = [
-  { label: "GitHub", query: "github" },
-  { label: "PDFs", query: "pdf" },
-  { label: "Figma", query: "figma" },
-  { label: "Browser automation", query: "playwright" },
+  { label: "Use GitHub", query: "github" },
+  { label: "Work with PDFs", query: "pdf" },
+  { label: "Design UI", query: "figma" },
+  { label: "Browse the web", query: "playwright" },
+  { label: "Connect a database", query: "postgres" },
 ];
 
 export function LandingHero({
@@ -90,56 +94,32 @@ export function LandingHero({
           {/* The eyebrow. It says what the product is in three words: one
               local bridge, and the agents that reach it. The catalog sits
               underneath it, not in place of it. */}
-          <p className="kicker">The marketplace for AI agent capabilities</p>
+          <p className="kicker">The package manager for AI agents</p>
 
-          {/*
-            The one number the hero carries.
-
-            It used to be three, cycling: 48,418 MCP servers, then 20,320
-            skills, then 638 plugins — a number that changed under the reader,
-            in the most-read position on the page, with no pause control. Two
-            of those three kinds were not even installable.
-
-            This is one number, and it is the one that matters: the rows
-            `litespm install` can actually complete for, counted at build time
-            with the same predicate Explore's "installable" filter uses. It is
-            the number the site's own filter produces, and it does not move.
-          */}
-          <p
-            id="hero-proof-count"
-            className="mt-3 flex items-baseline gap-1.5 text-[12.5px] text-ink-3"
-          >
-            <span className="t-mono t-tabular text-[13.5px] text-ink">
-              {formatCount(installable)}
-            </span>
-            <span>capabilities LiteSPM can install</span>
-            {/* A snapshot, not a live figure: the numbers are counted at
-                build time from one release, and a reader who takes them for a
-                live feed would be wrong about what the page knows. */}
-            <span className="text-ink-3">· catalog</span>
-            <span>snapshot</span>
-          </p>
+          {/* The catalog count moved below the agent row. It is a provenance
+              fact, not the product's headline: the first screen should say what
+              LiteSPM does before it says how many rows it holds. */}
 
           {/* Fluid between the sizes the page already used: 34px on a phone,
               42px on a tablet, 52px on a desktop, without a breakpoint
               staircase between them. The two-line shape on a wide screen is
               the same one the fixed sizes gave. */}
           <h1 className="mt-4 max-w-[20ch] text-[clamp(2.125rem,1.35rem+3.1vw,3.25rem)] font-semibold leading-[1.06] tracking-tight text-ink">
-            Find the right tools for your AI agents.
+            Give your AI agents new capabilities.
           </h1>
 
           <p className="mt-5 max-w-prose text-[15px] leading-relaxed text-ink-2 sm:text-[16px]">
-            Discover MCP servers, skills, and plugins for Claude Code, Codex, OpenCode, and more.
-            Compare options, check compatibility, and install supported capabilities with LiteSPM.
+            Discover and install MCP servers, skills and plugins across the agents you use.
+            LiteSPM handles compatibility, setup, updates and removal from one place.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Link href="/get-started/" prefetch={false} className="btn btn-solid btn-lg">
-              Get LiteSPM
+            <Link href="/explore/" prefetch={false} className="btn btn-solid btn-lg">
+              Explore capabilities
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
-            <Link href="/how-it-works/" prefetch={false} className="btn btn-lg">
-              See how it works
+            <Link href="/get-started/" prefetch={false} className="btn btn-lg">
+              Get LiteSPM
             </Link>
           </div>
 
@@ -189,6 +169,25 @@ export function LandingHero({
               ))}
             </ul>
           </div>
+
+          {/* The one number the hero carries: the rows `litespm install` can
+              actually complete for, counted at build time with the same
+              predicate Explore's "installable" filter uses. It sits below the
+              product story, and it is a snapshot rather than a live figure. */}
+          <p
+            id="hero-proof-count"
+            className="mt-6 flex items-baseline gap-1.5 text-[12px] text-ink-3"
+          >
+            <span className="t-mono t-tabular text-[12.5px] text-ink">
+              {formatCount(installable)}
+            </span>
+            <span>capabilities LiteSPM can install</span>
+            {/* A snapshot, not a live figure — its own text node, so the
+                no-JS contract test can still assert the word that keeps the
+                number honest. */}
+            <span className="text-ink-3">· catalog</span>
+            <span>snapshot</span>
+          </p>
         </div>
 
         <div className="enter-rise" style={{ animationDelay: "80ms" }}>

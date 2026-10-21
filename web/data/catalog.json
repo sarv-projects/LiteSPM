@@ -682836,14 +682836,14 @@
       "provenance": "vendor-manifest",
       "url": "https://openlmnp.fr/mcp"
     },
-    "url": "https://app.openlmnp.fr/mcp?demo_token=openlmnp_demo_ro_ebd891f45e8a771ca1a718f239b733b438a31d48",
-    "transport": "streamable-http",
+    "url": null,
+    "transport": null,
     "runtime": null,
     "stars": null,
     "version": "1.6.7",
     "command": null,
     "args": null,
-    "installability": "metadata_verified",
+    "installability": "discovery_only",
     "source": "builtin:mcp-registry"
   },
   {

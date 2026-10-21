@@ -8,9 +8,9 @@
 // `lib/availability`:
 //
 //   - `hostsFor` returned all 50 adapters for every MCP row, including the
-//     25,401 remote-only rows whose install the binary refuses on 42 of those
+//     25,400 remote-only rows whose install the binary refuses on 42 of those
 //     adapters (`LPSM-HOST-REMOTE-UNSUPPORTED`), and
-//   - it returned every adapter or every skill target for the 42,573
+//   - it returned every adapter or every skill target for the 42,574
 //     discovery-only rows that have no install method at all — while the page
 //     directly above the list said "Install unavailable".
 //
@@ -437,10 +437,10 @@ test("the counts the site prints equal the counts the module computes", () => {
   // installer can fetch it.
   expect(
     printed.remote + printed.source + printed.plugin,
-    "the site prints 26,555 installable rows"
-  ).toBe(26555);
+    "the site prints 26,554 installable rows"
+  ).toBe(26554);
   expect(printed.plugin, "390 of them are plugins with a pinned source").toBe(390);
-  expect(printed.discovery, "and 42,573 discovery-only rows").toBe(42573);
+  expect(printed.discovery, "and 42,574 discovery-only rows").toBe(42574);
   expect(printed.unsupported, "and 248 plugins it cannot fetch a pinned source for").toBe(248);
 
   expect(computed.supported).toBe(printed.remote + printed.source + printed.plugin);

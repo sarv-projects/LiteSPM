@@ -209,7 +209,7 @@ export function hostIdsFor(
   // Nothing to install means no host to configure, so the row must not be
   // counted as working with any of them. This is the single gate behind the
   // Explore host filter, `tallyHosts` (which feeds every `/agents/` row and the
-  // boards) and each host page's own figure; without it the 42,573
+  // boards) and each host page's own figure; without it the 42,574
   // discovery-only rows were counted into all of them.
   if (!availabilityOf(item).installable) return NO_HOSTS;
 

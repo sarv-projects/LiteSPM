@@ -394,8 +394,8 @@ function PackageContent({
   useEffect(() => {
     if (!docTitle) return;
     const previous = document.title;
-    document.title = `${docTitle} · LiteSPM Market`;
-    const restoreOgTitle = setMetaProperty("og:title", `${docTitle} · LiteSPM Market`);
+    document.title = `${docTitle} · LiteSPM`;
+    const restoreOgTitle = setMetaProperty("og:title", `${docTitle} · LiteSPM`);
     const restoreOgDescription = setMetaProperty(
       "og:description",
       clampMeta(

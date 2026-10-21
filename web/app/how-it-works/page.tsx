@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
+import { WalkthroughFrame } from "./WalkthroughFrame";
 
 export const metadata: Metadata = {
   title: "How LiteSPM works",
   description:
     "Discover AI agent capabilities in the LiteSPM marketplace, connect your coding agent, install supported packages locally, and manage them from one place.",
   alternates: { canonical: "/how-it-works/" },
-  openGraph: { title: "How LiteSPM works · LiteSPM Market", url: "/how-it-works/" },
+  openGraph: { title: "How LiteSPM works · LiteSPM", url: "/how-it-works/" },
 };
 
 function Command({ children }: { children: string }) {
@@ -93,6 +94,28 @@ export default function HowItWorksPage() {
               </li>
             ))}
           </ol>
+
+          {/* The walkthrough frame is the shape the recording will publish in:
+              captions and transcript in the HTML today, the video when a real
+              machine, a real install and a real removal have been recorded. */}
+          <div className="mt-8 max-w-[72ch]">
+            <WalkthroughFrame
+              title="The four-step walkthrough"
+              captions={[
+                { time: "00:00", text: "Open Explore and describe what you want the agent to do." },
+                { time: "00:12", text: "Pick the agent you use and the scope: this project or the whole machine." },
+                { time: "00:24", text: "Review the exact configuration change LiteSPM prints, then approve it." },
+                { time: "00:38", text: "Run litespm list, and see the package, its agent, scope and version." },
+              ]}
+              transcript={
+                "The recording starts in the marketplace, not in a terminal: a search for a task, not for a package name.\n\n" +
+                "It then picks an agent and a scope, and shows the preview LiteSPM prints before it writes: the file, the entry, and the diff. Nothing is written until the human approves.\n\n" +
+                "Finally it runs litespm list, which reports what LiteSPM manages, which agent it is registered with, and how to remove it."
+              }
+              placeholder="A real recording needs a real machine, a real install and a real removal. Until that exists, this frame carries the same beats as captions and a transcript rather than a mock-up of a terminal."
+            />
+          </div>
+
           <p className="mt-4 max-w-[72ch] text-[12.5px] leading-relaxed text-ink-3">
             First-time setup and catalog sync are separate operations in the current CLI.
             Package pages provide the exact installation command. Catalog skills may install

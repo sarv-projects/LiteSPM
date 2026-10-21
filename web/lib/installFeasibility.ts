@@ -70,15 +70,15 @@
 //
 // Measured against the 2026-10-17 release (69,376 rows):
 //
-//   supported      26,555  25,401 remote MCP rows + 764 skills + 390 plugins
-//   discovery-only 42,573  23,017 MCP + 19,556 skills with no launch line
+//   supported      26,554  25,400 remote MCP rows + 764 skills + 390 plugins
+//   discovery-only 42,574  23,017 MCP + 19,556 skills with no launch line
 //   plugin             390  plugins that publish a pinned git tree
 //   unsupported       248  plugins with no fetchable pinned source
 //   unknown           0  no row in this release leaves the host axis open
 //   requires-setup    0  a setup step is never a row-level fact
 //
 // The counts are the site's own: `lib/availability.ts` already published the
-// same 26,555 / 42,573 / 248 split, and this module must not disagree with
+// same 26,554 / 42,574 / 248 split, and this module must not disagree with
 // it.
 
 import type { Listing } from "./telemetry";
@@ -461,7 +461,7 @@ function hostVerdict(
     if (artifact.type !== "git-tree") {
       return verdict("unsupported", [REASON_PLUGIN_LOCAL], limitations);
     }
-    if (!artifact.pinned || !artifact.sha) {
+    if (!artifact.pinned) {
       return verdict("unsupported", [REASON_PLUGIN_UNPINNED], limitations);
     }
     // The publisher's own host list is data about the plugin, not an install
@@ -581,13 +581,15 @@ function publisherHostIds(item: Listing): string[] {
  */
 /**
  * pluginSourceReason is the reason a plugin cannot be fetched, or "" when it
- * can: a `git-tree` with a commit id, pinned.
+ * can: a `git-tree` that is pinned. `pinned` already says the descriptor
+ * published a 40-hex commit id (see `availabilityOf`), so the id is not read
+ * again here — the search projection carries the fact and not the value.
  */
 function pluginSourceReason(item: Listing): string {
   const artifact = item.artifact;
   if (!artifact) return REASON_PLUGIN_NO_SOURCE;
   if (artifact.type !== "git-tree") return REASON_PLUGIN_LOCAL;
-  if (!artifact.pinned || !artifact.sha) return REASON_PLUGIN_UNPINNED;
+  if (!artifact.pinned) return REASON_PLUGIN_UNPINNED;
   return "";
 }
 
@@ -705,8 +707,8 @@ function scopeLimitations(mode: FeasibilityMode, count: number): string[] {
 /**
  * The counts for a set of rows, on the same scale the site already prints.
  *
- * The numbers this must produce for the current release are 26,555
- * supported, 42,573 discovery-only, 248 unsupported, and nothing in the two
+ * The numbers this must produce for the current release are 26,554
+ * supported, 42,574 discovery-only, 248 unsupported, and nothing in the two
  * open states — the same split `lib/availability.ts` publishes, because the
  * host axis does not change whether a row can be installed, only where.
  */

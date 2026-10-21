@@ -209,13 +209,17 @@ func TestInstallExecute_FailureRefundsApproval(t *testing.T) {
 	id := approvePlanAsHuman(t, h.db, &plan)
 	params := map[string]any{"planId": plan.PlanID, "approvalToken": id}
 
-	// Make the install fail at "no agent detected": remove the agent dir.
-	if err := os.RemoveAll(filepath.Join(home, ".cursor")); err != nil {
+	// Fail at the sealed destination. The plan named this directory when it was
+	// approved, so occupying it is a failure of that approved write — the copy
+	// must refuse rather than choose another directory, which is the same
+	// fail-closed rule that stops a plan from writing where nobody looked.
+	occupied := filepath.Join(home, ".cursor", "skills", "demo-skill")
+	if err := os.MkdirAll(occupied, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	var raw json.RawMessage
 	if err := h.client.Call(context.Background(), "install.execute", params, &raw); err == nil {
-		t.Fatal("expected the install to fail with no agent directories")
+		t.Fatal("expected the install to fail when the sealed destination is occupied")
 	}
 	rec, err := h.db.GetApproval(context.Background(), id)
 	if err != nil || rec.Status != "active" {
@@ -223,7 +227,7 @@ func TestInstallExecute_FailureRefundsApproval(t *testing.T) {
 	}
 
 	// Fixing the cause and retrying with the same approval succeeds.
-	if err := os.MkdirAll(filepath.Join(home, ".cursor"), 0o755); err != nil {
+	if err := os.RemoveAll(occupied); err != nil {
 		t.Fatal(err)
 	}
 	var result map[string]any
@@ -261,7 +265,7 @@ func TestAuthorizeHumanInstall_RecordsHumanCLIApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	grant, _, err := authorizeHumanInstall(ctx, h.db, h.catClient, listing, "1.0.0", domain.ScopeUser, "", nil)
+	grant, _, err := authorizeHumanInstall(ctx, h.db, h.catClient, listing, "1.0.0", domain.ScopeUser, "", nil, nil)
 	if err != nil {
 		t.Fatalf("authorizeHumanInstall: %v", err)
 	}

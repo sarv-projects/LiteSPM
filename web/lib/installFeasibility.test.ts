@@ -421,8 +421,8 @@ const DISCOVERY = row({
 
 {
   const counts = feasibilityCounts(catalog);
-  equal("counts: installable rows", counts.supported, 26555);
-  equal("counts: discovery-only rows", counts["discovery-only"], 42573);
+  equal("counts: installable rows", counts.supported, 26554);
+  equal("counts: discovery-only rows", counts["discovery-only"], 42574);
   equal("counts: plugin rows", counts.unsupported, 248);
   equal("counts: no row is left open", counts.unknown, 0);
   equal("counts: no row needs setup", counts["requires-setup"], 0);

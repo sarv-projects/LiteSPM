@@ -70,22 +70,22 @@ const fmt = (bytes) => `${MiB(bytes).toFixed(2)} MiB`;
 // Budgets set from the measured artifact, with a few percent of headroom. The
 // gate exists so the index cannot silently regress past these: a change that
 // doubles the postings should fail here, not on a user's phone.
-const INDEX_RAW_BUDGET = 4.5 * 1024 * 1024; // measured 4.19 MiB
-const INDEX_GZ_BUDGET = 3.0 * 1024 * 1024; // measured 2.68 MiB
-const ROWS_RAW_BUDGET = 14.0 * 1024 * 1024; // measured 13.34 MiB
-const ROWS_GZ_BUDGET = 5.5 * 1024 * 1024; // measured 4.98 MiB
+const INDEX_RAW_BUDGET = 4.5 * 1024 * 1024; // measured 3.90 MiB
+const INDEX_GZ_BUDGET = 3.0 * 1024 * 1024; // measured 2.40 MiB
+const ROWS_RAW_BUDGET = 14.0 * 1024 * 1024; // measured 13.47 MiB
+const ROWS_GZ_BUDGET = 5.5 * 1024 * 1024; // measured 4.99 MiB
 // The sharded projection is the search path's transport; its total size only
 // matters when a fallback loads everything, so the budget is loose — the
 // window budget below is the one the reader feels.
-const SHARD_GZ_BUDGET = 6.5 * 1024 * 1024; // measured 5.90 MiB across 1,024 shards
-const SHARD_MAX_BUDGET = 32 * 1024; // measured largest ~6 KiB
+const SHARD_GZ_BUDGET = 6.5 * 1024 * 1024; // measured 5.93 MiB across 1,021 shards
+const SHARD_MAX_BUDGET = 32 * 1024; // measured largest ~10 KiB
 // The first window is what a first search costs on top of the index. Measured
-// over the corpus below: the worst case is `context7` at 103,958 B (0.0991 MiB)
+// over the corpus below: the worst case is `context7` at 103,978 B (0.0992 MiB)
 // spread over 16 shards, because 23 matches scattered across 16 shards cost
 // more than 200 matches packed into four. This is the regression the whole
 // layout exists to prevent — if a change ever makes the first search fetch the
 // full projection again, it fails here. The budget is the plan's 0.10 MiB;
-// the measured value sits 0.9% under it.
+// the measured value sits 0.8% under it.
 const WINDOW_GZ_BUDGET = Math.round(0.1 * 1024 * 1024);
 const WINDOW_SHARD_BUDGET = 64;
 

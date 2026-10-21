@@ -1,4 +1,4 @@
-// Shared formatting helpers for the LiteSPM Market UI.
+// Shared formatting helpers for the LiteSPM UI.
 
 const NUMBER = new Intl.NumberFormat("en-US");
 

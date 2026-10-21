@@ -337,11 +337,22 @@ func assertVersionLessPlan(t *testing.T, row *domain.Listing, rec *domain.Versio
 	t.Helper()
 	ctx := context.Background()
 
+	// A skill plan seals the destinations detected now, so the machine is
+	// pinned: one agent, one skills root, no dependence on the developer's own
+	// agent installs.
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, ".codex"), 0o755); err != nil {
+		t.Fatalf("build the pinned home: %v", err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("CODEX_HOME", "")
+
 	client := catalog.NewClient("https://registry.invalid", t.TempDir(), nil)
 	client.IndexListings([]*domain.Listing{row})
 	client.IndexVersionRecords([]*domain.VersionRecord{rec})
 
-	plan, _, rpcErr := buildInstallPlan(ctx, client, row.ID, "", domain.ScopeUser, "", row, nil)
+	plan, _, rpcErr := buildInstallPlan(ctx, client, row.ID, "", domain.ScopeUser, "", row, nil, nil)
 	if rpcErr != nil {
 		t.Fatalf("version-less listing must resolve, got: %s", rpcErr.Message)
 	}
@@ -375,8 +386,16 @@ func assertVersionLessPlan(t *testing.T, row *domain.Listing, rec *domain.Versio
 	if !reflect.DeepEqual(plan.Effects, wantEffects) {
 		t.Errorf("Effects = %v, want %v", plan.Effects, wantEffects)
 	}
-	if len(plan.HostChanges) != 0 {
-		t.Errorf("HostChanges = %+v, want none for a skill", plan.HostChanges)
+	// A skill writes directories, so the plan seals them. Before this, the plan
+	// named none and execution re-detected the machine, which is how one named
+	// host turned into copies in every agent.
+	wantChanges := []domain.HostChange{{
+		HostID:     "codex",
+		ConfigPath: filepath.Join(home, ".codex", "skills"),
+		Action:     skillWriteAction,
+	}}
+	if !reflect.DeepEqual(plan.HostChanges, wantChanges) {
+		t.Errorf("HostChanges = %+v, want the one sealed skill root %+v", plan.HostChanges, wantChanges)
 	}
 
 	// The pin must name the record the release actually published (under the
@@ -406,6 +425,47 @@ func assertVersionLessPlan(t *testing.T, row *domain.Listing, rec *domain.Versio
 func TestBuildInstallPlanResolvesVersionLessSkillRow(t *testing.T) {
 	row, rec := versionLessSkillFixture()
 	assertVersionLessPlan(t, row, rec)
+}
+
+// A bare skill install (the CLI's shape: a binding with no named target) must
+// not copy into several agents just because they are on the machine. The
+// command is the approval, so the target has to be named — or the fan-out has
+// to be asked for with --all-detected.
+func TestBuildInstallPlanRefusesUnnamedSkillFanOut(t *testing.T) {
+	row, rec := versionLessSkillFixture()
+	home := t.TempDir()
+	for _, marker := range []string{".codex", ".cursor"} {
+		if err := os.MkdirAll(filepath.Join(home, marker), 0o755); err != nil {
+			t.Fatalf("build the pinned home: %v", err)
+		}
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("CODEX_HOME", "")
+
+	client := catalog.NewClient("https://registry.invalid", t.TempDir(), nil)
+	client.IndexListings([]*domain.Listing{row})
+	client.IndexVersionRecords([]*domain.VersionRecord{rec})
+
+	_, _, rpcErr := buildInstallPlan(context.Background(), client, row.ID, "", domain.ScopeUser, "", row, nil, &skillInstallBinding{})
+	if rpcErr == nil {
+		t.Fatal("an unnamed skill target set with two detected agents must be refused")
+	}
+	for _, want := range []string{"codex", "cursor", "--agent", "--all-detected", "Nothing was changed"} {
+		if !strings.Contains(rpcErr.Message, want) {
+			t.Errorf("refusal does not mention %q:\n%s", want, rpcErr.Message)
+		}
+	}
+
+	// Asking for every detected agent is an explicit choice and plans all of
+	// them, each sealed.
+	plan, _, rpcErr := buildInstallPlan(context.Background(), client, row.ID, "", domain.ScopeUser, "", row, nil, &skillInstallBinding{AllDetected: true})
+	if rpcErr != nil {
+		t.Fatalf("an explicit --all-detected must plan: %s", rpcErr.Message)
+	}
+	if got, want := hostChangeIDs(plan), []string{"codex", "cursor"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("sealed targets = %v, want %v", got, want)
+	}
 }
 
 // --- B1 Phase 3: plan-time gating for remote (URL) MCP installs ------------
@@ -498,7 +558,7 @@ func TestBuildInstallPlanFiltersIncapableHostsForRemoteRuntime(t *testing.T) {
 		Runtime: remoteRuntime(),
 	}
 	plan, drops, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, "", listing, binding)
+		domain.ScopeUser, "", listing, binding, nil)
 	if rpcErr != nil {
 		t.Fatalf("plan build failed: %s", rpcErr.Message)
 	}
@@ -558,7 +618,7 @@ func TestBuildInstallPlanExplicitHostFailsByName(t *testing.T) {
 		ExplicitHosts: true,
 	}
 	plan, drops, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, "", listing, binding)
+		domain.ScopeUser, "", listing, binding, nil)
 	if rpcErr == nil {
 		t.Fatalf("an explicit host that cannot express a remote entry was accepted: %+v", plan)
 	}
@@ -590,7 +650,7 @@ func TestBuildInstallPlanAllIncapableHostsFailWithCapabilityReason(t *testing.T)
 		Runtime: remoteRuntime(),
 	}
 	plan, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, "", listing, binding)
+		domain.ScopeUser, "", listing, binding, nil)
 	if rpcErr == nil {
 		t.Fatalf("an all-incapable target set produced a plan: %+v", plan)
 	}
@@ -624,7 +684,7 @@ func TestBuildInstallPlanFiltersHostsThatLackTheTransport(t *testing.T) {
 		},
 	}
 	plan, drops, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, "", listing, binding)
+		domain.ScopeUser, "", listing, binding, nil)
 	if rpcErr != nil {
 		t.Fatalf("plan build failed: %s", rpcErr.Message)
 	}
@@ -659,7 +719,7 @@ func TestBuildInstallPlanRefusesUnsafeEndpoint(t *testing.T) {
 				Type: "streamable-http", Endpoint: tc.endpoint,
 			}}
 			plan, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-				domain.ScopeUser, "", listing, binding)
+				domain.ScopeUser, "", listing, binding, nil)
 			if rpcErr == nil {
 				t.Fatalf("unsafe endpoint %q produced a plan: %+v", tc.endpoint, plan)
 			}
@@ -683,7 +743,7 @@ func TestBuildInstallPlanRefusesUnsafeEndpoint(t *testing.T) {
 			Type: "streamable-http", Endpoint: ok,
 		}}
 		if _, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-			domain.ScopeUser, "", listing, binding); rpcErr != nil {
+			domain.ScopeUser, "", listing, binding, nil); rpcErr != nil {
 			t.Errorf("legitimate endpoint %q was refused at plan time: %s", ok, rpcErr.Message)
 		}
 	}
@@ -700,7 +760,7 @@ func TestBuildInstallPlanRefusesEnvForRemoteRuntime(t *testing.T) {
 		EnvNames: []string{"API_TOKEN"},
 	}
 	plan, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, "", listing, binding)
+		domain.ScopeUser, "", listing, binding, nil)
 	if rpcErr == nil {
 		t.Fatalf("--env on a remote runtime produced a plan: %+v", plan)
 	}
@@ -716,7 +776,7 @@ func TestBuildInstallPlanRefusesEnvForRemoteRuntime(t *testing.T) {
 		EnvNames: []string{"API_TOKEN"},
 	}
 	if _, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
-		domain.ScopeUser, "", listing, stdio); rpcErr != nil {
+		domain.ScopeUser, "", listing, stdio, nil); rpcErr != nil {
 		t.Fatalf("--env on a stdio runtime must still plan: %s", rpcErr.Message)
 	}
 }

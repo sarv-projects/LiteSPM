@@ -31,10 +31,10 @@ export function SiteFooter() {
     <footer className="mt-auto border-t border-rule bg-surface">
       <div className="shell grid gap-8 py-10 md:grid-cols-[1.6fr_1fr_1fr]">
         <div>
-          <p className="text-[15px] font-semibold text-ink">LiteSPM Market</p>
+          <p className="text-[15px] font-semibold text-ink">LiteSPM</p>
           <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            MCP servers, skills and plugins for the AI agents you use — one catalog to search, one
-            command to install.
+            The package manager for AI agents. Find, install, update and remove MCP servers,
+            skills and plugins across the agents you use.
           </p>
         </div>
 

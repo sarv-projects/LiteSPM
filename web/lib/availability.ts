@@ -30,13 +30,13 @@ import type { Listing } from "./telemetry";
  *
  * Measured against the 2026-10-15 release (69,376 rows):
  *
- *   remote       25,401  MCP, metadata_verified, with an endpoint
+ *   remote       25,400  MCP, metadata_verified, with an endpoint
  *   source          764  skills that are metadata_verified
  *   plugin          390  plugins that publish a pinned git tree
- *   discovery    42,573  MCP (23,017) and skills (19,556) that are discovery_only
+ *   discovery    42,574  MCP (23,017) and skills (19,556) that are discovery_only
  *   unsupported     248  plugins with no fetchable pinned source
  *
- * **26,555 of 69,376 rows install (38%).** An earlier revision of this module
+ * **26,554 of 69,376 rows install (38%).** An earlier revision of this module
  * marked every skill installable — 20,320 rather than 764 — because it read the
  * *kind* and ignored `installability`. Skills are not exempt from the gate;
  * only 764 of them carry verified metadata.
@@ -116,11 +116,17 @@ export function availabilityOf(
   //    verifies the tree, and registers the MCP servers the plugin's own
   //    manifest declares. A local directory is not something a user of the
   //    catalogue can fetch, and an unpinned tree is a mutable source.
+  //
+  //    `pinned` is the whole of the "and there is a commit id" half: the
+  //    builder sets it exactly when the descriptor published a 40-hex commit
+  //    (`pinned: bool(_SHA40.match(sha))` in `scripts/build_full_catalog.py`).
+  //    The id itself is not re-read here because the search projection carries
+  //    the fact and not the value — one rule has to serve both paths.
   if (item.kind === "plugin") {
     const artifact = item.artifact;
     if (!artifact) return UNSUPPORTED;
     if (artifact.type !== "git-tree") return UNSUPPORTED;
-    if (!artifact.pinned || !artifact.sha) return UNSUPPORTED;
+    if (!artifact.pinned) return UNSUPPORTED;
     return PLUGIN;
   }
 

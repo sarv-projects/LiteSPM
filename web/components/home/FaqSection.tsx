@@ -143,8 +143,8 @@ export function FaqSection() {
       q: "What about plugins?",
       a: (
         <>
-          LiteSPM can install a subset of plugins with supported pinned sources and manifests.
-          Other plugins are available for discovery but cannot be installed through LiteSPM yet.
+          LiteSPM installs a plugin whose publisher ships a pinned source and manifest. A plugin
+          without one is listed for discovery and refused at install, with the reason.
         </>
       ),
     },

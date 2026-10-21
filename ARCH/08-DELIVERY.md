@@ -55,15 +55,16 @@ Highest honest state per phase, with the subsystem rows that back it in [STATUS.
 | A — Architecture Freeze & Schemas | `DESIGNED` | `ARCH/00`–`ARCH/38` exist; the specification is written, not verified |
 | B — Foundations, Storage & IPC | `TESTED` | `domain` / `state` / `ipc` tests bind; no independent falsification pass yet (STATUS §1) |
 | C — Static Catalog & Discovery | `SHIPPED` for the compiler, `catalog build` and `catalog sync` | the release tree is published and `catalog sync` was verified against the live origin; the origin now names **`rel-2026-10-17-01`** (sequence 149, 69,376 items, sharded — probe 2026-10-19), and the `rel-2026-10-05-01` tree the 2026-10-05 probe cited has since been replaced. `index.json`/`shards/` remain `DESIGNED`; transport sharding is `IMPLEMENTED` (STATUS §2) |
-| D — Extraction, Resolver & Skills | `WIRED` (resolver, skills); `IMPLEMENTED` (install engine); `TESTED` (artifact) | skills and MCP servers install end to end through `/marketplace`; `install.execute` still has no artifact source for plugins (STATUS §3) |
+| D — Extraction, Resolver & Skills | `WIRED` (resolver, skills, plugin, MCP); `IMPLEMENTED` (archive install engine); `TESTED` (artifact) | skills, MCP servers and pinned-source plugins install end to end through `/marketplace`; the archive engine still has no production caller, because a skill is files, a server is a config entry and a plugin is a fetched tree (STATUS §3) |
 | E — Supervision, Bridge & Hosts | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | provider rows are written at install time (`m4` closed 2026-10-13, `state.SaveProviderExec` inside the install transaction); `autostart` stays `0`, so nothing starts a provider at boot (STATUS §4) |
 | F — MCP profiles, Secrets & OAuth | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | `mcpclient`'s first production importer is `internal/discover`; `auth` still has zero production importers (STATUS §1, §4) |
-| G — Marketplace, `/marketplace`, wizard | `WIRED` for read tools and the web marketplace | `request_install` completes for skills and MCP servers; plugins need artifact ingestion; two bridge tools (`get_invocation`, `cancel_invocation`) answer `-32601` (STATUS §3, §4) |
+| G — Marketplace, `/marketplace`, wizard | `WIRED` for read tools and the web marketplace | `request_install` completes for skills, MCP servers and pinned-source plugins; all twelve bridge tools answer, `get_invocation`/`cancel_invocation` from the invocation registry (STATUS §3, §4) |
 | H — Build, Conformance & Packaging | `IMPLEMENTED` | the npm installer is fail-closed on every path: it verifies the release's Sigstore bundle against a signer identity pinned in code (signature, Fulcio chain, CT-log SCT, Rekor inclusion promise via sigstore-js) **and** cross-checks the published SHA-256 listing, discarding the download on a missing bundle, an unparseable bundle, a wrong signer, a wrong issuer, a mismatch, a truncated transfer or an unexpected redirect. `npm test` pins each refusal and asserts the packed tarball is exactly the `files` allowlist with the shipped installer byte-identical to the reviewed source; `LICENSE`/`NOTICE` are listed and staged by `release.yml` before publish (STATUS §1) |
 | I — Fixtures, Self-Update & Migrations | `WIRED` (self-update) / `TESTED` (state) | self-update verifies SHA-256 fail-closed and then the release's keyless Sigstore bundle when one is published; `v0.4.0` (2026-10-11) is the first tag to publish one for every asset; earlier tags are checksum-only with a stated note (STATUS §1) |
 
-**Not yet true, and not claimed here:** provider autostart; plugin installation (no artifact
-source); an async invocation registry (`get`/`cancel` return `-32601`); TUF-style catalog signing;
+**Not yet true, and not claimed here:** provider autostart; provider health states, restart and
+cross-provider fallback (`ARCH/34`); an archive-engine caller (`archive/zip` installs); a TUF-style
+catalog signing root;
 bundle verification in the npm installer; and any isolation level beyond process supervision.
 Several items this paragraph used to list are now true and are stated as such above: the release
 tree is published and `catalog sync` succeeds against the live origin; an agent-driven install
@@ -120,8 +121,8 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 *   **Gate:** extraction harness rejects hostile zip-slip, zip-bomb, and symlink-escape fixtures; aborted installations leave zero orphaned files.
 *   **Current state:** traversal/symlink/case-collision/size rejections are exercised by unit tests
     and rollback is recovery-tested (`TESTED`), but the zip-bomb half of the gate depends on the
-    absent ratio check, and archive-kind installs have no artifact source to abort: skills install
-    end to end (STATUS §3), plugin installs still cannot.
+    absent ratio check, and the archive engine has no production caller to abort: skills install end
+    to end as files, MCP servers as config entries, and plugins as a fetched pinned tree (STATUS §3).
 
 ### Phase E: Process Supervision, Bridge Shim & Host Adapters
 *   **Deliverables:**
@@ -158,8 +159,10 @@ that is not met is **not** met, regardless of how much of the deliverable exists
     *   `internal/doctor`: 10 checks, `--repair`, category exit codes — `WIRED` (STATUS §1).
 *   **Gate:** `litespm` allows agent selection and configuration; agents can invoke `/marketplace` to search and propose installations.
 *   **Current state:** search/plan/skill-read tools resolve and propose; the install action
-    completes for skill and MCP-server listings (skills ledger / host-config registration) and
-    fails closed for plugins, which have no artifact source (STATUS §3).
+    completes for skill and MCP-server listings (skills ledger / host-config registration) and for
+    plugins with a pinned source (fetched tree, portable components installed). A plugin with no
+    fetchable pinned source fails closed, and one whose extras have no adapter needs the
+    `allowPartial` acknowledgement (STATUS §3).
 
 ### Phase H: Cross-Platform Build, Conformance & Packaging
 *   **Deliverables (matching `.github/workflows` as it exists):**

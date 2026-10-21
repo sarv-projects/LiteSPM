@@ -52,15 +52,19 @@ LiteSPM provides both an interactive terminal interface for humans and a structu
 > alias of the wizard: it dispatches to `runSkillsInit` (`cmd/litespm/main.go:72-75`,
 > `cmd/litespm/skills_init.go`) and scaffolds a `SKILL.md`.
 >
-> **Remote archive install resolution is not wired.** `litespm install <listing-id> [--version <ver>]
-> [--scope user|project]` resolves the listing from the local catalog index and
-> routes by kind: **skills install for real** (fetch → ledger → record), and **MCP servers register
-> their published launch descriptor in approved host configs**. Plugins still fail closed with
-> `LPSM-ARTIFACT-UNAVAILABLE` because the catalog carries no plugin artifact locator. The earlier
-> in-memory synthetic archive is gone; the bridge's `request_install` completes for skills and MCP
-> servers, and fails closed for plugins ([STATUS.md](../STATUS.md) §3). `--workspace <dir>`
-> (2026-10-11) names the project for a project-scope install: it implies `--scope project` and is
-> sealed into the plan ([STATUS.md](../STATUS.md) §3).
+> **Remote archive install resolution is not wired, and is not what a plugin install uses.**
+> `litespm install <listing-id> [--version <ver>] [--scope user|project]` resolves the listing from
+> the local catalog index and routes by kind: **skills install for real** (fetch → ledger →
+> record), **MCP servers register their published launch descriptor in approved host configs**, and
+> **a plugin with a published, pinned git tree installs that tree's portable components** — its MCP
+> servers registered, its skills copied into each target host's skills tree. A plugin with no
+> fetchable pinned source fails closed with `LPSM-ARTIFACT-UNAVAILABLE`; one whose manifest declares
+> commands, hooks, subagents or LSP servers is refused with `LPSM-INSTALL-PARTIAL` unless
+> `--allow-partial` acknowledges losing them, and that acknowledgement is sealed into the plan. The
+> earlier in-memory synthetic archive is gone, and the bridge's `request_install` completes for the
+> same three cases ([STATUS.md](../STATUS.md) §3). `--workspace <dir>` (2026-10-11) names the
+> project for a project-scope install: it implies `--scope project` and is sealed into the plan
+> ([STATUS.md](../STATUS.md) §3).
 
 ---
 

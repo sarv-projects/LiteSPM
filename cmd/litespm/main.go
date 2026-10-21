@@ -47,10 +47,8 @@ import (
 // value in sync with npm/package.json — the npm postinstall downloads the
 // release asset named after the npm package version.
 //
-// The default is "dev", not a version number: a binary built from the source
-// tree is not a release, and a stale number is a false claim. (It was
-// "0.3.0" for a long time while npm published 0.4.1, so a locally built
-// binary told a user it was three releases old.)
+// The default is "dev": a binary built from the source tree is not a release,
+// so it must not print a release number.
 var Version = "dev"
 
 const (
@@ -286,6 +284,17 @@ func catalogTimeoutOf(cfg *config.Config) time.Duration {
 		return 0
 	}
 	return cfg.Network.Timeout
+}
+
+// catalogSyncTimeout bounds one full catalog sync. The release tree is about
+// 100 MB across several files, so a ten-second ceiling failed on ordinary
+// links; five minutes covers a slow download, and an explicitly configured
+// network timeout still wins.
+func catalogSyncTimeout(cfg *config.Config) time.Duration {
+	if cfg != nil && cfg.Network.Timeout > 0 {
+		return cfg.Network.Timeout
+	}
+	return 5 * time.Minute
 }
 
 // policyDefaultsFrom maps loaded configuration onto the policy engine's
@@ -1342,9 +1351,19 @@ type installFlags struct {
 	// one.
 	workspace string
 	showHelp  bool
-	// hosts names the agent hosts to register an MCP server with. Empty means
-	// every host whose LiteSPM bridge verifies as registered.
+	// hosts names the agent hosts to register an MCP server or plugin with.
+	// Empty means every host whose LiteSPM bridge verifies as registered.
+	// `--agent` names the same thing; both flags feed this set for those kinds.
 	hosts []string
+	// agents names the skill targets of the install (repeatable). Each value is
+	// a skills target id (`internal/skills.AgentTargets`) or "*". Empty means
+	// the agents detected on this machine; either way the resolved directories
+	// are sealed into the plan before anything is written.
+	agents []string
+	// allDetected is the explicit spelling of the detected default. It is
+	// recorded rather than inferred, so a script can say which of the two
+	// target choices it made.
+	allDetected bool
 	// envNames are environment variable NAMES to forward to the server. Names
 	// only, never values: the config gets a reference the host expands, so a
 	// secret never passes through LiteSPM.
@@ -1354,27 +1373,57 @@ type installFlags struct {
 	// frozen installs strictly from litespm.lock: the version comes from the
 	// lock and any lock/manifest drift fails with LPSM-LOCK-DRIFT (ARCH/32 §4).
 	frozen bool
+	// dryRun builds and prints the exact plan — effects, target files and
+	// directories, sealed artifact — then exits without recording a plan,
+	// consuming an approval or writing anything.
+	dryRun bool
+	// allowPartial acknowledges that a plugin install may deliver only the
+	// components this build projects, skipping the host-specific ones. Without
+	// it such an install is refused before any write (LPSM-INSTALL-PARTIAL).
+	// Only a plugin can be partial, so the flag is refused for other kinds
+	// rather than silently doing nothing.
+	allowPartial bool
 }
 
 const installUsage = "Usage: litespm install <listing-id> [--version <ver>] [--scope user|project]\n" +
-	"                     [--workspace <dir>] [--host <host-id>]... [--env <VAR>]... [--force] [--frozen]\n\n" +
+	"                     [--workspace <dir>] [--agent <id>]... [--all-detected]\n" +
+	"                     [--host <host-id>]... [--env <VAR>]... [--force] [--frozen] [--dry-run]\n" +
+	"                     [--allow-partial]\n\n" +
 	"  --scope  user installs for this machine; project installs for one project\n" +
 	"           directory (the current directory, or --workspace).\n" +
 	"  --workspace <dir>\n" +
 	"           the project directory a project-scope install targets. It implies\n" +
 	"           --scope project (an explicit `--scope user` alongside it is a\n" +
 	"           contradiction and is refused). The directory is the workspace\n" +
-	"           identity: the same directory is the same workspace for every\n" +
-	"           install and every read that names it.\n" +
-	"  --host   register an MCP server with this agent host (repeatable). Default: every\n" +
-	"           host where 'litespm host setup' has been run.\n" +
+	"           identity: the same directory is the same workspace for every\n" + "           install and every read that names it.\n" +
+	"  --agent  install into exactly this agent (repeatable). A skill takes a skills\n" +
+	"           target id; an MCP server or plugin takes a host id. '*' expands to every\n" +
+	"           known target. The resolved destinations are sealed into the plan, so\n" +
+	"           naming one agent never writes another. Default for a skill: the agents\n" +
+	"           detected on this machine. Default for an MCP server/plugin: every host\n" +
+	"           where 'litespm host setup' has been run.\n" +
+	"  --host   the older spelling of --agent for MCP servers and plugins (repeatable).\n" +
+	"           Accepted for a skill too; it means the same thing there.\n" +
+	"  --all-detected\n" +
+	"           every agent detected on this machine. This is what an empty --agent\n" +
+	"           already means for a skill; the flag makes that choice explicit. It\n" +
+	"           contradicts --agent/--host and is refused alongside either.\n" +
 	"  --env    forward this environment VARIABLE NAME to the server (repeatable). The\n" +
 	"           host config records a reference such as ${VAR}, never the value, so the\n" +
 	"           secret stays in the environment your agent was started in. Export it\n" +
 	"           before starting the agent; a value in the config is not needed.\n" +
 	"  --force  replace an existing entry with the same name instead of refusing.\n" +
 	"  --frozen install strictly from litespm.lock: the version is the locked one, with\n" +
-	"           no resolution; a missing, stale or edited lock fails LPSM-LOCK-DRIFT."
+	"           no resolution; a missing, stale or edited lock fails LPSM-LOCK-DRIFT.\n" + "  --dry-run\n" +
+	"           print the plan the install would run — effects, every target file and\n" +
+	"           skills directory, the sealed artifact and version — then stop. No plan is\n" +
+	"           recorded, no approval is consumed, and nothing on this machine changes.\n" +
+	"  --allow-partial\n" +
+	"           acknowledge a plugin installing only part of itself. A plugin may declare\n" +
+	"           commands, hooks, subagents or LSP servers, which LiteSPM has no adapter to\n" +
+	"           install; without this flag such an install is refused with the classes it\n" +
+	"           would skip and nothing is written. Plugins only — other kinds cannot be\n" +
+	"           partial, so the flag is refused there."
 
 // parseInstallFlags parses `litespm install` arguments strictly: unknown
 // flags, missing flag values, an out-of-range --scope, extra positional
@@ -1422,6 +1471,18 @@ func parseInstallFlags(args []string) (installFlags, error) {
 			}
 			i++
 			flags.hosts = append(flags.hosts, args[i])
+		case "--agent", "-a":
+			if i+1 >= len(args) {
+				return flags, fmt.Errorf("flag %s requires a value", arg)
+			}
+			i++
+			value := strings.TrimSpace(args[i])
+			if value == "" {
+				return flags, fmt.Errorf("flag %s requires an agent id", arg)
+			}
+			flags.agents = append(flags.agents, strings.ToLower(value))
+		case "--all-detected":
+			flags.allDetected = true
 		case "--env":
 			if i+1 >= len(args) {
 				return flags, fmt.Errorf("flag %s requires a value", arg)
@@ -1432,6 +1493,10 @@ func parseInstallFlags(args []string) (installFlags, error) {
 			flags.force = true
 		case "--frozen":
 			flags.frozen = true
+		case "--dry-run":
+			flags.dryRun = true
+		case "--allow-partial":
+			flags.allowPartial = true
 		default:
 			if strings.HasPrefix(arg, "-") {
 				return flags, fmt.Errorf("unknown flag %q", arg)
@@ -1452,6 +1517,13 @@ func parseInstallFlags(args []string) (installFlags, error) {
 			return flags, fmt.Errorf("--workspace %s targets a project, but --scope %s was given: use one, or --scope project", flags.workspace, flags.scope)
 		}
 		flags.scope = domain.ScopeProject
+	}
+
+	// "exactly these agents" and "every detected agent" are opposite requests.
+	// Accepting both would leave the target set to an implementation detail, so
+	// the contradiction is a usage error before any plan exists.
+	if flags.allDetected && (len(flags.agents) > 0 || len(flags.hosts) > 0) {
+		return flags, fmt.Errorf("--all-detected means every detected agent, so it cannot be combined with --agent/--host: name the targets, or ask for all of them, not both")
 	}
 
 	if flags.listingID == "" {
@@ -1574,12 +1646,35 @@ func runInstall(args []string) {
 		os.Exit(1)
 	}
 
+	// --allow-partial is a plugin acknowledgement: skills and MCP servers are
+	// installed whole or refused, so accepting the flag there would record a
+	// consent for nothing. Refusing it is the honest answer, and it costs no
+	// state (nothing has been planned or written at this point).
+	if flags.allowPartial && listing.Kind != domain.KindPlugin {
+		msg := fmt.Sprintf("--allow-partial applies to plugin installs only: %s is a %s, which LiteSPM installs whole or refuses", flags.listingID, listing.Kind)
+		auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", msg)
+		fmt.Fprintf(os.Stderr, "Install error: %s\n", msg)
+		fmt.Println(installUsage)
+		os.Exit(2)
+	}
+
 	// Discovery-only rows are searchable metadata, not installable packages.
 	if !listing.IsInstallable() {
 		detail := "this listing is discovery-only metadata with no proven artifact"
 		auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", detail)
 		fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrNotInstallable(listing.ID, detail))
 		os.Exit(1)
+	}
+
+	// A skill's target set is resolved while planning and sealed in the plan, so
+	// the copy can only land in a directory the approval named. `--agent` and
+	// `--host` mean the same thing here ("this agent"), so both feed the request.
+	var skillBinding *skillInstallBinding
+	if listing.Kind == domain.KindSkill {
+		skillBinding = &skillInstallBinding{
+			Requested:   append(append([]string(nil), flags.agents...), flags.hosts...),
+			AllDetected: flags.allDetected,
+		}
 	}
 
 	// The person typing this command is the authorization. It is still
@@ -1596,7 +1691,9 @@ func runInstall(args []string) {
 			fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrArtifactUnavailable(flags.listingID, runtimeErr.Error()))
 			os.Exit(1)
 		}
-		targetHosts := flags.hosts
+		// --agent and --host both name a target host for these kinds.
+		explicitHosts := append(append([]string(nil), flags.hosts...), flags.agents...)
+		targetHosts := explicitHosts
 		if len(targetHosts) == 0 {
 			targetHosts = host.RegisteredBridgeHosts(ctx, flags.scope)
 		}
@@ -1605,11 +1702,11 @@ func runInstall(args []string) {
 			Runtime:  runtime,
 			EnvNames: append([]string(nil), flags.envNames...),
 			Force:    flags.force,
-			// Only an explicit --host set is the user's own: it is never
-			// filtered for capability (an incapable host fails by name), while
-			// the default set is LiteSPM's choice and is filtered to the hosts
-			// that can actually express this runtime's transport.
-			ExplicitHosts: len(flags.hosts) > 0,
+			// Only an explicit set is the user's own: it is never filtered for
+			// capability (an incapable host fails by name), while the default
+			// set is LiteSPM's choice and is filtered to the hosts that can
+			// actually express this runtime's transport.
+			ExplicitHosts: len(explicitHosts) > 0,
 		}
 	}
 	if listing.Kind == domain.KindPlugin {
@@ -1619,7 +1716,8 @@ func runInstall(args []string) {
 		// so the set is the explicit --host set, or the registered bridge
 		// hosts — and a host that cannot take the entry fails the whole
 		// install rather than being dropped from it.
-		targetHosts := flags.hosts
+		explicitHosts := append(append([]string(nil), flags.hosts...), flags.agents...)
+		targetHosts := explicitHosts
 		if len(targetHosts) == 0 {
 			targetHosts = host.RegisteredBridgeHosts(ctx, flags.scope)
 		}
@@ -1627,12 +1725,36 @@ func runInstall(args []string) {
 			Hosts:         uniqueHostIDs(targetHosts),
 			EnvNames:      append([]string(nil), flags.envNames...),
 			Force:         flags.force,
-			ExplicitHosts: len(flags.hosts) > 0,
+			ExplicitHosts: len(explicitHosts) > 0,
+			AllowPartial:  flags.allowPartial,
 		}
 	}
+	// A dry run stops here: the plan is built exactly as a real install would
+	// build it (including the target gates and a plugin's sealed artifact), is
+	// printed in the same shape the approval prompt uses, and is then thrown
+	// away. Nothing is persisted, no approval is consumed, nothing is written.
+	if flags.dryRun {
+		plan, dropped, rpcErr := buildInstallPlan(ctx, catClient, listing.ID, flags.version, flags.scope, projectRoot, listing, mcpBinding, skillBinding)
+		if rpcErr != nil {
+			auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", rpcErr.Message)
+			fmt.Fprintf(os.Stderr, "Install failed: %s\n", rpcErr.Message)
+			os.Exit(1)
+		}
+		fmt.Println("Dry run — nothing was recorded, approved or written.")
+		if flags.allowPartial {
+			fmt.Println("Note: --allow-partial acknowledges that this plugin may install only its portable components;")
+			fmt.Println("      a plugin that declares no unprojected component installs the same either way.")
+		}
+		writeApprovalPrompt(os.Stdout, plan)
+		for _, d := range dropped {
+			fmt.Printf("Note: host %q would not be written: %s\n", d.HostID, d.Reason)
+		}
+		return
+	}
+
 	var grant *installGrant
 	if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP || listing.Kind == domain.KindPlugin {
-		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, projectRoot, mcpBinding)
+		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, projectRoot, mcpBinding, skillBinding)
 		if gerr != nil {
 			// The gate refused before any effect; it is still a refusal, and the
 			// agent path audits this same point. No approval was consumed.
@@ -1669,7 +1791,19 @@ func runInstall(args []string) {
 
 	if listing.Kind == domain.KindSkill {
 		home, _ := os.UserHomeDir()
-		outcome, err := installSkillFromListing(ctx, db, paths.DataRoot, projectRoot, home, listing, versionOrLatest(flags.version), flags.scope, nil)
+		// The approved plan names the directories; execution writes only those.
+		// Reading them from the plan (rather than detecting again) is what stops
+		// an agent installed after planning from widening this install.
+		agents, aerr := skillAgentsFromPlan(grant.Plan)
+		if aerr != nil {
+			failInstall(aerr)
+		}
+		for _, change := range grant.Plan.HostChanges {
+			if change.Action == skillWriteAction {
+				fmt.Printf("Skill target (sealed in the plan): %s\n", change.ConfigPath)
+			}
+		}
+		outcome, err := installSkillFromListing(ctx, db, paths.DataRoot, projectRoot, home, listing, versionOrLatest(flags.version), flags.scope, agents)
 		if err != nil {
 			failInstall(err)
 		}
@@ -1745,7 +1879,7 @@ func runCatalogSync() {
 	catClient := catalog.NewClientWithTimeout(regURL, paths.DataRoot, catalogTimeoutOf(cfg), nil)
 	fmt.Printf("Synchronizing catalog from %s...\n", regURL)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), catalogSyncTimeout(cfg))
 	defer cancel()
 
 	res, err := catClient.Sync(ctx)
@@ -2594,6 +2728,11 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			Version     string `json:"version,omitempty"`
 			Scope       string `json:"scope,omitempty"`
 			ProjectRoot string `json:"projectRoot,omitempty"`
+			// AllowPartial acknowledges a plugin installing only its portable
+			// components. It is sealed into the plan, so the human approving
+			// that plan approves the acknowledgement too; a plugin install
+			// that would skip declared components is refused without it.
+			AllowPartial bool `json:"allowPartial,omitempty"`
 		}
 		if err := json.Unmarshal(params, &req); err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params"}
@@ -2652,7 +2791,17 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			return nil, installRPCError(refusal)
 		}
 
-		plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, req.ID, req.Version, scope, projectRoot, listing, nil)
+		// The bridge/agent path names no targets: buildInstallPlan resolves the
+		// defaults and seals them, so the human approves a concrete set.
+		var mcpBinding *mcpInstallBinding
+		if req.AllowPartial {
+			if listing.Kind != domain.KindPlugin {
+				return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams,
+					Message: fmt.Sprintf("allowPartial applies to plugin installs only: %s is a %s, which LiteSPM installs whole or refuses", req.ID, listing.Kind)}
+			}
+			mcpBinding = &mcpInstallBinding{AllowPartial: true}
+		}
+		plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, req.ID, req.Version, scope, projectRoot, listing, mcpBinding, nil)
 		if rpcErr != nil {
 			return nil, rpcErr
 		}
@@ -2756,10 +2905,16 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				listingID, version, scope = grant.ListingID, grant.Version, grant.Scope
 				if listing.Kind == domain.KindSkill {
 					home, _ := os.UserHomeDir()
-					// The workspace comes from the sealed plan, never from a
-					// fresh request field: the approval the human gave covers
-					// this plan's hash, and the project root is part of it.
-					outcome, ierr := installSkillFromListing(ctx, db, paths.DataRoot, grant.Plan.Request.ProjectRoot, home, listing, versionOrLatest(version), scope, nil)
+					// The workspace and the destination set both come from the
+					// sealed plan, never from a fresh request field: the approval
+					// the human gave covers this plan's hash, and both are part
+					// of it.
+					agents, aerr := skillAgentsFromPlan(grant.Plan)
+					if aerr != nil {
+						auditDetail = aerr.Error()
+						return nil, installRPCError(aerr)
+					}
+					outcome, ierr := installSkillFromListing(ctx, db, paths.DataRoot, grant.Plan.Request.ProjectRoot, home, listing, versionOrLatest(version), scope, agents)
 					if ierr != nil {
 						auditDetail = ierr.Error()
 						return nil, installRPCError(ierr)
@@ -3654,7 +3809,7 @@ type preparePlanResult struct {
 // The returned drop list names every host removed from an auto-chosen target
 // set because it cannot express the runtime's transport (always empty for a
 // stdio runtime and for an explicit --host set, which fails by name instead).
-func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, version string, scope domain.InstallScope, projectRoot string, listing *domain.Listing, mcpBinding *mcpInstallBinding) (*domain.InstallPlan, []hostCapabilityDrop, *ipc.RPCError) {
+func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, version string, scope domain.InstallScope, projectRoot string, listing *domain.Listing, mcpBinding *mcpInstallBinding, skillBinding *skillInstallBinding) (*domain.InstallPlan, []hostCapabilityDrop, *ipc.RPCError) {
 	// Kind gate (defence in depth): every caller gates before calling, but no
 	// caller may seal a plan for a kind with no wired install path even if one
 	// forgets. The CLI and the RPC gates exist so the refusal is a clear
@@ -3673,14 +3828,24 @@ func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, versio
 		explicit := false
 		force := false
 		var envNames []string
+		allowPartial := false
 		if mcpBinding != nil {
 			hosts = mcpBinding.Hosts
 			explicit = mcpBinding.ExplicitHosts
 			force = mcpBinding.Force
 			envNames = mcpBinding.EnvNames
+			allowPartial = mcpBinding.AllowPartial
+		}
+		// A caller that names no hosts — the Bridge and the agent path never
+		// do — gets LiteSPM's default set: every host whose LiteSPM bridge
+		// verifies as registered. Without this the sealed plan had an empty
+		// target set and every agent-path plugin plan was refused, while the
+		// CLI path (which resolves the same default itself) worked.
+		if len(hosts) == 0 {
+			hosts = host.RegisteredBridgeHosts(ctx, scope)
 		}
 		plan, drops, perr := buildPluginInstallPlan(ctx, catClient, listing, version, scope, projectRoot,
-			hosts, explicit, force, envNames)
+			hosts, explicit, force, envNames, allowPartial)
 		if perr != nil {
 			return nil, nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: perr.Error()}
 		}
@@ -3751,6 +3916,35 @@ func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, versio
 		}
 	}
 
+	// A skill writes directories, not config entries, so its destinations are a
+	// different kind of host change. They are resolved here — before the plan is
+	// built and hashed — so the approval covers every directory the copy may
+	// touch. An explicit target resolves to exactly that target; an empty request
+	// resolves to the detected set, never to a superset of either.
+	hostChanges := hostChangesFor(ctx, listing, scope, targetHosts, mcpBinding)
+	if listing != nil && listing.Kind == domain.KindSkill {
+		requested := []string(nil)
+		if skillBinding != nil {
+			requested = skillBinding.Requested
+		}
+		// The command itself is the approval on this path, so a copy into more
+		// than one agent must be asked for by name. A single detected agent is
+		// unambiguous; two or more is the fan-out the target rules forbid, and
+		// the refusal says both ways to choose.
+		if skillBinding != nil && len(requested) == 0 && !skillBinding.AllDetected {
+			if detected := detectedSkillAgentIDs(projectRoot, userHome()); len(detected) > 1 {
+				return nil, nil, &ipc.RPCError{Code: ipc.CodeInvalidParams,
+					Message: fmt.Sprintf("this skill would be copied into %d detected agents (%s), and the command names none of them. Nothing was changed. Name the ones you want with --agent <id> (repeatable), or pass --all-detected to write all of them",
+						len(detected), strings.Join(detected, ", "))}
+			}
+		}
+		dests, derr := planSkillDestinations(listing, scope, projectRoot, userHome(), requested)
+		if derr != nil {
+			return nil, nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: derr.Error()}
+		}
+		hostChanges = skillHostChanges(listing, dests)
+	}
+
 	now := time.Now().UTC()
 	plan := &domain.InstallPlan{
 		SchemaVersion: 2,
@@ -3774,7 +3968,7 @@ func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, versio
 		// probes the machine — the resolver publishes no runtime requirements
 		// either (its nodes carry versions and dependencies only).
 		Preconditions:   domain.PlanPreconditions{},
-		HostChanges:     hostChangesFor(ctx, listing, scope, targetHosts, mcpBinding),
+		HostChanges:     hostChanges,
 		RequestedAccess: requestedAccessFor(versionRec),
 	}
 
@@ -4005,7 +4199,11 @@ func installRPCError(err error) *ipc.RPCError {
 	// failure: the request named something that already exists. An endpoint
 	// the egress guard refuses, and --env on a remote entry, are the same
 	// shape of mistake: the request asked for something LiteSPM will not do.
+	// A partial install the caller never acknowledged is the same shape: the
+	// request asked for something LiteSPM will not do without consent, and
+	// the remedy is a flag the caller can send.
 	case "LPSM-STATE-NOT-FOUND", "LPSM-DOMAIN-INVALID-ID", "LPSM-STATE-CONFLICT", "LPSM-NAME-CONFLICT", "LPSM-INSTALL-TARGET-UNAVAILABLE", "LPSM-NOT-INSTALLABLE",
+		"LPSM-INSTALL-PARTIAL",
 		"LPSM-ARTIFACT-UNAVAILABLE",
 		"LPSM-EGRESS-BLOCKED", "LPSM-REMOTE-ENV-REFUSED":
 		return &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}

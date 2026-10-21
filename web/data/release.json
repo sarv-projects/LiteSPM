@@ -1,7 +1,7 @@
 {
   "agentSkillsCount": 20320,
   "createdAt": "2026-10-20T05:40:30Z",
-  "datasetDigest": "sha256:a94467092694905f0ecd87da198829eeedff0dc809753fc94f43290986371e3d",
+  "datasetDigest": "sha256:084f117215406c54c8765ce25c30d2b100f97dc2b9d4001a8e79a8f918ce75c5",
   "hostCompatibility": {
     "mcp": "all-bridge-adapters",
     "plugin": "publisher-declared",

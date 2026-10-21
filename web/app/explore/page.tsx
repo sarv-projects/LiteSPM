@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   description:
     "Search the whole catalog by name, summary, publisher, category, runtime, transport or tool name, filter by goal, and narrow to what works with the agent you actually use.",
   alternates: { canonical: "/explore/" },
-  openGraph: { title: "Explore the catalog · LiteSPM Market", url: "/explore/" },
+  openGraph: { title: "Explore the catalog · LiteSPM", url: "/explore/" },
 };
 
 /**

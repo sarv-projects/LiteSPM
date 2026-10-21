@@ -4,18 +4,31 @@ package main
 //
 // # What a plugin install IS
 //
-// A plugin is a bundle: a manifest, some MCP servers, and (in most plugins)
-// commands, agents, hooks and skills. LiteSPM's host adapters do an
-// MCP-entry merge only (ARCH/16), so the component of a plugin LiteSPM can
-// install is the MCP servers its manifest declares — registered in each
-// target host's config exactly as an MCP server is, through the same writer
-// (internal/host.InstallServerEntry), the same backup, the same ledger and
-// the same removal.
+// A plugin is a bundle: a manifest, some MCP servers, some skills, and (in
+// most plugins) commands, agents, hooks and LSP servers. Two of those classes
+// are portable and are installed here: MCP servers are registered in each
+// target host's config through the same writer as a standalone server
+// (internal/host.InstallServerEntry), and skills are copied into each agent's
+// own skills tree through the same installer and ledger as a standalone skill
+// (install_plugin_skills.go).
 //
-// The other components are COUNTED and REPORTED, never projected. LiteSPM
-// has no projection for a command, an agent or a hook, and a half-projection
-// is worse than none: an install that claims to have installed a plugin whose
-// commands were silently dropped is a lie the user cannot see.
+// The host-specific extras are COUNTED and REPORTED with a reason, never
+// projected. LiteSPM has no adapter for a command, an agent or a hook, and a
+// half-projection is worse than none: an install that claims to have installed
+// a plugin whose commands were silently dropped is a lie the user cannot see.
+//
+// # Partial installs need consent
+//
+// Because the skip set is named by the plugin's own manifest inside the pinned
+// tree, it is not knowable when the plan is written — only after the approved
+// tree is fetched. So the acknowledgement (--allow-partial, or allowPartial on
+// prepare_install) is sealed into the plan at plan time and checked at
+// execution time, after the manifest is read and before any write: a plugin
+// that declares an unprojected component is refused with LPSM-INSTALL-PARTIAL
+// naming the classes it would skip, rather than installing its portable half
+// and mentioning the loss in a note. A plugin whose only portable component is
+// a skill is installable; installing part of a plugin is a decision a person
+// makes, not a default.
 //
 // # The order of the work
 //
@@ -68,6 +81,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -85,6 +99,7 @@ import (
 	"github.com/sarv-projects/litespm/internal/interop"
 	"github.com/sarv-projects/litespm/internal/lifecycle"
 	"github.com/sarv-projects/litespm/internal/policy"
+	"github.com/sarv-projects/litespm/internal/skills"
 	"github.com/sarv-projects/litespm/internal/state"
 )
 
@@ -121,6 +136,11 @@ type pluginInstallBinding struct {
 	Artifact pluginArtifact
 	EnvNames []string
 	Force    bool
+	// SkillDests are the skills trees the plugin's portable skill components
+	// may be copied into. They are a subset of Hosts — one root per target
+	// host that is also a skills target — and they are sealed in the plan, so
+	// a plugin cannot copy a skill into a tree nobody approved.
+	SkillDests []skillDestination
 	// ExplicitHosts marks a target set the USER named. An explicitly named
 	// host is never filtered away for capability: the user asked for exactly
 	// that host, so an incapable one fails by name instead of being silently
@@ -128,13 +148,20 @@ type pluginInstallBinding struct {
 	// filtered to the hosts that can take the entry, with the drops
 	// reported.
 	ExplicitHosts bool
+	// AllowPartial records that the person asked for this install KNOWING a
+	// plugin can deliver only part of what it declares. It is sealed into the
+	// plan, so the approval covers the acknowledgement itself; without it an
+	// install that would skip declared components is refused before any
+	// write (see skippedPluginComponents).
+	AllowPartial bool
 }
 
 // pluginInstallPlanValue is the sealed value of a plugin plan.
 type pluginInstallPlanValue struct {
-	Artifact pluginArtifact `json:"artifact"`
-	EnvNames []string       `json:"envNames,omitempty"`
-	Force    bool           `json:"force,omitempty"`
+	Artifact     pluginArtifact `json:"artifact"`
+	EnvNames     []string       `json:"envNames,omitempty"`
+	Force        bool           `json:"force,omitempty"`
+	AllowPartial bool           `json:"allowPartial,omitempty"`
 }
 
 func pluginInstallPlanValueJSON(binding *pluginInstallBinding) string {
@@ -142,9 +169,10 @@ func pluginInstallPlanValueJSON(binding *pluginInstallBinding) string {
 		return ""
 	}
 	data, err := json.Marshal(pluginInstallPlanValue{
-		Artifact: binding.Artifact,
-		EnvNames: append([]string(nil), binding.EnvNames...),
-		Force:    binding.Force,
+		Artifact:     binding.Artifact,
+		EnvNames:     append([]string(nil), binding.EnvNames...),
+		Force:        binding.Force,
+		AllowPartial: binding.AllowPartial,
 	})
 	if err != nil {
 		return ""
@@ -171,9 +199,9 @@ type pluginServerEntry struct {
 }
 
 // pluginInstallOutcome is the honest result of a plugin install: the servers
-// that were registered, the hosts they were written to, the pinned artifact
-// they came from, and the components the plugin declares that LiteSPM does
-// not install.
+// that were registered, the skills that were copied, the hosts they were
+// written to, the pinned artifact they came from, and the components the
+// plugin declares that LiteSPM does not install.
 type pluginInstallOutcome struct {
 	InstallID string
 	ListingID string
@@ -187,9 +215,18 @@ type pluginInstallOutcome struct {
 	Servers []pluginServerEntry
 	// Hosts are the host config writes, one per (host, server).
 	Hosts []*host.EntryInstallResult
+	// Skills are the portable skill components that were copied, with every
+	// directory each one landed in.
+	Skills []pluginSkillResult
+	// Skipped are the declared component classes this build cannot project,
+	// each with the reason. A non-empty list means the install is partial.
+	Skipped []skippedComponent
 	// NotInstalled counts the components the manifest declares that this
 	// install did not project.
 	NotInstalled map[string]int
+	// AllowPartial records that the partial projection was acknowledged in the
+	// approved plan rather than merely tolerated.
+	AllowPartial bool
 	// Warnings are the manifest's reported facts.
 	Warnings []string
 }
@@ -278,6 +315,7 @@ func buildPluginInstallPlan(
 	explicit bool,
 	force bool,
 	envNames []string,
+	allowPartial bool,
 ) (*domain.InstallPlan, []hostCapabilityDrop, error) {
 	if listing == nil || listing.Kind != domain.KindPlugin {
 		return nil, nil, fmt.Errorf("buildPluginInstallPlan: the listing is not a plugin")
@@ -332,6 +370,10 @@ func buildPluginInstallPlan(
 		EnvNames:      append([]string(nil), envNames...),
 		Force:         force,
 		ExplicitHosts: explicit,
+		AllowPartial:  allowPartial,
+		// The hosts that also have a skills tree. Sealed now, so the skill
+		// components of the plugin can only be copied where a human approved.
+		SkillDests: pluginSkillRootsFor(kept, scope, projectRoot),
 	}
 	plan := &domain.InstallPlan{
 		SchemaVersion: 2,
@@ -396,6 +438,19 @@ func pluginHostChanges(ctx context.Context, hosts []string, scope domain.Install
 			ValueJSON:  pluginInstallPlanValueJSON(binding),
 		})
 	}
+	// A plugin's portable skills are directories, not config entries, so each
+	// destination tree is a separate host change. The skill's own name lives
+	// inside the pinned tree, which is why the root is what the plan seals;
+	// the commit in the value JSON is what binds the contents.
+	for _, dest := range binding.SkillDests {
+		changes = append(changes, domain.HostChange{
+			HostID:     dest.AgentID,
+			ConfigPath: dest.Root,
+			Action:     skillWriteAction,
+			EntryKey:   "",
+			ValueJSON:  pluginInstallPlanValueJSON(binding),
+		})
+	}
 	return changes
 }
 
@@ -454,6 +509,12 @@ func pluginInstallBindingFromPlan(ctx context.Context, plan *domain.InstallPlan,
 	seen := make(map[string]bool, len(plan.HostChanges))
 	var expected *pluginInstallPlanValue
 	for _, change := range plan.HostChanges {
+		// Skill roots are validated in the second pass, after the target host
+		// set is known: a skill root is only meaningful for a host the plan
+		// also targets.
+		if change.Action == skillWriteAction {
+			continue
+		}
 		if change.HostID == "" || seen[change.HostID] {
 			return nil, domain.ErrPlanStale(plan.PlanID, "the plugin host target set is empty or contains duplicates")
 		}
@@ -476,13 +537,38 @@ func pluginInstallBindingFromPlan(ctx context.Context, plan *domain.InstallPlan,
 			copyValue := value
 			expected = &copyValue
 		} else if expected.Artifact != value.Artifact || expected.Force != value.Force ||
+			expected.AllowPartial != value.AllowPartial ||
 			strings.Join(expected.EnvNames, ",") != strings.Join(value.EnvNames, ",") {
 			return nil, domain.ErrPlanStale(plan.PlanID, "the plugin host changes disagree about the approved artifact")
 		}
 		binding.Hosts = append(binding.Hosts, change.HostID)
 	}
+	if len(binding.Hosts) == 0 {
+		return nil, domain.ErrInstallTargetUnavailable("the approved plan contains no plugin host targets; prepare a new plan after configuring a host")
+	}
 	if expected == nil {
 		return nil, domain.ErrPlanStale(plan.PlanID, "the approved plan contains no plugin artifact")
+	}
+	// The sealed skills roots, re-checked against the machine: a relocated
+	// agent home must fail closed rather than redirect a copy.
+	hostSet := make(map[string]bool, len(binding.Hosts))
+	for _, hostID := range binding.Hosts {
+		hostSet[hostID] = true
+	}
+	for _, change := range plan.HostChanges {
+		if change.Action != skillWriteAction {
+			continue
+		}
+		if !hostSet[change.HostID] {
+			return nil, domain.ErrPlanStale(plan.PlanID, fmt.Sprintf(
+				"the plan seals a skills destination for %q, which is not one of its target hosts", change.HostID))
+		}
+		want, ok := pluginSkillRootFor(change.HostID, scope, plan.Request.ProjectRoot, userHome())
+		if !ok || filepath.Clean(want) != filepath.Clean(change.ConfigPath) {
+			return nil, domain.ErrPlanStale(plan.PlanID, fmt.Sprintf(
+				"the skills directory for host %q changed after the plan was prepared", change.HostID))
+		}
+		binding.SkillDests = append(binding.SkillDests, skillDestination{AgentID: change.HostID, Root: want})
 	}
 	// The sealed artifact is re-validated here: a plan that names a mutable
 	// or non-https source must not reach a fetch.
@@ -492,6 +578,7 @@ func pluginInstallBindingFromPlan(ctx context.Context, plan *domain.InstallPlan,
 	binding.Artifact = expected.Artifact
 	binding.EnvNames = append([]string(nil), expected.EnvNames...)
 	binding.Force = expected.Force
+	binding.AllowPartial = expected.AllowPartial
 	return binding, nil
 }
 
@@ -552,10 +639,33 @@ func installPluginFromListing(
 	if err != nil {
 		return nil, err
 	}
-	if len(manifest.MCPServers) == 0 {
+	// The portable components: servers (registered in a host config) and
+	// skills (copied into an agent's skills tree). A plugin that bundles only
+	// skills is installable — the old "no MCP server" refusal was this build's
+	// projection limit, not a property of the plugin.
+	skillComponents, err := resolvePluginSkills(treeDir, manifest)
+	if err != nil {
+		return nil, err
+	}
+	if len(manifest.MCPServers) == 0 && len(skillComponents) == 0 {
 		return nil, domain.ErrArtifactUnavailable(listing.ID,
-			"the plugin's manifest declares no MCP server, and LiteSPM installs a plugin's MCP servers: "+
-				"there is nothing this build can register in a host config")
+			"the plugin's manifest declares no MCP server and no skill, so there is no component this build can install; "+
+				"its host-specific components (commands, hooks, subagents, LSP servers) have no adapter here")
+	}
+
+	// The consent gate. A plugin can deliver only the components this build
+	// projects, and the rest is lost — so a partial projection is a choice the
+	// person installing has to make knowingly. The skip set is named by the
+	// plugin's own manifest inside the pinned tree, which is fetched only
+	// after the approval, so the acknowledgement is sealed in the plan at
+	// plan time and checked here, after the manifest is read and before the
+	// policy gate, the host pre-flight or any write. The refusal carries
+	// LPSM-INSTALL-PARTIAL with the classes it would skip.
+	skipped := skippedPluginComponents(manifest.NotInstalled)
+	if !binding.AllowPartial {
+		if unacknowledged := unprojectedComponentCounts(skipped); len(unacknowledged) > 0 {
+			return nil, domain.ErrInstallPartial(listing.ID, unacknowledged, "--allow-partial")
+		}
 	}
 
 	entries, err := pluginServerEntries(listing, manifest, binding.EnvNames)
@@ -586,6 +696,8 @@ func installPluginFromListing(
 		Artifact:     binding.Artifact,
 		TreeDigest:   treeDigest,
 		NotInstalled: manifest.NotInstalled,
+		Skipped:      skipped,
+		AllowPartial: binding.AllowPartial,
 		Warnings:     manifest.Warnings,
 	}
 
@@ -622,6 +734,15 @@ func installPluginFromListing(
 	}
 	outcome.Servers = entries
 
+	// The portable skills, copied into the sealed roots. Each copy goes
+	// through the skills installer: same policy gate, same provenance ledger,
+	// same compensation. A failure here rolls the host writes back too.
+	skillResults, skillEntries, err := installPluginSkillComponents(ctx, txn, db, dataRoot, listing, binding, skillComponents, scope)
+	if err != nil {
+		return nil, errors.Join(err, txn.Rollback())
+	}
+	outcome.Skills = skillResults
+
 	// The install id is content-bound: the same plugin installed from the
 	// same pinned tree is the same install, and a different tree is a
 	// different one.
@@ -629,6 +750,11 @@ func installPluginFromListing(
 	installPath := ""
 	if len(outcome.Hosts) > 0 {
 		installPath = outcome.Hosts[0].ConfigPath
+	}
+	// A skills-only plugin has no config write to point at; the install path
+	// is the first directory it actually copied into.
+	if installPath == "" && len(outcome.Skills) > 0 && len(outcome.Skills[0].Destinations) > 0 {
+		installPath = outcome.Skills[0].Destinations[0]
 	}
 	now := time.Now().UTC()
 	rec := &domain.InstallRecord{
@@ -664,6 +790,39 @@ func installPluginFromListing(
 				Path:          installPath,
 			}); err != nil {
 				return fmt.Errorf("record the installed component: %w", err)
+			}
+		}
+		// The portable skill components: one component row and one ledgered
+		// mutation per copied directory, so `litespm list`, removal and restore
+		// see them exactly as they see a standalone skill install.
+		byDest := make(map[string]skills.LedgerEntry, len(skillEntries))
+		for _, e := range skillEntries {
+			byDest[e.DestDir] = e
+		}
+		for _, sk := range outcome.Skills {
+			firstPath := ""
+			if len(sk.Destinations) > 0 {
+				firstPath = sk.Destinations[0]
+			}
+			if err := db.SaveInstallComponentExec(ctx, tx, &domain.InstallComponentRecord{
+				InstallID:     outcome.InstallID,
+				Kind:          domain.ComponentSkill,
+				ComponentName: sk.SkillName,
+				Path:          firstPath,
+			}); err != nil {
+				return fmt.Errorf("record the plugin's installed skill component: %w", err)
+			}
+			for _, dest := range sk.Destinations {
+				e, ok := byDest[dest]
+				if !ok {
+					return fmt.Errorf("the skill copy at %s has no ledger entry to record", dest)
+				}
+				m := lifecycle.OwnedWrite(outcome.InstallID, listing.ID,
+					e.AgentID, string(scope), dest, "skill-dir",
+					"skills."+sk.SkillName, "", e.ContentDigest, "", "")
+				if err := deployment.SaveMutationExec(ctx, tx, m); err != nil {
+					return fmt.Errorf("record the skill mutation for %s: %w", dest, err)
+				}
 			}
 		}
 		for _, result := range outcome.Hosts {
@@ -997,25 +1156,31 @@ func authorizePluginInstallPolicy(
 // where, from which pinned commit, and what the plugin declares that this
 // build did not install.
 func printPluginInstall(outcome *pluginInstallOutcome) {
-	fmt.Printf("✓ Registered plugin %s\n", outcome.ListingID)
-	fmt.Printf("  • Install ID:  %s\n", outcome.InstallID)
-	fmt.Printf("  • Version:     %s\n", outcome.Version)
-	fmt.Printf("  • Scope:       %s\n", outcome.Scope)
-	fmt.Printf("  • Commit:      %s\n", outcome.Artifact.Commit)
+	printPluginInstallTo(os.Stdout, outcome)
+}
+
+// printPluginInstallTo is the report on a writer, so the partial-install
+// wording is testable rather than only visible on a terminal.
+func printPluginInstallTo(w io.Writer, outcome *pluginInstallOutcome) {
+	fmt.Fprintf(w, "✓ Registered plugin %s\n", outcome.ListingID)
+	fmt.Fprintf(w, "  • Install ID:  %s\n", outcome.InstallID)
+	fmt.Fprintf(w, "  • Version:     %s\n", outcome.Version)
+	fmt.Fprintf(w, "  • Scope:       %s\n", outcome.Scope)
+	fmt.Fprintf(w, "  • Commit:      %s\n", outcome.Artifact.Commit)
 	if outcome.Artifact.Path != "" {
-		fmt.Printf("  • Path:        %s\n", outcome.Artifact.Path)
+		fmt.Fprintf(w, "  • Path:        %s\n", outcome.Artifact.Path)
 	}
 	if outcome.TreeDigest != "" {
-		fmt.Printf("  • Tree digest: %s\n", outcome.TreeDigest)
+		fmt.Fprintf(w, "  • Tree digest: %s\n", outcome.TreeDigest)
 	}
 	for _, server := range outcome.Servers {
 		if server.Endpoint != "" {
-			fmt.Printf("  • %-24s %s (%s)\n", server.Name, server.Endpoint, entryTransportLabel(host.ServerEntry{Endpoint: server.Endpoint, Transport: server.Transport}))
+			fmt.Fprintf(w, "  • %-24s %s (%s)\n", server.Name, server.Endpoint, entryTransportLabel(host.ServerEntry{Endpoint: server.Endpoint, Transport: server.Transport}))
 		} else {
-			fmt.Printf("  • %-24s %s %s\n", server.Name, server.Command, strings.Join(server.Args, " "))
+			fmt.Fprintf(w, "  • %-24s %s %s\n", server.Name, server.Command, strings.Join(server.Args, " "))
 		}
 		if len(server.DeclaredEnvNames) > 0 {
-			fmt.Printf("      wants: %s (forward it with --env <NAME>; no value was written)\n",
+			fmt.Fprintf(w, "      wants: %s (forward it with --env <NAME>; no value was written)\n",
 				strings.Join(server.DeclaredEnvNames, ", "))
 		}
 	}
@@ -1027,18 +1192,29 @@ func printPluginInstall(outcome *pluginInstallOutcome) {
 		case h.Created:
 			verb = "created"
 		}
-		fmt.Printf("  • %-12s %s entry %q in %s\n", h.HostID, verb, h.Name, h.ConfigPath)
+		fmt.Fprintf(w, "  • %-12s %s entry %q in %s\n", h.HostID, verb, h.Name, h.ConfigPath)
 	}
-	if len(outcome.NotInstalled) > 0 {
-		parts := make([]string, 0, len(outcome.NotInstalled))
-		for _, kind := range sortedCountKeys(outcome.NotInstalled) {
-			parts = append(parts, fmt.Sprintf("%d %s", outcome.NotInstalled[kind], kind))
+	for _, sk := range outcome.Skills {
+		fmt.Fprintf(w, "  • skill      %s -> %s\n", sk.SkillName, strings.Join(sk.Destinations, ", "))
+	}
+	if len(outcome.Skipped) > 0 {
+		parts := make([]string, 0, len(outcome.Skipped))
+		for _, skipped := range outcome.Skipped {
+			parts = append(parts, fmt.Sprintf("%d %s", skipped.Count, skipped.Kind))
 		}
-		fmt.Printf("  Note: the plugin also declares %s. LiteSPM installs a plugin's MCP servers only;\n"+
-			"        the other components were not projected into your agent.\n", strings.Join(parts, ", "))
+		acknowledged := ""
+		if outcome.AllowPartial {
+			acknowledged = " (acknowledged with --allow-partial)"
+		}
+		fmt.Fprintf(w, "  Note: this is a PARTIAL install%s — the plugin also declares %s.\n"+
+			"        LiteSPM installs a plugin's MCP servers and skills; the host-specific extras have no adapter here.\n",
+			acknowledged, strings.Join(parts, ", "))
+		for _, skipped := range outcome.Skipped {
+			fmt.Fprintf(w, "        %s: %s\n", skipped.Kind, skipped.Reason)
+		}
 	}
 	for _, warning := range outcome.Warnings {
-		fmt.Printf("  Note: %s\n", warning)
+		fmt.Fprintf(w, "  Note: %s\n", warning)
 	}
 }
 

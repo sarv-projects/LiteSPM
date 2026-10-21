@@ -37,7 +37,7 @@ for (const { label, entry, url } of cases) {
 
     // The generic shell's own title must not appear on an entry page.
     expect(html).not.toMatch(/<title>Find a package/);
-    expect(html).toContain(`<title>${entry.row.name} · LiteSPM Market</title>`);
+    expect(html).toContain(`<title>${entry.row.name} · LiteSPM</title>`);
     expect(htmlContains(html, entry.row.name)).toBe(true);
 
     // The identity is structured, not only visible: one SoftwareApplication
@@ -72,8 +72,8 @@ test("colon-bearing flagship: the query form and the canonical form are the same
   expect(query.status()).toBe(200);
   const canonicalHtml = await canonical.text();
   const queryHtml = await query.text();
-  expect(canonicalHtml).toContain(`<title>${flagship.row.name} · LiteSPM Market</title>`);
-  expect(queryHtml).toContain(`<title>${flagship.row.name} · LiteSPM Market</title>`);
+  expect(canonicalHtml).toContain(`<title>${flagship.row.name} · LiteSPM</title>`);
+  expect(queryHtml).toContain(`<title>${flagship.row.name} · LiteSPM</title>`);
   // The canonical link points at the path form from both spellings.
   for (const html of [canonicalHtml, queryHtml]) {
     expect(html).toMatch(
@@ -105,7 +105,7 @@ for (const { label, entry } of [
   test(`${label}: a cold browser load renders the entry's own page`, async ({ page }) => {
     await page.goto(entry.href);
     await expect(page.locator("#pkg-title")).toHaveText(entry.row.name);
-    await expect(page).toHaveTitle(`${entry.row.name} · LiteSPM Market`);
+    await expect(page).toHaveTitle(`${entry.row.name} · LiteSPM`);
     // The page's own structured data is present after hydration, too.
     await expect(page.locator('script[type="application/ld+json"]')).not.toHaveCount(0);
   });
@@ -117,5 +117,5 @@ test("an unknown key answers with the 404 document, not a generic entry shell", 
   const response = await request.get("/package/definitely-not-a-real-key-xyz/");
   expect(response.status()).toBe(404);
   const html = await response.text();
-  expect(html).not.toContain("Find a package · LiteSPM Market");
+  expect(html).not.toContain("Find a package · LiteSPM");
 });

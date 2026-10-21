@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   description:
     "How to report a vulnerability, what LiteSPM is trusted to do, and the boundaries it does not cross: it does not audit publishers' code, a verified badge is not a security review, and installed code is not sandboxed.",
   alternates: { canonical: "/security/" },
-  openGraph: { title: "Security · LiteSPM Market", url: "/security/" },
+  openGraph: { title: "Security · LiteSPM", url: "/security/" },
 };
 
 const SECURITY_MD_URL = `${REPO_URL}/blob/main/SECURITY.md`;
@@ -140,7 +140,7 @@ export default function SecurityPage() {
         </Facts>
       </InfoSection>
 
-      <InfoSection title="The supply chain, and its honest limit">
+      <InfoSection title="The supply chain, and where it stops">
         <p>
           Each release publishes a checksum listing beside the binaries, signs every artifact with
           a keyless signature, publishes the signature bundle and a software bill of materials

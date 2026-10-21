@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   description:
     "Where to report a bug, a security vulnerability, or a wrong catalog row, and what to include so the report can be acted on.",
   alternates: { canonical: "/contact/" },
-  openGraph: { title: "Contact · LiteSPM Market", url: "/contact/" },
+  openGraph: { title: "Contact · LiteSPM", url: "/contact/" },
 };
 
 const ISSUES_URL = `${REPO_URL}/issues`;

@@ -428,6 +428,13 @@ def main():
         ("plain http (non-loopback)", "http://mcp.acme.example/mcp"),
         ("credentials in the URL", "https://user:pass@mcp.acme.example/mcp"),
         ("URL fragment", "https://mcp.acme.example/mcp#tok"),
+        # The audit rule (internal/scan.looksLikeCredential) flags a literal
+        # credential in the query. Refusing it here is what keeps a future
+        # release from publishing a row `litespm audit` then calls an error.
+        ("demo token in the query",
+         "https://mcp.acme.example/mcp?demo_token=openlmnp_demo_ro_ebd891f4"),
+        ("api key in the query",
+         "https://mcp.acme.example/mcp?api_key=sk-live-1234"),
         ("non-default port", "https://mcp.acme.example:8443/mcp"),
         ("link-local literal", "https://169.254.169.254/latest/meta-data"),
         ("private literal", "https://10.0.0.8/mcp"),
@@ -441,6 +448,16 @@ def main():
         ok(row["installability"] == producer.DISCOVERY_ONLY,
            f"a refused endpoint must keep discovery_only ({label})")
         ok(refused is True, f"a refused endpoint must be logged as refused ({label})")
+
+    # A query that only names a variable is a placeholder, not a credential:
+    # the audit rule exempts it and so must the producer, or the two would
+    # disagree about what may be published.
+    placeholder = fixture_server([{"type": "streamable-http",
+                                   "url": "https://mcp.acme.example/mcp?token={token}"}])
+    row, _, refused = build_row(placeholder)
+    ok(row["url"] == "https://mcp.acme.example/mcp?token={token}",
+       "a placeholder query value must stay publishable")
+    ok(refused is False, "a placeholder query value must not count as refused")
 
     # Loopback over plain http is the guard's one carve-out
     # (egress.Policy.AllowLoopbackHTTP): a local dev endpoint is publishable.

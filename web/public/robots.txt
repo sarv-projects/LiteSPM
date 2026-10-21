@@ -1,4 +1,4 @@
-# LiteSPM Market
+# LiteSPM
 #
 # The origin below is the deployed one; keep it in step when a custom domain
 # replaces it.

@@ -31,9 +31,9 @@ import { Fact, Facts, InfoPage, InfoSection } from "../../components/layout/Info
 export const metadata: Metadata = {
   title: "Privacy",
   description:
-    "What LiteSPM Market stores in your browser, which two image hosts a page contacts, and what the litespm command writes and sends.",
+    "What LiteSPM stores in your browser, which two image hosts a page contacts, and what the litespm command writes and sends.",
   alternates: { canonical: "/privacy/" },
-  openGraph: { title: "Privacy · LiteSPM Market", url: "/privacy/" },
+  openGraph: { title: "Privacy · LiteSPM", url: "/privacy/" },
 };
 
 export default function PrivacyPage() {

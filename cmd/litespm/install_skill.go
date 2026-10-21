@@ -132,6 +132,11 @@ func installSkillFromListing(
 		skillScope = "global"
 	}
 
+	// Every production caller passes the agent set the approved plan sealed, so
+	// this copy lands in exactly the directories the human approved. The empty
+	// list is a fallback for callers with no plan (unit tests): it means "the
+	// agents detected now", which is also what the planner seals when the user
+	// names no target.
 	if len(agents) == 0 {
 		for _, target := range skills.AgentTargets() {
 			if skills.AgentInstalled(target, projectRoot, home) {
@@ -147,7 +152,24 @@ func installSkillFromListing(
 	ops := skills.PlanInstall([]skills.DiscoveredSkill{selected}, agents, skillScope, projectRoot, home)
 	if len(ops) == 0 {
 		return nil, domain.ErrArtifactUnavailable(listing.ID,
-			"none of the selected agent hosts has a skill directory for this scope")
+			fmt.Sprintf("none of the selected agent hosts (%s) has a skill directory for %s scope", strings.Join(agents, ", "), scope))
+	}
+	// The approved plan sealed the directories this copy may use. Compare the
+	// planned writes against that set: a relocated CODEX_HOME, a changed project
+	// root or a hand-edited plan must fail closed here rather than redirect a
+	// copy somewhere the approval never named. Tests construct an authorization
+	// context without a persisted plan, so an absent plan skips the comparison;
+	// every production path persisted one before consuming its approval.
+	if db != nil {
+		if plan, perr := db.GetPlan(ctx, auth.PlanID); perr == nil {
+			dests, derr := skillDestinationsFromPlan(plan)
+			if derr != nil {
+				return nil, derr
+			}
+			if verr := verifySkillWriteRoots(dests, ops); verr != nil {
+				return nil, verr
+			}
+		}
 	}
 
 	ledger, err := skills.OpenLedger(skills.LedgerPath(dataRoot))
@@ -159,19 +181,10 @@ func installSkillFromListing(
 	// state database, the user's deny rules). Its "ask" is answered only by the
 	// approval that was consumed for this install; there is no
 	// "the request itself is the authorization" shortcut.
-	cfg, _ := config.LoadCurrentConfig()
-	engine, perr := newPolicyEngine(db, dataRoot, policyDefaultsFrom(cfg))
+	checker, perr := skillInstallChecker(db, dataRoot, auth)
 	if perr != nil {
-		return nil, fmt.Errorf("load policy: %w", perr)
+		return nil, perr
 	}
-	checker := enginePolicyChecker(engine, func(askCtx context.Context, _ skills.PolicyRequest, detail string) bool {
-		got, ok := installAuthorizationFrom(askCtx)
-		if !ok || got.ApprovalID != auth.ApprovalID {
-			fmt.Fprintf(os.Stderr, "Policy: skill writes require approval (%s); no consumed approval for this install.\n", detail)
-			return false
-		}
-		return true
-	})
 	installer := skills.NewInstaller(ledger, checker)
 	if db == nil {
 		return nil, fmt.Errorf("installing %s requires a state database", listing.ID)
@@ -276,6 +289,28 @@ func installSkillFromListing(
 		return nil, err
 	}
 	return outcome, nil
+}
+
+// skillInstallChecker builds the policy checker a skill copy runs under: the
+// engine with its real tiers (capability grants, the user's deny rules, the
+// operator's defaults), where "ask" is answered only by the approval that was
+// consumed for this install. Shared by the standalone skill path and the
+// plugin path, so the two cannot disagree about what authorization a copy
+// needs.
+func skillInstallChecker(db *state.DB, dataRoot string, auth installAuthorization) (skills.PolicyChecker, error) {
+	cfg, _ := config.LoadCurrentConfig()
+	engine, err := newPolicyEngine(db, dataRoot, policyDefaultsFrom(cfg))
+	if err != nil {
+		return nil, fmt.Errorf("load policy: %w", err)
+	}
+	return enginePolicyChecker(engine, func(askCtx context.Context, _ skills.PolicyRequest, detail string) bool {
+		got, ok := installAuthorizationFrom(askCtx)
+		if !ok || got.ApprovalID != auth.ApprovalID {
+			fmt.Fprintf(os.Stderr, "Policy: skill writes require approval (%s); no consumed approval for this install.\n", detail)
+			return false
+		}
+		return true
+	}), nil
 }
 
 // undoSkillInstall rolls one skill copy back: the ledger row this install

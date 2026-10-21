@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   title: "Agent hosts",
   description: `Every agent host named in the catalog, which of them LiteSPM can configure directly, and the config file each one uses.`,
   alternates: { canonical: "/agents/" },
-  openGraph: { title: "Agent hosts · LiteSPM Market", url: "/agents/" },
+  openGraph: { title: "Agent hosts · LiteSPM", url: "/agents/" },
 };
 
 /**

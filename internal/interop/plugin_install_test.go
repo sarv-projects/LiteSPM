@@ -73,13 +73,55 @@ func TestParsePluginInstallManifestReportsTheComponentsItDoesNotInstall(t *testi
 	if err != nil {
 		t.Fatalf("ParsePluginInstallManifest: %v", err)
 	}
-	for _, kind := range []string{"commands", "agents", "hooks", "skills"} {
+	for _, kind := range []string{"commands", "agents", "hooks"} {
 		if doc.NotInstalled[kind] == 0 {
 			t.Errorf("%s were not reported as declared-but-not-installed: %+v", kind, doc.NotInstalled)
 		}
 	}
+	// Skills are portable, so they are typed components rather than a
+	// not-installed count. The path names the SKILL.md; the component names
+	// its directory, relative to the plugin tree.
+	if len(doc.Skills) != 1 || doc.Skills[0].Path != "skills/review" || doc.Skills[0].Name != "review" {
+		t.Errorf("skills = %+v, want one component at skills/review", doc.Skills)
+	}
+	if doc.NotInstalled["skills"] != 0 {
+		t.Errorf("skills are installable and must not be counted as missing: %+v", doc.NotInstalled)
+	}
 	if len(doc.MCPServers) != 1 {
 		t.Errorf("servers = %d, want 1", len(doc.MCPServers))
+	}
+}
+
+func TestParsePluginInstallManifestRefusesUnsafeSkillPaths(t *testing.T) {
+	for _, manifest := range []string{
+		`{"name":"demo","skills":["../outside"]}`,
+		`{"name":"demo","skills":["/etc/passwd"]}`,
+		`{"name":"demo","skills":["skills/../../escape"]}`,
+		`{"name":"demo","skills":[""]}`,
+		`{"name":"demo","skills":[42]}`,
+	} {
+		if _, err := ParsePluginInstallManifest([]byte(manifest)); err == nil {
+			t.Errorf("unsafe skills declaration was accepted: %s", manifest)
+		}
+	}
+}
+
+func TestParsePluginInstallManifestReadsEverySkillsShape(t *testing.T) {
+	cases := map[string]string{
+		"single path": `{"name":"demo","skills":"./skills/pdf"}`,
+		"array":       `{"name":"demo","skills":["skills/a","skills/b/SKILL.md"]}`,
+		"object":      `{"name":"demo","skills":{"pdf":"skills/pdf"}}`,
+	}
+	for name, manifest := range cases {
+		t.Run(name, func(t *testing.T) {
+			doc, err := ParsePluginInstallManifest([]byte(manifest))
+			if err != nil {
+				t.Fatalf("ParsePluginInstallManifest: %v", err)
+			}
+			if len(doc.Skills) == 0 {
+				t.Fatalf("no skill component was read from %s", manifest)
+			}
+		})
 	}
 }
 

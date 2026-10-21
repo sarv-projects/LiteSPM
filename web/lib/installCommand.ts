@@ -151,7 +151,16 @@ export function safeCatalogId(id: string): boolean {
   return /^[a-zA-Z0-9][a-zA-Z0-9:._@/+-]*$/.test(id);
 }
 
-/** --host applies to catalog MCP/plugin installs; catalog skills ignore it. */
+/**
+ * `--agent` names the target for every kind: a host id for an MCP server or a
+ * plugin, a skills target id for a skill. The catalog installer seals those
+ * destinations into the plan, so naming one agent cannot write another — the
+ * reason a skill command used to be published without a target at all.
+ *
+ * The gate `scripts/check-install-command.mjs` reads the CLI's own flag parser
+ * and fails if this module publishes `--agent` while the binary does not
+ * accept it (or stops publishing it while the binary does).
+ */
 export function websiteInstallCommandFor(
   item: { id: string; kind: "mcp" | "skill" | "plugin"; name?: string | null },
   agentId?: string | null
@@ -160,17 +169,29 @@ export function websiteInstallCommandFor(
   if (!safeCatalogId(id)) throw new Error("Unsafe catalog id; refusing to generate a shell command");
   const selected = String(agentId ?? "").trim();
   if (selected && !/^[a-z0-9][a-z0-9-]*$/.test(selected)) {
-    throw new Error("Invalid host id; refusing to generate a shell command");
+    throw new Error("Invalid agent id; refusing to generate a shell command");
   }
-  const target = selected && item.kind !== "skill" ? ` --host ${selected}` : "";
+  // With no agent chosen, a skill command must still be runnable. The CLI
+  // refuses a bare skill install when more than one agent is detected, because
+  // the command itself is the approval and two copies is a fan-out nobody
+  // asked for; `--all-detected` is how that choice is stated. An MCP server or
+  // plugin has its own documented default (bridge-registered hosts) and stays
+  // flag-free.
+  const target = selected
+    ? ` --agent ${selected}`
+    : item.kind === "skill"
+      ? " --all-detected"
+      : "";
   return {
     command: `${WEBSITE_NPX_PREFIX} install ${id}${target}`,
     form: "id",
     term: String(item.name ?? "").trim(),
     id,
-    label: selected && item.kind !== "skill"
-      ? "Installs this catalog entry into the chosen host after local setup and catalog sync."
-      : "Installs this exact catalog entry after local setup and catalog sync.",
+    label: selected
+      ? "Installs this catalog entry into the chosen agent after local setup and catalog sync."
+      : item.kind === "skill"
+        ? "Installs into every skills target detected on your machine after local setup and catalog sync."
+        : "Installs this exact catalog entry after local setup and catalog sync.",
     short: false,
   };
 }

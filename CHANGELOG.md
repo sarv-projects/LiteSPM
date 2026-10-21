@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Nothing yet.
 
+## [0.6.0] - 2026-10-21
+
+A plugin now installs from the pinned source its publisher ships, and the
+surfaces that describe an install (help, the wizard, the site) say the same
+thing the binary does.
+
+### Added
+
+- **Plugin installs.** `litespm install <plugin-id>` fetches the commit-pinned
+  git tree named by the catalog, verifies it, and installs the portable
+  components it declares: MCP servers into each target host's config, skills
+  into that host's skills tree. Commands, hooks, subagents and LSP servers are
+  never installed. A plugin with no fetchable source is refused up front with
+  `LPSM-ARTIFACT-UNAVAILABLE`.
+- **`--allow-partial`.** A plugin that declares a component class LiteSPM
+  cannot place is refused with `LPSM-INSTALL-PARTIAL` unless you acknowledge
+  the loss. The flag is sealed into the plan, the skip set is reported, and the
+  result says `PARTIAL`. The flag is refused for skills and MCP servers, which
+  cannot be partial.
+- **`--agent` for skill installs.** A skill install names its targets as host
+  ids, and the plan seals every destination root, so naming one agent never
+  writes another. On a machine with two or more detected agents, a bare skill
+  install is refused with both remedies (`--agent <id>`, `--all-detected`).
+
+### Fixed
+
+- **`catalog sync` no longer times out at ten seconds.** The release tree is
+  about 100 MB across six files, so the previous ceiling failed on ordinary
+  connections and left a first run unable to search or install. A sync now has
+  five minutes, or the configured `network.timeout`.
+- **The website no longer says a skill install cannot target one host.** It
+  prints `--agent <id>` for every kind, and the copy matches the command.
+- **The search projection carries a plugin's artifact facts**, so Explore and
+  an entry page agree on whether a plugin installs.
+
+### Changed
+
+- `litespm help` pages are shorter, and the concepts page no longer says plugin
+  installs are unavailable.
+
 ## [0.5.0] - 2026-10-19
 
 The release where the invocation registry stopped being a design, the site stopped

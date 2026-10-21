@@ -498,19 +498,13 @@ func (e *Engine) wait(id string) (*receipts.Invocation, error) {
 	ticker := time.NewTicker(2 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		inv, err := e.Store.Get(id)
-		if err != nil {
-			return nil, err
-		}
-		if isTerminal(inv.State) {
-			if msg := e.errorMessage(id); msg != "" {
-				return inv, fmt.Errorf("%s", msg)
-			}
-			if inv.State == receipts.StateCancelled {
-				return inv, fmt.Errorf("LPSM-INVOCATION-CANCELLED: the invocation was cancelled")
-			}
-			return inv, nil
-		}
+		// Wait for the in-flight call's completion signal before reading the
+		// registry. recordTerminal commits the terminal state first and
+		// records the failure message second, so a reader that polls the
+		// registry can observe "failed, no message" in between and used to
+		// report that as a success — a false pass in exactly the calls whose
+		// job is to report a refusal. finishCall closes done only after
+		// recordTerminal has returned, so this orders the two writes.
 		e.mu.Lock()
 		c := e.calls[id]
 		e.mu.Unlock()
@@ -521,7 +515,27 @@ func (e *Engine) wait(id string) (*receipts.Invocation, error) {
 			}
 			continue
 		}
-		<-ticker.C
+
+		inv, err := e.Store.Get(id)
+		if err != nil {
+			return nil, err
+		}
+		if !isTerminal(inv.State) {
+			<-ticker.C
+			continue
+		}
+		if msg := e.errorMessage(id); msg != "" {
+			return inv, fmt.Errorf("%s", msg)
+		}
+		if inv.State == receipts.StateCancelled {
+			return inv, fmt.Errorf("LPSM-INVOCATION-CANCELLED: the invocation was cancelled")
+		}
+		// Defence in depth: a terminal state other than success must never
+		// surface as a success, even if a future writer forgets the reason.
+		if inv.State != receipts.StateSucceeded {
+			return inv, fmt.Errorf("LPSM-INVOCATION-UNEXPLAINED: the invocation ended in state %q without a recorded reason", inv.State)
+		}
+		return inv, nil
 	}
 }
 

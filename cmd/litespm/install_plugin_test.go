@@ -132,8 +132,16 @@ var demoPluginFiles = map[string]string{
 // installDemoPlugin runs the whole path: plan, approval, install.
 func installDemoPlugin(t *testing.T, db *state.DB, dataRoot string, listing *domain.Listing, catClient *catalog.Client, hosts []string) (*pluginInstallOutcome, error) {
 	t.Helper()
+	return installDemoPluginWithConsent(t, db, dataRoot, listing, catClient, hosts, false)
+}
+
+// installDemoPluginWithConsent is installDemoPlugin with the partial-install
+// acknowledgement chosen explicitly, so a test can prove both halves: the
+// refusal without it and the install with it.
+func installDemoPluginWithConsent(t *testing.T, db *state.DB, dataRoot string, listing *domain.Listing, catClient *catalog.Client, hosts []string, allowPartial bool) (*pluginInstallOutcome, error) {
+	t.Helper()
 	ctx := context.Background()
-	grant, _, err := authorizeHumanPluginInstall(ctx, db, catClient, listing, "1.0.0", domain.ScopeUser, "", hosts, true, false, nil)
+	grant, _, err := authorizeHumanPluginInstall(ctx, db, catClient, listing, "1.0.0", domain.ScopeUser, "", hosts, true, false, nil, allowPartial)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +266,7 @@ func TestInstallPluginRefusesWithoutAnApprovedPlan(t *testing.T) {
 	listing := pluginListing("plugin:example:demo-plugin")
 	catClient := pluginCatalog(t, listing, pluginGitRef(repo, commit))
 	ctx := context.Background()
-	grant, _, err := authorizeHumanPluginInstall(ctx, db, catClient, listing, "1.0.0", domain.ScopeUser, "", []string{"claude-code"}, true, false, nil)
+	grant, _, err := authorizeHumanPluginInstall(ctx, db, catClient, listing, "1.0.0", domain.ScopeUser, "", []string{"claude-code"}, true, false, nil, false)
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
@@ -292,7 +300,7 @@ func TestInstallPluginRefusesAnArtifactWithNoPin(t *testing.T) {
 	catClient := pluginCatalog(t, listing, ref)
 
 	_, _, err := authorizeHumanPluginInstall(context.Background(), db, catClient, listing, "1.0.0",
-		domain.ScopeUser, "", []string{"claude-code"}, true, false, nil)
+		domain.ScopeUser, "", []string{"claude-code"}, true, false, nil, false)
 	if err == nil {
 		t.Fatal("an unpinned plugin artifact was accepted")
 	}
@@ -307,7 +315,7 @@ func TestInstallPluginRefusesAPluginWithNoArtifact(t *testing.T) {
 	catClient := pluginCatalog(t, listing, domain.ArtifactRef{})
 
 	_, _, err := authorizeHumanPluginInstall(context.Background(), db, catClient, listing, "1.0.0",
-		domain.ScopeUser, "", []string{"claude-code"}, true, false, nil)
+		domain.ScopeUser, "", []string{"claude-code"}, true, false, nil, false)
 	if err == nil {
 		t.Fatal("a plugin with no artifact was accepted")
 	}
@@ -327,7 +335,7 @@ func TestInstallPluginRefusesAnUnknownArtifactType(t *testing.T) {
 	catClient := pluginCatalog(t, listing, ref)
 
 	_, _, err := authorizeHumanPluginInstall(context.Background(), db, catClient, listing, "1.0.0",
-		domain.ScopeUser, "", []string{"claude-code"}, true, false, nil)
+		domain.ScopeUser, "", []string{"claude-code"}, true, false, nil, false)
 	if err == nil {
 		t.Fatal("a non git-tree artifact was accepted")
 	}
@@ -548,6 +556,84 @@ func TestPluginFetchOptionsAreTheStrictProductionOnes(t *testing.T) {
 	_ = artifact.DefaultGitFetcherOptions()
 }
 
+// TestPluginPlanFromAnAgentPathSealsTheDefaultHostSet is the agent path's
+// half of the target rule. `resolver.prepare_plan` (and the Bridge's
+// prepare_install behind it) names no hosts, so the plan must resolve the
+// default set — every host whose bridge verifies as registered — exactly as the
+// CLI does. It used to seal an empty set, which made every agent-path plugin
+// plan fail with "no install target" while the CLI path worked.
+func TestPluginPlanFromAnAgentPathSealsTheDefaultHostSet(t *testing.T) {
+	allowLocalPluginFetch(t)
+	home, configPath := homeWithBridge(t)
+	repo, commit := pluginFixtureRepo(t, demoPluginFiles)
+	listing := pluginListing("plugin:example:demo-plugin")
+	catClient := pluginCatalog(t, listing, pluginGitRef(repo, commit))
+
+	ctx := context.Background()
+	plan, _, rpcErr := buildInstallPlan(ctx, catClient, listing.ID, "1.0.0", domain.ScopeUser, "", listing, nil, nil)
+	if rpcErr != nil {
+		t.Fatalf("an agent-path plugin plan was refused: %s", rpcErr.Message)
+	}
+	binding, err := pluginInstallBindingFromPlan(ctx, plan, listing, domain.ScopeUser)
+	if err != nil {
+		t.Fatalf("the sealed plan does not bind: %v", err)
+	}
+	if len(binding.Hosts) != 1 || binding.Hosts[0] != "claude-code" {
+		t.Errorf("hosts = %v, want the one registered bridge host", binding.Hosts)
+	}
+	if plan.HostChanges[0].ConfigPath != configPath {
+		t.Errorf("the plan names %q, want the registered host's config %q", plan.HostChanges[0].ConfigPath, configPath)
+	}
+	if len(binding.SkillDests) != 1 || binding.SkillDests[0].Root != filepath.Join(home, ".claude", "skills") {
+		t.Errorf("skills destinations = %+v, want the host's own skills tree", binding.SkillDests)
+	}
+	if binding.AllowPartial {
+		t.Error("the acknowledgement is set on a plan that never asked for it")
+	}
+}
+
+// TestPluginPlanSealsThePartialAcknowledgement proves the acknowledgement is
+// part of what the human approves: it is in the sealed value, it survives the
+// round trip into the binding, and two plans that disagree about it disagree
+// about their hash-relevant content.
+func TestPluginPlanSealsThePartialAcknowledgement(t *testing.T) {
+	allowLocalPluginFetch(t)
+	homeWithBridge(t)
+	repo, commit := pluginFixtureRepo(t, demoPluginFiles)
+	listing := pluginListing("plugin:example:demo-plugin")
+	catClient := pluginCatalog(t, listing, pluginGitRef(repo, commit))
+
+	ctx := context.Background()
+	plan, _, rpcErr := buildInstallPlan(ctx, catClient, listing.ID, "1.0.0", domain.ScopeUser, "", listing,
+		&mcpInstallBinding{AllowPartial: true}, nil)
+	if rpcErr != nil {
+		t.Fatalf("plan: %s", rpcErr.Message)
+	}
+	var value pluginInstallPlanValue
+	if err := json.Unmarshal([]byte(plan.HostChanges[0].ValueJSON), &value); err != nil {
+		t.Fatalf("the sealed value does not parse: %v", err)
+	}
+	if !value.AllowPartial {
+		t.Error("the sealed value does not carry the acknowledgement")
+	}
+	binding, err := pluginInstallBindingFromPlan(ctx, plan, listing, domain.ScopeUser)
+	if err != nil {
+		t.Fatalf("binding: %v", err)
+	}
+	if !binding.AllowPartial {
+		t.Error("the acknowledgement was lost between the plan and the binding")
+	}
+
+	// A plan without it seals without it: the default is consent withheld.
+	plain, _, rpcErr := buildInstallPlan(ctx, catClient, listing.ID, "1.0.0", domain.ScopeUser, "", listing, nil, nil)
+	if rpcErr != nil {
+		t.Fatalf("plan: %s", rpcErr.Message)
+	}
+	if plain.HostChanges[0].ValueJSON == plan.HostChanges[0].ValueJSON {
+		t.Error("the acknowledged and unacknowledged plans seal identical values")
+	}
+}
+
 // TestPluginPlanSealsThePinnedArtifact pins what the approval covers: the
 // repository, the pinned COMMIT and the path inside it. The entry names are
 // not in the plan — they are named by the plugin's own manifest, which lives
@@ -560,7 +646,7 @@ func TestPluginPlanSealsThePinnedArtifact(t *testing.T) {
 	catClient := pluginCatalog(t, listing, ref)
 
 	grant, _, err := authorizeHumanPluginInstall(context.Background(), db, catClient, listing, "1.0.0",
-		domain.ScopeUser, "", []string{"claude-code"}, true, false, nil)
+		domain.ScopeUser, "", []string{"claude-code"}, true, false, nil, false)
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}
@@ -571,11 +657,29 @@ func TestPluginPlanSealsThePinnedArtifact(t *testing.T) {
 	if len(plan.Resolved.Artifacts) != 1 || plan.Resolved.Artifacts[0].Locator != ref.Locator {
 		t.Errorf("artifacts = %+v, want the pinned repository", plan.Resolved.Artifacts)
 	}
-	if len(plan.HostChanges) != 1 {
-		t.Fatalf("host changes = %d, want 1", len(plan.HostChanges))
+	// Two kinds of change are sealed: the config entry for the server, and the
+	// skills root the plugin's portable skill components may be copied into
+	// (claude-code is also a skills target).
+	var configChanges, skillChanges []domain.HostChange
+	for _, change := range plan.HostChanges {
+		switch change.Action {
+		case "register_command":
+			configChanges = append(configChanges, change)
+		case skillWriteAction:
+			skillChanges = append(skillChanges, change)
+		}
+	}
+	if len(configChanges) != 1 {
+		t.Fatalf("server entry changes = %d, want 1", len(configChanges))
+	}
+	if len(skillChanges) != 1 || skillChanges[0].HostID != "claude-code" {
+		t.Fatalf("skills destinations = %+v, want one sealed root for claude-code", skillChanges)
+	}
+	if !filepath.IsAbs(skillChanges[0].ConfigPath) {
+		t.Errorf("the sealed skills root %q is not absolute", skillChanges[0].ConfigPath)
 	}
 	var value pluginInstallPlanValue
-	if err := json.Unmarshal([]byte(plan.HostChanges[0].ValueJSON), &value); err != nil {
+	if err := json.Unmarshal([]byte(configChanges[0].ValueJSON), &value); err != nil {
 		t.Fatalf("the sealed value does not parse: %v", err)
 	}
 	if value.Artifact.Commit != commit || value.Artifact.Repo != ref.Locator {
@@ -611,7 +715,7 @@ func TestInstallPluginIntoAProjectScope(t *testing.T) {
 
 	ctx := context.Background()
 	grant, _, err := authorizeHumanPluginInstall(ctx, db, catClient, listing, "1.0.0",
-		domain.ScopeProject, project, []string{"claude-code"}, true, false, nil)
+		domain.ScopeProject, project, []string{"claude-code"}, true, false, nil, false)
 	if err != nil {
 		t.Fatalf("authorize: %v", err)
 	}

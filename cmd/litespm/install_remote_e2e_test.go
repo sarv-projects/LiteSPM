@@ -435,7 +435,7 @@ func TestAuthorizeHumanInstallReportsRemoteCapabilityDrops(t *testing.T) {
 		"1.0.0", domain.ScopeUser, "", &mcpInstallBinding{
 			Hosts:   []string{"claude-code", "gemini-cli", "codex"},
 			Runtime: remoteRuntime(),
-		})
+		}, nil)
 	if err != nil {
 		t.Fatalf("authorizeHumanInstall: %v", err)
 	}

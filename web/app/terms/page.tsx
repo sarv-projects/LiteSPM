@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description:
     "The license, the warranty disclaimer, what a catalog listing does and does not mean, and what happens when you install someone else's capability.",
   alternates: { canonical: "/terms/" },
-  openGraph: { title: "Terms · LiteSPM Market", url: "/terms/" },
+  openGraph: { title: "Terms · LiteSPM", url: "/terms/" },
 };
 
 const ISSUES_URL = `${REPO_URL}/issues`;

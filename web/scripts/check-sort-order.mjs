@@ -18,7 +18,9 @@ function availabilityOf(item) {
     const artifact = item.artifact;
     if (!artifact) return { id: "unsupported", installable: false };
     if (artifact.type !== "git-tree") return { id: "unsupported", installable: false };
-    if (!artifact.pinned || !artifact.sha) return { id: "unsupported", installable: false };
+    // `pinned` is set exactly when a 40-hex commit id was published, so it
+    // carries the "there is a commit to fetch" half on its own.
+    if (!artifact.pinned) return { id: "unsupported", installable: false };
     return { id: "plugin", installable: true };
   }
   const established = ["metadata_verified", "runtime_verified", "litespm_tested"];

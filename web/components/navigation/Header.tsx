@@ -6,29 +6,36 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, Search, SquareTerminal } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import { ThemeToggle } from "./ThemeToggle";
+import { DOCS_URL } from "../../lib/site";
 
 /**
  * One header for every route: logo, the primary rail, a search affordance, the
  * theme toggle and the install CTA.
  *
- * The rail only lists routes that exist (`/explore`, `/agents`, `/compare`,
- * `/categories`, `/insights`) — Docs and Tour are not links until they are
- * pages. The kind tabs that used to sit on a second row are gone: filtering by
- * kind is what `/explore` is for, and the discover surface traded that row for
- * a spacious hero. `--stack-top` follows the responsive height so sticky
+ * The rail names the product, not the site's internal structure: Explore (the
+ * marketplace), Works with (the agent compatibility surface), How it works and
+ * Docs. Categories, Compare and Insights still exist as routes and are linked
+ * from Explore and the footer; they left the rail because a first-time reader
+ * should not have to learn the site map to find the product. Docs points at the
+ * repository README (`lib/site` DOCS_URL) rather than a route that does not
+ * exist yet.
+ *
+ * The kind tabs that used to sit on a second row are gone: filtering by kind is
+ * what `/explore` is for. `--stack-top` follows the responsive height so sticky
  * filter bars remain below the header.
  *
- * Navigation keeps its own full-width row until `lg`, not until `md`. The five
- * links need 387px and the one-line arrangement leaves the rail whatever the
- * wordmark, search, theme toggle and install CTA do not use — 315px at 768px
- * (portrait iPad, and the widest tablet), where "Coverage" was cut to "Cov"
- * against the search button with no sign anything was missing. Below `lg` the
- * rail is the full shell width again (720px at 768px) and fits comfortably.
+ * Navigation keeps its own full-width row until `lg`, not until `md`. The four
+ * links need about 300px and the one-line arrangement leaves the rail whatever
+ * the wordmark, search, theme toggle and install CTA do not use — 315px at
+ * 768px (portrait iPad, and the widest tablet). Below `lg` the rail is the full
+ * shell width again (720px at 768px) and fits comfortably.
  * `--site-header-height` moves with it: 92px below `lg`, 48px at and above.
  *
  * The rail is a scroller at every width, and a scroller that hides a
- * destination is a broken navigation: at 320px "Coverage" sat at x=313–385,
- * off the screen entirely, with nothing to hint at it. So the rail keeps its
+ * destination is a broken navigation: before the rail was cut to four links,
+ * the six-link version put "Coverage" at x=313–385 on a 320px screen, off the
+ * screen entirely, with nothing to hint at it. The mechanism stays — a rail
+ * that grows again must not reintroduce that defect. So the rail keeps its
  * destinations in the DOM (no drawer, no hamburger — the no-JS contract is a
  * product promise), fades the edge that has more past it, and carries two
  * chevrons that scroll it. The chevrons are buttons, so they are in the tab
@@ -47,19 +54,10 @@ interface HeaderProps {
 }
 
 const PRIMARY_NAV = [
-  { href: "/explore/", label: "Marketplace" },
-  { href: "/agents/", label: "Agents" },
-  { href: "/compare/", label: "Compare" },
+  { href: "/explore/", label: "Explore" },
+  { href: "/agents/", label: "Works with" },
   { href: "/how-it-works/", label: "How it works" },
-  { href: "/categories/", label: "Categories" },
-  {
-    href: "/insights/",
-    label: "Insights",
-    // The route used to be `/trending/`, a name that promised a trending list
-    // the catalog cannot publish. The tooltip says what the page is instead:
-    // a census of everything the catalog holds.
-    title: "The catalog counted by kind, host, category and publisher — not a trending list",
-  },
+  { href: DOCS_URL, label: "Docs", external: true },
 ];
 
 export function Header({ onNavigate }: HeaderProps) {
@@ -229,7 +227,7 @@ export function Header({ onNavigate }: HeaderProps) {
       {/* The header is opaque, not glassy. A blur layer over a ruled table
           costs paint on every scroll frame and buys nothing here. */}
       <div className="shell grid h-[92px] grid-cols-[auto_minmax(0,1fr)] grid-rows-[48px_44px] items-center gap-x-3 lg:flex lg:h-12 lg:gap-4">
-        <Link href="/" className="col-start-1 row-start-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center gap-2" aria-label="LiteSPM marketplace home">
+        <Link href="/" className="col-start-1 row-start-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center gap-2" aria-label="LiteSPM home">
           {/* The logo tile is one of the six places the brand indigo is allowed. */}
           <span className="flex h-7 w-7 items-center justify-center rounded-chip bg-accent">
             <SquareTerminal className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden="true" />
@@ -277,7 +275,6 @@ export function Header({ onNavigate }: HeaderProps) {
                   <Link
                     href={item.href}
                     prefetch={false}
-                    title={item.title}
                     aria-current={active ? "page" : undefined}
                     onClick={() => {
                       if (menuRef.current) menuRef.current.open = false;
@@ -309,7 +306,6 @@ export function Header({ onNavigate }: HeaderProps) {
                   href={item.href}
                   // Not prefetched: see the request budget in tests/budgets.
                   prefetch={false}
-                  title={item.title}
                   aria-current={active ? "page" : undefined}
                   onClick={onNavigate}
                   className={`flex shrink-0 items-center border-b-2 px-2 text-[13px] font-medium transition-colors duration-state ease-out lg:px-2.5 ${

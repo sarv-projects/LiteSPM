@@ -20,9 +20,9 @@ import { categoryLabel } from "../../app/categories/categoryLabel";
  *   Publisher     publisher.name / .url    always present (link when the record
  *                                          carries a usable http(s) URL)
  *   Version       version                  40,097 of 69,376 rows
- *   Transport     transport                25,401 rows (MCP servers)
+ *   Transport     transport                25,400 rows (MCP servers)
  *   Runtime       runtime                  4,079 rows
- *   Endpoint      url                      25,401 rows, linked
+ *   Endpoint      url                      25,400 rows, linked
  *   Source        source                   every row; shown as its display name
  *   Install       installability + kind    derived by `availabilityOf`, the
  *                                          same predicate the CLI applies

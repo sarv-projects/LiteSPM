@@ -337,16 +337,16 @@ The in-agent experience is architected as an abstract UX Model mapped to host-sp
 |---|---|---|
 | `search_catalog` | `catalog.search` | resolves |
 | `get_extension` | `catalog.get_item` | resolves |
-| `prepare_install` | `resolver.prepare_plan` | resolves (plan only) |
-| `request_install` | `install.execute` | **Completes for skills** (installs files through the skills ledger) **and for MCP servers** (registers the server in each target host's config), behind the plan + approval gate in `install_authz.go`; plugins fail closed with `LPSM-ARTIFACT-UNAVAILABLE` (no artifact source) (`STATUS.md` §3) |
+| `prepare_install` | `resolver.prepare_plan` | resolves (plan only); `allowPartial` is sealed into a plugin plan as the partial-install acknowledgement |
+| `request_install` | `install.execute` | **Completes for skills** (installs files through the skills ledger), **for MCP servers** (registers the server in each target host's config) **and for plugins with a pinned source** (fetches the committed tree and installs its portable components), behind the plan + approval gate in `install_authz.go`; a plugin with no fetchable pinned source fails closed with `LPSM-ARTIFACT-UNAVAILABLE`, and one whose extras have no adapter is refused with `LPSM-INSTALL-PARTIAL` unless the plan carries `allowPartial` (`STATUS.md` §3) |
 | `list_installed` | `tools.list` | resolves |
 | `load_skill` | `skills.load_body` | resolves |
 | `read_skill_resource` | `skills.read_resource` | resolves |
 | `search_capabilities` | `capabilities.search` | resolves — over the capability rows `internal/discover` probed (`cmd/litespm/main.go:2089`) |
 | `describe_capability` | `capabilities.describe` | resolves — real input schema, fingerprint and provider command (`main.go:2135`) |
 | `invoke_capability` | `provider.invoke` | resolves — spawns the installed server and calls the discovered tool, refusing a schema that drifted (`main.go:2196`) |
-| `get_invocation` | `invocation.get` | **JSON-RPC `-32601`** — no invocation registry (`main.go:2216`) |
-| `cancel_invocation` | `invocation.cancel` | **JSON-RPC `-32601`** (`main.go:2225`) |
+| `get_invocation` | `invocation.get` | resolves — the invocation registry and receipt chain; an unknown id is `LPSM-INVOCATION-NOT-FOUND` |
+| `cancel_invocation` | `invocation.cancel` | resolves — cooperative cancellation over the same registry |
 
   A shim with no daemon connection answers every tool with
   `LPSM-IPC-DAEMON-UNREACHABLE` rather than inventing inventory
@@ -371,7 +371,7 @@ The in-agent experience is architected as an abstract UX Model mapped to host-sp
 ### Tab 1: MCP Servers
 *   Search bar for filtering MCP servers by keyword or category (`database`, `developer-tools`, `browser`).
 *   Lists server cards with publisher, verified status, and transport (`stdio` / `Streamable HTTP`).
-*   One-click "Install" action triggering the `prepare_install` flow (plan preview). Execution completes for skills and MCP servers and fails closed for plugins only (see the table above).
+*   One-click "Install" action triggering the `prepare_install` flow (plan preview). Execution completes for skills, MCP servers and plugins with a pinned source; a plugin with no fetchable pinned source fails closed, and one whose extras have no adapter needs the `allowPartial` acknowledgement (see the table above).
 
 ### Tab 2: Agent Skills
 *   Browse portable `SKILL.md` skills from `agentskills.io` and public Git sources.

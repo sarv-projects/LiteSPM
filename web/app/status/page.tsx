@@ -27,9 +27,9 @@ import { REPO_URL } from "../../lib/site";
 export const metadata: Metadata = {
   title: "Status",
   description:
-    "The catalog release this site was built from, and the one health check it can honestly make — a single request for the catalog pointer, from your browser.",
+    "The catalog release this site was built from, plus one health check: a request for the catalog pointer, made from your browser.",
   alternates: { canonical: "/status/" },
-  openGraph: { title: "Status · LiteSPM Market", url: "/status/" },
+  openGraph: { title: "Status · LiteSPM", url: "/status/" },
 };
 
 const MONTHS = [

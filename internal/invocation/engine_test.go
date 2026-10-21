@@ -346,3 +346,68 @@ func waitForState(t *testing.T, engine *Engine, id, want string) {
 	}
 	t.Fatalf("the invocation never reached %q", want)
 }
+
+// A failed invocation must never be reported as a success.
+//
+// recordTerminal commits the terminal state before it records the failure
+// message, so a reader polling the registry can observe "failed, no message".
+// The wait path must order itself on the call's completion signal instead:
+// before that ordering this reproduced at roughly 1 in 100 failed calls, and
+// the daemon's policy-gate tests caught it as an intermittent "ungranted
+// invocation was allowed" — a false pass in the one place that must not have
+// one.
+func TestFailedInvocationIsNeverReportedAsSuccess(t *testing.T) {
+	engine := newTestEngine(t, func(ctx context.Context, capabilityID string, arguments json.RawMessage) (Output, error) {
+		return Output{}, errProviderDied
+	}, Options{})
+
+	for i := 0; i < 300; i++ {
+		inv, err := engine.SubmitAndWait(context.Background(), testCapability, json.RawMessage(`{}`), 5*time.Second)
+		if err == nil {
+			state := "<nil>"
+			if inv != nil {
+				state = inv.State
+			}
+			t.Fatalf("iteration %d: a failed invocation was reported as success (state %s)", i, state)
+		}
+		if inv == nil {
+			t.Fatalf("iteration %d: no invocation returned with the error", i)
+		}
+		if inv.State != receipts.StateFailed {
+			t.Fatalf("iteration %d: state = %q, want %q", i, inv.State, receipts.StateFailed)
+		}
+	}
+}
+
+// The deterministic half of the same contract: a terminal failure with no
+// recorded reason must still be an error, never a nil-error success. This is
+// the state a reader observes in the window between recordTerminal's two
+// writes, so the wait path must not translate it into success even when it
+// arrives from a writer that forgot the message.
+func TestTerminalFailureWithoutAMessageIsNotSuccess(t *testing.T) {
+	engine := newTestEngine(t, func(ctx context.Context, capabilityID string, arguments json.RawMessage) (Output, error) {
+		return Output{}, nil
+	}, Options{})
+
+	id := receipts.NewInvocationID()
+	engine.Store.RegisterPending(id, testCapability, "provider")
+	now := time.Now().UTC()
+	if _, err := engine.Store.RecordReceipt(receipts.Receipt{
+		InvocationID:     id,
+		CapabilityID:     testCapability,
+		ProviderInstance: "provider",
+		Outcome:          receipts.StateFailed,
+		StartedAt:        now,
+		EndedAt:          now,
+	}); err != nil {
+		t.Fatalf("RecordReceipt: %v", err)
+	}
+
+	inv, err := engine.wait(id)
+	if err == nil {
+		t.Fatalf("a failed invocation with no message was reported as success (state %q)", inv.State)
+	}
+	if inv == nil || inv.State != receipts.StateFailed {
+		t.Fatalf("state = %v, want %q", inv, receipts.StateFailed)
+	}
+}

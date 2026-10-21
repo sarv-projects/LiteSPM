@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   description:
     "One entry from the LiteSPM catalog: what it does, which agent hosts it works with, and how to add it.",
   alternates: { canonical: "/package/" },
-  openGraph: { title: "Find a package · LiteSPM Market", url: "/package/" },
+  openGraph: { title: "Find a package · LiteSPM", url: "/package/" },
 };
 
 /**

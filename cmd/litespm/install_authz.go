@@ -194,8 +194,9 @@ func authorizeHumanPluginInstall(
 	explicit bool,
 	force bool,
 	envNames []string,
+	allowPartial bool,
 ) (*installGrant, []hostCapabilityDrop, error) {
-	plan, droppedHosts, err := buildPluginInstallPlan(ctx, catClient, listing, version, scope, projectRoot, hosts, explicit, force, envNames)
+	plan, droppedHosts, err := buildPluginInstallPlan(ctx, catClient, listing, version, scope, projectRoot, hosts, explicit, force, envNames, allowPartial)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -259,8 +260,8 @@ func recordHumanApproval(ctx context.Context, db *state.DB, plan *domain.Install
 // auto-chosen target set (always empty for an explicit --host set, which
 // fails instead, and for stdio runtimes): the caller prints them so the user
 // sees exactly which hosts the approval covers.
-func authorizeHumanInstall(ctx context.Context, db *state.DB, catClient *catalog.Client, listing *domain.Listing, version string, scope domain.InstallScope, projectRoot string, mcpBinding *mcpInstallBinding) (*installGrant, []hostCapabilityDrop, error) {
-	plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, listing.ID, version, scope, projectRoot, listing, mcpBinding)
+func authorizeHumanInstall(ctx context.Context, db *state.DB, catClient *catalog.Client, listing *domain.Listing, version string, scope domain.InstallScope, projectRoot string, mcpBinding *mcpInstallBinding, skillBinding *skillInstallBinding) (*installGrant, []hostCapabilityDrop, error) {
+	plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, listing.ID, version, scope, projectRoot, listing, mcpBinding, skillBinding)
 	if rpcErr != nil {
 		return nil, nil, fmt.Errorf("plan install: %s", rpcErr.Message)
 	}

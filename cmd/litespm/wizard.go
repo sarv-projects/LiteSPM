@@ -30,7 +30,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/sarv-projects/litespm/internal/catalog"
 	"github.com/sarv-projects/litespm/internal/config"
@@ -679,7 +678,7 @@ func (w *Wizard) actionSyncCatalog(ctx context.Context) error {
 		return nil
 	}
 
-	syncCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	syncCtx, cancel := context.WithTimeout(ctx, catalogSyncTimeout(cfg))
 	defer cancel()
 	res, err := catClient.Sync(syncCtx)
 	if err != nil {
@@ -827,7 +826,16 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		mcpBinding = &mcpInstallBinding{Hosts: uniqueHostIDs(targetHosts), Runtime: runtime}
 	}
 
-	grant, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, mcpBinding)
+	// The wizard resolves a skill's targets exactly as the CLI does — the
+	// detected set — and the plan seals them, so the writes below are the ones
+	// the reader was shown before answering yes. A future agent on this machine
+	// cannot widen this install.
+	var skillBinding *skillInstallBinding
+	if listing.Kind == domain.KindSkill {
+		skillBinding = &skillInstallBinding{AllDetected: true}
+	}
+
+	grant, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, mcpBinding, skillBinding)
 	if gerr != nil {
 		fmt.Fprintf(w.out, "Install refused before anything was changed: %v\n", gerr)
 		return nil
@@ -839,8 +847,15 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 
 	if listing.Kind == domain.KindSkill {
 		home, _ := os.UserHomeDir()
+		agents, aerr := skillAgentsFromPlan(grant.Plan)
+		if aerr != nil {
+			grant.refund(grantCtx, db)
+			fmt.Fprintf(w.out, "Install failed: %v\n", aerr)
+			fmt.Fprintln(w.out, "Nothing was changed.")
+			return nil
+		}
 		outcome, ierr := installSkillFromListing(grantCtx, db, w.paths.DataRoot, projectRoot, home,
-			listing, versionOrLatest(""), scope, nil)
+			listing, versionOrLatest(""), scope, agents)
 		if ierr != nil {
 			grant.refund(grantCtx, db)
 			fmt.Fprintf(w.out, "Install failed: %v\n", ierr)

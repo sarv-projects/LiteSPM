@@ -2,10 +2,10 @@
 
 # litespm
 
-**One control plane for every AI coding agent capability.**
+**One place to manage what your coding agents can do.**
 
-Discover and manage MCP servers, Agent Skills, and plugins
-across Claude Code, OpenAI Codex, OpenCode, Cline, and many more.
+Discover and install MCP servers, skills and plugins across Claude Code,
+OpenAI Codex, OpenCode, Cline and 46 more hosts.
 
 [![npm version](https://img.shields.io/npm/v/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
 [![npm downloads](https://img.shields.io/npm/dm/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
@@ -19,7 +19,7 @@ across Claude Code, OpenAI Codex, OpenCode, Cline, and many more.
 ```console
 $ litespm
 LiteSPM can connect to 50 different agent hosts.
-Nothing on this machine has been changed yet.
+This run has not changed anything yet.
 
 Which AI coding agent do you use?
 
@@ -114,10 +114,14 @@ Obtaining the Sigstore trust root needs network access to
 
 > **Honest status.** The catalog is live end-to-end: skills install from it
 > (`litespm install <skill-id>` fetches the source and writes the skill files),
-> and MCP servers install by registering their published launch descriptor in
-> each configured agent's config. Plugin installs are not end-to-end: the
-> catalog carries no plugin artifact locator, so they fail closed with
-> `LPSM-ARTIFACT-UNAVAILABLE`. See
+> MCP servers install by registering their published launch descriptor in each
+> configured agent's config, and a plugin that publishes a **pinned git tree**
+> installs its own portable components — its MCP servers are registered and its
+> skills are copied into the target host's skills tree. A plugin that publishes
+> no fetchable pinned source (248 of the 638 published rows) fails closed with
+> `LPSM-ARTIFACT-UNAVAILABLE`, and a plugin that declares commands, hooks,
+> subagents or LSP servers installs only with `--allow-partial`, because LiteSPM
+> has no adapter for those classes. See
 > [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
 >
 > **The published package is current: `litespm@0.4.1` (2026-10-15).** A clean
@@ -134,7 +138,7 @@ Obtaining the Sigstore trust root needs network access to
 ```bash
 litespm                    # interactive setup and management wizard
 litespm search postgres    # search the federated catalog
-litespm install <id>       # install a capability (skills + MCP servers; plugins pending an artifact source)
+litespm install <id>       # install a skill, MCP server, or plugin with a pinned source
 litespm host list          # show supported agents
 litespm doctor             # run local health checks
 litespm self-update        # update the binary
@@ -159,13 +163,13 @@ Inside a configured agent, just type:
 - **Hardened extraction.** Archive handling rejects path traversal, absolute
   paths, symlinks, device files, case-fold collisions, and oversize payloads,
   and unpacks into a content-addressed store.
-- **Fail-closed by design.** Effectful actions are intended to require explicit,
-  cryptographically bound approval. Skills and MCP servers install for real (skills
-  through the ledger, MCP servers through host-config registration, both gated by a
-  plan plus a human approval); plugin installs still fail closed with
-  `LPSM-ARTIFACT-UNAVAILABLE`, and `get_invocation` / `cancel_invocation` (`-32601`)
-  have no invocation registry behind them —
-  the wiring is tracked in [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
+- **Approval before every write.** Effectful actions need an explicit,
+  cryptographically bound approval. Skills, MCP servers and plugins with a pinned
+  source install for real, each gated by a plan plus a human approval. A plugin
+  with no fetchable source is refused with `LPSM-ARTIFACT-UNAVAILABLE`, and one
+  whose extra components cannot be installed is refused with
+  `LPSM-INSTALL-PARTIAL` unless `--allow-partial` accepts the loss. See
+  [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
 - **Drift-bound approvals.** The check half is real: the installed server is
   re-probed before every call and one whose schema fingerprint no longer matches
   what was discovered is refused, and the policy engine runs before the server is
@@ -194,7 +198,7 @@ Inside a configured agent, just type:
 | `litespm setup --agent <host-id>` | Connect one agent without prompts (same write path as `host setup`) |
 | `litespm init [name]` | Scaffold a `SKILL.md` to author a skill |
 | `litespm search <query>` | Search MCP servers, skills, and plugins |
-| `litespm install <id>` | Install a capability (skills and MCP servers complete; plugins pending an artifact source) |
+| `litespm install <id>` | Install a skill, MCP server, or plugin with a pinned source |
 | `litespm uninstall [--dry-run]` | Remove the bridge entry from every agent host config |
 | `litespm bridge stdio --host <id>` | MCP stdio bridge used by hosts |
 | `litespm host [list\|detect\|setup\|remove]` | Inspect and configure host adapters |

@@ -200,17 +200,21 @@ render the installed view as a table. Tool-by-tool state is in [STATUS.md](../ST
 *   **Install (`request_install`):** reaches `install.execute`, which is gated by
     `install_authz.go`: the request must name a persisted, hash-verified plan **and** carry an
     approval a human recorded for that exact plan hash (`litespm approve <plan-id>`). With both
-    present, **skill listings install their real files and MCP-server listings register the server
-    in each target host's config**; plugin listings alone still fail closed with
-    `LPSM-ARTIFACT-UNAVAILABLE` because the catalog carries no artifact locator for them —
+    present, **skill listings install their real files, MCP-server listings register the server
+    in each target host's config, and a plugin listing with a pinned git tree installs that tree's
+    portable components** (its servers registered, its skills copied into each target host). A
+    plugin that publishes no fetchable pinned source fails closed with `LPSM-ARTIFACT-UNAVAILABLE`,
+    and a plugin whose manifest declares commands, hooks, subagents or LSP servers is refused with
+    `LPSM-INSTALL-PARTIAL` unless the plan carries the `allowPartial` acknowledgement —
     [STATUS.md](../STATUS.md) §3.
 *   **Skills (`load_skill`, `read_skill_resource`):** resolve against real skill data.
 *   **Capabilities & invocation (`search_capabilities`, `describe_capability`,
     `invoke_capability`):** resolve over discovered capability rows through `internal/discover`
-    (probe → `capabilities` row → invoke, refusing on schema drift). Only
-    **`get_invocation` and `cancel_invocation`** still return an explicit `-32601`
-    "not implemented", because the asynchronous invocation registry they need is ARCH/34
-    (`DESIGNED`).
+    (probe → `capabilities` row → invoke, refusing on schema drift).
+    **`get_invocation` and `cancel_invocation`** answer from the invocation registry and receipt
+    chain (`ARCH/34` §2), so an id that was never issued is a typed
+    `LPSM-INVOCATION-NOT-FOUND`; what that document still specifies and the tree does not do is
+    §4's health states/circuit breaker, §3's provider restart and §7's cross-provider fallback.
 
 **Installed view (`list_installed`).** The daemon returns ledger-backed installs plus
 **read-only** components detected in the host's own config file. LiteSPM does **not** health-check

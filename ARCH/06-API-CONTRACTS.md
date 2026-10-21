@@ -250,7 +250,7 @@ Status column = highest honest state per [STATUS.md](../STATUS.md) §1/§4.
 | `catalog.search` | Queries the local catalog index with filters and limits | Resolves (`:2033`); empty until `catalog sync` succeeds |
 | `catalog.get_item` | Retrieves full listing metadata and version history | Resolves (`:2087`) |
 | `resolver.prepare_plan` | Pure dependency resolution producing an `InstallPlan`, persisted with `planHash`; `scope=project` requires `projectRoot`, which is sealed into `request.workspaceId`/`request.projectRoot` and so into the plan hash | Resolves (`:2106`) |
-| `install.execute` | Submits approval and begins transactional execution | Resolves **for skill and MCP listings** (`main.go` routes `kind=skill` through the skills ledger and `kind=mcp` through host-config registration, both behind the plan + approval gate in `install_authz.go`); only plugins return `LPSM-ARTIFACT-UNAVAILABLE` (no artifact source; `internal/install/engine.go:204-207`) |
+| `install.execute` | Submits approval and begins transactional execution | Resolves **for skill, MCP and pinned-source plugin listings** (`main.go` routes `kind=skill` through the skills ledger, `kind=mcp` through host-config registration and `kind=plugin` through the pinned-tree fetcher plus the same ledger/registration, all behind the plan + approval gate in `install_authz.go`); a plugin with no fetchable pinned source returns `LPSM-ARTIFACT-UNAVAILABLE`, and an unacknowledged partial plugin install returns `LPSM-INSTALL-PARTIAL` before any write |
 | `install.remove` | Safe removal and unreferenced CAS pruning | Resolves (`:2328`) |
 | `skills.list` | Returns progressive-disclosure skill index for installed trees; optional `projectRoot` as above | Resolves (`:2354`) |
 | `skills.load_body` | Retrieves progressive `SKILL.md` body on demand; optional `projectRoot`; user scope wins a name collision | Resolves (`:2424`) |
@@ -259,8 +259,8 @@ Status column = highest honest state per [STATUS.md](../STATUS.md) §1/§4.
 | `capabilities.describe` | Inspects capability schema, effects, and status | Resolves (`:2584`) — real input schema, fingerprint and provider command |
 | `provider.probe` | Reports the supervisor's real view of one provider | Resolves (`:2617`); nothing tracks a provider in practice (no non-test provider rows) |
 | `provider.invoke` | Policy-evaluated tool execution | Resolves (`:2645`) — calls a discovered capability through `internal/discover`; synchronous per §4, and refuses when the tool's schema has drifted since discovery |
-| `invocation.get` | Retrieves invocation status | **`-32601`** — the asynchronous registry is ARCH/34, still `DESIGNED` |
-| `invocation.cancel` | Cancels an active invocation | **`-32601`** — as above |
+| `invocation.get` | Retrieves invocation status | Resolves from the durable registry and receipt chain (`internal/invocation`, `internal/receipts`); an unknown id is `LPSM-INVOCATION-NOT-FOUND` |
+| `invocation.cancel` | Cancels an active invocation | Resolves — cooperative cancellation over the same registry; the `ARCH/34` §4 health/restart/fallback halves remain `DESIGNED` |
 | `host.detect_config` | Probes default agent configuration file path | Resolves (`:2691`) |
 | `host.apply_setup` | Injects the Bridge MCP entry with atomic pre-edit backup | Resolves (`:2700`) |
 | `doctor.run_checks` | Runs 10 non-mutating system diagnostics | Resolves (`:2729`) |
@@ -272,9 +272,11 @@ Notes:
     `resolver.prepare_plan` + `install.execute` until one exists.
 *   `capabilities.search`, `capabilities.describe` and `provider.invoke` were `-32601` stubs until
     2026-10-06 and now resolve over discovered capability rows. `provider.invoke` is **synchronous**,
-    as this contract specifies; the cancellable asynchronous registry (`invocation.get` /
-    `invocation.cancel`) remains ARCH/34 and stays a stub. Two stubs remain `-32601` with that
-    concrete reason, and must not be described as working features.
+    as this contract specifies; `invocation.get` / `invocation.cancel` answered `-32601` until
+    2026-10-19 and now read the invocation registry and receipt chain, so an unknown id is a typed
+    `LPSM-INVOCATION-NOT-FOUND`. What `ARCH/34` still specifies and the tree does **not** do —
+    provider health states/circuit breaker, automatic restart, cross-provider fallback — must not be
+    described as working features.
 *   Future methods are specified elsewhere and are **not** registered here: `profile.*` and
     `lease.*` in [ARCH/35](35-PROFILES-AND-CAPABILITY-LEASES.md) (`DESIGNED`), the asynchronous
     invocation registry in [ARCH/34](34-RUNTIME-INVOCATION-RECEIPTS.md) (`DESIGNED`), and
@@ -316,17 +318,20 @@ Dispatch status (per [STATUS.md](../STATUS.md) §1/§4):
     is a *selection* key, not an authorization boundary: the IPC peer is already authenticated as the
     same uid, and these three tools only choose which database rows to read — they never read the
     filesystem at the supplied path.
-*   **Resolves, but only two kinds complete:** `request_install` (`shim.go:440`) forwards to
+*   **Resolves for all three installable kinds:** `request_install` (`shim.go:440`) forwards to
     `install.execute`, which is gated by `install_authz.go` (a persisted, hash-verified plan plus a
     human approval recorded for that plan's hash). With both present, `kind=skill` installs real
-    files through the skills ledger and `kind=mcp` registers the server in each target host's
-    config. Only `kind=plugin` still supplies no `ArchiveSource`/`TreeSource` and returns
-    `LPSM-ARTIFACT-UNAVAILABLE` (`internal/install/engine.go:204-207`). **An agent can install
-    skills and MCP servers through `/marketplace` today; plugin installs cannot complete until an
-    artifact source exists.**
-*   **Daemon answers `-32601`:** `get_invocation` (`invocation.get`) and `cancel_invocation`
-    (`invocation.cancel`) only — the shim forwards, the daemon rejects with the reasons in §3.2,
-    because the asynchronous registry they name is `ARCH/34` (`DESIGNED`).
+    files through the skills ledger, `kind=mcp` registers the server in each target host's config,
+    and `kind=plugin` fetches the plan's pinned commit and installs the plugin's portable
+    components (servers registered, skills copied). A plugin with no fetchable pinned source
+    returns `LPSM-ARTIFACT-UNAVAILABLE`; one that declares components with no adapter returns
+    `LPSM-INSTALL-PARTIAL` unless the sealed plan carries the `allowPartial` acknowledgement
+    (`prepare_install`'s `allowPartial`). **An agent can install skills, MCP servers and
+    pinned-source plugins through `/marketplace` today.**
+*   **No handler answers `-32601` today:** `get_invocation` (`invocation.get`) and
+    `cancel_invocation` (`invocation.cancel`) forward to the daemon and read the registry `ARCH/34`
+    §2 specifies; an unknown id is a typed `LPSM-INVOCATION-NOT-FOUND`. The §4 health states, §3
+    restart and §7 fallback of that document remain unimplemented, and are not claimed.
 *   **Standalone (no daemon) mode:** every tool fails closed with an explicit error rather than
     fabricating results (`internal/bridge/shim.go:707-716`).
 

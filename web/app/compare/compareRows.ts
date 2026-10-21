@@ -122,7 +122,7 @@ const SKILL_COUNT = Number(release.agentSkillsCount ?? 0);
  * predicate every other surface uses (`availabilityOf`, the copy of the CLI's
  * own gate). The intro sentence is about a per-host capability, so a catalog
  * total is the wrong number for it: 42 of the 50 configurable hosts accept no
- * remote server at all, and the 8 that do accept 25,401 of the 48,418 — not
+ * remote server at all, and the 8 that do accept 25,400 of the 48,418 — not
  * 48,418. A reader who then opens `/explore/` or `/agents/` sees the smaller
  * number, and a page that says a larger one is not being careful, it is
  * being wrong. The evaluator's F-01 is exactly this sentence.

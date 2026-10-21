@@ -130,6 +130,11 @@ test("one step, one command: the entry page and the home page agree on setup", a
 });
 
 test("every host the catalog names has a page", async ({ page }) => {
+  // This test walks EVERY host page (50+), each a cold `page.goto` that
+  // hydrates the catalog. The suite's 90s budget is per test, so the walk does
+  // not fit it on a slow machine even when every page answers in ~1s — it is a
+  // walk of the whole index, not one assertion. It gets its own budget.
+  test.setTimeout(300_000);
   await gotoSettled(page, "/agents/");
   const rows = await page.locator("main ul > li").count();
   expect(rows, "the host index lists no hosts").toBeGreaterThan(50);

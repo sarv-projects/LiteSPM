@@ -80,8 +80,9 @@ Two consequences worth stating precisely:
     `catalog.search` answers "what exists in the registry", while
     `capabilities.search` answers "what is installed here and actually starts".
     The full mapping is §1.2.
-*   **Error rendering.** A daemon `-32601` reaches the host as an MCP *tool*
-    result, not a JSON-RPC error object: `FormatErrorResult`
+*   **Error rendering.** A daemon `-32601` (no handler returns one today, but a method
+    that is not implemented still would) reaches the host as an MCP *tool* result, not a
+    JSON-RPC error object: `FormatErrorResult`
     (`shim.go:718`) only passes through `*domain.LPSMError`, so a raw
     `*ipc.RPCError` is wrapped in an `LPSM-CORE-INTERNAL` envelope
     (`internal/domain/errors.go:296-306`) whose message text still carries the
@@ -98,15 +99,15 @@ Two consequences worth stating precisely:
 | 1 | `search_catalog` | `catalog.search` (`:379`) | `WIRED` — real index search |
 | 2 | `get_extension` | `catalog.get_item` (`:400`) | `WIRED` |
 | 3 | `prepare_install` | `resolver.prepare_plan` (`:420`) | `WIRED` — plan persisted with `planHash`; a project-scope call must name its `projectRoot` |
-| 4 | `request_install` | `install.execute` (`:440`) | `WIRED` **for skills and MCP servers** (installs files through the skills ledger / registers the server in each target host's config, both behind the plan + approval gate), `LPSM-ARTIFACT-UNAVAILABLE` for plugins ([STATUS.md](../STATUS.md) §3) |
+| 4 | `request_install` | `install.execute` (`:440`) | `WIRED` **for skills, MCP servers and plugins with a pinned source** (installs files through the skills ledger / registers the server in each target host's config / fetches the plugin's pinned tree and installs its portable components, all behind the plan + approval gate), `LPSM-ARTIFACT-UNAVAILABLE` for a plugin with no fetchable pinned source, `LPSM-INSTALL-PARTIAL` when an unacknowledged plugin install would skip declared components ([STATUS.md](../STATUS.md) §3) |
 | 5 | `list_installed` | `tools.list` (`:455`) | `WIRED` — installs + read-only detected external tools; sends `projectRoot` so the agent also sees the workspace's project-scope installs, each labelled with its scope |
 | 6 | `search_capabilities` | `capabilities.search` (`:471`) | Resolves — searches the tools **discovered on this machine**, which is a different question from `search_catalog`'s registry search |
 | 7 | `describe_capability` | `capabilities.describe` (`:490`) | Resolves — returns the real input schema, fingerprint and the command behind it |
 | 8 | `load_skill` | `skills.load_body` (`:512`) | `WIRED` — `projectRoot` as tool 5; user scope wins a name collision |
 | 9 | `read_skill_resource` | `skills.read_resource` (`:542`) | `WIRED` — path-traversal checked (`main.go:2951-2958`); `projectRoot` as tool 5 |
 | 10 | `invoke_capability` | `provider.invoke` (`:564`) | Resolves — spawns the installed server and calls the discovered tool; refuses on schema drift |
-| 11 | `get_invocation` | `invocation.get` (`:585`) | **`-32601`** — the async registry is ARCH/34 (`DESIGNED`); `provider.invoke` is synchronous by contract |
-| 12 | `cancel_invocation` | `invocation.cancel` (`:605`) | **`-32601`** — as tool 11 |
+| 11 | `get_invocation` | `invocation.get` (`:585`) | `WIRED` — answers from the invocation registry and receipt chain; an unknown id is `LPSM-INVOCATION-NOT-FOUND` |
+| 12 | `cancel_invocation` | `invocation.cancel` (`:605`) | `WIRED` — cooperative cancellation over the same registry |
 
 > Line numbers in the table are the `s.client.Call` sites inside `DispatchTool`
 > (`shim.go:328-620`). `litespm bridge stdio [--workspace <dir>]` sets the project
@@ -131,10 +132,11 @@ Two consequences worth stating precisely:
 > refuses: its docs describe no project MCP file, only project `.cline/` for
 > rules, skills, hooks, agents and plugins.
 
-Ten of the twelve tools resolve. `request_install` reaches the handler and completes for
-skills and MCP servers, stopping only at the missing artifact source for plugins; the other
-two — `get_invocation` and `cancel_invocation` — fail closed with an explicit `-32601` reason
-rather than fabricated data. Standalone mode (no daemon
+All twelve tools resolve. `request_install` reaches the handler and completes for skills, MCP
+servers and plugins with a pinned source (a plugin with no fetchable pinned source fails closed
+with that reason, and one whose extras have no adapter needs the `allowPartial` acknowledgement);
+`get_invocation` and `cancel_invocation` answer from the invocation registry even though
+`provider.invoke` stays synchronous by contract. Standalone mode (no daemon
 connection) fails **all** twelve with `LPSM-IPC-DAEMON-UNREACHABLE`
 (`shim.go:707-716`), and `ping` reports `{"connected": false}`
 truthfully (`shim.go:258-267`).

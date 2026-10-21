@@ -16,7 +16,7 @@ package source
 // line**, not a hint of one — the runtime descriptor comes from a version's
 // command *or* a version-less component's endpoint (`RuntimeForListing`), and
 // `litespm install` registers exactly that descriptor in the host's config. The
-// published release agrees: its 25,401 remote MCP rows are `metadata_verified`,
+// published release agrees: its 25,400 remote MCP rows are `metadata_verified`,
 // and the site's availability rule — a copy of the CLI's own gate — counts a
 // row with a transport as installable. The Go path used to disagree with both,
 // which meant the same record was installable from the published catalog and

@@ -33,12 +33,22 @@ test("the insights page says it is a census, not a trending list", async ({ page
   ).toBeVisible();
 });
 
-test("the primary rail names the route it links to", async ({ page }) => {
+test("the rail and the footer name the route they link to", async ({ page }) => {
   await gotoSettled(page, "/");
   const nav = page.locator('nav[aria-label="Primary"]');
   const hrefs = await nav.locator("a").evaluateAll((nodes) =>
     nodes.map((n) => (n as HTMLAnchorElement).getAttribute("href") ?? "")
   );
   expect(hrefs, "the rail still links to the old route").not.toContain("/trending/");
-  expect(hrefs).toContain("/insights/");
+  expect(hrefs, "the rail still links to /insights/").not.toContain("/insights/");
+
+  // Insights moved out of the rail in the 2026-10-20 repositioning: it is a
+  // reference surface, not one of the four things a first-time reader needs.
+  // The route is still reachable from the footer, and never by its old name.
+  const footer = page.locator("footer");
+  const footerHrefs = await footer.locator("a").evaluateAll((nodes) =>
+    nodes.map((n) => (n as HTMLAnchorElement).getAttribute("href") ?? "")
+  );
+  expect(footerHrefs, "the footer still links to the old route").not.toContain("/trending/");
+  expect(footerHrefs).toContain("/insights/");
 });

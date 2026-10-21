@@ -79,7 +79,7 @@ To guarantee data integrity and prevent concurrency hazards across multiple simu
     1.  Speaks standard MCP JSON-RPC over `stdin`/`stdout`.
     2.  Identifies host identity (`--host claude-code`) and session attributes.
     3.  Dials the local IPC endpoint of the LiteSPM Daemon. **It never launches the daemon**: if the dial fails, `litespm bridge` runs standalone with no capabilities and says so on stderr, telling the user to start `litespm daemon serve` (`cmd/litespm/main.go:344-348`).
-    4.  Translates MCP tool calls to internal IPC RPCs (`search_catalog` → `catalog.search`, `prepare_install` → `resolver.prepare_plan`, …). `search_capabilities`, `describe_capability` and `invoke_capability` resolve over discovered capability rows through `internal/discover`; only `get_invocation` and `cancel_invocation` map to handlers that return explicit `-32601` today, because the asynchronous registry they need is `ARCH/34` (`DESIGNED`) ([STATUS.md](../STATUS.md) §4).
+    4.  Translates MCP tool calls to internal IPC RPCs (`search_catalog` → `catalog.search`, `prepare_install` → `resolver.prepare_plan`, …). `search_capabilities`, `describe_capability` and `invoke_capability` resolve over discovered capability rows through `internal/discover`; `get_invocation` and `cancel_invocation` forward to the invocation registry (`ARCH/34`), where an id that was never issued is a typed `LPSM-INVOCATION-NOT-FOUND` rather than a `-32601` stub ([STATUS.md](../STATUS.md) §4).
     5.  Exits cleanly when the host agent terminates stdio.
 *   **Prohibitions:** The Bridge Shim **never** opens SQLite directly, never writes to configuration files, and never launches downstream provider child processes.
 
@@ -159,15 +159,15 @@ sequenceDiagram
         User->>Host: Approves installation
         Host->>Shim: MCP tools/call: request_install(planId, approvalToken)
         Shim->>Daemon: IPC: install.execute(planId, approvalToken)
-        Note over Daemon: skills install through the skills ledger, MCP servers are registered<br/>in each target host's config (plan + approval required);<br/>only plugins fail closed (LPSM-ARTIFACT-UNAVAILABLE —<br/>no artifact source; internal/install/engine.go:204).
-        Daemon-->>Shim: ERROR: LPSM-ARTIFACT-UNAVAILABLE (plugins only)
-        Shim-->>Host: MCP tool error — plugin install cannot complete (STATUS §3)
+        Note over Daemon: skills install through the skills ledger, MCP servers are registered<br/>in each target host's config, and a plugin's pinned tree is fetched and its portable<br/>components installed (plan + approval required). No fetchable pinned source →<br/>LPSM-ARTIFACT-UNAVAILABLE; declared extras with no adapter → LPSM-INSTALL-PARTIAL<br/>unless the plan carries allowPartial (STATUS §3).
+        Daemon-->>Shim: ERROR: LPSM-ARTIFACT-UNAVAILABLE / LPSM-INSTALL-PARTIAL (names the reason)
+        Shim-->>Host: MCP tool error naming the class it would skip (STATUS §3)
     else Host does not support elicitation (human CLI path)
         User->>User: litespm install "listing-id" --version "ver" --scope user or project
-        Note over User: The CLI takes no --plan-id: it records its own plan and approval.<br/>It routes by kind: skills install real files, MCP servers register in host configs;<br/>plugins fail closed.
+        Note over User: The CLI takes no --plan-id: it records its own plan and approval.<br/>It routes by kind: skills install real files, MCP servers register in host configs,<br/>a pinned-source plugin installs its portable components (--allow-partial to skip).
     end
 
-    Note over Daemon,Store: The steps below are the engine's real executed path; today nothing<br/>supplies an archive artifact source, so a plugin install (a different path) cannot complete.
+    Note over Daemon,Store: The steps below are the archive engine's real executed path. A skill,<br/>an MCP server and a plugin each take a different path (files, a config entry, a pinned tree),<br/>so this engine has no production caller yet.
 
     Daemon->>Daemon: Verify planHash & expiry when a planId was bound (engine.loadPlan)
     Daemon->>DB: INSERT INTO operations (state='created')
@@ -242,7 +242,7 @@ sequenceDiagram
     Daemon->>Daemon: Start IPC listener (Named Pipe / Domain Socket)
 ```
 
-> **Status of §4.3–§4.4.** Recovery is implemented and test-covered (`internal/state/operations.go:243-343`; `TESTED` per [STATUS.md](../STATUS.md) §1). The §4.3 invocation flow is **partly** real: `provider.invoke` and the Bridge tool `invoke_capability` now resolve synchronously through `internal/discover` (probe → policy → schema-fingerprint re-check → call), but `invocation.get` / `invocation.cancel` and their Bridge counterparts still return explicit `-32601` — there is no asynchronous invocation registry (`cmd/litespm/main.go:2216,2225`; [STATUS.md](../STATUS.md) §4). The asynchronous, receipted §4.3 is target design specified in `ARCH/34` (`DESIGNED`).
+> **Status of §4.3–§4.4.** Recovery is implemented and test-covered (`internal/state/operations.go:243-343`; `TESTED` per [STATUS.md](../STATUS.md) §1). The §4.3 invocation flow is **real, with named gaps**: `provider.invoke` and the Bridge tool `invoke_capability` resolve synchronously through `internal/discover` (probe → policy → schema-fingerprint re-check → call), and `invocation.get` / `invocation.cancel` (with their Bridge counterparts) answer from the durable invocation registry and receipt chain (`internal/invocation`, `internal/receipts`) — an unknown id is a typed `LPSM-INVOCATION-NOT-FOUND`, not a `-32601` stub ([STATUS.md](../STATUS.md) §4). What `ARCH/34` still specifies and the tree does **not** do: provider health states and a circuit breaker (§4), automatic provider restart (§3) and cross-provider fallback (§7).
 
 ---
 
@@ -265,7 +265,7 @@ sequenceDiagram
 |---|---|---|---|
 | Install + governance | Project manifest (`litespm.yml`) + lockfile (`litespm.lock`), frozen resolve, SBOM/verify verbs, interop import/export, canonical identity/alias graph | `ARCH/32` | **§2–§4 `WIRED`** (manifest, lockfile, lock verbs, `install --frozen`); four §5 importers `WIRED`; identity graph/export `DESIGNED` |
 | Install + governance | Deployment mutation ledger, three-way reconciliation, ownership-aware uninstall/update | `ARCH/33` | **Install/reconcile/uninstall `IMPLEMENTED`**; §6 update routing `DESIGNED` |
-| Provider & invocation runtime | Capability registry, real `provider.invoke` / `invocation.get` / `invocation.cancel`, invocation engine, tamper-evident receipts | `ARCH/34` | `provider.invoke` is `WIRED` (synchronous); `get`/`cancel` return `-32601`; registry/engine/receipts `DESIGNED` |
+| Provider & invocation runtime | Capability registry, real `provider.invoke` / `invocation.get` / `invocation.cancel`, invocation engine, tamper-evident receipts | `ARCH/34` | `provider.invoke`, `get`/`cancel`, the invocation engine and the receipt chain are `WIRED`; health states, restart and cross-provider fallback remain `DESIGNED` |
 | Provider & invocation runtime (+ governance leases) | Runtime profiles with OCI distribution; time/scope-bounded capability leases | `ARCH/35` | `DESIGNED` (library `IMPLEMENTED`, unwired) |
 | Governance & evidence | Tighten-only policy hierarchy + `policy explain`, `audit --ci`/SARIF, advisories/quarantine, TUF-style signed catalog, SBOM/Sigstore/SLSA, air-gapped bundles | `ARCH/36` | Policy hierarchy/advisories/TUF/air-gap `DESIGNED`; release SBOM + Sigstore bundles `SHIPPED` (`v0.4.0`) |
 | Interfaces & packaging | TUI, local dashboard, shell completion, `why` | `ARCH/37` | `DESIGNED` |

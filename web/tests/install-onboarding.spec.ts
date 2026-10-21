@@ -11,14 +11,24 @@ import {
   websiteInstallCommandFor,
 } from "../lib/installCommand";
 
-test("published-CLI website command targets MCPs/plugins, never catalog skills", () => {
+test("published-CLI website command names the chosen agent for every kind", () => {
   const id = "mcp:builtin:example";
   expect(websiteInstallCommandFor({ id, kind: "mcp" }, "codex").command)
-    .toBe("npx --yes litespm@latest install mcp:builtin:example --host codex");
+    .toBe("npx --yes litespm@latest install mcp:builtin:example --agent codex");
   expect(websiteInstallCommandFor({ id: "plugin:example", kind: "plugin" }, "claude-code").command)
-    .toBe("npx --yes litespm@latest install plugin:example --host claude-code");
+    .toBe("npx --yes litespm@latest install plugin:example --agent claude-code");
+  // A skill takes --agent too: the catalog installer seals the destination in
+  // the plan, so the named agent is the only one written.
   expect(websiteInstallCommandFor({ id: "skill:example", kind: "skill" }, "codex").command)
-    .toBe("npx --yes litespm@latest install skill:example");
+    .toBe("npx --yes litespm@latest install skill:example --agent codex");
+  // No agent chosen: the CLI refuses a multi-agent skill fan-out unless the
+  // command says `--all-detected`, so the page prints the flag rather than a
+  // command that would stop and ask.
+  expect(websiteInstallCommandFor({ id: "skill:example", kind: "skill" }).command)
+    .toBe("npx --yes litespm@latest install skill:example --all-detected");
+  // An MCP server keeps its documented default: every bridge-registered host.
+  expect(websiteInstallCommandFor({ id, kind: "mcp" }).command)
+    .toBe("npx --yes litespm@latest install mcp:builtin:example");
   expect(WEBSITE_SETUP_COMMAND).toBe("npx --yes litespm@latest setup");
   expect(WEBSITE_CATALOG_SYNC_COMMAND).toBe("npx --yes litespm@latest catalog sync");
 });

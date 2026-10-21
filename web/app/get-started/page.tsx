@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   description:
     "A read-only LiteSPM setup guide: pick your coding agent and your operating system, and get the exact commands, the configuration file it will edit, and what to do when something fails.",
   alternates: { canonical: "/get-started/" },
-  openGraph: { title: "Get started · LiteSPM Market", url: "/get-started/" },
+  openGraph: { title: "Get started · LiteSPM", url: "/get-started/" },
 };
 
 function guideAgents(): GuideAgent[] {

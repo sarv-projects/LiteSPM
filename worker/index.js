@@ -276,7 +276,7 @@ function shellResponse(url, env) {
 function rewrite(response, { item, key, origin }) {
   const canonical = `${origin}/package/${encodeURIComponent(key)}/`;
   const description = metaDescription(item);
-  const title = `${item.name} · LiteSPM Market`;
+  const title = `${item.name} · LiteSPM`;
   const categoryText = categoryLabel(item.category);
   const structured = [
     entryJsonLd(item, canonical, categoryText),

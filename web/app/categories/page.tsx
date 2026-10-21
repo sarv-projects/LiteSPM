@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description:
     "Browse the catalog by goal or by the sources' own category labels, with the number of MCP servers, agent skills and plugins filed under each.",
   alternates: { canonical: "/categories/" },
-  openGraph: { title: "Categories · LiteSPM Market", url: "/categories/" },
+  openGraph: { title: "Categories · LiteSPM", url: "/categories/" },
 };
 
 /**

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -317,6 +318,39 @@ func ErrNameConflict(detail string) *LPSMError {
 		Retryable: false,
 		Details: map[string]any{
 			"detail": detail,
+		},
+	}
+}
+
+// ErrInstallPartial reports that an install would deliver only part of what
+// the listing declares, and that no human has acknowledged losing the rest.
+//
+// It is a consent question rather than a failure: the artifact was found and
+// the target hosts can take it, so folding it into the artifact or target
+// buckets would send the user looking for a missing file. The message names
+// every skipped class and the acknowledgement that permits the install, and
+// nothing is written when it is returned.
+func ErrInstallPartial(listingID string, skipped map[string]int, acknowledgement string) *LPSMError {
+	kinds := make([]string, 0, len(skipped))
+	for kind := range skipped {
+		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+	parts := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		parts = append(parts, fmt.Sprintf("%d %s", skipped[kind], kind))
+	}
+	return &LPSMError{
+		Code: "LPSM-INSTALL-PARTIAL",
+		Message: fmt.Sprintf("installing %s would skip %s, which no adapter here installs; "+
+			"nothing was written. Re-run with %s if that is acceptable",
+			listingID, strings.Join(parts, ", "), acknowledgement),
+		Category:  "LPSM-INSTALL",
+		Retryable: false,
+		Details: map[string]any{
+			"listingId":       listingID,
+			"skipped":         skipped,
+			"acknowledgement": acknowledgement,
 		},
 	}
 }

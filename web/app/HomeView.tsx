@@ -7,12 +7,12 @@ import { LandingHero } from "../components/home/LandingHero";
 import { AgentStrip } from "../components/home/AgentStrip";
 import { Shelves } from "../components/home/Shelves";
 import { TopicTiles } from "../components/home/TopicTiles";
+import { CapabilityTypes } from "../components/home/CapabilityTypes";
 import { HowItWorks } from "../components/home/HowItWorks";
 import { AtlasTeaser } from "../components/home/AtlasTeaser";
 import { FaqSection } from "../components/home/FaqSection";
 import { DeveloperZone } from "../components/home/DeveloperZone";
 import { SearchResults } from "../components/home/SearchResults";
-import { BenefitComparison } from "../components/marketing/BenefitComparison";
 import { WhyLiteSPM } from "../components/marketing/WhyLiteSPM";
 import { Listing, useTelemetry } from "../lib/telemetry";
 import { useCatalogSearch } from "../lib/useCatalogSearch";
@@ -42,15 +42,20 @@ import type { ProvenanceStats, CuratedGroup, TopicStat } from "../lib/landing";
  *
  * Now:
  *
- *   1. hero — the promise, and the product's own recording
+ *   1. hero — the promise, the search and the product's own recording
  *   2. what do you want your AI to do? — eight goal tiles
  *   3. start here — one curated, installable set, and one secondary group
- *   4. what LiteSPM changes — the lifecycle, before and after
+ *   4. tools, skills and plugins — the three kinds, in plain language
  *   5. how it works — three steps, with the commands
  *   6. choose your agent — the preference, and what each agent gets
  *   7. why LiteSPM — the four reasons to use it over a config file
  *   8. FAQ — the questions, in the order they are asked
  *   9. get started — the commands
+ *
+ * The `BenefitComparison` section was removed in the 2026-10-20 repositioning:
+ * it and `WhyLiteSPM` each explained why LiteSPM beats editing config by hand,
+ * and two sections making the same argument made the page longer without making
+ * it clearer.
  *
  * The goal tiles move up to second because they are the fastest way in for
  * someone who does not know the vocabulary; the agent strip moves down to
@@ -158,8 +163,9 @@ export default function Home(props: HomeViewProps) {
             {/* 3 — one curated, installable set and one secondary group. */}
             <Shelves groups={props.shelves} agent={agent} telemetry={telemetry} />
 
-            {/* 4 — the lifecycle, before and after. */}
-            <BenefitComparison />
+            {/* 4 — the vocabulary, in plain language, before the reader is
+                asked to filter by it. */}
+            <CapabilityTypes />
           </>
         )}
 

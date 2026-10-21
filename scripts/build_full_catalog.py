@@ -973,6 +973,38 @@ def select_remote_endpoint(remotes):
     return chosen, len(entries) - 1
 
 
+# Credential-shaped query parameter names. The list mirrors
+# internal/scan.looksLikeCredential (the audit rule), so an endpoint this
+# build publishes is one `litespm audit` will not later flag. A value that
+# only names a variable (`?token={token}`) is a placeholder the publisher is
+# expected to substitute, not a credential.
+_CREDENTIAL_QUERY_KEYS = (
+    "apikey", "api_key", "api-key", "access_token", "token", "password", "secret",
+)
+
+
+def _credential_shaped_query(parsed):
+    """Whether a URL's query carries a literal credential value.
+
+    A query string is not refused wholesale: `?region=eu` is a routing
+    parameter, not a secret. Only the names the audit rule treats as
+    credentials are inspected, and a placeholder value is allowed through.
+    """
+    try:
+        pairs = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    except ValueError:
+        # An unparseable query is not something to publish.
+        return True
+    for key, value in pairs:
+        # Substring, not equality: `demo_token` and `access_token` are the
+        # same shape as `token=`, and the audit rule matches the same way.
+        if any(marker in key.strip().lower() for marker in _CREDENTIAL_QUERY_KEYS):
+            value = value.strip()
+            if value and not any(ch in value for ch in "{}<>"):
+                return True
+    return False
+
+
 def publishable_endpoint(url):
     """Whether a remote endpoint URL may be published in a dataset row.
 
@@ -980,13 +1012,14 @@ def publishable_endpoint(url):
     the guard checks at connect time, not a source this build reads). The
     policy mirrors _validate_request_url minus the per-source host
     allowlist -- https only, a required host, no embedded credentials, no
-    fragment, default port -- plus the one carve-out internal/egress makes:
-    plain http to a loopback host (Policy.AllowLoopbackHTTP, a local dev
-    endpoint). A non-public IP literal is refused outright (link-local /
-    metadata, RFC1918, CGNAT: the ranges the guard refuses with no policy
-    knob). An endpoint this function refuses would be refused by the guard
-    later, so it is dropped here instead of being published as something an
-    install would then fail on; the caller logs that as a refusal.
+    fragment, no credential-shaped query parameter, default port -- plus the
+    one carve-out internal/egress makes: plain http to a loopback host
+    (Policy.AllowLoopbackHTTP, a local dev endpoint). A non-public IP literal
+    is refused outright (link-local / metadata, RFC1918, CGNAT: the ranges
+    the guard refuses with no policy knob). An endpoint this function refuses
+    would be refused by the guard later, so it is dropped here instead of
+    being published as something an install would then fail on; the caller
+    logs that as a refusal.
     """
     if not isinstance(url, str):
         return False
@@ -999,6 +1032,8 @@ def publishable_endpoint(url):
     if not host or parsed.username is not None or parsed.password is not None:
         return False
     if parsed.fragment:
+        return False
+    if _credential_shaped_query(parsed):
         return False
     if _is_loopback_host(host):
         return True

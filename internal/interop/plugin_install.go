@@ -11,11 +11,12 @@ package interop
 // not understand.
 //
 // What "installing a plugin" means here is decided by the manifest and by
-// nothing else: the manifest declares MCP servers, and those servers are
-// registered in each target host's config exactly as an MCP server is. The
-// components a manifest also declares — commands, agents, hooks, skills —
-// are COUNTED and REPORTED, never projected: LiteSPM has no projection for
-// them, and a half-projection is worse than none.
+// nothing else. Two component classes are portable and are read as typed
+// components: MCP servers (registered in each target host's config exactly as
+// an MCP server is) and skills (copied into each agent's own skills tree, for
+// the hosts that have one). The classes that are host-specific — commands,
+// agents, hooks, LSP servers — are COUNTED and REPORTED, never projected: there
+// is no adapter for them, and a half-projection is worse than none.
 //
 // Two rules are worth stating separately:
 //
@@ -35,6 +36,7 @@ package interop
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -60,6 +62,17 @@ type PluginMCPServer struct {
 	Type string
 }
 
+// PluginSkill is one skill a plugin bundles: a directory inside the plugin's
+// own tree that contains a SKILL.md.
+type PluginSkill struct {
+	// Name is the skill's directory name, derived from the declared path.
+	Name string
+	// Path is the skill directory, relative to the plugin tree root. It is
+	// inert data: the installer joins it onto the verified tree and refuses
+	// anything that leaves it.
+	Path string
+}
+
 // PluginInstallManifest is what an install needs from a plugin's own
 // manifest.
 type PluginInstallManifest struct {
@@ -83,8 +96,13 @@ type PluginInstallManifest struct {
 	// sees one file, and the referenced file lives inside the pinned,
 	// digest-verified tree the installer holds.
 	MCPServersRef string
+	// Skills are the skill directories the manifest declares
+	// ("skills": ["skills/review/SKILL.md", …]). Skills are portable, so
+	// they are installed like a standalone skill once the pinned tree is
+	// fetched; the manifest only names where inside that tree they live.
+	Skills []PluginSkill
 	// NotInstalled counts the components the manifest declares that
-	// LiteSPM does not install ("commands", "agents", "hooks", "skills",
+	// LiteSPM does not install ("commands", "agents", "hooks",
 	// "lspServers", "disabled servers"). They are reported so an install
 	// never claims a plugin is whole when it is not.
 	NotInstalled map[string]int
@@ -236,8 +254,16 @@ func ParsePluginInstallManifest(data []byte) (*PluginInstallManifest, error) {
 		return nil, err
 	}
 
+	// Skills are portable: the install copies them into each target agent's
+	// own skills tree, so they are parsed rather than counted as missing.
+	skillComponents, err := parsePluginSkills(root)
+	if err != nil {
+		return nil, err
+	}
+	doc.Skills = skillComponents
+
 	// The components LiteSPM does not project are counted, never installed.
-	for _, field := range []string{"lspServers", "commands", "agents", "hooks", "skills"} {
+	for _, field := range []string{"lspServers", "commands", "agents", "hooks"} {
 		raw, ok := root[field]
 		if !ok {
 			continue
@@ -567,6 +593,71 @@ func validatePluginKeywords(root map[string]json.RawMessage) error {
 		return errorf(ErrCodeSchema, "keywords: %s", errDetail(err))
 	}
 	return nil
+}
+
+// parsePluginSkills reads the manifest's `skills` member into typed
+// components.
+//
+// Three shapes are in the wild and all three are accepted: one path, an array
+// of paths, or an object of name → path. A path names either the skill
+// directory or its SKILL.md, and is always relative to the plugin's own tree;
+// a traversal segment or an absolute path is refused here, before anything
+// joins it onto a filesystem path. The declaration is inert — the installer
+// re-checks containment against the verified tree and requires a SKILL.md.
+func parsePluginSkills(root map[string]json.RawMessage) ([]PluginSkill, error) {
+	raw, ok := root["skills"]
+	if !ok {
+		return nil, nil
+	}
+
+	var paths []string
+	var single string
+	var list []string
+	var byName map[string]string
+	switch {
+	case decodeStrict(raw, &single) == nil:
+		paths = []string{single}
+	case decodeStrict(raw, &list) == nil:
+		paths = list
+	case decodeStrict(raw, &byName) == nil:
+		names := make([]string, 0, len(byName))
+		for name := range byName {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			paths = append(paths, byName[name])
+		}
+	default:
+		return nil, errorf(ErrCodeSchema, "skills: expected a path, an array of paths, or an object of name -> path")
+	}
+
+	seen := map[string]bool{}
+	out := make([]PluginSkill, 0, len(paths))
+	for _, entry := range paths {
+		path := strings.TrimSpace(entry)
+		if path == "" {
+			return nil, errorf(ErrCodeSchema, "skills contains an empty path")
+		}
+		if err := checkSafeField("skills", path); err != nil {
+			return nil, err
+		}
+		path = strings.TrimSuffix(strings.TrimSuffix(path, "/"), string(filepath.Separator))
+		dir := path
+		if strings.EqualFold(filepath.Base(dir), "SKILL.md") {
+			dir = filepath.Dir(dir)
+		}
+		if dir == "" || dir == "." || dir == ".." {
+			return nil, errorf(ErrCodeSchema, "skills path %q does not name a skill directory", entry)
+		}
+		if seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		out = append(out, PluginSkill{Name: filepath.Base(dir), Path: dir})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out, nil
 }
 
 // countDeclaredMembers counts the entries of a member LiteSPM reports but

@@ -58,14 +58,14 @@ export async function generateMetadata({
   const canonical = staticEntryHref(item);
 
   return {
-    // The layout's template appends " · LiteSPM Market".
+    // The layout's template appends " · LiteSPM".
     title: item.name,
     description,
     alternates: { canonical },
     openGraph: {
       type: "website",
       // Open Graph titles are used verbatim, so the site name is explicit here.
-      title: `${item.name} · LiteSPM Market`,
+      title: `${item.name} · LiteSPM`,
       description,
       url: canonical,
     },

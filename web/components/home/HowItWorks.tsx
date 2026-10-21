@@ -92,7 +92,7 @@ const STEPS: Step[] = [
           <code className="t-mono">litespm uninstall</code> removes the bridge entry from a host.
         </p>
         <p className="mt-2">
-          Every decision — what was approved, what was written, what was removed — is recorded
+          What was approved, what was written and what was removed is recorded
           against the plan that asked for it, in a ledger on your machine.
         </p>
       </>

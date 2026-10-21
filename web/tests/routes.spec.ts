@@ -15,7 +15,7 @@ const nonPreRendered = nonPreRenderedEntry();
 const flagship = flagshipEntry();
 
 const ROUTES: Array<{ path: string; heading?: string }> = [
-  { path: "/", heading: "Find the right tools for your AI agents." },
+  { path: "/", heading: "Give your AI agents new capabilities." },
   { path: "/explore/", heading: "Explore the marketplace" },
   { path: "/agents/", heading: "Browse AI agents" },
   { path: "/agents/claude-code/", heading: "Claude Code" },
@@ -42,7 +42,7 @@ for (const { path, heading } of ROUTES) {
     }
     // Every route carries the site name; entry pages are asserted exactly in
     // `entry-pages.spec.ts`, where the entry's own name is the point.
-    await expect(page).toHaveTitle(/LiteSPM Market/);
+    await expect(page).toHaveTitle(/LiteSPM/);
     expect(errors, `console errors on ${path}:\n${errors.join("\n")}`).toEqual([]);
   });
 }

@@ -72,7 +72,7 @@ for (const route of ROUTES) {
     await expect(
       page.getByRole("heading", { name: route.heading, level: 1 })
     ).toBeVisible();
-    await expect(page).toHaveTitle(/LiteSPM Market/);
+    await expect(page).toHaveTitle(/LiteSPM/);
     expect(errors, `console errors on ${route.path}:\n${errors.join("\n")}`).toEqual([]);
   });
 

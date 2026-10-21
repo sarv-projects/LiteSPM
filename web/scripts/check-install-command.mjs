@@ -47,24 +47,40 @@ function fail(message) {
  * the site publish a command nobody can run.
  */
 function cliAcceptsSearch() {
+  return cliInstallParserAccepts("--search", "`litespm install --search`");
+}
+
+/**
+ * Does the CLI's install verb accept `--agent`?
+ *
+ * The site names the chosen agent with it for every kind, so a build that
+ * publishes `--agent` while the binary still spells the flag `--host` would
+ * print a command that fails with "unknown flag".
+ */
+function cliAcceptsAgent() {
+  return cliInstallParserAccepts("--agent", "`litespm install --agent`");
+}
+
+function cliInstallParserAccepts(flag, description) {
   if (!existsSync(cliDir)) {
     fail(`the CLI source is not at ${cliDir} — the gate cannot check the install verb`);
   }
   const files = readdirSync(cliDir).filter((name) => name.endsWith(".go"));
   let sawParser = false;
+  const pattern = new RegExp(`case\\s+"${flag}"`);
   for (const file of files) {
     const text = readFileSync(path.join(cliDir, file), "utf8");
     // The install verb's flag parser: the struct it fills and the function
-    // that parses it. Any other `--search` in the CLI (there is none today)
-    // belongs to another verb and says nothing about `litespm install`.
+    // that parses it. A flag of the same name on another verb says nothing
+    // about `litespm install`.
     if (!/parseInstallFlags|installFlags/.test(text)) continue;
     sawParser = true;
-    if (/case\s+"--search"/.test(text)) return true;
+    if (pattern.test(text)) return true;
   }
   if (!sawParser) {
     fail(
       "the CLI's install flag parser was not found in cmd/litespm — the gate cannot " +
-        "tell whether `litespm install --search` exists"
+        `tell whether ${description} exists`
     );
   }
   return false;
@@ -122,10 +138,40 @@ async function main() {
   }
   if (!command.id) fail("the command carries no id — the disclosure would have nothing to show");
 
+  // `--agent` names the target for every kind. Asserted in both directions:
+  // publishing it against a binary that does not take it prints a failing
+  // command; dropping it while the binary supports it leaves a skill command
+  // unable to name its destination.
+  const targeted = module.websiteInstallCommandFor({ id: "skill:example", kind: "skill" }, "codex");
+  const siteEmitsAgent = targeted.command.includes(" --agent codex");
+  const cliTakesAgent = cliAcceptsAgent();
+  if (siteEmitsAgent !== cliTakesAgent) {
+    fail(
+      siteEmitsAgent
+        ? "the site publishes `--agent` but the CLI's install parser does not accept it — the command would fail with `unknown flag`"
+        : "the CLI accepts `--agent` but the site does not publish it — the chosen agent would be silently dropped from a skill command"
+    );
+  }
+  const untargeted = module.websiteInstallCommandFor({ id: "skill:example", kind: "skill" });
+  if (untargeted.command.includes("--agent")) {
+    fail("an untargeted command must not name an agent");
+  }
+  // A bare skill command must state the multi-agent choice: the CLI refuses to
+  // fan out on an unnamed target when more than one agent is detected.
+  if (!untargeted.command.includes("--all-detected")) {
+    fail("an untargeted skill command must carry --all-detected, or the CLI would stop and ask");
+  }
+  const untargetedMcp = module.websiteInstallCommandFor({ id: "mcp:ok", kind: "mcp" });
+  if (untargetedMcp.command.includes("--all-detected") || untargetedMcp.command.includes("--agent")) {
+    fail("an MCP command must keep its documented default target set and name no flag");
+  }
+
   console.log(
     `OK install command — the CLI ${actual ? "accepts" : "does not accept"} ` +
       `\`litespm install --search\`, and the site publishes the ` +
-      `${actual ? "short form" : "exact id"}; the exact id is always available`
+      `${actual ? "short form" : "exact id"}; the exact id is always available; ` +
+      `--agent ${cliTakesAgent ? "is" : "is not"} published because the CLI ` +
+      `${cliTakesAgent ? "accepts" : "does not accept"} it`
   );
 }
 

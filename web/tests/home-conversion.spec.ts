@@ -72,9 +72,11 @@ function isInstallable(row: Listing): boolean {
   // source LiteSPM fetches, and the plugin's own manifest is what registers
   // the servers. A plugin with no such source is refused, and this predicate
   // agrees with the module that decides it.
+  // `pinned` already means the descriptor published a 40-hex commit id, which
+  // is why the rule reads it instead of the id itself.
   if (row.kind === "plugin") {
-    const artifact = (row as { artifact?: { type?: string; pinned?: boolean; sha?: string } }).artifact;
-    return artifact?.type === "git-tree" && artifact.pinned === true && Boolean(artifact.sha);
+    const artifact = (row as { artifact?: { type?: string; pinned?: boolean } }).artifact;
+    return artifact?.type === "git-tree" && artifact.pinned === true;
   }
   return true;
 }
@@ -83,10 +85,10 @@ test("the H1 states the outcome, and claims only what the site can prove", async
   await gotoSettled(page, "/");
 
   const h1 = page.getByRole("heading", { level: 1 });
-  await expect(h1).toHaveText("Find the right tools for your AI agents.");
+  await expect(h1).toHaveText("Give your AI agents new capabilities.");
 
-  // The one word that makes the claim checkable.
-  await expect(h1).toContainText("right tools");
+  // The words that make the claim checkable: the page names what it adds.
+  await expect(h1).toContainText("new capabilities");
   // The site cannot know what an agent is missing, so it must not say that it
   // does: the claim is about safety, not about knowledge.
   await expect(h1).not.toContainText("knows what");
@@ -99,9 +101,9 @@ test("both calls to action exist, and land on real pages", async ({ page }) => {
   await expect(get).toBeVisible();
   await expect(get).toHaveAttribute("href", "/get-started/");
 
-  const how = page.getByRole("link", { name: "See how it works" });
-  await expect(how).toBeVisible();
-  await expect(how).toHaveAttribute("href", "/how-it-works/");
+  const explore = page.getByRole("link", { name: "Explore capabilities" });
+  await expect(explore).toBeVisible();
+  await expect(explore).toHaveAttribute("href", "/explore/");
 
   // And they are not dead ends: each route answers, with its own heading.
   for (const path of ["/get-started/", "/how-it-works/"]) {

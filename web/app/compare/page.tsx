@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   description:
     "The 50 agent hosts LiteSPM can configure, the config file it adds one entry to, where skills install — and the 29 more that take skills only.",
   alternates: { canonical: "/compare/" },
-  openGraph: { title: "Compare agent hosts · LiteSPM Market", url: "/compare/" },
+  openGraph: { title: "Compare agent hosts · LiteSPM", url: "/compare/" },
 };
 
 export default function ComparePage() {

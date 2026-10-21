@@ -45,12 +45,12 @@ const mono = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "LiteSPM Market — The Lightweight Skill & Package Manager for AI Agents",
-    template: "%s · LiteSPM Market",
+    default: "LiteSPM — The package manager for AI agents",
+    template: "%s · LiteSPM",
   },
   description:
-    "MCP servers, portable agent skills and plugins for AI agents — search the catalog by kind, category, publisher, runtime or host, and install with one LiteSPM command.",
-  applicationName: "LiteSPM Market",
+    "Discover and install MCP servers, skills and plugins across the AI agents you use. LiteSPM handles compatibility, setup, updates and removal from one place.",
+  applicationName: "LiteSPM",
   keywords: [
     "MCP",
     "Model Context Protocol",
@@ -65,18 +65,18 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    siteName: "LiteSPM Market",
-    title: "LiteSPM Market — The Lightweight Skill & Package Manager for AI Agents",
+    siteName: "LiteSPM",
+    title: "LiteSPM — The package manager for AI agents",
     description:
-      "Browse MCP servers, agent skills, and plugins by kind, category, publisher, runtime and agent host.",
+      "Discover and install MCP servers, skills and plugins across the AI agents you use.",
     url: SITE_URL,
   },
   twitter: {
     // The card upgrades to the large image only because an image now exists;
     // a `summary` card would letterbox the 1200×630 asset.
     card: "summary_large_image",
-    title: "LiteSPM Market",
-    description: "MCP servers, agent skills and plugins for coding agents — one catalog, one install command.",
+    title: "LiteSPM",
+    description: "Find, install and manage MCP servers, skills and plugins for your AI agents.",
     images: ["/og.png"],
   },
   robots: { index: true, follow: true },
@@ -119,7 +119,7 @@ const THEME_INIT = `(function(){try{var t=localStorage.getItem("litespm-theme");
 const SITE_JSON_LD = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "LiteSPM Market",
+  name: "LiteSPM",
   url: SITE_URL,
   description:
     "MCP servers, agent skills and plugins for AI coding agents.",
@@ -156,7 +156,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <meta property="og:image:height" content="630" />
         <meta
           property="og:image:alt"
-          content="LiteSPM Market — the lightweight skill & package manager for AI agents"
+          content="LiteSPM — the lightweight skill & package manager for AI agents"
         />
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         <script

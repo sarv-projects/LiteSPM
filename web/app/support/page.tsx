@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   description:
     "Where a report goes, what to put in it so it can be acted on, and the diagnostics to run before you send one.",
   alternates: { canonical: "/support/" },
-  openGraph: { title: "Support · LiteSPM Market", url: "/support/" },
+  openGraph: { title: "Support · LiteSPM", url: "/support/" },
 };
 
 const ISSUES_URL = `${REPO_URL}/issues`;

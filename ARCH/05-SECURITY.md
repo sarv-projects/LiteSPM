@@ -63,7 +63,7 @@ Two honesty notes bound this diagram:
 
 ## 2. Artifact Extraction & Filesystem Safety
 
-Third-party packages (skills, MCP distribution archives, plugins) are untrusted. Artifact extraction is centralized in `internal/artifact` and called from the install engine (`internal/install/engine.go:392` spooling, `:415` extraction). No production path currently supplies an archive to that engine (plugin installs fail closed with `LPSM-ARTIFACT-UNAVAILABLE`); skills install as files through `internal/skills`, which refuses symlinks and bounds the copied tree, and MCP servers install as a config entry with no artifact at all.
+Third-party packages (skills, MCP distribution archives, plugins) are untrusted. Artifact extraction is centralized in `internal/artifact` and called from the install engine (`internal/install/engine.go:392` spooling, `:415` extraction). No production path supplies an *archive* to that engine, so that half stays unit-tested only; a **plugin** is fetched as a pinned **git tree** through the same `internal/artifact` extractor (archive-slip, symlink, size, file-count and compression-ratio limits, canonical tree digest) and its components are then registered/copied like a standalone server and skill; a plugin with no fetchable pinned source fails closed with `LPSM-ARTIFACT-UNAVAILABLE`. Skills install as files through `internal/skills`, which refuses symlinks and bounds the copied tree, and MCP servers install as a config entry with no artifact at all.
 
 ### 2.1 Extraction Safety Thresholds
 

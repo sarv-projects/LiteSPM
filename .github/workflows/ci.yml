@@ -39,6 +39,14 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
+      # go.mod is part of the review surface: a direct import marked
+      # `// indirect`, or a tidy that was never run, is drift. The check
+      # rewrites nothing a reviewer would not get from `go mod tidy`.
+      - name: Check go.mod Is Tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
       - name: Check Shell Script Syntax
         run: bash -n scripts/*.sh
 
@@ -120,12 +128,15 @@ jobs:
           go-version: '1.26'
           cache: true
 
+      # -shuffle=on makes test order a variable rather than an assumption:
+      # the suite has already caught one ordering-sensitive defect, and a
+      # green run that only works in declaration order is not a green run.
       - name: Run Go Test Suite
-        run: go test -v -race ./...
+        run: go test -v -race -shuffle=on ./...
         if: matrix.os != 'windows-latest'
 
       - name: Run Go Test Suite (Windows)
-        run: go test -v ./...
+        run: go test -v -shuffle=on ./...
         if: matrix.os == 'windows-latest'
 
   build-web:

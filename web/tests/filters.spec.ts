@@ -179,7 +179,7 @@ test("every sort option says what it does, and the control shows the order in fo
   // ordering evidence follows the result set, never precedes it. The reader
   // opens it; the test opens it too.
   const ordering = page.locator("details").filter({
-    has: page.getByText("How these rows are ordered"),
+    has: page.getByText("How results are sorted"),
   });
   await expect(ordering, "the order in force is never explained").toBeVisible();
   await ordering.locator("summary").click();

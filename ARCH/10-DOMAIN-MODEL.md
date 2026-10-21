@@ -69,7 +69,7 @@ here so the model is complete, and they must not be presented as available:
 | Identifier | Grammar | Specified in | State |
 |---|---|---|---|
 | `MutationID` | `mutation_<26>` (Crockford base32) | [ARCH/33 §2](33-DEPLOYMENT-LEDGER-RECONCILIATION.md) | `DESIGNED` — no `deployment_mutations` table exists ([STATUS.md](../STATUS.md) §5) |
-| `InvocationID` | `invocation_<26>` | [ARCH/34 §2](34-RUNTIME-INVOCATION-RECEIPTS.md) | `DESIGNED` — no invocation registry exists; `invocation.get` / `invocation.cancel` return `-32601` ([STATUS.md](../STATUS.md) §4) |
+| `InvocationID` | `invocation_<26>` | [ARCH/34 §2](34-RUNTIME-INVOCATION-RECEIPTS.md) | `WIRED` — issued by `internal/invocation`, answered by `invocation.get` / `invocation.cancel` from the receipt chain; an unknown id is `LPSM-INVOCATION-NOT-FOUND` ([STATUS.md](../STATUS.md) §4) |
 | `LeaseID` | `lease_<26>` | [ARCH/35 §5](35-PROFILES-AND-CAPABILITY-LEASES.md) | `DESIGNED` — no profile or lease model exists ([STATUS.md](../STATUS.md) §4) |
 | `AdvisoryID` | `adv_<26>` | [ARCH/36 §3](36-ENTERPRISE-POLICY-AND-AUDIT.md) | `DESIGNED` — no advisory/quarantine machinery exists ([STATUS.md](../STATUS.md) §5) |
 
@@ -202,8 +202,11 @@ include that workspace's installs in `list_installed`/`load_skill`/`read_skill_r
 **Written in production:** yes — `CommitInstallOperation` persists the record and
 its `InstallComponentRecord` (`internal/install/engine.go:462` →
 `internal/state/repositories.go:343`). That writer is reached only when an
-archive/tree source is supplied, and no production path supplies one: plugin
-installs fail closed (`LPSM-ARTIFACT-UNAVAILABLE`). Skill installs are recorded
+archive/tree source is supplied, and no production path supplies one: a plugin
+is installed outside that engine — its pinned tree is fetched and its portable
+components are registered/copied directly, exactly as a standalone server and
+skill are (`cmd/litespm/install_plugin.go`). A plugin with no fetchable pinned
+source fails closed (`LPSM-ARTIFACT-UNAVAILABLE`). Skill installs are recorded
 as ordinary `InstallRecord` rows through the skills ledger path and MCP servers
 through host-config registration ([STATUS.md](../STATUS.md) §3).
 

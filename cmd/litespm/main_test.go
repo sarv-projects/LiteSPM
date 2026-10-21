@@ -262,6 +262,12 @@ func TestParseInstallFlags(t *testing.T) {
 		{name: "user scope after workspace contradicts", args: []string{"--workspace", "/tmp/proj", "--scope", "user", "listing"}, wantErr: true},
 		{name: "missing workspace value", args: []string{"listing", "--workspace"}, wantErr: true},
 		{name: "empty workspace value", args: []string{"listing", "--workspace", ""}, wantErr: true},
+		{name: "dry run", args: []string{"--dry-run", "listing"},
+			check: func(t *testing.T, f installFlags) {
+				if !f.dryRun || f.listingID != "listing" {
+					t.Errorf("unexpected flags: %+v", f)
+				}
+			}},
 		{name: "extra positional", args: []string{"one", "two"}, wantErr: true},
 	}
 
@@ -395,6 +401,7 @@ func TestPreparePlan_ErrorCodes(t *testing.T) {
 		{"unknown listing", map[string]any{"id": "mcp:builtin:mcp-registry:nope"}, ipc.CodeInvalidParams, "not found"},
 		{"bad scope", map[string]any{"id": testListingID, "scope": "global"}, ipc.CodeInvalidParams, "invalid scope"},
 		{"unresolvable version", map[string]any{"id": testListingID, "version": "9.9.9"}, ipc.CodeInternalError, "LPSM-RESOLVE-CONFLICT"},
+		{"allowPartial on a kind that cannot be partial", map[string]any{"id": testListingID, "version": "1.0.0", "allowPartial": true}, ipc.CodeInvalidParams, "plugin installs only"},
 	}
 
 	for _, tc := range cases {

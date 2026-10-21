@@ -122,8 +122,8 @@ func (s *Shim) initTools() {
 		},
 		{
 			Name:        "prepare_install",
-			Description: "Preview an immutable InstallPlan (effects, permissions, requirements) before installing.",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"version":{"type":"string"}},"required":["id"]}`),
+			Description: "Preview an immutable InstallPlan (effects, permissions, requirements) before installing. allowPartial acknowledges a plugin installing only its portable components; without it such an install is refused with the classes it would skip.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"version":{"type":"string"},"allowPartial":{"type":"boolean"}},"required":["id"]}`),
 		},
 		{
 			Name:        "request_install",
@@ -409,18 +409,23 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 
 	case "prepare_install":
 		var req struct {
-			ID      string `json:"id"`
-			Version string `json:"version,omitempty"`
+			ID           string `json:"id"`
+			Version      string `json:"version,omitempty"`
+			AllowPartial bool   `json:"allowPartial,omitempty"`
 		}
 		if rpcErr := decodeToolArgs(name, args, &req); rpcErr != nil {
 			return MCPToolResult{}, rpcErr
 		}
 
-		var resp any
-		err := s.client.Call(ctx, "resolver.prepare_plan", map[string]any{
+		params := map[string]any{
 			"id":      req.ID,
 			"version": req.Version,
-		}, &resp)
+		}
+		if req.AllowPartial {
+			params["allowPartial"] = true
+		}
+		var resp any
+		err := s.client.Call(ctx, "resolver.prepare_plan", params, &resp)
 		if err != nil {
 			return FormatErrorResult(err), nil
 		}

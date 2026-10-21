@@ -158,13 +158,28 @@ func upsertObjectMember(objText, name string, value any) (string, error) {
 	return insertRawMember(objText, closeRel, name, rendered)
 }
 
+// jsonKey renders a member name as a JSON string.
+//
+// fmt's %q is Go syntax, not JSON: an invalid UTF-8 byte became `"\xf0"`,
+// which no JSON parser accepts. Entry-name validation rejects such names, but
+// the splice must not be the step that turns a rejected name into a corrupt
+// file when a future caller forgets to validate.
+func jsonKey(name string) string {
+	b, err := json.Marshal(name)
+	if err != nil {
+		// A string cannot fail to marshal; keep the function total anyway.
+		return `""`
+	}
+	return string(b)
+}
+
 // insertRawMember writes `"name": literal` into an object literal immediately
 // before its closing brace at offset closeRel.
 func insertRawMember(objText string, closeRel int, name, literal string) (string, error) {
 	closeIndent := lineIndentOf(objText, closeRel)
 	memberIndent := closeIndent + "  "
 	body := strings.TrimRight(objText[:closeRel], " \t\r\n")
-	member := fmt.Sprintf("%q: %s", name, literal)
+	member := fmt.Sprintf("%s: %s", jsonKey(name), literal)
 	if isEmptyJSONObject(body) {
 		return body + "\n" + memberIndent + member + "\n" + closeIndent + objText[closeRel:], nil
 	}
@@ -196,7 +211,7 @@ func chainLiteral(keys []string, indent string) string {
 	}
 	inner := indent + "  "
 	child := chainLiteral(keys[1:], inner)
-	return "{\n" + inner + fmt.Sprintf("%q: %s", keys[0], child) + "\n" + indent + "}"
+	return "{\n" + inner + fmt.Sprintf("%s: %s", jsonKey(keys[0]), child) + "\n" + indent + "}"
 }
 
 // ensureKeyPath makes sure the object at keyPath exists, creating any missing

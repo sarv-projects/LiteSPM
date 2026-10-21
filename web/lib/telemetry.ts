@@ -62,7 +62,7 @@ export interface Listing {
   version: string | null;
   /**
    * The launch endpoint an MCP row's own record names (`https://….mcp`), when
-   * the upstream published one. Present on 25,401 of 69,376 rows; null for
+   * the upstream published one. Present on 25,400 of 69,376 rows; null for
    * skills, plugins and MCP rows whose source list carried no URL. Displayed
    * as the record's "Endpoint" row on the entry page — never guessed from the
    * publisher's homepage.

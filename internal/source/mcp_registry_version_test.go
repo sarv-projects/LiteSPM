@@ -115,7 +115,7 @@ func TestMCPInstallabilityRejectsEmptyVersionSummaries(t *testing.T) {
 	}
 }
 
-// An endpoint is a launch line. The published release agrees: 25,401 remote
+// An endpoint is a launch line. The published release agrees: 25,400 remote
 // MCP rows are `metadata_verified` there, `litespm install` registers the
 // endpoint itself (the runtime descriptor comes from a version's command
 // **or** a version-less component's endpoint), and the site's own

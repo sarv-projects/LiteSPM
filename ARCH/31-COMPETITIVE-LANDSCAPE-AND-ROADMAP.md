@@ -167,9 +167,21 @@ a config editor.
 > a registration, not an archive, so `install.execute` and `litespm install` route `kind=mcp`
 > through `installMCPFromListing` (`cmd/litespm/install_mcp.go`), which registers the published
 > runtime descriptor as a named entry in each target host's config (`internal/host/entry_install.go`;
-> verified on a JSON and a TOML host). The **plugin** half is what remains: plugins still fail
-> closed with `LPSM-ARTIFACT-UNAVAILABLE` until the catalog carries a plugin artifact locator
-> ([STATUS.md](../STATUS.md) §3; `TODO.md` `LPSM-D003`).
+> verified on a JSON and a TOML host).
+>
+> **Update (2026-10-21, plugin half — closed).** The catalog now carries each vendor plugin
+> manifest's own pinned `source` (`VersionRecord.Artifacts`), and a plugin installs: the committed
+> tree is fetched and verified through `internal/artifact`'s git-tree fetcher, the plugin's own
+> manifest is parsed, its MCP servers are registered and its skills copied into each target host's
+> skills tree (`cmd/litespm/install_plugin.go`, `install_plugin_skills.go`). 390 of the 638 published
+> plugin rows publish a pinned tree; the other 248 publish no fetchable source and are refused with
+> that reason. A plugin that declares commands, hooks, subagents or LSP servers is refused with
+> `LPSM-INSTALL-PARTIAL` unless the plan seals the person's acknowledgement (`--allow-partial` /
+> `allowPartial`), because those classes have no adapter here and a partial install is a decision,
+> not a default. **The agent-facing install path therefore completes for all three kinds**
+> ([STATUS.md](../STATUS.md) §3; `TODO.md` `LPSM-D003`, `LPSM-L005`). The archive engine itself
+> (`internal/install`) still has no production caller — a skill is files, a server is a config
+> entry, a plugin is a tree — and that is recorded rather than dressed up.
 
 ### 4.2 The published catalog and the client read different files — the sync path is dead at the origin
 
@@ -373,7 +385,7 @@ any of these is to be built** — the proposal set explicitly says so, and the t
 | `internal/catalog/search.go` | lexical tiers + a dormant verification bonus (`security_audited` +10, `signature_verified` +5) that no adapter can produce | Separate, individually sortable dimensions — relevance, publisher trust, compatibility, freshness, security findings, originality, reliability. Never one magic score (#44) |
 | `internal/doctor` | diagnostics + `--repair`; already runs a synthetic secret canary round-trip | Add security-scan findings, deployment-ownership drift, and three-way conflict detection to the repair plan |
 | `internal/skills` | atomic update + rollback + dry-run + provenance (finding 118) | Add lockfile import/export and a skill-level diff (#17) |
-| `internal/provider` | start/stop/probe and a synchronous `invoke` are real (`discover.Invoke`); `get`/`cancel` return explicit `-32601` | Async registry with deadlines, cancellation, concurrency limits, backpressure (#23) |
+| `internal/provider` | start/stop/probe and a synchronous `invoke` are real (`discover.Invoke`); `get`/`cancel` answer from the invocation registry and receipts | Health states/circuit breaker, provider restart, cross-provider fallback (#23) |
 | `internal/host` backups | `host_backups` = pre-edit file snapshots | Keep as a safety net, but make the deployment ledger authoritative for ownership (#9) |
 | `cmd/litespm` | 13 top-level commands | Add `plan`, `apply`, `diff`, `why`, `policy`, `audit`, `adopt` as the features above land — not as a bulk rename (#48) |
 | `ARCH/27` support matrix | 8 types × sources, with honest gaps | Re-baseline once the identity graph (#13) exists; it currently cannot express "same package, two sources" |

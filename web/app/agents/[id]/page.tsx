@@ -85,7 +85,7 @@ export async function generateMetadata({
     openGraph: {
       type: "article",
       // Not templated by Next: an OpenGraph title is used verbatim.
-      title: `${title} · LiteSPM Market`,
+      title: `${title} · LiteSPM`,
       description,
       url: `/agents/${identity.id}/`,
     },

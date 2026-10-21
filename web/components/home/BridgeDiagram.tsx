@@ -133,14 +133,11 @@ const AGENTS = [
  * catalog already uses. The notes are the same two words each kind has always
  * carried.
  *
- * **The third one cannot be installed.** `litespm install` refuses a plugin
- * outright (`LPSM-ARTIFACT-UNAVAILABLE` — there is no plugin artifact source
- * yet), so the plugin exit is drawn as what it is: a kind the catalog lists
- * and LiteSPM cannot yet carry. It says so in the tile, the travelling packet
- * never leaves from it, and hovering it lights no path. The old figure
- * claimed the opposite — "any agent reaches any kind of capability", with a
- * packet that flew out of the plugin exit on a third of its cycles — which
- * was the one place on the page that promised an install the binary refuses.
+ * **The third one installs only from a pinned source.** A plugin whose
+ * publisher ships a commit-pinned git tree installs through its own manifest;
+ * one with no fetchable source is refused with `LPSM-ARTIFACT-UNAVAILABLE`.
+ * The tile says "pinned sources" for that reason, and the path is drawn for
+ * the plugin that can actually take it.
  */
 const KINDS = [
   { token: "mcp", label: "MCP servers", note: "apps & data", installable: true },
@@ -405,17 +402,15 @@ export function BridgeDiagram() {
       {/* The same claim the figure makes, in words — for a screen reader, and
           for anyone who reads the page with images and styles off.
 
-          The claim is now the one the product can keep: an agent reaches MCP
-          servers and agent skills, and plugins are listed but not installed
-          yet. The sentence it replaced — "every agent connects to all three
-          kinds" — was the one overstatement the page used to make. */}
+          The claim is the one the product can keep: an agent reaches MCP
+          servers and skills, and a plugin installs only from a pinned source
+          its publisher ships. */}
       <figcaption className="sr-only">
-        Claude Code, Codex, OpenCode, Cline, Pi Agent and Grok Build are the six tailored
-        adapters, and each of them connects down into a single local LiteSPM bridge; the other 44
-        registered hosts reach the same bridge through the generic adapter. The bridge connects out
-        to MCP servers and agent skills, and any agent reaches either kind. A plugin whose publisher
-        ships a pinned source reaches the same bridge through its own manifest, so the path to that
-        exit is drawn; a plugin with no fetchable source is refused with the reason.
+        Claude Code, Codex, OpenCode, Cline, Pi Agent and Grok Build each connect to one local
+        LiteSPM bridge. The other 44 registered hosts use the same bridge through the generic
+        adapter. Agents reach MCP servers and skills through it. A plugin with a pinned source
+        reaches it through its own manifest; one without a fetchable source is refused with the
+        reason.
       </figcaption>
     </figure>
   );

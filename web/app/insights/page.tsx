@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description:
     "What the catalog contains: entries per capability kind, agent host, category and publisher.",
   alternates: { canonical: "/insights/" },
-  openGraph: { title: "Insights · LiteSPM Market", url: "/insights/" },
+  openGraph: { title: "Insights · LiteSPM", url: "/insights/" },
 };
 
 /**

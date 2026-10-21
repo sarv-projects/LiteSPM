@@ -17,7 +17,7 @@ const nonPreRendered = nonPreRenderedEntry();
 const flagship = flagshipEntry();
 
 const ROUTES: Array<{ path: string; heading?: string; text?: string }> = [
-  { path: "/", heading: "Find the right tools for your AI agents." },
+  { path: "/", heading: "Give your AI agents new capabilities." },
   { path: "/explore/", heading: "Explore the marketplace" },
   { path: "/agents/", heading: "Browse AI agents" },
   { path: "/agents/claude-code/", heading: "Claude Code" },

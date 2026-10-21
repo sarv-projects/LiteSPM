@@ -4,20 +4,16 @@ package main
 //
 // Three surfaces, one catalog:
 //
-//	litespm help            the educational page (`--help`/`-h` print it too)
+//	litespm help            the default page (`--help`/`-h` print it too)
 //	litespm help <command>  USAGE / WHAT IT DOES / WHAT IT DOES NOT / EXAMPLES /
 //	                        EXIT CODES / SEE ALSO for one shipped command
 //	litespm help concepts   the vocabulary glossary
 //
-// helpCatalog is keyed by EXACTLY the strings the dispatch switch in main.go
-// matches — aliases included — and TestHelpCoversEveryDispatchCase parses that
-// switch: a command cannot ship without help, and help cannot advertise a
-// command that does not dispatch. printUsage() in main.go is a thin alias of
-// renderDefaultHelp, so a bare invocation and `litespm help` can never
-// disagree.
-//
-// Every line describes what the command does today. No DESIGNED verb (ARCH/38
-// §2) may appear: help documents shipped commands only.
+// helpCatalog is keyed by exactly the strings the dispatch switch in main.go
+// matches, aliases included. TestHelpCoversEveryDispatchCase parses that
+// switch, so a command cannot ship without help and help cannot advertise a
+// command that does not dispatch. printUsage() in main.go is an alias of
+// renderDefaultHelp.
 
 import (
 	"fmt"
@@ -26,35 +22,29 @@ import (
 	"strings"
 )
 
-// commandHelp is one command's help page. Every field is filled from real
-// behavior; an empty field renders as a missing section rather than filler,
-// and the completeness tests keep each page whole.
+// commandHelp is one command's help page.
 type commandHelp struct {
-	// Canonical is the name the page is titled and listed under — the first
-	// literal of the command's dispatch case.
+	// Canonical is the name the page is titled and listed under.
 	Canonical string
-	// Aliases are the remaining literals of the same dispatch case; they
-	// share this page so a help target can never disagree with itself.
+	// Aliases share this page.
 	Aliases  []string
 	Group    string
 	Purpose  string   // one line, printed under the title
 	Synopsis []string // USAGE lines
-	Does     []string // WHAT IT DOES: plain language first
-	DoesNot  []string // WHAT IT DOES NOT: the honest limits
-	Examples []string // 2-5 copy-pasteable
-	SeeAlso  []string // related commands, dispatched names only
-	ExitNote string   // extra exit-code lines beyond 0/1/2 ("" = none)
+	Does     []string // 2-4 entries
+	DoesNot  []string // the limits, at least one
+	Examples []string // 2-4 copy-pasteable invocations
+	SeeAlso  []string // dispatched names only
+	ExitNote string   // extra exit-code lines (" " = none)
 }
 
-// helpGroup orders the default page. Names are canonical help keys; the
-// completeness test proves the list and the catalog cannot drift apart.
+// helpGroup orders the default page.
 type helpGroup struct {
 	Label   string
 	Entries []string
 }
 
-// helpGroups is the section layout of `litespm help` (ARCH/38 §3.1), carrying
-// only commands that exist in the dispatcher.
+// helpGroups is the section layout of `litespm help` (ARCH/38 §3.1).
 var helpGroups = []helpGroup{
 	{"DISCOVER", []string{"search", "agent", "catalog"}},
 	{"VIEW", []string{"list", "inventory"}},
@@ -73,44 +63,43 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "search",
 			Group:     "DISCOVER",
-			Purpose:   "Search the local catalog index for MCP servers, skills and plugins.",
+			Purpose:   "Search the local catalog index.",
 			Synopsis: []string{
 				"litespm search <query> [--json] [--limit <n>]",
 			},
 			Does: []string{
-				"Looks up your words in the catalog index that `litespm catalog sync` keeps on disk and prints up to 25 matches with their id, kind, publisher and summary. Plain words work: `litespm search github`.",
-				"`--json` prints a `litespm-search/v1` document instead of the table — id, kind, publisher, summary, version and installability per row, plus `indexCount` so a caller can tell \"no match\" from \"empty index\" without a second call. It is what the Pi companion extension's `/marketplace` panel reads.",
-				"`--limit <n>` raises the cap (1-500) for a caller that filters client-side rather than searching again per keystroke.",
-				"The index is local, so search answers the same way every time you run it with the same synced release.",
+				"Searches the index that `litespm catalog sync` writes and prints up to 25 matches with id, kind, publisher and summary.",
+				"`--json` prints a `litespm-search/v1` document instead of the table: id, kind, publisher, summary, version and installability per row, plus `indexCount`. The Pi `/marketplace` panel reads this form.",
+				"`--limit <n>` sets the cap between 1 and 500.",
 			},
 			DoesNot: []string{
-				"Does not search the network: an empty index is reported as empty, with the `litespm catalog sync` hint, never filled in from a guess.",
-				"Does not install anything, and does not rank results by popularity — the catalog publishes no popularity numbers.",
-				"Accepts no other flags: an unknown `--word` is a usage error (exit 2), never a word silently folded into the query.",
+				"Does not search the network. An empty index is reported as empty, with the sync hint.",
+				"Does not install anything, and does not rank by popularity; the catalog publishes none.",
+				"Accepts no other flags. An unknown flag is a usage error (exit 2).",
 			},
 			Examples: []string{
 				"litespm search github",
 				"litespm search postgres",
 				"litespm search github --json --limit 200",
-				"litespm catalog sync   # refresh the index first if it is empty",
+				"litespm catalog sync   # fill the index first if it is empty",
 			},
 			SeeAlso: []string{"install", "catalog", "list"},
 		},
 		{
 			Canonical: "agent",
 			Group:     "DISCOVER",
-			Purpose:   "List installable coding agents and resolve how to launch one here.",
+			Purpose:   "List installable coding agents and resolve a launch spec.",
 			Synopsis: []string{
 				"litespm agent list [--registry <url>] [--file <path>] [--json]",
 				"litespm agent resolve <id> [--registry <url>] [--file <path>] [--json]",
 			},
 			Does: []string{
-				"`list` prints the agents the registry offers, with the launch strategy that applies to this operating system and architecture.",
-				"`resolve <id>` computes that agent's launch spec: executable, arguments, environment and — when the registry publishes one — the archive and its SHA-256.",
+				"`list` prints the agents in the registry, with the launch strategy for this OS and architecture.",
+				"`resolve <id>` prints that agent's launch spec: executable, arguments, environment, and the archive and SHA-256 when the registry publishes them.",
 			},
 			DoesNot: []string{
-				"Does not download, install or start the agent: resolve reports the spec, it does not act on it.",
-				"Does not install MCP servers or skills; that is `litespm install` and `litespm skills add`.",
+				"Does not download, install or start the agent. It resolves the spec only.",
+				"Does not install MCP servers or skills; use `litespm install` or `litespm skills add`.",
 			},
 			Examples: []string{
 				"litespm agent list",
@@ -122,18 +111,18 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "catalog",
 			Group:     "DISCOVER",
-			Purpose:   "Synchronize the catalog index, or build the static release tree.",
+			Purpose:   "Sync the catalog index, or build the release tree.",
 			Synopsis: []string{
 				"litespm catalog sync",
 				"litespm catalog build [--dataset <file>] [--out <dir>] [--release-id <id>]",
 			},
 			Does: []string{
-				"`sync` fetches the published release pointer, manifest and listings, verifies every digest, and rewrites the local index only when the whole chain checks out.",
-				"`build` compiles the catalog dataset into the static /v1 release tree the website serves; `--verify` re-checks a tree against its own pointer.",
+				"`sync` fetches the release pointer, manifest and listings, verifies every digest, and replaces the local index only when the whole chain checks out.",
+				"`build` compiles a dataset into the static /v1 tree the site serves. `--verify` checks a tree against its pointer.",
 			},
 			DoesNot: []string{
-				"Does not install, update or remove anything: the catalog only feeds `search`, `install` and `lock`.",
-				"Does not write a partial index: a failed sync leaves the existing local cache unchanged.",
+				"Does not install, update or remove anything. The index feeds `search`, `install` and `lock`.",
+				"Does not write a partial index: a failed sync leaves the previous cache in place.",
 			},
 			Examples: []string{
 				"litespm catalog sync",
@@ -145,27 +134,27 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "list",
 			Group:     "VIEW",
-			Purpose:   "Show what is deployed on this machine, for a person to read.",
+			Purpose:   "Show what is deployed on this machine.",
 			Synopsis: []string{
 				"litespm list [agents|mcp|skills|plugins] [flags]",
 				"  --agent <id>        only this agent",
 				"  --managed           only what LiteSPM controls",
-				"  --observed          only what LiteSPM found but does not control",
-				"  --drifted           only what changed (or went missing) since install",
+				"  --observed          only what it found but does not control",
+				"  --drifted           only what changed since install",
 				"  --project <dir>     only project-scope rows for that directory",
 				"  --global            only user-scope rows",
-				"  --kind <kind>       the same kind filter as the positional word",
-				"  --json              the machine-readable inventory instead of tables",
+				"  --kind <kind>       the same filter as the positional word",
+				"  --json              the inventory document instead of tables",
 			},
 			Does: []string{
-				"Reads the same sources as `litespm inventory` — install rows, the deployment ledger, the skills ledger and each agent adapter's read-only detection — and prints tables grouped by agent and by kind.",
-				"Counts unique capabilities separately from deployments: one capability installed for three agents is one capability and three deployments, and the headline says so (`N unique capabilities · M deployments`).",
-				"Labels every row honestly: managed (LiteSPM controls its lifecycle), observed (LiteSPM found it in an agent config), adopted (copied from another agent and now managed), drifted (changed since install), broken (recorded but missing). A cell the data cannot answer renders `—`.",
+				"Reads install rows, the deployment ledger, the skills ledger and each adapter's detection, then prints tables grouped by agent and kind.",
+				"Counts capabilities apart from deployments: one skill in three agents is one capability and three deployments. The headline reads `N unique capabilities · M deployments`.",
+				"Labels each row managed, observed, adopted, drifted or broken. A value the data cannot answer prints `—`.",
 			},
 			DoesNot: []string{
-				"Does not health-check anything: no process is started, so no row claims Ready, running or verified. State comes from recorded rows plus a config read-back, and nothing else.",
-				"Does not write, repair or adopt anything — `list` is read-only. Adoption is not implemented yet, so an observed row stays observed.",
-				"Does not invent counts, versions or compatibility: a field with no recorded value renders `—` or `not knowable`.",
+				"Does not health-check anything. No process starts, so no row claims Ready or running.",
+				"Does not write, repair or adopt. `list` is read-only, and adoption is `litespm adopt`.",
+				"Does not invent counts, versions or compatibility.",
 			},
 			Examples: []string{
 				"litespm list",
@@ -178,18 +167,18 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "inventory",
 			Group:     "VIEW",
-			Purpose:   "Print machine-state truth as JSON: one record per deployment.",
+			Purpose:   "Print one JSON record per deployment.",
 			Synopsis: []string{
 				"litespm inventory [mcp|skills|plugins] [--agent <id>]",
 				"  [--managed|--observed|--drifted]  [--project <dir>|--global]  [--json]",
 			},
 			Does: []string{
-				"Reads exactly the sources `litespm list` reads and emits them as a stable JSON document (schema `litespm.inventory/v1`): one record per deployment, with kind, id, name, agent, scope, state, placement, origin, install id, config path, locator, entry style, digests, timestamps and a plain-language detail.",
-				"`counts` separates `uniqueCapabilities` from `deployments`, `capturedAt` is when the observations were taken, and `warnings` carries every source that could not be read — a degraded read is reported, never silently treated as empty.",
+				"Emits the same sources `litespm list` reads as a stable `litespm.inventory/v1` document: kind, id, name, agent, scope, state, placement, origin, install id, config path, locator, entry style, digests, timestamps and a short detail.",
+				"`counts` separates `uniqueCapabilities` from `deployments`; `warnings` lists every source that could not be read.",
 			},
 			DoesNot: []string{
-				"Does not health-check, and does not report a value it did not read: unknown fields are empty strings, never a plausible guess.",
-				"Does not write anything, and adds no state table. `--json` is accepted for symmetry; JSON is the only output this command has.",
+				"Does not health-check, and leaves unknown fields empty rather than guessing.",
+				"Does not write anything. JSON is the only output; `--json` is accepted for symmetry.",
 			},
 			Examples: []string{
 				"litespm inventory",
@@ -202,27 +191,28 @@ func buildHelpCatalog() map[string]commandHelp {
 			Canonical: "install",
 			Aliases:   []string{"add", "i"},
 			Group:     "MANAGE",
-			Purpose:   "Install a capability, or remove one install surgically.",
+			Purpose:   "Install a capability, or remove one install.",
 			Synopsis: []string{
 				"litespm install <listing-id> [--version <ver>] [--scope user|project]",
-				"               [--workspace <dir>] [--host <host-id>]... [--env <VAR>]...",
-				"               [--force] [--frozen]",
+				"               [--workspace <dir>] [--agent <id>]... [--all-detected]",
+				"               [--host <host-id>]... [--env <VAR>]... [--force] [--frozen]",
+				"               [--dry-run] [--allow-partial]",
 				"litespm install remove <installId>",
 			},
 			Does: []string{
-				"Resolves the listing in the local index, records a plan plus your approval, then installs: skills are copied as files into the agent's own skill directory, and MCP servers are registered as a named entry in each configured agent's config.",
-				"`--host` names the agents to register an MCP server with (repeatable; default: every agent where `litespm host setup` has been run). Skill listings pick their own agent trees by detection instead. `--env <VAR>` forwards an environment variable NAME as a reference the agent expands.",
-				"`--workspace <dir>` installs for one project (the current directory when omitted) and implies `--scope project`; that directory is the workspace identity, so an agent running in it can see the install with `list_installed`.",
-				"`install remove <installId>` strips only LiteSPM's entries and keeps any node you edited; `--frozen` installs exactly the version `litespm lock` recorded.",
+				"Resolves the listing in the local index, records a plan and your approval, then installs. Skills are copied into the agent's skills tree; MCP servers are written into each target agent's config.",
+				"`--agent` names the targets (repeatable, `*` for all): a host id for an MCP server or plugin, a skills target id for a skill. `--host` is the older spelling. The resolved directories are sealed into the plan before any write, so naming one agent never writes another. Without either flag, a skill uses the detected agents and an MCP server or plugin uses every host set up with `litespm host setup`; `--all-detected` states that default explicitly.",
+				"`--workspace <dir>` installs for one project (default: the current directory) and implies `--scope project`.",
+				"`install remove <installId>` strips only LiteSPM's entries and keeps a node you edited. `--frozen` installs exactly the locked version. `--dry-run` prints the plan and stops before recording, approving or writing.",
 			},
 			DoesNot: []string{
-				"Never writes a secret value: `--env` records a name/reference only, so the credential stays where your agent was started.",
-				"Plugin listings fail closed with LPSM-ARTIFACT-UNAVAILABLE — the catalog records each plugin's published source, but no fetch path is wired for it yet, so no plugin is ever half-installed.",
-				"Without `--host`, does not touch an agent that has no LiteSPM bridge entry; `--host` names targets yourself, so it writes where you point it (and fails by name when the host cannot carry the entry). A name collision is refused instead of overwritten unless you pass `--force`.",
+				"Never writes a secret value. `--env` records a variable name, and the config holds a reference.",
+				"A plugin installs the portable components named in its pinned source: MCP servers into host configs, skills into skills trees. Extras it declares (commands, hooks, subagents, LSP servers) are not installed, and an install that would skip one is refused with LPSM-INSTALL-PARTIAL unless `--allow-partial` accepts the loss. The skip set is still reported and the result reads PARTIAL. Only a plugin can be partial, so the flag is refused for other kinds.",
+				"Does not touch an agent without a bridge entry unless you name it. A name collision is refused rather than overwritten without `--force`.",
 			},
 			Examples: []string{
 				"litespm install <listing-id>",
-				"litespm install <listing-id> --host codex --env GITHUB_TOKEN",
+				"litespm install <listing-id> --agent codex --env GITHUB_TOKEN",
 				"litespm install <listing-id> --frozen",
 				"litespm install remove <installId>",
 			},
@@ -231,20 +221,20 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "copy",
 			Group:     "MANAGE",
-			Purpose:   "Port one agent's MCP servers and skills into another agent.",
+			Purpose:   "Port one agent's MCP servers and skills into another.",
 			Synopsis: []string{
 				"litespm copy [items|kinds...] --from <host> --to <host> [flags]",
 				"  --conflict ask|keep-target|use-source|compatible|skip   --apply   --yes",
 				"  --exclude <id>   --dry-run   --project <dir>   --global",
 			},
 			Does: []string{
-				"Reads the source agent through its own adapter, normalizes every entry to one intermediate representation, and renders it through the target adapter's writer — so an array-shaped command becomes the target's own command-plus-args layout without any per-pair translator.",
-				"Prints the plan first and writes nothing until you approve it: interactively in a terminal, or explicitly with `--apply --yes`. Writes go through the normal install path, so a copy is recorded, listed by `litespm list` and undoable with `install remove` or `restore`.",
+				"Reads the source agent through its adapter, normalizes each entry, and renders it through the target adapter. An array-shaped command becomes the target's own command-and-args layout with no per-pair translator.",
+				"Prints the plan first and writes on approval: interactively in a terminal, or with `--apply --yes`. Writes go through the install path, so a copy is recorded, listed and undoable with `install remove` or `restore`.",
 			},
 			DoesNot: []string{
-				"Does not copy plaintext secrets: an environment variable found in the source is reported by NAME under `Needs` and dropped, never written to the target.",
-				"Does not modify the source agent, is not a file copy, is not a config diff, and does not keep the two agents in sync afterwards.",
-				"Kinds v1 cannot represent are reported with a reason, never silently dropped or converted.",
+				"Does not copy secrets. An environment variable in the source is listed by name under `Needs` and dropped.",
+				"Does not modify the source agent and does not keep the two in sync.",
+				"Reports kinds it cannot represent, with a reason, instead of dropping or converting them.",
 			},
 			Examples: []string{
 				"litespm copy --from <source-host> --to <target-host>",
@@ -262,12 +252,12 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm lock [--check] [--sbom cyclonedx-json|spdx-json] [--verify]",
 			},
 			Does: []string{
-				"Reads the manifest and the locally synced catalog index and writes a byte-identical lock for the same inputs, so committing it and running `litespm lock --check` in CI catches a manifest or catalog that moved without a re-lock.",
-				"`--sbom` emits an SBOM from the lock; `--verify` re-checks the recorded lock digest and manifest binding and reports each entry as recorded.",
+				"Reads the manifest and the local index and writes a byte-identical lock for the same inputs. `litespm lock --check` in CI catches a manifest or catalog that moved without a re-lock.",
+				"`--sbom` emits an SBOM from the lock. `--verify` re-checks the lock digest and manifest binding.",
 			},
 			DoesNot: []string{
-				"Does not fetch anything: an unsynced index must be refreshed with `litespm catalog sync` first.",
-				"Never invents a field the catalog does not publish — signature and license stay `none` / `NOASSERTION` until a real check produces a value, and `--verify` never upgrades an entry to green.",
+				"Does not fetch anything. Sync the index first.",
+				"Does not fill fields the catalog omits: signature and license stay `none` and `NOASSERTION` until a real check produces a value.",
 			},
 			Examples: []string{
 				"litespm lock",
@@ -280,7 +270,7 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "skills",
 			Group:     "MANAGE",
-			Purpose:   "Add, use, find, list, update and remove SKILL.md skills through the skills ledger.",
+			Purpose:   "Add, use, find, list, update and remove SKILL.md skills.",
 			Synopsis: []string{
 				"litespm skills add <source> [--skill <n>] [--agent <id>] [--global] [--yes] [--all] [--full-depth]",
 				"litespm skills use <source>[@<skill>] [--skill <n>] [--json]",
@@ -290,16 +280,16 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm skills remove|rm [<name>|<source>...] [--all] [-a <id>] [-s <name>] [--scope project|global] [--dry-run]",
 			},
 			Does: []string{
-				"`add` copies portable SKILL.md directories into each selected agent's own skills tree and records every directory it created in the skills ledger. `--skill '*'` and `--agent '*'` select everything on that axis; `--all` is the same as `--skill '*' --agent '*' --yes`.",
-				"Sources are `owner/repo`, an https or ssh git URL, a local directory, a GitHub/GitLab browse URL, a direct `SKILL.md` URL, or a `.zip`/`.tar`/`.tar.gz` archive URL (the extension is sniffed from the bytes, not required).",
-				"`use` resolves a source exactly like `add` but installs nothing: it prints the skill's prompt to stdout for piping into an agent. `find` searches the catalog index for skills, by keyword or by `--owner <org>`.",
-				"`list` prints that ledger (skill, host, scope, directory); `update` re-copies from each row's recorded source when no source is named; `remove` deletes only directories the ledger names, and reports what it kept.",
+				"`add` copies SKILL.md directories into each selected agent's skills tree and records every directory in the skills ledger. `--skill '*'` and `--agent '*'` select a whole axis; `--all` means `--skill '*' --agent '*' --yes`.",
+				"Sources: `owner/repo`, an https or ssh git URL, a local directory, a GitHub or GitLab browse URL, a direct SKILL.md URL, or a zip/tar URL. Archives are detected from the bytes.",
+				"`use` resolves a source like `add` but installs nothing; it prints the prompt for piping into an agent. `find` searches the catalog index by keyword or `--owner`.",
+				"`list` prints the ledger; `update` re-copies from each row's recorded source; `remove` deletes only directories the ledger names and reports what it kept.",
 			},
 			DoesNot: []string{
-				"Never guesses a path: a directory the ledger does not name is never removed, and a directory holding files you added afterwards is kept unless you pass `--force`.",
-				"Does not audit skill safety: risk data is not collected, so a skill is reported unverified rather than shown as trusted.",
-				"Cross-scope removal is refused per entry instead of deleting silently (`remove --all` still respects `--scope`).",
-				"`use --agent <id>` is not wired: LiteSPM configures agent hosts, it does not launch them. Pipe the prompt instead.",
+				"Does not guess a path. A directory holding files you added afterwards is kept unless you pass `--force`.",
+				"Does not audit skill safety; a skill reports as unverified rather than trusted.",
+				"Refuses a cross-scope removal per entry instead of deleting (`remove --all` still honours `--scope`).",
+				"`use --agent <id>` is not wired: LiteSPM configures agents, it does not launch them. Pipe the prompt instead.",
 				"A skill marked `metadata.internal` is hidden and refused unless `INSTALL_INTERNAL_SKILLS=1` is set.",
 			},
 			Examples: []string{
@@ -313,19 +303,19 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "grant",
 			Group:     "MANAGE",
-			Purpose:   "Issue, list and revoke the grants that authorize tool invocations.",
+			Purpose:   "Issue, list and revoke the grants that authorize invocations.",
 			Synopsis: []string{
 				"litespm grant <capability-id>",
 				"litespm grant list",
 				"litespm grant revoke <capability-id>",
 			},
 			Does: []string{
-				"`grant <capability-id>` shows what the tool may do and records your decision, bound to the capability's current input schema; `list` shows recorded grants and `revoke` withdraws one.",
-				"Grants are what the policy engine checks before an invocation runs through the bridge.",
+				"`grant <capability-id>` shows what the tool may do and records your decision, bound to its current input schema. `list` shows recorded grants and `revoke` withdraws one.",
+				"The policy engine checks these grants before an invocation runs.",
 			},
 			DoesNot: []string{
-				"Refuses to run without an interactive terminal: a grant is given by a person, not scripted by the process asking for it.",
-				"Does not grant an undiscovered capability (`litespm capabilities refresh` first), and a grant stops matching once the tool's input schema changes — you re-approve it.",
+				"Refuses to run without a terminal: a person gives a grant, not the process asking for it.",
+				"Does not grant an undiscovered capability (run `litespm capabilities refresh` first). A grant stops matching when the tool's input schema changes, and you re-approve it.",
 			},
 			Examples: []string{
 				"litespm grant <capability-id>",
@@ -337,37 +327,37 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "approve",
 			Group:     "MANAGE",
-			Purpose:   "Approve a stored install plan as a person, in a terminal.",
+			Purpose:   "Approve a stored install plan in a terminal.",
 			Synopsis:  []string{"litespm approve <plan-id>"},
 			Does: []string{
-				"Shows the stored plan and, when you type yes, records a single-use approval and prints the token an agent passes to `request_install`.",
-				"The approval is recorded in state with its origin, so the audit trail says a human approved this exact plan.",
+				"Shows the stored plan and, on yes, records a single-use approval and prints the token an agent passes to `request_install`.",
+				"Records the approval and its origin, so the audit trail names the human who approved this plan.",
 			},
 			DoesNot: []string{
-				"Refuses to run without an interactive terminal: approvals cannot be scripted by the process that wants them.",
-				"Does not execute the plan itself — approval only unblocks the install that asks for it.",
+				"Refuses to run without a terminal: approvals cannot be scripted by the process that wants them.",
+				"Does not execute the plan. Approval unblocks the install that asks for it.",
 			},
 			Examples: []string{
 				"litespm approve <plan-id>",
-				"litespm approve <plan-id>   # type yes; the printed token is single-use",
+				"litespm approve <plan-id>   # type yes; the token is single-use",
 			},
 			SeeAlso: []string{"grant", "install"},
 		},
 		{
 			Canonical: "restore",
 			Group:     "RECOVER",
-			Purpose:   "Roll an install back to its exact pre-install bytes, or refuse.",
+			Purpose:   "Roll an install back to its pre-install bytes.",
 			Synopsis: []string{
 				"litespm restore <installId> [--dry-run]",
 				"litespm restore --host <host-id> [--dry-run]",
 			},
 			Does: []string{
-				"Replays the pre-write backup recorded for each write LiteSPM made, so the affected config ends up exactly as it was before the install — formatting and comments included.",
-				"`--host` rolls back every install that touched one agent; `--dry-run` prints the plan and writes nothing.",
+				"Replays the backup recorded for each write, so the config ends up exactly as it was before the install, comments and formatting included.",
+				"`--host` rolls back every install that touched one agent. `--dry-run` prints the plan and writes nothing.",
 			},
 			DoesNot: []string{
-				"Refuses when a node you edited after the install would be overwritten, or when the difference to revert lies outside LiteSPM's own entries; it prints what differs instead.",
-				"Never recreates a file the user deleted, and never restores another install's writes.",
+				"Refuses when a node you edited after the install would be overwritten, and prints what differs.",
+				"Never recreates a file you deleted, and never restores another install's writes.",
 			},
 			Examples: []string{
 				"litespm restore <installId> --dry-run",
@@ -379,17 +369,17 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "doctor",
 			Group:     "RECOVER",
-			Purpose:   "Run the diagnostic checks and report what is actually true.",
+			Purpose:   "Run the diagnostic checks.",
 			Synopsis: []string{
 				"litespm doctor [--repair] [--yes]",
 			},
 			Does: []string{
-				"Runs the 10 system diagnostics — storage directories, the state database, the operation journal, the CAS store, staging, the credential vault and the rest — and prints each as PASS, WARN or FAIL with a recommendation.",
-				"`--repair` fixes what can be fixed, asking first (`--yes` approves non-interactively).",
+				"Runs 10 checks over the storage directories, state database, operation journal, CAS store, staging, credential vault and the rest, and prints each as PASS, WARN or FAIL with a recommendation.",
+				"`--repair` fixes what it can, asking first; `--yes` approves non-interactively.",
 			},
 			DoesNot: []string{
-				"Does not start your MCP servers or probe their tools, so it reports configuration and storage health, not runtime health; `litespm capabilities refresh` is what probes servers.",
-				"Changes nothing without `--repair`, and never hides a failure to make the report look green.",
+				"Does not start your MCP servers or probe their tools, so it reports configuration and storage health, not runtime health. `litespm capabilities refresh` probes servers.",
+				"Changes nothing without `--repair`.",
 			},
 			Examples: []string{
 				"litespm doctor",
@@ -401,16 +391,16 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "audit",
 			Group:     "RECOVER",
-			Purpose:   "Check the published catalogue and the local receipt chain for content that must not ship.",
+			Purpose:   "Check the published catalogue and the local receipt chain.",
 			Synopsis:  []string{"litespm audit [--ci] [--sarif <path>] [--dataset <path>] [--json]"},
 			Does: []string{
-				"Checks the catalogue with the rules in `internal/scan`: a discovery-only row that carries a launch line, a plugin with no fetchable source, an internal skill published publicly, a credential in a public URL.",
-				"Verifies the machine's receipt chain, when it has one: the per-provider hash chain is what makes a receipt tamper-evident (ARCH/34 §6).",
-				"`--sarif` writes a SARIF 2.1.0 report whose rule ids are stable, so a CI consumer can match on them.",
+				"Applies the rules in `internal/scan`: a discovery-only row carrying a launch line, a plugin with no fetchable source, an internal skill published publicly, a credential in a public URL.",
+				"Verifies the local receipt chain, where one exists (ARCH/34 §6).",
+				"`--sarif` writes a SARIF 2.1.0 report with stable rule ids for CI.",
 			},
 			DoesNot: []string{
-				"Repairs nothing, and decides nothing about your release: it reports.",
-				"Audits the catalogue AS PUBLISHED - the cached shards the origin served - unless `--dataset` names a file that has not been published yet.",
+				"Repairs nothing and decides nothing about a release; it reports.",
+				"Audits the catalogue as published unless `--dataset` names an unpublished file.",
 			},
 			Examples: []string{
 				"litespm audit",
@@ -422,16 +412,16 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "uninstall",
 			Group:     "RECOVER",
-			Purpose:   "Remove LiteSPM's bridge entry from every agent config it touched.",
+			Purpose:   "Remove LiteSPM's bridge entry from every agent config it wrote.",
 			Synopsis:  []string{"litespm uninstall [--dry-run]"},
 			Does: []string{
-				"Plans first with `--dry-run`, then strips the LiteSPM bridge entry from each agent config, keeping a pre-edit backup and leaving sibling entries untouched.",
-				"Afterwards it reports what it deliberately left behind — the MCP servers registered by `litespm install` and the skill directories copied by `litespm skills add` — each with the exact command that removes it.",
+				"Plans first with `--dry-run`, then strips the bridge entry from each agent config, keeping a pre-edit backup and leaving sibling entries alone.",
+				"Reports what it left behind (servers from `litespm install`, skill directories from `litespm skills add`) with the command that removes each.",
 			},
 			DoesNot: []string{
-				"Does not remove the MCP server entries `litespm install` registered: each belongs to its own install record, so they are reported and removed with `litespm install remove <installId>`.",
-				"Does not delete skill directories — they may hold files you added, so they are reported, and `litespm skills remove` is the explicit opt-in.",
-				"Does not delete the backups it wrote; those are your restore points.",
+				"Does not remove MCP server entries registered by `litespm install`; each belongs to its install record (`litespm install remove <installId>`).",
+				"Does not delete skill directories, which may hold files you added (`litespm skills remove` is the opt-in).",
+				"Does not delete the backups it wrote.",
 			},
 			Examples: []string{
 				"litespm uninstall --dry-run",
@@ -442,7 +432,7 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "auth",
 			Group:     "CONFIGURE",
-			Purpose:   "Store, report and revoke the credentials a remote provider authenticates with.",
+			Purpose:   "Store, report and revoke provider credentials.",
 			Synopsis: []string{
 				"litespm auth login <provider> --client-id <id> --auth-url <url> --token-url <url>",
 				"              [--client-secret-env <VAR>] [--scope <scope>]... [--timeout <seconds>]",
@@ -450,13 +440,13 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm auth logout <profile-id>",
 			},
 			Does: []string{
-				"`login` runs an OAuth 2.0 PKCE flow through a loopback listener on 127.0.0.1, exchanges the authorization code once, and stores the credential in the platform vault. A remote (URL) MCP provider that names the profile then sends the stored token as its bearer credential.",
-				"`status` reports what is stored: the provider, the profile id, the status and the vault reference. `logout` revokes the credential — purging it from the vault — and drops the profile row unless a provider still names it, in which case the row is kept as revoked so that provider is refused rather than dialled anonymously.",
+				"`login` runs an OAuth 2.0 PKCE flow through a loopback listener on 127.0.0.1, exchanges the code once, and stores the credential in the platform vault. A remote MCP provider that names the profile sends the stored token.",
+				"`status` reports the provider, profile id, status and vault reference. `logout` revokes the credential and drops the profile row, unless a provider still names it; that row is kept as revoked so the provider is refused rather than dialled anonymously.",
 			},
 			DoesNot: []string{
-				"Never prints a token, and never writes one to a file: the rows hold a pointer to a vault entry, and only the pointer is shown.",
-				"Does not print the authorization code, and does not keep it: it is exchanged once and dropped.",
-				"Does not refresh a credential on its own and does not talk to any provider — it only stores, reports and revokes credentials.",
+				"Never prints a token or writes one to a file. Rows hold a pointer to a vault entry.",
+				"Does not print or keep the authorization code.",
+				"Does not refresh credentials on its own or talk to a provider.",
 			},
 			Examples: []string{
 				"litespm auth status",
@@ -468,18 +458,18 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "adopt",
 			Group:     "MANAGE",
-			Purpose:   "Take ownership of a server an agent already has, without touching its config.",
+			Purpose:   "Take ownership of a server an agent already has.",
 			Synopsis: []string{
 				"litespm adopt <name> --host <host-id>",
 			},
 			Does: []string{
-				"Records a server that is already registered in an agent's configuration as LiteSPM's, so `litespm list` reports it as managed instead of merely observed.",
-				"It writes NOTHING to the agent's configuration: the entry is already there, and it stays byte-for-byte as it is. Only LiteSPM's own ledger changes.",
-				"The adoption records the entry's current image, so undoing it — or `litespm install remove <installId>` — restores the entry instead of deleting it, and keeps any edit you made to it in the meantime.",
+				"Records a server already registered in an agent's config as LiteSPM-managed, so `litespm list` shows it as managed instead of observed.",
+				"Writes nothing to the agent's config; the entry stays byte-for-byte as it is and only the local ledger changes.",
+				"Records the entry's current image, so undoing it or `install remove` restores the entry and keeps any edit you made since.",
 			},
 			DoesNot: []string{
-				"Does not adopt a name the host's configuration does not register: that is refused with LPSM-HOST-CONFIG-NOT-FOUND, because ownership of a node that is not there would have nothing to restore.",
-				"Does not probe, start or install the server, and does not download anything: adoption is about ownership, not about the server's bytes.",
+				"Does not adopt a name the config does not register: that fails with LPSM-HOST-CONFIG-NOT-FOUND, since there would be nothing to restore.",
+				"Does not probe, start or install the server, and downloads nothing.",
 			},
 			Examples: []string{
 				"litespm adopt github --host claude-code",
@@ -491,20 +481,20 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "setup",
 			Group:     "CONFIGURE",
-			Purpose:   "Connect LiteSPM to an agent, interactively or by name.",
+			Purpose:   "Connect LiteSPM to an agent.",
 			Synopsis: []string{
 				"litespm setup [--agent <host-id>]",
 				"litespm setup --help",
 			},
 			Does: []string{
-				"With no arguments it opens the interactive wizard. On a machine with nothing connected yet it asks which agent to connect, finds that agent's configuration file, and writes the LiteSPM bridge entry into it; any existing configuration file is backed up before the write.",
-				"On a machine that is already connected it starts from what is connected and offers the wizard's other actions — update the catalog, find and install a capability, remove something LiteSPM installed, see what is installed, connect another agent — all through the same plan, approval and ledger paths as the CLI commands.",
-				"`--agent <host-id>` skips the wizard and connects exactly that agent through the same plan-and-apply path `litespm host setup <host-id>` uses, so setup works in a script; `litespm host list` prints the host ids.",
+				"With no arguments it opens the wizard. On a machine with nothing connected it asks which agent to connect, finds that agent's config, and writes the bridge entry after a backup.",
+				"On a configured machine it starts from what is connected and offers the other actions: update the catalog, find and install, remove, list, connect another agent.",
+				"`--agent <host-id>` skips the wizard and connects that agent through the same plan-and-apply path as `litespm host setup <host-id>`.",
 			},
 			DoesNot: []string{
-				"Without `--agent`, needs an interactive terminal: with nobody to answer it refuses and points at `litespm host setup <host-id>` instead of failing on end-of-input.",
-				"Does not guess a configuration path: when detection cannot find the file, the wizard offers to take a path you type, print a snippet to paste yourself, or look again.",
-				"`init` used to be an alias of this command; it is now `litespm init`, which scaffolds a SKILL.md. Only `setup` (and the bare `litespm`) opens the wizard.",
+				"Without `--agent`, needs a terminal; with nobody to answer it refuses and points at `litespm host setup <host-id>`.",
+				"Does not guess a config path. When detection fails, the wizard offers a path you type, a snippet to paste, or another look.",
+				"`init` is no longer an alias of this command; `litespm init` scaffolds a SKILL.md.",
 			},
 			Examples: []string{
 				"litespm setup",
@@ -524,12 +514,12 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm host remove <host-id> | --all",
 			},
 			Does: []string{
-				"`list` prints every supported agent adapter and the config file it reads; `detect` scans this machine and reports which configs exist and whether the LiteSPM bridge is registered in each.",
-				"`setup <host-id>` plans and applies the bridge entry (with a backup); `remove <host-id>` or `remove --all` takes it back out.",
+				"`list` prints every supported adapter and the config file it reads. `detect` scans this machine and reports which configs exist and whether the bridge is registered.",
+				"`setup <host-id>` plans and applies the bridge entry with a backup. `remove` takes it out.",
 			},
 			DoesNot: []string{
-				"`list` and `detect` are read-only; `remove` keeps the pre-edit backup and never deletes the rest of your config.",
-				"Detection only looks at the documented config file of each adapter — a project-scope or undocumented location is not scanned.",
+				"`list` and `detect` are read-only. `remove` keeps the pre-edit backup and leaves the rest of the file alone.",
+				"Detection looks only at each adapter's documented config file, not at project or undocumented locations.",
 			},
 			Examples: []string{
 				"litespm host list",
@@ -541,15 +531,15 @@ func buildHelpCatalog() map[string]commandHelp {
 		{
 			Canonical: "daemon",
 			Group:     "CONFIGURE",
-			Purpose:   "Run the LiteSPM background supervisor and IPC engine.",
+			Purpose:   "Run the background supervisor and IPC engine.",
 			Synopsis:  []string{"litespm daemon serve"},
 			Does: []string{
-				"Recovers any interrupted install from the operation journal, then serves the IPC endpoint the bridge and agents call for search, plan, approval and invocation.",
-				"Runs in the foreground so your terminal or process supervisor owns its lifetime.",
+				"Recovers any interrupted install from the operation journal, then serves the IPC endpoint the bridge and agents call.",
+				"Runs in the foreground, so your terminal or process supervisor owns its lifetime.",
 			},
 			DoesNot: []string{
-				"Does not install itself as an operating-system service: starting it is up to you.",
-				"Does not install packages or edit agent configs; those effects belong to `install`, `copy` and `setup`.",
+				"Does not install itself as an OS service.",
+				"Does not install packages or edit agent configs.",
 			},
 			Examples: []string{
 				"litespm daemon serve",
@@ -563,14 +553,14 @@ func buildHelpCatalog() map[string]commandHelp {
 			Purpose:   "Serve the stdio MCP bridge an agent host launches.",
 			Synopsis:  []string{"litespm bridge stdio [--host <host-id>] [--workspace <dir>]"},
 			Does: []string{
-				"Speaks MCP over stdio on the agent's behalf and forwards each request to the running daemon: catalog search, plans, `list_installed`, skill loading and capability invocation.",
-				"`--workspace <dir>` reports the project this agent is working in (default: the process working directory). It only widens what `list_installed`, `load_skill` and `read_skill_resource` can see — the agent's user-scope installs are always visible, and naming a project adds that project's installs, each labelled with its scope.",
-				"Without the daemon it still starts, and says so, so an agent sees an honest empty bridge instead of a hang.",
+				"Speaks MCP over stdio for the agent and forwards requests to the running daemon: catalog search, plans, `list_installed`, skill loading and invocation.",
+				"`--workspace <dir>` reports the project the agent is working in (default: the working directory). It widens what `list_installed`, `load_skill` and `read_skill_resource` can see; each project row is labelled with its scope.",
+				"Starts without the daemon and says so, so an agent gets an empty bridge instead of a hang.",
 			},
 			DoesNot: []string{
-				"Does not persist anything itself, and does not health-check installed capabilities — an unobserved status is rendered unknown, never Ready.",
-				"Does not start the daemon for you.",
-				"`--workspace` is a selection key, not an authorization boundary: it narrows which recorded installs are listed, and the bridge never reads the filesystem at that path.",
+				"Does not persist anything, and does not health-check capabilities; an unobserved status renders unknown.",
+				"Does not start the daemon.",
+				"`--workspace` selects which recorded installs are listed. It is not an authorization boundary, and the bridge does not read that path.",
 			},
 			Examples: []string{
 				"litespm bridge stdio --host codex",
@@ -583,15 +573,15 @@ func buildHelpCatalog() map[string]commandHelp {
 			Canonical: "self-update",
 			Aliases:   []string{"update"},
 			Group:     "SYSTEM",
-			Purpose:   "Check for a newer LiteSPM binary and replace this one atomically.",
+			Purpose:   "Replace this binary with a newer release.",
 			Synopsis:  []string{"litespm self-update [--force] [--help]"},
 			Does: []string{
-				"Fetches the published release manifest, and when a newer version exists downloads the release ASSET (never the release page), verifies its SHA-256 checksum, and replaces the running executable atomically.",
+				"Fetches the release manifest, downloads the release asset (never the release page) when a newer version exists, verifies its SHA-256, and replaces the executable atomically.",
 				"`--force` reinstalls or downgrades even when the manifest version is not newer.",
 			},
 			DoesNot: []string{
-				"Does not update installed packages or skills — that is `litespm skills update`.",
-				"Refuses to fall back to an unverified download when signature verification is required and unavailable.",
+				"Does not update installed packages or skills; that is `litespm skills update`.",
+				"Refuses an unverified download when signature verification is required and unavailable.",
 			},
 			Examples: []string{
 				"litespm self-update",
@@ -603,14 +593,14 @@ func buildHelpCatalog() map[string]commandHelp {
 			Canonical: "version",
 			Aliases:   []string{"--version", "-v"},
 			Group:     "SYSTEM",
-			Purpose:   "Print the LiteSPM version and build details.",
+			Purpose:   "Print the version and build details.",
 			Synopsis:  []string{"litespm version", "litespm --version", "litespm -v"},
 			Does: []string{
-				"Prints the LiteSPM version with the protocol version, operating system, architecture and Go toolchain of this binary.",
-				"It is the pair of numbers to quote in a bug report: the release you run and the protocol it speaks to agents and the daemon.",
+				"Prints the version with the protocol version, OS, architecture and Go toolchain.",
+				"These are the numbers to quote in a bug report.",
 			},
 			DoesNot: []string{
-				"Does not contact the network: it cannot tell you whether an update exists (that is `litespm self-update`).",
+				"Does not contact the network, so it cannot tell you whether an update exists (`litespm self-update` does).",
 				"Reads and changes nothing on disk.",
 			},
 			Examples: []string{
@@ -623,7 +613,7 @@ func buildHelpCatalog() map[string]commandHelp {
 			Canonical: "capabilities",
 			Aliases:   []string{"caps"},
 			Group:     "SYSTEM",
-			Purpose:   "List, search and describe the tools discovered from installed MCP servers.",
+			Purpose:   "List, search and describe tools discovered from installed servers.",
 			Synopsis: []string{
 				"litespm capabilities list [--limit <n>]",
 				"litespm capabilities search <query> [--limit <n>]",
@@ -631,12 +621,12 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm capabilities refresh [--host <id>]...",
 			},
 			Does: []string{
-				"`refresh` starts each installed MCP server LiteSPM registered and records the tools it actually exposes; `list` and `search` read those recorded rows; `describe` prints one tool's input schema and the command behind it.",
-				"`refresh --host` restricts probing to named agents (repeatable); the default is every agent with a verified bridge entry. `--host` is not accepted by `list` or `search` because discovered rows are stored per provider, not per host.",
+				"`refresh` starts each installed MCP server LiteSPM registered and records the tools it exposes. `list` and `search` read those rows; `describe` prints one tool's input schema and its command.",
+				"`refresh --host` limits probing to named agents (repeatable); the default is every agent with a verified bridge entry.",
 			},
 			DoesNot: []string{
-				"Nothing is probed until you run `refresh`: an empty list means nothing has been discovered yet, not that you have no tools.",
-				"Does not invoke tools — that is `litespm invoke` — and a server that will not start is reported per server, without abandoning the others.",
+				"Probes nothing until you run `refresh`: an empty list means nothing was discovered, not that you have no tools.",
+				"Does not invoke tools (`litespm invoke` does). A server that will not start is reported on its own.",
 			},
 			Examples: []string{
 				"litespm capabilities refresh",
@@ -651,12 +641,12 @@ func buildHelpCatalog() map[string]commandHelp {
 			Purpose:   "Call one discovered capability from the terminal.",
 			Synopsis:  []string{"litespm invoke <capability-id> [--arguments '<json>']"},
 			Does: []string{
-				"Calls the tool through the same path the bridge uses, after re-checking that the tool's input schema still matches what was granted — so the terminal and an agent cannot behave differently.",
-				"Prints the tool's own output and exits non-zero when the tool reported an error.",
+				"Calls the tool through the same path the bridge uses, after checking that its input schema still matches the grant.",
+				"Prints the tool's output and exits non-zero when the tool reports an error.",
 			},
 			DoesNot: []string{
-				"Does not bypass policy: without an engine that can enforce your rules the invocation is refused, never silently allowed.",
-				"Does not accept malformed arguments: `--arguments` must be valid JSON.",
+				"Does not bypass policy: when no engine can enforce your rules, the invocation is refused.",
+				"Does not accept malformed arguments; `--arguments` must be valid JSON.",
 			},
 			Examples: []string{
 				"litespm invoke <capability-id>",
@@ -668,19 +658,19 @@ func buildHelpCatalog() map[string]commandHelp {
 			Canonical: "help",
 			Aliases:   []string{"--help", "-h"},
 			Group:     "HELP",
-			Purpose:   "Explain the commands, or one command, or the vocabulary.",
+			Purpose:   "Explain the commands, one command, or the vocabulary.",
 			Synopsis: []string{
 				"litespm help",
 				"litespm help <command>",
 				"litespm help concepts",
 			},
 			Does: []string{
-				"`litespm help` prints the quick start and the shipped commands, grouped by what they are for.",
-				"`litespm help <command>` prints one command's usage, what it does, what it does not, examples, exit codes and related commands; `litespm help concepts` defines the vocabulary these pages use.",
+				"`litespm help` prints the quick start and the shipped commands, grouped by purpose.",
+				"`litespm help <command>` prints usage, what it does, what it does not, examples, exit codes and related commands. `litespm help concepts` defines the vocabulary.",
 			},
 			DoesNot: []string{
-				"Documents only commands that dispatch: a verb that does not exist cannot appear here, and an unknown target prints the shipped list and exits 2 rather than pretending to know it.",
-				"There is no `litespm help error <code>` yet — error families are documented in ARCH/20.",
+				"Documents only commands that dispatch. An unknown target prints the shipped list and exits 2.",
+				"There is no `litespm help error <code>` yet; error families are in ARCH/20.",
 			},
 			Examples: []string{
 				"litespm help",
@@ -708,9 +698,8 @@ func runHelp(args []string) {
 	}
 }
 
-// helpTo renders against explicit writers so tests can capture both streams
-// and assert the exit code: 0 for a page that exists, 2 for an unknown target
-// (usage), never 0 for a name LiteSPM does not ship.
+// helpTo renders against explicit writers so tests can capture both streams:
+// 0 for a page that exists, 2 for an unknown target.
 func helpTo(out, errOut io.Writer, args []string) int {
 	if len(args) > 1 {
 		fmt.Fprintf(errOut, "help: at most one target, got %d\n\n", len(args))
@@ -737,11 +726,11 @@ func helpTo(out, errOut io.Writer, args []string) int {
 	return 2
 }
 
-// printUsage lives in main.go and is a thin alias of renderDefaultHelp.
+// printUsage lives in main.go and is an alias of renderDefaultHelp.
 
-// renderDefaultHelp writes the educational front page (ARCH/38 §3.1): a quick
-// start, the shipped commands grouped by purpose, real examples, and pointers
-// to `help <command>` and `help concepts`.
+// renderDefaultHelp writes the default page: a quick start, the shipped
+// commands grouped by purpose, examples, and pointers to the other two help
+// forms.
 func renderDefaultHelp(w io.Writer) {
 	fmt.Fprint(w, `LiteSPM — the package manager for AI agents.
 Discover, install, port and manage MCP servers, skills and plugins across
@@ -771,8 +760,8 @@ Documentation: https://github.com/sarv-projects/litespm
 `)
 }
 
-// renderShippedList prints the grouped command names; it is what an unknown
-// help target falls back to.
+// renderShippedList prints the grouped command names; an unknown help target
+// falls back to it.
 func renderShippedList(w io.Writer) {
 	for _, g := range helpGroups {
 		fmt.Fprintf(w, "  %-12s%s\n", g.Label, strings.Join(g.Entries, " · "))
@@ -789,9 +778,8 @@ func renderHelp(w io.Writer, page commandHelp) {
 	if len(page.Synopsis) > 0 {
 		fmt.Fprintln(w, "USAGE")
 		for _, line := range page.Synopsis {
-			// A synopsis line the terminal can take whole keeps its own
-			// alignment (flag columns are part of its meaning); only longer
-			// lines are folded.
+			// A synopsis line that fits keeps its own alignment (flag
+			// columns carry meaning); longer lines are folded.
 			if pre := "  " + line; len(pre) <= 78 {
 				fmt.Fprintln(w, pre)
 				continue
@@ -835,7 +823,7 @@ func writeSection(w io.Writer, title string, items []string) {
 }
 
 // writeWrapped prints text prefixed by indent, folding at 78 columns with a
-// hanging indent so long sentences stay readable in a terminal.
+// hanging indent.
 func writeWrapped(w io.Writer, indent, text string) {
 	const width = 78
 	words := strings.Fields(text)
@@ -857,8 +845,7 @@ func writeWrapped(w io.Writer, indent, text string) {
 	fmt.Fprintln(w, line)
 }
 
-// renderConcepts writes the §3.3 glossary: user language first, the exact
-// labels one level deeper.
+// renderConcepts writes the §3.3 glossary.
 func renderConcepts(w io.Writer) {
 	fmt.Fprint(w, `LiteSPM concepts
 
@@ -866,71 +853,69 @@ The words `+"`litespm list`"+`, `+"`litespm inventory`"+` and every help page us
 
 PACKAGE
   A thing you install from the catalog: one row with an id such as
-  mcp:<source>:<name>, a version and a publisher. A package may contain more
+  mcp:<source>:<name>, a version and a publisher. A package may hold more
   than one piece (a plugin can bundle a skill, an MCP server and a hook).
 
 CAPABILITY
-  something your agent can DO. A tool such as "search the web" or "read a
+  Something your agent can do. A tool such as "search the web" or "read a
   file" is a capability. `+"`litespm capabilities list`"+` shows the ones
   discovered from your installed MCP servers.
 
 AGENT
-  the AI coding tool you actually work with. LiteSPM configures agents; it is
-  not one. Each supported agent reads its own config file, and LiteSPM's
-  adapters know where each of them keeps it (`+"`litespm host list`"+`).
+  The AI coding tool you work with. LiteSPM configures agents; it is not one.
+  Each supported agent reads its own config file, and the adapters know where
+  each keeps it (`+"`litespm host list`"+`).
 
 MCP SERVER
-  a small service an agent can talk to through the Model Context Protocol —
-  this is what lets an AI work with services such as GitHub, databases and
-  browsers. In an agent's config it appears as one named entry with a command
-  and arguments.
+  A small service an agent talks to through the Model Context Protocol, which
+  is how an AI works with GitHub, databases or a browser. In an agent's config
+  it appears as one named entry with a command and arguments.
 
 SKILL
-  a portable set of instructions (a SKILL.md directory) that teaches an agent
-  how to do a kind of task. LiteSPM copies it into the agent's own skills
-  tree and records the directory in the skills ledger.
+  A portable set of instructions (a SKILL.md directory) that teaches an agent
+  a kind of task. LiteSPM copies it into the agent's skills tree and records
+  the directory in the skills ledger.
 
 PLUGIN
-  a bundle of several of the pieces above (skill, MCP server, rules, hooks)
-  shipped as one package. Plugin installs are not available yet: they fail
-  with LPSM-ARTIFACT-UNAVAILABLE rather than installing half a bundle.
+  A bundle of the pieces above (skills, MCP servers, rules, hooks) shipped as
+  one package. LiteSPM installs the skills and MCP servers it can place. A
+  plugin that declares extras it cannot install needs `+"`--allow-partial`"+`,
+  and the result then reports PARTIAL.
 
 BRIDGE
-  the one entry LiteSPM registers in an agent's config. The agent starts
-  `+"`litespm bridge stdio`"+` when it needs a capability, and the bridge
-  forwards to the LiteSPM daemon. One entry serves every managed package, so
-  installing does not grow your config.
+  The one entry LiteSPM registers in an agent's config. The agent starts
+  `+"`litespm bridge stdio`"+` when it needs a capability, and the bridge forwards
+  to the daemon. One entry serves every managed package, so installing does
+  not grow your config.
 
 SCOPE
-  user (also called global) means it applies to everything you run on this
-  machine; project means it applies to one checkout of a project. `+"`--global`"+`
-  and `+"`--project <dir>`"+` select between them.
+  user (also called global) applies to everything on this machine; project
+  applies to one checkout. `+"`--global`"+` and `+"`--project <dir>`"+` select between
+  them.
 
 MANAGED / OBSERVED / ADOPTED
-  managed: LiteSPM controls its lifecycle — it wrote it, and `+"`install remove`"+`
-  or `+"`restore`"+` can take it out again.
-  observed: LiteSPM FOUND it in an agent's own config and reports it read-only;
-  it never edits or removes an observed entry.
-  adopted: you asked LiteSPM to take over an existing entry (via `+"`copy`"+`),
-  so it is managed now, with its origin recorded as adopted — never as
-  catalog-verified.
+  managed: LiteSPM controls its lifecycle, and `+"`install remove`"+` or
+  `+"`restore`"+` can take it out.
+  observed: LiteSPM found it in an agent's config and reports it read-only.
+  adopted: you took over an existing entry with `+"`litespm adopt`"+`, so it is
+  managed with its origin recorded as adopted, never catalog-verified.
 
 CAPABILITY vs DEPLOYMENT
-  a capability is the thing itself; a deployment is one copy of it living in
-  one place. The same skill in three agents is ONE capability and THREE
-  deployments, which is why `+"`litespm list`"+` counts both, like this:
+  A capability is the thing itself; a deployment is one copy of it in one
+  place. The same skill in three agents is one capability and three
+  deployments, which is why `+"`litespm list`"+` counts both:
   18 unique capabilities · 27 deployments.
 
 REFERENCE vs VALUE
-  a reference is the NAME of an environment variable (GITHUB_TOKEN); a value
-  is what the variable holds. LiteSPM moves references only: `+"`install --env`"+`
-  records ${GITHUB_TOKEN} in a config, and a literal secret found in a source
-  is reported by name and dropped, never written anywhere.
+  A reference is the name of an environment variable (GITHUB_TOKEN); a value
+  is what it holds. LiteSPM moves references only: `+"`install --env`"+` writes
+  ${GITHUB_TOKEN} into a config, and a literal secret found in a source is
+  reported by name and dropped.
 
-Drift, and the quiet cells:
-  drifted means the recorded write and what is on disk no longer agree —
-  LiteSPM reports it and changes nothing. broken means something recorded is
-  missing. A cell the data cannot answer shows `+"—`"+` or "not knowable";
-  LiteSPM never fills it in with a plausible guess.
+DRIFT AND EMPTY CELLS
+  drifted: the recorded write and what is on disk no longer agree. LiteSPM
+  reports it and changes nothing.
+  broken: something recorded is missing.
+  A cell the data cannot answer prints `+"`—`"+` or "not knowable".
 `)
 }

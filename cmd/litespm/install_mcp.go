@@ -84,6 +84,10 @@ type mcpInstallBinding struct {
 	// host) and is filtered to the hosts that can express the runtime's
 	// transport before the plan is sealed, with the drops reported.
 	ExplicitHosts bool
+	// AllowPartial is read only by the plugin path: it records that a human
+	// acknowledged a plugin delivering only its portable components. An MCP
+	// server has no components to skip, so it never carries this value.
+	AllowPartial bool
 }
 
 type mcpInstallPlanValue struct {

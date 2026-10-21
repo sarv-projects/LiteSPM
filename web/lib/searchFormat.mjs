@@ -50,6 +50,20 @@
 // eleventh dictionary and appends a 2-byte index to the fixed block (11 → 13
 // bytes), so both paths render the same origin for the same row.
 //
+// **Format v5 — a plugin's artifact travels with its row.** v4's ROWS record
+// carried no artifact, so a plugin hydrated from the projection could not
+// answer the one question its badge asks: does it publish a fetchable, pinned
+// source? Every plugin in Explore read "Not installable" (638 rows) while its
+// own entry page — built from the package index, which has the artifact — read
+// "Installs a plugin". v5 spends three of the flags byte's six unused bits on
+// it — publishes an artifact, is it a git tree, is it pinned — so the record
+// keeps its 13-byte fixed block and the first-search window does not grow.
+// `availabilityOf` is still the only place that decides; the projection only
+// stops withholding the fact. The commit id itself is *not* carried: `pinned`
+// is the producer's statement that the descriptor published a 40-hex commit
+// id (`scripts/build_full_catalog.py`, `pinned: bool(_SHA40.match(sha))`), so
+// the id adds nothing to the question a badge asks.
+//
 // **Format v4 — the address's host is not searchable.** Every id the MCP
 // registry publishes reads `<kind>:<source>:<host>.<account>-<repo>`, and the
 // host is where the entry is *served from*, not what it *is*: 25,903 of the
@@ -65,7 +79,21 @@
 // answering the old question.
 
 /** Bumped when the byte layout changes; every reader refuses a mismatch. */
-export const SEARCH_FORMAT_VERSION = 4;
+export const SEARCH_FORMAT_VERSION = 5;
+
+/**
+ * The flags byte's bits. The two the record has always carried, plus (v5) the
+ * facts about a plugin's artifact that decide whether LiteSPM can fetch it.
+ *
+ * Bits 5–7 stay free: five flags fit in one byte, and spending a byte of
+ * dictionary index per record instead cost the first search window more than
+ * its budget.
+ */
+const FLAG_VERIFIED = 1;
+const FLAG_LINK_KEY_IS_ID = 2;
+const FLAG_ARTIFACT = 4;
+const FLAG_ARTIFACT_GIT_TREE = 8;
+const FLAG_ARTIFACT_PINNED = 16;
 
 /** ASCII magic at the head of both artifacts. */
 const MAGIC = "LSPMSRCH";
@@ -331,10 +359,12 @@ const SIGNAL_OFFICIAL = 1;
 function rowInstalls(item) {
   // Keep in sync with availabilityOf in lib/availability.ts. A plugin with
   // a fetchable, commit-pinned Git tree has a wired install path, subject to
-  // per-host and manifest validation at install time.
+  // per-host and manifest validation at install time. `pinned` is the whole
+  // of the "and there is a commit to fetch" half: the builder sets it exactly
+  // when the descriptor published a 40-hex commit id.
   if (item.kind === "plugin") {
     const artifact = item.artifact;
-    return Boolean(artifact && artifact.type === "git-tree" && artifact.pinned && artifact.sha);
+    return Boolean(artifact && artifact.type === "git-tree" && artifact.pinned);
   }
   const established =
     item.installability === "metadata_verified" ||
@@ -1159,6 +1189,51 @@ function idSuffixOf(id) {
 }
 
 /**
+ * The facts about a row's artifact that the projection carries, packed into
+ * the flags byte.
+ *
+ * Two facts and nothing else: whether the source is a git tree, and whether it
+ * is pinned to an immutable commit. Those are exactly the fields
+ * `availabilityOf` reads for a plugin; the entry page has the whole artifact
+ * from the package index, and the projection needs only the part that answers
+ * "can LiteSPM fetch this?".
+ *
+ * @param {any} artifact
+ * @returns {number}
+ */
+function artifactFlags(artifact) {
+  if (!artifact || typeof artifact !== "object") return 0;
+  const type = String(artifact.type ?? "");
+  if (!type) return 0;
+  let flags = FLAG_ARTIFACT;
+  if (type === "git-tree") {
+    flags |= FLAG_ARTIFACT_GIT_TREE;
+    if (artifact.pinned) flags |= FLAG_ARTIFACT_PINNED;
+  }
+  return flags;
+}
+
+/**
+ * Read the artifact bits back into the `Listing.artifact` shape. No bits set
+ * yields `undefined`, which is what a non-plugin row has.
+ *
+ * A row whose artifact is neither absent nor a git tree decodes as the
+ * `local-dir` the catalog actually publishes there: those are the only two
+ * types the builder emits, and every other type answers the fetch question the
+ * same way a local directory does — not installable.
+ *
+ * @param {number} flags
+ * @returns {{ type: string, pinned: boolean } | undefined}
+ */
+function artifactFromFlags(flags) {
+  if (!(flags & FLAG_ARTIFACT)) return undefined;
+  if (flags & FLAG_ARTIFACT_GIT_TREE) {
+    return { type: "git-tree", pinned: (flags & FLAG_ARTIFACT_PINNED) !== 0 };
+  }
+  return { type: "local-dir", pinned: false };
+}
+
+/**
  * Build the display projection for every row.
  *
  * The projection exists because search results must be renderable without the
@@ -1238,6 +1313,7 @@ export function buildDisplayRows(rows, options = {}) {
       intern(DICT_VERSIONS, row.version == null ? "" : String(row.version)),
       intern(DICT_INSTALLABILITY, row.installability == null ? "" : String(row.installability)),
       intern(DICT_SOURCE, row.source == null ? "" : String(row.source)),
+      artifactFlags(row.artifact),
       (row.compatibleHosts ?? []).map((host) => intern(DICT_HOSTS, String(host))),
     ]);
   }
@@ -1285,7 +1361,8 @@ export function buildDisplayShards(rows) {
  *
  *   u16 idPrefixIdx, varint idSuffixLen + bytes,
  *   varint nameLen + bytes, varint summaryLen + bytes, varint slugLen + bytes,
- *   u8 categoryIdx, u16 publisherIdx, u8 flags (bit0 verified, bit1 linkKey=id),
+ *   u8 categoryIdx, u16 publisherIdx, u8 flags (bit0 verified, bit1 linkKey=id,
+ *   bit2 has artifact, bit3 artifact is a git tree, bit4 artifact is pinned),
  *   u8 kindIdx, u8 provenanceIdx, u8 runtimeIdx, u8 transportIdx,
  *   u16 versionIdx, u8 installabilityIdx, u16 sourceIdx,
  *   varint hostCount + u8 hostIdx[hostCount]
@@ -1320,6 +1397,7 @@ export function encodeDisplayRows(display) {
       versionIdx,
       installabilityIdx,
       sourceIdx,
+      artifactFlagsOf,
       hosts,
     ] = display.records[i];
 
@@ -1334,7 +1412,11 @@ export function encodeDisplayRows(display) {
     }
     recordBytes.push(categoryIdx & 0xff);
     recordBytes.push(publisherIdx & 0xff, (publisherIdx >> 8) & 0xff);
-    recordBytes.push((verified ? 1 : 0) | (linkKeyIsId ? 2 : 0));
+    recordBytes.push(
+      (verified ? FLAG_VERIFIED : 0) |
+        (linkKeyIsId ? FLAG_LINK_KEY_IS_ID : 0) |
+        Number(artifactFlagsOf)
+    );
     recordBytes.push(kindIdx & 0xff, provenanceIdx & 0xff, runtimeIdx & 0xff, transportIdx & 0xff);
     recordBytes.push(versionIdx & 0xff, (versionIdx >> 8) & 0xff);
     recordBytes.push(installabilityIdx & 0xff);
@@ -1480,11 +1562,11 @@ export function decodeDisplayRows(payload) {
       category: dicts[DICT_CATEGORIES][categoryIdx],
       publisher: {
         name: dicts[DICT_PUBLISHERS][publisherIdx],
-        verified: (flags & 1) === 1,
+        verified: (flags & FLAG_VERIFIED) === FLAG_VERIFIED,
       },
       stars: null,
       version: dicts[DICT_VERSIONS][versionIdx] || null,
-      linkKey: flags & 2 ? id : slug,
+      linkKey: flags & FLAG_LINK_KEY_IS_ID ? id : slug,
     };
     const provenance = dicts[DICT_PROVENANCE][provenanceIdx];
     if (provenance) listing.publisher.provenance = provenance;
@@ -1496,6 +1578,8 @@ export function decodeDisplayRows(payload) {
     if (installability) listing.installability = installability;
     const source = dicts[DICT_SOURCE][sourceIdx];
     if (source) listing.source = source;
+    const artifact = artifactFromFlags(flags);
+    if (artifact) listing.artifact = artifact;
     if (hosts.length > 0) listing.compatibleHosts = hosts;
     return listing;
   };

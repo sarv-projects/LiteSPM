@@ -140,7 +140,7 @@ test("keyboard: every tab stop paints a visible focus indicator, and the primary
   }
 
   const labels = stops.map((stop) => stop.label).join(" | ");
-  for (const expected of ["Search the catalog", "Install LiteSPM", "Marketplace"]) {
+  for (const expected of ["Search the catalog", "Install LiteSPM", "Explore"]) {
     expect(labels, `expected "${expected}" among the first 14 stops`).toContain(expected);
   }
 });
@@ -224,7 +224,9 @@ test("narrow screens: the navigation is a menu; wider headers show a rail that f
     });
     await expect(menu, `the navigation menu is missing at ${width}px`).toBeVisible();
     await menu.locator("summary").click();
-    await expect(menu.locator("a"), `the menu is empty at ${width}px`).toHaveCount(6);
+    // Four destinations since the rail was cut to Explore / Works with / How
+    // it works / Docs; the menu must carry every one of them.
+    await expect(menu.locator("a"), `the menu is empty at ${width}px`).toHaveCount(4);
     const narrow = await read();
     expect(narrow.overflows, `the rail is not on the screen at ${width}px`).toBe(false);
     expect(narrow.faded, `nothing is past the edge at ${width}px, so nothing should fade`).toBe(false);

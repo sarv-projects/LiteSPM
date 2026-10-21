@@ -89,8 +89,10 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
   const chosenHostId = agent && agent.id !== "other" ? agent.id : null;
   const targetFeasibility = chosenHostId ? feasibilityFor(item, chosenHostId) : null;
   const invalidSelectedHost = Boolean(chosenHostId && targetFeasibility?.state !== "supported");
-  const liteSPMInstallable = avail.installable && !invalidSelectedHost;
-  const targeted = liteSPMInstallable && agent !== null && agent.hosts.length > 0 && item.kind !== "skill";
+  const liteSPMInstallable = avail.installable && !invalidSelectedHost;	// Every kind can be targeted now: `install --agent <id>` names a host for an
+	// MCP server or plugin and a skills target for a skill, and the plan seals
+	// that destination, so the copy cannot fan out past it.
+	const targeted = liteSPMInstallable && agent !== null && agent.id !== "other";
 
   /**
    * The install → manage transition (VS Code's extension button, as far as a
@@ -169,8 +171,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
    * binary takes a short term or only the exact id — so this panel and the
    * band above the fold cannot print two different commands for one entry.
    */
-  const installCommand = liteSPMInstallable
-    ? websiteInstallCommandFor(item, agent && agent.id !== "other" && item.kind !== "skill" ? agent.id : null)
+  const installCommand = liteSPMInstallable	    ? websiteInstallCommandFor(item, agent && agent.id !== "other" ? agent.id : null)
     : null;
 
   /**
@@ -266,7 +267,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                   You chose{" "}
                   <strong className="font-medium text-dark-ink">&ldquo;{agent.label}&rdquo;</strong>.
                   {item.kind === "skill"
-                    ? " The published catalog installer uses detected skill targets, not only this selected agent."
+                    ? " This host has no LiteSPM id, so the command installs into every skills target detected on your machine."
                     : " The CLI will check the selected host before installation."}
                 </>
               ) : (
@@ -286,7 +287,9 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                 Choose your agent
               </button>
               <p className="text-[12px] leading-relaxed text-dark-ink-2">
-                MCP/plugin commands can target one host; catalog skill installs currently cannot.
+                Choose your agent to add <code className="t-mono">--agent &lt;id&gt;</code> and
+                install into that one host; without it, a skill goes to every skills target on
+                your machine.
               </p>
             </div>
           </div>
@@ -360,12 +363,11 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                     </span>
                     <div className="min-w-0">
                       <h3 className="text-[14px] font-semibold text-dark-ink">Add {item.name}</h3>
-                      <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">
-                        {targeted
-                          ? `Targets ${agent?.label} with --host, after the target has been configured.`
-                          : item.kind === "skill"
-                            ? "The catalog skill installer writes to detected skill targets; the agent choice here is not an install restriction."
-                            : "Uses configured MCP hosts. Configure the intended agent before running this command."}
+                      <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">	                        {targeted
+	                          ? `Targets ${agent?.label} with --agent, after the target has been configured.`
+	                          : item.kind === "skill"
+	                            ? "Installs into every skills target detected on this machine. Choose an agent above to target exactly one."
+	                            : "Uses configured MCP hosts. Configure the intended agent before running this command."}
                       </p>
                     </div>
                   </div>
