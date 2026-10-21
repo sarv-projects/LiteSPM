@@ -202,21 +202,42 @@ func resolveInsidePluginTree(treeDir, rel string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Resolve the root as well as the child. macOS puts temp dirs under /var,
+	// whose resolved form is /private/var, so comparing a resolved child with
+	// an unresolved root refused every valid component on that platform.
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("could not resolve the plugin tree %s: %w", treeDir, err)
+	}
 	full, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(clean)))
 	if err != nil {
 		return "", err
 	}
-	if full != root && !strings.HasPrefix(full, root+string(filepath.Separator)) {
+	if !withinTree(root, full) {
 		return "", fmt.Errorf("the plugin's manifest points a component at %q, which is outside the plugin's own tree", rel)
 	}
 	resolved, err := filepath.EvalSymlinks(full)
 	if err != nil {
 		return "", fmt.Errorf("the plugin's manifest points a component at %q, which could not be resolved: %w", rel, err)
 	}
-	if resolved != root && !strings.HasPrefix(resolved, root+string(filepath.Separator)) {
+	if !withinTree(root, resolved) {
 		return "", fmt.Errorf("the plugin's manifest points a component at %q, which resolves outside the plugin's own tree", rel)
 	}
 	return resolved, nil
+}
+
+// withinTree reports whether p is the root itself or a path below it. It uses
+// filepath.Rel so a prefix that merely starts with the root's characters
+// (for example /tmp/tree-evil against /tmp/tree) is not mistaken for a child.
+func withinTree(root, p string) bool {
+	rel, err := filepath.Rel(root, p)
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
 // pluginSkillRootsFor is the plan-time destination list: every target host

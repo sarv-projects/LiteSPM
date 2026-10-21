@@ -408,9 +408,9 @@ export function BridgeDiagram() {
       <figcaption className="sr-only">
         Claude Code, Codex, OpenCode, Cline, Pi Agent and Grok Build each connect to one local
         LiteSPM bridge. The other 44 registered hosts use the same bridge through the generic
-        adapter. Agents reach MCP servers and skills through it. A plugin with a pinned source
-        reaches it through its own manifest; one without a fetchable source is refused with the
-        reason.
+        adapter. Agents reach MCP servers and skills through it. A plugin whose publisher ships a
+        pinned source reaches it through its own manifest; one without a fetchable source is
+        refused with the reason.
       </figcaption>
     </figure>
   );

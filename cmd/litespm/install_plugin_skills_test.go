@@ -282,6 +282,33 @@ func TestResolvePluginSkillsRefusesAnEscapingSymlink(t *testing.T) {
 	}
 }
 
+// A resolved child compared against an unresolved root is refused by the
+// containment check, which is what broke every plugin install on macOS (where
+// /var is a symlink to /private/var). Resolving the root too fixes it, and
+// this test reproduces the shape without needing a Mac.
+func TestResolvePluginSkillsAcceptsAPathThroughASymlinkedRoot(t *testing.T) {
+	real := t.TempDir()
+	skillDir := filepath.Join(real, "skills", "pdf")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: pdf\ndescription: x\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "linked-tree")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+
+	got, err := resolveInsidePluginTree(link, "skills/pdf")
+	if err != nil {
+		t.Fatalf("a component inside a symlinked tree was refused: %v", err)
+	}
+	if !strings.HasSuffix(got, filepath.Join("skills", "pdf")) {
+		t.Fatalf("resolved %q, want it to end at skills/pdf", got)
+	}
+}
+
 func TestResolvePluginSkillsRefusesADirectoryWithoutSKILLmd(t *testing.T) {
 	tree := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(tree, "skills", "empty"), 0o755); err != nil {

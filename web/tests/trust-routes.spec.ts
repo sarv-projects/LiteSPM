@@ -148,12 +148,13 @@ test("the setup guide changes with the agent and the OS, and never claims an ins
 }) => {
   await gotoSettled(page, "/get-started/");
 
-  // The sentence the whole route exists to make.
+  // The sentence the whole route exists to make: the commands are the reader's
+  // to run, not something this page does for them.
   await expect(
-    page.getByText("This website does not install anything to your computer.", { exact: true }).first()
+    page.getByText("Every command runs in your own terminal.", { exact: false }).first()
   ).toBeVisible();
   await expect(
-    page.getByText("These two answers are browser preferences.", { exact: false }).first()
+    page.getByText("Your answers stay in this tab.", { exact: false }).first()
   ).toBeVisible();
 
   // The agent answer changes the file the guide prints.

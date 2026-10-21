@@ -53,8 +53,7 @@ export function OSSelect({
     <fieldset className="mt-6">
       <legend className="text-[14px] font-semibold text-ink">Which operating system?</legend>
       <p className="mt-1 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
-        This picks the file path the guide prints and the terminal to open. It is not read from
-        your computer.
+        Sets the paths and the terminal commands in your guide.
       </p>
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         {OS_CHOICES.map((choice) => (

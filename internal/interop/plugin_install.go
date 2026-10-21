@@ -36,6 +36,7 @@ package interop
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -644,21 +645,32 @@ func parsePluginSkills(root map[string]json.RawMessage) ([]PluginSkill, error) {
 		}
 		path = strings.TrimSuffix(strings.TrimSuffix(path, "/"), string(filepath.Separator))
 		dir := path
-		if strings.EqualFold(filepath.Base(dir), "SKILL.md") {
-			dir = filepath.Dir(dir)
+		if strings.EqualFold(pathBase(dir), "SKILL.md") {
+			dir = pathDir(dir)
 		}
 		if dir == "" || dir == "." || dir == ".." {
 			return nil, errorf(ErrCodeSchema, "skills path %q does not name a skill directory", entry)
 		}
+		// Manifests are written with forward slashes on every platform, so the
+		// stored path is slash-normalized: on Windows filepath.Dir would
+		// otherwise turn "skills/review" into "skills\\review" and the same
+		// manifest would parse to two different values.
+		dir = filepath.ToSlash(dir)
 		if seen[dir] {
 			continue
 		}
 		seen[dir] = true
-		out = append(out, PluginSkill{Name: filepath.Base(dir), Path: dir})
+		out = append(out, PluginSkill{Name: pathBase(dir), Path: dir})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out, nil
 }
+
+// pathBase and pathDir split a manifest path on "/", the separator every
+// platform's manifest uses. filepath.Base would answer "skills\\review" on
+// Windows, so the same manifest would produce two different IR values.
+func pathBase(p string) string { return path.Base(p) }
+func pathDir(p string) string  { return path.Dir(p) }
 
 // countDeclaredMembers counts the entries of a member LiteSPM reports but
 // does not install. An object counts its members, an array its elements, and

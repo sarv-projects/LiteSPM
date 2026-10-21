@@ -71,8 +71,13 @@ function dataRootFor(os: GuideOS): string {
   }
 }
 
-const ALL_DATA_ROOTS =
-  "macOS `~/Library/Application Support/LiteSPM` · Linux `~/.local/share/litespm` · Windows `%LOCALAPPDATA%\\LiteSPM`";
+const ALL_DATA_ROOTS = (
+  <>
+    <code className="t-mono text-ink-2">~/Library/Application Support/LiteSPM</code> on macOS ·{" "}
+    <code className="t-mono text-ink-2">~/.local/share/litespm</code> on Linux ·{" "}
+    <code className="t-mono text-ink-2">%LOCALAPPDATA%\LiteSPM</code> on Windows
+  </>
+);
 
 /**
  * The guide itself. Split out so the state lives in one place and the prose
@@ -119,11 +124,7 @@ function Guide({
           What happens when you run this
         </h3>
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          <strong className="font-semibold text-ink">
-            This website does not install anything to your computer.
-          </strong>{" "}
-          It is a set of static pages. LiteSPM is a command-line tool, and every command below is
-          one you run yourself, in your own terminal.
+          LiteSPM is a command-line tool, and every command below runs in your terminal.
         </p>
         {agent && path ? (
           <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
@@ -207,7 +208,7 @@ function Guide({
       {/* ---- 3. install ---------------------------------------------------- */}
       <section className="mt-7" aria-labelledby="guide-install">
         <h3 id="guide-install" className="text-[14px] font-semibold text-ink">
-          Step 1 — install LiteSPM (or run it using npx)
+          Step 1: Install LiteSPM
         </h3>
         <div className="mt-3">
           <CommandCopy
@@ -237,7 +238,7 @@ function Guide({
       {/* ---- 4. the wizard -------------------------------------------------- */}
       <section className="mt-7" aria-labelledby="guide-setup">
         <h3 id="guide-setup" className="text-[14px] font-semibold text-ink">
-          Step 2 — run the setup
+          Step 2: Connect your agent
         </h3>
         <div className="mt-3">
           <CommandCopy
@@ -254,8 +255,7 @@ function Guide({
           </li>
           <li>
             It finds your agent&rsquo;s configuration file and shows you the path. If it cannot
-            find one, it offers to take a path from you — and it writes to exactly the path you
-            agree to, or it writes nothing.
+            find one, it asks you for it, and writes to that path or to nothing at all.
           </li>
           <li>
             It prints the lines it is about to change, and asks{" "}
@@ -275,12 +275,11 @@ function Guide({
       {/* ---- 5. the catalog -------------------------------------------------- */}
       <section className="mt-7" aria-labelledby="guide-catalog">
         <h3 id="guide-catalog" className="text-[14px] font-semibold text-ink">
-          Step 3 — download the catalog (required for catalog installs)
+          Step 3: Download the catalog
         </h3>
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          The CLI ships with no catalog of its own. This command fetches the release pointer and the
-          dataset from the catalog origin — this site, by default — and checks every chunk&rsquo;s
-          digest as it goes. A chunk that fails the check is not indexed.
+          LiteSPM keeps a local copy of the catalog. This downloads it from the catalog origin
+          (this site, by default) and verifies every file against its published digest.
         </p>
         <div className="mt-3">
           <CommandCopy command="litespm catalog sync" label="Fetch and verify the catalog" />
@@ -317,7 +316,7 @@ function Guide({
           keys and anything else you would not put in a public issue.
         </p>
         <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Three failures you are most likely to meet:
+          The three most common failures:
         </p>
         <ul className="mt-2 space-y-2.5 text-[13px] leading-relaxed text-ink-2">
           <li>
@@ -335,10 +334,9 @@ function Guide({
             pick an entry the site marks as installable.
           </li>
           <li>
-            <strong className="font-semibold text-ink">A plugin source is unsupported</strong> (
-            <code className="t-mono text-ink-2">LPSM-ARTIFACT-UNAVAILABLE</code>). Some plugins
-            with a pinned, fetchable Git tree have a LiteSPM install path. Others lack a
-            supported source or manifest and will be refused before installation.
+            <strong className="font-semibold text-ink">The plugin cannot be fetched</strong> (
+            <code className="t-mono text-ink-2">LPSM-ARTIFACT-UNAVAILABLE</code>). Its publisher
+            ships no pinned source LiteSPM can install from, so nothing was written.
           </li>
         </ul>
         <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
@@ -412,8 +410,7 @@ export function SetupGuide({ agents }: { agents: GuideAgent[] }) {
           Which coding agent do you use?
         </legend>
         <p className="mt-1 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
-          LiteSPM can configure {agents.length} agent hosts. Type to narrow the list. This is read
-          from the list below — not from your computer.
+          LiteSPM supports {agents.length} agent hosts. Start typing to narrow the list.
         </p>
 
         <label htmlFor="get-started-agent-search" className="mt-3 block text-[12px] text-ink-2">
@@ -487,11 +484,8 @@ export function SetupGuide({ agents }: { agents: GuideAgent[] }) {
 
       <OSSelect value={os} onChange={setOs} />
 
-      <p className="mt-5 max-w-prose rounded-panel border border-rule bg-sunken px-4 py-3 text-[12.5px] leading-relaxed text-ink-2">
-        <strong className="font-semibold text-ink">These two answers are browser preferences.</strong>{" "}
-        They change which sentences this page shows you, and nothing else. They are not saved, they
-        are not sent anywhere, and they do not touch your computer — nothing on this page is
-        installed, configured or checked.
+      <p className="mt-5 max-w-prose text-[12px] leading-relaxed text-ink-3">
+        Your answers stay in this tab. They are not saved or sent anywhere.
       </p>
 
       <Guide agent={agent} os={os} unsure={agentId === UNSURE_AGENT} />

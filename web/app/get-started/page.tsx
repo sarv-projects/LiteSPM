@@ -31,7 +31,7 @@ import { REPO_URL } from "../../lib/site";
 export const metadata: Metadata = {
   title: "Get started",
   description:
-    "A read-only LiteSPM setup guide: pick your coding agent and your operating system, and get the exact commands, the configuration file it will edit, and what to do when something fails.",
+    "Pick your coding agent and your system for the exact commands, the configuration file LiteSPM edits, and the way back.",
   alternates: { canonical: "/get-started/" },
   openGraph: { title: "Get started · LiteSPM", url: "/get-started/" },
 };
@@ -61,13 +61,9 @@ export default function GetStartedPage() {
         <div className="max-w-[72ch]">
           <p className="kicker">Get started</p>
           <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-ink">Get started</h1>
-          <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
-            Two questions, then a short guide: the commands to run, the file LiteSPM will edit, and
-            what to do when something fails.{" "}
-            <strong className="font-semibold text-ink">
-              This website does not install anything to your computer.
-            </strong>{" "}
-            It is a set of static pages, and every command in the guide is one you run yourself.
+          <p className="mt-2 max-w-[60ch] text-[13px] leading-relaxed text-ink-2">
+            Pick your agent and your system. This page prints the commands to run, the file
+            LiteSPM will edit, and the way back. Every command runs in your own terminal.
           </p>
         </div>
 
