@@ -1,300 +1,156 @@
 # LiteSPM
 
-### Stop setting up the same tools for every coding agent.
+**The package manager for AI agents.**
 
-**One catalog. Multiple agents. One place to manage capabilities.**
+[![npm](https://img.shields.io/npm/v/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-LiteSPM is a local-first package manager for MCP servers and agent skills. Discover capabilities across the ecosystem, install them into supported coding agents, preview configuration changes before applying them, and manage what you've installed without manually hunting through configuration files.
-
-The web catalog helps you find capabilities. The local CLI handles installation and management. The LiteSPM bridge brings supported workflows into your agent.
-
-[Explore the catalog](https://litespm.sarveshbh-2022.workers.dev/explore/) · [Get started](#get-started) · [Supported agents](#supported-agents) · [Implementation status](STATUS.md) · [npm package](https://www.npmjs.com/package/litespm)
+Find MCP servers, skills and plugins once, and install them into every coding
+agent you use. LiteSPM writes each agent's own config, backs it up first, and
+keeps a ledger of what it changed so you can take it back out.
 
 ```bash
 npm install -g litespm
 litespm
 ```
 
-That is the interactive setup and management wizard. It detects the agents on your machine, shows the changes it plans to make, and asks before writing them.
+That opens the setup wizard. It finds the agents on your machine, shows the
+exact file it will touch, and asks before writing.
 
-## Why LiteSPM?
+## Quick start
 
-AI coding agents have different configuration formats, installation conventions, and skill directories. Adding the same capability to several agents can mean repeating the same work and manually tracking which files you changed.
+```bash
+litespm catalog sync        # download the catalog
+litespm search postgres     # find something
+litespm install <id>        # install it
+litespm list                # see what is installed
+```
 
-LiteSPM gives you a common workflow for discovering and managing supported capabilities across those agents.
+## Why LiteSPM
 
-- **Discover once.** Search a shared catalog of MCP servers, agent skills, and plugin listings.
-- **Install across agents.** Configure supported MCP servers and install the same skill into multiple agent environments.
-- **Review before writing.** Inspect proposed changes and approve them before LiteSPM modifies your configuration.
-- **Manage what you installed.** See LiteSPM-managed entries, update or remove supported installations, and preserve unrelated configuration.
-- **Use capabilities from your agent.** On supported hosts, access LiteSPM through its local MCP bridge.
+- **One install, every agent.** Add a server or a skill once and point it at
+  Claude Code, Codex, Cursor, OpenCode, Cline and the rest — no hand-editing
+  five different config formats.
+- **Nothing is written without a preview.** You see the change first, and the
+  file is backed up before it is touched.
+- **Undo is a command.** `restore` puts a config back to its exact previous
+  bytes; `install remove` takes out only what LiteSPM wrote.
+- **Your machine, your keys.** No account, no telemetry, no proxy. Credentials
+  stay in the environment or the OS vault.
+- **A real catalog.** 69,376 listings, each with its publisher, source and
+  installability stated up front.
 
-LiteSPM is local-first: there is no LiteSPM account to create and no telemetry. Network access is used when you explicitly request catalog synchronization or operations that fetch external sources.
+## Works with your agent
 
-## How it works
+LiteSPM supports **50 agent hosts** for MCP servers and **81** for skills,
+including Claude Code, OpenAI Codex, OpenCode, Cline, Pi Agent, Grok Build,
+Cursor, Zed, Gemini CLI, GitHub Copilot, Windsurf, Warp and AiderDesk.
 
-LiteSPM has three connected surfaces.
+Six hosts — Claude Code, Codex, OpenCode, Cline, Pi Agent and Grok Build —
+have hand-written adapters that know their config layout in detail. Every other
+host runs through the same data-driven registry, generated from each agent's
+documented format, so a new host is a registry entry rather than a new code
+path, and it gets the same plan, backup and ledger as the six.
 
-| Surface | What it does |
+```bash
+litespm host list      # every supported host and the file it writes
+litespm host detect    # which of them are on this machine
+litespm setup          # connect one
+```
+
+The same command targets any of them: `--agent <host-id>`.
+
+## What you can install
+
+| Kind | What it is | In the current catalog |
+|---|---|---|
+| **MCP servers** | A service your agent calls tools on | 48,418 listings |
+| **Agent skills** | A `SKILL.md` folder of instructions | 20,320 listings |
+| **Plugins** | A publisher's bundle of skills and servers | 638 listings |
+
+26,555 listings install with one command: 25,401 remote MCP servers, 764
+skills and 390 plugins. The rest are discovery-only, and `litespm search` marks
+which is which before you run anything.
+
+A plugin installs from the pinned commit its publisher ships. LiteSPM fetches
+that commit, verifies it, and installs the skills and MCP servers the plugin's
+own manifest declares. A plugin with no fetchable pinned source is refused with
+the reason instead of being half-installed.
+
+## How an install works
+
+1. **Plan.** Resolve the listing, the version and the target hosts.
+2. **Preview.** Show the exact file and directory changes.
+3. **Approve.** A human says yes. From an agent, a single-use token from
+   `litespm approve`.
+4. **Back up and apply.** One transaction, with the previous file preserved.
+5. **Record.** The ledger keeps what was written, so `list`, `restore` and
+   `install remove` know exactly what they own.
+
+Existing entries are left alone. Removal strips only the nodes LiteSPM wrote
+and keeps anything you edited.
+
+## Common commands
+
+| Command | What it does |
 |---|---|
-| **Web catalog** | Browse, search, compare, and inspect capabilities. |
-| **Local CLI and wizard** | Detect agent integrations, install skills, configure MCP servers, and manage installations on your machine. |
-| **In-agent bridge** | Expose supported discovery and installation workflows to connected agents through MCP. |
+| `litespm` | Setup and management wizard |
+| `litespm search <text>` | Search the local catalog |
+| `litespm install <id>` | Install a server, skill or plugin |
+| `litespm install remove <id>` | Remove one install |
+| `litespm list` | What is installed, by agent and kind |
+| `litespm skills add <source>` | Install skills from a repo, URL or folder |
+| `litespm skills use <src>@<skill>` | Print a skill's prompt, install nothing |
+| `litespm restore <id>` | Roll a config back to its previous bytes |
+| `litespm copy --from A --to B` | Port one agent's setup to another |
+| `litespm doctor` | Check the install and repair it |
+| `litespm host list` | Every supported agent and its config file |
+| `litespm help` | The full command reference |
 
-The website is a discovery interface, not a remote installer. Capability installation and host configuration happen locally through LiteSPM.
+## Inside your agent
 
-## Get started
-
-### 1. Install LiteSPM
-
-Install the published npm package:
-
-```bash
-npm install -g litespm
-```
-
-### 2. Open the setup wizard
-
-```bash
-litespm
-```
-
-The wizard detects supported agent environments and guides you through configuring a connection. Before writing a configuration change, it shows the proposed changes and asks for approval.
-
-For a non-interactive setup targeting a specific host:
+With a host configured, `/marketplace` in your agent reaches the same catalog
+and the same install path through the LiteSPM bridge. An agent can search,
+prepare a plan, and ask you to approve it; it cannot approve for you.
 
 ```bash
-litespm host detect
-litespm host list
-litespm setup --agent claude-code
+litespm bridge stdio --host codex
 ```
-
-The last command targets Claude Code. Replace `claude-code` with the desired supported host ID.
-
-### 3. Find a capability
-
-Synchronize the catalog, then search your local copy:
-
-```bash
-litespm catalog sync
-litespm search postgres
-litespm skills find frontend-design
-```
-
-### 4. Install and manage
-
-For an installable catalog entry:
-
-```bash
-litespm install <id>
-litespm list
-litespm install remove <id>
-```
-
-The installation workflow previews the proposed change and requests authorization before applying it. LiteSPM backs up affected configuration and records its managed installation.
-
-**Important:** A catalog listing is not automatically installable. LiteSPM distinguishes discovery-only entries from entries with supported installation information.
-
-### 5. Check the catalog you are shipping
-
-If you publish a catalog of your own, `litespm audit` checks it for content that must not ship — a discovery-only row carrying a launch line, a plugin with no fetchable source, a credential in a public URL — and writes SARIF 2.1.0 for the CI consumer:
-
-```bash
-litespm audit --ci --sarif > audit.sarif
-```
-
-## Install one skill into multiple agents
-
-Agent skills are reusable instructions and workflows that can be installed into the skill directories recognized by supported agents.
-
-For example, install the `frontend-design` skill from Anthropic's skills repository into Claude Code, Codex, and OpenCode:
-
-```bash
-litespm skills add anthropics/skills \
-  --skill frontend-design \
-  --agent claude-code \
-  --agent codex \
-  --agent opencode
-```
-
-Useful skill-management commands:
-
-```bash
-litespm skills find design
-litespm skills list
-litespm skills update
-litespm skills remove
-```
-
-The selected agents may use different destination directories. LiteSPM resolves those destinations using its agent registry rather than requiring you to copy files manually.
-
-You can also print a skill's instructions without installing it:
-
-```bash
-litespm skills use anthropics/skills@frontend-design | claude
-```
-
-This outputs the skill instructions to standard output and pipes them into the Claude CLI. It does not install the skill.
-
-See the [supported-agent registry](AGENTS.md) for details.
-
-## MCP servers without the configuration-file hunt
-
-MCP servers expose tools and resources that agents can use to interact with external systems.
-
-LiteSPM provides a common workflow for finding installable MCP entries and registering supported servers in the target agent's expected configuration format.
-
-```bash
-litespm catalog sync
-litespm search postgres
-litespm install <id>
-litespm list
-```
-
-Where supported, LiteSPM preserves existing configuration instead of replacing the entire file. Its host adapters account for differences in configuration formats and locations.
-
-Not every catalog entry has sufficient installation information. Unsupported or discovery-only entries are not treated as successful installations.
-
-## Plugins
-
-A plugin is a bundle its publisher ships as a source tree, and a plugin listing can be installed when that source is fetchable and pinned.
-
-LiteSPM fetches the pinned commit, reads the plugin's own manifest, and registers the MCP servers the manifest declares in each target host — through the same plan, approval, backup and ledger as any other install. A plugin that publishes only a local directory, or a source that is not pinned to a commit, is refused with the reason rather than half-installed.
-
-Of the 638 plugin listings in the current release, **390 publish a pinned source tree** and install; the other **248** are refused with the reason they cannot be fetched.
-
-## Access LiteSPM from inside your agent
-
-LiteSPM can also expose capability-management tools to supported agents through a local MCP bridge.
-
-After configuring the bridge, use the host's supported marketplace entry point. Where the integration supports it, you can invoke `/marketplace` to discover capabilities from inside the agent.
-
-The bridge exposes supported workflows for searching the catalog, inspecting capabilities, preparing installations, requesting installation, viewing managed entries, and accessing skill instructions.
-
-The exact experience depends on the host. Not all bridge operations or rich interface features are implemented on every integration. See [STATUS.md](STATUS.md) for the current implementation boundaries.
-
-## Supported agents
-
-LiteSPM maintains separate registries for MCP bridge targets and agent-skill destinations. These represent different kinds of integration and should not be interpreted as identical feature support.
-
-### Tailored MCP adapters
-
-The six tailored adapters cover:
-
-- Claude Code
-- OpenAI Codex
-- OpenCode
-- Cline
-- Pi Agent
-- Grok Build
-
-Additional hosts are represented by generic adapters where compatible.
-
-The MCP bridge registry contains **50 host targets**: six tailored adapters and 44 generic adapters. The skills registry contains **81 agent targets**.
-
-These totals describe registered targets, not a guarantee that every capability works with every host. Configuration scope, skill support, and available in-agent interactions differ between agents.
-
-Inspect the current registry:
-
-```bash
-litespm host list
-litespm host detect
-```
-
-For the full integration details, see [AGENTS.md](AGENTS.md) and the [host adapter specification](ARCH/16-HOST-ADAPTERS.md). To compare agent capabilities, visit the [comparison page](https://litespm.sarveshbh-2022.workers.dev/compare/).
-
-## One catalog, with honest boundaries
-
-The catalog covers three categories:
-
-| Category | Current scope |
-|---|---|
-| **MCP servers** | Discover entries and install supported servers through compatible host adapters. |
-| **Agent skills** | Discover, install, update, and remove supported skills. |
-| **Plugins** | Install the listings whose publisher ships a pinned source; the rest are refused with a reason. |
-
-The catalog release dated 17 October 2026 contains **69,376 listings**:
-
-- 48,418 MCP server listings
-- 20,320 agent skill listings
-- 638 plugin listings
-
-These are catalog totals, not installable-package totals. At that snapshot, **26,555 listings were installable** (25,401 remote MCP servers, 764 skills and 390 plugins), **42,573 were discovery-only**, and 248 plugins were refused for a source LiteSPM cannot fetch.
-
-Catalog contents and totals change over time. Run `litespm catalog status` to inspect the locally installed snapshot.
-
-LiteSPM also does not claim that listing a capability, identifying its publisher, or linking to its source constitutes an independent security audit. Compatibility, installability, and security verification are separate questions.
-
-## Designed for controlled, reversible changes
-
-Agent configuration files often contain settings unrelated to LiteSPM. A package manager should not overwrite those settings just to add one capability.
-
-LiteSPM's installation workflow is designed around explicit changes:
-
-1. **Plan:** resolve the requested capability and target.
-2. **Preview:** show the proposed configuration or file changes.
-3. **Approve:** ask for the necessary authorization.
-4. **Back up and apply:** preserve affected configuration and apply the planned change.
-5. **Track:** record LiteSPM-managed installations so they can be listed and removed later.
-
-LiteSPM aims to preserve unrelated configuration and limit removal to content it manages. Existing external configuration is not automatically adopted into LiteSPM's management, and not every operation supports every capability type.
-
-For implementation details and tested boundaries, see [STATUS.md](STATUS.md).
 
 ## Troubleshooting
 
-Start with:
-
 ```bash
-litespm doctor
-litespm host detect
-litespm catalog status
+litespm doctor        # the usual first stop
+litespm list --drifted  # entries changed since install
+litespm catalog sync  # refresh a stale catalog
 ```
-
-- **A capability appears but cannot be installed:** check whether it is discovery-only or has a supported installation method.
-- **An agent is not detected:** inspect the host registry and the configuration paths documented for that agent.
-- **The local catalog is outdated:** run `litespm catalog sync` to request an updated snapshot.
-- **An operation fails:** review the error message and diagnostic output before retrying.
-
-See [STATUS.md](STATUS.md) for known gaps and evidence, and [TODO.md](TODO.md) for outstanding work.
 
 ## Documentation
 
-| Document | Purpose |
+| Document | What is in it |
 |---|---|
-| [STATUS.md](STATUS.md) | Implementation state, test evidence, and known gaps |
-| [ARCH/](ARCH/) | System design and architecture specifications |
-| [ARCH/00-INDEX.md](ARCH/00-INDEX.md) | Architecture document index |
-| [ARCH/39-SYSTEM-SPECIFICATION.md](ARCH/39-SYSTEM-SPECIFICATION.md) | Full system specification |
-| [AGENTS.md](AGENTS.md) | Supported-agent registry and integration guidance |
-| [TODO.md](TODO.md) | Outstanding work |
-| [CHANGELOG.md](CHANGELOG.md) | Changes and release history |
-| [SECURITY.md](SECURITY.md) | Security policy |
-| [TEST.md](TEST.md) | Testing documentation |
+| [STATUS.md](STATUS.md) | What each subsystem does today, with evidence |
+| [AGENTS.md](AGENTS.md) | Supported agents, config paths, integration guide |
+| [ARCH/](ARCH/) | Architecture and design specifications |
+| [SECURITY.md](SECURITY.md) | Security policy and threat model |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [TODO.md](TODO.md) | Known gaps and planned work |
 
-## Contributing
+The full catalog is browsable at
+[litespm.sarveshbh-2022.workers.dev](https://litespm.sarveshbh-2022.workers.dev/).
 
-Contributions are welcome. Before changing host integrations or making capability claims, read [STATUS.md](STATUS.md) and [AGENTS.md](AGENTS.md).
-
-For website changes, run the checks documented in the repository, including:
+## Development
 
 ```bash
-cd web
-npm run lint
-npx playwright test
+go build ./... && go test ./...
+cd web && npm ci && npm run build && npx playwright test
 ```
 
-The `npm run lint` command is the website's documented lint gate. Two more
-checks answer questions the browser suite cannot:
-
-```bash
-npm run check:sort-order   # the catalog's order did not change
-npm run audit:a11y         # axe over the built site (needs the export served)
-```
-
-`audit:a11y` needs a server for the export — `node tests/serve.mjs` in another
-shell — and exits non-zero on any violation.
+Host integrations must match the adapter they claim to support: the tests in
+`internal/host` and `test/` are the gate, and a new host belongs in
+`internal/host/targets_data.go` or `internal/skills/agents.go` rather than in a
+new code path.
 
 ## License
 
-LiteSPM is licensed under the Apache-2.0 license. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
