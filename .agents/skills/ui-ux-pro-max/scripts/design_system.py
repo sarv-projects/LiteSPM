@@ -525,8 +525,8 @@ class DesignSystemGenerator:
         )
 
         # MOTION_INTENSITY dial: pull a matching GSAP skeleton from motion.csv
-        # (domain key is "gsap", not "motion" - PR #296 already owns the "motion"
-        # domain for Emil Kowalski's motion-design principles, motion-principles.csv).
+        # (the domain key is "gsap" - data/motion.csv is the only motion file
+        # this skill ships, and core.py maps it to the "gsap" domain).
         motion_snippet = {}
         if motion_info:
             motion_result = search(f"{query} {motion_info['tier']}", "gsap", 5)

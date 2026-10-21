@@ -420,6 +420,15 @@ func writeApprovalPrompt(w io.Writer, plan *domain.InstallPlan) {
 				if pluginValue.Artifact.Path != "" {
 					fmt.Fprintf(w, "  path   : %s\n", pluginValue.Artifact.Path)
 				}
+				// Say what is being approved, and what is not yet known. A
+				// plugin's launch lines live in its own manifest INSIDE the
+				// pinned tree, so they cannot be listed before the tree is
+				// fetched. Silently printing no runtime line would leave the
+				// approver looking at a commit with no indication of what it
+				// will register; the approval is at commit granularity, and
+				// the entries are enumerated when the tree is read.
+				fmt.Fprintf(w, "  runtime: taken from the plugin's own manifest inside the pinned tree\n")
+				fmt.Fprintf(w, "           (the servers and skills it declares are listed after the tree is read)\n")
 				printedArtifact = true
 			}
 		}

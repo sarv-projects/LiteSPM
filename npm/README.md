@@ -5,7 +5,9 @@
 **One place to manage what your coding agents can do.**
 
 Discover and install MCP servers, skills and plugins across Claude Code,
-OpenAI Codex, OpenCode, Cline and 46 more hosts.
+OpenAI Codex, OpenCode, Cline and 45 more hosts — 50 in all. 45 of them can also receive a
+remote (URL) MCP entry; the other five are refused rather than written in a shape the
+host would ignore.
 
 [![npm version](https://img.shields.io/npm/v/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
 [![npm downloads](https://img.shields.io/npm/dm/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
@@ -262,7 +264,8 @@ that path.
 
 ## Requirements
 
-- Node.js ≥ 18 (for the npm launcher), or a supported native binary.
+- Node.js ≥ 22.22.2 (for the npm launcher — the Sigstore verification libraries it uses
+  require it), or a supported native binary.
 - Windows 10+, macOS 12+, or a modern Linux distribution.
 
 ## Links

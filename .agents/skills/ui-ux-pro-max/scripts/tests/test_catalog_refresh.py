@@ -13,11 +13,12 @@ from pathlib import Path
 def _find_repo():
     """The upstream repository root, or None when it is not in this checkout.
 
-    This skill is vendored into .agents/skills/ without the repository that
-    generated it, so the scripts these tests exercise are simply not here.
-    The module then skips rather than fails: the behaviour it asserts belongs
-    to files that were never vendored, and a red suite would train everyone
-    to ignore this skill's tests.
+    The upstream repository ships the refresh tooling these tests exercise. Every
+    assertion below drives one of those scripts as a subprocess and asserts on
+    its exit code and its diagnostics, so without them there is nothing left to
+    assert: the module skips rather than fails. The offline fixtures the tests
+    feed are vendored (scripts/tests/fixtures/catalogs/), the scripts that read
+    them are not.
     """
     for parent in Path(__file__).resolve().parents:
         if all((parent / "scripts" / script).is_file() for script in (
@@ -30,7 +31,12 @@ def _find_repo():
 REPO = _find_repo()
 if REPO is None:
     raise unittest.SkipTest(
-        "the upstream ui-ux-pro-max repository layout is not present in this checkout"
+        "needs the upstream catalog-refresh tooling: every assertion here runs "
+        "scripts/refresh-google-fonts.py or scripts/refresh-icon-catalog.py as a "
+        "subprocess, and neither is vendored (the fixtures under "
+        "scripts/tests/fixtures/catalogs/ are). Running this module requires the "
+        "upstream repository's scripts/refresh-google-fonts.py and "
+        "scripts/refresh-icon-catalog.py."
     )
 FIXTURES = Path(__file__).parent / "fixtures" / "catalogs"
 FONT_SCRIPT = REPO / "scripts" / "refresh-google-fonts.py"

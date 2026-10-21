@@ -15,7 +15,7 @@ package main
 // no sync, no probe of the endpoint — a config write is not a connection.
 //
 // Three hosts are registered so the target-set rule is observable end to end:
-// claude-code (JSON) and codex (TOML) can express streamable-http, gemini-cli
+// claude-code (JSON) and codex (TOML) can express streamable-http, zcode
 // cannot (Tier D: no verified URL entry object), so it must be dropped from
 // the plan AND left untouched on disk.
 
@@ -56,22 +56,22 @@ func e2eRemoteRecord() *domain.VersionRecord {
 // three bridge registrations (two capable, one not) the plan will read. It
 // returns the pre-install bytes of each config so the restore can be compared
 // byte for byte.
-func e2eMachine(t *testing.T) (home, claudePath, codexPath, geminiPath string, pre map[string]string) {
+func e2eMachine(t *testing.T) (home, claudePath, codexPath, zcodePath string, pre map[string]string) {
 	t.Helper()
 	home = pinHostScanHome(t)
-	// Redirects a generic row's config out of $HOME; cleared so gemini-cli
+	// Redirects a generic row's config out of $HOME; cleared so zcode
 	// resolves under the sandbox like every other adapter.
 	t.Setenv("GEMINI_CLI_HOME", "")
 	t.Setenv("COPILOT_HOME", "")
 
 	claudePath = filepath.Join(home, ".claude.json")
 	codexPath = filepath.Join(home, ".codex", "config.toml")
-	geminiPath = filepath.Join(home, ".gemini", "settings.json")
+	zcodePath = filepath.Join(home, ".zcode", "cli", "config.json")
 
 	pre = map[string]string{
 		claudePath: `{"mcpServers":{"litespm":{"command":"/usr/local/bin/litespm","args":["bridge","stdio","--host","claude-code"]},"mine":{"command":"npx"}}}`,
 		codexPath:  "# my codex config\n[mcp_servers.litespm]\ncommand = \"/usr/local/bin/litespm\"\nargs = [\"bridge\", \"stdio\", \"--host\", \"codex\"]\n",
-		geminiPath: `{"mcpServers":{"litespm":{"command":"/usr/local/bin/litespm","args":["bridge","stdio","--host","gemini-cli"]}}}`,
+		zcodePath:  `{"mcp":{"servers":{"litespm":{"command":"/usr/local/bin/litespm","args":["bridge","stdio","--host","zcode"]}}}}`,
 	}
 	for path, content := range pre {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -81,7 +81,7 @@ func e2eMachine(t *testing.T) (home, claudePath, codexPath, geminiPath string, p
 			t.Fatalf("write %s: %v", path, err)
 		}
 	}
-	return home, claudePath, codexPath, geminiPath, pre
+	return home, claudePath, codexPath, zcodePath, pre
 }
 
 // e2ePlan is one resolver.prepare_plan call decoded so the capability drop
@@ -124,12 +124,12 @@ func tomlTableBody(content, header string) string {
 // TestRemoteInstallEndToEndJSONAndTOMLHosts is the whole Phase 3 chain.
 func TestRemoteInstallEndToEndJSONAndTOMLHosts(t *testing.T) {
 	ctx := context.Background()
-	_, claudePath, codexPath, geminiPath, pre := e2eMachine(t)
+	_, claudePath, codexPath, zcodePath, pre := e2eMachine(t)
 	h := newHarnessWithCatalog(t, []*domain.Listing{e2eRemoteListing()}, []*domain.VersionRecord{e2eRemoteRecord()})
 
 	// --- 0. the machine really has the three fixture hosts registered ------
 	registered := host.RegisteredBridgeHosts(ctx, domain.ScopeUser)
-	for _, want := range []string{"claude-code", "codex", "gemini-cli"} {
+	for _, want := range []string{"claude-code", "codex", "zcode"} {
 		if !containsHost(registered, want) {
 			t.Fatalf("fixture host %q is not registered; registered = %v", want, registered)
 		}
@@ -140,8 +140,8 @@ func TestRemoteInstallEndToEndJSONAndTOMLHosts(t *testing.T) {
 	if got, want := hostChangeIDs(&plan.InstallPlan), []string{"claude-code", "codex"}; !equalStrings(got, want) {
 		t.Fatalf("plan targets = %v, want exactly the capable hosts %v", got, want)
 	}
-	if len(plan.DroppedHosts) != 1 || plan.DroppedHosts[0].HostID != "gemini-cli" {
-		t.Fatalf("droppedHosts = %+v, want gemini-cli reported", plan.DroppedHosts)
+	if len(plan.DroppedHosts) != 1 || plan.DroppedHosts[0].HostID != "zcode" {
+		t.Fatalf("droppedHosts = %+v, want zcode reported", plan.DroppedHosts)
 	}
 	if !strings.Contains(plan.DroppedHosts[0].Reason, "LPSM-HOST-REMOTE-UNSUPPORTED") {
 		t.Errorf("drop reason must carry the capability code: %s", plan.DroppedHosts[0].Reason)
@@ -312,10 +312,10 @@ func TestRemoteInstallEndToEndJSONAndTOMLHosts(t *testing.T) {
 
 	// The incapable host was dropped, so its config must be byte-identical to
 	// what the test wrote.
-	if geminiData, err := os.ReadFile(geminiPath); err != nil {
+	if geminiData, err := os.ReadFile(zcodePath); err != nil {
 		t.Fatal(err)
-	} else if string(geminiData) != pre[geminiPath] {
-		t.Errorf("gemini-cli (incapable) was written:\nwant: %s\ngot:  %s", pre[geminiPath], geminiData)
+	} else if string(geminiData) != pre[zcodePath] {
+		t.Errorf("zcode (incapable) was written:\nwant: %s\ngot:  %s", pre[zcodePath], geminiData)
 	}
 
 	// --- 5. ledger / receipt rows ------------------------------------------
@@ -416,8 +416,8 @@ func TestRemoteInstallEndToEndJSONAndTOMLHosts(t *testing.T) {
 		t.Errorf("host registrations survived remove: %+v", regs)
 	}
 	// The incapable host was never a target at any point of the chain.
-	if geminiData, _ := os.ReadFile(geminiPath); string(geminiData) != pre[geminiPath] {
-		t.Errorf("gemini-cli (incapable) changed across the whole test:\n%s", geminiData)
+	if geminiData, _ := os.ReadFile(zcodePath); string(geminiData) != pre[zcodePath] {
+		t.Errorf("zcode (incapable) changed across the whole test:\n%s", geminiData)
 	}
 }
 
@@ -433,7 +433,7 @@ func TestAuthorizeHumanInstallReportsRemoteCapabilityDrops(t *testing.T) {
 	}
 	grant, drops, err := authorizeHumanInstall(context.Background(), h.db, h.catClient, listing,
 		"1.0.0", domain.ScopeUser, "", &mcpInstallBinding{
-			Hosts:   []string{"claude-code", "gemini-cli", "codex"},
+			Hosts:   []string{"claude-code", "zcode", "codex"},
 			Runtime: remoteRuntime(),
 		}, nil)
 	if err != nil {
@@ -445,9 +445,9 @@ func TestAuthorizeHumanInstallReportsRemoteCapabilityDrops(t *testing.T) {
 	if got, want := hostChangeIDs(grant.Plan), []string{"claude-code", "codex"}; !equalStrings(got, want) {
 		t.Errorf("plan targets = %v, want %v", got, want)
 	}
-	if len(drops) != 1 || drops[0].HostID != "gemini-cli" ||
+	if len(drops) != 1 || drops[0].HostID != "zcode" ||
 		!strings.Contains(drops[0].Reason, "LPSM-HOST-REMOTE-UNSUPPORTED") {
-		t.Errorf("drops = %+v, want gemini-cli with its capability reason", drops)
+		t.Errorf("drops = %+v, want zcode with its capability reason", drops)
 	}
 }
 

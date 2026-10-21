@@ -458,13 +458,23 @@ func TestInstallPluginRefusesAHostThatCannotTakeTheEntry(t *testing.T) {
 	// A plugin that declares a REMOTE server, installed into a host that
 	// documents no remote entry spelling: the host cannot take the entry,
 	// so the install refuses instead of writing a broken one.
+	//
+	// "zcode" is such a host: its vendor mentions HTTP and SSE remote
+	// servers but publishes no remote entry object, so LiteSPM refuses.
+	// ("roo" used to stand here; it became remote-capable on 2026-10-21,
+	// when its entry object was read and pinned.)
 	repo, commit := pluginFixtureRepo(t, map[string]string{
 		"plugins/demo/plugin.json": `{"name":"demo","mcpServers":{"demo-remote":{"url":"https://mcp.example.com/mcp","type":"http"}}}`,
 	})
 	listing := pluginListing("plugin:example:demo-plugin")
 	catClient := pluginCatalog(t, listing, pluginGitRef(repo, commit))
 
-	_, err := installDemoPlugin(t, db, dataRoot, listing, catClient, []string{"roo"})
+	// A project-scope host resolves its config against the working
+	// directory, so the test must not run in the source tree: a write
+	// there would leave a .roo/ directory inside the package.
+	t.Chdir(t.TempDir())
+
+	_, err := installDemoPlugin(t, db, dataRoot, listing, catClient, []string{"zcode"})
 	if err == nil {
 		t.Fatal("a host that cannot take a remote entry was accepted")
 	}

@@ -8,7 +8,7 @@
     "prebuild": "node scripts/emit-catalog-shards.mjs && node scripts/gen_brand_logos.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs && node scripts/check-search-settled.mjs && node scripts/check-search-index.mjs && node scripts/check-install-command.mjs && node scripts/check-contrast.mjs && node scripts/check-publisher-counts.mjs",
+    "lint": "node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs && node scripts/check-search-settled.mjs && node scripts/check-search-index.mjs && node scripts/check-install-command.mjs && node scripts/check-contrast.mjs && node scripts/check-publisher-counts.mjs && python3 ../scripts/check_site_links.py out --dataset data/catalog.json --featured data/featured.json",
     "check:search-index": "node scripts/check-search-index.mjs",
     "gen:brands": "node scripts/gen_brand_logos.mjs",
     "type-check": "tsc --noEmit",
@@ -18,13 +18,10 @@
     "profile:projection": "node scripts/profile-projection.mjs"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
-    "minisearch": "^7.2.0",
     "next": "15.5.27",
     "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "tailwind-merge": "^3.0.1"
+    "react-dom": "19.0.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

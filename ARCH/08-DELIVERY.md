@@ -4,6 +4,9 @@
 > plans delivery; it does not certify state. Every "current" statement below cites
 > [STATUS.md](../STATUS.md) (the single source of truth) or the file that demonstrates it, and uses
 > the vocabulary of [ARCH/31 §2](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#2-evidence-vocabulary-binding-repo-wide).
+>
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). Catalog figures are read as
+> dated, not as current, per [ARCH/00 §1](00-INDEX.md#1-document-status--precedence).
 
 ## 1. Staged Delivery Methodology
 
@@ -54,10 +57,10 @@ Highest honest state per phase, with the subsystem rows that back it in [STATUS.
 |---|---|---|
 | A — Architecture Freeze & Schemas | `DESIGNED` | `ARCH/00`–`ARCH/38` exist; the specification is written, not verified |
 | B — Foundations, Storage & IPC | `TESTED` | `domain` / `state` / `ipc` tests bind; no independent falsification pass yet (STATUS §1) |
-| C — Static Catalog & Discovery | `SHIPPED` for the compiler, `catalog build` and `catalog sync` | the release tree is published and `catalog sync` was verified against the live origin; the origin now names **`rel-2026-10-17-01`** (sequence 149, 69,376 items, sharded — probe 2026-10-19), and the `rel-2026-10-05-01` tree the 2026-10-05 probe cited has since been replaced. `index.json`/`shards/` remain `DESIGNED`; transport sharding is `IMPLEMENTED` (STATUS §2) |
+| C — Static Catalog & Discovery | `SHIPPED` for the compiler, `catalog build` and `catalog sync` | the release tree is published and `catalog sync` was verified against the live origin; the origin now names **`rel-2026-10-21-01`** (sequence 151, 69,376 items, sharded — probe 2026-10-21), and both the `rel-2026-10-17-01` and `rel-2026-10-05-01` trees earlier probes cited have since been replaced (the origin holds the current release only, so an older release now 404s). `index.json`/`shards/` remain `DESIGNED`; transport sharding is `IMPLEMENTED` (STATUS §2) |
 | D — Extraction, Resolver & Skills | `WIRED` (resolver, skills, plugin, MCP); `IMPLEMENTED` (archive install engine); `TESTED` (artifact) | skills, MCP servers and pinned-source plugins install end to end through `/marketplace`; the archive engine still has no production caller, because a skill is files, a server is a config entry and a plugin is a fetched tree (STATUS §3) |
 | E — Supervision, Bridge & Hosts | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | provider rows are written at install time (`m4` closed 2026-10-13, `state.SaveProviderExec` inside the install transaction); `autostart` stays `0`, so nothing starts a provider at boot (STATUS §4) |
-| F — MCP profiles, Secrets & OAuth | `WIRED` (secrets, mcpclient) / `IMPLEMENTED` (auth) | `mcpclient`'s first production importer is `internal/discover`; `auth` still has zero production importers (STATUS §1, §4) |
+| F — MCP profiles, Secrets & OAuth | `WIRED` (secrets, mcpclient, auth) | `mcpclient`'s first production importer is `internal/discover`; `auth`'s is `litespm auth login/status/logout` (STATUS §1, §4) |
 | G — Marketplace, `/marketplace`, wizard | `WIRED` for read tools and the web marketplace | `request_install` completes for skills, MCP servers and pinned-source plugins; all twelve bridge tools answer, `get_invocation`/`cancel_invocation` from the invocation registry (STATUS §3, §4) |
 | H — Build, Conformance & Packaging | `IMPLEMENTED` | the npm installer is fail-closed on every path: it verifies the release's Sigstore bundle against a signer identity pinned in code (signature, Fulcio chain, CT-log SCT, Rekor inclusion promise via sigstore-js) **and** cross-checks the published SHA-256 listing, discarding the download on a missing bundle, an unparseable bundle, a wrong signer, a wrong issuer, a mismatch, a truncated transfer or an unexpected redirect. `npm test` pins each refusal and asserts the packed tarball is exactly the `files` allowlist with the shipped installer byte-identical to the reviewed source; `LICENSE`/`NOTICE` are listed and staged by `release.yml` before publish (STATUS §1) |
 | I — Fixtures, Self-Update & Migrations | `WIRED` (self-update) / `TESTED` (state) | self-update verifies SHA-256 fail-closed and then the release's keyless Sigstore bundle when one is published; `v0.4.0` (2026-10-11) is the first tag to publish one for every asset; earlier tags are checksum-only with a stated note (STATUS §1) |
@@ -85,10 +88,16 @@ that is not met is **not** met, regardless of how much of the deliverable exists
     *   Draft 2020-12 JSON Schemas for `listing`, `version`, `source`, `install-plan`, `catalog-release`, `errors` — all six exist under `schemas/`.
     *   Publish hostile archive test fixtures and golden host configuration files (`fixtures/hosts/`, `fixtures/source/`).
 *   **Gate:** all schema validation suites pass; no unresolved architectural questions remain.
-*   **Current state:** the documents and schemas exist (`DESIGNED`). The gate's second half is **not** met: at least one unresolved contract mismatch is recorded openly in
-    [ARCH/06 §2.2](06-API-CONTRACTS.md#22-known-mismatches-go-type-vs-schemasinstall-planschemajson)
-    (`domain.InstallPlan` does not satisfy `schemas/install-plan.schema.json`), and `D4` remains
-    contested ([ARCH/31 §4.3](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#43-decision-d4-is-contradicted-by-the-repository--there-are-two-catalog-builders)).
+*   **Current state:** the documents and schemas exist (`DESIGNED`). The schema half of the gate is
+    met: `internal/schemacheck` validates a marshalled `domain.InstallPlan` against
+    `schemas/install-plan.schema.json` (`TestInstallPlanValidates`,
+    `internal/schemacheck/contracts_test.go`), and the Go type and the schema are the same shape
+    ([ARCH/06 §2.2](06-API-CONTRACTS.md#22-schema-alignment-go-type--schemastinstall-planschemajson)).
+    The second half — no unresolved architectural questions remain — is **not** met:
+    `ARCH/18` §1–§2's `index.json`/`shards/`/`items/` tree is specified and never emitted, and
+    `ARCH/33` §6's update routing is still `DESIGNED` ([STATUS.md](../STATUS.md) §2, §5). `D4` was
+    adjudicated on 2026-10-19 and is no longer contested
+    ([ARCH/07 D-022](07-DECISIONS.md#d-022-canonical-catalog-builder-is-the-go-catalogbuild-d4--contested-open)).
 
 ### Phase B: Foundation & Storage Layer
 *   **Deliverables:**
@@ -103,26 +112,29 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 *   **Deliverables:**
     *   `internal/source`: source adapters for the official MCP registry, agent skills, and five marketplaces — 8 adapters, `IMPLEMENTED` with test-only callers (STATUS §2).
     *   `internal/catalogbuild`: deterministic compiler emitting `v1/current.json` + `v1/releases/<id>/{listings,versions,manifest}.json` — `TESTED`, non-test caller `litespm catalog build` (STATUS §2).
-    *   `internal/catalog`: client release fetcher with pointer→manifest→listings digest verification and local index — `SHIPPED` (verified syncing against the live origin 2026-10-05).
+    *   `internal/catalog`: client release fetcher with pointer→manifest→listings digest verification and local index — `SHIPPED` (verified syncing against the live origin 2026-10-05; re-verified 2026-10-21 against `rel-2026-10-21-01`).
     *   Deployment workflow with strict dist allowlist (`scripts/deploy-pages.sh`, including the `_headers` cache policy).
 *   **Gate:** two successive builds from identical fixtures are byte-for-byte identical; public deployment reveals zero private repository files.
 *   **Current state:** byte-determinism is demonstrated for the Go compiler
     (`TODO.md` `LPSM-C002`), the deploy allowlist/leak audit exists (`deploy-pages.sh`), and the
     **user-visible gate — a `catalog sync` that succeeds against the live origin — passes**
-    (verified 2026-10-05: release `rel-2026-10-05-01`, 5,814 indexed — that tree has since been replaced, so the figures record that run; the origin now serves `rel-2026-10-17-01`; STATUS §2).
-    Two builders also remain in tree (D4 contested).
+    (verified 2026-10-05: release `rel-2026-10-05-01`, 5,814 indexed — that tree has since been replaced, so the figures record that run; the origin now serves `rel-2026-10-21-01`, sequence 151, 69,376 indexed, re-verified 2026-10-21; STATUS §2).
+    Two builders remain in tree, and the split between them is now the adjudicated shape of D4
+    (2026-10-19: Python ingests the dataset, the Go builder publishes the pointer and the tree —
+    [ARCH/07 D-022](07-DECISIONS.md#d-022-canonical-catalog-builder-is-the-go-catalogbuild-d4--contested-open)).
 
 ### Phase D: Safe Artifact Extraction & Skill Management
 *   **Deliverables:**
-    *   `internal/artifact`: bounded spooling and extraction enforcing the documented caps — 256 MiB download, 1 GiB extracted, 20,000 files, 128 MiB per file, 1,024-byte paths, case-fold checks, and (2026-10-19) the 100:1 compression-ratio bound of `ARCH/05` §2.1, applied while the tree is written, canonical tree digests, path-traversal rejection — `TESTED` (STATUS §3). **The 100:1 compression-ratio (zip-bomb) check is not implemented** ([ARCH/05 §2.1](05-SECURITY.md#21-extraction-safety-thresholds)).
+    *   `internal/artifact`: bounded spooling and extraction enforcing the documented caps — 256 MiB download, 1 GiB extracted, 20,000 files, 128 MiB per file, 1,024-byte paths, case-fold checks, and (2026-10-19) the 100:1 compression-ratio bound of `ARCH/05` §2.1, applied while the tree is written, canonical tree digests, path-traversal rejection — `TESTED` (STATUS §3). The 100:1 compression-ratio (zip-bomb) check **is implemented and enforced**: `internal/artifact/extractor.go` compares the bytes written so far against the archive's own compressed size in `checkCompressionRatio` and refuses past 100:1, on the zip and the tar.gz path alike, pinned by `internal/artifact/ratio_test.go` — so `ARCH/05` §2.1's "Yes — `WIRED`" (2026-10-19) stands and this document's earlier "not implemented" no longer applies.
     *   `internal/resolver`: pure dependency resolver with constraint intersection and cycle detection — `WIRED` (STATUS §3).
     *   `internal/install`: two-phase atomic staging, CAS rollback, SQLite commit — `IMPLEMENTED`; refuses an `Execute` with neither `TreeSource` nor `ArchiveSource` (`internal/install/engine.go:204-207`).
     *   `internal/skills`: atomic skill install/update/remove with provenance ledger — `WIRED` (STATUS §1).
 *   **Gate:** extraction harness rejects hostile zip-slip, zip-bomb, and symlink-escape fixtures; aborted installations leave zero orphaned files.
-*   **Current state:** traversal/symlink/case-collision/size rejections are exercised by unit tests
-    and rollback is recovery-tested (`TESTED`), but the zip-bomb half of the gate depends on the
-    absent ratio check, and the archive engine has no production caller to abort: skills install end
-    to end as files, MCP servers as config entries, and plugins as a fetched pinned tree (STATUS §3).
+*   **Current state:** traversal/symlink/case-collision/size rejections are exercised by unit tests,
+    the zip-bomb half of the gate now holds as well (`checkCompressionRatio`,
+    `internal/artifact/extractor.go`, 2026-10-19), and rollback is recovery-tested (`TESTED`). The
+    archive engine still has no production caller to abort: skills install end to end as files, MCP
+    servers as config entries, and plugins as a fetched pinned tree (STATUS §3).
 
 ### Phase E: Process Supervision, Bridge Shim & Host Adapters
 *   **Deliverables:**
@@ -141,12 +153,12 @@ that is not met is **not** met, regardless of how much of the deliverable exists
     *   `internal/mcpclient`: dual-protocol client (2026-07-28 Streamable HTTP; 2025-11-25 legacy) — `WIRED`; its first production importer is `internal/discover` (STATUS §4).
     *   Capability schema fingerprinting and drift invalidation — `IMPLEMENTED` and reachable: `litespm grant` writes `capability_grants` and `internal/discover` writes provider/capability rows, so a real invocation can trigger a drift refusal ([ARCH/05 §5](05-SECURITY.md#5-capability-schema-drift-defense)); the denial is recorded to `audit_events` by `recordAudit` (wired 2026-10-13, STATUS §1).
     *   `internal/secrets`: native OS keystore backends (DPAPI `master.key`, macOS Keychain, `secret-tool`), fail-closed open — `WIRED` (STATUS §1).
-    *   `internal/auth`: OAuth 2.0 PKCE loopback broker — `IMPLEMENTED`, zero production importers (STATUS §4).
+    *   `internal/auth`: OAuth 2.0 PKCE loopback broker — `WIRED`; the production caller is `litespm auth login/status/logout` (`cmd/litespm/auth.go`), and a remote invocation reads the stored profile (`internal/discover/auth.go`) (STATUS §4).
 *   **Gate:** dual-protocol conformance passes against mock MCP servers; synthetic canary tokens confirm zero secret leaks in logs, database dumps, or error responses.
 *   **Current state:** secrets open fail-closed and the doctor runs a canary round-trip, but the
     conformance gate runs only inside tests; `mcpclient` **is** reachable from a production path
     (`internal/discover`, STATUS §4 — stdio for a launched server, the HTTP/legacy profiles for a
-    remote endpoint entry) while `internal/auth` still is not.
+    remote endpoint entry), and `internal/auth` is reachable too (`litespm auth login/status/logout`).
 
 ### Phase G: Marketplace Federation, In-Agent `/marketplace` & CLI TUI
 *   **Deliverables:**
@@ -213,8 +225,9 @@ The items above are *non-goals*. Separately, a large set of features is specifie
 they are scheduled in [ARCH/31 §12](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#12-ordered-backlog)
 (phases 1–9, each with a real-workflow gate) and specified in `DESIGNED` documents: manifest +
 lockfile + frozen install + interop ([ARCH/32](32-MANIFEST-LOCK-INTEROP.md)), deployment ledger +
-three-way reconciliation ([ARCH/33](33-DEPLOYMENT-LEDGER-RECONCILIATION.md)), capability registry +
-invocation engine + receipts ([ARCH/34](34-RUNTIME-INVOCATION-RECEIPTS.md)), profiles + capability
+three-way reconciliation ([ARCH/33](33-DEPLOYMENT-LEDGER-RECONCILIATION.md)), provider health +
+circuit breaker + cross-provider fallback ([ARCH/34](34-RUNTIME-INVOCATION-RECEIPTS.md) — its
+capability registry, invocation engine and receipt chain are `WIRED` since 2026-10-19), profiles + capability
 leases ([ARCH/35](35-PROFILES-AND-CAPABILITY-LEASES.md)), policy inheritance + `policy explain` +
 `audit --ci`/SARIF + advisories/quarantine + TUF/SBOM/Sigstore/SLSA + air-gapped bundles
 ([ARCH/36](36-ENTERPRISE-POLICY-AND-AUDIT.md)), and TUI/dashboard/completion/`why`

@@ -56,20 +56,6 @@ export function kindLabel(kind: string): string {
   }
 }
 
-/** The plural form, for a sentence that covers a whole shelf or result set. */
-export function kindPlural(kind: string): string {
-  switch (kind) {
-    case "mcp":
-      return "MCP servers";
-    case "skill":
-      return "agent skills";
-    case "plugin":
-      return "plugins";
-    default:
-      return kind;
-  }
-}
-
 /**
  * Sort modes are limited to axes the data actually carries.
  *
@@ -411,14 +397,6 @@ export function publisherFacets(items: Listing[], limit = 24): Array<{ name: str
   })
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, limit);
-}
-
-export function topByPublisher(items: Listing[], n: number): Listing[] {
-  return sortListings(items, "publisher").slice(0, n);
-}
-
-export function verifiedItems(items: Listing[]): Listing[] {
-  return items.filter((i) => i.publisher?.verified);
 }
 
 /**

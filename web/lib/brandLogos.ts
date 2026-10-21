@@ -35,8 +35,3 @@ export function brandLogo(id: string): BrandLogo | null {
   return entry ?? null;
 }
 
-/** How many agents currently have a vendored mark (surfaced in reviews so a
- *  near-empty manifest is visible rather than assumed to be complete). */
-export function brandLogoCount(): number {
-  return Object.keys(brandLogos).length;
-}

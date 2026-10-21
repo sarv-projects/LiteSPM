@@ -173,6 +173,24 @@ func planSkillRestore(_ context.Context, rows []deployment.Mutation, plan *resto
 // currentOwnedImage); it is unused for user-scope nodes.
 func planFileRestore(ctx context.Context, rows []deployment.Mutation, projectRoot string) (*fileAction, string, error) {
 	first := rows[0]
+
+	// An ADOPTION is ownership of a node LiteSPM did not write. It is not
+	// evidence that LiteSPM created the file, and it must never make a
+	// restore delete a file the user owns.
+	//
+	// The deployment ledger says so itself (internal/deployment/ledger.go:
+	// "a reader that finds Owner == OwnerAdopted knows that the host config
+	// was never touched, and that removing the ownership must leave that
+	// file alone"). This is that reader. Treating an adoption as a write
+	// made the empty BackupPath read as "the install created this file",
+	// and the applier then removed the user's whole host configuration.
+	writes := make([]deployment.Mutation, 0, len(rows))
+	for _, m := range rows {
+		if !deployment.IsAdoption(m) {
+			writes = append(writes, m)
+		}
+	}
+
 	owned := make([][]string, 0, len(rows))
 	entryKeys := map[string]bool{}
 	for _, m := range rows {
@@ -183,14 +201,22 @@ func planFileRestore(ctx context.Context, rows []deployment.Mutation, projectRoo
 			return nil, "", fmt.Errorf("restore refused: %s in %s was edited after the install and no longer matches what LiteSPM wrote; use `litespm install remove` to remove only LiteSPM's entries and keep your edit",
 				m.Locator, m.FilePath)
 		}
-		owned = append(owned, strings.Split(m.Locator, "."))
+		// Only a node LiteSPM WROTE is owned for guard 2's purposes. An
+		// adopted node is the user's own content: if the pre-install backup
+		// does not contain it, a byte-exact restore would silently drop it,
+		// so it must count as an unowned difference and refuse the restore
+		// rather than discard the user's entry.
+		if !deployment.IsAdoption(m) {
+			owned = append(owned, strings.Split(m.Locator, "."))
+		}
 		entryKeys[locatorName(m)] = true
 	}
 
-	// Resolve the pre-install bytes: the earliest recorded backup for this
-	// file. No backup at all means the install created the file.
+	// Resolve the pre-install bytes: the earliest recorded backup among the
+	// rows LiteSPM actually wrote. No backup at all means the install
+	// created the file.
 	backupPath := ""
-	for _, m := range rows {
+	for _, m := range writes {
 		if m.BackupPath != "" {
 			backupPath = m.BackupPath
 			break
@@ -216,9 +242,19 @@ func planFileRestore(ctx context.Context, rows []deployment.Mutation, projectRoo
 	}
 
 	var backupBytes []byte
-	if backupPath == "" {
+	switch {
+	case len(writes) == 0:
+		// Every row for this file is an adoption: LiteSPM never wrote it, so
+		// there is nothing to restore and nothing to remove. The file stays
+		// exactly as the user left it; only the ownership is undone (the
+		// install row, and this file's entry registrations, are dropped by
+		// the caller).
+		action.Created = false
+		action.Backup = ""
+		return action, fmt.Sprintf("%s: adopted, not written by LiteSPM; the file is the user's and was left exactly as it was", first.FilePath), nil
+	case backupPath == "":
 		action.Created = true
-	} else {
+	default:
 		backupBytes, err = os.ReadFile(backupPath)
 		if err != nil {
 			return nil, "", fmt.Errorf("restore refused: the pre-install backup for %s is missing (%s): %w; nothing was changed", first.FilePath, backupPath, err)
@@ -281,6 +317,13 @@ func applyRestore(ctx context.Context, db *state.DB, dataRoot string, plan *rest
 	txn := lifecycle.BeginInstall(ctx)
 	defer txn.RollbackUnlessCommitted()
 	for _, a := range plan.Files {
+		// Nothing to restore and nothing to remove: the file was adopted, not
+		// written. It is the user's file and it is left exactly as it is —
+		// its entry registrations are still dropped below, because the
+		// ownership is what this restore undoes.
+		if !a.Created && a.Backup == "" {
+			continue
+		}
 		snapshot, err := os.ReadFile(a.Path)
 		if err != nil {
 			return nil, fmt.Errorf("restore %s: %w", a.Path, err)

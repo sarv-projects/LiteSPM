@@ -7,6 +7,8 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os/exec"
 	"strings"
 )
@@ -206,7 +208,17 @@ func (RemoteAdapter) Plan(_ context.Context, spec Spec) (Launch, error) {
 	if strings.TrimSpace(spec.Endpoint) == "" {
 		return Launch{}, fmt.Errorf("LPSM-RUNTIME-REMOTE: endpoint is required")
 	}
-	if !strings.HasPrefix(spec.Endpoint, "https://") && !strings.HasPrefix(spec.Endpoint, "http://localhost") {
+	// The scheme check compares the PARSED host, not a prefix of the whole
+	// URL. "http://localhost" as a prefix also matched
+	// "http://localhost.evil.example/mcp", which let a plaintext endpoint
+	// through a guard that exists to refuse one.
+	u, err := url.Parse(spec.Endpoint)
+	if err != nil {
+		return Launch{}, fmt.Errorf("LPSM-RUNTIME-REMOTE-SCHEME: endpoint %q is not a valid URL: %v", spec.Endpoint, err)
+	}
+	host := u.Hostname()
+	loopback := host == "localhost" || host == "::1" || net.ParseIP(host).IsLoopback()
+	if u.Scheme != "https" && !(u.Scheme == "http" && loopback) {
 		return Launch{}, fmt.Errorf("LPSM-RUNTIME-REMOTE-SCHEME: refusing non-https endpoint %q", spec.Endpoint)
 	}
 	return Launch{Executable: "", Args: nil, Env: spec.Env, Transport: "streamable-http",

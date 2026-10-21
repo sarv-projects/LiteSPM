@@ -39,6 +39,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -49,7 +50,7 @@ import (
 	"github.com/sarv-projects/litespm/internal/state"
 )
 
-const adoptUsage = `Usage: litespm adopt <name> --host <host-id>
+const adoptUsage = `Usage: litespm adopt <name> --host <host-id> [--scope user|project] [--workspace <dir>]
 
 Adopts a server that is already registered in an agent's configuration file, so
 LiteSPM manages it from now on. The configuration file is NOT modified: the
@@ -57,6 +58,10 @@ entry is already there, and adoption only records that LiteSPM now owns it.
 
   <name>       the entry name in the host's config (the key under mcpServers)
   --host       the agent host the entry lives in (e.g. claude-code, codex)
+  --scope      user (the agent's global config) or project (a project's
+               config). Default: user.
+  --workspace  the project directory a project-scope entry lives in. Required
+               for --scope project; the working directory is used otherwise.
 
 The adoption is reversible: 'litespm install remove <installId>' puts the
 entry back exactly as it was, and keeps any edit you made to it meanwhile.`
@@ -65,6 +70,11 @@ entry back exactly as it was, and keeps any edit you made to it meanwhile.`
 type adoptOptions struct {
 	name   string
 	hostID string
+	// scope is where the entry lives: the agent's global config (user) or a
+	// project's config (project). A project adoption needs the project root,
+	// which --workspace names.
+	scope     domain.InstallScope
+	workspace string
 }
 
 // parseAdoptArgs parses `litespm adopt` strictly: an unknown flag, a missing
@@ -135,69 +145,107 @@ func runAdopt(args []string) int {
 
 // runAdoptTo runs the adoption against explicit streams, so a test can read
 // what was printed.
-func runAdoptTo(out, errOut io.Writer, db *state.DB, opts adoptOptions) int {
-	ctx := context.Background()
+// adoptOutcome is what an adoption recorded.
+type adoptOutcome struct {
+	InstallID  string
+	ListingID  string
+	HostID     string
+	EntryName  string
+	ConfigPath string
+	Digest     string
+	Scope      domain.InstallScope
+	Files      int
+}
+
+// adoptHostEntry records ownership of a server that is ALREADY in a host's
+// configuration, without writing a byte to that configuration.
+//
+// This is the one implementation: the CLI command and the daemon's
+// adopt.execute handler both call it, so the two can never disagree about
+// what an adoption does. The configuration file is never modified — the entry
+// is already there, and only LiteSPM's ledger changes — and the node's
+// current image is recorded as the pre-image, so a later removal RESTORES
+// the node rather than deleting it.
+func adoptHostEntry(ctx context.Context, db *state.DB, opts adoptOptions) (*adoptOutcome, error) {
 	if db == nil {
-		fmt.Fprintln(errOut, "Adopt error: no state database")
-		return 1
+		return nil, domain.NewError("LPSM-INTERNAL-ERROR", "no state database", nil)
+	}
+	if opts.scope == "" {
+		opts.scope = domain.ScopeUser
 	}
 	adapter, err := host.GetAdapter(opts.hostID)
 	if err != nil {
-		fmt.Fprintf(errOut, "Adopt error: %v\n", err)
-		return 1
+		return nil, err
 	}
 	if err := host.ValidateServerEntryName(opts.name); err != nil {
-		fmt.Fprintf(errOut, "Adopt error: %v\n", err)
-		return 2
+		return nil, err
 	}
 
-	// The host's own detection is the authority on what is in its config: a
-	// name it does not list is a name LiteSPM does not see, and adopting it
-	// would record ownership of a node that does not exist.
-	comps, derr := adapter.DetectPreExistingComponents(ctx)
+	// A project-scope entry lives in the PROJECT's config file, so the
+	// project root has to be resolved before anything is read. It is
+	// absolute: the workspace is the identity of the project, exactly as it
+	// is for a project-scope install.
+	projectRoot := ""
+	if opts.scope == domain.ScopeProject {
+		root := opts.workspace
+		if root == "" {
+			cwd, cerr := os.Getwd()
+			if cerr != nil {
+				return nil, fmt.Errorf("resolve the project directory: %w", cerr)
+			}
+			root = cwd
+		}
+		abs, aerr := filepath.Abs(root)
+		if aerr != nil {
+			return nil, fmt.Errorf("resolve the project directory %s: %w", root, aerr)
+		}
+		projectRoot = abs
+		if _, ok := host.ProjectConfigPathFor(adapter, projectRoot); !ok {
+			return nil, domain.NewError("LPSM-HOST-CONFIG-NOT-FOUND", fmt.Sprintf(
+				"%s documents no project-scope configuration file, so a project adoption cannot be located there",
+				adapter.Descriptor().DisplayName),
+				map[string]any{"hostId": opts.hostID, "scope": string(opts.scope)})
+		}
+	}
+
+	// The host's own config is the authority on what is in it: a name it
+	// does not list is a name LiteSPM does not see, and adopting it would
+	// record ownership of a node that does not exist.
+	entries, derr := host.ListServerEntriesWithValues(ctx, opts.hostID, opts.scope, projectRoot)
 	if derr != nil {
-		fmt.Fprintf(errOut, "Adopt error: read %s: %v\n", adapter.Descriptor().DisplayName, derr)
-		return 1
+		return nil, fmt.Errorf("read %s: %w", adapter.Descriptor().DisplayName, derr)
 	}
 	seen := false
-	for _, comp := range comps {
-		if comp.Name == opts.name {
+	for _, entry := range entries {
+		if entry.Name == opts.name {
 			seen = true
 			break
 		}
 	}
 	if !seen {
-		e := domain.NewError("LPSM-HOST-CONFIG-NOT-FOUND", fmt.Sprintf(
+		return nil, domain.NewError("LPSM-HOST-CONFIG-NOT-FOUND", fmt.Sprintf(
 			"%s does not register a server named %q, so there is nothing to adopt",
 			adapter.Descriptor().DisplayName, opts.name),
 			map[string]any{"hostId": opts.hostID, "name": opts.name})
-		fmt.Fprintf(errOut, "Adopt error: %v\n", e)
-		return 1
 	}
 
-	// The node's current image: what it looks like now, and the canonical
-	// text a removal will put back.
-	entryState, serr := host.ReadServerEntryState(ctx, opts.hostID, opts.name, domain.ScopeUser, "")
+	entryState, serr := host.ReadServerEntryState(ctx, opts.hostID, opts.name, opts.scope, projectRoot)
 	if serr != nil {
-		fmt.Fprintf(errOut, "Adopt error: read the entry %q: %v\n", opts.name, serr)
-		return 1
+		return nil, fmt.Errorf("read the entry %q: %w", opts.name, serr)
 	}
 	if entryState == nil {
-		e := domain.NewError("LPSM-HOST-CONFIG-NOT-FOUND", fmt.Sprintf(
+		return nil, domain.NewError("LPSM-HOST-CONFIG-NOT-FOUND", fmt.Sprintf(
 			"%s does not register a server named %q, so there is nothing to adopt",
 			adapter.Descriptor().DisplayName, opts.name),
 			map[string]any{"hostId": opts.hostID, "name": opts.name})
-		fmt.Fprintf(errOut, "Adopt error: %v\n", e)
-		return 1
 	}
 
-	locator, lerr := hostLocatorFor(opts.hostID, opts.name, domain.ScopeUser)
+	locator, lerr := hostLocatorFor(opts.hostID, opts.name, opts.scope)
 	if lerr != nil {
-		fmt.Fprintf(errOut, "Adopt error: %v\n", lerr)
-		return 1
+		return nil, lerr
 	}
 
-	installID := adoptInstallID(opts.hostID, opts.name)
+	installID := adoptInstallID(opts.hostID, opts.name, opts.scope)
 	listingID := "mcp:adopted:" + opts.name
 	now := time.Now().UTC()
 	rec := &domain.InstallRecord{
@@ -207,18 +255,18 @@ func runAdoptTo(out, errOut io.Writer, db *state.DB, opts adoptOptions) int {
 		Version:     "adopted",
 		TreeDigest:  entryState.Fingerprint,
 		InstallPath: entryState.ConfigPath,
-		Scope:       domain.ScopeUser,
+		Scope:       opts.scope,
+		ProjectRoot: projectRoot,
 		Status:      domain.InstallActive,
 		InstalledAt: now,
 		UpdatedAt:   now,
 	}
-	mutation := deployment.Adoption(installID, listingID, opts.hostID, string(domain.ScopeUser),
+	mutation := deployment.Adoption(installID, listingID, opts.hostID, string(opts.scope),
 		entryState.ConfigPath, hostStructureTypeFor(opts.hostID), locator,
 		entryState.Fingerprint, entryState.Raw)
 
 	// One transaction: the install row, its component and the ownership row
-	// land together or not at all. The install path stays the only writer of
-	// install state, and this writes through the same transaction it uses.
+	// land together or not at all.
 	if err := db.WithTx(ctx, func(tx *sql.Tx) error {
 		if err := db.SaveInstallExec(ctx, tx, rec); err != nil {
 			return fmt.Errorf("record the adoption: %w", err)
@@ -236,21 +284,54 @@ func runAdoptTo(out, errOut io.Writer, db *state.DB, opts adoptOptions) int {
 		}
 		return nil
 	}); err != nil {
+		return nil, err
+	}
+
+	return &adoptOutcome{
+		InstallID:  installID,
+		ListingID:  listingID,
+		HostID:     opts.hostID,
+		EntryName:  opts.name,
+		ConfigPath: entryState.ConfigPath,
+		Digest:     entryState.Fingerprint,
+		Scope:      opts.scope,
+	}, nil
+}
+
+func runAdoptTo(out, errOut io.Writer, db *state.DB, opts adoptOptions) int {
+	ctx := context.Background()
+	// The scope is defaulted HERE as well as in the parser: a caller that
+	// builds the options directly must not reach the ledger with an empty
+	// scope, which its CHECK constraint would refuse.
+	if opts.scope == "" {
+		opts.scope = domain.ScopeUser
+	}
+	outcome, err := adoptHostEntry(ctx, db, opts)
+	if err != nil {
 		fmt.Fprintf(errOut, "Adopt error: %v\n", err)
 		return 1
 	}
-
-	fmt.Fprintf(out, "✓ Adopted %q in %s\n", opts.name, adapter.Descriptor().DisplayName)
-	fmt.Fprintf(out, "  Config:    %s (unchanged)\n", entryState.ConfigPath)
-	fmt.Fprintf(out, "  Image:     %s\n", entryState.Fingerprint)
-	fmt.Fprintf(out, "  Install:   %s\n", installID)
-	fmt.Fprintf(out, "  Undo:      litespm install remove %s\n", installID)
+	adapter, aerr := host.GetAdapter(outcome.HostID)
+	if aerr != nil {
+		fmt.Fprintf(errOut, "Adopt error: %v\n", aerr)
+		return 1
+	}
+	fmt.Fprintf(out, "✓ Adopted %q in %s\n", outcome.EntryName, adapter.Descriptor().DisplayName)
+	fmt.Fprintf(out, "  Config:    %s (unchanged)\n", outcome.ConfigPath)
+	fmt.Fprintf(out, "  Image:     %s\n", outcome.Digest)
+	fmt.Fprintf(out, "  Install:   %s\n", outcome.InstallID)
+	fmt.Fprintf(out, "  Undo:      litespm install remove %s\n", outcome.InstallID)
 	return 0
 }
 
 // adoptInstallID is the install id an adoption is recorded under. It names the
-// host and the entry, because the same entry name can be adopted on more than
-// one host and each is its own ownership.
-func adoptInstallID(hostID, name string) string {
-	return fmt.Sprintf("inst_user_adopt_%s_%s", safeInstallIDPart(hostID), safeInstallIDPart(name))
+// host, the entry and the SCOPE, because the same entry name can be adopted
+// on more than one host — and in both a global config and a project's — and
+// each is its own ownership.
+func adoptInstallID(hostID, name string, scope domain.InstallScope) string {
+	scopePart := "user"
+	if scope == domain.ScopeProject {
+		scopePart = "project"
+	}
+	return fmt.Sprintf("inst_%s_adopt_%s_%s", scopePart, safeInstallIDPart(hostID), safeInstallIDPart(name))
 }

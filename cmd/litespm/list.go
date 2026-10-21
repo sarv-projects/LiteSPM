@@ -256,6 +256,19 @@ func parseListFlags(args []string) (listFlags, error) {
 	if f.global && f.project != "" {
 		return f, fmt.Errorf("--project and --global select different scopes; pass only one")
 	}
+	// The state filters select DIFFERENT states, so only one can apply. The
+	// old code used a switch, so `--managed --observed` silently kept the
+	// first flag and dropped the second — the user asked for a set that
+	// cannot exist and got one of its halves with no word about it.
+	stateFilters := 0
+	for _, on := range []bool{f.managed, f.observed, f.drifted} {
+		if on {
+			stateFilters++
+		}
+	}
+	if stateFilters > 1 {
+		return f, fmt.Errorf("--managed, --observed and --drifted select different states; pass only one")
+	}
 	return f, nil
 }
 

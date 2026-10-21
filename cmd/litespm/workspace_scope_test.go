@@ -196,7 +196,8 @@ func TestInstallSkillUserScopeRecordsNoWorkspace(t *testing.T) {
 	listing := skillListingFor("skill:example:demo-skill", "demo-skill", skillDir)
 
 	outcome, err := installSkillFromListing(authorizedTestContext(), db, dataRoot, project, home,
-		listing, "1.0.0", domain.ScopeUser, []string{"cursor"})
+		listing, "1.0.0", domain.ScopeUser, []string{"cursor"},
+		skillPlanForTest(t, listing, domain.ScopeUser, project, home, []string{"cursor"}))
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}

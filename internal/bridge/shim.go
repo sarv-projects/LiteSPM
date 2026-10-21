@@ -136,6 +136,11 @@ func (s *Shim) initTools() {
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"kind":{"type":"string"},"enabled":{"type":"boolean"}}}`),
 		},
 		{
+			Name:        "adopt_capability",
+			Description: "Take ownership of an MCP server that is ALREADY in an agent's configuration, so LiteSPM manages it. The configuration file is NOT modified: the entry stays exactly as it is, and the ownership is reversible.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"name":{"type":"string"},"hostId":{"type":"string"},"scope":{"type":"string","enum":["user","project"]}},"required":["name","hostId"]}`),
+		},
+		{
 			Name:        "search_capabilities",
 			Description: "Search through discovered capabilities and tool functions across installed providers.",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer"}},"required":["query"]}`),
@@ -463,6 +468,35 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 		}
 		return MCPToolResult{Content: []MCPContent{{Type: "text", Text: FormatInstalledPanel(resp.Installs)}}}, nil
 
+	case "adopt_capability":
+		var req struct {
+			Name   string `json:"name"`
+			HostID string `json:"hostId"`
+			Scope  string `json:"scope,omitempty"`
+		}
+		if rpcErr := decodeToolArgs(name, args, &req); rpcErr != nil {
+			return MCPToolResult{}, rpcErr
+		}
+		params := map[string]any{
+			"name":   req.Name,
+			"hostId": req.HostID,
+			"scope":  req.Scope,
+		}
+		// A project-scope adoption names the project the entry lives in. The
+		// bridge knows it (it is the directory the agent was started in), so
+		// it travels with the request rather than being guessed on the
+		// daemon side.
+		if strings.EqualFold(strings.TrimSpace(req.Scope), "project") && s.ProjectRoot != "" {
+			params["workspace"] = s.ProjectRoot
+		}
+		var resp any
+		err := s.client.Call(ctx, "adopt.execute", params, &resp)
+		if err != nil {
+			return FormatErrorResult(err), nil
+		}
+		outBytes, _ := json.MarshalIndent(resp, "", "  ")
+		return MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(outBytes)}}}, nil
+
 	case "search_capabilities":
 		var req struct {
 			Query string `json:"query"`
@@ -685,7 +719,10 @@ func FormatInstalledPanel(items []CapabilityItem) string {
 
 		note := "Managed"
 		if it.IsExternal {
-			note = "[External / Detected] (Adopt)"
+			// The label names the way to take ownership of the entry, and
+			// there IS one now: the adopt_capability tool records the
+			// ownership without writing a byte to the host's configuration.
+			note = "[External / Detected] (adopt with adopt_capability)"
 		} else if it.Verified {
 			note = "Verified ✓"
 		}

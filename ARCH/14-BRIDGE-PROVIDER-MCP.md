@@ -3,6 +3,11 @@
 Transcribed from the tree at `ff0a1db`. State labels use the vocabulary of
 [`STATUS.md`](../STATUS.md).
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The transcription above is
+> the `ff0a1db` reading and is **not** re-transcribed here; the state labels are the ones
+> reconciled against the current tree, where the invocation registry, engine and receipts are
+> `WIRED` (`ARCH/34`).
+
 ## 1. Bridge Shim Architecture
 
 The LiteSPM Bridge Shim (`litespm bridge stdio --host <host-id>`) is a

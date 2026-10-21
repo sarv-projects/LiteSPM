@@ -1,14 +1,22 @@
 # Function Inventory — Aspirational Map
 
-> **Coverage is 21 of 42 packages, and the gap is not small.** `internal/` holds **42**
-> packages today; this document describes 21 of them. The 21 unlisted packages are not a
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). §1's symbol names were read
+> from `go doc -short ./internal/<pkg>` at `ff0a1db` and are **not** re-read here; only the coverage
+> figures and the wiring claims are reconciled against the current tree.
+
+> **Coverage is 21 of 44 packages, and the gap is not small.** `internal/` holds **44**
+> packages today (`go list ./internal/... | wc -l`); this document describes 21 of them. The 23
+> unlisted packages are not a
 > curated subset — they include every subsystem added after the original inventory, among them
 > `binding`, `buildinfo`, `compat`, `deployment`, `discover`, `egress`, `envref`, `fslock`,
-> `identity`, `interop`, `inventory`, `lifecycle`, `lockfile`, `manifest`, `manager`, `porting`,
-> `profiles`, `receipts`, `runtime`, `schemacheck` and `trust`. **Five of those are
-> `IMPLEMENTED`, unit-tested, and have zero production importers** (`receipts`, `identity`,
-> `compat`, `profiles`, `manager`), which means they implement features this document and
-> `STATUS.md` still record as `DESIGNED`. Corrected 2026-10-13; the `21` figure was itself a
+> `identity`, `interop`, `inventory`, `invocation`, `lifecycle`, `lockfile`, `manifest`, `manager`,
+> `porting`, `profiles`, `receipts`, `runtime`, `scan`, `schemacheck` and `trust`. **Four of those
+> are `IMPLEMENTED`, unit-tested, and have zero production importers** (`identity`, `compat`,
+> `profiles`, `manager`), which means they implement features this document and
+> `STATUS.md` still record as `DESIGNED`. `receipts` was one of the five until 2026-10-19; it now
+> has production importers (`internal/invocation`, `cmd/litespm/main.go`, `cmd/litespm/audit.go`)
+> and is `WIRED` as the durable invocation registry
+> ([STATUS.md](../STATUS.md) §4). Corrected 2026-10-13; the `21` figure was itself a
 > stale artifact of the `internal/connector` deletion.
 >
 > **This document is not an API reference.** The previous revision presented itself as a
@@ -29,7 +37,8 @@
 
 ## 1. Actual entry points per package
 
-The names below were read from `go doc -short ./internal/<pkg>` at `ff0a1db`. They are entry
+The names below were read from `go doc -short ./internal/<pkg>` at `ff0a1db` (see the snapshot
+basis above). They are entry
 **types and package-level symbols**, not a signature contract; a name being listed here does not
 mean the capability it implies is wired (see [STATUS.md](../STATUS.md)).
 

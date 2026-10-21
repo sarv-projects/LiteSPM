@@ -6,6 +6,10 @@
 > code and from `ARCH/`. It is written for contributors and reviewers rather than for first-time
 > users. Where it and [STATUS.md](../STATUS.md) disagree, **STATUS.md wins**.
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The package counts below are
+> `go list ./internal/...` against that tree (`44`); `go list ./...` is `46`, adding `cmd/litespm`
+> and `test/`.
+
 ---
 
 ## 1. System Architecture: "What Is What"
@@ -280,7 +284,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
   │       ├── skills_remove.go                          # `skills remove/list` ledger-backed removal
   │       └── skills_policy.go                          # skills policy hook (deny rules → installed skills)
   │
-  ├── internal/ (42 packages; the 21 listed below are the `ARCH/24` inventory,
+  ├── internal/ (44 packages; the 21 listed below are the `ARCH/24` inventory,
   │   which covers less than half the tree — see ARCH/24's own coverage note)
   │   ├── domain/                                       # Pure domain models, canonical IDs, RFC 8785 JCS, errors
   │   ├── config/                                       # Platform paths (%LOCALAPPDATA%, XDG, runtimes) & config
@@ -341,7 +345,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
       ├── 21-TESTING-CONFORMANCE.md                     # Test pyramid, crash injection & canary scans
       ├── 22-PLATFORM-RELEASE-MIGRATIONS.md             # Cross-compilation & DB migrations
       ├── 23-SCHEMAS-EXAMPLES.md                        # Schema fixtures & examples
-      ├── 24-FUNCTION-INVENTORY.md                      # Aspirational function map (21 of the 42 packages; §21 verified)
+      ├── 24-FUNCTION-INVENTORY.md                      # Aspirational function map (21 of the 44 packages; §21 verified)
       ├── 25-WEB-FRONTEND-UI.md                         # Web marketplace frontend inspired by mcpmarket.com
       ├── 26-ECOSYSTEM-IA-PACKAGE-MODEL.md              # Neutral Package/Capability model, 8-type taxonomy, honesty rule
       ├── 27-CAPABILITY-SOURCE-SUPPORT-MATRIX.md        # Status snapshot per type/source with code evidence
@@ -349,9 +353,9 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
       ├── 29-CONNECTOR-SYSTEM-DESIGN.md                 # Connector proxy & credential custody design (deleted under D-021; resurrection planned)
       ├── 30-DATA-DRIVEN-BRIDGE-TARGETS.md              # BridgeTarget table (44) + GenericAdapter, surgical merge
       ├── 31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md       # Verified competitor record, proposal adjudication, evidence vocabulary, backlog
-      ├── 32-MANIFEST-LOCK-INTEROP.md                   # `litespm.yml`/`litespm.lock`, frozen install, SBOM, interop  [DESIGNED]
-      ├── 33-DEPLOYMENT-LEDGER-RECONCILIATION.md        # Deployment ledger & three-way reconciliation  [DESIGNED]
-      ├── 34-RUNTIME-INVOCATION-RECEIPTS.md             # Capability registry, invocation engine, receipts  [DESIGNED]
+      ├── 32-MANIFEST-LOCK-INTEROP.md                   # `litespm.yml`/`litespm.lock`, frozen install, SBOM, interop  [WIRED §2–§4]
+      ├── 33-DEPLOYMENT-LEDGER-RECONCILIATION.md        # Deployment ledger & three-way reconciliation  [IMPLEMENTED]
+      ├── 34-RUNTIME-INVOCATION-RECEIPTS.md             # Capability registry, invocation engine, receipts  [WIRED; §4/§7 DESIGNED]
       ├── 35-PROFILES-AND-CAPABILITY-LEASES.md          # Multi-kind profiles & capability leases  [DESIGNED]
       ├── 36-ENTERPRISE-POLICY-AND-AUDIT.md             # Policy hierarchy, audit --ci, signing  [DESIGNED]
       ├── 37-TUI-AND-COMPLETION.md                      # TUI, staged-plan tray, shell completion  [DESIGNED]

@@ -1,5 +1,8 @@
 # Host Adapters & In-Agent UX
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The catalog and host-count
+> figures below are dated measurements of the release they name.
+
 > **Reality check (read first).** `internal/host` is `WIRED` for exactly one
 > operation: merging **a single `litespm` MCP entry** into one host config file,
 > atomically and comment/sibling-preserving (`STATUS.md` §1). The `HostAdapter`

@@ -126,6 +126,53 @@ func remoteGoldenCases() []remoteGoldenCase {
 			streamableHTTP:    "{\n  \"context_servers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
 			readBackTransport: TransportStreamableHTTP,
 		},
+		{
+			// Rovo Dev discriminates with "transport", not "type": the
+			// vendor's stdio object carries "transport":"stdio" and its URL
+			// objects carry "transport":"http" / "sse".
+			hostID:            "rovodev",
+			file:              ".rovodev/mcp.json",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"transport\":\"http\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"transport\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			readBackTransport: "http",
+		},
+		{
+			// Gemini CLI picks the transport by WHICH KEY is present:
+			// "httpUrl" for streamable-http and "url" for the legacy SSE
+			// endpoint. There is no discriminator at all.
+			hostID:            "gemini-cli",
+			file:              ".gemini/settings.json",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"httpUrl\":\"" + remoteTestURL + "\"}\n}\n}",
+			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			readBackTransport: TransportStreamableHTTP,
+		},
+		{
+			// Qwen Code uses the same per-transport keys as Gemini.
+			hostID:            "qwen-code",
+			file:              ".qwen/settings.json",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"httpUrl\":\"" + remoteTestURL + "\"}\n}\n}",
+			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			readBackTransport: TransportStreamableHTTP,
+		},
+		{
+			// Kimi Code's HTTP entry is a BARE url — no discriminator — and
+			// only its SSE entry carries {"transport":"sse"}.
+			hostID:            "kimi-code-cli",
+			file:              ".kimi-code/mcp.json",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"transport\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			readBackTransport: TransportStreamableHTTP,
+		},
+		{
+			// Tabnine discriminates with "type", and its http spelling is
+			// "http" (the vendor says the type defaults to "http" when a url
+			// is set).
+			hostID:            "tabnine-cli",
+			file:              ".tabnine/agent/settings.json",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"type\":\"http\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"type\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			readBackTransport: "http",
+		},
 	}
 }
 
@@ -272,8 +319,13 @@ func TestRemoteEntryRoundTrip(t *testing.T) {
 // with no Remote spec, and a capable host asked for a transport it does not
 // document, both refuse with the typed code before a single byte is written.
 func TestRemoteEntryRefusedWhereNeverVerified(t *testing.T) {
-	// Tier B (partial evidence) and Tier C/D rows: no spec, no write.
-	for _, hostID := range []string{"antigravity", "qwen-code", "crush", "amp", "mux", "roo", "gemini-cli"} {
+	// The rows whose vendor publishes no remote entry object: no spec, no
+	// write. (The list shrank from 44 to 8 on 2026-10-21, when every row's
+	// DocsURL was re-read and twenty-nine more remote entry objects were
+	// found and pinned.)
+	for _, hostID := range []string{
+		"codestudio", "iflow-cli", "mux", "zcode",
+	} {
 		t.Run("no-spec/"+hostID, func(t *testing.T) {
 			home := remoteHome(t)
 			_, err := InstallServerEntry(context.Background(), hostID, ServerEntry{

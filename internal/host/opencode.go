@@ -76,7 +76,33 @@ func (a *OpenCodeAdapter) DetectConfig(ctx context.Context, scope domain.Install
 // project file shares the user file's schema, so the entry spec — including
 // the `mcp.servers` container — is identical at both scopes.
 func (a *OpenCodeAdapter) ProjectConfigPath(root string) string {
-	return filepath.Join(root, "opencode.json")
+	// OpenCode merges a project's DIRECT opencode.json(c) and every
+	// .opencode/opencode.json(c) it finds, and the vendor states that
+	// "every discovered .opencode config overrides every direct config". So
+	// a project that has a .opencode directory would silently override an
+	// entry written to the direct file. Prefer the .opencode form when it
+	// exists, and fall back to the direct one.
+	dot := firstExistingPath(
+		filepath.Join(root, ".opencode", "opencode.jsonc"),
+		filepath.Join(root, ".opencode", "opencode.json"),
+	)
+	if dot != "" {
+		return dot
+	}
+	return firstExistingPath(
+		filepath.Join(root, "opencode.jsonc"),
+		filepath.Join(root, "opencode.json"),
+	)
+}
+
+// firstExistingPath returns the first path that exists, or "" when none does.
+func firstExistingPath(candidates ...string) string {
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	return ""
 }
 
 func (a *OpenCodeAdapter) PlanSetup(ctx context.Context, binaryPath string, backupDir string) (*HostChangePlan, error) {

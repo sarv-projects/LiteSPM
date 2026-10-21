@@ -290,9 +290,31 @@ function rewrite(response, { item, key, origin }) {
     .on('meta[property="og:title"]', { element: (el) => el.setAttribute("content", title) })
     .on('meta[property="og:description"]', { element: (el) => el.setAttribute("content", description) })
     .on('meta[property="og:url"]', { element: (el) => el.setAttribute("content", canonical) })
-    .on("head", { element: (el) => el.append(jsonLdScript(structured), { html: true }) })
+    .on("head", { element: (el) => el.append(jsonLdScript(structured) + entryPayloadScript(item), { html: true }) })
     .on("noscript", { element: (el) => el.prepend(noScriptBlock(item, key, categoryText), { html: true }) })
     .transform(response);
+}
+
+/**
+ * The resolved row, handed to the client in the page it serves.
+ *
+ * The Worker has already fetched the bucket and resolved the entry — the
+ * shell it returns is rewritten with that entry's title, canonical and
+ * JSON-LD. The CLIENT then had to fetch the same bucket again (~170-450 KB)
+ * before it could render the entry, so a reader who clicked a product link
+ * saw the generic "Find a package" view for the length of that round trip.
+ * That is the flash the live-browser audit reported as "the link opens the
+ * wrong page": the page eventually settles on the right entry, but it starts
+ * on the wrong one.
+ *
+ * The row is already in hand here, so it travels with the page it describes.
+ * The client reads it synchronously and does not fetch a bucket it has been
+ * given. The `<` is escaped so a row whose text contains a tag cannot close
+ * the script element.
+ */
+function entryPayloadScript(item) {
+  const json = JSON.stringify(item).replace(/</g, "\\u003c");
+  return `<script id="litespm-entry" type="application/json">${json}</script>`;
 }
 
 /**

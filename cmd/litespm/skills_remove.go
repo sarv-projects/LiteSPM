@@ -191,12 +191,20 @@ func runSkillsList(args []string) {
 		return filtered[i].DestDir < filtered[j].DestDir
 	})
 
-	fmt.Printf("Skills installed by this tool (%d director%s):\n\n",
+	fmt.Printf("Skills managed by this tool (%d director%s):\n\n",
 		len(filtered), pluralY(len(filtered)))
-	fmt.Printf("%-24s %-16s %-9s %s\n", "SKILL", "HOST", "SCOPE", "DIRECTORY")
-	fmt.Println(repeat("-", 78))
+	fmt.Printf("%-24s %-16s %-9s %-9s %s\n", "SKILL", "HOST", "SCOPE", "ORIGIN", "DIRECTORY")
+	fmt.Println(repeat("-", 88))
 	for _, e := range filtered {
-		fmt.Printf("%-24s %-16s %-9s %s\n", e.SkillName, e.HostLabel, e.Scope, e.DestDir)
+		// An adopted skill was not installed by this tool. Saying so is the
+		// difference between "LiteSPM put this here" and "LiteSPM manages
+		// this", and the difference matters when someone asks why a skill
+		// cannot be updated.
+		origin := "installed"
+		if e.Source == skills.AdoptedSource {
+			origin = "adopted"
+		}
+		fmt.Printf("%-24s %-16s %-9s %-9s %s\n", e.SkillName, e.HostLabel, e.Scope, origin, e.DestDir)
 	}
 	fmt.Println()
 	fmt.Println("Remove with: litespm skills remove <name>  or  litespm skills remove --all")

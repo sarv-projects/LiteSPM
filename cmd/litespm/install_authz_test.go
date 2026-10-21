@@ -24,6 +24,33 @@ func authorizedTestContext() context.Context {
 	})
 }
 
+// skillPlanForTest builds the plan an approved skill install carries: the
+// same sealed destinations the planner produces, so the execution-side root
+// check has a real document to compare against.
+//
+// The plan travels with the approval into the installer, the way the MCP and
+// plugin paths already do it. The skill path used to re-read it from the
+// database, and a read that failed was treated as "no plan, nothing to
+// compare" — so the check was skipped exactly when the plan could not be
+// trusted. A missing plan is a refusal now, so a test that wants the install
+// to proceed must hand over a plan that seals the destinations.
+func skillPlanForTest(t *testing.T, listing *domain.Listing, scope domain.InstallScope, projectRoot, home string, agents []string) *domain.InstallPlan {
+	t.Helper()
+	dests, err := planSkillDestinations(listing, scope, projectRoot, home, agents)
+	if err != nil {
+		t.Fatalf("planSkillDestinations: %v", err)
+	}
+	return &domain.InstallPlan{
+		SchemaVersion: 2,
+		PlanID:        "plan_unit_test",
+		Request: domain.PlanRequest{
+			ListingID:   listing.ID,
+			TargetScope: scope,
+		},
+		HostChanges: skillHostChanges(listing, dests),
+	}
+}
+
 // approvePlanAsHuman records an approval exactly as `litespm approve` does.
 func approvePlanAsHuman(t *testing.T, db *state.DB, plan *domain.InstallPlan) string {
 	t.Helper()
@@ -249,8 +276,10 @@ func TestInstallSkillFromListing_RequiresAuthorization(t *testing.T) {
 	writeTestSkill(t, skillDir, "demo-skill", "x")
 	listing := skillListingFor("skill:example:demo-skill", "demo-skill", skillDir)
 
+	// No authorization at all: the gate must refuse before the plan is
+	// ever consulted, so no plan is handed over.
 	_, err := installSkillFromListing(context.Background(), db, t.TempDir(), project, home,
-		listing, "1.0.0", domain.ScopeProject, []string{agent})
+		listing, "1.0.0", domain.ScopeProject, []string{agent}, nil)
 	if err == nil || domain.ErrorCode(err) != "LPSM-POLICY-UNAUTHORIZED" {
 		t.Fatalf("expected LPSM-POLICY-UNAUTHORIZED, got %v", err)
 	}

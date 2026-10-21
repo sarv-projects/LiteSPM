@@ -468,7 +468,7 @@ func executeSkillsUpdate(ctx context.Context, opts skillsUpdateOptions, paths *c
 		defer closePolicy()
 		installer := skills.NewInstaller(ledger, enginePolicyChecker(policyEngine, asker.resolve))
 		for _, g := range groups {
-			groupResults, ferr := executeUpdateGroup(ctx, g, installer, opts, override != nil)
+			groupResults, ferr := executeUpdateGroup(ctx, g, installer, opts, override != nil, filepath.Join(paths.DataRoot, "backups"))
 			if ferr != nil {
 				return nil, ferr
 			}
@@ -522,6 +522,16 @@ func recordedSkillSource(e skills.LedgerEntry) (skills.SkillSource, error) {
 	raw := strings.TrimSpace(e.Source)
 	if raw == "" {
 		return skills.SkillSource{}, fmt.Errorf("no source recorded for %s in the ledger; re-run with --source <src>", e.SkillName)
+	}
+	// An adopted skill has no source LiteSPM can fetch from: it came from the
+	// agent's own package manager, a private repository, or a human. Guessing
+	// one would replace a working skill with a guess, so the update refuses
+	// and names the way out.
+	if raw == skills.AdoptedSource {
+		return skills.SkillSource{}, fmt.Errorf(
+			"%s was adopted, not installed, so LiteSPM does not know where it came from and cannot re-copy it; "+
+				"refresh it with the agent's own package manager, or re-run with --source <src> to install it from a known source",
+			e.SkillName)
 	}
 	src, err := skills.ParseSkillSource(raw)
 	if err != nil {
@@ -601,7 +611,7 @@ func isBareCommit(ref string) bool {
 // it. A fetch failure is per-entry only when the source came from the ledger:
 // an explicitly named --source is a single requested operation, so its failure
 // stays fatal, exactly as it was before update-all existed.
-func executeUpdateGroup(ctx context.Context, g *skillUpdateGroup, installer *skills.Installer, opts skillsUpdateOptions, explicitSource bool) ([]skillUpdateResult, error) {
+func executeUpdateGroup(ctx context.Context, g *skillUpdateGroup, installer *skills.Installer, opts skillsUpdateOptions, explicitSource bool, backupRoot string) ([]skillUpdateResult, error) {
 	var results []skillUpdateResult
 	appendErrors := func(err error) {
 		for _, e := range g.entries {
@@ -689,6 +699,10 @@ func executeUpdateGroup(ctx context.Context, g *skillUpdateGroup, installer *ski
 			NewRef:    newRef,
 			Force:     opts.force,
 			DryRun:    opts.dryRun,
+			// The replaced tree is preserved under the data root's backups
+			// directory, so the ledger row names a pre-image that exists and
+			// describes THIS replacement.
+			BackupRoot: backupRoot,
 		})
 		if err != nil {
 			results = append(results, skillUpdateResult{

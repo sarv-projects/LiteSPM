@@ -26,6 +26,7 @@ import (
 	"github.com/sarv-projects/litespm/internal/discover"
 	"github.com/sarv-projects/litespm/internal/doctor"
 	"github.com/sarv-projects/litespm/internal/domain"
+	"github.com/sarv-projects/litespm/internal/egress"
 	"github.com/sarv-projects/litespm/internal/fslock"
 	"github.com/sarv-projects/litespm/internal/host"
 	"github.com/sarv-projects/litespm/internal/install"
@@ -187,7 +188,7 @@ func main() {
 
 	case "skills":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | --help]")
+			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | adopt <name> | --help]")
 			os.Exit(2)
 		}
 		switch os.Args[2] {
@@ -211,9 +212,13 @@ func main() {
 			if code := runSkillsFind(os.Args[3:]); code != 0 {
 				os.Exit(code)
 			}
+		case "adopt":
+			if code := runSkillsAdopt(os.Args[3:]); code != 0 {
+				os.Exit(code)
+			}
 		default:
 			fmt.Printf("Unknown skills subcommand: %s\n", os.Args[2])
-			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | --help]")
+			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | adopt <name> | --help]")
 			os.Exit(2)
 		}
 
@@ -370,7 +375,7 @@ func runSelfUpdate(args []string) {
 	stagingDir := paths.StagingPath()
 	fmt.Printf("Downloading %s...\n", downloadURL)
 	downloadCtx, cancelDownload := context.WithTimeout(ctx, selfUpdateDownloadTimeout)
-	payload, err := downloadUpdatePayload(downloadCtx, http.DefaultClient, downloadURL, maxDownload)
+	payload, err := downloadUpdatePayload(downloadCtx, nil, downloadURL, maxDownload)
 	cancelDownload()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to download update: %v\n", err)
@@ -401,7 +406,7 @@ func runSelfUpdate(args []string) {
 
 func downloadUpdatePayload(ctx context.Context, client *http.Client, rawURL string, limit int64) ([]byte, error) {
 	if client == nil {
-		return nil, fmt.Errorf("update download HTTP client is nil")
+		client = egress.NewClient(egress.Policy{Timeout: selfUpdateDownloadTimeout})
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
@@ -1803,7 +1808,7 @@ func runInstall(args []string) {
 				fmt.Printf("Skill target (sealed in the plan): %s\n", change.ConfigPath)
 			}
 		}
-		outcome, err := installSkillFromListing(ctx, db, paths.DataRoot, projectRoot, home, listing, versionOrLatest(flags.version), flags.scope, agents)
+		outcome, err := installSkillFromListing(ctx, db, paths.DataRoot, projectRoot, home, listing, versionOrLatest(flags.version), flags.scope, agents, grant.Plan)
 		if err != nil {
 			failInstall(err)
 		}
@@ -2914,7 +2919,7 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 						auditDetail = aerr.Error()
 						return nil, installRPCError(aerr)
 					}
-					outcome, ierr := installSkillFromListing(ctx, db, paths.DataRoot, grant.Plan.Request.ProjectRoot, home, listing, versionOrLatest(version), scope, agents)
+					outcome, ierr := installSkillFromListing(ctx, db, paths.DataRoot, grant.Plan.Request.ProjectRoot, home, listing, versionOrLatest(version), scope, agents, grant.Plan)
 					if ierr != nil {
 						auditDetail = ierr.Error()
 						return nil, installRPCError(ierr)
@@ -3478,6 +3483,59 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}
 		}
 		return inv, nil
+	})
+
+	// 20. adopt.execute records ownership of a server that is ALREADY in a
+	// host's configuration.
+	//
+	// This is the in-agent half of `litespm adopt`: the agent can bring a
+	// server the USER already had under LiteSPM's management without the user
+	// reinstalling it, and without LiteSPM touching the file. The adoption is
+	// reversible — the node's current image is the pre-image, so a removal
+	// restores it.
+	server.RegisterHandler("adopt.execute", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
+		var req struct {
+			Name      string `json:"name"`
+			HostID    string `json:"hostId"`
+			Scope     string `json:"scope,omitempty"`
+			Workspace string `json:"workspace,omitempty"`
+		}
+		if len(params) > 0 {
+			if err := json.Unmarshal(params, &req); err != nil {
+				return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params"}
+			}
+		}
+		if strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.HostID) == "" {
+			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "name and hostId are required"}
+		}
+		scope := domain.ScopeUser
+		if strings.EqualFold(strings.TrimSpace(req.Scope), string(domain.ScopeProject)) {
+			scope = domain.ScopeProject
+		}
+		outcome, err := adoptHostEntry(ctx, db, adoptOptions{
+			name:      strings.TrimSpace(req.Name),
+			hostID:    strings.TrimSpace(req.HostID),
+			scope:     scope,
+			workspace: strings.TrimSpace(req.Workspace),
+		})
+		if err != nil {
+			// A name the host does not register is the caller's answer, not
+			// an internal failure.
+			if domain.ErrorCode(err) == "LPSM-HOST-CONFIG-NOT-FOUND" {
+				return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}
+			}
+			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
+		}
+		recordAudit(ctx, db, "agent", "capability.adopt", outcome.EntryName, "allow", "", "", "ok", "")
+		return map[string]any{
+			"installId":  outcome.InstallID,
+			"listingId":  outcome.ListingID,
+			"hostId":     outcome.HostID,
+			"name":       outcome.EntryName,
+			"configPath": outcome.ConfigPath,
+			"digest":     outcome.Digest,
+			"scope":      string(outcome.Scope),
+		}, nil
 	})
 
 	// 16. host.detect_config probes configured agent hosts

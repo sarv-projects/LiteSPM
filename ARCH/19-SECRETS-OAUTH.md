@@ -1,10 +1,14 @@
 # Secrets Management & OAuth Architecture
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21).
+>
 > **State (see `STATUS.md` §1, §4).** `internal/secrets` is `WIRED` — the vault
 > is opened by the daemon and by `doctor`. `internal/auth` (the OAuth PKCE
-> broker) is **`IMPLEMENTED`, not `WIRED`**: it compiles, is unit-tested, and has
-> **zero production importers**. Nothing in this document may be read as "OAuth
-> runs today".
+> broker) is **`WIRED`**, not merely implemented: its production callers are
+> `litespm auth login/status/logout` (`cmd/litespm/auth.go:41`), which completes
+> the loopback flow and stores the profile in the OS vault, and
+> `internal/discover/auth.go:23`, which reads a stored profile and sends its bearer
+> token on a remote invocation. The broker is deliberately **not** re-run at launch.
 
 ## 1. SecretStore Interface
 
@@ -44,13 +48,16 @@ a denylist of dangerous variables (`LD_PRELOAD`, `LD_LIBRARY_PATH`,
 `DYLD_*`, `PATH`, `IFS`, … — `internal/secrets/types.go:67-74`), and fails closed
 on an unresolvable reference (`internal/secrets/types.go:76-105`).
 
-**Wiring caveat:** the provider supervisor has the injection seam
-(`LaunchSpec.SecretEnv` → `Supervisor.StartProvider`,
-`internal/provider/supervisor.go:76,183`), but **`ResolveLaunchSecrets` has no
-production caller** — nothing currently pulls a secret out of the vault and
-fills `SecretEnv`. Treat "secrets injected at provider launch" as an intended
-path, not as a demonstrated end-to-end flow — `STATUS.md` §1 records launch
-injection as `IMPLEMENTED`, not `WIRED`.
+**Wiring caveat (resolved 2026-10-13):** the provider supervisor has the injection seam
+(`LaunchSpec.Env` → `Supervisor.StartProvider`, `internal/provider/supervisor.go:74,217-219`),
+and **`ResolveLaunchSecrets` has a production caller** — `internal/discover`'s `resolveEnv`
+(`internal/discover/discover.go:633,677`) resolves each `secret:<ns>/<key>` reference through the
+caller's store and passes the plaintext values as `provider.LaunchSpec.Env` **before the process
+starts**, refusing with `LPSM-SECRET-UNRESOLVED` — naming the reference, never the value — when one
+cannot be resolved. `LaunchSpec.SecretEnv` still exists and is still merged into the child
+environment (`internal/provider/supervisor.go:75,219`), but nothing populates it: the resolved
+values travel in `Env`. "Secrets injected at provider launch" is therefore a demonstrated
+end-to-end flow, not an intended one ([STATUS.md](../STATUS.md) §1).
 
 ---
 
@@ -114,19 +121,23 @@ in an AES-256-GCM encrypted vault file that the master key unlocks.
 
 ---
 
-## 3. AuthBroker & OAuth 2.0 PKCE Loopback — `IMPLEMENTED`, not `WIRED`
+## 3. AuthBroker & OAuth 2.0 PKCE Loopback — `WIRED`
 
 `internal/auth` implements the full flow (`broker.go`, `pkce.go`, `loopback.go`)
 and is exercised by `internal/auth/auth_test.go` (which is `package auth`, not an
-importer). A repo-wide search for the import path `litespm/internal/auth`
-returns **no importer anywhere** — production or test outside the package. It
-therefore sits behind the same gap as the connector design: it needs a consumer
-before it can be called `WIRED`.
+importer). It has **two production importers**, so it is `WIRED`:
 
-**Planned wiring points** (all currently `DESIGNED`):
+*   `cmd/litespm/auth.go:41` — `litespm auth login/status/logout` drives the
+    loopback flow end to end and stores the profile in the OS vault (§1–§2 above);
+*   `internal/discover/auth.go:23` — a remote invocation reads the stored profile
+    and sends its bearer token. The broker is deliberately **not** re-run at launch.
+
+**Planned wiring points** (the parts that are still `DESIGNED`):
 
 *   provider launch / capability execution — `ARCH/34` (invocation engine,
-    receipts) and `STATUS.md` §4 ("wire into provider launch");
+    receipts) and `STATUS.md` §4 ("wire into provider launch"). The engine and the
+    receipts are `WIRED` since 2026-10-19; what is missing is the health states and
+    the circuit breaker, not the broker;
 *   connector credential brokering and capability leases — `ARCH/29` (design
     record; resurrection planned) and `ARCH/35` (profiles & leases);
 *   the vault it stores tokens into is this document, §1–§2.

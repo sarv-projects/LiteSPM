@@ -692,7 +692,7 @@ func TestPortingCopiesRemoteEntryJsonToTOML(t *testing.T) {
 	}
 }
 
-// TestPortingRemoteToIncapableTargetRefusesAndWritesNothing: gemini-cli has
+// TestPortingRemoteToIncapableTargetRefusesAndWritesNothing: zcode has
 // no verified remote spec, so the row is reported "not copyable" with the
 // reason and the target config stays byte-identical — in plan mode AND in
 // apply mode.
@@ -707,10 +707,10 @@ func TestPortingRemoteToIncapableTargetRefusesAndWritesNothing(t *testing.T) {
 
 	// Plan mode: the refusal is printed, nothing is written.
 	var plan bytes.Buffer
-	if code := runCopyTo(&plan, []string{"--from", "cursor", "--to", "gemini-cli"}); code != 0 {
+	if code := runCopyTo(&plan, []string{"--from", "cursor", "--to", "zcode"}); code != 0 {
 		t.Fatalf("plan exit = %d, want 0\n%s", code, plan.String())
 	}
-	if !strings.Contains(plan.String(), "not copyable") || !strings.Contains(plan.String(), "gemini-cli") {
+	if !strings.Contains(plan.String(), "not copyable") || !strings.Contains(plan.String(), "zcode") {
 		t.Errorf("plan must report the explicit not-copyable refusal:\n%s", plan.String())
 	}
 	if !strings.Contains(plan.String(), "LPSM-COPY-002") {
@@ -719,7 +719,7 @@ func TestPortingRemoteToIncapableTargetRefusesAndWritesNothing(t *testing.T) {
 
 	// Apply mode: nothing writable → nothing applied, target untouched.
 	var applied bytes.Buffer
-	if code := runCopyTo(&applied, []string{"--from", "cursor", "--to", "gemini-cli", "--apply", "--yes"}); code != 0 {
+	if code := runCopyTo(&applied, []string{"--from", "cursor", "--to", "zcode", "--apply", "--yes"}); code != 0 {
 		t.Fatalf("apply exit = %d, want 0\n%s", code, applied.String())
 	}
 	if !strings.Contains(applied.String(), "Nothing to apply") {

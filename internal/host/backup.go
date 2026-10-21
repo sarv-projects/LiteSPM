@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/sarv-projects/litespm/internal/domain"
@@ -17,6 +18,15 @@ const hostConfigWriteLockSuffix = ".litespm-config.lock"
 
 // CreateAtomicBackup writes a byte-for-byte copy of originalPath into backupDir before any edits.
 func CreateAtomicBackup(originalPath, backupDir, hostID string) (string, error) {
+	// The backup directory must be named, and it must not BE the current
+	// directory. An empty one makes the backup path relative, and "." makes
+	// it relative too — so the backup lands in the process's working
+	// directory: for a test, the package source tree; for a daemon, wherever
+	// it happened to be started. A backup nobody can find is not a restore
+	// point.
+	if strings.TrimSpace(backupDir) == "" || filepath.Clean(backupDir) == "." {
+		return "", fmt.Errorf("no usable backup directory was given for %s (got %q); a backup must have a named home, not the current directory", originalPath, backupDir)
+	}
 	data, err := os.ReadFile(originalPath)
 	if err != nil {
 		if os.IsNotExist(err) {

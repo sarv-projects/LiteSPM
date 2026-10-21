@@ -63,6 +63,7 @@ func installSkillFromListing(
 	version string,
 	scope domain.InstallScope,
 	agents []string,
+	plan *domain.InstallPlan,
 ) (*skillInstallOutcome, error) {
 	if listing.Kind != domain.KindSkill {
 		return nil, fmt.Errorf("installSkillFromListing: %s is kind %q, not skill", listing.ID, listing.Kind)
@@ -157,19 +158,23 @@ func installSkillFromListing(
 	// The approved plan sealed the directories this copy may use. Compare the
 	// planned writes against that set: a relocated CODEX_HOME, a changed project
 	// root or a hand-edited plan must fail closed here rather than redirect a
-	// copy somewhere the approval never named. Tests construct an authorization
-	// context without a persisted plan, so an absent plan skips the comparison;
-	// every production path persisted one before consuming its approval.
-	if db != nil {
-		if plan, perr := db.GetPlan(ctx, auth.PlanID); perr == nil {
-			dests, derr := skillDestinationsFromPlan(plan)
-			if derr != nil {
-				return nil, derr
-			}
-			if verr := verifySkillWriteRoots(dests, ops); verr != nil {
-				return nil, verr
-			}
-		}
+	// copy somewhere the approval never named.
+	//
+	// The plan is the CALLER'S document, handed over with the approval. It was
+	// re-read from the database here, and a read that failed was treated as
+	// "no plan, nothing to compare" — so the check was skipped exactly when
+	// the plan could not be trusted. A missing plan is now a refusal, which
+	// is what the MCP and plugin paths already do.
+	if plan == nil {
+		return nil, domain.ErrPlanStale(auth.PlanID,
+			"no recorded plan seals the skill destinations, so there is nothing that could be written; re-run the install so a plan is approved for the agent you want")
+	}
+	dests, derr := skillDestinationsFromPlan(plan)
+	if derr != nil {
+		return nil, derr
+	}
+	if verr := verifySkillWriteRoots(dests, ops); verr != nil {
+		return nil, verr
 	}
 
 	ledger, err := skills.OpenLedger(skills.LedgerPath(dataRoot))

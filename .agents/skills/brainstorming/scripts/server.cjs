@@ -221,7 +221,10 @@ function readSuperpowersVersion() {
     }
   }
 
-  return 'unknown';
+  // No manifest above the skill carries a version (a vendored copy of the
+  // library has no package.json of its own). Report no version rather than a
+  // placeholder: the banner then names the brand without claiming one.
+  return null;
 }
 
 function isTruthyEnv(value) {
@@ -240,13 +243,12 @@ function escapeHtmlText(value) {
 }
 
 function brandMarkup() {
-  const version = escapeHtmlText(SUPERPOWERS_VERSION);
-  const text = SUPERPOWERS_TELEMETRY_DISABLED
-    ? 'Prime Radiant Superpowers v' + version
-    : 'Superpowers v' + version;
+  const version = SUPERPOWERS_VERSION ? ' v' + escapeHtmlText(SUPERPOWERS_VERSION) : '';
+  const brand = SUPERPOWERS_TELEMETRY_DISABLED ? 'Prime Radiant Superpowers' : 'Superpowers';
+  const text = brand + version;
   const logo = SUPERPOWERS_TELEMETRY_DISABLED
     ? ''
-    : '<img class="brand-logo" src="' + SUPERPOWERS_BRAND_IMAGE_URL + '?v=' + encodeURIComponent(SUPERPOWERS_VERSION) + '" alt="Prime Radiant" referrerpolicy="no-referrer" decoding="async">';
+    : '<img class="brand-logo" src="' + SUPERPOWERS_BRAND_IMAGE_URL + '?v=' + encodeURIComponent(SUPERPOWERS_VERSION || '') + '" alt="Prime Radiant" referrerpolicy="no-referrer" decoding="async">';
 
   return '<div class="brand"><a href="https://github.com/obra/superpowers">' + logo + '<span class="brand-copy">' + text + '</span></a></div>';
 }

@@ -838,6 +838,17 @@ func printForwardedEnv(outcome *mcpInstallOutcome) {
 
 	// Say plainly that no value was written, so nobody goes looking for a secret
 	// in the config and does not find one.
+	//
+	// The host specs are the per-host record of what was written. There may
+	// be none of them even when names were requested — a host can be given a
+	// name it has no field for — and indexing the first one blindly would
+	// panic the CLI on a path the writer itself tolerates.
+	if len(outcome.EnvSpecs) == 0 {
+		fmt.Printf("  Note: %s were requested, but no configured host records them in a way this\n"+
+			"        command can report. Check each host's configuration by hand.\n",
+			strings.Join(names, ", "))
+		return
+	}
 	sample := ""
 	if m := outcome.EnvSpecs[0].Spec.EnvMap(names); m != nil {
 		for _, n := range envref.SortedNames(names) {

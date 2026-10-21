@@ -2,6 +2,10 @@
 
 A normative decision record for reshaping the public LiteSPM Market website and the catalog package model against the 2026 agent-extension ecosystem. This document is grounded in what the repository implements today; target-state contracts are labelled as targets and must not be presented as shipped behavior.
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The §4 "v1 reality" column is
+> the site's actual code at that tree; a component path named here exists in the tree unless the row
+> says it was deleted.
+
 ---
 
 ## 1. Status & Precedence
@@ -248,9 +252,9 @@ This is the correct honest default: no signature check runs at ingestion. Per th
 | Concern | v1 reality | Evidence | Gap vs target |
 |---|---|---|---|
 | Detail route | `/package/?slug=<key>` query route (static-export compatible; `slug` when unique, else full `id`) | `web/app/package/page.tsx`; links via `listingHref()` in `web/lib/catalog.ts` | Target keeps query-route shape; `slug` uniqueness validated at build time (§6.3) |
-| Primary nav | Header renders `Explore / Agents / Categories / Trending` | `web/components/navigation/Header.tsx` (`PRIMARY_NAV`) | Implemented routes exist for all four; target nav adds `Collections`, `Sources`, `Security`, `Docs`, `Download` (§6) |
-| Existing routes | `/`, `/explore`, `/package`, `/categories`, `/agents`, `/trending` | `web/app/` contains `page.tsx`, `explore/`, `package/`, `categories/`, `agents/`, `trending/`, `layout.tsx`, `globals.css` | Target ~16 routes (§6); `/collections`, `/sources`, `/publishers`, `/security`, `/docs`, `/download` remain missing |
-| Categories | Dynamic `CategoryRail` chips; **top 16 by frequency** (`categoryFacets` default `limit = 16`), counts inline, plus *All categories* | `web/components/hero/CategoryRail.tsx`; `web/lib/telemetry.ts`; `ARCH/25` §3.2 | Replace with real hierarchical categories and `/categories/<slug>`. The rail is data-driven, **not** a fixed label list (earlier "12 hard-coded labels" was a doc artifact, not the implementation) |
+| Primary nav | Header renders `Explore / Works with / How it works / Docs` — `Works with` points at `/agents/`, `Docs` at the repository README (external) | `web/components/navigation/Header.tsx` (`PRIMARY_NAV`, `:56-61`; `DOCS_URL`, `web/lib/site.ts:24`) | The four shipped links are real destinations; `/categories/` is reachable from the page body and the footer rather than from the nav bar. The target nav adds `Collections`, `Sources`, `Security` (now a page), `Docs` (in-page), `Download` (§6) |
+| Existing routes | `/`, `/explore`, `/package`, `/categories`, `/agents`, `/trending`, `/insights`, `/compare`, `/how-it-works`, `/get-started`, `/status`, `/support`, `/security`, `/contact`, `/privacy`, `/terms` | `web/app/` contains `page.tsx`, `explore/`, `package/`, `categories/`, `agents/`, `trending/`, `insights/`, `compare/`, `how-it-works/`, `get-started/`, `status/`, `support/`, `security/`, `contact/`, `privacy/`, `terms/`, `layout.tsx`, `globals.css` | Target ~16 routes (§6); `/collections`, `/sources`, `/publishers`, `/download` remain missing — `Security` and `Docs` now exist as pages |
+| Categories | The homepage's category entry is the **goal tiles** (`components/home/TopicTiles.tsx` → `components/marketing/UseCaseGrid.tsx`), with an *All categories* link to `/categories/`; that route leads with the editorial goal facets and then lists the sources' own labels verbatim, with counts | `web/components/home/TopicTiles.tsx`; `web/components/marketing/UseCaseGrid.tsx`; `web/app/categories/CategoriesView.tsx`; `web/lib/taxonomy.ts`; `web/lib/catalog.ts` (`categoryFacets`, `allCategoryFacets`); `web/lib/telemetry.ts` | Replace with real hierarchical categories and `/categories/<slug>`. The grouping is data-driven, **not** a fixed label list (earlier "12 hard-coded labels" was a doc artifact, not the implementation), and the goals are LiteSPM's own editorial grouping, not an upstream fact — the sources' labels survive as provenance. The former chip rail (`components/hero/CategoryRail.tsx`, deleted 2026-10-13 with the `web/components/hero/` directory) is gone: Explore's Category control now offers the **whole** vocabulary (`allCategoryFacets`) instead of a top-16 slice |
 | Filters | `kind` + `category` only | `web/lib/useCatalogSearch.ts` options; `web/app/page.tsx` | Target power filters (§7.2) |
 | Detail tabs | Single long page with host config + related items | `web/app/package/page.tsx` | Target tabs Overview/Setup/Compatibility/Configuration/Files/Versions/Security/Reviews |
 | Per-capability host snippet | `nativeSnippet(host, slug, command, args)` emits a direct native per-package config | `web/lib/hosts.ts` | Contradicts one-bridge-per-host; remove/relabel (§10, §11) |
@@ -513,7 +517,7 @@ Organised by change class. Each row: **item · why · target milestone** (M1 web
 | Replace flat `category` string with hierarchical categories + tags | Navigation | M2 |
 | Replace `testedHosts: string[]` with compatibility facts | Evidence level required | M2 |
 | Rework Header nav to `Explore · Agents · Categories · Collections · Trending · Docs` | Current nav is `Explore / Agents / Categories / Coverage→/trending/`; `Collections`, `Sources`, `Security`, `Docs`, `Download` remain missing | M1 |
-| Rework `CategoryRail` (fixed pills) into category entry points | Real hierarchy | M1 |
+| Rework the category entry points (the homepage goal tiles and the `/categories/` table) into real category entry points | Real hierarchy | M1 |
 | Rework detail page into tabbed layout per §7.3 | Depth without a wall of text | M1 |
 | Rework search from lexical `matchesQuery` + kind/category to filtered power search | §7.2 | M1/M2 |
 
@@ -533,7 +537,7 @@ Organised by change class. Each row: **item · why · target milestone** (M1 web
 | Item | Why | Milestone |
 |---|---|---|
 | `/item?id=` route and all links to it | Replaced by `/package/?slug=` (no `/item` route exists) | Done |
-| Fixed-label category rail (the implementation is already the dynamic top-16 `CategoryRail`; this row removes any doc-level fixed list) | Replaced by real hierarchical categories | M1 |
+| Fixed-label category rail (the implementation is already dynamic — the goal tiles and the `/categories/` table; this row removes any doc-level fixed list) | Replaced by real hierarchical categories | M1 |
 | Per-capability (as opposed to per-host) install snippets, i.e. `nativeSnippet(host, slug, command, args)` and the "Direct Native" toggle | Contradicts one-bridge-per-host (D-010); bypasses the daemon | M1 |
 | Single Boolean `publisher.verified` as a trust badge | Replaced by separate source/publisher verification signals | M3 |
 | `signature_verified` defaults from source adapters | Fixed — adapters emit `unverified`; keep regression test | Done |

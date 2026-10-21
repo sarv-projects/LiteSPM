@@ -9,9 +9,15 @@ from pathlib import Path
 def _find_root():
     """The upstream repository root, or None when it is not in this checkout.
 
-    This skill is vendored into .agents/skills/ without the repository that
-    generated it, so the evaluator script these tests exercise is not here.
-    The module then skips rather than fails.
+    The upstream repository ships the evaluator these tests exercise. It is not
+    vendored, so the module skips rather than fails: the behaviour it asserts
+    belongs to files that were never vendored, and a red suite would train
+    everyone to ignore this skill's tests.
+
+    The fixtures these tests read *are* vendored
+    (scripts/tests/fixtures/relevance-cases.json and its baseline and
+    threshold gate), and they are checked against the contract upstream
+    enforces by TestRelevanceFixtureContract in test_data_contracts.py.
     """
     for parent in Path(__file__).resolve().parents:
         if (parent / "scripts/evaluate-relevance.py").exists():
@@ -22,7 +28,11 @@ def _find_root():
 ROOT = _find_root()
 if ROOT is None:
     raise unittest.SkipTest(
-        "the upstream ui-ux-pro-max repository layout is not present in this checkout"
+        "needs the upstream relevance evaluator: every assertion here drives "
+        "scripts/evaluate-relevance.py and the scripts/relevance_metrics.py it "
+        "imports, and neither is vendored (the fixtures under "
+        "scripts/tests/fixtures/ are). Running this module requires the upstream "
+        "repository's scripts/evaluate-relevance.py and scripts/relevance_metrics.py."
     )
 MODULE_PATH = ROOT / "scripts/evaluate-relevance.py"
 SPEC = importlib.util.spec_from_file_location("evaluate_relevance", MODULE_PATH)

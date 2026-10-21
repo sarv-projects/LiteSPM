@@ -43,6 +43,7 @@ package discover
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -377,7 +378,18 @@ func Discover(ctx context.Context, db *state.DB, spec ProviderSpec, opts ...Opti
 			envJSON = string(b)
 		}
 	}
-	if err := db.SaveProvider(ctx, &domain.ProviderRecord{
+
+	// The provider row and EVERY capability row land in ONE transaction.
+	//
+	// The rule this implements is "a failed probe leaves no rows", and the
+	// old code wrote the provider row first and each capability row
+	// separately: a failure at capability k left a provider row plus k-1
+	// capability rows behind, contradicting the rule the same function's
+	// comment states. A half-discovered provider is worse than an
+	// undiscovered one — an invoke would find a capability whose schema was
+	// never confirmed.
+	out := &DiscoveredProvider{ProviderID: providerID, InstallID: spec.InstallID}
+	provider := &domain.ProviderRecord{
 		ProviderID:    providerID,
 		InstallID:     spec.InstallID,
 		ComponentName: spec.ComponentName,
@@ -395,13 +407,10 @@ func Discover(ctx context.Context, db *state.DB, spec ProviderSpec, opts ...Opti
 		// A token never reaches a row: the vault holds it, and the row says
 		// which profile to read.
 		AuthProfileID: spec.AuthProfileID,
-	}); err != nil {
-		return nil, fmt.Errorf("record provider: %w", err)
 	}
-
-	out := &DiscoveredProvider{ProviderID: providerID, InstallID: spec.InstallID}
+	records := make([]domain.CapabilityRecord, 0, len(tools))
 	for _, tool := range tools {
-		record := domain.CapabilityRecord{
+		records = append(records, domain.CapabilityRecord{
 			CapabilityID:      string(domain.NewCapabilityID(domain.InstallID(spec.InstallID), spec.ComponentName, tool.NativeName)),
 			ProviderID:        providerID,
 			Name:              tool.NativeName,
@@ -410,11 +419,24 @@ func Discover(ctx context.Context, db *state.DB, spec ProviderSpec, opts ...Opti
 			SchemaFingerprint: tool.SchemaFingerprint,
 			DiscoveredAt:      now,
 			UpdatedAt:         now,
+		})
+	}
+
+	if err := db.WithTx(ctx, func(tx *sql.Tx) error {
+		if err := db.SaveProviderExec(ctx, tx, provider); err != nil {
+			return fmt.Errorf("record provider: %w", err)
 		}
-		if err := db.SaveCapability(ctx, &record); err != nil {
-			return nil, fmt.Errorf("record capability %q: %w", tool.NativeName, err)
+		for i := range records {
+			if err := db.SaveCapabilityExec(ctx, tx, &records[i]); err != nil {
+				return fmt.Errorf("record capability %q: %w", records[i].Name, err)
+			}
 		}
-		out.Capabilities = append(out.Capabilities, record)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	for i := range records {
+		out.Capabilities = append(out.Capabilities, records[i])
 	}
 	return out, nil
 }

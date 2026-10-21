@@ -24,6 +24,16 @@ const (
 	StrategyUseSource  = "use-source"
 	StrategyCompatible = "compatible"
 	StrategySkip       = "skip"
+	// StrategyRefused is the resolution of a conflict whose REQUESTED
+	// strategy could not be honoured: the target directory was not created
+	// by LiteSPM, so copying over it would destroy something LiteSPM does
+	// not own.
+	//
+	// It is deliberately NOT the requested strategy. Recording
+	// StrategyUseSource there made Overwrites() report a force-overwrite key
+	// for a tree the plan had just refused to overwrite — a plan that says
+	// "we will force-replace this" about a row it skipped.
+	StrategyRefused = "refused"
 )
 
 // ConflictStrategies lists the valid --conflict values, in help order.

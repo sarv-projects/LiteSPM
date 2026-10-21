@@ -63,9 +63,6 @@ func (a *AgentSkillsAdapter) Ingest(ctx context.Context, snapshotID string) (*In
 		if doc.Name == "" {
 			doc.Name = strings.TrimSuffix(filename, ".md")
 		}
-		if doc.Version == "" {
-			doc.Version = "1.0.0"
-		}
 		if len(doc.Categories) == 0 {
 			doc.Categories = []string{"skills", "workflows"}
 		}

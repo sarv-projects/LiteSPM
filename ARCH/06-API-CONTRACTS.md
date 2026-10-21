@@ -6,6 +6,9 @@
 > where a contract here disagrees with [STATUS.md](../STATUS.md), STATUS wins. Sections below state
 > the **current** code shape first and the **target** shape second. Where the two differ, they are
 > labelled as a known mismatch — this document never claims conformance it cannot demonstrate.
+>
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The live-origin figures below
+> are the probe of 2026-10-21 (`rel-2026-10-21-01`, sequence 151).
 
 ## 1. Static Catalog API (v1)
 
@@ -17,7 +20,7 @@ Worker static-assets deployment (`wrangler.toml`); the origin the client default
 
 | Path | Emitted by | Read by | State |
 |---|---|---|---|
-| `/v1/current.json` | `scripts/build_full_catalog.py` (deployed producer) and `internal/catalogbuild.CompileRelease` (`compiler.go:172`) | `catalog.Client.FetchCurrent` (`internal/catalog/client.go:93`) | Served: **200** |
+| `/v1/current.json` | `internal/catalogbuild.CompileRelease` (`compiler.go:172`) — the Go builder owns the pointer, the release id and the sequence (`scripts/build_full_catalog.py` writes the dataset stats only) | `catalog.Client.FetchCurrent` (`internal/catalog/client.go:93`) | Served: **200** |
 | `/v1/releases/{id}/manifest.json` | `catalogbuild` (`compiler.go:150`) | `catalog.Client.FetchManifest` (`client.go:302`) | Served: **200** |
 | `/v1/releases/{id}/listings.json` | `catalogbuild` (`compiler.go:101`) | `catalog.Client.FetchListings` (`client.go:346`), digest-verified against the manifest | Served: **200** |
 | `/v1/releases/{id}/versions.json` | `catalogbuild` (`compiler.go:117`) | `catalog.Client.FetchVersions` (`client.go:407`), digest-verified against the manifest — the only place a listing's launch line is published | Served: **200** |
@@ -28,13 +31,13 @@ Worker static-assets deployment (`wrangler.toml`); the origin the client default
 
 `litespm catalog sync` reads the first four paths in order (`internal/catalog/client.go`,
 `Sync` → `fetchCurrent` → `fetchManifest` → `fetchListings` → `fetchVersions`).
-Against the live origin it succeeds today (probe 2026-10-05):
+Against the live origin it succeeds today (probe 2026-10-21):
 
 ```text
 200  /v1/current.json
-200  /v1/releases/rel-2026-10-05-01/manifest.json
-200  /v1/releases/rel-2026-10-05-01/listings.json
-200  /v1/releases/rel-2026-10-05-01/versions.json
+200  /v1/releases/rel-2026-10-21-01/manifest.json
+200  /v1/releases/rel-2026-10-21-01/listings.json
+200  /v1/releases/rel-2026-10-21-01/versions.json
 ```
 
 So the sync path is `SHIPPED` ([STATUS.md](../STATUS.md) §2,
@@ -54,29 +57,33 @@ Shape as typed by `catalogbuild.CurrentPointer` (`internal/catalogbuild/compiler
 ```json
 {
   "schemaVersion": 1,
-  "releaseId": "rel-2026-10-17-01",
-  "sequence": 147,
-  "manifestDigest": "sha256:c1364c17618db41d03c10781d316d014410a34d90acebab538a2d28c35a45009",
+  "releaseId": "rel-2026-10-21-01",
+  "sequence": 151,
+  "manifestDigest": "sha256:0ee6b2bfb7433fecb8e6b8e62fcfbba33cf3ed72a4331cc1732b40b4a116539c",
   "itemCount": 69376,
-  "createdAt": "2026-10-11T23:10:05Z"
+  "createdAt": "2026-10-21T14:31:30Z"
 }
 ```
 
-*(The values above are the committed pointer `web/public/v1/current.json`, 2026-10-15.)*
+*(The values above are the committed pointer `web/public/v1/current.json`, 2026-10-21; the served
+pointer is byte-identical to it.)*
 
 *   **Cache Policy:** `Cache-Control: public, no-cache, must-revalidate`, written into a deploy-time
     `_headers` file by `scripts/deploy-pages.sh:31-42` — implemented, not aspirational.
 *   **No `$schema` field exists.** Earlier revisions of this document showed a `$schema` URI of
     `https://litespm.dev/schemas/v1/catalog-pointer.schema.json`; that file is **not** in `schemas/`,
     and neither `CurrentPointer` nor the live pointer carries the field.
-*   **Known mismatches with the live file** (all verified, [ARCH/31 §4.2](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#42-the-published-catalog-and-the-client-read-different-files--the-sync-path-is-dead-at-the-origin)):
-    1. the live `manifestDigest` is the SHA-256 of `web/data/catalog.json`, while
-       `CurrentPointer.ManifestDigest` is documented as the digest of `manifest.json` — same field,
-       two different files;
-    2. the live pointer carries no `schemaVersion`, so the Go field unmarshals to `0`;
-    3. the live pointer carries `advisories`, `totalCapabilities`, `mcpServersCount`,
-       `agentSkillsCount`, `pluginsCount`, `hostCompatibility` — none of which exist in the Go
-       struct, and the Go client cannot read them.
+*   **Known mismatches with the live file:** none as of the 2026-10-21 pointer. The three that stood
+    earlier are closed by the Go builder taking sole ownership of the pointer:
+    1. the live `manifestDigest` is now the SHA-256 of the release's `manifest.json`, exactly what
+       `CurrentPointer.ManifestDigest` documents (`internal/catalogbuild/compiler.go:60`) — the
+       dataset digest is a different field in `web/data/release.json` (`datasetDigest`), not the
+       pointer's;
+    2. the live pointer carries `schemaVersion` (`1`), so the Go field no longer unmarshals to `0`;
+    3. the live pointer carries no `advisories`, `totalCapabilities`, `mcpServersCount`,
+       `agentSkillsCount`, `pluginsCount` or `hostCompatibility` — those dataset stats live in
+       `web/data/release.json`, which the site imports at build time
+       (`scripts/build_full_catalog.py`).
 
 ### 1.3 Immutable Release Files (`/v1/releases/{release-id}/...`)
 
@@ -85,7 +92,7 @@ Shape as typed by `catalogbuild.CurrentPointer` (`internal/catalogbuild/compiler
 *   **Integrity Guarantee:** the client verifies `listings.json` against `manifest.json` before
     accepting it (`internal/catalog/client.go:153-189`).
 *   **Availability:** built in-repo (`litespm catalog build`, end-to-end tested) and
-    **published** — the live origin serves the whole tree (verified 2026-10-05, STATUS §2).
+    **published** — the live origin serves the whole tree (verified 2026-10-21, STATUS §2).
 
 ---
 

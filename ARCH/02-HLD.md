@@ -1,9 +1,13 @@
 # High-Level Design (HLD)
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The live-origin figures
+> below are the probe of 2026-10-21 (`rel-2026-10-21-01`, sequence 151); earlier probes are kept
+> where they are dated records of the run they describe.
+
 ## 1. System Topology & Architecture
 
 LiteSPM is bifurcated into two strictly isolated environments:
-1.  **Public Discovery Plane (Cloud):** A static, read-only distribution. The deployed catalog data is produced by `scripts/build_full_catalog.py` (the Python builder is the deployed producer; CI does not run it — [STATUS.md](../STATUS.md) §6) and served from a static origin: `/v1/current.json` **and** the immutable `/v1/releases/<id>/…` trees are live today — the current release is `rel-2026-10-17-01` (sequence 149, 69,376 items; probe 2026-10-19), whose manifest and six shard files all return `200` ([STATUS.md](../STATUS.md) §2).
+1.  **Public Discovery Plane (Cloud):** A static, read-only distribution. The deployed catalog data is produced by `scripts/build_full_catalog.py` (the Python builder is the deployed producer; CI does not run it — [STATUS.md](../STATUS.md) §6) and served from a static origin: `/v1/current.json` **and** the immutable `/v1/releases/<id>/…` trees are live today — the current release is `rel-2026-10-21-01` (sequence 151, 69,376 items; probe 2026-10-21), whose manifest and six shard files all return `200` ([STATUS.md](../STATUS.md) §2).
 2.  **Local Control Plane (Workstation):** A client-side system consisting of thin, host-specific **Bridge Shims** communicating via secure local IPC with a persistent, single-writer **LiteSPM Daemon**.
 
 ```text
@@ -18,7 +22,7 @@ LiteSPM is bifurcated into two strictly isolated environments:
     │ Static Origin (Cloudflare Pages / Workers)                              │
     │ /v1/current.json (Pointer — live, HTTP 200)                             │
     │ /v1/releases/<id>/{listings,versions,manifest}.json (compiler layout;   │
-    │   published live 2026-10-05 — rel-2026-10-05-01)                       │
+    │   published live 2026-10-21 — rel-2026-10-21-01)                       │
     └────────────────────────────────────┬────────────────────────────────────┘
                                          │ HTTPS (Read-only, cached)
 ═════════════════════════════════════════╪══════════════════════════════════════════
@@ -64,7 +68,7 @@ LiteSPM is bifurcated into two strictly isolated environments:
                       └───────────────────────┘                 └───────────────────────┘
 ```
 
-> **Discovery-plane status.** The compiler (`internal/catalogbuild/compiler.go:101,117,150,172`) and the client (`internal/catalog/client.go:73,124,160`) agree on the `/v1/current.json` + `/v1/releases/<id>/{listings,versions,manifest}.json` layout, pinned by `TestReleasePathContractPinsDocumentedLayout` (`internal/catalog/catalog_test.go:217`). The live origin serves the **whole tree** (probe 2026-10-05: `/v1/current.json` and `/v1/releases/rel-2026-10-05-01/{manifest,listings,versions}.json` all 200, byte-identical to the committed release), so `litespm catalog sync` is `SHIPPED` ([STATUS.md](../STATUS.md) §2). The compiler emits the pointer plus `manifest.json` and the listings/versions files, **split into `-NNNN` shards when a kind exceeds 20 MiB** — transport sharding, `ARCH/18` §2.1, not the logical `index.json`/`shards/`/`items/` tree, which remains `DESIGNED`.
+> **Discovery-plane status.** The compiler (`internal/catalogbuild/compiler.go:101,117,150,172`) and the client (`internal/catalog/client.go:73,124,160`) agree on the `/v1/current.json` + `/v1/releases/<id>/{listings,versions,manifest}.json` layout, pinned by `TestReleasePathContractPinsDocumentedLayout` (`internal/catalog/catalog_test.go:217`). The live origin serves the **whole tree** (probe 2026-10-21: `/v1/current.json` and `/v1/releases/rel-2026-10-21-01/{manifest,listings,versions}.json` all 200, byte-identical to the committed release), so `litespm catalog sync` is `SHIPPED` ([STATUS.md](../STATUS.md) §2). The compiler emits the pointer plus `manifest.json` and the listings/versions files, **split into `-NNNN` shards when a kind exceeds 20 MiB** — transport sharding, `ARCH/18` §2.1, not the logical `index.json`/`shards/`/`items/` tree, which remains `DESIGNED`.
 
 ---
 
@@ -128,7 +132,7 @@ sequenceDiagram
     Shim-->>Host: MCP ToolResult: [{ id: "mcp:builtin:mcp-registry:postgres", ... }]
     Host-->>User: Displays search results
 
-    Note over Daemon,Origin: The only network path is the separate `litespm catalog sync`: GET /v1/current.json<br/>then GET /v1/releases/&lt;id&gt;/manifest.json + listings.json<br/>(both 200 at the live origin — verified 2026-10-05; STATUS §2).
+    Note over Daemon,Origin: The only network path is the separate `litespm catalog sync`: GET /v1/current.json<br/>then GET /v1/releases/&lt;id&gt;/manifest.json + listings.json<br/>(both 200 at the live origin — verified 2026-10-21; STATUS §2).
 
     User->>Host: "Install postgres"
     Host->>Shim: MCP tools/call: prepare_install(id="mcp:builtin:mcp-registry:postgres")
@@ -140,7 +144,7 @@ sequenceDiagram
     Shim-->>Host: MCP ToolResult: InstallPlan summary + planId
 ```
 
-> **Status of §4.1.** `search_catalog` → `catalog.search` (local index) and `prepare_install` → `resolver.prepare_plan` (persisted plan + `planHash`) are `WIRED`. `litespm catalog sync` is `SHIPPED` — it succeeds against the live origin (verified 2026-10-05). Transport sharding of oversized listings/versions files exists (`ARCH/18` §2.1); the logical `index.json`/`shards/`/`items/` path does not — that design is `DESIGNED` ([STATUS.md](../STATUS.md) §2; `ARCH/18`).
+> **Status of §4.1.** `search_catalog` → `catalog.search` (local index) and `prepare_install` → `resolver.prepare_plan` (persisted plan + `planHash`) are `WIRED`. `litespm catalog sync` is `SHIPPED` — it succeeds against the live origin (verified 2026-10-21). Transport sharding of oversized listings/versions files exists (`ARCH/18` §2.1); the logical `index.json`/`shards/`/`items/` path does not — that design is `DESIGNED` ([STATUS.md](../STATUS.md) §2; `ARCH/18`).
 
 ### 4.2 Plan Approval & Transactional Installation
 

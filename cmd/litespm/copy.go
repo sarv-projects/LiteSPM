@@ -43,6 +43,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/sarv-projects/litespm/internal/config"
@@ -1255,11 +1256,35 @@ func restoreSkillOverwrite(ledger *skills.Ledger, dest string, prior skills.Ledg
 	if err := os.RemoveAll(dest); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("removing copied skill %s: %w", dest, err)
 	}
+	// The backup lives under DATA_ROOT and the destination in the agent's
+	// tree, so the two are often on DIFFERENT filesystems. A rename across
+	// filesystems fails with EXDEV — and it would fail AFTER the destination
+	// was already removed, leaving the skill gone and the rollback broken.
+	// A copy works on every filesystem, so the cross-device case falls back
+	// to one, and the moved-aside directory is only removed on success.
 	if err := os.Rename(backup, dest); err != nil {
-		return fmt.Errorf("restoring skill backup %s: %w", backup, err)
+		if !isCrossDeviceError(err) {
+			return fmt.Errorf("restoring skill backup %s: %w", backup, err)
+		}
+		if cerr := skills.CopySkillDir(backup, dest); cerr != nil {
+			return fmt.Errorf("restoring skill backup %s to %s across filesystems: %w", backup, dest, cerr)
+		}
+		if rmErr := os.RemoveAll(backup); rmErr != nil {
+			// The restore itself succeeded; the leftover copy is untidy, not
+			// broken. Say so rather than failing a completed restore.
+			fmt.Printf("Note: the restored copy at %s could not be removed: %v\n", backup, rmErr)
+		}
 	}
+	// The ledger row is restored in BOTH cases: the rename path and the
+	// cross-device copy path must leave the same state behind.
 	if err := ledger.ReplaceEntry(dest, prior); err != nil {
 		return fmt.Errorf("restore the ledger row for %s: %w", dest, err)
 	}
 	return nil
+}
+
+// isCrossDeviceError reports whether err is the EXDEV a rename across
+// filesystems produces.
+func isCrossDeviceError(err error) bool {
+	return err != nil && errors.Is(err, syscall.EXDEV)
 }

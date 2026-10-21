@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/sarv-projects/litespm/internal/domain"
+	"github.com/sarv-projects/litespm/internal/egress"
 	"github.com/sarv-projects/litespm/internal/resolver"
 	"github.com/sarv-projects/litespm/internal/trust"
 )
@@ -95,7 +96,15 @@ func NewUpdater(manifestURL string) *Updater {
 		manifestURL = DefaultReleaseManifestURL
 	}
 	return &Updater{
-		client:           &http.Client{Timeout: 30 * time.Second},
+		// The SHARED egress guard, not a bare http.Client. A bare client
+		// follows an https-to-http redirect downgrade and resolves the
+		// destination again at connect time, so a release URL could be
+		// redirected to a plaintext or a private address. The guard resolves
+		// and classifies every address, refuses a downgrade, and dials the
+		// address it checked. It also runs with the proxy DISABLED: a proxy
+		// would resolve the origin on the updater's behalf and bypass the
+		// checked dial entirely.
+		client:           egress.NewClient(egress.Policy{Timeout: 30 * time.Second}),
 		manifestURL:      manifestURL,
 		maxManifestBytes: defaultManifestLimit,
 		maxChecksumBytes: defaultChecksumLimit,

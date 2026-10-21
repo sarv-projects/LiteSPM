@@ -11,7 +11,7 @@ import { kindLabel, listingHref } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { hostsNamedBy } from "../../lib/hostIdentity";
 import { VerifiedMark } from "../../components/catalog/PublisherMark";
-import { useProductRow } from "../../lib/catalogData";
+import { readInlineEntry, useProductRow } from "../../lib/catalogData";
 import { SITE_URL } from "../../lib/site";
 import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice, rowWorksWithAgent } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
@@ -305,17 +305,26 @@ function PackageContent({
   snapshot: snapshotProp,
 }: PackageViewProps) {
   const { slug, resolved } = useSlugParam();
+  // The row the edge Worker already resolved, handed to this page with it.
+  // Reading it here means the entry can be rendered without the bucket
+  // round trip that used to sit between the reader's click and the entry
+  // appearing.
+  const inlineEntry = useMemo(() => readInlineEntry(), []);
   // One product row, two counts and the sibling list come from ~170 KB of
   // hash-partitioned rows rather than the 44.5 MB full catalog this route used
   // to concatenate on every visit. A pre-rendered page already has its row, so
-  // it asks for nothing.
-  const { status, payload, retry } = useProductRow(initialItem ? null : slug);
+  // it asks for nothing — and neither does a page the Worker served with the
+  // row in hand.
+  const { status, payload, retry } = useProductRow(initialItem || inlineEntry ? null : slug);
   // Ids always resolve; slugs resolve only when the emitter stamped them as
   // the row's whole-dataset `linkKey`, never by a bucket-local first-wins.
   const lookup = useMemo(() => (payload ? buildLookup(payload.rows) : null), [payload]);
   const item = useMemo(
-    () => initialItem ?? (slug && lookup ? lookup.get(slug) ?? null : null),
-    [initialItem, slug, lookup]
+    () =>
+      initialItem ??
+      inlineEntry ??
+      (slug && lookup ? lookup.get(slug) ?? null : null),
+    [initialItem, inlineEntry, slug, lookup]
   );
 
   /**

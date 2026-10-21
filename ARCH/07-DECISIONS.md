@@ -6,6 +6,10 @@
 > these records sit below the function inventory and above the product/delivery documents; for the
 > *state* of anything described here, [STATUS.md](../STATUS.md) wins.
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). D-022's status paragraphs
+> are dated in place: the 2026-10-05 record is superseded by the 2026-10-19 adjudication, and both
+> are kept because the decision record is a timeline, not a summary.
+
 ## 1. Foundational Architecture Decisions (D-001 – D-010)
 
 ### D-001: Provider-Neutral Shared Product & Local Execution
@@ -130,7 +134,7 @@ open); the rationale is preserved rather than back-ported into the earlier serie
 ### D-022: Canonical Catalog Builder Is the Go `catalogbuild` (D4 — contested, open)
 *   **Context:** Two builders existed in the tree: `internal/catalogbuild.CompileRelease` (Go, deterministic, no non-test caller) and `scripts/build_full_catalog.py` (Python, the producer of everything actually deployed: `web/data/catalog.json`, `web/public/v1/current.json`).
 *   **Decision (D4 in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md)):** the Go `catalogbuild` is the single builder; canonical listing IDs are 4-segment.
-*   **Honest status (updated 2026-10-05):** the code now runs a **split** — `litespm catalog build` owns the served pointer, release id/sequence, and `/v1/releases/` tree (byte-for-byte materialization at deploy, end-to-end tested), while the Python script is narrowed to dataset ingestion (`web/data/catalog.json` + stats) and no longer writes `web/public/v1/*`. The Go builder is no longer dead code, but **the contest is not closed**: the split itself has not been accepted or overruled as D4's resolution ([ARCH/31 §4.3](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#43-decision-d4-is-contradicted-by-the-repository--there-are-two-catalog-builders), [STATUS.md](../STATUS.md) §2/§6). The tree does reach the live origin: `scripts/deploy-pages.sh` packages and signs it, `ci.yml` executes that script in its `build-web` job, and the origin serves `/v1/current.json` plus the release tree (probe 2026-10-05, [STATUS.md](../STATUS.md) §1/§2).
+*   **Honest status (recorded 2026-10-05):** the code now runs a **split** — `litespm catalog build` owns the served pointer, release id/sequence, and `/v1/releases/` tree (byte-for-byte materialization at deploy, end-to-end tested), while the Python script is narrowed to dataset ingestion (`web/data/catalog.json` + stats) and no longer writes `web/public/v1/*`. The Go builder is no longer dead code, but **as of 2026-10-05 the contest was not closed**: the split itself had not been accepted or overruled as D4's resolution. **That is the state the Adjudication (2026-10-19) below supersedes** ([ARCH/31 §4.3](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#43-decision-d4-is-contradicted-by-the-repository--there-are-two-catalog-builders), [STATUS.md](../STATUS.md) §2/§6). The tree does reach the live origin: `scripts/deploy-pages.sh` packages and signs it, `ci.yml` executes that script in its `build-web` job, and the origin serves `/v1/current.json` plus the release tree (probe 2026-10-05, [STATUS.md](../STATUS.md) §1/§2).
 *   **Adjudication (2026-10-19):** the contest is **closed by amendment, not by reversal.** D4's
     intent — one authoritative builder, no second opinion about what a listing is — is kept, and the
     split is ratified as the shape that satisfies it:

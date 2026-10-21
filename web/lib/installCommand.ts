@@ -126,19 +126,6 @@ export function exactIdCommand(item: { id: string }): string {
 }
 
 /**
- * The command that finds an entry by name in the local index.
- *
- * `litespm search <query>` is a documented CLI verb (`cmd/litespm/help.go`):
- * it looks the words up in the catalog index `litespm catalog sync` keeps on
- * disk and prints each match's id. It is the short way to a short command
- * when the install verb itself takes no short form.
- */
-export function searchCommand(item: { name?: string | null }): string {
-  const name = String(item.name ?? "").trim();
-  return `litespm search ${shellQuote(name)}`;
-}
-
-/**
  * Website bootstrap commands supported by the published CLI. The CLI does
  * not auto-sync a fresh catalog or configure missing hosts on install.
  * Keeping those steps explicit avoids promising an unreleased wizard.

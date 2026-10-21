@@ -79,16 +79,16 @@ rows — a first visit downloads the page, not rows it has not asked for.
 ## 3. Key UI Elements
 
 ### 3.1 Header & Dynamic Telemetry Badge
-*   **Sticky Header:** One 48 px bar on every route (`web/components/navigation/Header.tsx`): the LiteSPM wordmark, the primary navigation links (**Explore**, **Agents**, **Categories**, **Coverage** → `/trending/`), a search affordance that deep-links to `/explore/?focus=search`, the theme toggle, and the **Install LiteSPM** CTA. There are no kind tabs and no GitHub link in the header — kind filtering is what `/explore` is for (`--stack-top`, the sticky offset used by the filter bars, is keyed to this 48 px height).
+*   **Sticky Header:** One 48 px bar on every route (`web/components/navigation/Header.tsx`): the LiteSPM wordmark, the primary navigation links (**Explore**, **Works with**, **How it works**, **Docs** — the last one external), a search affordance that deep-links to `/explore/?focus=search`, the theme toggle, and the **Install LiteSPM** CTA. There are no kind tabs and no GitHub link in the header — kind filtering is what `/explore` is for (`--stack-top`, the sticky offset used by the filter bars, is keyed to this 48 px height).
 *   **Release chip (`web/components/home/LandingHero.tsx` → `ReleaseChip`, data from `useTelemetry` in `web/lib/telemetry.ts`):** a status pill in the hero whose text is the *observed* state of a real `GET /v1/current.json`, never a hard-coded liveness claim:
     *   **`loading`** (the first render, prerendered HTML included): `Checking the catalog…` — the bundled manifest proves what this build shipped, not that the origin still serves it.
     *   **`ready`** (the fetch answered 2xx): `Catalog is current`, with `releaseId · seq · manifestDigest` in the `title`.
     *   **`offline`** (the fetch failed): `Bundled catalog snapshot` — the counts on screen are the build's own snapshot.
 *   **Dynamic counts:** `itemCount` and the per-kind counts come from `current.json` once it answers, falling back to counts derived from the bundled listings; the hero never prints a zero placeholder while the data is still loading.
 
-### 3.2 Dynamic Omni-Search & Category Rail
+### 3.2 Dynamic Omni-Search & Category Facets
 *   **Search Form:** A ruled input (`border-2 border-ink bg-surface`), leading search icon, trailing keyboard-shortcut pill (`⌘K`), and a clear button — there is no blur or glass layer. It is a real `<form>` (`action="/explore/"`, `name="q"`), so Enter works with JavaScript disabled; on `/explore/` it merges into the existing params without a second navigation.
-*   **Category Rail:** A wrapped chip group (not a fixed list) rendered from the live facets. `categoryFacets(listings, limit = 16)` (`web/lib/telemetry.ts`) returns the **top 16 categories by frequency**, each chip carrying its inline count, plus a leading *All categories* chip. The label header reports `{facets.length} most common of {total} entries`. There is no hard-coded category list: the chips are data-driven, so the set changes with the dataset. (Earlier drafts listed a fixed set of labels; those were illustrative, not a contract.)
+*   **Category facets:** The chip group that used to be a "rail" was **deleted on 2026-10-13** (`986089c`); Explore now offers the whole category vocabulary instead of a top-16 slice. `allCategoryFacets(items)` (`web/lib/catalog.ts`) returns **every** category with its count, and `app/explore/page.tsx:57` passes it to the filter surface. `categoryFacets(items, limit = 16)` still exists for the places that want a top-N slice, but the rail itself is not part of the shipped UI. There is no hard-coded category list: the facets are data-driven, so the set changes with the dataset.
 
 ### 3.3 Extension Cards
 Each capability is rendered as a clean card:

@@ -289,6 +289,15 @@ type UpdateRequest struct {
 	// DryRun evaluates policy and reports what would happen without touching
 	// the filesystem or the ledger.
 	DryRun bool
+	// BackupRoot is the directory the REPLACED tree is preserved in, so the
+	// ledger row can name a pre-image that actually exists.
+	//
+	// An update replaces a tree, exactly as a forced install does, so it owes
+	// the same thing: a digest of what was there and a byte-exact copy of
+	// it. Without this the update inherited the PREVIOUS row's pre-image —
+	// describing a tree that was replaced by an earlier update, and naming a
+	// backup path that had already been deleted.
+	BackupRoot string
 }
 
 // UpdateOutcome reports the result of an update.
@@ -366,14 +375,38 @@ func (in *Installer) Update(ctx context.Context, req UpdateRequest) (UpdateOutco
 	}
 
 	oldDigest := entry.ContentDigest
+
+	// The tree this update replaces is preserved BEFORE the swap, so the
+	// ledger row can name a pre-image that describes THIS replacement and a
+	// backup that exists. The old row's pre-image described an earlier
+	// replacement and named a backup that had already been deleted.
+	preImageBackup := ""
+	if strings.TrimSpace(req.BackupRoot) != "" {
+		name, serr := SanitizeSkillName(entry.SkillName)
+		if serr != nil {
+			name = "skill"
+		}
+		backupPath := filepath.Join(req.BackupRoot, fmt.Sprintf("skill-%s-%d", name, time.Now().UnixNano()))
+		if err := CopySkillDir(entry.DestDir, backupPath); err != nil {
+			return UpdateOutcome{Entry: entry}, fmt.Errorf("backing up the current %s before the update: %w", entry.DestDir, err)
+		}
+		preImageBackup = backupPath
+	}
+
 	backup, err := swapDir(req.NewDir, entry.DestDir)
 	if err != nil {
+		if preImageBackup != "" {
+			_ = os.RemoveAll(preImageBackup)
+		}
 		return UpdateOutcome{Entry: entry}, err
 	}
 
 	updated := entry
 	updated.ContentDigest = newProv.Digest
 	updated.Inventory = newProv.Inventory
+	// The pre-image is the tree THIS update replaced.
+	updated.PreImageDigest = oldDigest
+	updated.PreImageBackup = preImageBackup
 	if req.NewSource != "" {
 		updated.Source = req.NewSource
 	}

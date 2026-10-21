@@ -61,56 +61,56 @@ func (a *ClineAdapter) Descriptor() HostDescriptor {
 func (a *ClineAdapter) DetectConfig(ctx context.Context, scope domain.InstallScope) (string, error) {
 	homeDir := resolveHomeDir()
 
-	var candidates []string
-	preferred := ""
+	// Most-specific-wins, and an override REPLACES the default rather than
+	// competing with it: the vendor documents CLINE_MCP_SETTINGS_PATH as the
+	// path of the settings file itself, CLINE_DATA_DIR as the replacement for
+	// ~/.cline/data/, and CLINE_DIR as the replacement for ~/.cline/ itself.
+	//
+	// So when one of them is set, its path IS the file Cline reads — even if
+	// it does not exist yet, and even if a default-path file does exist. The
+	// old order probed the candidates and returned the first that existed, so
+	// a stale ~/.cline/data/settings/cline_mcp_settings.json outranked a set
+	// CLINE_MCP_SETTINGS_PATH: LiteSPM wrote the bridge into a file Cline
+	// never reads, and VerifySetup — reading the same wrong file — reported
+	// "ready". A setup that reports success while the host will not use the
+	// entry is worse than no setup at all.
 	if override := os.Getenv("CLINE_MCP_SETTINGS_PATH"); override != "" {
-		candidates = append(candidates, override)
-		preferred = override
+		return override, nil
 	}
 	if dataDir := os.Getenv("CLINE_DATA_DIR"); dataDir != "" {
-		candidate := filepath.Join(dataDir, "settings", "cline_mcp_settings.json")
-		candidates = append(candidates, candidate)
-		if preferred == "" {
-			preferred = candidate
-		}
+		return filepath.Join(dataDir, "settings", "cline_mcp_settings.json"), nil
 	}
 	if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" {
-		candidate := filepath.Join(clineDir, "data", "settings", "cline_mcp_settings.json")
-		candidates = append(candidates, candidate)
-		if preferred == "" {
-			preferred = candidate
-		}
+		return filepath.Join(clineDir, "data", "settings", "cline_mcp_settings.json"), nil
 	}
+
+	// No override: the shared path every current Cline client reads, and then
+	// the legacy globalStorage files for a client too old to have migrated.
+	// Those legacy paths are READ targets only — see legacyClineSettingsPaths
+	// and legacyClineSettingsPaths.
 	shared := filepath.Join(homeDir, ".cline", "data", "settings", "cline_mcp_settings.json")
-	candidates = append(candidates, shared)
-
-	// Legacy: unverified VS Code / VS Code Insiders globalStorage locations
-	// kept as last-resort READ targets (see legacyClineSettingsPaths).
-	for _, c := range legacyClineSettingsPaths(homeDir) {
-		candidates = append(candidates, c)
+	if _, err := os.Stat(shared); err == nil {
+		return shared, nil
 	}
-
-	for _, c := range candidates {
+	for _, c := range legacyClineSettingsPaths(homeDir) {
 		if _, err := os.Stat(c); err == nil {
 			return c, nil
 		}
 	}
-	// Nothing exists yet. Create the file the running client reads: the
-	// override if one is set, otherwise the shared path.
-	if preferred != "" {
-		return preferred, nil
-	}
 	return shared, nil
 }
 
-// legacyClineSettingsPaths lists pre-migration VS Code globalStorage
+// legacyClineSettingsPaths lists the pre-migration VS Code globalStorage
 // locations, in Cline's own order.
 //
 // These are UNVERIFIED legacy paths: they appear in no current vendor
-// documentation page (https://docs.cline.bot/getting-started/config,
-// https://docs.cline.bot/mcp/mcp-overview). They survive only as last-resort
-// READ targets for a pre-migration client whose config never moved; nothing
-// ever writes to them.
+// documentation page. They are READ targets for a pre-migration client whose
+// config never moved, and nothing ever writes to them — a write would land
+// in a file the running client ignores.
+//
+// The only place a legacy path may still be returned as a configuration path
+// is VerifySetup, which reads. A setup that writes one is the bug this
+// separation exists to prevent.
 func legacyClineSettingsPaths(homeDir string) []string {
 	suffix := filepath.Join("User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
 	var roots []string
@@ -135,11 +135,30 @@ func legacyClineSettingsPaths(homeDir string) []string {
 	return paths
 }
 
-func (a *ClineAdapter) PlanSetup(ctx context.Context, binaryPath string, backupDir string) (*HostChangePlan, error) {
-	configPath, err := a.DetectConfig(ctx, domain.ScopeUser)
-	if err != nil {
-		return nil, err
+// clineAuthoritativePath is the file LiteSPM WRITES.
+//
+// It is the override when one is set and the shared path otherwise. It is
+// never a legacy globalStorage path: those are unverified, the running client
+// may not read them, and a write there is a setup that reports success and
+// changes nothing. DetectConfig returns the legacy paths for READING only.
+func clineAuthoritativePath(homeDir string) string {
+	if override := os.Getenv("CLINE_MCP_SETTINGS_PATH"); override != "" {
+		return override
 	}
+	if dataDir := os.Getenv("CLINE_DATA_DIR"); dataDir != "" {
+		return filepath.Join(dataDir, "settings", "cline_mcp_settings.json")
+	}
+	if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" {
+		return filepath.Join(clineDir, "data", "settings", "cline_mcp_settings.json")
+	}
+	return filepath.Join(homeDir, ".cline", "data", "settings", "cline_mcp_settings.json")
+}
+
+func (a *ClineAdapter) PlanSetup(ctx context.Context, binaryPath string, backupDir string) (*HostChangePlan, error) {
+	// The authoritative path, never the legacy read-only fallbacks: a setup
+	// that writes a legacy path reports success and the running client never
+	// sees the entry.
+	configPath := clineAuthoritativePath(resolveHomeDir())
 	return a.PlanSetupAt(ctx, binaryPath, backupDir, configPath)
 }
 

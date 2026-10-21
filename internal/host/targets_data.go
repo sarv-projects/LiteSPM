@@ -56,6 +56,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // xdgConfigDir returns the XDG config base, honouring XDG_CONFIG_HOME.
@@ -116,6 +117,14 @@ var verifiedBridgeTargets = []BridgeTarget{
 		ID: "aider-desk", Name: "AiderDesk", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a bare {"url": …} member;
+		// the host infers the transport from the endpoint, so there is no type token to
+		// write. The page documents a streamable-http server; it does not document SSE
+		// for URL entries, so only streamable-http is expressible.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		UserPath: func(home string) string {
 			// The vendor documents AIDER_DESK_HOME_DIR as the relocation mechanism.
 			if dir := os.Getenv("AIDER_DESK_HOME_DIR"); dir != "" {
@@ -127,12 +136,20 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".aider-desk"},
 		DetectBinaries: []string{"aider-desk"},
 		DocsURL:        "https://aiderdesk.hotovo.com/docs/agent-mode/mcp-servers",
-		Note:           "Project scope merges over user scope." + remoteNotVerifiedNote,
+		Note:           "Project scope merges over user scope. Remote: a bare url member (the host infers the transport from the endpoint); streamable-http only — the page documents no SSE URL entry.",
 	},
 	{
 		ID: "amp", Name: "Amp", Format: FormatJSON,
 		UserKey: []string{"amp", "mcpServers"}, ProjectKey: []string{"amp", "mcpServers"},
 		Shape: ShapeObject, TolerateComments: true, FlatKey: true,
+		// Remote shape read from this row's DocsURL: a bare {"url": …, "headers": …}
+		// member. The vendor states that a URL entry is still local configuration even when
+		// the URL points at another machine, so the earlier "server-side and not
+		// file-configurable" claim was wrong.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			return firstExisting(filepath.Join(xdgConfigDir(home), "amp", "settings.json"), filepath.Join(xdgConfigDir(home), "amp", "settings.jsonc"))
 		},
@@ -140,35 +157,59 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".config/amp"},
 		DetectBinaries: []string{"amp"},
 		DocsURL:        "https://ampcode.com/docs/customize/mcp",
-		Note:           "The container is the literal top-level key \"amp.mcpServers\": Amp's published schema sets additionalProperties:false, so a nested \"amp\" object is both ignored and invalid. Remote definitions are server-side and not file-configurable.",
+		Note:           "The container is the literal top-level key \"amp.mcpServers\": Amp's published schema sets additionalProperties:false, so a nested \"amp\" object is both ignored and invalid. Remote definitions are server-side and not file-configurable. Remote: a bare url member with headers (a URL entry is local configuration even when the URL points elsewhere).",
 	},
 	{
 		ID: "antigravity", Name: "Antigravity", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:            ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: the endpoint lives in
+		// "serverUrl" — the vendor states that "url" and "httpUrl" are not accepted —
+		// and no type discriminator is documented.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "serverUrl",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:         func(home string) string { return filepath.Join(home, ".gemini", "config", "mcp_config.json") },
 		ProjectPath:      func(root string) string { return filepath.Join(root, ".agents", "mcp_config.json") },
 		DetectPaths:      []string{".gemini/antigravity"},
 		SharedConfigWith: []string{"antigravity-cli"},
 		DocsURL:          "https://antigravity.google/docs/mcp",
-		Note:             "Remote servers must use \"serverUrl\"; \"url\"/\"httpUrl\" are not accepted. Windows path is ~ expansion.",
+		Note:             "Remote servers must use \"serverUrl\"; \"url\"/\"httpUrl\" are not accepted. Windows path is ~ expansion. Remote: the endpoint is \"serverUrl\" (url/httpUrl are not accepted) and there is no type token.",
 	},
 	{
 		ID: "antigravity-cli", Name: "Antigravity CLI", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:            ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL (the same page as the
+		// antigravity row): the endpoint lives in "serverUrl" and no type discriminator
+		// is documented.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "serverUrl",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:         func(home string) string { return filepath.Join(home, ".gemini", "config", "mcp_config.json") },
 		ProjectPath:      func(root string) string { return filepath.Join(root, ".agents", "mcp_config.json") },
 		DetectPaths:      []string{".gemini/antigravity-cli"},
 		DetectBinaries:   []string{"agy"},
 		SharedConfigWith: []string{"antigravity"},
 		DocsURL:          "https://antigravity.google/docs/mcp",
-		Note:             "Shares one config file with the Antigravity IDE; see the antigravity row. Recheck at next audit: an upstream issue disputes the global path (claims an app-data dir); this row follows the vendor docs.",
+		Note:             "Shares one config file with the Antigravity IDE; see the antigravity row. Recheck at next audit: an upstream issue disputes the global path (claims an app-data dir); this row follows the vendor docs. Remote: the endpoint is \"serverUrl\" (url/httpUrl are not accepted) and there is no type token.",
 	},
 	{
 		ID: "astrbot", Name: "AstrBot", Format: FormatJSON,
 		UserKey: []string{"mcpServers"},
 		Shape:   ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member plus a
+		// "transport" discriminator whose values are "streamable_http" and "sse". The
+		// vendor's own source also accepts "type" as an alias for "transport".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "transport",
+			TypeValue:  "streamable_http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			// AstrBot resolves its root as ASTRBOT_ROOT, else the process working
 			// directory (else ~/.astrbot in the packaged desktop runtime). Falling
@@ -186,17 +227,27 @@ var verifiedBridgeTargets = []BridgeTarget{
 		},
 		DetectPaths: []string{".astrbot"},
 		DocsURL:     "https://github.com/AstrBotDevs/AstrBot/wiki/en-use-mcp",
-		Note:        "A chat-bot framework, not a coding agent. Path verified in vendor source: <root>/data/mcp_server.json where root is ASTRBOT_ROOT else cwd (packaged desktop runtime: ~/.astrbot)." + remoteNotVerifiedNote,
+		Note:        "A chat-bot framework, not a coding agent. Path verified in vendor source: <root>/data/mcp_server.json where root is ASTRBOT_ROOT else cwd (packaged desktop runtime: ~/.astrbot). Remote: a url member with a \"transport\" discriminator (streamable_http / sse).",
 	},
 	{
 		ID: "augment", Name: "Augment", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:          ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// MANDATORY "type" discriminator whose values are "http" and "sse" — every
+		// documented remote example carries it.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".augment", "settings.json") },
 		DetectPaths:    []string{".augment"},
 		DetectBinaries: []string{"auggie"},
 		DocsURL:        "https://docs.augmentcode.com/cli/integrations",
-		Note:           "Targets the Auggie CLI config; the IDE extension stores MCP separately." + remoteNotVerifiedNote,
+		Note:           "Targets the Auggie CLI config; the IDE extension stores MCP separately. Remote: a url member with a mandatory \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "cursor", Name: "Cursor", Format: FormatJSON,
@@ -220,55 +271,109 @@ var verifiedBridgeTargets = []BridgeTarget{
 	{
 		ID: "deepagents", Name: "Deep Agents", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:          ShapeObject,
-		UserPath:       func(home string) string { return filepath.Join(home, ".deepagents", ".mcp.json") },
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// "type" discriminator whose values are "http" and "sse"; the vendor names
+		// "streamable_http" and "streamable-http" as aliases of "http".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
+		AltUserPaths: []func(home string) string{
+			func(home string) string { return filepath.Join(home, ".agents", "mcp.json") },
+		},
+
+		UserPath: func(home string) string { return filepath.Join(home, ".deepagents", ".mcp.json") },
+		AltProjectPaths: []func(root string) string{
+			func(root string) string { return filepath.Join(root, ".deepagents", ".mcp.json") },
+		},
+
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".mcp.json") },
 		DetectPaths:    []string{".deepagents"},
 		DetectBinaries: []string{"dcode"},
 		DocsURL:        "https://docs.langchain.com/oss/deepagents/code/mcp-tools",
-		Note:           "Project-level MCP is default-deny trust-gated by the host." + remoteNotVerifiedNote,
+		Note:           "Project-level MCP is default-deny trust-gated by the host. Remote: a url member with a type discriminator (http / sse). The vendor also reads the shared ~/.agents/mcp.json and the project's own .deepagents/.mcp.json; both are listed as alternatives.",
 	},
 	{
 		ID: "devin", Name: "Devin", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// "transport" discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "transport",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			if ad := windowsAppData(); ad != "" {
 				return filepath.Join(ad, "devin", "mcp_config.json")
 			}
 			return filepath.Join(xdgConfigDir(home), "devin", "mcp_config.json")
 		},
+		AltProjectPaths: []func(root string) string{
+			func(root string) string { return filepath.Join(root, ".devin", "mcp_config.local.json") },
+		},
+
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".devin", "mcp_config.json") },
 		DetectPaths:    []string{".config/devin"},
 		DetectBinaries: []string{"devin"},
 		DocsURL:        "https://docs.devin.ai/cli/extensibility/mcp/configuration",
-		Note:           "MCP moved out of config.json into dedicated mcp_config.json files. The legacy Cascade agent also reads windsurf's config, which is this same file." + remoteNotVerifiedNote,
+		Note:           "Remote: a url member with a transport discriminator (http / sse). The vendor's local scope (.devin/mcp_config.local.json) is listed as an alternative project location.",
 	},
 	{
 		ID: "droid", Name: "Droid", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:          ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a "type"
+		// discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".factory", "mcp.json") },
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".factory", "mcp.json") },
 		DetectPaths:    []string{".factory"},
 		DetectBinaries: []string{"droid"},
 		DocsURL:        "https://docs.factory.ai/harness/mcp",
-		Note:           "Three-level precedence (user, folder, project); user wins per server name." + remoteNotVerifiedNote,
+		Note:           "Remote: a url member with a type discriminator (http / sse). The vendor also reads a FOLDER scope (.factory/mcp.json in an ancestor directory), which one path cannot express.",
 	},
 	{
 		ID: "firebender", Name: "Firebender", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:       ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …, "headers": …}
+		// member with no type token; the page lists both Streamable HTTP and SSE
+		// transports for URL entries.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:    func(home string) string { return filepath.Join(home, ".firebender", "firebender.json") },
 		ProjectPath: func(root string) string { return filepath.Join(root, "firebender.json") },
 		DetectPaths: []string{".firebender"},
 		DocsURL:     "https://docs.firebender.com/context/mcp/overview",
-		Note:        "Vendor docs contradict themselves (mcp.json vs firebender.json); the syntax reference and config-locations section agree on firebender.json." + remoteNotVerifiedNote,
+		Note:        "Vendor docs contradict themselves (mcp.json vs firebender.json); the syntax reference and config-locations section agree on firebender.json. Remote: a bare url member with headers (no type token); streamable-http and sse.",
 	},
 	{
 		ID: "forgecode", Name: "ForgeCode", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject,
+		// Remote shape read from this row's repository (README example and the
+		// McpHttpServer struct): a {"url": …} member with no type token — the transport
+		// is auto-detected from the endpoint.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			// FORGE_CONFIG relocates forge's base dir (forge_config reader.rs
 			// resolution order 1) and the MCP file is <base>/.mcp.json.
@@ -281,19 +386,28 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{"forge"},
 		DetectBinaries: []string{"forge"},
 		DocsURL:        "https://github.com/tailcallhq/forgecode",
-		Note:           "Other settings live in ~/forge/.forge.toml; MCP is .mcp.json; FORGE_CONFIG relocates the whole base dir (incl. the MCP file)." + remoteNotVerifiedNote,
+		Note:           "Other settings live in ~/forge/.forge.toml; MCP is .mcp.json; FORGE_CONFIG relocates the whole base dir (incl. the MCP file). Remote: a bare url member (the transport is auto-detected from the endpoint).",
 	},
 	{
 		ID: "fx", Name: "fx", Format: FormatJSON,
 		// fx reads `mcp` in the user file and `mcpServers` in a project .mcp.json.
 		UserKey: []string{"mcp"}, ProjectKey: []string{"mcpServers"},
-		Shape:          ShapeLocalArray,
+		Shape: ShapeLocalArray,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a "type"
+		// discriminator whose values are "http" and "sse" — both require a url.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".fx", "mcp.json") },
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".mcp.json") },
 		DetectPaths:    []string{".fx"},
 		DetectBinaries: []string{"fx"},
 		DocsURL:        "https://fx.sh/docs/capabilities/mcp",
-		Note:           "Key is \"mcp\" (legacy mcpServers still accepted). Entry uses a combined command array." + remoteNotVerifiedNote,
+		Note:           "Key is \"mcp\" (legacy mcpServers still accepted). Entry uses a combined command array. Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "gemini-cli", Name: "Gemini CLI", Format: FormatJSON,
@@ -308,13 +422,30 @@ var verifiedBridgeTargets = []BridgeTarget{
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".gemini", "settings.json") },
 		DetectPaths:    []string{".gemini"},
 		DetectBinaries: []string{"gemini"},
-		DocsURL:        "https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md",
-		Note:           "GEMINI_CLI_HOME redirects the whole state dir. Also has a global \"mcp\" allow/exclude object we do not touch." + remoteNotVerifiedNote,
+		DocsURL:        "https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md", Remote: &RemoteEntrySpec{
+			// The transport is chosen by the KEY, not by a discriminator: the
+			// streamable-http endpoint is "httpUrl" and the legacy SSE endpoint is
+			// "url". A spec with one URL key could not express that.
+			URLKey:     "httpUrl",
+			SSEURLKey:  "url",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
+
+		Note: "The transport is chosen by the key: httpUrl for streamable-http and url for the legacy SSE endpoint; there is no discriminator.",
 	},
 	{
 		ID: "github-copilot", Name: "GitHub Copilot CLI", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape: ShapeObject,
+		Shape: ShapeLocalTypedString,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// "type" discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			if v := os.Getenv("COPILOT_HOME"); v != "" {
 				return filepath.Join(v, "mcp-config.json")
@@ -327,7 +458,7 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".copilot"},
 		DetectBinaries: []string{"copilot"},
 		DocsURL:        "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers",
-		Note:           "Project scope beats user scope; .mcp.json beats .github/mcp.json." + remoteNotVerifiedNote,
+		Note:           "Project scope beats user scope; .mcp.json beats .github/mcp.json. Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "iflow-cli", Name: "iFlow CLI", Format: FormatJSON,
@@ -343,34 +474,54 @@ var verifiedBridgeTargets = []BridgeTarget{
 	{
 		ID: "jazz", Name: "Jazz", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:          ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's repository (docs/configure/mcp.md): a bare
+		// {"url": …} member with no type token; the vendor folds "sse" into HTTP, so
+		// only streamable-http is expressible.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".agents", "mcp.json") },
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".agents", "mcp.json") },
 		DetectPaths:    []string{".jazz"},
 		DetectBinaries: []string{"jazz"},
 		DocsURL:        "https://github.com/lvndry/jazz",
-		Note:           "Uses the universal .agents/mcp.json. Enable/disable state lives in a separate config we do not touch." + remoteNotVerifiedNote,
+		Note:           "Uses the universal .agents/mcp.json. Enable/disable state lives in a separate config we do not touch. Remote: a bare url member (the vendor reads \"sse\" as HTTP, so sse is not a separate transport here).",
 	},
 	{
 		ID: "junie", Name: "Junie", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:          ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …, "headers": …}
+		// member with no type token.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".junie", "mcp", "mcp.json") },
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".junie", "mcp", "mcp.json") },
 		DetectPaths:    []string{".junie"},
 		DetectBinaries: []string{"junie"},
 		DocsURL:        "https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html",
-		Note:           "Note the nested mcp/ directory. Legacy flat ~/.junie/mcp.json also referenced." + remoteNotVerifiedNote,
+		Note:           "Note the nested mcp/ directory. Legacy flat ~/.junie/mcp.json also referenced. Remote: a bare url member with headers (no type token).",
 	},
 	{
 		ID: "kimchi", Name: "Kimchi", Format: FormatJSON,
-		UserKey:        []string{"mcpServers"},
-		Shape:          ShapeObject,
+		UserKey: []string{"mcpServers"},
+		Shape:   ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member with no type
+		// token; the transport is inferred from the URL path, and the page documents
+		// both an HTTP and an SSE endpoint.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".config", "kimchi", "harness", "mcp.json") },
 		DetectPaths:    []string{".config/kimchi"},
 		DetectBinaries: []string{"kimchi"},
 		DocsURL:        "https://docs.kimchi.dev/docs/coding-mcp-servers",
-		Note:           "No documented env override for the harness path." + remoteNotVerifiedNote,
+		Note:           "No documented env override for the harness path. Remote: a bare url member (the transport is inferred from the URL path); streamable-http and sse.",
 	},
 	{
 		// Kilo documents kilo.jsonc as a supported filename; that is the reason to
@@ -378,6 +529,14 @@ var verifiedBridgeTargets = []BridgeTarget{
 		ID: "kilo", Name: "Kilo Code", Format: FormatJSON, TolerateComments: true,
 		UserKey: []string{"mcp"}, ProjectKey: []string{"mcp"},
 		Shape: ShapeLocalArray,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a "type"
+		// discriminator whose value MUST be "remote".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "remote",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		UserPath: func(home string) string {
 			return firstExisting(filepath.Join(xdgConfigDir(home), "kilo", "kilo.json"), filepath.Join(xdgConfigDir(home), "kilo", "kilo.jsonc"), filepath.Join(xdgConfigDir(home), "kilo", "config.json"))
 		},
@@ -387,12 +546,15 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".config/kilo", ".kilo", ".kilocode"},
 		DetectBinaries: []string{"kilo"},
 		DocsURL:        "https://kilo.ai/docs/automate/mcp/using-in-cli",
-		Note:           "Key is \"mcp\" and entries use {type:local, command:[argv]}." + remoteNotVerifiedNote,
+		Note:           "Key is \"mcp\" and entries use {type:local, command:[argv]}. Remote: a url member with a mandatory \"type\":\"remote\" discriminator.",
 	},
 	{
 		ID: "kimi-code-cli", Name: "Kimi Code CLI", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member with no type
+		// token for HTTP. The vendor's SSE form needs a separate "transport":"sse"
+		// member, which the entry writer cannot express today, so sse stays refused.
 		UserPath: func(home string) string {
 			if v := os.Getenv("KIMI_CODE_HOME"); v != "" {
 				return filepath.Join(v, "mcp.json")
@@ -402,13 +564,30 @@ var verifiedBridgeTargets = []BridgeTarget{
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".kimi-code", "mcp.json") },
 		DetectPaths:    []string{".kimi-code", ".kimi"},
 		DetectBinaries: []string{"kimi"},
-		DocsURL:        "https://kimi.com/code/docs/en/kimi-code-cli/customization/mcp.html",
-		Note:           "Directory is .kimi-code, not .kimi." + remoteNotVerifiedNote,
+		DocsURL:        "https://kimi.com/code/docs/en/kimi-code-cli/customization/mcp.html", Remote: &RemoteEntrySpec{
+			// The HTTP entry carries NO discriminator at all (a bare "url"), and
+			// only the SSE entry carries {"transport":"sse"}. A writer that always
+			// emitted the discriminator would write an object the host did not
+			// document.
+			URLKey:     "url",
+			TypeKey:    "transport",
+			TypeValue:  "",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
+
+		Note: "The HTTP entry is a bare url; only the SSE entry carries a transport discriminator of sse.",
 	},
 	{
 		ID: "kiro-cli", Name: "Kiro CLI", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL (the .md twin of the page): a
+		// {"url": …, "headers": …} member with no type token.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		UserPath: func(home string) string {
 			// Kiro publishes two path sets for the same file; probe both.
 			return firstExisting(
@@ -423,12 +602,21 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".kiro"},
 		DetectBinaries: []string{"kiro-cli"},
 		DocsURL:        "https://kiro.dev/docs/mcp/configuration",
-		Note:           "CLI registry mode documents a different, flatter path set; we target the general settings path." + remoteNotVerifiedNote,
+		Note:           "CLI registry mode documents a different, flatter path set; we target the general settings path. Remote: a bare url member with headers (no type token).",
 	},
 	{
 		ID: "kode", Name: "Kode", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape: ShapeObject,
+		Shape: ShapeStdioTyped,
+		// Remote shape read from this row's repository (docs/mcp.md): a {"url": …}
+		// member and a "type" discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			if v := os.Getenv("KODE_CONFIG_DIR"); v != "" {
 				// Vendor: <KODE_CONFIG_DIR>/config.json, not kode.json.
@@ -442,7 +630,7 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".kode"},
 		DetectBinaries: []string{"kode"},
 		DocsURL:        "https://github.com/shareAI-lab/Kode-cli",
-		Note:           "Project file .mcp.json; global map lives in ~/.kode.json (or <KODE_CONFIG_DIR>/config.json when that env is set)." + remoteNotVerifiedNote,
+		Note:           "Project file .mcp.json; global map lives in ~/.kode.json (or <KODE_CONFIG_DIR>/config.json when that env is set). Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "crush", Name: "Crush", Format: FormatJSON,
@@ -450,6 +638,16 @@ var verifiedBridgeTargets = []BridgeTarget{
 		// Crush's published schema requires `type`, and its decoder applies no
 		// default, so an entry without it starts no transport at all.
 		Shape: ShapeStdioTyped,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a "type"
+		// discriminator whose values are "http" and "sse" — the vendor spells both out
+		// in its own examples.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			if v := os.Getenv("CRUSH_GLOBAL_CONFIG"); v != "" {
 				return filepath.Join(v, "crush.json")
@@ -467,7 +665,7 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".config/crush"},
 		DetectBinaries: []string{"crush"},
 		DocsURL:        "https://charmbracelet-crush.mintlify.app/configuration/mcp",
-		Note:           "Key is \"mcp\" and entries require an explicit \"type\" (stdio|http|sse); JSON is the legacy-but-machine-readable format.",
+		Note:           "Key is \"mcp\" and entries require an explicit \"type\" (stdio|http|sse); JSON is the legacy-but-machine-readable format. Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "zcode", Name: "ZCode", Format: FormatJSON,
@@ -515,17 +713,35 @@ var verifiedBridgeTargets = []BridgeTarget{
 	{
 		ID: "bob", Name: "IBM Bob", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:       ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a "type"
+		// discriminator whose value is "streamable-http". The vendor states Bob's MCP
+		// client no longer supports the standalone HTTP+SSE transport, so sse stays
+		// refused.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "streamable-http",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		UserPath:    func(home string) string { return filepath.Join(home, ".bob", "settings", "mcp.json") },
 		ProjectPath: func(root string) string { return filepath.Join(root, ".bob", "mcp.json") },
 		DetectPaths: []string{".bob"},
 		DocsURL:     "https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob",
-		Note:        "Project overrides global on name conflict. No documented env override for the settings dir." + remoteNotVerifiedNote,
+		Note:        "Project overrides global on name conflict. No documented env override for the settings dir. Remote: a url member with a \"type\":\"streamable-http\" discriminator; the vendor states Bob's client no longer supports the standalone HTTP+SSE transport, so sse stays refused.",
 	},
 	{
 		ID: "codearts-agent", Name: "CodeArts Agent", Format: FormatJSON,
 		UserKey: []string{"mcp"}, ProjectKey: []string{"mcp"},
 		Shape: ShapeLocalArray, TolerateComments: true,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// "type" discriminator whose fixed value is "remote".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "remote",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		UserPath: func(home string) string {
 			return firstExisting(filepath.Join(home, ".codeartsdoer", "codearts_cli.jsonc"), filepath.Join(home, ".codeartsdoer", "codearts_cli.json"))
 		},
@@ -536,12 +752,22 @@ var verifiedBridgeTargets = []BridgeTarget{
 		},
 		DetectPaths: []string{".codeartsdoer"},
 		DocsURL:     "https://support.huaweicloud.com/intl/en-us/usermanual-cli/codeartsagent_cli_0035.html",
-		Note:        "Three deviations from the common shape: key is \"mcp\", command is an argv ARRAY, and the env key is \"environment\"." + remoteNotVerifiedNote,
+		Note:        "Three deviations from the common shape: key is \"mcp\", command is an argv ARRAY, and the env key is \"environment\". Remote: a url member with a \"type\":\"remote\" discriminator.",
 	},
 	{
 		ID: "codebuddy", Name: "CodeBuddy", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject, TolerateComments: true,
+		// Remote shape read from the vendor's MCP page (the same content is served at
+		// codebuddy.ai/docs/cli/mcp and workbuddy.ai/docs/cli/mcp): a {"url": …}
+		// member and a "type" discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			// Documented priority: .mcp.json, then mcp.json (deprecated), then the
 			// legacy ~/.codebuddy.json. Skipping the middle candidate made an
@@ -558,7 +784,7 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".codebuddy"},
 		DetectBinaries: []string{"codebuddy", "cbc"},
 		DocsURL:        "https://codebuddy.ai/docs/cli/mcp",
-		Note:           "JSONC. Read order: .mcp.json -> mcp.json (deprecated) -> ~/.codebuddy.json (legacy)." + remoteNotVerifiedNote,
+		Note:           "JSONC. Read order: .mcp.json -> mcp.json (deprecated) -> ~/.codebuddy.json (legacy). Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		// The vendor's documented .codestudio/mcp.json sample contains // comments.
@@ -573,28 +799,55 @@ var verifiedBridgeTargets = []BridgeTarget{
 	{
 		ID: "command-code", Name: "Command Code", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:          ShapeObject,
+		Shape: ShapeTransportString,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// "transport" discriminator whose value is "http"; the JSON also accepts "type"
+		// as an alias for "transport".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "transport",
+			TypeValue:  "http",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".commandcode", "mcp.json") },
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".mcp.json") },
 		DetectPaths:    []string{".commandcode"},
 		DetectBinaries: []string{"cmd", "cmdc", "command-code"},
 		DocsURL:        "https://commandcode.ai/docs/mcp",
-		Note:           "Three scopes: local (projects/<slug>/mcp.json) > project > user. OAuth secrets are stripped into mcp-tokens.json." + remoteNotVerifiedNote,
+		Note:           "Three scopes: local (projects/<slug>/mcp.json) > project > user. OAuth secrets are stripped into mcp-tokens.json. Remote: a url member with a \"transport\":\"http\" discriminator (the JSON also accepts \"type\" as an alias).",
 	},
 	{
 		ID: "cortex", Name: "Cortex Code", Format: FormatJSON,
-		UserKey:        []string{"mcpServers"},
-		Shape:          ShapeObject,
+		UserKey: []string{"mcpServers"},
+		Shape:   ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a "type"
+		// discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".snowflake", "cortex", "mcp.json") },
 		DetectPaths:    []string{".snowflake/cortex"},
 		DetectBinaries: []string{"cortex"},
 		DocsURL:        "https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code-mcp",
-		Note:           "Credentials are migrated to the OS keychain on first connect and stripped from mcp.json." + remoteNotVerifiedNote,
+		Note:           "Credentials are migrated to the OS keychain on first connect and stripped from mcp.json. Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "openhands", Name: "OpenHands", Format: FormatJSON,
 		UserKey: []string{"mcpServers"},
 		Shape:   ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// "transport" discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "transport",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			if v := os.Getenv("OH_PERSISTENCE_DIR"); v != "" {
 				return filepath.Join(v, "mcp.json")
@@ -604,33 +857,57 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".openhands"},
 		DetectBinaries: []string{"openhands"},
 		DocsURL:        "https://docs.openhands.dev/overview/model-context-protocol",
-		Note:           "Current releases IGNORE legacy config.toml [mcp]; JSON replaced TOML at 1.0.0." + remoteNotVerifiedNote,
+		Note:           "Current releases IGNORE legacy config.toml [mcp]; JSON replaced TOML at 1.0.0. Remote: a url member with a \"transport\" discriminator (http / sse).",
 	},
 	{
 		ID: "pochi", Name: "Pochi", Format: FormatJSON,
 		UserKey: []string{"mcp"}, ProjectKey: []string{"mcp"},
-		Shape: ShapeObject, TolerateComments: true,
+		Shape: ShapeStdioTyped, TolerateComments: true,
+		// Remote shape read from this row's DocsURL: a {"url": …, "headers": …}
+		// member with no type token; the page documents both an MCP and an SSE endpoint.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".pochi", "config.jsonc") },
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".pochi", "config.jsonc") },
 		DetectPaths:    []string{".pochi"},
 		DetectBinaries: []string{"pochi"},
 		DocsURL:        "https://docs.getpochi.com/mcp",
-		Note:           "Key is \"mcp\", not mcpServers. JSONC." + remoteNotVerifiedNote,
+		Note:           "Key is \"mcp\", not mcpServers. JSONC. Remote: a bare url member with headers (no type token); streamable-http and sse.",
 	},
 	{
 		ID: "posit-assistant", Name: "Posit Assistant", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:       ShapeLocalArray,
+		Shape: ShapeLocalArray,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// "type" discriminator whose value is "remote". The vendor's SSE form is a
+		// separate "transport" key this writer cannot express, so sse stays refused.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "remote",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		UserPath:    func(home string) string { return filepath.Join(home, ".posit", "assistant", "settings.json") },
 		ProjectPath: func(root string) string { return filepath.Join(root, ".posit", "assistant", "settings.json") },
 		DetectPaths: []string{".posit/assistant", ".positai"},
 		DocsURL:     "https://assistant.posit.co/docs/reference/mcp-servers/",
-		Note:        "Product-level file, NOT the IDE's settings.json. Entries use an argv command array and the \"environment\" env key." + remoteNotVerifiedNote,
+		Note:        "Product-level file, NOT the IDE's settings.json. Entries use an argv command array and the \"environment\" env key. Remote: a url member with a \"type\":\"remote\" discriminator; the vendor's SSE form is a separate \"transport\" key this writer cannot express, so sse stays refused.",
 	},
 	{
 		ID: "qoder", Name: "Qoder", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape: ShapeObject, TolerateComments: true,
+		Shape: ShapeStdioTyped, TolerateComments: true,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a "type"
+		// discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			if v := os.Getenv("QODER_CONFIG_DIR"); v != "" {
 				return filepath.Join(v, "settings.json")
@@ -638,33 +915,55 @@ var verifiedBridgeTargets = []BridgeTarget{
 			return filepath.Join(home, ".qoder", "settings.json")
 		},
 		ProjectPath: func(root string) string {
-			return firstExisting(filepath.Join(root, ".qoder", "settings.json"), filepath.Join(root, ".qoder", "settings.local.json"), filepath.Join(root, ".mcp.json"))
+			// The vendor states the override order is User → Project settings.json →
+			// Project .mcp.json → Local settings.local.json, so .mcp.json
+			// wins over the local file. The old order put settings.local.json
+			// first, and a project carrying both files shadowed the bridge entry.
+			return firstExisting(filepath.Join(root, ".qoder", "settings.json"), filepath.Join(root, ".mcp.json"), filepath.Join(root, ".qoder", "settings.local.json"))
 		},
 		DetectPaths:    []string{".qoder"},
 		DetectBinaries: []string{"qoder"},
 		DocsURL:        "https://docs.qoder.com/cli/mcp-servers",
-		Note:           "Targets the Qoder CLI. The Qoder IDE stores MCP separately and is not covered." + remoteNotVerifiedNote,
+		Note:           "Targets the Qoder CLI. The Qoder IDE stores MCP separately and is not covered. Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "qoder-cn", Name: "Qoder CN", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject, TolerateComments: true,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a "type"
+		// discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string {
 			if v := os.Getenv("QODERCN_CONFIG_DIR"); v != "" {
 				return filepath.Join(v, "settings.json")
 			}
 			return filepath.Join(home, ".qoder-cn", "settings.json")
 		},
-		ProjectPath:    func(root string) string { return filepath.Join(root, ".qoder", "settings.json") },
+		ProjectPath: func(root string) string {
+			// The same three project-side files as the qoder row, in the
+			// vendor's override order: settings.json, then .mcp.json, then
+			// the local file. The old row covered only settings.json, so a
+			// project that used .mcp.json had its bridge entry ignored.
+			return firstExisting(filepath.Join(root, ".qoder", "settings.json"), filepath.Join(root, ".mcp.json"), filepath.Join(root, ".qoder", "settings.local.json"))
+		},
 		DetectPaths:    []string{".qoder-cn"},
 		DetectBinaries: []string{"qodercn"},
 		DocsURL:        "https://docs.qoder.cn/cli/mcp-reference",
-		Note:           "Separate product. User dir .qoder-cn and env QODERCN_CONFIG_DIR (no underscore), but project paths still use .qoder." + remoteNotVerifiedNote,
+		Note:           "Separate product. User dir .qoder-cn and env QODERCN_CONFIG_DIR (no underscore), but project paths still use .qoder. Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "qwen-code", Name: "Qwen Code", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: the streamable-http endpoint
+		// lives in "httpUrl"; the legacy SSE form lives in "url", which is a DIFFERENT
+		// key, so only streamable-http is expressible with one URL key.
 		UserPath: func(home string) string {
 			// QWEN_HOME replaces ~/.qwen wholesale (vendor settings docs env
 			// table); appending another .qwen would write a directory it opens.
@@ -676,22 +975,45 @@ var verifiedBridgeTargets = []BridgeTarget{
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".qwen", "settings.json") },
 		DetectPaths:    []string{".qwen"},
 		DetectBinaries: []string{"qwen"},
-		DocsURL:        "https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/mcp.md",
-		Note:           "Forks the Gemini CLI layout. Remote HTTP uses \"httpUrl\"; \"url\" is legacy SSE only.",
+		DocsURL:        "https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/mcp.md", Remote: &RemoteEntrySpec{
+			// The transport is chosen by the KEY: "httpUrl" for streamable-http and
+			// "url" for the legacy SSE endpoint.
+			URLKey:     "httpUrl",
+			SSEURLKey:  "url",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
+
+		Note: "The transport is chosen by the key: httpUrl for streamable-http and url for the legacy SSE endpoint; there is no discriminator.",
 	},
 	{
 		ID: "ona", Name: "Ona", Format: FormatJSON,
-		ProjectKey:  []string{"mcpServers"},
-		Shape:       ShapeObject,
+		ProjectKey: []string{"mcpServers"},
+		Shape:      ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …, "headers": …} member
+		// with no type token; the vendor states a server cannot have both command and
+		// url.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			Transports: []string{TransportStreamableHTTP},
+		},
 		ProjectPath: func(root string) string { return filepath.Join(root, ".ona", "mcp-config.json") },
 		DetectPaths: []string{".ona"},
 		DocsURL:     "https://ona.com/docs/ona/mcp",
-		Note:        "Repo-local file only; Ona has no documented user-scope MCP config. A cloud platform, not a local CLI." + remoteNotVerifiedNote,
+		Note:        "Repo-local file only; Ona has no documented user-scope MCP config. A cloud platform, not a local CLI. Remote: a bare url member with headers (no type token).",
 	},
 	{
 		ID: "neovate", Name: "Neovate", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:    ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's repository (src/mcp.ts): a {"url": …}
+		// member and a "type" discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string { return filepath.Join(home, ".neovate", "config.json") },
 		ProjectPath: func(root string) string {
 			return firstExisting(filepath.Join(root, ".neovate", "config.json"), filepath.Join(root, ".neovate", "config.local.json"))
@@ -699,13 +1021,22 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths:    []string{".neovate"},
 		DetectBinaries: []string{"neovate"},
 		DocsURL:        "https://github.com/neovateai/neovate-code",
-		Note:           "Verified from the product's own source (src/config.ts, src/mcp.ts) rather than docs, which were unreachable. Entries discriminate on a \"type\" field." + remoteNotVerifiedNote,
+		Note:           "Verified from the product's own source (src/config.ts, src/mcp.ts) rather than docs, which were unreachable. Entries discriminate on a \"type\" field. Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "mux", Name: "Mux (Xum)", Format: FormatJSON,
 		UserKey: []string{"servers"}, ProjectKey: []string{"servers"},
 		Shape: ShapeCommandString, TolerateComments: true,
-		UserPath:    func(home string) string { return filepath.Join(home, ".xum", "mcp.jsonc") },
+		UserPath: func(home string) string {
+			// XUM_ROOT relocates the Xum home; the vendor states that both
+			// XUM_ROOT and MUX_ROOT resolve to the same configured path.
+			for _, v := range []string{"XUM_ROOT", "MUX_ROOT"} {
+				if root := strings.TrimSpace(os.Getenv(v)); root != "" {
+					return filepath.Join(root, "mcp.jsonc")
+				}
+			}
+			return filepath.Join(home, ".xum", "mcp.jsonc")
+		},
 		ProjectPath: func(root string) string { return filepath.Join(root, ".xum", "mcp.jsonc") },
 		DetectPaths: []string{".xum", ".mux"},
 		DocsURL:     "https://xum.coder.com/config/mcp-servers",
@@ -714,33 +1045,62 @@ var verifiedBridgeTargets = []BridgeTarget{
 	{
 		ID: "rovodev", Name: "Rovo Dev", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:          ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// "transport" discriminator whose values are "http" and "sse".
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "transport",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath:       func(home string) string { return filepath.Join(home, ".rovodev", "mcp.json") },
 		DetectPaths:    []string{".rovodev"},
 		DetectBinaries: []string{"acli"},
 		DocsURL:        "https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/",
-		Note:           "Clean single-file, single-key config. config.yml only points at this file and carries an allowlist we deliberately do not touch." + remoteNotVerifiedNote,
+		Note:           "Clean single-file, single-key config. config.yml only points at this file and carries an allowlist we deliberately do not touch. Remote: a url member with a \"transport\" discriminator (http / sse).",
 	},
 	{
 		ID: "tabnine-cli", Name: "Tabnine CLI", Format: FormatJSON,
 		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
-		Shape:    ShapeObject,
+		Shape: ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// "type" discriminator whose values are "http" and "sse"; the vendor says the
+		// type defaults to "http" when a url is set.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		UserPath: func(home string) string { return filepath.Join(home, ".tabnine", "agent", "settings.json") },
 		// The vendor documents a workspace settings file with the same shape.
 		ProjectPath:    func(root string) string { return filepath.Join(root, ".tabnine", "agent", "settings.json") },
 		DetectPaths:    []string{".tabnine"},
 		DetectBinaries: []string{"tabnine"},
 		DocsURL:        "https://docs.tabnine.com/main/getting-started/tabnine-agent/mcp-intro-and-setup/mcp-server-config",
-		Note:           "mcpServers lives inside a general settings document shared by many features, so only that key is touched. The product is in maintenance mode and deprecated after 2026-12-31." + remoteNotVerifiedNote,
+		Note:           "mcpServers lives inside a general settings document shared by many features, so only that key is touched. The product is in maintenance mode and deprecated after 2026-12-31. Remote: a url member with a \"type\" discriminator (http / sse).",
 	},
 	{
 		ID: "roo", Name: "Roo Code", Format: FormatJSON,
-		ProjectKey:  []string{"mcpServers"},
-		Shape:       ShapeObject,
+		ProjectKey: []string{"mcpServers"},
+		Shape:      ShapeObject,
+		// Remote shape read from this row's DocsURL: a {"url": …} member and a
+		// REQUIRED "type" discriminator whose values are "streamable-http" and "sse" —
+		// the vendor states that a url without a type is an immediate error for Roo.
+		Remote: &RemoteEntrySpec{
+			URLKey:     "url",
+			TypeKey:    "type",
+			TypeValue:  "streamable-http",
+			SSEValue:   "sse",
+			Transports: []string{TransportStreamableHTTP, TransportSSE},
+		},
 		ProjectPath: func(root string) string { return filepath.Join(root, ".roo", "mcp.json") },
 		DetectPaths: []string{".roo"},
 		DocsURL:     "https://docs.roocode.com/features/mcp/using-mcp-in-roo",
-		Note:        "Repo-scope only. The IDE stores user-scope servers under VS Code's globalStorage, whose absolute path the vendor docs never print, so we do not guess it." + remoteNotVerifiedNote,
+		Note:        "Repo-scope only. The IDE stores user-scope servers under VS Code's globalStorage, whose absolute path the vendor docs never print, so we do not guess it. Remote: a url member with a REQUIRED \"type\" discriminator (streamable-http / sse); a url without a type is an error in Roo.",
 	},
 }
 

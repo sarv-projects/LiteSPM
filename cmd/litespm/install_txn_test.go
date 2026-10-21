@@ -391,7 +391,8 @@ func TestInstallSkillStateFailureRollsBack(t *testing.T) {
 	dropLedgerTable(t, db)
 
 	_, err := installSkillFromListing(authorizedTestContext(), db, dataRoot, project, home,
-		listing, "1.0.0", domain.ScopeProject, []string{agent})
+		listing, "1.0.0", domain.ScopeProject, []string{agent},
+		skillPlanForTest(t, listing, domain.ScopeProject, project, home, []string{agent}))
 	if err == nil {
 		t.Fatal("expected the injected state failure to fail the install")
 	}
@@ -431,7 +432,8 @@ func TestInstallRemoveSkillIsSymmetric(t *testing.T) {
 	listing := skillListingFor("skill:example:demo-skill", "demo-skill", skillDir)
 
 	outcome, err := installSkillFromListing(authorizedTestContext(), db, dataRoot, project, home,
-		listing, "1.0.0", domain.ScopeProject, []string{agent})
+		listing, "1.0.0", domain.ScopeProject, []string{agent},
+		skillPlanForTest(t, listing, domain.ScopeProject, project, home, []string{agent}))
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}

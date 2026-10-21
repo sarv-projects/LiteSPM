@@ -1,5 +1,8 @@
 # Resolver & Installation Engine
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The catalog figures below
+> are dated measurements of the release they name.
+
 ## 1. Pure Dependency Resolver
 
 The dependency resolver (`internal/resolver`) is a pure, side-effect-free functional component. It reads cached catalog releases and produces an `InstallPlan` without performing disk writes or network calls.
@@ -57,8 +60,9 @@ authoritative one.
 ### 1.2 Version-less listings resolve to the release's implicit pin (2026-10-08)
 
 A listing that publishes no versions — `listing.Versions == []`, which was 5,811 of the 5,825
-listings in `rel-2026-10-07-01` and is **29,279 of 69,376** in the current release
-(`rel-2026-10-17-01`, probe 2026-10-19) — used to fail inside `Resolve` with `LPSM-RESOLVE-CONFLICT`
+listings in `rel-2026-10-07-01` and is **29,279 of 69,376** in the release cut of 2026-10-17
+(`rel-2026-10-17-01`, probe 2026-10-19; the 2026-10-21 re-cut carries the same 69,376 rows) —
+used to fail inside `Resolve` with `LPSM-RESOLVE-CONFLICT`
 ("no versions available in catalog"). Recommendation A2 changed the resolver contract as follows:
 
 *   **The pin is the release's existing implicit version**, `resolver.ImplicitVersion`

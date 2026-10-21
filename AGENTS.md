@@ -33,6 +33,7 @@ implementation.
 | `skills list` / `ls` | The ledger, filterable by `-g` and `-a <id>` |
 | `skills update [<name>...]` | Re-copies from each row's recorded source; no arguments updates everything. `-g`/`-p` scope, `-y` skips the scope prompt |
 | `skills remove` / `rm` | Ledger-scoped removal by name, by exact source, or `--all`; only directories the ledger names are ever deleted |
+| `skills adopt <name>` | Takes ownership of a skill that is **already** in an agent's skills tree — the one the agent's own package manager installed. It is **not** reinstalled, **not** rewritten, and **not** removed from the agent's package manager: only the ledger changes, so `skills list` shows it and `skills remove` can take it out. The tree is inventoried as it stands, so a file added afterwards still blocks a removal without `--force`. An adopted skill has no recorded source, so `skills update` refuses it rather than guessing one |
 | `litespm init [name]` | Scaffolds a `SKILL.md` that parses under the real loader |
 
 **Sources:** `owner/repo`, an `https` or `ssh`/`git@` git URL, a local directory, a GitHub/GitLab
@@ -62,13 +63,21 @@ marked `metadata.internal: true` is hidden and refused unless `INSTALL_INTERNAL_
 | Agent Host | Environment | Configuration Format | Default Config Path |
 |---|---|---|---|
 | **Cline** | VS Code Extension (plus the Cline CLI / JetBrains clients) | JSON (`cline_mcp_settings.json`) | **Current default (written):** `~/.cline/data/settings/cline_mcp_settings.json`, relocated by `CLINE_MCP_SETTINGS_PATH`, `CLINE_DATA_DIR` or `CLINE_DIR`. **Legacy (read-only fallback, probed last):** the VS Code `globalStorage` path — Windows `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\`, macOS `~/Library/Application Support/Code/User/globalStorage/…`, Linux `~/.config/Code/User/globalStorage/…` (plus `Code - Insiders`); current Cline reads it only in a one-shot migration (`internal/host/cline.go`) |
-| **Pi Agent** | Terminal Coding Agent (`pi`) | JSON (`mcp.json`) + TS Extension | `~/.pi/agent/mcp.json` (Windows `%USERPROFILE%\.pi\agent\mcp.json`), relocated by `PI_CODING_AGENT_DIR`; written under `mcpServers`, the only container Pi reads. Project `.pi/mcp.json` is host-documented but **not** scanned by the adapter, and the former `~/.pi/config.json` / `~/.pi/mcp.json` fallbacks were **removed** — no Pi release reads them (`internal/host/piagent.go`) |
-| **Grok Build** | Terminal / IDE (`grok`) [id: `grok-build`] | TOML (`config.toml`) | `$GROK_HOME/config.toml` (default `~/.grok/config.toml`; Windows `%USERPROFILE%\.grok\config.toml`). Project `.grok/config.toml` is host-documented but not scanned; `%APPDATA%\Grok\config.toml` was **removed** as a fallback (`internal/host/grokbuild.go`) |
+| **Pi Agent** | Terminal Coding Agent (`pi`) | JSON (`mcp.json`) + TS Extension | `~/.pi/agent/mcp.json` (Windows `%USERPROFILE%\.pi\agent\mcp.json`), relocated by `PI_CODING_AGENT_DIR`; written under `mcpServers`, the only container Pi reads. Project `.pi/mcp.json` **is** scanned and written (`internal/host/piagent.go`), and the former `~/.pi/config.json` / `~/.pi/mcp.json` fallbacks were **removed** — no Pi release reads them (`internal/host/piagent.go`) |
+| **Grok Build** | Terminal / IDE (`grok`) [id: `grok-build`] | TOML (`config.toml`) | `$GROK_HOME/config.toml` (default `~/.grok/config.toml`; Windows `%USERPROFILE%\.grok\config.toml`). Project `.grok/config.toml` **is** scanned and written (`internal/host/grokbuild.go`); `%APPDATA%\Grok\config.toml` was **removed** as a fallback (`internal/host/grokbuild.go`) |
 | **Claude Code** | Terminal CLI (`claude`) | JSON (`~/.claude.json`) | Unix: `~/.claude.json`<br>Windows: `%USERPROFILE%\.claude.json`<br>Project: `.mcp.json` in project root (local scope entry in `~/.claude.json`)<br>Host-side: `CLAUDE_CONFIG_DIR` overrides the config directory **for Claude Code itself**; LiteSPM's adapter does not read it (`ARCH/16` §3.4) |
-| **OpenAI Codex** | Terminal CLI (`codex`) | TOML (`config.toml`) | `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`; Windows `%USERPROFILE%\.codex\config.toml`) — the adapter **does** honour `$CODEX_HOME`. Project `.codex/config.toml` is host-documented but not scanned; `%APPDATA%\Codex\config.toml` was **removed** as a fallback (`internal/host/codex.go`) |
-| **OpenCode** | Open-source CLI (`opencode`) | JSON (`opencode.jsonc` preferred, else `opencode.json`) | `$OPENCODE_CONFIG_DIR/{opencode.jsonc,opencode.json}` when set, else `$XDG_CONFIG_HOME/opencode/` (default `~/.config/opencode/`), `.jsonc` first — on every OS, because OpenCode resolves the directory through xdg-basedir. Project scope and `%APPDATA%\OpenCode\opencode.json` are **not** read by any release and are no longer probed. One layout only: servers are direct members of `mcp` (`internal/host/opencode.go`) |
+| **OpenAI Codex** | Terminal CLI (`codex`) | TOML (`config.toml`) | `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`; Windows `%USERPROFILE%\.codex\config.toml`) — the adapter **does** honour `$CODEX_HOME`. Project `.codex/config.toml` **is** scanned and written (`internal/host/codex.go`); `%APPDATA%\Codex\config.toml` was **removed** as a fallback (`internal/host/codex.go`) |
+| **OpenCode** | Open-source CLI (`opencode`) | JSON (`opencode.jsonc` preferred, else `opencode.json`) | `$OPENCODE_CONFIG_DIR/{opencode.jsonc,opencode.json}` when set, else `$XDG_CONFIG_HOME/opencode/` (default `~/.config/opencode/`), `.jsonc` first — on every OS, because OpenCode resolves the directory through xdg-basedir. `%APPDATA%\OpenCode\opencode.json` is **not** read by any release and is no longer probed. **Two** layouts are handled: LiteSPM writes the documented v2 container `mcp.servers`, and it also reads the v1 flat `mcp.<name>` so nothing already configured is lost (`internal/host/opencode.go`) |
 
 > The six hosts above have hand-written adapters. Every other host is covered by the same data-driven registry, generated from each agent's documented configuration format: **50 MCP bridge targets** and **81 skill targets** in the current release, all listed by `litespm host list`. Adding a host is a registry entry, not a new code path — see [ARCH/30](ARCH/30-DATA-DRIVEN-BRIDGE-TARGETS.md).
+
+> **Remote (URL) entries.** A host can receive a remote MCP entry only when its vendor's own
+> documentation publishes the entry object. As of 2026-10-21, when every row's `DocsURL` was
+> re-fetched and the entry object re-read, **46 of the 50** hosts are remote-capable; the other
+> four — `codestudio`, `iflow-cli`, `mux` and `zcode` — are refused with
+> `LPSM-HOST-REMOTE-UNSUPPORTED` rather than written in a shape the host would ignore. A remote install is refused for a host whose vendor publishes no entry object —
+> and for a host that cannot express the requested transport, an explicit `--host` target fails
+> **by name** rather than being filtered out of the plan.
 
 ---
 
@@ -145,7 +154,7 @@ Once configured, simply launch your agent and type:
 ```
 
 ### UX Architecture: Portable Contract vs. Rich Host UI
-*   **Portable Text / MCP Contract:** For terminal CLI agents (`claude`, `codex`, `grok`, `opencode`), `/marketplace` exposes 12 Bridge tools. Those that resolve against the daemon today: `search_catalog`, `get_extension`, `prepare_install`, `list_installed`, `load_skill`, `read_skill_resource`, `search_capabilities`, `describe_capability`, `invoke_capability`. `request_install` reaches `install.execute`, which — behind the plan + human-approval gate in `cmd/litespm/install_authz.go` — **completes for skill listings** (real skill files through the skills ledger), **for MCP-server listings** (the server is registered in each target host's config) and **for plugin listings whose publisher ships a pinned git tree** (the tree is fetched at that commit, its manifest read, its declared servers registered and its skills copied into each target host's skills tree); a plugin with no fetchable source fails closed with the reason it cannot be installed. `get_invocation` and `cancel_invocation` answer from the invocation registry (`ARCH/34`): an id that was never issued is a typed `LPSM-INVOCATION-NOT-FOUND`, not a `-32601` stub.
+*   **Portable Text / MCP Contract:** For terminal CLI agents (`claude`, `codex`, `grok`, `opencode`), `/marketplace` exposes 13 Bridge tools. Those that resolve against the daemon today: `search_catalog`, `get_extension`, `prepare_install`, `list_installed`, `load_skill`, `read_skill_resource`, `search_capabilities`, `describe_capability`, `invoke_capability`, `adopt_capability`. `request_install` reaches `install.execute`, which — behind the plan + human-approval gate in `cmd/litespm/install_authz.go` — **completes for skill listings** (real skill files through the skills ledger), **for MCP-server listings** (the server is registered in each target host's config) and **for plugin listings whose publisher ships a pinned git tree** (the tree is fetched at that commit, its manifest read, its declared servers registered and its skills copied into each target host's skills tree); a plugin with no fetchable source fails closed with the reason it cannot be installed. `get_invocation` and `cancel_invocation` answer from the invocation registry (`ARCH/34`): an id that was never issued is a typed `LPSM-INVOCATION-NOT-FOUND`, not a `-32601` stub.
 *   **Rich Host Renderer:** In hosts supporting rich extension panels or terminal TUIs (e.g. Cline in VS Code or Pi Agent TUI), `/marketplace` opens the **LiteSPM Capability Panel** with 4 dedicated tabs:
 
 ```text
@@ -193,9 +202,15 @@ own config file. It does **not** assert runtime health:
     *   Detection is limited to documented on-disk config files known to the adapter.
     *   Pre-existing items are rendered with an `[External / Detected]` badge in **read-only mode**
         (no toggle controls).
-    *   **`Adopt` is not implemented.** The panel renders an `(Adopt)` label
-        (`internal/bridge/shim.go` `FormatInstalledPanel`), but no adopt handler or tool exists; bringing an
-        external tool under management is `DESIGNED` ([STATUS.md](STATUS.md) §5).
+    *   **Adoption is implemented, in the panel and on the CLI.** The panel renders an
+        `[External / Detected] (adopt with adopt_capability)` label (`internal/bridge/shim.go`
+        `FormatInstalledPanel`), and the `adopt_capability` Bridge tool takes ownership of a server
+        the user already had. The CLI has the same operation: `litespm adopt <name> --host <id>`
+        (`--scope project` with `--workspace` for a project's config) takes an MCP server that is
+        already in a host's configuration, and `litespm skills adopt <name>` takes a skill that is
+        already in an agent's skills tree. Every one of them records ownership **without writing a
+        byte to the host's configuration**, and every one of them is reversible — the removal
+        restores the node rather than deleting it, and keeps any edit made since.
 
 ---
 
@@ -216,14 +231,14 @@ own config file. It does **not** assert runtime health:
     3.  Pi uses its minimal token footprint to query LiteSPM only on demand.
 
 ### 4.3 Grok Build
-*   **How it works:** Host id is `grok-build`. LiteSPM injects the stdio bridge under `[mcp_servers.litespm]` in `$GROK_HOME/config.toml` (default `~/.grok/config.toml`; on native Windows `%USERPROFILE%\.grok\config.toml`). `%APPDATA%\Grok\config.toml` appears in no xAI documentation and was **removed** as a fallback; the host-documented project file `.grok/config.toml` is not scanned by the adapter (`internal/host/grokbuild.go`, `ARCH/16` §3).
+*   **How it works:** Host id is `grok-build`. LiteSPM injects the stdio bridge under `[mcp_servers.litespm]` in `$GROK_HOME/config.toml` (default `~/.grok/config.toml`; on native Windows `%USERPROFILE%\.grok\config.toml`). `%APPDATA%\Grok\config.toml` appears in no xAI documentation and was **removed** as a fallback; the host-documented project file `.grok/config.toml` **is** written (`internal/host/grokbuild.go`, `ARCH/16` §3).
 *   **Accessing in Grok Build:**
     1.  Launch `grok` in terminal.
     2.  Type `/marketplace` to open the capability browser.
     3.  Grok detects the companion command hook and loads selected tools directly into its execution loop.
 
 ### 4.4 OpenAI Codex
-*   **How it works:** LiteSPM injects the stdio bridge into `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`; native Windows `%USERPROFILE%\.codex\config.toml`) under `[mcp_servers.litespm]`. The adapter **does** honour `$CODEX_HOME`, and the `%APPDATA%\Codex\config.toml` fallback was **removed** — it appears in no OpenAI documentation (the documented Windows system path is the administrator-owned `%ProgramData%\OpenAI\Codex\config.toml`, which LiteSPM does not write). The host-documented project file `.codex/config.toml` is not scanned by the adapter (`internal/host/codex.go`, `ARCH/16` §3.5).
+*   **How it works:** LiteSPM injects the stdio bridge into `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`; native Windows `%USERPROFILE%\.codex\config.toml`) under `[mcp_servers.litespm]`. The adapter **does** honour `$CODEX_HOME`, and the `%APPDATA%\Codex\config.toml` fallback was **removed** — it appears in no OpenAI documentation (the documented Windows system path is the administrator-owned `%ProgramData%\OpenAI\Codex\config.toml`, which LiteSPM does not write). The host-documented project file `.codex/config.toml` **is** written (`internal/host/codex.go`, `ARCH/16` §3.5).
 *   **Accessing in Codex:** Launch `codex` and type `/marketplace` or use the registered companion skill.
 
 ### 4.5 OpenCode

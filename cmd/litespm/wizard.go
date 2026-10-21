@@ -798,10 +798,11 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		return nil
 	}
 
-	// Fail-closed invariant: the kind gate above admits only skill and mcp.
-	// Reaching the other branch means the two lists disagree; refusing beats
-	// proceeding into machinery that cannot finish.
-	if listing.Kind != domain.KindSkill && listing.Kind != domain.KindMCP {
+	// Fail-closed invariant: the kind gate above admits only the kinds that
+	// have an install path — skill, mcp and plugin. Reaching the other branch
+	// means the two lists disagree; refusing beats proceeding into machinery
+	// that cannot finish.
+	if listing.Kind != domain.KindSkill && listing.Kind != domain.KindMCP && listing.Kind != domain.KindPlugin {
 		fmt.Fprintf(w.out, "\nLiteSPM cannot install %s: kind %q is marked install-wired but no install path handles it.\n", listing.Name, listing.Kind)
 		fmt.Fprintln(w.out, "Nothing was changed.")
 		return nil
@@ -824,6 +825,21 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			return nil
 		}
 		mcpBinding = &mcpInstallBinding{Hosts: uniqueHostIDs(targetHosts), Runtime: runtime}
+	}
+
+	// A plugin is installed like an MCP server: the pinned tree is fetched,
+	// its manifest is read, the servers it declares are registered in the
+	// target hosts' configs and its skills are copied into their skills trees.
+	// It needs the same target set, and it has no runtime of its own — the
+	// launch lines come out of the manifest inside the pinned tree.
+	if listing.Kind == domain.KindPlugin {
+		targetHosts := host.RegisteredBridgeHosts(ctx, scope)
+		if len(targetHosts) == 0 {
+			fmt.Fprintln(w.out, "Cannot install a plugin yet: no agent has the LiteSPM bridge set up for this scope.")
+			fmt.Fprintln(w.out, "Choose [5] to set up an agent, or run: litespm host setup <host-id>")
+			return nil
+		}
+		mcpBinding = &mcpInstallBinding{Hosts: uniqueHostIDs(targetHosts)}
 	}
 
 	// The wizard resolves a skill's targets exactly as the CLI does — the
@@ -855,7 +871,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			return nil
 		}
 		outcome, ierr := installSkillFromListing(grantCtx, db, w.paths.DataRoot, projectRoot, home,
-			listing, versionOrLatest(""), scope, agents)
+			listing, versionOrLatest(""), scope, agents, grant.Plan)
 		if ierr != nil {
 			grant.refund(grantCtx, db)
 			fmt.Fprintf(w.out, "Install failed: %v\n", ierr)
@@ -866,6 +882,74 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		for _, dest := range outcome.Destinations {
 			fmt.Fprintf(w.out, "  • Written to: %s\n", dest)
 		}
+		return nil
+	}
+
+	// A plugin installs through the same plan, approval and transaction as
+	// every other kind. A plugin that declares components this build has no
+	// adapter for (commands, hooks, subagents, LSP servers) is a CONSENT
+	// question rather than a failure: the artifact was found and the hosts
+	// can take it, but part of what the plugin declares would be lost. The
+	// refusal names the classes, so the person can decide with the list in
+	// front of them. The acknowledgement is sealed into a NEW plan, because
+	// the plan hash is what the approval covers.
+	if listing.Kind == domain.KindPlugin {
+		pluginBinding, berr := pluginInstallBindingFromPlan(grantCtx, grant.Plan, listing, scope)
+		if berr != nil {
+			grant.refund(grantCtx, db)
+			fmt.Fprintf(w.out, "Install failed: %v\n", berr)
+			fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
+			return nil
+		}
+		outcome, ierr := installPluginFromListing(grantCtx, db, w.paths.DataRoot, listing, grant.Version, scope, projectRoot, pluginBinding)
+		if ierr != nil {
+			if domain.ErrorCode(ierr) == "LPSM-INSTALL-PARTIAL" {
+				grant.refund(grantCtx, db)
+				fmt.Fprintf(w.out, "\n%s\n", ierr)
+				fmt.Fprint(w.out, "Install the parts LiteSPM can install, and leave the rest out? [y/N]: ")
+				answer, aerr := w.readLine()
+				if aerr != nil {
+					return aerr
+				}
+				if !isAffirmative(answer) {
+					fmt.Fprintln(w.out, "Not installed. Nothing was changed.")
+					return nil
+				}
+				// Re-plan with the acknowledgement sealed in, and get a
+				// fresh approval for that plan.
+				partialBinding := &mcpInstallBinding{
+					Hosts:        uniqueHostIDs(host.RegisteredBridgeHosts(ctx, scope)),
+					AllowPartial: true,
+				}
+				partialGrant, _, perr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, partialBinding, nil)
+				if perr != nil {
+					fmt.Fprintf(w.out, "Install refused before anything was changed: %v\n", perr)
+					return nil
+				}
+				partialCtx := partialGrant.context(ctx)
+				partialPlan, pberr := pluginInstallBindingFromPlan(partialCtx, partialGrant.Plan, listing, scope)
+				if pberr != nil {
+					partialGrant.refund(partialCtx, db)
+					fmt.Fprintf(w.out, "Install failed: %v\n", pberr)
+					fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
+					return nil
+				}
+				outcome, ierr = installPluginFromListing(partialCtx, db, w.paths.DataRoot, listing, partialGrant.Version, scope, projectRoot, partialPlan)
+				if ierr != nil {
+					partialGrant.refund(partialCtx, db)
+					fmt.Fprintf(w.out, "Install failed: %v\n", ierr)
+					fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
+					return nil
+				}
+				printPluginInstallTo(w.out, outcome)
+				return nil
+			}
+			grant.refund(grantCtx, db)
+			fmt.Fprintf(w.out, "Install failed: %v\n", ierr)
+			fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
+			return nil
+		}
+		printPluginInstallTo(w.out, outcome)
 		return nil
 	}
 

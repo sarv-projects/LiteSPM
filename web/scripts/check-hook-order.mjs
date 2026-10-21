@@ -31,7 +31,14 @@ import ts from "typescript";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootArg = process.argv.indexOf("--root");
 const webRoot = rootArg === -1 ? path.dirname(here) : path.resolve(process.argv[rootArg + 1]);
-const SCAN = [path.join(webRoot, "app"), path.join(webRoot, "components")];
+// lib/ holds real hooks too (useCatalogSearch, useInView, usePlatformOs), and a
+// hook after an early return is the same bug wherever it lives. The gate used
+// to scan only app/ and components/, so a hook-order bug in lib/ shipped.
+const SCAN = [
+  path.join(webRoot, "app"),
+  path.join(webRoot, "components"),
+  path.join(webRoot, "lib"),
+];
 
 /** A Hook is an identifier call whose name is `use` followed by a capital, or
  *  `use` alone — React's own convention, and the one this codebase follows. */

@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = SCRIPTS_DIR.parent / "data"
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from core import AVAILABLE_STACKS, STACK_CONFIG  # noqa: E402
@@ -415,6 +416,54 @@ class TestGeneratedCatalogContract(unittest.TestCase):
             problems,
         )
         self.assertTrue(any("stale count for googleFonts" in problem for problem in problems))
+
+
+class TestRelevanceFixtureContract(unittest.TestCase):
+    """The committed relevance fixtures, checked against the contract upstream enforces.
+
+    The upstream evaluator (scripts/evaluate-relevance.py and the
+    scripts/relevance_metrics.py it imports) is not vendored, so its own unit
+    tests skip in this checkout. The fixtures it reads are vendored, and these
+    assertions are the part of its contract that needs no evaluator: the case
+    list, the baseline that scores it and the threshold gate that binds the two
+    must agree with each other.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.fixture = json.loads(
+            (FIXTURES_DIR / "relevance-cases.json").read_text(encoding="utf-8"))
+        cls.baseline = json.loads(
+            (FIXTURES_DIR / "relevance-baseline.json").read_text(encoding="utf-8"))
+        cls.thresholds = json.loads(
+            (FIXTURES_DIR / "relevance-thresholds.json").read_text(encoding="utf-8"))
+
+    def test_committed_fixture_satisfies_the_case_contract(self):
+        self.assertEqual(self.fixture["schemaVersion"], 1)
+        cases = self.fixture["cases"]
+        self.assertTrue(60 <= len(cases) <= 100, "the fixture must carry 60-100 cases")
+        seen = set()
+        for case in cases:
+            case_id = case.get("id", "<missing>")
+            self.assertNotIn(case_id, seen, f"duplicate case id: {case_id}")
+            seen.add(case_id)
+            self.assertIn(case.get("split"), {"calibration", "held_out"})
+            self.assertIn(case.get("mode"), {"domain", "stack", "auto", "design-system"})
+            for judgment in case.get("judgments", []):
+                self.assertIn(judgment.get("grade"), {1, 2})
+                self.assertTrue(judgment.get("identity"))
+
+    def test_committed_baseline_covers_the_committed_fixture(self):
+        fixture_ids = [case["id"] for case in self.fixture["cases"]]
+        baseline_ids = [case["id"] for case in self.baseline["cases"]]
+        self.assertEqual(baseline_ids, fixture_ids)
+
+    def test_committed_gate_binds_the_committed_baseline(self):
+        self.assertEqual(self.thresholds["oracleFingerprint"], self.baseline["oracleFingerprint"])
+        self.assertEqual(self.thresholds["baselineRevision"], self.fixture["fixtureRevision"])
+        self.assertRegex(self.thresholds["baselineRevision"], r"^[0-9a-f]{7,40}$")
+        self.assertIn(self.thresholds["status"],
+                      {"provisional-baseline-regression-gate", "approved"})
 
 
 if __name__ == "__main__":

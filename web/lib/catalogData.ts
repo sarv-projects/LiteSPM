@@ -435,6 +435,37 @@ export function fetchSourceSiblings(source: string | null | undefined): Promise<
 }
 
 /**
+ * The row the edge Worker resolved and handed to this page, if any.
+ *
+ * The Worker fetches the bucket and resolves the entry before it serves the
+ * shell, so it already has the row. It travels with the page in a
+ * `#litespm-entry` JSON script tag, and the view reads it synchronously
+ * instead of fetching the same ~170-450 KB bucket a second time.
+ *
+ * Without this, a reader who clicked a product link watched the generic
+ * "Find a package" view for the length of that round trip before the entry
+ * appeared — the flash the live-browser audit reported as "the link opens the
+ * wrong page".
+ *
+ * Returns null when there is no such tag: a pre-rendered page has its row as
+ * a prop, and a page served without the Worker has neither, so the bucket
+ * fetch still happens and the view still resolves.
+ */
+export function readInlineEntry(): Listing | null {
+  if (typeof document === "undefined") return null;
+  const node = document.getElementById("litespm-entry");
+  if (!node || !node.textContent) return null;
+  try {
+    const parsed = JSON.parse(node.textContent) as Listing;
+    return parsed && typeof parsed.id === "string" ? parsed : null;
+  } catch {
+    // A malformed payload is not a reason to break the page: the bucket
+    // fetch below still resolves the entry.
+    return null;
+  }
+}
+
+/**
  * Row-set state for a product page. Mirrors `useCatalog`'s status contract so
  * the view keeps its existing three honest states (index shell, fetch failed,
  * key absent) without change.

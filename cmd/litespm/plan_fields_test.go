@@ -554,7 +554,7 @@ func TestBuildInstallPlanFiltersIncapableHostsForRemoteRuntime(t *testing.T) {
 	pinHostScanHome(t)
 	client, listing := remotePlanClient(t)
 	binding := &mcpInstallBinding{
-		Hosts:   []string{"claude-code", "gemini-cli", "codex", "amp"},
+		Hosts:   []string{"claude-code", "iflow-cli", "codex", "zcode"},
 		Runtime: remoteRuntime(),
 	}
 	plan, drops, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
@@ -565,8 +565,8 @@ func TestBuildInstallPlanFiltersIncapableHostsForRemoteRuntime(t *testing.T) {
 	if got, want := hostChangeIDs(plan), []string{"claude-code", "codex"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("plan targets = %v, want exactly the capable hosts %v", got, want)
 	}
-	if len(drops) != 2 || drops[0].HostID != "gemini-cli" || drops[1].HostID != "amp" {
-		t.Fatalf("drops = %+v, want gemini-cli then amp", drops)
+	if len(drops) != 2 || drops[0].HostID != "iflow-cli" || drops[1].HostID != "zcode" {
+		t.Fatalf("drops = %+v, want iflow-cli then zcode", drops)
 	}
 	for _, d := range drops {
 		if !strings.Contains(d.Reason, "LPSM-HOST-REMOTE-UNSUPPORTED") {
@@ -613,7 +613,7 @@ func TestBuildInstallPlanExplicitHostFailsByName(t *testing.T) {
 	pinHostScanHome(t)
 	client, listing := remotePlanClient(t)
 	binding := &mcpInstallBinding{
-		Hosts:         []string{"gemini-cli"},
+		Hosts:         []string{"iflow-cli"},
 		Runtime:       remoteRuntime(),
 		ExplicitHosts: true,
 	}
@@ -628,7 +628,7 @@ func TestBuildInstallPlanExplicitHostFailsByName(t *testing.T) {
 	if !strings.Contains(rpcErr.Message, "LPSM-INSTALL-TARGET-UNAVAILABLE") {
 		t.Errorf("message must carry the typed target error: %s", rpcErr.Message)
 	}
-	if !strings.Contains(rpcErr.Message, "gemini-cli") {
+	if !strings.Contains(rpcErr.Message, "iflow-cli") {
 		t.Errorf("the refusal must name the host the user asked for: %s", rpcErr.Message)
 	}
 	if !strings.Contains(rpcErr.Message, "LPSM-HOST-REMOTE-UNSUPPORTED") {
@@ -646,7 +646,7 @@ func TestBuildInstallPlanAllIncapableHostsFailWithCapabilityReason(t *testing.T)
 	pinHostScanHome(t)
 	client, listing := remotePlanClient(t)
 	binding := &mcpInstallBinding{
-		Hosts:   []string{"gemini-cli", "amp"},
+		Hosts:   []string{"iflow-cli", "zcode"},
 		Runtime: remoteRuntime(),
 	}
 	plan, _, rpcErr := buildInstallPlan(context.Background(), client, listing.ID, "1.0.0",
@@ -661,8 +661,8 @@ func TestBuildInstallPlanAllIncapableHostsFailWithCapabilityReason(t *testing.T)
 		"LPSM-INSTALL-TARGET-UNAVAILABLE",
 		"none of the configured agent hosts",
 		"streamable-http",
-		"gemini-cli",
-		"amp",
+		"iflow-cli",
+		"zcode",
 		"LPSM-HOST-REMOTE-UNSUPPORTED",
 	} {
 		if !strings.Contains(rpcErr.Message, want) {

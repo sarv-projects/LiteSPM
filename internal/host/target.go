@@ -51,6 +51,15 @@ const (
 	// ShapeCommandString maps a server name straight to one stdio command
 	// line, with no wrapper object (Xum/Mux).
 	ShapeCommandString EntryShape = "command-string"
+	// ShapeLocalTypedString is {"type": "local", "command": "<bin>",
+	// "args": [...]} — the local discriminator is "local", NOT "stdio", and
+	// the command is a string with a separate args array (not a combined argv
+	// array). GitHub Copilot CLI documents exactly this object.
+	ShapeLocalTypedString EntryShape = "local-typed-string"
+	// ShapeTransportString is {"transport": "stdio", "command": "<bin>",
+	// "args": [...]} — the discriminator key is "transport", not "type".
+	// Command Code documents this object (and accepts "type" as an alias).
+	ShapeTransportString EntryShape = "transport-string"
 )
 
 // The registry vocabulary for a remote (URL) MCP entry's transport. Host
@@ -116,11 +125,24 @@ func RegistryRemoteTransport(hostTransport string) string {
 type RemoteEntrySpec struct {
 	// URLKey is the key holding the endpoint: "url", "serverUrl", "httpUrl".
 	URLKey string
+	// SSEURLKey is the key holding the endpoint for the SSE transport, when
+	// the host uses a DIFFERENT key per transport.
+	//
+	// Gemini CLI and Qwen Code both do: the streamable-http endpoint is
+	// "httpUrl" and the legacy SSE endpoint is "url" — the transport is
+	// chosen by which key is present, not by a discriminator value. A spec
+	// with one URLKey could not express that, and guessing one of the two
+	// would write an entry the host does not read.
+	SSEURLKey string
 	// TypeKey is the discriminator key ("" when the host infers the transport
 	// from the URL alone).
 	TypeKey string
 	// TypeValue is the value written for streamable-http ("http",
 	// "streamableHttp", "remote", …). Only meaningful when TypeKey is set.
+	//
+	// It is EMPTY when the discriminator is OMITTED for that transport: Kimi
+	// Code's HTTP entry is a bare {"url": …} and only its SSE entry carries
+	// {"transport":"sse", …}.
 	TypeValue string
 	// SSEValue is the value written for the sse discriminator, and only makes
 	// sense when TypeKey is set. A bare-URL host (no discriminator) infers the
@@ -162,6 +184,20 @@ type BridgeTarget struct {
 	// ProjectPath resolves the repo-local config file. May be nil for hosts
 	// that only accept user-scope configuration.
 	ProjectPath func(root string) string
+	// AltUserPaths are ADDITIONAL user-scope locations the vendor
+	// documents, tried when UserPath does not exist.
+	//
+	// Some hosts read more than one file: Deep Agents reads the user's
+	// ~/.deepagents/.mcp.json AND the shared ~/.agents/mcp.json. One path
+	// cannot express that, so the alternatives are listed here and the
+	// first that EXISTS is the file LiteSPM reads and writes. A host that
+	// MERGES several files at once is recorded in its Note rather than
+	// pretended to here.
+	AltUserPaths []func(home string) string
+	// AltProjectPaths are ADDITIONAL project-scope locations the vendor
+	// documents, tried when ProjectPath does not exist (Devin's local-scope
+	// .devin/mcp_config.local.json is the documented case).
+	AltProjectPaths []func(root string) string
 
 	// Format selects the JSON or TOML writer.
 	Format ConfigFormat

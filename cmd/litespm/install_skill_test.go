@@ -64,7 +64,8 @@ func TestInstallSkillFromListingLocal(t *testing.T) {
 
 	listing := skillListingFor("skill:example:demo-skill", "demo-skill", skillDir)
 	outcome, err := installSkillFromListing(authorizedTestContext(), db, dataRoot, project, home,
-		listing, "1.0.0", domain.ScopeProject, []string{agent})
+		listing, "1.0.0", domain.ScopeProject, []string{agent},
+		skillPlanForTest(t, listing, domain.ScopeProject, project, home, []string{agent}))
 	if err != nil {
 		t.Fatalf("install: %v", err)
 	}
@@ -210,8 +211,10 @@ func TestInstallSkillFromListingFailsClosed(t *testing.T) {
 			if tc.listing.Source.URL == "" {
 				tc.listing.Source.URL = source
 			}
+			project, home := t.TempDir(), t.TempDir()
 			_, err := installSkillFromListing(authorizedTestContext(), openTestState(t), t.TempDir(),
-				t.TempDir(), t.TempDir(), tc.listing, "1.0.0", domain.ScopeProject, []string{"codex"})
+				project, home, tc.listing, "1.0.0", domain.ScopeProject, []string{"codex"},
+				skillPlanForTest(t, tc.listing, domain.ScopeProject, project, home, []string{"codex"}))
 			if err == nil {
 				t.Fatal("expected a failure")
 			}

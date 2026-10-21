@@ -5,9 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). Each release section is the
+> record of what that release shipped; a figure in it is scoped to that revision unless the entry
+> says otherwise.
+
 ## [Unreleased]
 
-Nothing yet.
+Twenty-four defects fixed across the CLI, the host adapters, the site and the
+vendored skill library, and every agent host re-verified against its vendor's
+live documentation.
+
+### Fixed
+
+- **Data loss:** `litespm restore <adoptId>` deleted the user's whole host
+  configuration file. An adoption records no backup path, and the restore
+  planner read that empty path as "the install created this file" and removed
+  it. `internal/deployment.IsAdoption` existed but was called nowhere.
+- **Fail-open:** the skill install re-read its plan from the database and
+  skipped the sealed-root check when the read failed, so a relocated
+  `CODEX_HOME` between approval and execution redirected the copy. The plan is
+  now handed over with the approval, and a missing plan is a refusal.
+- **Secret leak:** the OAuth broker embedded the token endpoint's response
+  body in its error, so a provider that echoed the authorization code put it
+  in the CLI output and in every log that recorded the failure.
+- **Code injection:** the dangerous-environment denylist omitted
+  `NODE_OPTIONS`, `PYTHONSTARTUP`, `PYTHONPATH`, `RUBYOPT`, `PERL5OPT` and
+  `GIT_SSH_COMMAND` — `NODE_OPTIONS=--require` executes code in the launched
+  child.
+- **SSRF:** the self-updater used a bare `http.Client` and the CLI used
+  `http.DefaultClient`, so an https-to-http redirect was followed and
+  `HTTP_PROXY` was honoured. Both now use the shared `internal/egress` guard.
+- **Scheme bypass:** the remote-runtime planner compared a URL PREFIX, so
+  `http://localhost.evil.example` passed a guard that exists to refuse
+  plaintext.
+- **Archive integrity:** the extractor wrote at most the declared size and
+  never compared it with what the archive produced, so a truncated entry was
+  written short and the tree digest recorded the corruption as the truth.
+- **Non-atomic discovery:** a failed probe left a provider row and a partial
+  tool set behind. The rows now land in one transaction.
+- **Ledger durability:** the skills ledger was written without an fsync and an
+  empty ledger was read as "nothing installed".
+- **Stale pre-image:** `skills update` inherited the previous row's pre-image
+  and named a backup that had already been deleted.
+- **Cross-device rollback:** the copy command's restore used a rename between
+  the data root and the agent tree, which fails with `EXDEV` after the
+  destination was already removed.
+- **Panic:** the MCP outcome printer indexed an empty spec list.
+- **Blind approval:** the plugin approval prompt printed no runtime line, and
+  the wizard refused every plugin the CLI installs.
+
+### Added
+
+- `litespm skills adopt <name>` takes ownership of a skill the agent's own
+  package manager installed — not reinstalled, not rewritten, and not removed
+  from the agent's package manager.
+- `litespm adopt <name> --host <id>` accepts `--scope project` with
+  `--workspace`, so a server in a project's configuration can be adopted.
+- The `adopt_capability` Bridge tool (the thirteenth) makes the panel's
+  adoption label real: an agent can take ownership of a server the user
+  already had, and the daemon's `adopt.execute` handler records it without
+  writing a byte to the host's configuration.
+- `scripts/check_site_links.py` fails a build whose product links name a key
+  the bundle's own data does not have, and runs before every publish.
+
+### Changed
+
+- **Every agent host re-verified** against its vendor's live documentation:
+  all 50 rows' configuration paths, container keys, entry shapes and remote
+  entry objects were re-read. **46 of the 50 hosts can now receive a remote
+  (URL) MCP entry, up from 8.** Seven hosts were being written where the host
+  never reads (Cline, forgecode, kiro-cli, qoder, qoder-cn, opencode, mux),
+  four wrote an entry shape the vendor does not document, and three now
+  express the transport their vendor chooses by key rather than by value.
+- The edge Worker hands the row it already resolved to the client, so a
+  product page no longer shows the generic "Find a package" view while the
+  reader waits for a second fetch of the same data.
+- The site's hook-order, contrast and settled-count gates now cover `lib/`,
+  the explicit dark theme and the third counted component.
+- Ten dead `lib/` exports and three unused runtime dependencies removed.
 
 ## [0.6.0] - 2026-10-21
 
@@ -428,7 +503,10 @@ publish to GitHub while quietly skipping npm.
   — the real bundle passes the default headroom today, so an over-limit fixture is the only way to
   cover that branch.
 
-- **The tree is gofmt/vet clean and `go test ./...` is 43/43** (also under `-race`).
+- **The tree is gofmt/vet clean and `go test ./...` is 43/43** (also under `-race`) — *the package
+  count at that revision. The tree now holds **44 `internal/` packages** (`go list ./internal/...` →
+  44; `go list ./...` → 46, adding `cmd/litespm` and `test/`), so this figure is revision-scoped and
+  is not a statement about the current tree.*
 
 - **The published site told users to install skills with the competitor's CLI.** Three catalog rows
   (`skill:anthropics:academy-guide`, `:claude-api`, `:discernment-nudge`) carried

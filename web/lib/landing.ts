@@ -240,8 +240,6 @@ export function rowWorksWithAgent(item: Listing, choice: AgentChoice | null): bo
 
 export { SOURCE_LABELS, sourceLabel } from "./catalog";
 
-/** The source id the Official MCP Registry rows carry. */
-export const MCP_REGISTRY_SOURCE = "builtin:mcp-registry";
 
 /* ------------------------------------------------------------------ *
  * The curated shelf - an editorial list of installable entries

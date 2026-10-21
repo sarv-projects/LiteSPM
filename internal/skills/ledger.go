@@ -53,6 +53,16 @@ import (
 // The provenance fields are optional and backwards compatible: ledgers written
 // before they existed still load with zero values, and entries produced by the
 // pre-provenance CLI remain removable via the legacy checks.
+// AdoptedSource is the source label recorded for a skill LiteSPM took
+// ownership of but did not install.
+//
+// It is deliberately not a usable source: an adopted skill came from the
+// agent's own package manager, a private repository, or a human, and LiteSPM
+// does not know which. Re-copying from a guessed source would replace a
+// working skill with a guess, so `skills update` refuses an adopted row
+// instead.
+const AdoptedSource = "adopted"
+
 type LedgerEntry struct {
 	SkillName   string    `json:"skillName"`
 	AgentID     string    `json:"agentId,omitempty"`
@@ -209,11 +219,33 @@ func (l *Ledger) write(entries []LedgerEntry) error {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("writing skills ledger: %w", err)
 	}
+	// Flush the file's CONTENTS before it is renamed into place. Without the
+	// fsync, a power loss can leave the renamed file empty — and an empty
+	// ledger is read as "nothing is installed", not as a failure. Every
+	// installed skill would then be unremovable and un-updatable, silently.
+	// internal/fslock publishes its lock file the same way for the same
+	// reason.
+	if err := f.Sync(); err != nil {
+		f.Close()
+		_ = os.Remove(tmp)
+		return fmt.Errorf("flushing skills ledger: %w", err)
+	}
 	if err := f.Close(); err != nil {
 		_ = os.Remove(tmp)
 		return err
 	}
-	return os.Rename(tmp, l.path)
+	if err := os.Rename(tmp, l.path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	// Flush the DIRECTORY too, so the rename itself is durable. Without it
+	// the rename can be lost on a crash, leaving the old ledger in place —
+	// which, combined with the new file, is the worst of both.
+	if d, derr := os.Open(dir); derr == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+	return nil
 }
 
 // Add records newly created directories. Entries with a destination already in

@@ -491,7 +491,10 @@ func planSkillItem(plan *CopyPlan, tgt *TargetCaps, s SourceSkill, strategy stri
 		// Copy never deletes a tree LiteSPM did not create: an unmanaged
 		// target directory can be replaced only by the user, so the strategy
 		// cannot be honored and the row says so instead of half-doing it.
-		c.Resolution = StrategyUseSource
+		// The resolution is "refused", not the requested strategy: the plan
+		// must not report a force-overwrite key for a tree it did not
+		// overwrite.
+		c.Resolution = StrategyRefused
 		plan.Conflicts = append(plan.Conflicts, c)
 		item.Action = ActionSkipped
 		item.Reason = "conflict: use-source refused — the target skill directory was not created by LiteSPM, so copy will not overwrite it"

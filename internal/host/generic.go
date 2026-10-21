@@ -59,10 +59,21 @@ func (a *GenericAdapter) DetectConfig(ctx context.Context, scope domain.InstallS
 		if err != nil {
 			return "", err
 		}
-		return a.Target.ProjectPath(root), nil
+		// The additional documented locations are tried when the primary
+		// does not exist, so a host that keeps its config in one of two
+		// places is still found.
+		candidates := []string{a.Target.ProjectPath(root)}
+		for _, alt := range a.Target.AltProjectPaths {
+			candidates = append(candidates, alt(root))
+		}
+		return firstExisting(candidates...), nil
 	}
 	if a.Target.UserPath != nil {
-		return a.Target.UserPath(home), nil
+		candidates := []string{a.Target.UserPath(home)}
+		for _, alt := range a.Target.AltUserPaths {
+			candidates = append(candidates, alt(home))
+		}
+		return firstExisting(candidates...), nil
 	}
 	if a.Target.ProjectPath != nil {
 		root, err := os.Getwd()

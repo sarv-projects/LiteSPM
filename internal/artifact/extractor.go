@@ -432,6 +432,33 @@ func writeBoundedFile(r io.Reader, targetPath string, expectedSize int64, maxSin
 		return domain.ErrArchiveSlip(fmt.Sprintf("file %s exceeded single file limit during extraction", targetPath))
 	}
 
+	// The archive declared how many bytes this entry holds. Write what the
+	// archive actually produced and COMPARE.
+	//
+	// A zip entry whose declared UncompressedSize64 is smaller than its real
+	// content used to be written TRUNCATED and accepted: the reader was
+	// capped at declaredSize+1, the extra byte was never noticed, and the
+	// tree digest then covered the truncated bytes. The install succeeded
+	// with a silently corrupt file, and the digest recorded that corruption
+	// as the truth.
+	//
+	// So the size is now checked in BOTH directions: fewer bytes than
+	// declared means the archive is lying about its entry, and more bytes
+	// than declared means the entry was truncated. Neither is a file to
+	// install.
+	if expectedSize >= 0 && written != expectedSize {
+		_ = out.Truncate(0)
+		_ = os.Remove(targetPath)
+		if written < expectedSize {
+			return domain.ErrArchiveSlip(fmt.Sprintf(
+				"archive entry %s declares %d bytes but produced %d; the archive is inconsistent with itself",
+				filepath.Base(targetPath), expectedSize, written))
+		}
+		return domain.ErrArchiveSlip(fmt.Sprintf(
+			"archive entry %s declares %d bytes but produced more; it was truncated rather than installed",
+			filepath.Base(targetPath), expectedSize))
+	}
+
 	return nil
 }
 

@@ -120,8 +120,11 @@ func TestBridge_InitializeAndListTools(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(listResult.Tools) != 12 {
-		t.Errorf("expected exactly 12 canonical tools, got %d", len(listResult.Tools))
+	// Twelve tools plus adopt_capability: the panel's (Adopt) label now has
+	// a tool behind it, so an agent can take ownership of a server the user
+	// already had.
+	if len(listResult.Tools) != 13 {
+		t.Errorf("expected exactly 13 canonical tools, got %d", len(listResult.Tools))
 	}
 
 	toolMap := make(map[string]bool)

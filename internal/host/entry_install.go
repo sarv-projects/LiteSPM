@@ -386,6 +386,21 @@ func remoteTypeValue(hostID string, spec *RemoteEntrySpec, transport string) (st
 	}
 }
 
+// remoteURLKey returns the key that holds the endpoint for one transport.
+//
+// A host that uses a different key per transport (Gemini CLI and Qwen Code
+// both do: "httpUrl" for streamable-http, "url" for the legacy SSE endpoint)
+// says so here; every other host uses the one key.
+func remoteURLKey(spec *RemoteEntrySpec, transport string) string {
+	if spec == nil {
+		return ""
+	}
+	if normalizeRemoteTransport(transport) == TransportSSE && spec.SSEURLKey != "" {
+		return spec.SSEURLKey
+	}
+	return spec.URLKey
+}
+
 // entryValue renders the entry in the host's own shape.
 //
 // A remote entry renders ONLY the URL key plus its discriminator — never
@@ -400,8 +415,17 @@ func (s entrySpec) entryValue(e ServerEntry) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		out := map[string]any{s.Remote.URLKey: e.Endpoint}
-		if s.Remote.TypeKey != "" {
+		urlKey := remoteURLKey(s.Remote, e.Transport)
+		if urlKey == "" {
+			return nil, fmt.Errorf("%s: host %q records no url key for transport %q; refusing to write a remote entry without one",
+				RemoteUnsupportedCode, s.HostID, e.Transport)
+		}
+		out := map[string]any{urlKey: e.Endpoint}
+		// The discriminator is written only when this transport has one. A
+		// host that omits it for the HTTP form (Kimi Code) must not be given
+		// one it never documented — and a host that requires it (Claude Code)
+		// must never be given a bare url, which it skips as a config error.
+		if s.Remote.TypeKey != "" && typeValue != "" {
 			out[s.Remote.TypeKey] = typeValue
 		}
 		return out, nil
@@ -414,6 +438,17 @@ func (s entrySpec) entryValue(e ServerEntry) (any, error) {
 		return out, nil
 	case ShapeStdioTyped:
 		out := map[string]any{"type": "stdio", "command": e.Command, "args": e.Args}
+		s.addEnvFields(out, e)
+		return out, nil
+	case ShapeLocalTypedString:
+		// The discriminator is "local", and the command is a string with a
+		// separate args array.
+		out := map[string]any{"type": "local", "command": e.Command, "args": e.Args}
+		s.addEnvFields(out, e)
+		return out, nil
+	case ShapeTransportString:
+		// The discriminator key is "transport", not "type".
+		out := map[string]any{"transport": "stdio", "command": e.Command, "args": e.Args}
 		s.addEnvFields(out, e)
 		return out, nil
 	case ShapeCommandString:

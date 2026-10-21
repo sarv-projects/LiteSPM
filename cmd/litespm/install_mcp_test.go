@@ -428,11 +428,11 @@ func TestInstallMCPFromListingRefusesIncapableRemoteHost(t *testing.T) {
 	}
 	_, err = installMCPFromListing(authorizedTestContext(), db, t.TempDir(),
 		mcpListing("mcp:example:demo-mcp", "demo-mcp"), "1.0.0", domain.ScopeUser, "",
-		[]string{"claude-code", "gemini-cli"}, false, remoteRuntime(), nil)
+		[]string{"claude-code", "zcode"}, false, remoteRuntime(), nil)
 	if domain.ErrorCode(err) != "LPSM-INSTALL-TARGET-UNAVAILABLE" {
 		t.Fatalf("err = %v, want LPSM-INSTALL-TARGET-UNAVAILABLE", err)
 	}
-	for _, want := range []string{"gemini-cli", "LPSM-HOST-REMOTE-UNSUPPORTED"} {
+	for _, want := range []string{"zcode", "LPSM-HOST-REMOTE-UNSUPPORTED"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("refusal is missing %q: %v", want, err)
 		}

@@ -64,6 +64,15 @@ function readPalette(css) {
   if (darkStart === -1) fail("app/globals.css has no dark-theme block");
   const dark = css.slice(darkStart, css.indexOf("\n    }", darkStart));
 
+  // The EXPLICIT dark theme: `:root[data-theme="dark"]`. A reader who uses
+  // the manual toggle gets these tokens, not the media-query ones — so this
+  // block has to satisfy the same floors. The gate used to read only the
+  // media-query block, so a divergence between the two dark themes passed
+  // here and reached the reader as unreadable text.
+  const explicitStart = css.indexOf(':root[data-theme="dark"]');
+  if (explicitStart === -1) fail("app/globals.css has no explicit dark-theme block");
+  const explicit = css.slice(explicitStart, css.indexOf("\n  }", explicitStart));
+
   const pick = (block, name) => {
     const match = block.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})`));
     return match ? match[1] : null;
@@ -82,9 +91,20 @@ function readPalette(css) {
   ];
   const out = {};
   for (const name of names) {
-    out[name] = { light: pick(light, name), dark: pick(dark, name) };
+    out[name] = { light: pick(light, name), dark: pick(dark, name), explicit: pick(explicit, name) };
     if (!out[name].light) fail(`the light palette has no --${name}`);
     if (!out[name].dark) fail(`the dark palette has no --${name}`);
+    if (!out[name].explicit) fail(`the explicit dark theme has no --${name}`);
+    // The two dark themes are supposed to declare the same values, and
+    // globals.css says so in a comment. When they drift, the reader who
+    // toggles the theme by hand gets a different palette from the reader
+    // whose system is dark — so a divergence is a defect, not a style choice.
+    if (out[name].dark.toLowerCase() !== out[name].explicit.toLowerCase()) {
+      fail(
+        `--${name} is ${out[name].dark} in the prefers-color-scheme block and ` +
+          `${out[name].explicit} in the :root[data-theme="dark"] block; the two dark themes must agree`
+      );
+    }
   }
   return out;
 }

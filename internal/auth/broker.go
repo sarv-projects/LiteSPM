@@ -175,7 +175,13 @@ func (b *AuthBroker) ExchangeToken(ctx context.Context, tokenURL, clientID, clie
 	}
 
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		return nil, fmt.Errorf("token exchange failed (status %d): %s", httpResp.StatusCode, string(bodyBytes))
+		// The response body is NOT included in the error. A token endpoint
+		// that rejects an exchange routinely echoes the request back — and
+		// the request carries the authorization code and the code verifier,
+		// which together are enough to complete the exchange. Putting the body
+		// in the error put it in the CLI output and in every log that
+		// recorded the failure. The status code is enough to act on.
+		return nil, fmt.Errorf("token exchange failed (status %d): the token endpoint refused the exchange; its response body is not included because it may carry the authorization code", httpResp.StatusCode)
 	}
 
 	var tokenRes TokenResponse
@@ -332,8 +338,9 @@ func (b *AuthBroker) RefreshAuth(ctx context.Context, profileID, tokenURL, clien
 	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		errBody, _ := io.ReadAll(io.LimitReader(httpResp.Body, 4096))
-		return fmt.Errorf("token refresh failed with status %d: %s", httpResp.StatusCode, string(errBody))
+		// As above: the refresh response body may carry a token, so it is
+		// never copied into the error.
+		return fmt.Errorf("token refresh failed with status %d: the token endpoint refused the refresh; its response body is not included because it may carry credentials", httpResp.StatusCode)
 	}
 
 	var freshTokens TokenResponse

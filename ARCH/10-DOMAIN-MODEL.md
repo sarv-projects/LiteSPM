@@ -5,6 +5,10 @@ tree at `ff0a1db`. Where a type exists but production code never writes it, the
 subsection says so using the state vocabulary of [`STATUS.md`](../STATUS.md)
 (`DESIGNED` / `IMPLEMENTED` / `WIRED` / `TESTED` / `VERIFIED` / `SHIPPED`).
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The transcribed struct
+> blocks are the `ff0a1db` reading and are **not** re-transcribed here; the state claims in §1.1
+> are the ones reconciled against the current tree.
+
 ## 1. Canonical Identifier Grammars
 
 Display names and titles are mutable and non-unique. All internal operations, database primary keys, and cryptographic hashes rely strictly on canonical, immutable identifier grammars.
@@ -60,17 +64,17 @@ Authority for these grammars is `internal/domain/identifiers.go`:
 
 ---
 
-### 1.1 Design-time identifiers (all `DESIGNED`)
+### 1.1 Identifier grammars and their state
 
-The following grammars are specified by the newer design documents and have **no
-generator, no validator, and no row** anywhere in the tree today. They are listed
-here so the model is complete, and they must not be presented as available:
+The following grammars are specified by the newer design documents. The state column is the
+honest one: each row says whether a generator, a validator and a row exist in the tree today,
+so a grammar that is only specified is never presented as available.
 
 | Identifier | Grammar | Specified in | State |
 |---|---|---|---|
-| `MutationID` | `mutation_<26>` (Crockford base32) | [ARCH/33 §2](33-DEPLOYMENT-LEDGER-RECONCILIATION.md) | `DESIGNED` — no `deployment_mutations` table exists ([STATUS.md](../STATUS.md) §5) |
+| `MutationID` | `mutation_<26>` (Crockford base32) | [ARCH/33 §2](33-DEPLOYMENT-LEDGER-RECONCILIATION.md) | `WIRED` — minted by `internal/deployment.NewMutationID` (`internal/deployment/ledger.go:111`) and written to the `deployment_mutations` table (migration 002, `internal/state/migrations/002_phase1_state_lifecycle.sql:49`); installs write their ledger rows in the same SQLite transaction as the install rows ([STATUS.md](../STATUS.md) §5) |
 | `InvocationID` | `invocation_<26>` | [ARCH/34 §2](34-RUNTIME-INVOCATION-RECEIPTS.md) | `WIRED` — issued by `internal/invocation`, answered by `invocation.get` / `invocation.cancel` from the receipt chain; an unknown id is `LPSM-INVOCATION-NOT-FOUND` ([STATUS.md](../STATUS.md) §4) |
-| `LeaseID` | `lease_<26>` | [ARCH/35 §5](35-PROFILES-AND-CAPABILITY-LEASES.md) | `DESIGNED` — no profile or lease model exists ([STATUS.md](../STATUS.md) §4) |
+| `LeaseID` | `lease_<26>` | [ARCH/35 §5](35-PROFILES-AND-CAPABILITY-LEASES.md) | `DESIGNED` — the lease library (`internal/profiles`) is `IMPLEMENTED`, but no `profile` verb exists, no lease is consulted at the invoke gate and no lease row exists ([STATUS.md](../STATUS.md) §4) |
 | `AdvisoryID` | `adv_<26>` | [ARCH/36 §3](36-ENTERPRISE-POLICY-AND-AUDIT.md) | `DESIGNED` — no advisory/quarantine machinery exists ([STATUS.md](../STATUS.md) §5) |
 
 ---
@@ -247,12 +251,15 @@ type AuthProfile struct {
     UpdatedAt        time.Time        `json:"updatedAt"`
 }
 ```
-**Not written in production.** The `auth_profiles` table exists
+**Written in production.** The `auth_profiles` table exists
 (`internal/state/migrations/001_initial_schema.sql:143`) and `SaveAuthProfile`
-is called, but only from `internal/auth/broker.go:188,213,289` — and
-`internal/auth` (OAuth PKCE loopback broker) has **zero production importers**
-([STATUS.md](../STATUS.md) §4). Type and writer are `IMPLEMENTED`; no profile row
-exists in a real deployment.
+is called from `internal/auth/broker.go:248,282,363` — and `internal/auth` (the
+OAuth PKCE loopback broker) is `WIRED`: its production callers are
+`litespm auth login/status/logout` (`cmd/litespm/auth.go:41`; the login flow
+drives the broker at `:282-321`) and `internal/discover/auth.go:23`
+([STATUS.md](../STATUS.md) §4). A profile row is written when a person completes
+the loopback flow and read back when a remote invocation sends the stored bearer
+token.
 
 ### 2.8 CapabilityGrant & Identity Binding
 Authorizations granted by policy or user approval are strictly bound to cryptographic identity tuples:

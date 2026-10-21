@@ -1,5 +1,8 @@
 # Catalog Builder, Release Architecture & Search
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The pointer figures below
+> are the probe of 2026-10-21 (`rel-2026-10-21-01`, sequence 151).
+
 > **Honesty note (updated 2026-10-15).** Sections 1 and 2 describe a target output shape that the
 > builder only partially produces; the live origin serves the emitted tree (pointer, manifest,
 > listings and versions — sharded when a kind exceeds 20 MiB, §2.1).
@@ -28,13 +31,14 @@
 > *   Ownership: `scripts/build_full_catalog.py` now produces only the dataset
 >     (`web/data/catalog.json`) and the stats in `web/data/release.json`; the served pointer and
 >     release tree have a single writer, `litespm catalog build`. That split (Python = ingestion,
->     Go = publication) is what the code does; locked decision D4 itself is still unadjudicated
->     (`STATUS.md` §2).
+>     Go = publication) is what the code does, and it is the ratified resolution of locked decision
+>     D4 — **amended, not reversed**, on 2026-10-19
+>     ([ARCH/07 D-022](07-DECISIONS.md#d-022-canonical-catalog-builder-is-the-go-catalogbuild-d4--contested-open)).
 > *   The committed `web/public/v1/current.json` is Go-built (`schemaVersion`, digest over
->     `manifest.json`, second-precision timestamps) and names **`rel-2026-10-17-01`**, sequence 149,
->     **69,376 items** (probe 2026-10-13). Earlier pointers this file used to name
->     (`rel-2026-10-07-01`, `rel-2026-10-05-01`) have since been **replaced at the origin** and now
->     return 404, so a probe is evidence only for the release it names.
+>     `manifest.json`, second-precision timestamps) and names **`rel-2026-10-21-01`**, sequence 151,
+>     **69,376 items** (probe 2026-10-21). Earlier pointers this file used to name
+>     (`rel-2026-10-17-01`, `rel-2026-10-07-01`, `rel-2026-10-05-01`) have since been **replaced at
+>     the origin** and now return 404, so a probe is evidence only for the release it names.
 >
 > The normative path contract in §2 (`/v1/releases/...`) **is** what the client requests, and
 > `TestReleasePathContractPinsDocumentedLayout` in `internal/catalog/catalog_test.go` pins it against

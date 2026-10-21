@@ -129,6 +129,17 @@ EOF
 # non-page requests) gets the export's own 404 — which is the honest answer
 # for an unknown key on the trailing-slash form, exactly as before.
 
+# Every product link the bundle emits must resolve against the bundle's OWN
+# data. This is the check that catches the failure nobody sees by eye: HTML
+# and row data from two different builds, where a link names a key the data
+# does not have and the reader lands on the generic catalogue view while the
+# page title still says the product they clicked.
+#
+# It runs HERE, on the bundle that is about to be published, because the
+# bundle is the thing being shipped — not the source tree, which is not what
+# the reader is served.
+python3 ./scripts/check_site_links.py "${PAGES_DIR}" --dataset web/data/catalog.json
+
 # Every judgement about the finished bundle lives in one script, which CI also
 # runs, so the deploy path and the checks it faces cannot drift apart.
 ./scripts/audit-pages-dist.sh "${PAGES_DIR}"

@@ -46,6 +46,11 @@ LiteSPM supports **50 agent hosts** for MCP servers and **81** for skills,
 including Claude Code, OpenAI Codex, OpenCode, Cline, Pi Agent, Grok Build,
 Cursor, Zed, Gemini CLI, GitHub Copilot, Windsurf, Warp and AiderDesk.
 
+**45 of the 50** hosts can also receive a remote (URL) MCP entry, because that
+is the number whose vendor documentation publishes the exact entry object the
+host expects. The other five are refused with a clear error rather than
+written in a shape the host would silently ignore.
+
 Six hosts — Claude Code, Codex, OpenCode, Cline, Pi Agent and Grok Build —
 have hand-written adapters that know their config layout in detail. Every other
 host runs through the same data-driven registry, generated from each agent's
@@ -68,7 +73,7 @@ The same command targets any of them: `--agent <host-id>`.
 | **Agent skills** | A `SKILL.md` folder of instructions | 20,320 listings |
 | **Plugins** | A publisher's bundle of skills and servers | 638 listings |
 
-26,555 listings install with one command: 25,401 remote MCP servers, 764
+26,554 listings install with one command: 25,400 remote MCP servers, 764
 skills and 390 plugins. The rest are discovery-only, and `litespm search` marks
 which is which before you run anything.
 

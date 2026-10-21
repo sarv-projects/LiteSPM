@@ -74,6 +74,10 @@ function attributeNames(node) {
 const RULES = [
   { component: "SearchBar", countProp: "totalMatches", what: "a match count" },
   { component: "ExtensionGrid", countProp: "count", what: "an entry count" },
+  // SearchResults prints a measured count of its own, with the same
+  // `settled` prop. The gate covered the other two components and not this
+  // one, so a settled-count bug here passed every check.
+  { component: "SearchResults", countProp: "totalMatches", what: "a match count" },
 ];
 
 const problems = [];

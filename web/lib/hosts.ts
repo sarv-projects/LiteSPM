@@ -243,23 +243,6 @@ export function hostsFor(item: {
   return SKILL_TARGETS.map((t) => t.displayName);
 }
 
-/** Every distinct host name this catalog can install into. */
-export function allHostNames(): string[] {
-  const set = new Set<string>();
-  for (const h of HOSTS) set.add(h.name);
-  for (const t of SKILL_TARGETS) set.add(t.displayName);
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
-}
-
-/** True when the path shown for `os` came from vendor docs rather than expansion. */
-export function hasDocumentedPath(host: HostAdapter, os: PlatformOS): boolean {
-  return Boolean(PATH_OVERRIDES[host.id]?.[os]);
-}
-
-export function getHost(id: string): HostAdapter {
-  return HOSTS.find((h) => h.id === id) ?? HOSTS[0];
-}
-
 /**
  * The catalog names hosts as its publishers wrote them ("Codex"), while the
  * adapter table uses display names ("OpenAI Codex"). Aliases are what let a

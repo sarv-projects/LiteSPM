@@ -191,65 +191,93 @@ func installedMCPServers(ctx context.Context, db *state.DB, client *catalog.Clie
 	// the same normalized name the installer derived from the listing. Recomputing
 	// from the same listing is reproducible; guessing from the install id alone
 	// would not be, because a listing's name and its id's last segment differ.
-	installs, err := db.ListInstalls(ctx, domain.ScopeUser, "")
-	if err != nil {
-		return nil, err
+	//
+	// BOTH scopes are read. A project-scope install (`litespm install <id>
+	// --workspace <dir>`) writes into that project's config file, and reading
+	// only the user scope left those servers unprobed and unrecorded — a
+	// capability the user installed that LiteSPM then claimed it could not
+	// find.
+	type installRef struct {
+		installID   string
+		scope       domain.InstallScope
+		projectRoot string
 	}
-	byEntryName := map[string]string{}
-	for _, rec := range installs {
-		if rec.Status != domain.InstallActive {
-			continue
+	byEntryName := map[string]installRef{}
+	for _, scope := range []domain.InstallScope{domain.ScopeUser, domain.ScopeProject} {
+		installs, lerr := db.ListInstalls(ctx, scope, "")
+		if lerr != nil {
+			return nil, lerr
 		}
-		listing, lerr := client.GetListing(rec.ListingID)
-		if lerr != nil || listing.Kind != domain.KindMCP {
-			continue
-		}
-		name, nerr := serverEntryNameFor(listing)
-		if nerr != nil {
-			continue
-		}
-		if _, seen := byEntryName[name]; !seen {
-			byEntryName[name] = rec.InstallID
+		for _, rec := range installs {
+			if rec.Status != domain.InstallActive {
+				continue
+			}
+			listing, lerr2 := client.GetListing(rec.ListingID)
+			if lerr2 != nil || listing.Kind != domain.KindMCP {
+				continue
+			}
+			name, nerr := serverEntryNameFor(listing)
+			if nerr != nil {
+				continue
+			}
+			if _, seen := byEntryName[name]; seen {
+				continue
+			}
+			byEntryName[name] = installRef{installID: rec.InstallID, scope: rec.Scope, projectRoot: rec.ProjectRoot}
 		}
 	}
 
 	var specs []discover.ProviderSpec
 	for _, hostID := range hosts {
-		entries, listErr := host.ListServerEntriesWithValues(ctx, hostID, domain.ScopeUser, "")
-		if listErr != nil {
-			fmt.Fprintf(os.Stderr, "  %s: %v\n", hostID, listErr)
-			continue
+		// Read each scope's config for this host: the user-scope file, and
+		// the project-scope file of every project that has an install here.
+		type hostScope struct {
+			scope       domain.InstallScope
+			projectRoot string
 		}
-		for _, entry := range entries {
-			installID, known := byEntryName[entry.Name]
-			if !known {
-				// Not installed by LiteSPM (a server the user configured by hand):
-				// not ours to probe, record, or later invoke.
+		scopes := []hostScope{{scope: domain.ScopeUser}}
+		for _, ref := range byEntryName {
+			if ref.scope == domain.ScopeProject && ref.projectRoot != "" {
+				scopes = append(scopes, hostScope{scope: domain.ScopeProject, projectRoot: ref.projectRoot})
+			}
+		}
+		for _, hs := range scopes {
+			entries, listErr := host.ListServerEntriesWithValues(ctx, hostID, hs.scope, hs.projectRoot)
+			if listErr != nil {
+				fmt.Fprintf(os.Stderr, "  %s: %v\n", hostID, listErr)
 				continue
 			}
-			spec := discover.ProviderSpec{
-				InstallID:     installID,
-				ComponentName: entry.Name,
-				Command:       entry.Command,
-				Args:          entry.Args,
-				Env:           entry.Env,
-				HostID:        hostID,
-				Transport:     entry.Transport,
+			for _, entry := range entries {
+				ref, known := byEntryName[entry.Name]
+				if !known {
+					// Not installed by LiteSPM (a server the user configured by hand):
+					// not ours to probe, record, or later invoke.
+					continue
+				}
+				spec := discover.ProviderSpec{
+					InstallID:     ref.installID,
+					ComponentName: entry.Name,
+					Command:       entry.Command,
+					Args:          entry.Args,
+					Env:           entry.Env,
+					HostID:        hostID,
+					Transport:     entry.Transport,
+				}
+				if endpoint := strings.TrimSpace(entry.Endpoint); endpoint != "" {
+					// A remote (URL) entry has no launch line: it dials this
+					// endpoint. Its transport is normalized out of the host's own
+					// discriminator ("http", "streamableHttp", "remote", "sse")
+					// into the registry vocabulary discover speaks, so the probe
+					// selects the right connector instead of reading a host
+					// spelling as an unknown transport. Command/Args stay exactly
+					// as read back: if a hand-edited config names both, discover
+					// refuses it as the ambiguous record it is rather than
+					// silently choosing one.
+					spec.Endpoint = endpoint
+					spec.Transport = host.RegistryRemoteTransport(entry.Transport)
+				}
+				specs = append(specs, spec)
 			}
-			if endpoint := strings.TrimSpace(entry.Endpoint); endpoint != "" {
-				// A remote (URL) entry has no launch line: it dials this
-				// endpoint. Its transport is normalized out of the host's own
-				// discriminator ("http", "streamableHttp", "remote", "sse")
-				// into the registry vocabulary discover speaks, so the probe
-				// selects the right connector instead of reading a host
-				// spelling as an unknown transport. Command/Args stay exactly
-				// as read back: if a hand-edited config names both, discover
-				// refuses it as the ambiguous record it is rather than
-				// silently choosing one.
-				spec.Endpoint = endpoint
-				spec.Transport = host.RegistryRemoteTransport(entry.Transport)
-			}
-			specs = append(specs, spec)
 		}
 	}
 	if len(specs) == 0 {

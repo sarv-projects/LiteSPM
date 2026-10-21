@@ -52,7 +52,8 @@ func TestBespokeJSONAdaptersSpliceWithoutRewriting(t *testing.T) {
 		}
 
 		adapter := &ClineAdapter{}
-		plan, err := adapter.PlanSetup(ctx, "/opt/litespm/litespm", t.TempDir())
+		backupDir := t.TempDir()
+		plan, err := adapter.PlanSetup(ctx, "/opt/litespm/litespm", backupDir)
 		if err != nil {
 			t.Fatalf("PlanSetup on a JSONC config must succeed, got: %v", err)
 		}
@@ -84,7 +85,10 @@ func TestBespokeJSONAdaptersSpliceWithoutRewriting(t *testing.T) {
 		}
 
 		// Removal restores the original file byte for byte.
-		if res, err := RemoveSetup(ctx, adapter, filepath.Dir(plan.BackupPath)); err != nil || !res.Removed {
+		// The same backup directory the setup used: filepath.Dir(plan.BackupPath)
+		// is "." when the config did not exist yet (no backup was taken), and
+		// a backup in the CURRENT directory is a file in the source tree.
+		if res, err := RemoveSetup(ctx, adapter, backupDir); err != nil || !res.Removed {
 			t.Fatalf("remove failed: %+v %v", res, err)
 		}
 		restored, err := os.ReadFile(path)
@@ -107,7 +111,8 @@ func TestBespokeJSONAdaptersSpliceWithoutRewriting(t *testing.T) {
 		}
 
 		adapter := &ClaudeCodeAdapter{}
-		plan, err := adapter.PlanSetup(ctx, "/opt/litespm/litespm", t.TempDir())
+		backupDir := t.TempDir()
+		plan, err := adapter.PlanSetup(ctx, "/opt/litespm/litespm", backupDir)
 		if err != nil {
 			t.Fatalf("PlanSetup: %v", err)
 		}
@@ -140,7 +145,8 @@ func TestBespokeJSONAdaptersSpliceWithoutRewriting(t *testing.T) {
 			t.Fatal(err)
 		}
 		adapter := &OpenCodeAdapter{}
-		plan, err := adapter.PlanSetup(ctx, "/opt/litespm/litespm", t.TempDir())
+		backupDir := t.TempDir()
+		plan, err := adapter.PlanSetup(ctx, "/opt/litespm/litespm", backupDir)
 		if err != nil {
 			t.Fatalf("PlanSetup: %v", err)
 		}
@@ -194,7 +200,8 @@ func TestBespokeJSONAdaptersCreateMissingConfigFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("adapter %s not registered: %v", tc.id, err)
 			}
-			plan, err := adapter.PlanSetup(ctx, "/opt/litespm/litespm", t.TempDir())
+			backupDir := t.TempDir()
+			plan, err := adapter.PlanSetup(ctx, "/opt/litespm/litespm", backupDir)
 			if err != nil {
 				t.Fatalf("PlanSetup on a missing config: %v", err)
 			}

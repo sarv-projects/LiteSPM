@@ -52,7 +52,8 @@ func TestBridgeTargetRowsAreComplete(t *testing.T) {
 				t.Errorf("unknown format %q", tgt.Format)
 			}
 			switch tgt.Shape {
-			case ShapeObject, ShapeLocalArray, ShapeCommandString, ShapeStdioTyped:
+			case ShapeObject, ShapeLocalArray, ShapeCommandString, ShapeStdioTyped,
+				ShapeLocalTypedString, ShapeTransportString:
 			default:
 				t.Errorf("unknown entry shape %q", tgt.Shape)
 			}
@@ -486,9 +487,39 @@ func TestStrictJSONHostsRefuseCommentedFiles(t *testing.T) {
 // resolve to the same adapters as pi-agent and grok-build.
 var remoteCapableBespokeIDs = []string{"claude-code", "cline", "opencode", "codex", "pi-agent", "pi", "grok", "grok-build"}
 
-// remoteCapableGenericIDs are the Tier A rows: the only two generic targets
-// whose exact remote entry object was read from the row's DocsURL.
-var remoteCapableGenericIDs = []string{"cursor", "zed"}
+// remoteCapableGenericIDs are the generic targets whose exact remote entry
+// object was read from the row's DocsURL (or, where the vendor documents the
+// object only in its own repository, from that repository).
+//
+// The list grew from two to forty on 2026-10-21, when every row's
+// DocsURL was re-fetched and the entry object re-read: twenty-nine rows were
+// found to document a remote entry LiteSPM had been refusing, and four rows
+// turned out to document a different local entry shape than the one written.
+// The honesty rule is unchanged — a spec may only exist where the object was
+// actually read — but it is now applied to far more rows, because far more
+// rows were actually checked.
+//
+// The five rows still refused are the ones whose vendor publishes no remote
+// entry object: gemini-cli (its HTTP and SSE forms use two DIFFERENT url
+// keys, which one URLKey cannot express), iflow-cli (the CLI accepts a
+// remote but the on-disk entry object is unpublished), zcode (HTTP and SSE
+// are mentioned; no object is published), mux (stdio only by
+// construction), rovodev, tabnine-cli, roo, and codestudio (stdio only).
+var remoteCapableGenericIDs = []string{
+	"aider-desk", "amp", "antigravity", "antigravity-cli", "astrbot",
+	"augment", "bob", "codearts-agent", "codebuddy", "command-code",
+	"cortex", "crush", "cursor", "deepagents", "devin", "droid",
+	"firebender", "forgecode", "fx", "github-copilot", "jazz", "junie",
+	"kilo", "kimchi", "kimi-code-cli", "kiro-cli", "kode", "neovate",
+	"ona", "openhands", "pochi", "posit-assistant", "qoder", "qoder-cn",
+	"qwen-code", "zed", "rovodev", "tabnine-cli", "roo", "gemini-cli",
+}
+
+// remoteRefusedGenericIDs are the generic targets whose vendor publishes no
+// remote entry object, so a remote install stays refused for them.
+var remoteRefusedGenericIDs = []string{
+	"codestudio", "iflow-cli", "mux", "zcode",
+}
 
 // TestRemoteCapabilityMatrixCounts is the anti-mass-enable guard: for every
 // registered host RemoteEntrySpecFor must answer (spec or false), and the
@@ -511,13 +542,18 @@ func TestRemoteCapabilityMatrixCounts(t *testing.T) {
 		}
 	}
 
-	// Exactly 8 capable HOSTS among the registered adapter ids.
+	// Exactly 46 capable HOSTS among the registered adapter ids: the six
+	// hand-written adapters, whose remote shapes were verified from the
+	// vendors' own documentation, plus the 40 generic rows above.
 	wantCapable := map[string]bool{
 		"claude-code": true, "cline": true, "opencode": true, "codex": true,
-		"pi-agent": true, "grok-build": true, "cursor": true, "zed": true,
+		"pi-agent": true, "grok-build": true,
 	}
-	if len(capableIDs) != 8 {
-		t.Errorf("remote-capable hosts = %d, want 8 (capable ids: %v)", len(capableIDs), capableIDs)
+	for _, id := range remoteCapableGenericIDs {
+		wantCapable[id] = true
+	}
+	if len(capableIDs) != len(wantCapable) {
+		t.Errorf("remote-capable hosts = %d, want %d (capable ids: %v)", len(capableIDs), len(wantCapable), capableIDs)
 	}
 	for id := range wantCapable {
 		if !capableIDs[id] {
@@ -529,9 +565,14 @@ func TestRemoteCapabilityMatrixCounts(t *testing.T) {
 			t.Errorf("host %q is remote-capable but is not in the verified set — a spec was enabled without evidence", id)
 		}
 	}
-	// Exactly 42 refused targets, and the two sets cover the registry.
-	if len(refusedIDs) != 42 {
-		t.Errorf("remote-refused hosts = %d, want 42 (refused ids: %v)", len(refusedIDs), refusedIDs)
+	// Exactly 4 refused targets, and the two sets cover the registry.
+	if len(refusedIDs) != len(remoteRefusedGenericIDs) {
+		t.Errorf("remote-refused hosts = %d, want %d (refused ids: %v)", len(refusedIDs), len(remoteRefusedGenericIDs), refusedIDs)
+	}
+	for _, id := range remoteRefusedGenericIDs {
+		if !refusedIDs[id] {
+			t.Errorf("host %q must stay remote-refused: its vendor publishes no remote entry object", id)
+		}
 	}
 	if len(capableIDs)+len(refusedIDs) != len(ListAdapters()) {
 		t.Errorf("matrix does not cover the registry: %d capable + %d refused vs %d adapters",
@@ -553,7 +594,7 @@ func TestRemoteCapabilityMatrixCounts(t *testing.T) {
 			t.Errorf("bespoke adapter %q answered refused to RemoteEntrySpecFor", id)
 		}
 	}
-	// Generic rows: exactly cursor and zed carry a spec, the other 42 do not.
+	// Generic rows: exactly the verified set carries a spec, the rest do not.
 	genericCapable := map[string]bool{}
 	for _, tgt := range verifiedBridgeTargets {
 		if tgt.Remote != nil {
@@ -606,37 +647,53 @@ func TestRemoteSpecHonoursTheHonestyRule(t *testing.T) {
 			if tgt.Remote.URLKey == "" {
 				t.Error("Remote spec with no URL key")
 			}
-			// A host that discriminates by type must know BOTH spellings, or
-			// the writer would guess the missing one (the typeless-url hazard).
-			if tgt.Remote.TypeKey != "" && tgt.Remote.TypeValue == "" {
-				t.Error("discriminator key without its streamable-http value")
+			// A host that discriminates by type must know at least ONE
+			// spelling, or the writer would guess the missing one (the
+			// typeless-url hazard). A discriminator may be omitted for ONE
+			// transport — Kimi Code's HTTP entry is a bare url and only its
+			// SSE entry carries the discriminator — so the rule is that a
+			// discriminator key with no value for any transport is the error.
+			if tgt.Remote.TypeKey != "" && tgt.Remote.TypeValue == "" && tgt.Remote.SSEValue == "" {
+				t.Error("discriminator key with no value for any transport it declares")
 			}
 		})
 	}
 }
 
-// TestTierBRowsCarryNoRemoteSpec pins the four PARTIAL-evidence rows as
-// refused: a field name glimpsed in a doc is not an entry shape, and enabling
-// one without pinning the whole object writes an entry the host ignores.
-func TestTierBRowsCarryNoRemoteSpec(t *testing.T) {
+// TestTierBRowsWereReverified pins what happened to the four rows that were
+// PARTIAL evidence: each was re-read against its vendor's documentation on
+// 2026-10-21, the WHOLE entry object was pinned, and the row moved from
+// Tier B to Tier A. A field name glimpsed in a doc is not an entry shape —
+// but a doc that publishes the whole object IS one, and refusing it after
+// reading it would leave a capability the vendor plainly supports unusable.
+//
+// The guard this file keeps is the honesty rule, not the old classification:
+// a row with a spec must still carry its evidence (a DocsURL, a transport
+// list, a URL key), and a row WITHOUT one must stay refused.
+func TestTierBRowsWereReverified(t *testing.T) {
 	for _, id := range []string{"antigravity", "antigravity-cli", "qwen-code", "crush"} {
 		t.Run(id, func(t *testing.T) {
 			tgt, ok := LookupBridgeTarget(id)
 			if !ok {
-				t.Fatalf("Tier B row %q is not registered", id)
+				t.Fatalf("re-verified row %q is not registered", id)
 			}
-			if tgt.Remote != nil {
-				t.Errorf("Tier B row %q has a Remote spec; §1.4 requires re-verification first", id)
+			if tgt.Remote == nil {
+				t.Errorf("re-verified row %q lost its Remote spec", id)
 			}
-			if _, ok := RemoteEntrySpecFor(id); ok {
-				t.Errorf("RemoteEntrySpecFor(%q) reports capability for a Tier B row", id)
+			if _, ok := RemoteEntrySpecFor(id); !ok {
+				t.Errorf("RemoteEntrySpecFor(%q) must report capability after re-verification", id)
+			}
+			if strings.TrimSpace(tgt.DocsURL) == "" {
+				t.Errorf("re-verified row %q has no DocsURL to be evidence", id)
 			}
 		})
 	}
-	// Tier C rows (cannot carry a URL entry at all) stay refused too.
-	for _, id := range []string{"amp", "mux"} {
-		if _, ok := RemoteEntrySpecFor(id); ok {
-			t.Errorf("Tier C row %q must stay refused", id)
-		}
+	// The rows that still have no published entry object stay refused.
+	for _, id := range remoteRefusedGenericIDs {
+		t.Run("still-refused/"+id, func(t *testing.T) {
+			if _, ok := RemoteEntrySpecFor(id); ok {
+				t.Errorf("row %q must stay refused: its vendor publishes no remote entry object", id)
+			}
+		})
 	}
 }

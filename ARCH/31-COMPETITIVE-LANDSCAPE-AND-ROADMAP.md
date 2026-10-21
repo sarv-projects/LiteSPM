@@ -16,6 +16,10 @@
     `internal/catalog/catalog_test.go:217`), and `release.yml`/`npm/package.json` were extended to
     stage `LICENSE`/`NOTICE` into the npm tarball. Where this document cites code, the citation was
     verified in that tree. Competitor rows in §3 carry their own verification date and method.
+*   **Snapshot basis (reconciliation):** this document was reconciled against commit `386aebd`
+    (2026-10-21). §4.3, §8 (R6) and §12's Phase-0 row are updated to the adjudicated D4 and the
+    closed agent-facing install path; the competitor comparison in §3 is **not** re-verified by that
+    reconciliation and keeps its own dates.
 *   It extends, and does not replace, the defect tracker in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md).
     Findings 4.1–4.4 below are **new** and are not in that tracker's numbering.
 
@@ -247,12 +251,24 @@ is amended. Leaving both while calling the Go one canonical means the canonical 
 > + stats in `web/data/release.json` — single writer per key, ids funnelled through fail-closed
 > `canonical_id()`; its `LITESPM_RELEASE_ID` override was removed with the pointer write). The
 > Python builder is no longer a second *release* builder and no longer
-> writes `web/public/v1/*`. **D4 itself is still unadjudicated** — the split needs to be accepted
-> or overruled (`STATUS.md` §2). The dataset is also no longer "a ~3.4 MB blob the web app
+> writes `web/public/v1/*`. The dataset is also no longer "a ~3.4 MB blob the web app
 > bundles": it is 69,376 rows served as build-time artifacts (shard index + fallback shards,
 > product-page buckets, postings index, 68-row display shards — §9), and the compiler now splits
 > an oversized listings/versions kind into transport shards (`ARCH/18` §2.1), so "emits exactly
 > four files" describes the comparison-time state, not the current one.
+
+> **Adjudication (2026-10-19) — D4 is closed by amendment, not by reversal.** [ARCH/07
+> D-022](07-DECISIONS.md#d-022-canonical-catalog-builder-is-the-go-catalogbuild-d4--contested-open)
+> records the decision: the split is ratified — the Python producer owns **ingestion**, the Go
+> builder owns **publication**, and the two are proven to agree, which is what the single-builder
+> rule was protecting. `scripts/test_builder_parity.py` compiles the Go release over the committed
+> dataset and compares it with the producer row by row: on the 2026-10-17 release, **69,376 of
+> 69,376 rows agree** on id, kind, name, summary, version, installability, source, publisher, url
+> and transport, with **0 differing**, and the harness names the four field-ownership splits the
+> two answer differently by design. Canonical listing ids remain 4-segment, and the Go builder
+> enforces the source vocabulary (`catalogbuild.ProducerSourceIDs`). **What remains** is not a
+> decision but a backlog row: the Go ingest path (`internal/source`) still has only test callers,
+> so the Python producer remains the only thing that fetches.
 
 ### 4.4 `ARCH/18` specifies an output tree the compiler does not produce
 
@@ -402,7 +418,7 @@ Corrections to existing documents. Each is a factually wrong statement today, no
 | R3 | `ARCH/18` §1, §2 | **RESOLVED.** The `index.json`, `shards/`, `items/`, `metadata.json` tree the compiler never emits is now labelled `DESIGNED` at the top of §1 and inline in §2; the emitted subset (`v1/current.json` + `v1/releases/<id>/{manifest,listings,versions}.json`) is stated as the client contract | Done — no action |
 | R4 | `ARCH/18` §4 | **No defect.** The `_headers` CDN policy is implemented in `scripts/deploy-pages.sh:31-42` as a deploy-time build artifact under the gitignored `pages-dist/`. Recorded here because an earlier draft of this document wrongly flagged it — the retraction is in §4.4 | None; do not "fix" |
 | R5 | `REMEDIATION-PLAN.md` | **RESOLVED.** "Where things stand" now cites `ff0a1db` and states the rename and phases 0–3 are committed | Done — no action |
-| R6 | `REMEDIATION-PLAN.md` D4 | "Go `catalogbuild` is the single builder" is contradicted by `scripts/build_full_catalog.py` being the real producer (§4.3) | Amend D4 or delete the Python builder |
+| R6 | `REMEDIATION-PLAN.md` D4 | "Go `catalogbuild` is the single builder" is contradicted by `scripts/build_full_catalog.py` being the real producer (§4.3) | **RESOLVED (2026-10-19).** D4 is **amended, not reversed** ([ARCH/07 D-022](07-DECISIONS.md#d-022-canonical-catalog-builder-is-the-go-catalogbuild-d4--contested-open)): the Python producer owns ingestion, the Go builder owns publication, and `scripts/test_builder_parity.py` proves the two agree on 69,376 of 69,376 rows. The residual is a backlog row, not a decision — the Go ingest path still has only test callers |
 | R7 | `ARCH/00-INDEX.md` §2 | **RESOLVED.** `18` is registered `Normative for the client path + search contract; DESIGNED for the unbuilt shard tree`, `17` is status-qualified the same way, `16`/`19` are now scoped to the sections their code supports, `19`'s blurb names the real backends, the ADR range is `D-001 through D-025`, and `12` claims "22 tables" (correct) | Done — no action |
 | R8 | `README.md` §5 | **RESOLVED, then extended.** The tree lists `LICENSE` and `NOTICE`, the CLI file listing matches `cmd/litespm` (including `skills_update.go`, `skills_policy.go`), and the ARCH count has since grown to `38 … (00–37)` with `32`–`37` and `scripts/README.md` / `web/README.md` registered | Done — no action |
 | R9 | `ARCH/29` | **RESOLVED.** `ARCH/29` now carries the D1 status note: `internal/connector` was deleted for having zero production importers and no wiring path | Done — no action |
@@ -431,7 +447,7 @@ Corrections to existing documents. Each is a factually wrong statement today, no
 |---|---|---|
 | "All phases complete" status language in `README.md` §1 and `TODO.md` | Remove | Contradicted by the tracker and by four reproducible defects |
 | The production synthetic-install path | Remove from the normal user path | `cmd/litespm/main.go:872` fabricates a package. Keep it strictly as a test/`--dry-run` fixture and make the real path the default (D2) |
-| `scripts/build_full_catalog.py` as a *second* builder | Remove once §4.3 is resolved | D4 names one builder. Two is not a migration, it is drift |
+| `scripts/build_full_catalog.py` as a *second* builder | **Done by amendment (2026-10-19).** It no longer builds a release: it ingests the dataset, and the Go builder publishes the pointer and the tree | D4 names one builder; the amendment ratifies the split as the shape that satisfies it (§4.3) |
 | Any plan to restore the deleted `internal/connector` package as-is, or any claim that a connector package ships today | Remove | `D1` deleted it (D-021). The adopted direction is [ARCH/29](29-CONNECTOR-SYSTEM-DESIGN.md)'s resurrect-and-wire, gated on re-deciding `D1` — not a restoration of dead code, and not a present-tense capability claim (#21) |
 | Unstructured backup/restore as the ownership model | Replace with the deployment ledger | A backup cannot tell you who owns which node (#9) |
 | "Verified" derived from a static scan | Remove the wording | `ARCH/26` §12.4 and AgentMods' own discipline both require *scan*, not *verification* |
@@ -464,7 +480,7 @@ gate is always a real user workflow — never "files exist", never "tests exist"
 
 | Phase | Objective | Gate (a real workflow must pass) |
 |---|---|---|
-| **0 — Truth** | Close §4.1–4.4; apply §8 (R1–R12); land `LICENSE`/`NOTICE`; reconcile D4 | `litespm catalog sync` succeeds against the live origin (**done 2026-10-05**); an agent's `/marketplace` install completes (**open**); no document claims a state its code lacks |
+| **0 — Truth** | Close §4.1–4.4; apply §8 (R1–R12); land `LICENSE`/`NOTICE`; reconcile D4 | `litespm catalog sync` succeeds against the live origin (**done 2026-10-05**, re-verified 2026-10-21 against `rel-2026-10-21-01`); an agent's `/marketplace` install completes (**done 2026-10-21** — skills, MCP servers and pinned-source plugins, §4.1); D4 reconciled (**done 2026-10-19**, §4.3); no document claims a state its code lacks |
 | **1 — Reproducibility** | `litespm.yml` + `litespm.lock`; frozen install; deployment ledger; three-way reconcile | `litespm install --frozen` reproduces byte-identical CAS trees on a clean machine; a hand-edited owned config node produces a conflict, not a silent overwrite |
 | **2 — Runtime** | Capability registry; real `invoke`/`get`/`cancel`; deadlines, cancellation, concurrency; provider rows persisted; health + circuit breaker | A tool called through the Bridge reaches a provider, respects a deadline, and returns a receipt — with the `providers` table populated by non-test code (closes m4) |
 | **3 — Evidence** | Static scan; canonical identity graph; compatibility evidence; Evidence Card; `policy explain` | `litespm search postgres` shows one canonical entry with its sources and evidence states, and every deny names the rule that caused it |

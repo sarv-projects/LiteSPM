@@ -914,6 +914,18 @@ func (db *DB) ListCapabilities(ctx context.Context, providerID string) ([]domain
 // Re-discovery upserts without resetting lifecycle: the original
 // discovered_at is preserved so drift windows stay measurable.
 func (db *DB) SaveCapability(ctx context.Context, c *domain.CapabilityRecord) error {
+	return db.SaveCapabilityExec(ctx, db.raw, c)
+}
+
+// SaveCapabilityExec writes a capability row through an arbitrary Execer, so
+// the row can join the transaction that writes the provider row it points at.
+//
+// A discovery that lists a provider's tools and then fails partway through
+// must not leave half of them recorded: the provider row would exist with a
+// partial tool set, and a later invoke would find a capability whose schema
+// was never confirmed. The caller writes both kinds of row in ONE
+// transaction, so either the whole discovery lands or none of it does.
+func (db *DB) SaveCapabilityExec(ctx context.Context, ex Execer, c *domain.CapabilityRecord) error {
 	query := `
 	INSERT INTO capabilities (capability_id, provider_id, native_name, title, description, schema_fingerprint, input_schema_json, discovered_at, status)
 	VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')
@@ -927,7 +939,7 @@ func (db *DB) SaveCapability(ctx context.Context, c *domain.CapabilityRecord) er
 		discovered_at = excluded.discovered_at,
 		status = 'active';`
 
-	_, err := db.raw.ExecContext(ctx, query,
+	_, err := ex.ExecContext(ctx, query,
 		c.CapabilityID,
 		c.ProviderID,
 		c.Name,

@@ -100,7 +100,7 @@ func TestAdoptRecordsOwnershipWithTheCurrentImage(t *testing.T) {
 
 	// The ledger holds one ownership row for this locator, and its pre-image
 	// is the entry as it was.
-	installID := adoptInstallID("claude-code", "github")
+	installID := adoptInstallID("claude-code", "github", domain.ScopeUser)
 	muts, err := deployment.NewLedger(fx.db.Raw()).MutationsForInstall(ctx, installID)
 	if err != nil {
 		t.Fatalf("MutationsForInstall: %v", err)
@@ -148,7 +148,7 @@ func TestRemovingAnAdoptedNodeRestoresThePreImage(t *testing.T) {
 	if code := runAdoptTo(&out, &errOut, fx.db, adoptOptions{name: "github", hostID: "claude-code"}); code != 0 {
 		t.Fatalf("runAdoptTo = %d, want 0\nstdout:\n%s\nstderr:\n%s", code, out.String(), errOut.String())
 	}
-	installID := adoptInstallID("claude-code", "github")
+	installID := adoptInstallID("claude-code", "github", domain.ScopeUser)
 
 	if err := removeInstalledPackage(ctx, fx.db, filepath.Join(fx.home, "data"), installID); err != nil {
 		t.Fatalf("remove the adopted install: %v", err)
@@ -242,7 +242,7 @@ func TestAdoptedEntryEditedByTheUserIsKept(t *testing.T) {
 	if code := runAdoptTo(&out, &errOut, fx.db, adoptOptions{name: "github", hostID: "claude-code"}); code != 0 {
 		t.Fatalf("runAdoptTo = %d, want 0\nstderr:\n%s", code, errOut.String())
 	}
-	installID := adoptInstallID("claude-code", "github")
+	installID := adoptInstallID("claude-code", "github", domain.ScopeUser)
 
 	// The user edits the node after the adoption.
 	edited := []byte(`{

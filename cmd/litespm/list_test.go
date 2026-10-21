@@ -129,9 +129,11 @@ func seedListMachine(t *testing.T) listSeed {
 	writeTestSkill(t, skillDir, "demo-skill", "list fixture")
 	agents := projectAgents(t, project, home, 2)
 	seed.skillAgents = agents
+	seedListing := skillListingFor(seedSkillListing, "demo-skill", skillDir)
 	if _, err := installSkillFromListing(authorizedTestContext(), db, dataRoot, project, home,
-		skillListingFor(seedSkillListing, "demo-skill", skillDir), "1.0.0",
-		domain.ScopeProject, agents); err != nil {
+		seedListing, "1.0.0",
+		domain.ScopeProject, agents,
+		skillPlanForTest(t, seedListing, domain.ScopeProject, project, home, agents)); err != nil {
 		t.Fatalf("seed skill install: %v", err)
 	}
 

@@ -11,6 +11,9 @@ with each upstream license.
   inferred from package metadata. Versions are the resolved `go.mod` versions.
 - **Rule:** if a license cannot be confirmed from the upstream text, it is
   recorded as `UNKNOWN — verify before release`, never estimated.
+- **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21); the
+  module set and the direct/indirect split are read from `go.mod` at that
+  tree.
 
 ## Go modules (linked into the `litespm` binary)
 
@@ -28,9 +31,11 @@ with each upstream license.
 | modernc.org/memory | v1.12.1 | BSD-3-Clause | https://gitlab.com/cznic/memory | Yes — `LICENSE` (3-clause) |
 | modernc.org/sqlite | v1.60.1 | BSD-3-Clause | https://gitlab.com/cznic/sqlite | Yes — `LICENSE` (3-clause) |
 
-Every module in `go.mod` is marked `// indirect`; they are nonetheless linked
-into the binary through the SQLite driver and terminal/platform helpers, so they
-require attribution.
+`go.mod` has **three direct requires** — `github.com/Microsoft/go-winio`,
+`golang.org/x/sys` and `modernc.org/sqlite` — and eight `// indirect` modules.
+All eleven are linked into the binary: the direct three through the SQLite
+driver and the terminal/platform helpers, the indirect eight through those
+same paths. Every one of them therefore requires attribution.
 
 ### Transitive / bundled third-party notices
 

@@ -2,6 +2,7 @@ package host
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -113,6 +114,94 @@ func TestClineEnvPrecedence(t *testing.T) {
 			t.Errorf("data dir must beat CLINE_DIR: got %s, want %s", got, want)
 		}
 	})
+}
+
+// TestClineOverrideBeatsAnExistingDefaultFile pins the rule that made the
+// setup work on a machine where the default path already existed.
+//
+// An override REPLACES the default: it is not one more candidate in a race.
+// The old probe returned the first path that EXISTED, so a stale
+// ~/.cline/data/settings/cline_mcp_settings.json outranked a set
+// CLINE_MCP_SETTINGS_PATH — LiteSPM wrote the bridge into a file Cline never
+// reads, and VerifySetup, reading the same wrong file, reported "ready".
+func TestClineOverrideBeatsAnExistingDefaultFile(t *testing.T) {
+	home := useTempHome(t)
+	clearClineEnvOverrides(t)
+
+	// The default path exists and holds a Cline config with no bridge.
+	defaultPath := filepath.Join(home, ".cline", "data", "settings", "cline_mcp_settings.json")
+	writeConfig(t, defaultPath, `{"mcpServers":{}}`)
+
+	// The user points Cline somewhere else.
+	override := filepath.Join(home, "elsewhere", "cline_mcp_settings.json")
+	t.Setenv("CLINE_MCP_SETTINGS_PATH", override)
+
+	adapter := &ClineAdapter{}
+
+	got, err := adapter.DetectConfig(context.Background(), domain.ScopeUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != override {
+		t.Errorf("DetectConfig = %s, want the override %s: the default path outranked a set override", got, override)
+	}
+
+	// And the write must land on the override too: a setup that writes the
+	// default file is a setup the host will not use.
+	plan, err := adapter.PlanSetup(context.Background(), "/usr/local/bin/litespm", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.ConfigPath != override {
+		t.Errorf("PlanSetup writes %s, want the override %s", plan.ConfigPath, override)
+	}
+}
+
+// TestClineSetupNeverWritesALegacyPath pins the read/write split for the
+// pre-migration globalStorage locations. They are unverified, the running
+// client may not read them, and a write there reports success while changing
+// nothing the host uses.
+func TestClineSetupNeverWritesALegacyPath(t *testing.T) {
+	home := useTempHome(t)
+	clearClineEnvOverrides(t)
+
+	// A legacy file exists (an old client that never migrated).
+	legacies := legacyClineSettingsPaths(home)
+	if len(legacies) == 0 {
+		t.Fatal("no legacy cline paths for this platform")
+	}
+	legacy := legacies[0]
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter := &ClineAdapter{}
+
+	// Reading still finds it: a client too old to have migrated is detected
+	// as already configured.
+	detected, err := adapter.DetectConfig(context.Background(), domain.ScopeUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detected != legacy {
+		t.Errorf("DetectConfig = %s, want the legacy read target %s", detected, legacy)
+	}
+
+	// Writing never targets it.
+	plan, err := adapter.PlanSetup(context.Background(), "/usr/local/bin/litespm", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.ConfigPath == legacy {
+		t.Errorf("PlanSetup targets the legacy path %s; a setup there reports success and the host never sees the entry", legacy)
+	}
+	want := filepath.Join(home, ".cline", "data", "settings", "cline_mcp_settings.json")
+	if plan.ConfigPath != want {
+		t.Errorf("PlanSetup writes %s, want the shared path %s", plan.ConfigPath, want)
+	}
 }
 
 // TestClineDefaultPathUnchanged pins the no-override default byte-for-byte:

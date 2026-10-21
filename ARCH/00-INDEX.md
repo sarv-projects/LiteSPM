@@ -1,5 +1,10 @@
 # Architecture Index & Governance
 
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). Figures a document carries
+> are dated by the document that states them; the live-origin figures above are the probe of
+> 2026-10-21. A document that disagrees with [STATUS.md](../STATUS.md) is the document that is
+> wrong.
+
 ## 1. Document Status & Precedence
 
 This architecture defines the complete specification for **LiteSPM**, comprising high-level system boundaries, protocol contracts, low-level component designs, database schemas, and verification suites.
@@ -13,8 +18,8 @@ This architecture defines the complete specification for **LiteSPM**, comprising
     tree or a normative document above it.)
 *   **Figure freshness — read catalog numbers in ARCH as dated, not current.** These documents are
     design records, so the figures they carry (`5,814 items`; `4,079 mcp / 1,103 skill / 632 plugin`;
-    pointer `rel-2026-10-05-01`) describe the state at the time each was written. As of **2026-10-19**
-    the released catalog is **`rel-2026-10-17-01`, sequence 149, 69,376 items** — **48,418 mcp /
+    pointer `rel-2026-10-05-01`) describe the state at the time each was written. As of **2026-10-21**
+    the released catalog is **`rel-2026-10-21-01`, sequence 151, 69,376 items** — **48,418 mcp /
     20,320 skill / 638 plugin** — split across six shard files, and `v0.4.0` (2026-10-11) and
     `v0.4.1` (2026-10-15) each publish a keyless Sigstore bundle for every asset, where every earlier
     tag publishes none. The origin holds the *current* release, so a probe of an older release now
@@ -59,12 +64,12 @@ sit at the repository root. Status columns state the highest honest evidence sta
 | [16 — Host Adapters & In-Agent UX](16-HOST-ADAPTERS.md) | HostAdapter interface, auto-detection, fallback prompt, Codex/Claude/Grok/OpenCode/Cline adapters, `/marketplace` | Normative for the `HostAdapter` contract and adapter registry; status-qualified elsewhere — §2 records advisory discovery as offline today and §5 (`/marketplace` registration) is `DESIGNED` |
 | [17 — Source, Artifact & Runtime Adapters](17-SOURCE-ARTIFACT-RUNTIME-ADAPTERS.md) | Real `source.Adapter` contract, the eight compiled source adapters and `internal/artifact` exports, plus the compiled fetcher/runtime interfaces (no production caller) | Normative for the `source.Adapter`/`artifact` contract; `IMPLEMENTED` (unwired) for the fetcher/runtime split |
 | [18 — Catalog Builder, Releases & Search](18-CATALOG-BUILDER-RELEASE-SEARCH.md) | Deterministic CI builder, `/v1/releases/` immutable layout, manifest digests, search ranking; the four-file tree + pointer are `SHIPPED`, and the shard/`index.json`/`items`/`metadata.json` tree is `DESIGNED` | Normative for the client path + search contract; `DESIGNED` for the unbuilt shard tree |
-| [19 — Secrets & OAuth Broker](19-SECRETS-OAUTH.md) | OS SecretStore backends (master key protected by `secret-tool`, `/usr/bin/security`, or DPAPI — no WinCred binding exists), loopback PKCE OAuth | Normative for the `SecretStore` contract and platform backends; §3 (OAuth broker) is `IMPLEMENTED`, not `WIRED` |
+| [19 — Secrets & OAuth Broker](19-SECRETS-OAUTH.md) | OS SecretStore backends (master key protected by `secret-tool`, `/usr/bin/security`, or DPAPI — no WinCred binding exists), loopback PKCE OAuth | Normative for the `SecretStore` contract and platform backends; §3 (OAuth broker) is `WIRED` (the production caller is `litespm auth login/status/logout`) |
 | [20 — Errors, Audit & Doctor](20-ERRORS-AUDIT-DOCTOR.md) | `LPSM-*` error taxonomy, CLI exit codes (0–70), audit event logging, `litespm doctor` | Normative |
 | [21 — Testing & Conformance](21-TESTING-CONFORMANCE.md) | Test pyramid, property testing, archive fuzzing, crash injection, fake MCP conformance | Normative |
 | [22 — Platform, Release & Migrations](22-PLATFORM-RELEASE-MIGRATIONS.md) | Multi-platform build matrix, transactional DB migrations, downgrade prevention, self-update | Normative |
 | [23 — Schemas & Examples](23-SCHEMAS-EXAMPLES.md) | JSON Schema (Draft 2020-12) specifications that mirror the emitted artifacts, golden test fixtures, and the dependency-free `internal/schemacheck` validator that fails on drift | Normative |
-| [24 — Function Inventory](24-FUNCTION-INVENTORY.md) | Aspirational map of Go package entry points across all 21 internal modules — §1 symbol names read from `go doc` at `ff0a1db`, §21 (`internal/agent`) the only verified signature section | Informative / `DESIGNED` — the source tree is the API, not this document |
+| [24 — Function Inventory](24-FUNCTION-INVENTORY.md) | Aspirational map of Go package entry points across 21 of the tree's 44 `internal/` packages — §1 symbol names read from `go doc` at `ff0a1db`, §21 (`internal/agent`) the only verified signature section | Informative / `DESIGNED` — the source tree is the API, not this document |
 | [25 — Web Frontend UI](25-WEB-FRONTEND-UI.md) | Web marketplace UI inspired by mcpmarket.com, component hierarchy, detail drawer | Normative |
 | [26 — Ecosystem IA & Package Model](26-ECOSYSTEM-IA-PACKAGE-MODEL.md) | Neutral `Package`/`Capability` model, 8-type v1 taxonomy, website IA, honesty rule, phased roadmap | Normative for IA/vocabulary/matrix; informative for roadmap |
 | [27 — Capability & Source Support Matrix](27-CAPABILITY-SOURCE-SUPPORT-MATRIX.md) | Research-backed status snapshot per capability type and source, with code evidence | Informative status snapshot (not a new contract) |
@@ -74,7 +79,7 @@ sit at the repository root. Status columns state the highest honest evidence sta
 | [31 — Competitive Landscape & Roadmap](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md) | Verified competitor record, proposal adjudication, evidence-state vocabulary, new-defect register, ordered backlog | Informative; **binding on §2 evidence vocabulary and §13 forbidden claims** |
 | [32 — Manifest, Lockfile & Interop](32-MANIFEST-LOCK-INTEROP.md) | `litespm.yml`/`litespm.lock` schemas, frozen installs, SBOM export, OpenAPM/skills-lock/plugin/MCP interop, canonical identity/alias graph | **§2–§4 `WIRED` (manifest, lockfile, lock verbs, `install --frozen`); §5–§6 `DESIGNED` (interop, identity graph)** |
 | [33 — Deployment Ledger & Reconciliation](33-DEPLOYMENT-LEDGER-RECONCILIATION.md) | `DeploymentMutation` ledger schema, locator grammar, three-way reconciliation (before/owned/current), uninstall & update semantics | **IMPLEMENTED** (install / reconcile / uninstall; update routing still `DESIGNED`) |
-| [34 — Runtime, Invocation & Receipts](34-RUNTIME-INVOCATION-RECEIPTS.md) | Capability registry, real `provider.invoke`/`invocation.get`/`invocation.cancel`, invocation engine, health/circuit-breaker, bounded output, tamper-evident receipts | **DESIGNED** |
+| [34 — Runtime, Invocation & Receipts](34-RUNTIME-INVOCATION-RECEIPTS.md) | Capability registry, real `provider.invoke`/`invocation.get`/`invocation.cancel`, invocation engine, health/circuit-breaker, bounded output, tamper-evident receipts | **`WIRED` for the registry, the engine and the receipts; `DESIGNED` for §4 (health + circuit breaker) and §7 (cross-provider fallback)** |
 | [35 — Profiles & Capability Leases](35-PROFILES-AND-CAPABILITY-LEASES.md) | Multi-kind profiles, OCI distribution, `profile` verbs, capability leases (scope/TTL/credential), auto-revocation, session/task binding | **DESIGNED** |
 | [36 — Enterprise Policy & Audit](36-ENTERPRISE-POLICY-AND-AUDIT.md) | Tighten-only policy hierarchy, `policy explain` provenance, `audit --ci` (text/json/SARIF/CycloneDX/SPDX), advisories/revocation, TUF-style catalog, Sigstore/SLSA provenance, air-gapped bundles | **DESIGNED** |
 | [37 — TUI & Completion](37-TUI-AND-COMPLETION.md) | First-class TUI with zero business logic, tab inventory, staged-plan tray, local dashboard boundary, dynamic shell completion, `why` | **DESIGNED** |
@@ -105,7 +110,7 @@ sit at the repository root. Status columns state the highest honest evidence sta
 *   **Artifact:** The physical software bundle (tarball, zip, git tree, or container image) retrieved from an upstream publisher.
 *   **Content-Addressed Storage (CAS):** Local immutable storage indexed strictly by SHA-256 content digest, preventing in-place corruption and enabling safe rollbacks.
 *   **SourceSnapshot:** A point-in-time capture of an upstream registry or marketplace, recording sync status (`healthy`, `partial`, `failed`, `stale`), upstream commit/revision, item count, and content digest.
-*   **CatalogRelease:** An immutable, sequence-numbered public catalog deployment (`/v1/releases/<release-id>/...`) verified by a top-level `manifest.json`. **Published and served live** — the origin answers `200` for `/v1/current.json` and for every shard of `/v1/releases/<id>/`, and `litespm catalog sync` was verified against it from a clean data root (probe 2026-10-19, release `rel-2026-10-17-01`, sequence 149); see [STATUS.md](../STATUS.md) §2. `index.json` / `shards/` / `items/` remain un-emitted by design ([31](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md) §4.2 records the defect this closes).
+*   **CatalogRelease:** An immutable, sequence-numbered public catalog deployment (`/v1/releases/<release-id>/...`) verified by a top-level `manifest.json`. **Published and served live** — the origin answers `200` for `/v1/current.json` and for every shard of `/v1/releases/<id>/`, and `litespm catalog sync` was verified against it from a clean data root (probe 2026-10-21, release `rel-2026-10-21-01`, sequence 151); see [STATUS.md](../STATUS.md) §2. `index.json` / `shards/` / `items/` remain un-emitted by design ([31](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md) §4.2 records the defect this closes).
 *   **Evidence State:** Where `DESIGNED`, `IMPLEMENTED`, `WIRED`, `TESTED`, `VERIFIED`, or `SHIPPED` appears as a status, it means exactly what [31](31-COMPETITIVE-LANDSCAPE-AND-ROADMAP.md#2-evidence-vocabulary-binding-repo-wide) §2 defines. Those states are never collapsed.
 *   **InstallPlan (v2):** A cryptographically bound, immutable description of an install, update, or removal operation. It contains exact versions, artifact digests, local filesystem effects, declared permissions, and preconditions, hashed into a canonical SHA-256 `planHash`.
 *   **Approval:** An authorization record binding a specific user confirmation (or explicit policy grant) to an immutable `subjectHash` (e.g., `planHash` or `schemaFingerprint`), with replay prevention for one-time approvals.
