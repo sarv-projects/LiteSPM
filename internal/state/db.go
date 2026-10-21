@@ -21,6 +21,9 @@ var phase1LifecycleSQL string
 //go:embed migrations/003_restore_backup_path.sql
 var restoreBackupPathSQL string
 
+//go:embed migrations/004_query_indexes.sql
+var queryIndexesSQL string
+
 // DB wraps a SQLite 3 connection pool configured for WAL mode and strong durability.
 type DB struct {
 	raw    *sql.DB
@@ -37,7 +40,16 @@ func Open(dbPath string) (*DB, error) {
 	}
 
 	// SQLite connection string with busy timeout and WAL pragmas
-	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)", dbPath)
+	//
+	// `_txlock=immediate` makes every transaction take the write lock when it
+	// BEGINS, instead of taking it later on the first write. A deferred
+	// transaction that reads first and upgrades to a write can fail with
+	// SQLITE_BUSY_SNAPSHOT when another writer committed in between — and
+	// busy_timeout does not retry that case, so it surfaced as an
+	// intermittent install failure under concurrent writers. Every
+	// transaction here writes, so taking the lock up front costs nothing
+	// that the deferred form bought.
+	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_txlock=immediate", dbPath)
 	rawDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite database at %s: %w", dbPath, err)

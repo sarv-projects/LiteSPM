@@ -162,7 +162,7 @@ func TestInstallabilityRequiresWiredKindAndProvenance(t *testing.T) {
 	// commit-pinned git tree is fetched and verified, and the MCP servers the
 	// plugin's manifest declares are registered in each target host's config).
 	// What a plugin still needs is a FETCHABLE artifact, and that is the
-	// installer's question, not the kind's: 636 plugin rows are
+	// installer's question, not the kind's: all 638 plugin rows are
 	// metadata_verified, and the ones without a pinned git tree are refused
 	// by the plugin installer with their own reason.
 	unwired := []ListingKind{KindConnector, KindAgent, KindRule, KindHook, KindTool, KindLSP, ListingKind("bogus")}

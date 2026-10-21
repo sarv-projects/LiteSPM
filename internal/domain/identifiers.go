@@ -93,8 +93,12 @@ func ParseListingID(raw string) (ListingID, error) {
 
 // NewListingID formats a canonical ListingID from parts.
 func NewListingID(kind ListingKind, sourceID SourceID, upstreamID string) ListingID {
-	encodedUpstream := url.QueryEscape(upstreamID)
-	// QueryEscape turns spaces into +, but for paths percent encoding is safer:
+	// QueryEscape escapes everything the id grammar forbids ("@" and "/"
+	// among them), but it writes a space as "+" — and the grammar allows "+"
+	// literally, so a space and a plus would collide. Rewriting the "+" to
+	// "%20" makes the two distinguishable, and the result is decoded with
+	// PathUnescape, which is what the catalog reader uses.
+	encodedUpstream := strings.ReplaceAll(url.QueryEscape(upstreamID), "+", "%20")
 	return ListingID(fmt.Sprintf("%s:%s:%s", kind, sourceID, encodedUpstream))
 }
 
@@ -107,24 +111,52 @@ func (l ListingID) Kind() ListingKind {
 	return ""
 }
 
+// splitListingID splits a listing id into its three parts.
+//
+// The grammar is <kind>:<source>:<encoded-upstream-id>, and BOTH the source
+// segment and the upstream segment can contain a colon:
+//
+//	<kind>          no colon
+//	<source>        colons allowed (a source is <namespace>:<slug>)
+//	<upstream>      percent-encoded, so a colon appears as %3A
+//
+// The upstream segment is therefore the part after the LAST colon and the
+// source is everything between the first and the last. Splitting on every
+// colon and demanding four parts read only the four-part form, so the
+// three-part ids the catalog actually publishes — every skill row
+// (skill:anthropics:pdf), every plugin row (plugin:anthropics:skills) and
+// 4,335 mcp rows — parsed and then decomposed into nothing.
+//
+// A colon in the upstream id is percent-encoded by NewListingID, so it can
+// never appear literally; the split below is therefore unambiguous.
+func splitListingID(raw string) (kind, source, encodedUpstream string, ok bool) {
+	first := strings.Index(raw, ":")
+	if first <= 0 {
+		return "", "", "", false
+	}
+	last := strings.LastIndex(raw, ":")
+	if last <= first || last == len(raw)-1 {
+		return "", "", "", false
+	}
+	return raw[:first], raw[first+1 : last], raw[last+1:], true
+}
+
 // SourceID extracts the SourceID.
 func (l ListingID) SourceID() SourceID {
-	// format: <kind>:<source-namespace>:<source-slug>:<encoded-upstream-id>
-	parts := strings.Split(string(l), ":")
-	if len(parts) >= 4 {
-		return SourceID(parts[1] + ":" + parts[2])
+	_, source, _, ok := splitListingID(string(l))
+	if !ok {
+		return ""
 	}
-	return ""
+	return SourceID(source)
 }
 
 // UpstreamID extracts and decodes the upstream ID.
 func (l ListingID) UpstreamID() (string, error) {
-	parts := strings.Split(string(l), ":")
-	if len(parts) < 4 {
-		return "", ErrInvalidIdentifier(string(l), "ListingID requires at least 4 colon-delimited segments")
+	_, _, encoded, ok := splitListingID(string(l))
+	if !ok {
+		return "", ErrInvalidIdentifier(string(l), "ListingID requires <kind>:<source>:<encoded-upstream-id>")
 	}
-	encoded := strings.Join(parts[3:], ":")
-	decoded, err := url.QueryUnescape(encoded)
+	decoded, err := url.PathUnescape(encoded)
 	if err != nil {
 		return "", fmt.Errorf("failed to unescape upstream id %q: %w", encoded, err)
 	}

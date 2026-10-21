@@ -53,14 +53,17 @@ func TestDatabaseOpenAndMigrate(t *testing.T) {
 		t.Fatalf("expected foreign_keys=1, got %d", foreignKeys)
 	}
 
-	// Verify all 22 core tables are created
+	// Verify every core table is created. The list must name EVERY table the
+	// schema has: it omitted deployment_mutations (migration 002), so the
+	// test passed while the schema was one table larger than the test
+	// claimed.
 	expectedTables := []string{
 		"schema_migrations", "settings", "sources", "source_snapshots",
 		"catalog_releases", "plans", "approvals", "operations",
 		"operation_steps", "artifacts", "installs", "install_components",
 		"providers", "provider_sessions", "capabilities", "capability_grants",
 		"host_registrations", "host_backups", "audit_events", "auth_profiles",
-		"oauth_sessions", "operation_trees",
+		"oauth_sessions", "operation_trees", "deployment_mutations",
 	}
 
 	for _, tbl := range expectedTables {

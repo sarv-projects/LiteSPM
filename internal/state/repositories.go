@@ -3,37 +3,27 @@ package state
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/sarv-projects/litespm/internal/domain"
 )
 
-// hostEntryFingerprint computes the S5 entry fingerprint: sha256 over the
-// current config file bytes when the file is readable, falling back to a
-// digest of host|entryKey|configPath so every registration carries a real
-// content-bound value instead of a constant.
-func hostEntryFingerprint(configPath, entryKey, hostID string) string {
-	if data, err := os.ReadFile(configPath); err == nil {
-		sum := sha256.Sum256(data)
-		return "sha256:" + hex.EncodeToString(sum[:])
-	}
-	sum := sha256.Sum256([]byte(hostID + "|" + entryKey + "|" + configPath))
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
 // --- Plans ---
 
 // SavePlan saves an InstallPlan record to SQLite.
-// Re-saving a plan id is an upsert that preserves the original created_at:
-// the row is content-addressed by planHash, so a re-save refreshes the hash
-// and expiry without rewriting history.
+// Re-saving a plan id is an upsert that preserves the original created_at AND
+// the row's status: the row is content-addressed by planHash, so a re-save
+// refreshes the hash and expiry without rewriting history.
+//
+// The status is deliberately NOT reset to 'pending'. A plan that has been
+// approved and executed is the record of what the human agreed to; a re-save
+// of the same plan id — which the install path does when it re-seals a plan —
+// used to demote it to 'pending' and silently un-approve it.
 func (db *DB) SavePlan(ctx context.Context, plan *domain.InstallPlan) error {
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
@@ -49,9 +39,7 @@ func (db *DB) SavePlan(ctx context.Context, plan *domain.InstallPlan) error {
 		listing_id = excluded.listing_id,
 		requested_version = excluded.requested_version,
 		plan_json = excluded.plan_json,
-		created_at = excluded.created_at,
-		expires_at = excluded.expires_at,
-		status = 'pending';`
+		expires_at = excluded.expires_at;`
 
 	_, err = db.raw.ExecContext(ctx, query,
 		plan.PlanID,
@@ -821,8 +809,14 @@ func queryRowExec(ctx context.Context, ex Execer, query string, args ...any) (*s
 // GetProvider reads one provider row back into a ProviderRecord, reconstructing
 // the launch specification so a caller does not have to know the column layout.
 func (db *DB) GetProvider(ctx context.Context, providerID string) (*domain.ProviderRecord, error) {
+	// `enabled` and the status are READ, not discarded. The reader used to
+	// select neither and then throw the value away, so a provider read back
+	// could not say whether it was enabled and its Status came back empty
+	// even though the writer had set it to "active" — a record that claimed
+	// to be a running provider with no status, and one that could not be
+	// told from a disabled one.
 	row := db.raw.QueryRowContext(ctx, `
-	SELECT provider_id, install_id, component_id, mode, launch_spec_json, COALESCE(auth_profile_id, '')
+	SELECT provider_id, install_id, component_id, mode, launch_spec_json, COALESCE(auth_profile_id, ''), enabled
 	FROM providers WHERE provider_id = ?;`, providerID)
 	var (
 		rec       domain.ProviderRecord
@@ -830,11 +824,15 @@ func (db *DB) GetProvider(ctx context.Context, providerID string) (*domain.Provi
 		launchRaw string
 		enabled   int
 	)
-	if err := row.Scan(&rec.ProviderID, &rec.InstallID, &rec.ComponentID, &mode, &launchRaw, &rec.AuthProfileID); err != nil {
+	if err := row.Scan(&rec.ProviderID, &rec.InstallID, &rec.ComponentID, &mode, &launchRaw, &rec.AuthProfileID, &enabled); err != nil {
 		return nil, err
 	}
-	_ = enabled
 	rec.Transport = mode
+	if enabled == 0 {
+		rec.Status = "disabled"
+	} else {
+		rec.Status = "active"
+	}
 	var spec launchSpec
 	if launchRaw != "" {
 		if err := json.Unmarshal([]byte(launchRaw), &spec); err != nil {
@@ -987,10 +985,27 @@ func (db *DB) SaveCapabilityGrant(ctx context.Context, grant *domain.CapabilityG
 		grant.ServerVersionDigest,
 		grant.Status,
 		grantedBy,
-		grant.CreatedAt,
-		grant.ExpiresAt,
+		grant.CreatedAt.UTC().Format(approvalTimeLayout),
+		grantExpiry(grant.ExpiresAt),
 	)
 	return err
+}
+
+// grantExpiry renders a grant's expiry in the fixed-width UTC layout the
+// approvals table uses.
+//
+// The grant timestamps used to be bound as Go time values, which the driver
+// writes as "2026-10-21 22:00:00 +0000 UTC", while the expiry was compared
+// against SQLite's CURRENT_TIMESTAMP ("2026-10-21 22:00:00"). The two shapes
+// are not comparable: a grant written in the current second compared GREATER
+// than CURRENT_TIMESTAMP because of the trailing "+0000 UTC", so it read as
+// unexpired, and the same column mixed both shapes, so ORDER BY granted_at
+// compared them as text. One layout, one shape, one comparison.
+func grantExpiry(expiresAt *time.Time) any {
+	if expiresAt == nil {
+		return nil
+	}
+	return expiresAt.UTC().Format(approvalTimeLayout)
 }
 
 // GetActiveGrant checks if an active capability grant exists with matching fingerprint and CAS/origin identity.
@@ -998,8 +1013,7 @@ func (db *DB) GetActiveGrant(ctx context.Context, capabilityID, schemaFingerprin
 	query := `
 	SELECT grant_id, capability_id, schema_fingerprint, cas_tree_digest, endpoint_origin, server_version_digest, status, granted_at, expires_at
 	FROM capability_grants
-	WHERE capability_id = ? AND schema_fingerprint = ? AND status = 'active'
-	  AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP);`
+	WHERE capability_id = ? AND schema_fingerprint = ? AND status = 'active';`
 
 	var g domain.CapabilityGrant
 	var casDigest, origin, srvVer sql.NullString
@@ -1034,6 +1048,14 @@ func (db *DB) GetActiveGrant(ctx context.Context, capabilityID, schemaFingerprin
 	}
 	if exp.Valid {
 		g.ExpiresAt = &exp.Time
+	}
+	// The expiry is evaluated HERE, in Go, for the same reason the approvals
+	// table does it: the column holds a fixed-width UTC timestamp and the
+	// comparison is a timestamp comparison, not a text comparison against
+	// CURRENT_TIMESTAMP. A grant whose expiry has passed is not an active
+	// grant, whatever the column says.
+	if g.ExpiresAt != nil && !g.ExpiresAt.After(time.Now().UTC()) {
+		return nil, domain.ErrNotFound("capability_grant", capabilityID)
 	}
 
 	return &g, nil

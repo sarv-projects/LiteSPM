@@ -921,14 +921,25 @@ func TestPluginRowWithoutDescriptorKeepsEmptyArtifacts(t *testing.T) {
 	}
 }
 
-// TestRealCatalogPluginArtifactsMapAndRemainUnfetchable runs the committed
+// TestRealCatalogPluginArtifactsMapAndCarryTheirPinning runs the committed
 // dataset through the same validation a release build performs and pins the
 // plugin half of LPSM-D003: every transcribed descriptor becomes exactly one
-// ArtifactRef, its pinning is carried faithfully, and NONE of them can be
-// fetched by the only wired fetcher (HTTPArchiveFetcher supports archive/mcpb
-// over HTTPS only) -- which is why every plugin install still fails closed
-// with LPSM-ARTIFACT-UNAVAILABLE.
-func TestRealCatalogPluginArtifactsMapAndRemainUnfetchable(t *testing.T) {
+// ArtifactRef and its pinning is carried faithfully.
+//
+// The name used to say "and remain unfetchable", and the claim behind it was
+// true when it was written: no fetcher could reach a plugin artifact, so
+// every plugin install failed closed with LPSM-ARTIFACT-UNAVAILABLE. It is no
+// longer the whole truth. A git-tree descriptor IS fetched now — by
+// internal/artifact's GitTreeFetcher, which clones the pinned commit over
+// https — and those plugins install. A local-dir descriptor still has
+// nothing to fetch, and those still fail closed.
+//
+// The assertion that survived the change is the one that matters: the
+// ARCHIVE fetcher (which speaks archive/mcpb over https) must not claim to
+// support a plugin artifact. The git-tree fetcher is a different fetcher for a
+// different artifact type, and a plugin descriptor that reached the archive
+// fetcher would be fetched as the wrong thing.
+func TestRealCatalogPluginArtifactsMapAndCarryTheirPinning(t *testing.T) {
 	datasetPath := filepath.Join("..", "..", "web", "data", "catalog.json")
 	raw, err := os.ReadFile(datasetPath)
 	if err != nil {
@@ -1002,7 +1013,7 @@ func TestRealCatalogPluginArtifactsMapAndRemainUnfetchable(t *testing.T) {
 			t.Errorf("row %d (%s): digest/size/media type were invented: %+v", i, row.ID, ref)
 		}
 		if fetcher.Supports(ref) {
-			t.Errorf("row %d (%s): the wired archive fetcher claims to support %+v; plugin installs must stay unfetchable",
+			t.Errorf("row %d (%s): the wired archive fetcher claims to support %+v; a plugin descriptor must never reach the archive fetcher",
 				i, row.ID, ref)
 		}
 	}

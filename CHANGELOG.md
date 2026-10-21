@@ -54,7 +54,43 @@ live documentation.
 - **Blind approval:** the plugin approval prompt printed no runtime line, and
   the wizard refused every plugin the CLI installs.
 
+### Fixed
+
+- **Plan demotion:** re-saving a plan id overwrote its `created_at` and reset
+  its status to `pending` — so a plan that had been approved and executed was
+  silently un-approved by a re-save.
+- **Grant expiry:** capability grants were written as Go timestamps and
+  compared against SQLite's `CURRENT_TIMESTAMP`, two shapes that do not
+  compare; a grant written in the current second read as unexpired, and the
+  column mixed both shapes so `ORDER BY granted_at` compared them as text.
+  Both are now the fixed-width UTC layout the approvals table uses, and the
+  expiry is evaluated in Go.
+- **Identifier decomposition:** `SourceID()` and `UpstreamID()` required four
+  colon-delimited segments, but the grammar — and the published catalog — use
+  three for every skill and plugin row, so 25,293 rows parsed and then
+  decomposed into nothing. The split is now first-and-last colon, which is
+  unambiguous because the upstream segment is percent-encoded.
+- **Encoding asymmetry:** ids were written with `QueryEscape` (a space
+  becomes `+`, which the grammar also allows literally) and read with
+  `PathUnescape`, so a space and a plus collided.
+- **Provider status:** the provider reader selected neither the `enabled`
+  flag nor the status, so a provider read back could not say whether it was
+  enabled and its status came back empty.
+- **Transaction isolation:** transactions began deferred, so one that read
+  first and then wrote could fail `SQLITE_BUSY_SNAPSHOT` under a concurrent
+  writer — and `busy_timeout` does not retry that case. Every transaction
+  here writes, so they now take the write lock at `BEGIN`.
+- **Backup completeness:** the pre-migration backup checkpointed the WAL and
+  discarded the checkpoint's result row, so a partial checkpoint produced a
+  copy missing the pages still in the WAL, presented as a complete recovery
+  copy. A partial checkpoint is now refused rather than copied.
+
 ### Added
+
+- Migration `004_query_indexes` indexes the three lookups that were full
+  table scans: the host-registration lookup by (scope, entry), the grant
+  lookup by capability — which the policy engine runs on every tool call —
+  and the install lookup by (scope, workspace).
 
 - `litespm skills adopt <name>` takes ownership of a skill the agent's own
   package manager installed — not reinstalled, not rewritten, and not removed

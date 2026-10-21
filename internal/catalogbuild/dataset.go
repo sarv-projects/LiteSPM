@@ -80,18 +80,27 @@ var sha40 = regexp.MustCompile(`^[0-9a-f]{40}$`)
 // manifest actually declared.
 //
 // The fields mean exactly what they say and nothing more:
+//
 //   - Type is the domain's ArtifactType vocabulary: "git-tree" (a revision of
 //     a repository) or "local-dir" (a directory inside the repository that
-//     publishes the manifest). Neither is an archive, and no fetcher is wired
-//     for either yet, so every plugin install still fails closed with
-//     LPSM-ARTIFACT-UNAVAILABLE.
+//     publishes the manifest). Neither is an archive.
+//
+//     A git-tree artifact IS fetchable: internal/artifact's GitTreeFetcher
+//     clones the pinned commit over https and extracts it through the shared
+//     safe extractor, and cmd/litespm/install_plugin.go installs from it. A
+//     local-dir artifact is not fetchable — there is nothing to fetch — so
+//     those installs still fail closed with LPSM-ARTIFACT-UNAVAILABLE.
+//
 //   - DeclaredAs records the spelling the manifest used ("url",
 //     "git-subdir", "relative-path", "path", "local"): a relative path and a
 //     git URL are not the same claim.
+//
 //   - Path keeps the manifest's verbatim spelling. Resolution against Repo is
 //     a fetcher's job and nothing here has performed it.
+//
 //   - Ref is a branch or tag NAME and is therefore mutable. Pinned is true
 //     only for a full 40-hex lowercase commit Sha; Ref alone never pins.
+//
 //   - Sha is copied, never resolved or verified.
 type DatasetArtifact struct {
 	Type       string `json:"type"`
@@ -321,9 +330,9 @@ func DatasetSnapshotID(dataset []byte) string {
 //   - a row's transcribed source descriptor becomes one ArtifactRef, or none
 //     when the manifest published no transcribable descriptor: see
 //     artifactRefsFor for what each field means and what is deliberately left
-//     empty. Carrying the descriptor is not an install claim -- no fetcher is
-//     wired for git-tree or local-dir artifacts, and every plugin install
-//     still fails closed with LPSM-ARTIFACT-UNAVAILABLE.
+//     empty. Carrying the descriptor is not an install claim: a local-dir
+//     artifact has nothing to fetch, so those installs still fail closed with
+//     LPSM-ARTIFACT-UNAVAILABLE.
 func ConvertDataset(rows []DatasetRow, releaseID, _datasetInputID string, ingestedAt time.Time) ([]*domain.Listing, []*domain.VersionRecord, error) {
 	listings := make([]*domain.Listing, 0, len(rows))
 	versions := make([]*domain.VersionRecord, 0, len(rows))
@@ -467,10 +476,11 @@ func convertRow(row DatasetRow, releaseID string, ingestedAt time.Time) (*domain
 // Digest, Size and MediaType stay empty: the manifests publish none, and a
 // fabricated digest would be indistinguishable from a verified one.
 //
-// Nothing consumes these refs on an install path today (the plan builder
-// writes no plan artifacts and the fetcher supports archive/mcpb only), so
-// populating them changes no install outcome: every plugin install still fails
-// closed with LPSM-ARTIFACT-UNAVAILABLE.
+// The plan builder writes no plan artifacts, so these refs do not change an
+// install outcome by themselves — but they are not inert: the plugin install
+// path reads the artifact descriptor from the listing and fetches a git-tree
+// artifact from its pinned commit. A local-dir artifact has nothing to
+// fetch, so those installs still fail closed with LPSM-ARTIFACT-UNAVAILABLE.
 func artifactRefsFor(row DatasetRow) []domain.ArtifactRef {
 	if row.Artifact == nil {
 		return []domain.ArtifactRef{}

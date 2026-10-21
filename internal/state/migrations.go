@@ -14,7 +14,7 @@ import (
 
 // CurrentSchemaVersion is the maximum schema version supported by this binary.
 // It must equal the highest Version in Migrations (asserted by a test).
-const CurrentSchemaVersion = 3
+const CurrentSchemaVersion = 4
 
 // Migration defines a versioned database schema migration.
 type Migration struct {
@@ -39,6 +39,11 @@ var Migrations = []Migration{
 		Version:     3,
 		Description: "003_restore_backup_path",
 		UpSQL:       restoreBackupPathSQL,
+	},
+	{
+		Version:     4,
+		Description: "004_query_indexes",
+		UpSQL:       queryIndexesSQL,
 	},
 }
 
@@ -175,8 +180,34 @@ func (db *DB) backupDatabaseFile(backupDir string, currentVer int) error {
 	if err := os.MkdirAll(backupDir, 0700); err != nil {
 		return fmt.Errorf("create backup dir %s: %w", backupDir, err)
 	}
-	if _, err := db.raw.Exec(`PRAGMA wal_checkpoint(TRUNCATE);`); err != nil {
+	// Checkpoint the WAL before copying the main database file, and CHECK the
+	// result.
+	//
+	// A checkpoint can be partial: a reader holding an old snapshot keeps the
+	// WAL pages it needs, and the checkpoint reports that as busy=1 with the
+	// count of pages it could not move. The result row used to be discarded,
+	// so a partial checkpoint produced a copy of the main file WITHOUT the
+	// pages still living in the WAL — presented as a complete recovery copy,
+	// and missing exactly the rows written most recently.
+	//
+	// The backup is refused when the checkpoint did not complete, and retried
+	// with a short wait first, because a busy reader is a normal condition
+	// rather than a broken database.
+	var busy, logRows, checkpointed int
+	if err := db.raw.QueryRow(`PRAGMA wal_checkpoint(TRUNCATE);`).Scan(&busy, &logRows, &checkpointed); err != nil {
 		return fmt.Errorf("checkpoint WAL before backup: %w", err)
+	}
+	if busy != 0 {
+		// One retry after a short pause: the reader usually finishes.
+		time.Sleep(250 * time.Millisecond)
+		if err := db.raw.QueryRow(`PRAGMA wal_checkpoint(TRUNCATE);`).Scan(&busy, &logRows, &checkpointed); err != nil {
+			return fmt.Errorf("checkpoint WAL before backup: %w", err)
+		}
+		if busy != 0 {
+			return fmt.Errorf("refusing to take a pre-migration backup: the WAL checkpoint was partial "+
+				"(busy=%d, %d page(s) still in the WAL), so the copy would be missing the most recent writes; "+
+				"close the other processes using this database and retry", busy, logRows)
+		}
 	}
 	timestamp := time.Now().UTC().Format("20060102-150405.000000000")
 	backupPath := filepath.Join(backupDir, fmt.Sprintf("state-pre-migration-v%d-%s.db", currentVer, timestamp))
