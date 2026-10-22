@@ -217,8 +217,11 @@ test("the product demo renders its poster frame and its transcript", async ({ pa
   await expect(poster).toBeVisible();
   await expect(poster).toContainText("Installation workflow");
 
-  // The captions: five beats, each with its own line.
-  await expect(demo.locator("#product-demo-captions > li")).toHaveCount(5);
+  // The captions: three beats — the same three moments the section below this
+  // card and `/how-it-works` teach. It was five (discovery and compatibility
+  // counted as steps of their own) until one page was teaching two shapes of
+  // the same workflow.
+  await expect(demo.locator("#product-demo-captions > li")).toHaveCount(3);
 
   // The transcript, in the document, for a reader with no JavaScript, no
   // screen, and no interest in watching a video.

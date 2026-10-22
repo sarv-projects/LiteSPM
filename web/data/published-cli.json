@@ -1,0 +1,33 @@
+{
+  "version": "0.4.1",
+  "checkedAt": "2026-10-22",
+  "verifiedBy": "npm dist-tags.latest on registry.npmjs.org (0.4.1) cross-read against the git tag of the same version (`git show v0.4.1:cmd/litespm/main.go` → parseInstallFlags)",
+  "installFlags": [
+    "--help",
+    "-h",
+    "--version",
+    "-v",
+    "--scope",
+    "-s",
+    "--workspace",
+    "-w",
+    "--host",
+    "--env",
+    "--force",
+    "-f",
+    "--frozen"
+  ],
+  "_readme": [
+    "What a reader actually installs. `npx --yes litespm@latest` resolves to this",
+    "version, so these are the only install flags the site may publish — the",
+    "flags a reader's binary accepts is a property of npm, not of this working",
+    "tree. That distinction is what let the site publish `--agent` and",
+    "`--all-detected` while the published CLI rejected both.",
+    "",
+    "scripts/check-install-command.mjs reads this file, asks npm for the live",
+    "dist-tag when it can, and fails when they disagree — so publishing a new",
+    "release cannot silently leave this file (and therefore the site) behind.",
+    "Update `version` and `installFlags` together: parse them from the tag you",
+    "just published with the same `case \"--flag\"` read the gate performs."
+  ]
+}

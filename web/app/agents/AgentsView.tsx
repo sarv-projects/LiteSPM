@@ -260,6 +260,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
           Counts come from catalog metadata and each host's adapter. LiteSPM has not run every
           capability against every agent.
         </p>
+        <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-ink-2">
+          Done comparing? <Link href="/explore/" className="link">Browse what these hosts can
+          run</Link>, or <Link href="/get-started/" className="link">connect one of them</Link>.
+        </p>
       </main>
 
       <SiteFooter />

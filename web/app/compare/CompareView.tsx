@@ -428,6 +428,11 @@ export default function CompareView({ data }: CompareViewProps) {
         <p className="mt-8 max-w-prose text-[12px] leading-relaxed text-ink-3">
           A dash means no value is recorded for that agent.
         </p>
+        <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
+          Comparing them all leaves you looking for one? Its own page names the exact config file
+          and the entry LiteSPM writes into it — <Link href="/agents/" className="link">all 50
+          agent hosts</Link>.
+        </p>
       </main>
 
       <SiteFooter />

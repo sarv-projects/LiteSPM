@@ -139,14 +139,26 @@ export function safeCatalogId(id: string): boolean {
 }
 
 /**
- * `--agent` names the target for every kind: a host id for an MCP server or a
+ * `--host` names the target for every kind: a host id for an MCP server or a
  * plugin, a skills target id for a skill. The catalog installer seals those
  * destinations into the plan, so naming one agent cannot write another — the
  * reason a skill command used to be published without a target at all.
  *
- * The gate `scripts/check-install-command.mjs` reads the CLI's own flag parser
- * and fails if this module publishes `--agent` while the binary does not
- * accept it (or stops publishing it while the binary does).
+ * It is spelled `--host` rather than `--agent` because of what the reader
+ * actually runs. `npx --yes litespm@latest` resolves to the **published**
+ * release, and the published `install` verb takes `--host`; `--agent` and
+ * `--all-detected` arrived later. A site that printed those told a reader on
+ * the published CLI to run a command that exited with `unknown flag` — the
+ * single worst thing this site can do, because it looks like the product is
+ * broken rather than newer than its npm tag. `--host` is accepted by the
+ * published CLI and by the current one (where the help calls it "the older
+ * spelling" of `--agent`), so one spelling serves both.
+ *
+ * The gate `scripts/check-install-command.mjs` asserts this from two
+ * directions: the flags this module publishes must be accepted by the
+ * working tree's parser AND by the published CLI's recorded flag set
+ * (`data/published-cli.json`), so the site can never again publish a command
+ * the binary a reader installs would reject.
  */
 export function websiteInstallCommandFor(
   item: { id: string; kind: "mcp" | "skill" | "plugin"; name?: string | null },
@@ -158,17 +170,17 @@ export function websiteInstallCommandFor(
   if (selected && !/^[a-z0-9][a-z0-9-]*$/.test(selected)) {
     throw new Error("Invalid agent id; refusing to generate a shell command");
   }
-  // With no agent chosen, a skill command must still be runnable. The CLI
-  // refuses a bare skill install when more than one agent is detected, because
-  // the command itself is the approval and two copies is a fan-out nobody
-  // asked for; `--all-detected` is how that choice is stated. An MCP server or
-  // plugin has its own documented default (bridge-registered hosts) and stays
-  // flag-free.
-  const target = selected
-    ? ` --agent ${selected}`
-    : item.kind === "skill"
-      ? " --all-detected"
-      : "";
+  // With no agent chosen the command stays bare, and that is runnable on every
+  // release: the CLI resolves the target itself (an MCP server or plugin takes
+  // the hosts set up with `litespm host setup`; a skill takes the agents
+  // detected on this machine). A release that would fan a skill out to two or
+  // more detected agents stops and names both remedies rather than guessing —
+  // which is the honest answer, and the entry page says so next to the command.
+  //
+  // `--all-detected` states that default explicitly, but only newer releases
+  // take it, so it is not what the site publishes while `@latest` can be one
+  // that does not.
+  const target = selected ? ` --host ${selected}` : "";
   return {
     command: `${WEBSITE_NPX_PREFIX} install ${id}${target}`,
     form: "id",
@@ -177,7 +189,7 @@ export function websiteInstallCommandFor(
     label: selected
       ? "Installs this catalog entry into the chosen agent after local setup and catalog sync."
       : item.kind === "skill"
-        ? "Installs into every skills target detected on your machine after local setup and catalog sync."
+        ? "Installs into the skills targets detected on your machine after local setup and catalog sync."
         : "Installs this exact catalog entry after local setup and catalog sync.",
     short: false,
   };

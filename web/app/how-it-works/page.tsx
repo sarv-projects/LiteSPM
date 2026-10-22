@@ -48,7 +48,7 @@ const STEPS = [
     number: "02",
     title: "Find and install a capability",
     description:
-      "Search the marketplace by task, provider or package name, then copy the package's exact install command from its page. Each listing shows its source, compatibility, and whether LiteSPM has a supported installation path. The first install fetches the signed catalog; after that LiteSPM resolves the package against it locally and refuses anything it cannot install, with the reason.",
+      "Search the marketplace by task, provider or package name, then copy the package's exact install command from its page. Each listing shows its source, compatibility, and whether LiteSPM has a supported installation path. The first install fetches the verified catalog; after that LiteSPM resolves the package against it locally and refuses anything it cannot install, with the reason.",
     command: "npx --yes litespm@latest install <id>",
   },
   {

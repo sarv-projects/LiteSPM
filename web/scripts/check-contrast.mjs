@@ -17,7 +17,7 @@
 //
 // Usage: node scripts/check-contrast.mjs [--root <dir>]
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,6 +28,27 @@ const webRoot = rootArg === -1 ? path.dirname(here) : path.resolve(process.argv[
 function fail(message) {
   console.error(`FAIL contrast — ${message}`);
   process.exit(1);
+}
+
+/** Every TypeScript source the site renders from, relative to `webRoot`. */
+function sourceFiles() {
+  const out = [];
+  const walk = (rel, dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules") continue;
+        walk(childRel, path.join(dir, entry.name));
+      } else if (/\.tsx?$/.test(entry.name)) {
+        out.push(childRel);
+      }
+    }
+  };
+  for (const dir of ["app", "components", "lib"]) {
+    const abs = path.join(webRoot, dir);
+    if (existsSync(abs)) walk(dir, abs);
+  }
+  return out;
 }
 
 /** WCAG relative luminance of a `#rrggbb` colour. */
@@ -88,6 +109,17 @@ function readPalette(css) {
     "ink-2",
     "ink-3",
     "rule-2",
+    // The logo plate: a vendor mark's ground stays light in both themes, so
+    // the ink drawn on it is what has to hold in dark mode — it does not
+    // follow `--ink-2`, which flips. Two components hard-coded `bg-white`
+    // before this existed and read an ink that flipped with the theme, which
+    // is 1.57:1.
+    "logo-plate",
+    "logo-plate-ink",
+    // The two grounds white is printed on — measured below rather than
+    // assumed, because a literal has no gate of its own.
+    "accent",
+    "pop",
   ];
   const out = {};
   for (const name of names) {
@@ -150,6 +182,33 @@ function main() {
       }
     }
 
+    // The logo plate's own ink, on the plate. This is the pair that was
+    // invisible in dark mode: the plate is always light and the ink followed
+    // the theme, so a fallback initial rendered at 1.57:1 on a white tile.
+    const plate = ratio(p("logo-plate-ink"), p("logo-plate"));
+    report.push(`${theme} logo-plate-ink on logo-plate: ${plate.toFixed(2)}:1`);
+    if (plate < TEXT_FLOOR) {
+      failures.push(
+        `${theme} --logo-plate-ink on --logo-plate is ${plate.toFixed(2)}:1, under the ${TEXT_FLOOR}:1 floor`
+      );
+    }
+
+    // White is the one colour this site prints as a literal, on exactly two
+    // grounds: the brand mark inside `bg-accent`, and the error toast inside
+    // `bg-pop`. Both are measured here in every theme, because neither value
+    // is in the palette the reader can check by eye — if either ground is ever
+    // lightened past 4.5:1, the white on it stops being readable and this is
+    // what says so.
+    for (const ground of ["accent", "pop"]) {
+      const measured = ratio("#ffffff", p(ground));
+      report.push(`${theme} white on ${ground}: ${measured.toFixed(2)}:1`);
+      if (measured < TEXT_FLOOR) {
+        failures.push(
+          `${theme} white on --${ground} is ${measured.toFixed(2)}:1, under the ${TEXT_FLOOR}:1 floor`
+        );
+      }
+    }
+
     // The boundary colour has to be locatable where it bounds something that
     // has to be found — 3:1 (SC 1.4.11). `--rule-2` used to measure 2.99:1 on
     // `--hover`, a hair under the floor, and 2.83:1 on `--sunken`; it is
@@ -165,8 +224,43 @@ function main() {
     }
   }
 
+  // A colour written straight into a className is invisible to this gate: it
+  // reads the palette, and a literal is not in the palette. `bg-white` on a
+  // dark surface is the failure that shipped — a tile that stayed white while
+  // its ink flipped — so any raw light/dark literal is a failure unless the
+  // combination it prints is documented here with a measured floor.
+  // A ground (a plate, a fill) that ignores the theme is the failure that
+  // shipped: `bg-white` stayed white on the dark surface while its ink
+  // followed the theme, which is 1.57:1 — so a ground is never a literal.
+  //
+  // White INK is the exception, named file by file with the ground it sits on
+  // (measured above in every theme): a new literal is never grandfathered by
+  // being near an old one.
+  const WHITE_INK = new Map([
+    ["components/navigation/Header.tsx", "white on --accent, the brand mark"],
+    ["components/ui/Toast.tsx", "white on --pop, the error toast"],
+  ]);
+  for (const file of sourceFiles()) {
+    const text = readFileSync(path.join(webRoot, file), "utf8");
+    const lines = text.split("\n");
+    lines.forEach((line, i) => {
+      if (/\b(bg|border)-(white|black)([^a-z-]|$)/.test(line)) {
+        failures.push(
+          `${file}:${i + 1} hard-codes a background literal — read a token instead (the palette gate cannot see it)`
+        );
+        return;
+      }
+      if (/\btext-(white|black)([^a-z-]|$)/.test(line) && !WHITE_INK.has(file)) {
+        failures.push(
+          `${file}:${i + 1} hard-codes ink; white ink is documented only where ` +
+            `--accent or --pop is the ground (the measured pair above)`
+        );
+      }
+    });
+  }
+
   if (failures.length > 0) {
-    console.error(`FAIL contrast — ${failures.length} pair(s) under the floor:`);
+    console.error(`FAIL contrast — ${failures.length} finding(s):`);
     for (const line of failures) console.error(`  - ${line}`);
     process.exit(1);
   }

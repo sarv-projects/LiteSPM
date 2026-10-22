@@ -1,7 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- The mark is a terminal prompt chevron on the ink field: the same shape
-       the header uses, so the favicon and the masthead are one idea. -->
-  <rect width="32" height="32" rx="5" fill="#101722" />
-  <path d="M9 11l5 5-5 5" fill="none" stroke="#edf0f3" stroke-width="2.75" stroke-linecap="square" />
-  <rect x="17" y="19" width="7" height="2.5" fill="#1f3fa8" />
+  <!-- The mark: a terminal prompt chevron and its cursor on the brand indigo
+       tile — the same two elements the header draws at 28px, so the tab, the
+       home screen and the masthead are one mark rather than three ideas in the
+       same colours.
+
+       It used to be a dark plate with an indigo cursor, which the comment
+       beside it called "the same shape the header uses": the header has always
+       been an indigo tile with a white terminal glyph, so the claim was
+       exactly wrong, and the social card drew a third version. The tile is
+       brand indigo, which is one of the six places the palette allows it, and
+       white on it clears 5.49:1 — measured by `scripts/check-contrast.mjs`.
+       `scripts/gen_og_image.mjs` draws the card and the touch icon from the
+       same palette, so they cannot drift from this file. -->
+  <rect width="32" height="32" rx="5" fill="#3157f6" />
+  <path d="M9 11l5 5-5 5" fill="none" stroke="#ffffff" stroke-width="2.75" stroke-linecap="square" />
+  <rect x="17" y="19" width="7" height="2.5" fill="#ffffff" fill-opacity="0.7" />
 </svg>

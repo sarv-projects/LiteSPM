@@ -57,6 +57,18 @@ type emittedHost struct {
 	// must refuse a remote install, so the site can state the capability
 	// without restating the matrix.
 	Remote bool `json:"remote,omitempty"`
+	// RemoteTransports is the registry vocabulary that host can express for a
+	// URL entry — `streamable-http` and/or `sse`, the authority the binary's
+	// writer checks before it writes a remote entry.
+	//
+	// The flag alone was not enough for the site: it knew a host COULD take a
+	// URL, but not which transports it documents, so `lib/installFeasibility.ts`
+	// kept a second, hand-written copy of the same fact. When the adapters were
+	// re-verified (46 of 50 hosts, 2026-10-21) the hand-written table stayed
+	// behind at eight rows and the site reported `unknown` — never `supported`
+	// — for 38 hosts the binary would happily install into. Emitting the set
+	// here is the fix the table's own comment asked for: one source.
+	RemoteTransports []string `json:"remoteTransports,omitempty"`
 }
 
 func main() {
@@ -96,8 +108,14 @@ func main() {
 		// The remote (URL) capability comes from the same query install and
 		// copy use (host.RemoteEntrySpecFor), so the emitted flag can never
 		// disagree with what the binary will actually write.
-		if _, ok := host.RemoteEntrySpecFor(d.HostID); ok {
+		if spec, ok := host.RemoteEntrySpecFor(d.HostID); ok {
 			row.Remote = true
+			// The transport set travels with the flag, sorted so two runs over
+			// the same registry are byte-identical.
+			if len(spec.Transports) > 0 {
+				row.RemoteTransports = append([]string(nil), spec.Transports...)
+				sort.Strings(row.RemoteTransports)
+			}
 		}
 		// Project scope, from the same predicate `install --scope project` uses
 		// (host.SupportsProjectScope) and the same path it writes

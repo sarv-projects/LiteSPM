@@ -97,6 +97,116 @@ live documentation.
   families are now `LPSM-RESOLVE` and `LPSM-INSTALL`, spelled the way the
   codes already were.
 
+### Fixed
+
+The site, its gates and CI — from an audit that compared the site against its
+competitors and the published package rather than against the working tree.
+
+- **The install command the site printed was rejected by the CLI a reader
+  installs.** `npx --yes litespm@latest` resolves to the published release,
+  and the site appended `--agent` and `--all-detected` to it — flags that
+  release's `install` verb does not take, so its answer was `unknown flag` on
+  the site's primary call to action. The target is now spelled `--host`, which
+  both the published and the current CLI accept, an untargeted skill command
+  is left bare (a bare install works on every release), and the two notes
+  beside the command say what a release that stops to ask is asking for.
+- **Nothing checked the published package.** The gate that compares the site's
+  flags to a CLI reads `cmd/litespm/main.go` — source nobody can `npm install`
+  — so it could only ever disagree with the binary a reader runs. It now also
+  parses the install parser out of the *published* version's git tag, takes
+  that version from npm's `latest` (falling back to the committed snapshot
+  offline), fails when npm and the snapshot disagree, and refuses any flag the
+  published binary lacks.
+- **"update" was promised for all three kinds everywhere** — footer, hero
+  subhead, meta description — while only `litespm skills update` exists. The
+  footer now says so; the hero says removal and restoration instead.
+- **The product was positioned five ways in one page's metadata**, and the
+  social card's alt text contradicted the `<title>`. Title, Open Graph,
+  Twitter, JSON-LD name, footer and the npm package description now read one
+  pair of constants (`lib/site.ts`).
+- **The drawn social card named the wrong product**: `public/og.png` read
+  "LiteSPM Market", a name no page uses, and there was no `apple-icon`, so iOS
+  put a page screenshot on the home screen. Both are generated from those same
+  constants, the palette and the vendored IBM Plex (`npm run gen:og`), and the
+  card carries the title it was drawn from as a PNG text field that
+  `scripts/check-og-image.mjs` compares back against them.
+- **In dark mode the logo tiles were white with light ink**: `AgentLogo` and
+  `PublisherMark` hard-coded `bg-white` while their fallback letter read
+  `--ink-2`, which flips with the theme — 1.57:1. The plate and its ink are
+  tokens now (`--logo-plate`, `--logo-plate-ink`), the contrast gate holds the
+  pair in every theme, and it fails on any background literal a gate built on
+  the palette cannot see.
+- **The entry page's tab title was a coin toss.** The Worker writes the
+  entry's `<title>` into the served HTML, and React re-applies the route's own
+  generic title when the shell commits — a write that lands after a
+  one-shot effect can, so which one survived depended on timing. The head is
+  reconciled by an observer now, which also collapses the second `og:title`
+  and the second `rel=canonical` hydration leaves behind.
+- **The first client render did not match the HTML** on a Worker-served entry:
+  the row was read during render, so React discarded the whole tree and
+  rebuilt it (error #418). It is read after the mount instead — same
+  no-round-trip arrival, no rebuild, no console error.
+- **The site said the transport was unknown for 38 of the 46 hosts that take
+  a remote (URL) entry.** `web/lib/installFeasibility.ts` kept its own
+  hand-written table of which transports each host documents — the registry
+  published only a `remote: true` flag — and when the adapters were re-verified
+  (46 of 50, 2026-10-21) the table stayed at its eight rows. The generator now
+  emits the registry's own `RemoteEntrySpec.Transports` as
+  `remoteTransports`, and the module and its tests read that instead; the
+  drift guard that was supposed to catch this fired, and was satisfied by
+  removing the second table rather than by extending it.
+- **CI never ran the product-link gate on the bundle.** It was part of
+  `npm run lint`, which the workflow runs *before* the export exists, so the
+  check either found nothing to read or failed on a missing directory. The
+  export check now runs as its own step after the build, and the gate skips
+  loudly rather than failing when there is no export yet.
+- **A refused archive entry survived on Windows.** `writeBoundedFile` removed
+  the file it had just written while its handle was still open, which Windows
+  refuses — so a truncated entry was left on disk as an empty file. The
+  handle is closed before the removal.
+- **The sitemap left out the pages a reader decides on** — `/how-it-works/`,
+  `/get-started/`, `/security/`, `/status/`, `/support/` — while every agent
+  page was listed.
+- Five pages ended on a legend, a footnote or a source note with nothing to
+  do next; they end on the action the page was for.
+
+### Changed
+
+- **One mark everywhere.** The favicon was a dark plate, the header an
+  indigo tile and the social card a third thing — and `app/icon.svg`'s own
+  comment claimed the first was the same shape as the second. The card and the
+  touch icon are drawn from the palette by `npm run gen:og`, and the favicon is
+  the header's tile: a white terminal chevron and its cursor on the brand
+  indigo.
+- **The hero says what the number is out of.** `26,554 capabilities LiteSPM
+  can install` is followed by "of 69,376 entries in the catalog", so a figure
+  visibly smaller than the footer's total reads as care rather than as a
+  broken count.
+- **The install band explains itself.** A skill command with no agent chosen
+  says what the targets will be and how to name one; a plugin command says
+  which release installs plugins, and that an older one refuses with the
+  reason rather than installing part of it.
+- **One workflow, three steps, everywhere.** The home page's card said "Five
+  simple stages" while the section below it and `/how-it-works` said three;
+  the card now teaches the same three moments in the same order as the other
+  two surfaces.
+- The bridge figure says three kinds, not two — plugins install from a pinned
+  source since 0.6.0, and the comment that explained their absence described a
+  diagram that no longer exists.
+- `/security/` no longer claims that no upstream publishes star counts
+  (repositories do); it claims what it can defend — that nothing in this
+  catalog publishes install counts, and that a number the site cannot observe
+  is not printed.
+- Four comments stated the opposite of the product (the figure's "two kinds",
+  plugins as un-installable, `list`/`copy` as backlog rows, "42 of 50 hosts
+  take a remote server" where the count is 46).
+- Four browser assertions pinned the world before these changes and moved
+  with it: the product card's five captions are three, the registry's remote
+  hosts are 46 (and the four that are not name their reason), the sse set is
+  derived from the generated data rather than remembered, and the website's
+  install command is asserted to contain only flags the published binary
+  takes.
+
 ### Added
 
 - Migration `004_query_indexes` indexes the three lookups that were full

@@ -285,8 +285,13 @@ test("the registry's remote capability is exactly the module's remote verdict", 
   const capable = HOST_ROWS.filter((host) => host.remote === true);
   const silent = HOST_ROWS.filter((host) => host.remote !== true);
 
-  expect(capable.length, "the Go registry ships eight remote entry spellings").toBe(8);
-  expect(silent.length, "and forty-two hosts it says nothing about").toBe(42);
+  // 46 of 50 since the adapters were re-read against live vendor documentation
+  // (2026-10-21): every host whose vendor publishes an entry object takes a
+  // remote URL. The four that do not — codestudio, iflow-cli, mux and zcode —
+  // publish no such object, so writing one would be a config the host ignores.
+  // This assertion pinned the pre-audit count of 8.
+  expect(capable.length, "the Go registry ships 46 remote entry spellings").toBe(46);
+  expect(silent.length, "and four hosts whose vendor publishes no entry object").toBe(4);
 
   const verdict = feasibilityFor(REMOTE_HTTP_ROW);
   expect(
@@ -295,8 +300,20 @@ test("the registry's remote capability is exactly the module's remote verdict", 
   ).toEqual(capable.map((host) => host.id).sort());
 
   for (const host of capable) {
+    const state = feasibilityFor(REMOTE_HTTP_ROW, host.id).state;
+    if (host.projectOnly) {
+      // The adapter documents no user-scope config path, so the binary falls
+      // back to a repo-local file: the entry lands inside a project and the
+      // verdict says so rather than claiming an install the user scope has
+      // nowhere to write.
+      expect(
+        state,
+        `${host.id} documents only a repo-local config, so a user-scope install needs a project`
+      ).toBe("requires-setup");
+      continue;
+    }
     expect(
-      feasibilityFor(REMOTE_HTTP_ROW, host.id).state,
+      state,
       `${host.id} has a verified remote entry spelling, so a remote row is supported there`
     ).toBe("supported");
   }
@@ -329,14 +346,22 @@ test("a remote MCP row is supported for a capable host and refused for an incapa
 });
 
 test("the transport the entry publishes decides the host set", () => {
-  // The registry records that only Claude Code, Cline and Cursor document the
-  // sse transport for a URL entry; the binary refuses the other five by name
-  // (LPSM-HOST-REMOTE-UNSUPPORTED).
-  expect([...feasibilityFor(REMOTE_SSE_ROW).supportedHostIds].sort()).toEqual([
-    "claude-code",
-    "cline",
-    "cursor",
-  ]);
+  // Which hosts document the sse transport is a registry fact, not a list to
+  // remember here: it used to name three hosts and "the other five", from
+  // before the adapters were re-read against live vendor documentation (46 of
+  // 50 take a URL entry; 23 of those document sse). Deriving the expectation
+  // from the same generated data is what keeps this assertion true on the
+  // next re-verification.
+  const sseCapable = HOST_ROWS.filter((host) =>
+    (host.remoteTransports ?? []).includes("sse")
+  )
+    .map((host) => host.id)
+    .sort();
+  expect(sseCapable.length, "the registry documents sse for a subset of the remote hosts").toBeGreaterThan(3);
+  expect([...feasibilityFor(REMOTE_SSE_ROW).supportedHostIds].sort()).toEqual(sseCapable);
+
+  // opencode documents streamable-http only, so an sse row is refused there
+  // by name (LPSM-HOST-REMOTE-UNSUPPORTED) — and claude-code takes it.
   expect(feasibilityFor(REMOTE_SSE_ROW, "opencode").state).toBe("unsupported");
   expect(feasibilityFor(REMOTE_SSE_ROW, "claude-code").state).toBe("supported");
 });

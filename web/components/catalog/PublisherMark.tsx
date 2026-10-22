@@ -111,13 +111,13 @@ export function PublisherTile({ item, size = 28, className = "" }: PublisherTile
 
   return (
     <span
-      className={`relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-[6px] border border-rule bg-white ${className}`}
+      className={`relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-[6px] border border-rule bg-[var(--logo-plate)] ${className}`}
       style={{ width: size, height: size }}
       title={title}
       aria-hidden="true"
     >
       <span
-        className="t-mono font-semibold leading-none text-ink-2"
+        className="t-mono font-semibold leading-none text-[var(--logo-plate-ink)]"
         style={{ fontSize: Math.max(11, Math.round(size * 0.42)) }}
       >
         {initial}

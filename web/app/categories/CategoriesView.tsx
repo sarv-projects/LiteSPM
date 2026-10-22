@@ -220,6 +220,10 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
             </li>
           ))}
         </ul>
+        <p className="mt-8 max-w-prose text-[13px] leading-relaxed text-ink-2">
+          Know the name already? <Link href="/explore/" className="link">Search the catalog by
+          name, publisher or tool</Link> instead of browsing by task.
+        </p>
       </main>
 
       <SiteFooter />

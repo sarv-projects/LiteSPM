@@ -14,8 +14,10 @@ import { ARCHITECTURE_URL, DOCS_URL, REPO_URL } from "../../lib/site";
  * `version`, `setup`, `doctor`, `search`, `install`, `install remove`,
  * `restore`, `grant`, `approve`, `catalog`, `daemon`, `bridge`, `host`,
  * `uninstall`, `agent`, `skills`, `capabilities`, `invoke`, `help`.
- * `litespm list`, `litespm copy` and `litespm sync` are backlog rows
- * (`LPSM-J010`, `LPSM-J011`), so they are not advertised here.
+ * The panel is the workflow a new reader follows, in order — set up, sync,
+ * install, check — so `litespm list` and `litespm copy` are not in it (both
+ * exist; the manage step prints `litespm list`). There is no top-level
+ * `litespm sync`: syncing is `litespm catalog sync`, which is the line above.
  *
  * The five benefits that used to sit at the bottom of this panel are now their
  * own section, one screen earlier, under "Why LiteSPM" — a reader who is

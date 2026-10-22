@@ -22,10 +22,14 @@ import { BridgeDiagram } from "./BridgeDiagram";
  * expert are the same page.
  *
  * The figure on the right is the bridge: one local process, every agent on
- * top of it, the two kinds of capability it can carry underneath. It says
- * "one bridge, two kinds" — not three, because LiteSPM cannot install
- * plugins, and a diagram that showed a third exit would be advertising an
- * install the binary refuses.
+ * top of it, the three kinds of capability it can carry underneath.
+ *
+ * It used to say "one bridge, two kinds", with plugins deliberately left off
+ * because the binary could not install them and a third exit would have
+ * advertised an install the CLI refused. Plugins have installed since 0.6.0
+ * (from a publisher's pinned source), so all three exits are real and the
+ * figure draws all three — `BridgeDiagram` marks each kind installable or
+ * not from the same predicate the installer uses.
  */
 
 interface Step {

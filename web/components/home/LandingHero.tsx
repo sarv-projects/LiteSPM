@@ -110,7 +110,7 @@ export function LandingHero({
 
           <p className="mt-5 max-w-prose text-[15px] leading-relaxed text-ink-2 sm:text-[16px]">
             Discover and install MCP servers, skills and plugins across the agents you use.
-            LiteSPM handles compatibility, setup, updates and removal from one place.
+            LiteSPM handles compatibility, setup, removal and restoration from one place.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -187,6 +187,17 @@ export function LandingHero({
                 number honest. */}
             <span className="text-ink-3">· catalog</span>
             <span>snapshot</span>
+          </p>
+          {/* The ratio that makes the number above read as care rather than as
+              a broken count: 26,554 of 69,376, said in one line. Without it a
+              reader meets a number that is visibly smaller than the catalog
+              the footer prints, with nothing to explain the difference. */}
+          <p
+            id="hero-proof-basis"
+            className="mt-1.5 max-w-[56ch] text-[12px] leading-relaxed text-ink-3"
+          >
+            of {formatCount(total)} entries in the catalog. The rest are listed rather than
+            hidden — each one says whether LiteSPM can install it, and why not when it can&rsquo;t.
           </p>
         </div>
 

@@ -33,8 +33,9 @@ export function SiteFooter() {
         <div>
           <p className="text-[15px] font-semibold text-ink">LiteSPM</p>
           <p className="mt-1.5 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            The package manager for AI agents. Find, install, update and remove MCP servers,
-            skills and plugins across the agents you use.
+            The package manager for AI agents. Find, install and remove MCP servers,
+            skills and plugins across the agents you use — and update the skills you
+            installed.
           </p>
         </div>
 

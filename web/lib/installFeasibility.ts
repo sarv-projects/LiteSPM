@@ -127,34 +127,27 @@ export interface Feasibility {
  * ------------------------------------------------------------------ */
 
 /**
- * The transports each remote-capable host documents for a URL entry.
+ * The transports a host documents for a URL entry.
  *
- * Mirrors the `RemoteEntrySpec.Transports` sets the Go registry holds:
- * `internal/host/entry_install.go` (`claudeRemoteSpec`, `clineRemoteSpec`,
- * `opencodeRemoteSpec`, `bareURLRemoteSpec`) and `internal/host/targets_data.go`
- * (the Cursor and Zed rows). The registry vocabulary is the two tokens in
- * `internal/host/target.go`: "streamable-http" and "sse".
+ * Straight from the generated registry (`web/data/hosts.json`, emitted from
+ * the Go `RemoteEntrySpec.Transports`). It used to be a second, hand-written
+ * table in this file — the registry published only a `remote: true` flag and
+ * not which transports each host documents, so the site kept the other half
+ * of the fact here, with a drift guard that failed when the two disagreed.
  *
- * The generated `web/data/hosts.json` records only that a host CAN take a URL
- * entry (`remote: true`), not which transports it accepts, so this table
- * carries the second half of the same fact. It is hand-written because the
- * generator is not mine to change — the honest fix is for
- * `scripts/gen_hosts_ts.go` to emit the transport set next to the flag, and
- * for the table to be deleted. Until then the drift guard matters: the
- * module reports a remote host it has no transport row for as `unknown`
- * (never `supported`), and the test suite fails if the generated registry
- * grows a remote host this table does not cover.
+ * The guard did its job and then went off: the adapters were re-verified
+ * against live vendor documentation (46 of 50 hosts, 2026-10-21) and this
+ * table stayed at its eight rows, so a reader was told the transport was
+ * UNKNOWN for 38 agents the binary would happily install into. The generator
+ * emits the set now (`scripts/gen_hosts_ts.go`), which is what the table's
+ * own comment asked for, and the table is gone.
+ *
+ * An empty set is not a capability: a host whose spec names no transport
+ * stays `unknown` here rather than being assumed.
  */
-const REMOTE_TRANSPORTS: Record<string, readonly string[]> = {
-  "claude-code": ["streamable-http", "sse"],
-  cline: ["streamable-http", "sse"],
-  codex: ["streamable-http"],
-  cursor: ["streamable-http", "sse"],
-  "grok-build": ["streamable-http"],
-  opencode: ["streamable-http"],
-  "pi-agent": ["streamable-http"],
-  zed: ["streamable-http"],
-};
+function remoteTransports(adapter: HostAdapter): readonly string[] {
+  return adapter.remoteTransports ?? [];
+}
 
 /** The registry's transport vocabulary. */
 const TRANSPORT_STREAMABLE_HTTP = "streamable-http";
@@ -278,8 +271,9 @@ function acceptsLocalEntry(adapter: HostAdapter): boolean {
  *   3. at project scope the host must document a project config
  *      (`host.SupportsProjectScope`).
  *
- * A host the transport table does not cover is left out: the module does not
- * guess, so it is `unknown` for that host rather than `supported`.
+ * A host whose registry row names no matching transport is left out: the
+ * module does not guess, so it is `unknown` for that host rather than
+ * `supported`.
  */
 function remoteHostIds(item: Listing, scope: FeasibilityScope): string[] {
   const transport = registryTransport(item.transport);
@@ -287,8 +281,8 @@ function remoteHostIds(item: Listing, scope: FeasibilityScope): string[] {
   for (const adapter of HOSTS) {
     if (adapter.remote !== true) continue;
     if (scope === "project" && !adapter.projectScope) continue;
-    const transports = REMOTE_TRANSPORTS[adapter.id];
-    if (!transports) continue;
+    const transports = remoteTransports(adapter);
+    if (!transports.length) continue;
     if (!transports.includes(transport)) continue;
     const id = identityId(adapter.name);
     if (!ids.includes(id)) ids.push(id);
@@ -509,8 +503,8 @@ function hostVerdict(
       // absent data into a refusal it cannot read.
       return verdict("unknown", [REASON_NO_REMOTE_RECORD], limitations);
     }
-    const transports = REMOTE_TRANSPORTS[adapter.id];
-    if (!transports) {
+    const transports = remoteTransports(adapter);
+    if (!transports.length) {
       return verdict(
         "unknown",
         ["LiteSPM has no record of which URL transports this agent documents"],

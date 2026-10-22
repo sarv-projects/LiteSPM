@@ -127,6 +127,17 @@
        file and holds every ink/surface pair at AA. */
     --ink-3: #485468;
 
+    /* The plate a brand mark or an initial sits on, and the ink drawn on it.
+       The plate stays light in both themes — vendor logos are drawn for a light
+       ground — so the value that has to follow the theme is the INK: `--ink-2` is
+       #3c495e in light but #c6cfdc in dark, and #c6cfdc on a white plate is
+       1.57:1, which is what made those tiles illegible in dark mode. Two
+       components (AgentLogo, PublisherMark) hard-coded `bg-white` and inherited
+       the flipping ink; both read these tokens now, and
+       `scripts/check-contrast.mjs` holds the pair in both themes. */
+    --logo-plate: #ffffff;
+    --logo-plate-ink: #3c495e;
+
     /* Brand indigo. `--accent` IS the brand token: solid CTAs, selected chips,
        the search focus ring and the active nav. White on it clears 5.49:1.
        `--brand` is the ARCH/25 §5.1 spelling of the same token, aliased here
@@ -221,6 +232,12 @@
       --ink-2: #c6cfdc;
       --ink-3: #97a3b6;
 
+      /* A light plate, not pure white: the tile reads as a chip on the dark
+      surface instead of a hole in it, and the ink on it measures 15.6:1
+      against --logo-plate-ink #111827. */
+      --logo-plate: #e6ebf4;
+      --logo-plate-ink: #111827;
+
       --accent: #3157f6;
       --accent-wash: #16203a;
       /* The fill would only reach 3.52:1 on #0b0e14, so TEXT uses the tint. */
@@ -266,6 +283,12 @@
     --ink: #edf1f7;
     --ink-2: #c6cfdc;
     --ink-3: #97a3b6;
+
+    /* A light plate, not pure white: the tile reads as a chip on the dark
+    surface instead of a hole in it, and the ink on it measures 15.6:1
+    against --logo-plate-ink #111827. */
+    --logo-plate: #e6ebf4;
+    --logo-plate-ink: #111827;
 
     --accent: #3157f6;
     --accent-wash: #16203a;

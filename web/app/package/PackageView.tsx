@@ -280,22 +280,6 @@ function useSlugParam(): { slug: string | null; resolved: boolean } {
   return state;
 }
 
-/**
- * Rewrite one `<meta property="…">` and return a restore function. The tag is
- * written by the layout's `openGraph` block, so it is edited in place and put
- * back rather than duplicated — two `og:title` tags would be invalid.
- */
-function setMetaProperty(property: string, content: string): () => void {
-  const el = document.head.querySelector<HTMLMetaElement>(`meta[property="${property}"]`);
-  if (!el) return () => {};
-  const previous = el.getAttribute("content");
-  el.setAttribute("content", content);
-  return () => {
-    if (previous === null) el.removeAttribute("content");
-    else el.setAttribute("content", previous);
-  };
-}
-
 function PackageContent({
   total,
   hostTotal,
@@ -305,11 +289,29 @@ function PackageContent({
   snapshot: snapshotProp,
 }: PackageViewProps) {
   const { slug, resolved } = useSlugParam();
-  // The row the edge Worker already resolved, handed to this page with it.
-  // Reading it here means the entry can be rendered without the bucket
-  // round trip that used to sit between the reader's click and the entry
-  // appearing.
-  const inlineEntry = useMemo(() => readInlineEntry(), []);
+  /**
+   * The row the edge Worker already resolved, handed to this page with it.
+   * Reading it here means the entry can be rendered without the bucket
+   * round trip that used to sit between the reader's click and the entry
+   * appearing.
+   *
+   * It is read AFTER the mount, not during the first render. The Worker's
+   * page is the shipped shell — the same document every entry outside the
+   * pre-rendered set gets — so a first render that already had the row would
+   * not match the HTML the server sent, and React would throw the whole tree
+   * away and rebuild it in the browser (error #418: "the server rendered HTML
+   * didn't match the client"). That is the expensive version of the flash
+   * this row was added to remove: the server's markup is discarded, the page
+   * is built twice, and the console carries an error.
+   *
+   * After the mount the first client render matches the server's, the row
+   * arrives with the document it was already in — no request — and the entry
+   * appears on the next frame instead of after a 170-450 KB round trip.
+   */
+  const [inlineEntry, setInlineEntry] = useState<Listing | null>(null);
+  useEffect(() => {
+    setInlineEntry(readInlineEntry());
+  }, []);
   // One product row, two counts and the sibling list come from ~170 KB of
   // hash-partitioned rows rather than the 44.5 MB full catalog this route used
   // to concatenate on every visit. A pre-rendered page already has its row, so
@@ -397,27 +399,90 @@ function PackageContent({
    * description, canonical and JSON-LD. This effect still runs there (and
    * rewrites the same values it already shipped), and it is still the only
    * per-entry metadata the client-resolved pages can offer.
+   *
+   * WHY THIS WATCHES THE HEAD
+   *
+   * The head belongs to React once the shell has hydrated, and React writes
+   * the ROUTE's metadata into it — "Find a package" for this route. The edge
+   * Worker had already written the ENTRY's title into the served HTML, and
+   * React's hydration found a different text there than the tree it was
+   * hydrating, so it re-applied its own.
+   *
+   * The two writes are ordered by when each happens, and the order is not
+   * ours to pick: the shell is a dynamic chunk, so React's head commit lands
+   * a couple of hundred milliseconds in — AFTER an effect that already had
+   * the entry and had written the title. Whichever write came last won, and
+   * it was whichever happened to be last, so the tab title was the entry's
+   * name on some visits and the route's generic one on others.
+   *
+   * So the title is asserted and re-asserted: an observer on the head puts it
+   * back whenever React (or anything else) writes over it. The same pass
+   * keeps ONE `og:title`/`og:description`, because React's hydration also
+   * leaves a second copy of each behind — the Worker's tag and React's, with
+   * different contents, in one head.
    */
   const docTitle = item?.name ?? null;
   const docSummary = item?.summary ?? null;
+  const canonicalKey = item ? (item.linkKey ?? item.id) : null;
+  const canonicalHref = canonicalKey
+    ? `${SITE_URL}/package/${encodeURIComponent(canonicalKey)}/`
+    : null;
   useEffect(() => {
     if (!docTitle) return;
-    const previous = document.title;
-    document.title = `${docTitle} · LiteSPM`;
-    const restoreOgTitle = setMetaProperty("og:title", `${docTitle} · LiteSPM`);
-    const restoreOgDescription = setMetaProperty(
-      "og:description",
-      clampMeta(
-        docSummary?.trim() ||
-          `${docTitle} from the LiteSPM catalog: what it is, which agent hosts it works with, and how to add it.`
-      )
+    const wanted = `${docTitle} · LiteSPM`;
+    const description = clampMeta(
+      docSummary?.trim() ||
+        `${docTitle} from the LiteSPM catalog: what it is, which agent hosts it works with, and how to add it.`
     );
-    return () => {
-      document.title = previous;
-      restoreOgTitle();
-      restoreOgDescription();
+
+    const apply = () => {
+      if (document.title !== wanted) document.title = wanted;
+      for (const [property, content] of [
+        ["og:title", wanted],
+        ["og:description", description],
+      ] as const) {
+        const nodes = Array.from(
+          document.head.querySelectorAll<HTMLMetaElement>(`meta[property="${property}"]`)
+        );
+        // The last one is the node React owns; removing React's and keeping
+        // the Worker's would make a later render re-add a second tag.
+        const keep = nodes[nodes.length - 1];
+        for (const node of nodes) {
+          if (node !== keep) node.remove();
+        }
+        if (!keep) continue;
+        // A write is only a write when the value differs: setAttribute fires a
+        // mutation record even for the identical value, and this function is
+        // itself the observer's callback.
+        if (keep.getAttribute("content") !== content) keep.setAttribute("content", content);
+      }
+      if (canonicalHref) {
+        const links = Array.from(
+          document.head.querySelectorAll<HTMLLinkElement>('link[rel="canonical"]')
+        );
+        const keep = links[links.length - 1];
+        for (const link of links) {
+          if (link !== keep) link.remove();
+        }
+        if (keep && keep.getAttribute("href") !== canonicalHref) {
+          keep.setAttribute("href", canonicalHref);
+        }
+      }
     };
-  }, [docTitle, docSummary]);
+    apply();
+
+    const observer = new MutationObserver(apply);
+    observer.observe(document.head, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["content", "href"],
+    });
+    return () => {
+      observer.disconnect();
+    };
+  }, [docTitle, docSummary, canonicalHref]);
 
   /**
    * The address bar and the canonical tag name the same entry — always.
@@ -435,36 +500,20 @@ function PackageContent({
    * naming different pages is invalid, and a crawler may keep the wrong one,
    * so this keeps one link and points it at the entry.
    *
+   * The reconciliation of the tag itself is part of the head observer above,
+   * for the same reason the title is: React writes its own canonical when the
+   * shell commits, which is after a one-shot effect would have run.
+   *
    * Client-side only, like the title rewrite above: what a crawler sees in the
    * served HTML is the Worker's tag, which is already correct.
    */
-  const canonicalKey = item ? (item.linkKey ?? item.id) : null;
-  const canonicalHref = canonicalKey
-    ? `${SITE_URL}/package/${encodeURIComponent(canonicalKey)}/`
-    : null;
   useEffect(() => {
-    if (!canonicalKey || !canonicalHref) return;
+    if (!canonicalKey) return;
     const path = `/package/${encodeURIComponent(canonicalKey)}/`;
     if (window.location.pathname !== path) {
       window.history.replaceState(null, "", path);
     }
-    const links = Array.from(
-      document.head.querySelectorAll<HTMLLinkElement>('link[rel="canonical"]')
-    );
-    // The last one is the node React owns; removing React's and keeping the
-    // Worker's would make a later render re-add a second tag.
-    const keep = links[links.length - 1];
-    if (!keep) return;
-    for (const link of links) {
-      if (link !== keep) link.remove();
-    }
-    const previous = keep.getAttribute("href");
-    keep.setAttribute("href", canonicalHref);
-    return () => {
-      if (previous === null) keep.removeAttribute("href");
-      else keep.setAttribute("href", previous);
-    };
-  }, [canonicalKey, canonicalHref]);
+  }, [canonicalKey]);
 
   /**
    * An address that names no entry still answers 200 with this shell on the

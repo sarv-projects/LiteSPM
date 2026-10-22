@@ -173,6 +173,28 @@ remove`).
 | Air-gapped signed bundle | `DESIGNED` | — | Signed offline bundle (needs §5 signing) |
 | `scripts/build_full_catalog.py` (Python builder) | `WIRED` **(dataset producer, snapshot-recording)** | Every upstream fetch is recorded by `scripts/snapshot_store.py` (raw bytes + ETag + digest, immutable, gitignored `source-snapshots/`) and replayed from the recording by default — two runs with no network are byte-identical, `--refresh` uses conditional requests, a digest mismatch refuses the build, and a failed refresh prints `STALE` instead of falling back silently (`internal/source` mirrors the format with test-only callers). The builder publishes `web/data/catalog.json` and the dataset stats in `web/data/release.json`; it no longer touches `web/public/v1/*` — the served pointer and release tree belong to `litespm catalog build` (single writer per key). Listing ids are funnelled through fail-closed `canonical_id()` (an earlier revision shipped six ids the domain grammar rejects). CI never runs it (`ARCH/31` §4.3) | Add row assertions; the Go ingest path (`internal/source`) still has only test callers. `D4` is **adjudicated** (2026-10-19): the ingestion/publication split is the ratified shape ([ARCH/07 D-022](ARCH/07-DECISIONS.md#d-022-canonical-catalog-builder-is-the-go-catalogbuild-d4--contested-open)) |
 
+### The site, and the CLI a reader actually installs (2026-10-22)
+
+The website is built from this working tree; the command it prints is
+`npx --yes litespm@latest`, which resolves to **npm's `latest` — 0.4.1**
+(published 2026-10-15; the newest GitHub release is `v0.4.1`, 17 assets). The
+tree is 0.6.0 and has no release. That gap is a property of the system, not a
+typo, and every surface that depends on it now says so:
+
+| Fact | State |
+|---|---|
+| What npm serves | `0.4.1`; its `install` verb accepts `--help/-h`, `--version/-v`, `--scope/-s`, `--workspace/-w`, `--host`, `--env`, `--force/-f`, `--frozen` |
+| What the site publishes | the target is spelled `--host` (accepted by both), an untargeted command stays bare, and the entry page says what a release that stops to ask is asking for (`web/lib/installCommand.ts`, `web/components/package/InstallBand.tsx`) |
+| What stops it drifting | `web/data/published-cli.json` records the published version and its flag set; `web/scripts/check-install-command.mjs` parses the *tag's* `parseInstallFlags`, asks npm for the dist-tag when the network answers (snapshot offline), fails when they disagree, and refuses any flag the published binary lacks |
+| What the published 0.4.1 cannot do | install a plugin (it answers `LPSM-ARTIFACT-UNAVAILABLE … the "plugin" install path is not wired yet`), take `--agent`/`--all-detected`, or give `catalog sync` more than ten seconds |
+| Per-host remote verdicts | one source now: `web/data/hosts.json` carries `remoteTransports` emitted from the Go registry's `RemoteEntrySpec.Transports` (`scripts/gen_hosts_ts.go`), so all **46** remote-capable hosts are described by the registry rather than by a hand-written table that had stopped at eight |
+| The local deploy artifact | `pages-dist/` (gitignored) is written by `scripts/deploy-pages.sh` and can be *stale* on a developer machine — a copy there may predate the current branding; the deploy script regenerates it |
+
+Until 0.6.0 is published, a reader who installs gets the 0.4.1 binary: MCP
+servers and skills install, plugins are refused with the reason, and the
+website's plugin and `--agent` documentation describes what the release that
+does not exist yet will do.
+
 **Companion guides for this section.** [`scripts/README.md`](scripts/README.md) inventories every
 script in `scripts/` and records which workflow (if any) runs it — `ci.yml` syntax-checks them all
 **and executes `deploy-pages.sh`** in its `build-web` job, and `release.yml` executes

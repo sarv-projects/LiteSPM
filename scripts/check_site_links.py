@@ -94,6 +94,18 @@ def main():
     args = parser.parse_args()
 
     if not os.path.isdir(args.built):
+        # A bundle that is not there yet is not a broken bundle: the check is
+        # about the links the export SHIPS, so running it before the export
+        # exists has nothing to say. It is skipped, loudly, and the caller
+        # that has a bundle in hand gets the real answer.
+        #
+        # (The web lint script runs before the static export is built, so this
+        # is the ordinary case there; CI runs the same check again against the
+        # built export, where a missing directory is a failed build and not a
+        # skip.)
+        if not os.path.exists(args.built):
+            print(f"check-site-links: skipped — no export at {args.built} yet")
+            return 0
         print(f"check-site-links: {args.built} is not a directory", file=sys.stderr)
         return 2
     if not os.path.isfile(args.dataset):

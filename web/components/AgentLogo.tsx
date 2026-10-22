@@ -43,7 +43,7 @@ export function AgentLogo({ id, name, size = 28, className = "" }: AgentLogoProp
 
   return (
     <span
-      className={`inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-chip border border-rule bg-white ${className}`}
+      className={`inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-chip border border-rule bg-[var(--logo-plate)] ${className}`}
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
@@ -60,7 +60,7 @@ export function AgentLogo({ id, name, size = 28, className = "" }: AgentLogoProp
         />
       ) : (
         <span
-          className="t-cond font-semibold leading-none text-ink-2"
+          className="t-cond font-semibold leading-none text-[var(--logo-plate-ink)]"
           style={{ fontSize: Math.max(10, Math.round(size * 0.44)) }}
         >
           {letter}

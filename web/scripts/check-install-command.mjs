@@ -7,23 +7,33 @@
 // `lib/installCommand.ts` as `CLI_INSTALL_ACCEPTS_SEARCH` — and a switch
 // nobody checks is a switch that drifts.
 //
-// This script is the check. It reads the CLI's own install flag parser out of
-// `cmd/litespm/main.go` and asserts the two agree, in BOTH directions:
+// This script is the check, and it checks TWO different binaries, because the
+// site does not address the source tree. `npx --yes litespm@latest` resolves
+// to what npm serves, so the flags the page prints have to be flags the
+// PUBLISHED release accepts — and for six releases now the published release
+// and this working tree have been different programs.
 //
-//   * the CLI accepts `--search` and the site does not publish it → the site
-//     is leaving a short form on the table;
-//   * the site publishes `--search` and the CLI does not accept it → the site
-//     is printing a command that fails with "unknown flag", which is the one
-//     thing this site must never do.
+//   1. the working tree's own install parser (`cmd/litespm/*.go`): the site
+//      must not publish a flag even the current binary lacks;
+//   2. the published release's install parser (`git show v<published>`): the
+//      site must not publish a flag the binary a reader installs lacks — that
+//      is the check whose absence let the site publish `--agent` and
+//      `--all-detected` while `npm`'s `latest` answered `unknown flag`.
 //
-// It then asserts the module's own behaviour on a fixed row, so the two
-// branches cannot be swapped by accident.
+// The published version is read from npm when the network answers it, and
+// from `data/published-cli.json` when it does not; the gate fails when they
+// disagree, so a new publish cannot quietly leave the snapshot — and with it
+// the site — behind.
+//
+// It then asserts the module's own behaviour on fixed rows, so the branches
+// cannot be swapped by accident.
 //
 // Usage: node scripts/check-install-command.mjs [--root <dir>]
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -38,52 +48,94 @@ function fail(message) {
 }
 
 /**
- * Does the CLI's install verb accept a `--search` flag?
+ * The install flags a Go source at `ref` accepts, read out of the parser
+ * itself. `ref` is either a git tag (what npm serves) or `""` for the working
+ * tree.
  *
- * Read out of the CLI's own source rather than declared here, because the
- * declaration is the thing this gate exists to check. The positive control
- * matters as much as the answer: if the parser cannot be found at all, the
- * gate fails loudly instead of reporting "the CLI has no --search" and letting
- * the site publish a command nobody can run.
+ * A missing parser is a failure, never a "no flags": the gate exists to
+ * compare the site against the binary, and a comparison against an empty set
+ * would silently read "the site publishes nothing", which passes.
  */
-function cliAcceptsSearch() {
-  return cliInstallParserAccepts("--search", "`litespm install --search`");
-}
-
-/**
- * Does the CLI's install verb accept `--agent`?
- *
- * The site names the chosen agent with it for every kind, so a build that
- * publishes `--agent` while the binary still spells the flag `--host` would
- * print a command that fails with "unknown flag".
- */
-function cliAcceptsAgent() {
-  return cliInstallParserAccepts("--agent", "`litespm install --agent`");
-}
-
-function cliInstallParserAccepts(flag, description) {
-  if (!existsSync(cliDir)) {
-    fail(`the CLI source is not at ${cliDir} — the gate cannot check the install verb`);
+function installFlagsAt(ref) {
+  if (ref && !existsSync(path.join(repoRoot, ".git"))) {
+    fail(`cannot read ${ref}: ${repoRoot} is not a git checkout`);
   }
   const files = readdirSync(cliDir).filter((name) => name.endsWith(".go"));
+  const flags = new Set();
   let sawParser = false;
-  const pattern = new RegExp(`case\\s+"${flag}"`);
   for (const file of files) {
-    const text = readFileSync(path.join(cliDir, file), "utf8");
-    // The install verb's flag parser: the struct it fills and the function
-    // that parses it. A flag of the same name on another verb says nothing
-    // about `litespm install`.
-    if (!/parseInstallFlags|installFlags/.test(text)) continue;
+    let text;
+    if (ref) {
+      try {
+        text = execFileSync("git", ["show", `${ref}:cmd/litespm/${file}`], {
+          cwd: repoRoot,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        });
+      } catch {
+        continue; // the tag predates this file
+      }
+    } else {
+      text = readFileSync(path.join(cliDir, file), "utf8");
+    }
+    // Only the install verb's own parser: the struct it fills and the function
+    // that parses it. Every other verb in the same file has a `case "--flag"`
+    // of its own — `search`'s `--limit`, `list`'s `--agent` — and folding
+    // those in would let the site print a flag the install verb refuses.
+    const start = text.search(/func parseInstallFlags\s*\(/);
+    if (start === -1) continue;
     sawParser = true;
-    if (pattern.test(text)) return true;
+    // The function ends at the first `}` in column zero.
+    const body = text.slice(start, text.indexOf("\n}", start) + 1);
+    for (const clause of body.matchAll(/case\s+([^:]*?):/g)) {
+      for (const literal of clause[1].matchAll(/"(--?[a-z][a-z0-9-]*)"/g)) {
+        flags.add(literal[1]);
+      }
+    }
   }
   if (!sawParser) {
     fail(
-      "the CLI's install flag parser was not found in cmd/litespm — the gate cannot " +
-        `tell whether ${description} exists`
+      `parseInstallFlags was not found for ${ref || "the working tree"} ` +
+        `in cmd/litespm — the gate cannot tell what the binary accepts`
     );
   }
-  return false;
+  return flags;
+}
+
+/**
+ * What npm serves as `latest`.
+ *
+ * The network is asked first, because that is the fact that matters and this
+ * is the one place in the build where being wrong about it prints a failing
+ * command on a reader's terminal. The committed snapshot is the offline
+ * fallback, and a live answer that disagrees with it is a failure: the file
+ * the site is being checked against has gone stale.
+ */
+function publishedVersion(snapshot) {
+  try {
+    const live = execFileSync("npm", ["view", "litespm", "version"], {
+      encoding: "utf8",
+      timeout: 8000,
+      stdio: ["ignore", "pipe", "ignore"],
+      env: { ...process.env, NO_COLOR: "1" },
+    }).trim();
+    if (live) {
+      if (live !== snapshot.version) {
+        fail(
+          `npm now serves litespm@${live} but web/data/published-cli.json records ` +
+            `${snapshot.version} — update the file (and its installFlags, read from ` +
+            `git show v${live}:cmd/litespm/main.go), then re-check the site's commands`
+        );
+      }
+      return live;
+    }
+  } catch {
+    console.log(
+      `  ! npm could not be reached; checking against the committed snapshot ` +
+        `${snapshot.version} (checked ${snapshot.checkedAt})`
+    );
+  }
+  return snapshot.version;
 }
 
 /** The site's own declaration, transpiled from TypeScript. */
@@ -97,81 +149,146 @@ async function loadModule() {
   return import(url);
 }
 
+/**
+ * Every `--flag` the LiteSPM part of a generated command prints.
+ *
+ * Everything before the binary's own name belongs to whatever launcher the
+ * page put it behind (`npx --yes …`), and `--yes` is npx's flag, not the
+ * CLI's — counting it would fail the gate on a flag no `litespm install`
+ * parser could ever accept.
+ */
+function flagsIn(command) {
+  const at = command.indexOf("litespm");
+  const own = at === -1 ? "" : command.slice(at + "litespm".length);
+  const found = new Set();
+  for (const match of own.matchAll(/\s(--[a-z][a-z0-9-]*)/g)) found.add(match[1]);
+  return found;
+}
+
 async function main() {
   const module = await loadModule();
   if (typeof module.installCommandFor !== "function") {
     fail("lib/installCommand.ts did not export installCommandFor");
   }
+
+  const snapshotPath = path.join(webRoot, "data", "published-cli.json");
+  if (!existsSync(snapshotPath)) {
+    fail("data/published-cli.json is missing — the gate has no record of what npm serves");
+  }
+  const snapshot = JSON.parse(readFileSync(snapshotPath, "utf8"));
+  if (!snapshot.version || !Array.isArray(snapshot.installFlags) || snapshot.installFlags.length === 0) {
+    fail("data/published-cli.json records no version or no install flags");
+  }
+
+  const version = publishedVersion(snapshot);
+  const sourceFlags = installFlagsAt("");
+  const publishedFlags = installFlagsAt(`v${version}`);
+
+  // The snapshot has to describe the tag it names: a file whose flag list has
+  // gone stale is worse than no file, because it reads as a check that passed.
+  const recorded = new Set(snapshot.installFlags);
+  const fromTag = publishedFlags;
+  const missing = [...fromTag].filter((flag) => !recorded.has(flag));
+  const extra = [...recorded].filter((flag) => !fromTag.has(flag));
+  if (missing.length > 0 || extra.length > 0) {
+    fail(
+      `web/data/published-cli.json does not describe v${version}: ` +
+        `${missing.length > 0 ? `missing ${missing.join(", ")}` : ""}` +
+        `${missing.length > 0 && extra.length > 0 ? "; " : ""}` +
+        `${extra.length > 0 ? `has ${extra.join(", ")} which that tag does not take` : ""}`
+    );
+  }
+
+  // Every flag the page prints, from the commands it actually builds.
+  const built = [
+    module.installCommandFor({ id: "mcp:builtin:mcp-registry:io.github.github-github-mcp-server", name: "GitHub" }),
+    module.websiteInstallCommandFor({ id: "mcp:example", kind: "mcp" }),
+    module.websiteInstallCommandFor({ id: "mcp:example", kind: "mcp" }, "codex"),
+    module.websiteInstallCommandFor({ id: "skill:example", kind: "skill" }),
+    module.websiteInstallCommandFor({ id: "skill:example", kind: "skill" }, "codex"),
+    module.websiteInstallCommandFor({ id: "plugin:example", kind: "plugin" }),
+    module.websiteInstallCommandFor({ id: "plugin:example", kind: "plugin" }, "codex"),
+    { command: module.exactIdCommand({ id: "mcp:example" }) },
+    { command: module.WEBSITE_SETUP_COMMAND },
+    { command: module.WEBSITE_CATALOG_SYNC_COMMAND },
+  ];
+  const published = new Set();
+  for (const entry of built) {
+    for (const flag of flagsIn(entry.command)) published.add(flag);
+  }
+
+  for (const flag of published) {
+    if (!sourceFlags.has(flag)) {
+      fail(
+        `the site prints ${flag}, which this working tree's install parser does not accept — ` +
+          `the command would fail with "unknown flag"`
+      );
+    }
+    if (!publishedFlags.has(flag)) {
+      fail(
+        `the site prints ${flag}, but the CLI a reader installs (${version}, what npm serves as ` +
+          `latest) does not accept it — the command would fail with "unknown flag". ` +
+          `Use a flag both take, or update web/data/published-cli.json after publishing`
+      );
+    }
+  }
+
+  // The short-form switch: the page may offer `--search` only when the binary
+  // a reader runs offers it. (The working tree is checked separately by the
+  // loop above: a short form neither takes is already refused there.)
   const declared = module.CLI_INSTALL_ACCEPTS_SEARCH;
   if (typeof declared !== "boolean") {
     fail("lib/installCommand.ts did not export a boolean CLI_INSTALL_ACCEPTS_SEARCH");
   }
-  const actual = cliAcceptsSearch();
-
-  if (declared !== actual) {
-    if (declared && !actual) {
-      fail(
-        "the site publishes `litespm install --search <term>` but the CLI does not " +
-          "accept a --search flag — the page would print a command that fails"
-      );
-    }
+  if (declared !== publishedFlags.has("--search")) {
     fail(
-      "the CLI accepts `litespm install --search <term>` but the site does not " +
-        "publish it — set CLI_INSTALL_ACCEPTS_SEARCH to true in lib/installCommand.ts"
+      declared
+        ? `the site publishes \`litespm install --search <term>\` but the published CLI (${version}) ` +
+            "does not accept it"
+        : `the published CLI (${version}) accepts \`--search\` but the site does not publish it — ` +
+            "set CLI_INSTALL_ACCEPTS_SEARCH to true in lib/installCommand.ts"
     );
   }
 
   // The two branches, asserted on a fixed row so they cannot be swapped.
   const row = { id: "mcp:builtin:mcp-registry:io.github.github-github-mcp-server", name: "GitHub" };
   const command = module.installCommandFor(row);
-  if (actual) {
+  if (declared) {
     if (!command.command.startsWith("litespm install --search ")) {
       fail(`with --search available, the command is "${command.command}"`);
     }
-  } else {
-    if (command.command !== `litespm install ${row.id}`) {
-      fail(`without --search, the command is "${command.command}", not the exact id form`);
-    }
+  } else if (command.command !== `litespm install ${row.id}`) {
+    fail(`without --search, the command is "${command.command}", not the exact id form`);
   }
   if (module.exactIdCommand(row) !== `litespm install ${row.id}`) {
     fail("the exact-id command is not the id form — the Details disclosure would lie");
   }
   if (!command.id) fail("the command carries no id — the disclosure would have nothing to show");
 
-  // `--agent` names the target for every kind. Asserted in both directions:
-  // publishing it against a binary that does not take it prints a failing
-  // command; dropping it while the binary supports it leaves a skill command
-  // unable to name its destination.
+  // Naming a target. Asserted in both directions against the working tree, and
+  // against the published binary by the loop above.
   const targeted = module.websiteInstallCommandFor({ id: "skill:example", kind: "skill" }, "codex");
-  const siteEmitsAgent = targeted.command.includes(" --agent codex");
-  const cliTakesAgent = cliAcceptsAgent();
-  if (siteEmitsAgent !== cliTakesAgent) {
-    fail(
-      siteEmitsAgent
-        ? "the site publishes `--agent` but the CLI's install parser does not accept it — the command would fail with `unknown flag`"
-        : "the CLI accepts `--agent` but the site does not publish it — the chosen agent would be silently dropped from a skill command"
-    );
+  const siteNamesTarget = targeted.command.includes(" --host codex") || targeted.command.includes(" --agent codex");
+  if (!siteNamesTarget) {
+    fail(`a chosen agent must be named in the command; it is "${targeted.command}"`);
   }
   const untargeted = module.websiteInstallCommandFor({ id: "skill:example", kind: "skill" });
-  if (untargeted.command.includes("--agent")) {
-    fail("an untargeted command must not name an agent");
-  }
-  // A bare skill command must state the multi-agent choice: the CLI refuses to
-  // fan out on an unnamed target when more than one agent is detected.
-  if (!untargeted.command.includes("--all-detected")) {
-    fail("an untargeted skill command must carry --all-detected, or the CLI would stop and ask");
+  if (flagsIn(untargeted.command).size !== 0) {
+    fail(
+      "an untargeted skill command must stay bare: `@latest` can be a release that does not take " +
+        `the flag a newer one added (it is "${untargeted.command}")`
+    );
   }
   const untargetedMcp = module.websiteInstallCommandFor({ id: "mcp:ok", kind: "mcp" });
-  if (untargetedMcp.command.includes("--all-detected") || untargetedMcp.command.includes("--agent")) {
+  if (flagsIn(untargetedMcp.command).size !== 0) {
     fail("an MCP command must keep its documented default target set and name no flag");
   }
 
   console.log(
-    `OK install command — the CLI ${actual ? "accepts" : "does not accept"} ` +
-      `\`litespm install --search\`, and the site publishes the ` +
-      `${actual ? "short form" : "exact id"}; the exact id is always available; ` +
-      `--agent ${cliTakesAgent ? "is" : "is not"} published because the CLI ` +
-      `${cliTakesAgent ? "accepts" : "does not accept"} it`
+    `OK install command — every flag the site prints (${[...published].sort().join(", ")}) is ` +
+      `accepted by this tree and by the published CLI (${version}); ` +
+      `\`--search\` ${declared ? "is" : "is not"} published because the published CLI ` +
+      `${declared ? "takes" : "does not take"} it; the exact id is always available`
   );
 }
 

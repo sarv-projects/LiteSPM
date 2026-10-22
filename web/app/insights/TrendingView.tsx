@@ -402,6 +402,11 @@ export default function InsightsPage({ total, boards, hosts, boardTotals }: Tren
           />
         </div>
 
+        <p className="mt-8 max-w-prose text-[13px] leading-relaxed text-ink-2">
+          This is a census, not a leaderboard — nothing is ranked by popularity, because no source
+          publishes usage. <Link href="/explore/" className="link">Browse the catalog these hosts
+          work with</Link>.
+        </p>
       </main>
 
       <SiteFooter />

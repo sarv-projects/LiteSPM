@@ -89,9 +89,10 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
   const chosenHostId = agent && agent.id !== "other" ? agent.id : null;
   const targetFeasibility = chosenHostId ? feasibilityFor(item, chosenHostId) : null;
   const invalidSelectedHost = Boolean(chosenHostId && targetFeasibility?.state !== "supported");
-  const liteSPMInstallable = avail.installable && !invalidSelectedHost;	// Every kind can be targeted now: `install --agent <id>` names a host for an
+  const liteSPMInstallable = avail.installable && !invalidSelectedHost;	// Every kind can be targeted now: `install --host <id>` names a host for an
 	// MCP server or plugin and a skills target for a skill, and the plan seals
-	// that destination, so the copy cannot fan out past it.
+	// that destination, so the copy cannot fan out past it. (`--host` is the
+	// spelling every published release takes; `--agent` names the same thing.)
 	const targeted = liteSPMInstallable && agent !== null && agent.id !== "other";
 
   /**
@@ -287,9 +288,9 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                 Choose your agent
               </button>
               <p className="text-[12px] leading-relaxed text-dark-ink-2">
-                Choose your agent to add <code className="t-mono">--agent &lt;id&gt;</code> and
-                install into that one host; without it, a skill goes to every skills target on
-                your machine.
+                Choose your agent to add <code className="t-mono">--host &lt;id&gt;</code> and
+                install into that one host; without it, a skill goes to the skills targets
+                detected on your machine.
               </p>
             </div>
           </div>
@@ -364,7 +365,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                     <div className="min-w-0">
                       <h3 className="text-[14px] font-semibold text-dark-ink">Add {item.name}</h3>
                       <p className="mt-0.5 text-[13px] leading-relaxed text-dark-ink-2">	                        {targeted
-	                          ? `Targets ${agent?.label} with --agent, after the target has been configured.`
+	                          ? `Targets ${agent?.label} with --host, after the target has been configured.`
 	                          : item.kind === "skill"
 	                            ? "Installs into every skills target detected on this machine. Choose an agent above to target exactly one."
 	                            : "Uses configured MCP hosts. Configure the intended agent before running this command."}

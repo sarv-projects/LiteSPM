@@ -1,12 +1,28 @@
 import React from "react";
 import { ArrowRight, CheckCircle2, Monitor, Package, Search } from "lucide-react";
 
+/**
+ * The same three moments the rest of the site teaches — the home page's
+ * `components/home/HowItWorks.tsx` and `/how-it-works` show these titles in
+ * the same order. This card used to list five (discovery and compatibility as
+ * stages of their own), so one homepage said "Five simple stages" while the
+ * section below the fold said three: two accounts of the same workflow on one
+ * page. Browsing is not a step — nothing is run and nothing is changed — and
+ * checking a listing's compatibility is part of installing it.
+ */
 const FLOW = [
-  { title: "Discover", detail: "Explore MCP servers, skills, and plugins by task or agent." },
-  { title: "Check compatibility", detail: "Review the source and supported installation options." },
-  { title: "Connect your agent", detail: "Run LiteSPM locally and choose the agent you use." },
-  { title: "Install", detail: "Copy the exact command from the marketplace listing." },
-  { title: "Manage", detail: "Review, remove, or restore LiteSPM-managed changes." },
+  {
+    title: "Connect your coding agent",
+    detail: "Run LiteSPM locally and choose the agent you use; it backs the config up first.",
+  },
+  {
+    title: "Find and install a capability",
+    detail: "Copy the exact command from the listing; the plan is approved before anything is written.",
+  },
+  {
+    title: "Manage or remove installed tools",
+    detail: "See what LiteSPM manages, remove one entry, or restore the saved config.",
+  },
 ] as const;
 
 /**
@@ -56,9 +72,9 @@ export function ProductDemo() {
       <div className="p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="product-demo-title" className="text-[16px] font-semibold tracking-tight text-ink">
-            From discovery to installation
+            From discovery to local installation
           </h2>
-          <span className="t-mono text-[11px] text-ink-3">Five simple stages</span>
+          <span className="t-mono text-[11px] text-ink-3">Three steps</span>
         </div>
         <ol id="product-demo-captions" className="mt-4 space-y-3">
           {FLOW.map((step, index) => (

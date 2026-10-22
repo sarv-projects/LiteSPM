@@ -10,7 +10,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".aider-desk/mcp-servers.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "amp",
@@ -23,7 +26,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".amp/settings.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "antigravity",
@@ -36,7 +43,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".agents/mcp_config.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "antigravity-cli",
@@ -49,7 +60,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".agents/mcp_config.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "astrbot",
@@ -60,7 +75,11 @@
     "userPath": "\u003cproject\u003e/data/mcp_server.json",
     "docsUrl": "https://github.com/AstrBotDevs/AstrBot/wiki/en-use-mcp",
     "generic": true,
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "augment",
@@ -71,7 +90,11 @@
     "userPath": "~/.augment/settings.json",
     "docsUrl": "https://docs.augmentcode.com/cli/integrations",
     "generic": true,
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "bob",
@@ -84,7 +107,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".bob/mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "claude-code",
@@ -96,7 +122,11 @@
     "generic": false,
     "projectScope": true,
     "projectPath": ".mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "cline",
@@ -106,7 +136,11 @@
     "shape": "object",
     "userPath": "~/.cline/data/settings/cline_mcp_settings.json",
     "generic": false,
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "codearts-agent",
@@ -119,7 +153,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".codeartsdoer/codearts_cli.jsonc",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "codebuddy",
@@ -132,7 +169,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "codestudio",
@@ -157,7 +198,10 @@
     "generic": false,
     "projectScope": true,
     "projectPath": ".codex/config.toml",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "command-code",
@@ -170,7 +214,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "cortex",
@@ -181,7 +228,11 @@
     "userPath": "~/.snowflake/cortex/mcp.json",
     "docsUrl": "https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code-mcp",
     "generic": true,
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "crush",
@@ -194,7 +245,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".crush.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "cursor",
@@ -207,7 +262,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".cursor/mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "deepagents",
@@ -220,7 +279,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "devin",
@@ -233,7 +296,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".devin/mcp_config.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "droid",
@@ -246,7 +313,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".factory/mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "firebender",
@@ -259,7 +330,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": "firebender.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "forgecode",
@@ -272,7 +347,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "fx",
@@ -285,7 +364,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "gemini-cli",
@@ -298,7 +381,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".gemini/settings.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "github-copilot",
@@ -311,7 +398,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "grok-build",
@@ -323,7 +414,10 @@
     "generic": false,
     "projectScope": true,
     "projectPath": ".grok/config.toml",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "iflow-cli",
@@ -348,7 +442,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".agents/mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "junie",
@@ -361,7 +458,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".junie/mcp/mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "kilo",
@@ -374,7 +474,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": "kilo.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "kimchi",
@@ -385,7 +488,11 @@
     "userPath": "~/.config/kimchi/harness/mcp.json",
     "docsUrl": "https://docs.kimchi.dev/docs/coding-mcp-servers",
     "generic": true,
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "kimi-code-cli",
@@ -398,7 +505,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".kimi-code/mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "kiro-cli",
@@ -411,7 +522,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".kiro/settings/mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "kode",
@@ -424,7 +538,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "mux",
@@ -449,7 +567,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".neovate/config.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "ona",
@@ -463,7 +585,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".ona/mcp-config.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "opencode",
@@ -474,7 +599,10 @@
     "userPath": "~/.config/opencode/opencode.json",
     "generic": false,
     "projectScope": true,
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "openhands",
@@ -485,7 +613,11 @@
     "userPath": "~/.openhands/mcp.json",
     "docsUrl": "https://docs.openhands.dev/overview/model-context-protocol",
     "generic": true,
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "pi-agent",
@@ -497,7 +629,10 @@
     "generic": false,
     "projectScope": true,
     "projectPath": ".pi/mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "pochi",
@@ -510,7 +645,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".pochi/config.jsonc",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "posit-assistant",
@@ -523,7 +662,10 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".posit/assistant/settings.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   },
   {
     "id": "qoder",
@@ -536,7 +678,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".qoder/settings.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "qoder-cn",
@@ -549,7 +695,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".qoder/settings.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "qwen-code",
@@ -562,7 +712,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".qwen/settings.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "roo",
@@ -576,7 +730,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".roo/mcp.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "rovodev",
@@ -587,7 +745,11 @@
     "userPath": "~/.rovodev/mcp.json",
     "docsUrl": "https://support.atlassian.com/rovo/docs/connect-to-an-mcp-server-in-rovo-dev-cli/",
     "generic": true,
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "tabnine-cli",
@@ -600,7 +762,11 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".tabnine/agent/settings.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "sse",
+      "streamable-http"
+    ]
   },
   {
     "id": "zcode",
@@ -625,6 +791,9 @@
     "generic": true,
     "projectScope": true,
     "projectPath": ".zed/settings.json",
-    "remote": true
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ]
   }
 ]

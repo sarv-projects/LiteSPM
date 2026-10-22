@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Fact, Facts, InfoPage, InfoSection } from "../../components/layout/InfoPage";
 import { HealthProbe } from "./HealthProbe";
 import release from "../../data/release.json";
@@ -144,6 +145,15 @@ export default function StatusPage() {
             updated&rdquo; stamp of its own. The snapshot date above is the data&rsquo;s date.
           </Fact>
         </Facts>
+      </InfoSection>
+
+      <InfoSection title="Run it yourself">
+        <p>
+          The CLI that synced the release above is the same one{" "}
+          <Link href="/get-started/">get started</Link> installs: sync the same release, and{" "}
+          <Link href="/how-it-works/">see the three steps</Link> it takes from an empty config
+          to an installed capability.
+        </p>
       </InfoSection>
     </InfoPage>
   );

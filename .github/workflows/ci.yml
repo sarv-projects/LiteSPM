@@ -207,6 +207,18 @@ jobs:
       - name: Verify Static Output
         run: test -f web/out/index.html
 
+      # The product links are checked against the export that was just built.
+      #
+      # The gate used to be part of `npm run lint`, and CI runs the lint
+      # BEFORE the static export exists — so it either found no bundle to read
+      # or failed on the missing directory, and the check that exists to keep
+      # a link from naming a product the catalog does not have was not
+      # actually running on the bundle. It runs here, on the real export, and
+      # the deploy script runs it again on the packaged tree.
+      - name: Check Product Links
+        working-directory: ./web
+        run: npm run lint:links
+
       # Package the bundle exactly as scripts/deploy-pages.sh does — export,
       # drop the copied /v1, materialize the released tree — and then judge it
       # with the same audit script the deploy runs. This is what catches a source

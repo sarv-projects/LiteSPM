@@ -18,8 +18,9 @@ import type { TelemetryState } from "../../lib/telemetry";
  * "From the Official MCP Registry", "Official agent skills", "Agent skills"
  * and "Plugins". Together they were 42% of the page's scroll length, they
  * repeated each other (four of the five were a filter over the same rows),
- * and they put the un-installable kind — plugins — on a shelf of its own,
- * level with the two kinds the product can actually install.
+ * and they put plugins — a kind the product could not yet install — on a
+ * shelf of its own, level with the two kinds it could. (Plugins install now,
+ * from a publisher's pinned source; the sentence records why the shelf went.)
  *
  * This is one curated set and one secondary group, both read from
  * `data/featured.json`, both checked against the dataset at build time

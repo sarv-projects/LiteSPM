@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ToastViewport } from "../components/ui/Toast";
-import { DOCS_URL, SITE_URL } from "../lib/site";
+import { DOCS_URL, SITE_NAME, SITE_TITLE, SITE_URL } from "../lib/site";
 
 /**
  * IBM Plex: an engineered grotesque with squared terminals, which reads as
@@ -45,12 +45,12 @@ const mono = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "LiteSPM — The package manager for AI agents",
+    default: SITE_TITLE,
     template: "%s · LiteSPM",
   },
   description:
-    "Discover and install MCP servers, skills and plugins across the AI agents you use. LiteSPM handles compatibility, setup, updates and removal from one place.",
-  applicationName: "LiteSPM",
+    "A package manager for AI agents. Find, install and remove MCP servers, skills and plugins across 50 agent hosts — one local CLI, with every change shown before it is written.",
+  applicationName: SITE_NAME,
   keywords: [
     "MCP",
     "Model Context Protocol",
@@ -65,18 +65,18 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    siteName: "LiteSPM",
-    title: "LiteSPM — The package manager for AI agents",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
     description:
-      "Discover and install MCP servers, skills and plugins across the AI agents you use.",
+      "A package manager for AI agents. Find, install and remove MCP servers, skills and plugins across 50 agent hosts — one local CLI, with every change shown before it is written.",
     url: SITE_URL,
   },
   twitter: {
     // The card upgrades to the large image only because an image now exists;
     // a `summary` card would letterbox the 1200×630 asset.
     card: "summary_large_image",
-    title: "LiteSPM",
-    description: "Find, install and manage MCP servers, skills and plugins for your AI agents.",
+    title: SITE_TITLE,
+    description: "A package manager for AI agents. Find, install and remove MCP servers, skills and plugins across 50 agent hosts — one local CLI, with every change shown before it is written.",
     images: ["/og.png"],
   },
   robots: { index: true, follow: true },
@@ -88,6 +88,13 @@ export const metadata: Metadata = {
       { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/favicon.ico", sizes: "16x16 32x32", type: "image/x-icon" },
     ],
+    // The home-screen icon. Without it iOS screenshots the page and uses the
+    // result, so the mark a user pinned to their home screen was whichever
+    // corner of a product page happened to be visible. `app/apple-icon.png`
+    // is generated from the same mark and palette as the favicon and the
+    // social card (`npm run gen:og`), and `scripts/check-og-image.mjs` fails
+    // the build if it is missing or the wrong size.
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -119,7 +126,7 @@ const THEME_INIT = `(function(){try{var t=localStorage.getItem("litespm-theme");
 const SITE_JSON_LD = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "LiteSPM",
+  name: SITE_NAME,
   url: SITE_URL,
   description:
     "MCP servers, agent skills and plugins for AI coding agents.",
@@ -156,7 +163,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <meta property="og:image:height" content="630" />
         <meta
           property="og:image:alt"
-          content="LiteSPM — the lightweight skill & package manager for AI agents"
+          content={SITE_TITLE}
         />
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         <script

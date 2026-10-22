@@ -416,7 +416,6 @@ func writeBoundedFile(r io.Reader, targetPath string, expectedSize int64, maxSin
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", targetPath, err)
 	}
-	defer out.Close()
 
 	limit := expectedSize + 1
 	if limit > maxSingleSize+1 {
@@ -425,10 +424,21 @@ func writeBoundedFile(r io.Reader, targetPath string, expectedSize int64, maxSin
 
 	written, err := io.Copy(out, io.LimitReader(r, limit))
 	if err != nil {
+		_ = out.Close()
 		return fmt.Errorf("failed to write file %s: %w", targetPath, err)
 	}
 
+	// Every refusal below removes the file it wrote, and it has to close the
+	// handle FIRST: Windows refuses to delete a file whose handle is still
+	// open, so a "remove while open" left an empty file behind — a file that
+	// looked like a real (empty) entry to whatever ran next.
+	discard := func() {
+		_ = out.Close()
+		_ = os.Remove(targetPath)
+	}
+
 	if written > maxSingleSize {
+		discard()
 		return domain.ErrArchiveSlip(fmt.Sprintf("file %s exceeded single file limit during extraction", targetPath))
 	}
 
@@ -447,8 +457,7 @@ func writeBoundedFile(r io.Reader, targetPath string, expectedSize int64, maxSin
 	// than declared means the entry was truncated. Neither is a file to
 	// install.
 	if expectedSize >= 0 && written != expectedSize {
-		_ = out.Truncate(0)
-		_ = os.Remove(targetPath)
+		discard()
 		if written < expectedSize {
 			return domain.ErrArchiveSlip(fmt.Sprintf(
 				"archive entry %s declares %d bytes but produced %d; the archive is inconsistent with itself",
@@ -459,6 +468,9 @@ func writeBoundedFile(r io.Reader, targetPath string, expectedSize int64, maxSin
 			filepath.Base(targetPath), expectedSize))
 	}
 
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("failed to close file %s: %w", targetPath, err)
+	}
 	return nil
 }
 

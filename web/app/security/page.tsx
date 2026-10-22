@@ -134,8 +134,10 @@ export default function SecurityPage() {
             technically install. It is not the result of running the capability against every host.
           </Fact>
           <Fact label="No popularity data">
-            No star, download or install counts appear anywhere, because no upstream source
-            publishes them. An earlier build estimated them; that was wrong and it was removed.
+            No star, download or install counts appear anywhere. No source in this catalog
+            publishes install counts, and where an upstream repository publishes stars of its
+            own they are not part of the catalog row — so this site prints no number it cannot
+            observe. An earlier build estimated them; that was wrong and it was removed.
           </Fact>
         </Facts>
       </InfoSection>
@@ -168,6 +170,14 @@ export default function SecurityPage() {
           and what the <code>litespm</code> command sends over the network, are on the{" "}
           <Link href="/privacy/">privacy page</Link>. The support channel, and what to put in a
           report, are on the <Link href="/support/">support page</Link>.
+        </p>
+      </InfoSection>
+
+      <InfoSection title="Ready to try it">
+        <p>
+          <Link href="/get-started/">Get started</Link> writes one entry into a config file it
+          backs up first, shows you the lines it is about to change, and waits. Nothing runs that
+          you did not approve — which is the whole policy above, in one command.
         </p>
       </InfoSection>
     </InfoPage>

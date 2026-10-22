@@ -57,11 +57,24 @@ export interface HostAdapter {
   /**
    * True when the registry has a verified remote (URL) MCP entry spelling for
    * this host (`host.RemoteEntrySpecFor`); absent means a remote install there
-   * is refused fail-closed. Eight of the fifty rows carry it. It was declared
-   * on `GeneratedHost` below and then dropped by the mapper, so no surface
-   * could read it; `/compare` needs it and carries it through instead.
+   * is refused fail-closed. Forty-six of the fifty rows carry it (the four
+   * that do not publish no such object). It was declared on `GeneratedHost`
+   * below and then dropped by the mapper, so no surface could read it;
+   * `/compare` needs it and carries it through instead.
    */
   remote?: boolean;
+  /**
+   * Which transports that URL entry can express — `streamable-http` and/or
+   * `sse` — straight from the registry's `RemoteEntrySpec.Transports`, which
+   * is the authority the binary writes against.
+   *
+   * The site used to keep its own hand-written copy of this set in
+   * `lib/installFeasibility.ts`, and it fell behind the registry from eight
+   * rows to forty-six, so a reader was told the transport was unknown for
+   * thirty-eight agents the binary would install into. The generator emits it
+   * now, so there is one table.
+   */
+  remoteTransports?: readonly string[];
 }
 
 /** Shape of one row in the generated web/data/hosts.json. */
@@ -88,6 +101,8 @@ interface GeneratedHost {
    */
   projectScope?: boolean;
   projectPath?: string;
+  /** Transports this host documents for a URL entry (streamable-http, sse). */
+  remoteTransports?: string[];
 }
 
 /**
@@ -131,6 +146,7 @@ export const HOSTS: HostAdapter[] = (generated as GeneratedHost[]).map((h) => {
     projectScope: h.projectScope,
     projectPath: h.projectPath,
     remote: h.remote,
+    remoteTransports: h.remoteTransports,
   };
 });
 

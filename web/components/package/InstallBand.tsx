@@ -17,8 +17,11 @@ import { CopyButton } from "./CopyButton";
 /**
  * Actual commands supported by the published npm CLI. Website-only release:
  * first-run setup/catalog sync remain explicit, not magically automated.
- * --agent names the target for every kind, and the installer seals that
- * destination in the approved plan.
+ * `--host` names the target for every kind, and the installer seals that
+ * destination in the approved plan. It is spelled `--host` rather than
+ * `--agent` because `npx --yes litespm@latest` runs the published release,
+ * and that release's install verb takes `--host` — see
+ * `lib/installCommand.ts` for the full account.
  */
 export function InstallBand({
   item,
@@ -108,12 +111,26 @@ export function InstallBand({
           {command.command}
         </code>
         <CopyButton text={command.command} label="Copy install command" message="Install command copied" />
-      </div>	      {chosenId && (
-	        <p className="mt-2 text-[12px] leading-relaxed text-ink-2">
-	          Selected agent: {agent?.label}. The --agent option targets exactly this
-	          agent, and the plan seals the destinations before anything is written.
-	        </p>
-	      )}
+      </div>
+      {chosenId && (
+        <p className="mt-2 text-[12px] leading-relaxed text-ink-2">
+          Selected agent: {agent?.label}. The --host option targets exactly this
+          agent, and the plan seals the destinations before anything is written.
+        </p>
+      )}
+      {!chosenId && command.command.includes("install skill:") && (
+        <p className="mt-2 text-[12px] leading-relaxed text-ink-2">
+          With no agent chosen, this installs into the skills targets detected on this
+          machine. Add <code className="t-mono">--host &lt;id&gt;</code> (repeatable) to
+          name the ones you want instead.
+        </p>
+      )}
+      {!chosenId && command.command.includes("install plugin:") && (
+        <p className="mt-2 text-[12px] leading-relaxed text-ink-2">
+          Installing a plugin needs a release that ships the plugin path (0.6.0). An older
+          CLI refuses it with the reason rather than installing part of it.
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px]">
         <button type="button" onClick={onSeeSteps} className="font-medium text-ink hover:underline">
           Full installation guide ↓
