@@ -9,9 +9,9 @@ import { AGENT_CHOICES } from "../../lib/landing";
 import { formatCount } from "../../lib/format";
 
 /**
- * The hero, in two columns: the promise on the left, the proof on the right.
+ * The hero is one editorial column: the promise, the search and the proof.
  *
- * ## What is in the left column
+ * ## What is in the column
  *
  * The eyebrow, the H1, two lines of support copy, the two calls to action,
  * the search field, and the row of agent logos. That is the order a reader
@@ -19,11 +19,9 @@ import { formatCount } from "../../lib/format";
  * strip that used to sit here moved down to the curated shelf, and the
  * rotating kind figures are gone entirely.
  *
- * ## What is NOT in the right column
- *
- * The product demo card that used to be here (and the bridge figure before
- * it). Both explain the product; neither is the product, and the homepage's
- * job is the search and the install. `/how-it-works` carries the walkthrough.
+ * The product demo card and bridge figure that used to share the hero both
+ * explain the product; neither is the product, and the homepage's job is the
+ * search and the install. `/how-it-works` carries the walkthrough.
  *
  * ## The H1
  *
@@ -35,8 +33,8 @@ import { formatCount } from "../../lib/format";
  *
  * ## The search field
  *
- * It stays in the left column, below the actions: the catalogue's door, not
- * the product's headline. The shortcuts under it are the honest substitute
+ * It stays below the actions: the catalogue's door, not the product's
+ * headline. The shortcuts under it are the honest substitute
  * for semantic search — four words a first-time visitor can recognise, each
  * one a real prefix the matcher answers to.
  */
@@ -86,7 +84,7 @@ export function LandingHero({
 
   return (
     <section className="shell hero-glow pb-10 pt-9 md:pb-14 md:pt-14">
-      <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-12">
+      <div className="max-w-[76ch]">
         <div className="enter-rise">
           {/* The eyebrow. It says what the product is in three words: one
               local bridge, and the agents that reach it. The catalog sits

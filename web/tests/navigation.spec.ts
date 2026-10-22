@@ -62,6 +62,24 @@ for (const width of MENU_WIDTHS) {
   test.describe(`the menu at ${width}px`, () => {
     test.use({ viewport: { width, height: 844 } });
 
+    test("the product wordmark stays visible beside the full install action", async ({ page }) => {
+      await gotoSettled(page, "/");
+
+      const brand = page
+        .locator('a[aria-label="LiteSPM home"]')
+        .getByText("LiteSPM", { exact: true });
+      await expect(brand, `the LiteSPM wordmark is hidden at ${width}px`).toBeVisible();
+      await expect(page.getByRole("link", { name: "Install LiteSPM", exact: true })).toBeVisible();
+
+      const metrics = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(metrics.scrollWidth, `the header overflows at ${width}px`).toBeLessThanOrEqual(
+        metrics.clientWidth
+      );
+    });
+
     test("every destination is one tap away, and nothing is clipped", async ({ page }) => {
       await gotoSettled(page, "/");
 

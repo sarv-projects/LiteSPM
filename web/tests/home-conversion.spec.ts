@@ -228,6 +228,23 @@ test("the home page carries six blocks, and none of them explains the product tw
   await expect(demo_shelf_is_one_row(page)).resolves.toBeLessThanOrEqual(6);
 });
 
+test("the desktop hero has one deliberate content track, not an empty grid column", async ({
+  page,
+}) => {
+  await gotoSettled(page, "/");
+
+  const layout = await page.locator("section.hero-glow > div").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      columns: style.gridTemplateColumns === "none" ? 1 : style.gridTemplateColumns.split(" ").length,
+      width: element.getBoundingClientRect().width,
+    };
+  });
+
+  expect(layout.columns, "the hero retains a second, empty desktop track").toBe(1);
+  expect(layout.width, "the hero content has no deliberate maximum measure").toBeLessThanOrEqual(900);
+});
+
 /** The curated shelf is one mixed row now, not two labelled groups. */
 async function demo_shelf_is_one_row(page: import("@playwright/test").Page) {
   return page.locator("main section ul li").filter({ has: page.locator("[data-kind]") }).count();

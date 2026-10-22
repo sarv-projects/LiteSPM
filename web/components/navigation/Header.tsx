@@ -226,13 +226,13 @@ export function Header({ onNavigate }: HeaderProps) {
     <header className="sticky top-0 z-40 border-b border-rule bg-surface">
       {/* The header is opaque, not glassy. A blur layer over a ruled table
           costs paint on every scroll frame and buys nothing here. */}
-      <div className="shell grid h-[92px] grid-cols-[auto_minmax(0,1fr)] grid-rows-[48px_44px] items-center gap-x-3 lg:flex lg:h-12 lg:gap-4">
+      <div className="shell grid h-[92px] grid-cols-[auto_minmax(0,1fr)] grid-rows-[48px_44px] items-center gap-x-2 lg:flex lg:h-12 lg:gap-4">
         <Link href="/" className="col-start-1 row-start-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center gap-2" aria-label="LiteSPM home">
           {/* The logo tile is one of the six places the brand indigo is allowed. */}
           <span className="flex h-7 w-7 items-center justify-center rounded-chip bg-accent">
             <SquareTerminal className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden="true" />
           </span>
-          <span className="hidden text-[15px] font-semibold tracking-tight text-ink sm:inline">
+          <span className="text-[13px] font-semibold tracking-tight text-ink sm:text-[15px]">
             LiteSPM
           </span>
         </Link>
@@ -364,7 +364,7 @@ export function Header({ onNavigate }: HeaderProps) {
           )}
         </div>
 
-        <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1 sm:gap-2">
           <Link
             ref={searchRef}
             href="/explore/?focus=search"
@@ -378,20 +378,12 @@ export function Header({ onNavigate }: HeaderProps) {
             <Search className="h-4 w-4" aria-hidden="true" />
           </Link>
           <ThemeToggle />
-          {/*
-            The CTA keeps its whole label at every width.
-            It used to swap "Install LiteSPM" for "Install" below 640px, which
-            is the one place the header says what the product is — and the
-            truncation was the only cue (the two words were also rendered at
-            different sizes, which is why axe flagged the pair). Below `sm` the
-            label is one size and the padding is tighter, so the whole phrase
-            fits beside the logo, the search control and the theme toggle on a
-            320px screen: 288px of shell, and the label needs about 115px.
-          */}
+          {/* The full CTA label stays visible at every width; tight mobile
+              spacing leaves room for the product wordmark beside it. */}
           <Link
             href="/#install"
             onClick={onInstallClick}
-            className="btn btn-solid btn-lg whitespace-nowrap px-2.5! text-[13px]! sm:px-[18px]! sm:text-[14px]!"
+            className="btn btn-solid btn-lg whitespace-nowrap px-2! text-[13px]! sm:px-[18px]! sm:text-[14px]!"
           >
             Install LiteSPM
           </Link>
