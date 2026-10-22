@@ -4,6 +4,7 @@ import { Fact, Facts, InfoPage, InfoSection } from "../../components/layout/Info
 import { REPO_URL } from "../../lib/site";
 
 const ISSUES_URL = `${REPO_URL}/issues`;
+const NEW_LISTING_URL = `${ISSUES_URL}/new?template=new-listing.yml`;
 const PULLS_URL = `${REPO_URL}/pulls`;
 
 export const metadata: Metadata = {
@@ -52,11 +53,28 @@ export default function SubmitPage() {
         </Facts>
       </InfoSection>
 
+      <InfoSection title="Suggest a new listing">
+        <p>
+          Point us to a published source and include the details needed to check it: an MCP
+          command or endpoint and transport, the path to a skill's <code>SKILL.md</code>, or a
+          plugin's pinned commit and manifest. The form asks for type-specific installation and
+          verification information.
+        </p>
+        <a className="btn btn-solid mt-4 inline-flex" href={NEW_LISTING_URL}>
+          New listing
+        </a>
+        <p className="mt-3">
+          An issue requests review; it does not add a listing automatically. LiteSPM does not sell
+          placement or verification. A listing is not an endorsement.
+        </p>
+      </InfoSection>
+
       <InfoSection title="How it gets in">
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-[14px] leading-relaxed text-ink-2">
           <li>
             The artifact exists: a repository, a registry entry, or a page the catalog's sources
-            read. The catalog is built from recorded sources — a listing cannot be added by asking.
+            read. The catalog is built from recorded sources; an issue can ask us to review a
+            published source, but it cannot replace the artifact itself.
           </li>
           <li>
             The next catalog build picks it up from that source and publishes the row with its

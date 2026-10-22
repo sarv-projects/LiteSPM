@@ -1,0 +1,71 @@
+name: New listing
+description: Suggest an MCP server, agent skill, or plugin for catalog review.
+title: "[Listing] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A submission is a request for review, not an automatic catalog addition or a promise of inclusion or timing. LiteSPM does not sell placement or verification, and a listing is not an endorsement.
+  - type: dropdown
+    id: listing-type
+    attributes:
+      label: Listing type
+      description: Choose the capability type that best describes this listing.
+      options:
+        - MCP server
+        - Agent skill
+        - Plugin
+    validations:
+      required: true
+  - type: input
+    id: listing-name
+    attributes:
+      label: Listing name
+      description: Use the name shown by the publisher in its source or manifest.
+      placeholder: "Example: Example MCP Server"
+    validations:
+      required: true
+  - type: input
+    id: source-url
+    attributes:
+      label: Source URL
+      description: Link to the public repository, registry entry, or publisher documentation.
+      placeholder: https://github.com/owner/repository
+    validations:
+      required: true
+  - type: input
+    id: version-or-revision
+    attributes:
+      label: Version or immutable revision
+      description: For plugins, provide a pinned commit when available. A moving branch is not an installable plugin source.
+      placeholder: v1.2.3 or 40-character Git commit
+    validations:
+      required: false
+  - type: textarea
+    id: install-verification-details
+    attributes:
+      label: Install and verification details
+      description: |
+        Include the details for the selected type:
+        - MCP server: command and arguments or endpoint, transport, required environment variables, and authentication.
+        - Agent skill: repository path to SKILL.md and any required supporting files or setup.
+        - Plugin: pinned commit, manifest path, and the MCP servers or skills it contains; note any host-specific extras.
+        Explain how a reviewer can verify the published artifact and installation details.
+      placeholder: Describe the artifact and the steps needed to verify and install it.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Known compatibility
+      description: List known agent hosts, operating systems, transports, or runtime requirements. Leave unknown details blank.
+      placeholder: "Example: Claude Desktop, macOS and Windows; Node.js 20+"
+    validations:
+      required: false
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add relevant documentation, publisher notes, or corrections.
+    validations:
+      required: false
