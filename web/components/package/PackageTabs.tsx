@@ -42,14 +42,14 @@ export type PackageTabId = (typeof TABS)[number]["id"];
 /**
  * Provenance labels, exactly the set the honesty overlay allows, mapped from
  * the field that decides them (`installability`). Nothing here is upgraded for
- * looking established: a `discovery_only` row stays "Discovery only".
+ * looking established: a `discovery_only` row stays "Listed only".
  */
 const INSTALLABILITY: Record<
   NonNullable<Listing["installability"]>,
   { label: string; plain: string }
 > = {
   discovery_only: {
-    label: "Discovery only",
+    label: "Listed only",
     plain:
       "No install path has been proven — LiteSPM lists it, but won't install it.",
   },

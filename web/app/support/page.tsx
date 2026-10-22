@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Fact, Facts, InfoPage, InfoSection } from "../../components/layout/InfoPage";
 import { REPO_URL } from "../../lib/site";
+import { FaqSection } from "../../components/home/FaqSection";
 
 /**
  * `/support`.
@@ -160,6 +161,7 @@ export default function SupportPage() {
           measure about itself.
         </p>
       </InfoSection>
+      <FaqSection />
     </InfoPage>
   );
 }

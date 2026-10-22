@@ -36,10 +36,20 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   security: ShieldCheck,
 };
 
-export function UseCaseGrid({ topics }: { topics: TopicStat[] }) {
+/** How many goals the home page shows. */
+export const HOME_GOAL_COUNT = 6;
+
+export function UseCaseGrid({ topics, limit }: { topics: TopicStat[]; limit?: number }) {
+  const shown = typeof limit === "number" ? topics.slice(0, limit) : topics;
   return (
-    <ul className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {topics.map((topic, index) => {
+    <ul
+      className={
+        shown.length === 6
+          ? "mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          : "mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      }
+    >
+      {shown.map((topic, index) => {
         const Icon = ICONS[topic.goal] ?? FileText;
         return (
           <li

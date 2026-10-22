@@ -7,11 +7,7 @@ import { LandingHero } from "../components/home/LandingHero";
 import { AgentStrip } from "../components/home/AgentStrip";
 import { Shelves } from "../components/home/Shelves";
 import { TopicTiles } from "../components/home/TopicTiles";
-import { CapabilityTypes } from "../components/home/CapabilityTypes";
 import { HowItWorks } from "../components/home/HowItWorks";
-import { AtlasTeaser } from "../components/home/AtlasTeaser";
-import { FaqSection } from "../components/home/FaqSection";
-import { DeveloperZone } from "../components/home/DeveloperZone";
 import { SearchResults } from "../components/home/SearchResults";
 import { WhyLiteSPM } from "../components/marketing/WhyLiteSPM";
 import { Listing, useTelemetry } from "../lib/telemetry";
@@ -140,6 +136,11 @@ export default function Home(props: HomeViewProps) {
           settled={settled}
         />
 
+        {/* The reader's own agent, right under the hero: everything below it
+            is personalised by that choice, so it belongs where the choice is
+            made rather than in a band of its own further down. */}
+        <AgentStrip choice={agent} onChange={changeAgent} counts={agentCounts} total={total} />
+
         {hasQuery ? (
           <SearchResults
             items={results}
@@ -157,47 +158,24 @@ export default function Home(props: HomeViewProps) {
           />
         ) : (
           <>
-            {/* 2 — the fastest way in for a visitor without the vocabulary. */}
+            {/* The fastest way in for a visitor without the vocabulary. */}
             <TopicTiles topics={props.topics} />
 
-            {/* 3 — one curated, installable set and one secondary group. */}
+            {/* One curated, installable set — the shelf the reader can act on
+                without learning anything first. */}
             <Shelves groups={props.shelves} agent={agent} telemetry={telemetry} />
-
-            {/* 4 — the vocabulary, in plain language, before the reader is
-                asked to filter by it. */}
-            <CapabilityTypes />
           </>
         )}
 
-        {/* 5 — three steps, with the commands in the open. */}
+        {/* Three steps, with the commands in the open. Everything that used to
+            explain the product in prose — the kinds, the bridge, the agent
+            matrix, the FAQ, the command list — moved to the page that is about
+            it: /how-it-works, /agents and /support each carry one of those now,
+            and this page carries the search and the install. */}
         <HowItWorks />
 
-        {/* Elevation rhythm: the page was one flat --paper field from the hero
-            to the footer, so every band read as the same band. This stretch
-            carries its own plane (--sunken), which separates the reader's path
-            into readable stretches — product, then reference, then the
-            developer close — without striping the page. */}
-        <div className="bg-sunken">
-          {/* 6 — the preference, and what each agent gets. */}
-          <AgentStrip
-            choice={agent}
-            onChange={changeAgent}
-            counts={agentCounts}
-            total={total}
-          />
-          <AtlasTeaser />
-        </div>
-
-        {/* 7 — the four reasons. */}
+        {/* The four reasons, and the security policy they point at. */}
         <WhyLiteSPM />
-
-        {/* 8 — the questions. */}
-        <FaqSection />
-
-        <div className="bg-sunken">
-          {/* 9 — the commands. */}
-          <DeveloperZone />
-        </div>
       </main>
 
       <SiteFooter />

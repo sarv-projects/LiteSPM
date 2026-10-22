@@ -172,6 +172,27 @@ competitors and the published package rather than against the working tree.
 
 ### Changed
 
+- **The landing page is the search and the install, not the brochure.** It
+  carried about eighteen blocks: the workflow was taught twice (a five-beat
+  card in the hero, then three steps below it), the supported agents appeared
+  three times, the catalog stats twice, and the install call to action three
+  times. Now it is six blocks — hero with the agent choice and the proof line,
+  six goals, one mixed row of six curated entries, the three steps, and the
+  four reasons. What left the page did not leave the site: the kind explainer
+  and the walkthrough moved to `/how-it-works`, the agent matrix to `/agents`,
+  the FAQ to `/support`, and the command list to `/get-started` — each to the
+  page that is about it, so the home page and the reference page stopped
+  teaching the same thing in two voices. `ProductDemo` was deleted rather than
+  hidden: a card that explains the product beside the product is the thing
+  the page is for.
+- **Six goal tiles, not eight**, and one mixed shelf row rather than two
+  labelled groups — a reader looking for a skill was scrolling every server
+  first.
+- **`/submit/` exists and is reachable.** A publisher with a server, a skill
+  or a plugin had to guess the URL; it is in the footer's Browse column and in
+  the sitemap. The page says what a submission can and cannot buy, which today
+  is: nothing — a listing enters the catalog when its publisher ships an
+  artifact the producer can read and verify.
 - **One mark everywhere.** The favicon was a dark plate, the header an
   indigo tile and the social card a third thing — and `app/icon.svg`'s own
   comment claimed the first was the same shape as the second. The card and the

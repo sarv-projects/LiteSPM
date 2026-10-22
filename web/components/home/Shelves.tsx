@@ -146,6 +146,19 @@ function CatalogStamp({ telemetry }: { telemetry: TelemetryState }) {
 export function Shelves({ groups, agent, telemetry }: ShelvesProps) {
   if (!groups.length) return null;
 
+  // One row, mixed kinds: take from each group in turn rather than showing
+  // every server and then every skill, so the row answers "what is this?" for
+  // the whole catalog instead of for one third of it. The page used to render
+  // two labelled groups of six; a reader looking for one kind was scrolling
+  // the other.
+  const mixed: ShelvesProps["groups"][number]["entries"] = [];
+  for (let i = 0; i < 6; i += 1) {
+    for (const group of groups) {
+      const entry = group.entries[i];
+      if (entry && mixed.length < 6) mixed.push(entry);
+    }
+  }
+
   return (
     <section className="shell band" aria-labelledby="start-here-title">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
@@ -155,33 +168,23 @@ export function Shelves({ groups, agent, telemetry }: ShelvesProps) {
             Featured capabilities
           </h2>
           <p className="band-sub">
-            Explore a curated selection of useful tools and skills. Review their capabilities,
-            compatibility, and source before installing.
+            Six entries, curated rather than ranked, and the whole catalog one click away.
           </p>
         </div>
-        <CatalogStamp telemetry={telemetry} />
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <CatalogStamp telemetry={telemetry} />
+          <Link
+            href="/explore/"
+            className="touch-link inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-accent-text hover:underline"
+          >
+            Browse all capabilities
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </div>
       </div>
 
-      {groups.map((group) => (
-        <div key={group.id} className="mt-8 first:mt-7">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <div>
-              <h3 className="text-[17px] font-semibold tracking-tight text-ink">{group.title}</h3>
-              <p className="mt-1 max-w-prose text-[13px] leading-relaxed text-ink-2">
-                {group.blurb}
-              </p>
-            </div>
-            <Link
-              href={group.viewAll.href}
-              className="touch-link inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-accent-text hover:underline"
-            >
-              {group.viewAll.label}
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </Link>
-          </div>
-
-          <ul className="mt-4 grid grid-cols-1 auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {group.entries.map((entry, index) => (
+      <ul className="mt-7 grid grid-cols-1 auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {mixed.map((entry, index) => (
               <ShelfCard
                 key={entry.id}
                 // The card's description is the editorial line, not the
@@ -192,10 +195,8 @@ export function Shelves({ groups, agent, telemetry }: ShelvesProps) {
                 agent={agent}
                 entranceIndex={index}
               />
-            ))}
-          </ul>
-        </div>
-      ))}
+        ))}
+      </ul>
     </section>
   );
 }

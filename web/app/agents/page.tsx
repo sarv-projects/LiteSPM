@@ -5,6 +5,7 @@ import { buildAgentRows } from "./agentRows";
 import type { Metadata } from "next";
 import type { AgentsViewProps } from "./AgentsView";
 import AgentsRoute from "./AgentsRoute";
+import { AtlasTeaser } from "../../components/home/AtlasTeaser";
 
 /**
  * Its own title and preview: this page previously inherited the layout's single
@@ -42,5 +43,12 @@ export default function AgentsPage() {
     agents: rows,
   };
 
-  return <AgentsRoute {...props} />;
+  return (
+    <>
+      <AgentsRoute {...props} />
+      {/* What each agent gets, on the page about agents. It was a block on
+          the home page, between the steps and the reasons. */}
+      <AtlasTeaser />
+    </>
+  );
 }

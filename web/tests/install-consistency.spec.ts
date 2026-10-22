@@ -34,7 +34,7 @@ async function listingRows(page: import("@playwright/test").Page): Promise<Row[]
 const AVAILABILITY_BADGES = new Set([
   "Remote endpoint",
   "Installs from source",
-  "Discovery only",
+  "Listed only",
   "Not installable",
 ]);
 
@@ -45,8 +45,8 @@ test("a search listing's badge is the entry page's availability, both directions
   await waitForSearchGrid(page, "postgres");
   const rows = await listingRows(page);
 
-  const installable = rows.find((row) => AVAILABILITY_BADGES.has(row.badge) && row.badge !== "Discovery only" && row.badge !== "Not installable");
-  const notInstallable = rows.find((row) => row.badge === "Discovery only");
+  const installable = rows.find((row) => AVAILABILITY_BADGES.has(row.badge) && row.badge !== "Listed only" && row.badge !== "Not installable");
+  const notInstallable = rows.find((row) => row.badge === "Listed only");
   expect(installable, "expected an installable listing in the results").toBeTruthy();
   expect(notInstallable, "expected a discovery-only listing in the results").toBeTruthy();
 
@@ -61,7 +61,7 @@ test("a search listing's badge is the entry page's availability, both directions
       `${sample.name}: entry header should carry the "${sample.badge}" chip`
     ).toBeVisible();
 
-    if (sample.badge === "Discovery only" || sample.badge === "Not installable") {
+    if (sample.badge === "Listed only" || sample.badge === "Not installable") {
       // Both affordances must agree: the install band and the AddSteps panel.
       const unavailable = page.getByRole("button", { name: "Install unavailable" });
       await expect(unavailable.first()).toBeDisabled();

@@ -118,7 +118,10 @@ test("every goal tile opens a real filtered result set", async ({ page }) => {
 
   const tiles = page.locator('section[aria-labelledby="topics-title"] a[href^="/explore/?goal="]');
   const tileCount = await tiles.count();
-  expect(tileCount, "the home page leads with eight goal tiles").toBe(8);
+  // Six, not eight: the home page is the search and the install, and the
+  // other two goals (and all 64 categories) are one click away on
+  // /categories/, which the section already links to.
+  expect(tileCount, "the home page leads with six goal tiles").toBe(6);
 
   const hrefs = await tiles.evaluateAll((nodes) =>
     nodes.map((node) => (node as HTMLAnchorElement).getAttribute("href") ?? "")
@@ -190,46 +193,45 @@ test("the shelf shows exactly the curated set, and each card links to its entry"
   // The canonical form is the PATH (/package/<key>/), not the query form:
   // one entry, one address (the F-21 fix).
   const cards = shelf.locator("a[href^='/package/']");
-  expect(
-    await cards.count(),
-    "the shelf shows the curated entries and nothing else — the five old shelves are gone"
-  ).toBe(featured.entries.length);
+  // Six cards, mixed kinds: the shelf used to render two labelled groups of
+  // six, so a reader looking for a skill scrolled every server first.
+  expect(await cards.count(), "the shelf is one row of six").toBe(6);
 
-  for (const entry of featured.entries) {
-    const row = rowsById.get(entry.id)!;
-    // Next renders the href without the trailing slash even though the
-    // canonical form (and the sitemap) carries one; both resolve to the same
-    // entry, so match the path and let the canonical tag name the address.
-    const link = shelf.locator(`a[href^='/package/${encodeURIComponent(keyOf(row))}']`);
-    await expect(link, `${entry.id} must be on the shelf`).toHaveCount(1);
+  const hrefs = await cards.evaluateAll((nodes) =>
+    nodes.map((node) => (node as HTMLAnchorElement).getAttribute("href") ?? "")
+  );
+  const kinds = new Set<string>();
+  for (const href of hrefs) {
+    // Every card names a real key: decode the path form and look the row up.
+    const key = decodeURIComponent(href.replace(/^\/package\//, "").replace(/\/$/, ""));
+    const row = rowsById.get(key);
+    expect(row, `the shelf card ${href} does not name a row in the curated set`).toBeTruthy();
+    kinds.add(row!.kind);
   }
+  expect(kinds.size, "the mixed row shows more than one kind of capability").toBeGreaterThan(1);
 });
 
-test("the product demo renders its poster frame and its transcript", async ({ page }) => {
+test("the home page carries six blocks, and none of them explains the product twice", async ({
+  page,
+}) => {
   await gotoSettled(page, "/");
 
-  const demo = page.locator("#product-demo");
-  await expect(demo).toBeVisible();
+  // The card that used to sit in the hero — "From discovery to local
+  // installation", five beats then three — is gone with the block it sat in.
+  // The walkthrough is /how-it-works; this page is the search and the install.
+  await expect(page.locator("#product-demo")).toHaveCount(0);
 
-  // The poster frame, and the honest label on it: the recording does not
-  // exist yet, and a play button over an empty frame would promise one.
-  const poster = page.locator("#product-demo-poster");
-  await expect(poster).toBeVisible();
-  await expect(poster).toContainText("Installation workflow");
-
-  // The captions: three beats — the same three moments the section below this
-  // card and `/how-it-works` teach. It was five (discovery and compatibility
-  // counted as steps of their own) until one page was teaching two shapes of
-  // the same workflow.
-  await expect(demo.locator("#product-demo-captions > li")).toHaveCount(3);
-
-  // The transcript, in the document, for a reader with no JavaScript, no
-  // screen, and no interest in watching a video.
-  const transcript = page.locator("#product-demo-transcript");
-  await expect(transcript).toContainText("LiteSPM runs locally");
-  await expect(transcript).toContainText("the initial agent setup");
-  await expect(transcript).toContainText("removal");
+  // What is here now: the hero and its proof, six goals, one curated row,
+  // three steps, the four reasons.
+  await expect(page.locator("#topics-title")).toBeVisible();
+  await expect(page.locator("#hero-proof-basis")).toContainText("entries in the catalog");
+  await expect(demo_shelf_is_one_row(page)).resolves.toBeLessThanOrEqual(6);
 });
+
+/** The curated shelf is one mixed row now, not two labelled groups. */
+async function demo_shelf_is_one_row(page: import("@playwright/test").Page) {
+  return page.locator("main section ul li").filter({ has: page.locator("[data-kind]") }).count();
+}
 
 test("the home page never presents a plugin it cannot fetch as installable", async ({ page }) => {
   await gotoSettled(page, "/");

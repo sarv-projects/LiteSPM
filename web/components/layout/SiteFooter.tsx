@@ -69,6 +69,13 @@ export function SiteFooter() {
                 Coverage
               </Link>
             </li>
+            {/* The one growth lever the site had and did not link: a publisher
+                with a server or a skill had to guess that /submit/ existed. */}
+            <li>
+              <Link href="/submit/" className="link touch-link">
+                Submit a listing
+              </Link>
+            </li>
           </ul>
         </nav>
 
@@ -95,6 +102,11 @@ export function SiteFooter() {
             <li>
               <Link href="/security/" className="link touch-link">
                 Security
+              </Link>
+            </li>
+            <li>
+              <Link href="/submit/" className="link touch-link">
+                Submit a listing
               </Link>
             </li>
             <li>

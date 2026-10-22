@@ -15,7 +15,7 @@ import { SITE_URL } from "../lib/site";
  * reason to find. Nothing pointed at them.
  *
  * The URL list is exactly the set of routes this export emits: the catalog
- * index pages, the information and decision pages, plus one page per host in the
+ * index pages, the information and decision pages (including /submit/), plus one page per host in the
  * catalog's host registry (`HOST_IDENTITIES`, the same array
  * `app/agents/[id]/page.tsx` uses for `generateStaticParams`, so the sitemap
  * cannot name a page the build did not produce). Every host the catalog names
@@ -61,6 +61,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/security/",
     "/status/",
     "/support/",
+    "/submit/",
   ];
 
   return [

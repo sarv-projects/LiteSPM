@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { WalkthroughFrame } from "./WalkthroughFrame";
+import { CapabilityTypes } from "../../components/home/CapabilityTypes";
 
 export const metadata: Metadata = {
   title: "How LiteSPM works",
@@ -223,6 +224,12 @@ export default function HowItWorksPage() {
           </div>
         </section>
       </main>
+        {/* The kinds, in plain language, on the page that is about what
+            LiteSPM installs. It used to sit on the home page, ahead of the
+            search — the home page now carries the search and the install, and
+            this page carries the explanation. */}
+        <CapabilityTypes />
+
       <SiteFooter />
     </div>
   );

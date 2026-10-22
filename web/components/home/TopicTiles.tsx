@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { UseCaseGrid } from "../marketing/UseCaseGrid";
+import { HOME_GOAL_COUNT, UseCaseGrid } from "../marketing/UseCaseGrid";
 import type { TopicStat } from "../../lib/landing";
 
 /**
@@ -39,7 +39,10 @@ export function TopicTiles({ topics }: { topics: TopicStat[] }) {
         </Link>
       </div>
 
-      <UseCaseGrid topics={topics} />
+      {/* Six, not eight: the home page's job is the search and the install,
+          and the other two goals (and all 64 categories) are one click away
+          on /categories/ — which this section already links to. */}
+      <UseCaseGrid topics={topics} limit={HOME_GOAL_COUNT} />
     </section>
   );
 }

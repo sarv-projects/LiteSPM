@@ -2,17 +2,21 @@
 
 # litespm
 
-**One place to manage what your coding agents can do.**
+**The package manager for AI agents.**
 
 Discover and install MCP servers, skills and plugins across Claude Code,
-OpenAI Codex, OpenCode, Cline and 45 more hosts — 50 in all. 45 of them can also receive a
-remote (URL) MCP entry; the other five are refused rather than written in a shape the
-host would ignore.
+OpenAI Codex, OpenCode, Cline and 45 more hosts — 50 in all. 46 of them can
+also receive a remote (URL) MCP entry; the other four — CodeStudio, iFlow CLI,
+Mux and Zcode — are refused rather than written in a shape the host would
+ignore.
+
+**Browse the catalog:** **[litespm.sarveshbh-2022.workers.dev](https://litespm.sarveshbh-2022.workers.dev/)**
+— search all 69,376 listings and copy the install command for anything you pick.
 
 [![npm version](https://img.shields.io/npm/v/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
 [![npm downloads](https://img.shields.io/npm/dm/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/sarv-projects/LiteSPM/blob/main/LICENSE)
-[![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
+[![node](https://img.shields.io/badge/node-%3E%3D22.22.2-brightgreen.svg)](https://nodejs.org)
 
 </div>
 

@@ -75,7 +75,11 @@ const SOURCE: Availability = {
 
 const DISCOVERY: Availability = {
   id: "discovery",
-  label: "Discovery only",
+  // "Listed only", not "Discovery only": the second reads like the entry is
+  // broken. It is listed and it is readable; what it does not have is a
+  // source this build could verify well enough to install, which the text
+  // below says in one sentence.
+  label: "Listed only",
   // The reason, not just the verdict: a skill's publisher page publishes a
   // repository that this catalog did not adopt, so the row was never
   // verified (20,320 skills, of which 19,556 are discovery-only for exactly

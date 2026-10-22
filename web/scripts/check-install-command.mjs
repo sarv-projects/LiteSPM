@@ -56,9 +56,47 @@ function fail(message) {
  * compare the site against the binary, and a comparison against an empty set
  * would silently read "the site publishes nothing", which passes.
  */
+function gitShow(ref, file) {
+  return execFileSync("git", ["show", `${ref}:cmd/litespm/${file}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+}
+
+/**
+ * Fetch one tag if this clone does not have it.
+ *
+ * `actions/checkout` is a depth-1 clone by default, so the published tag is
+ * not in the object store: without this, the gate failed in CI with "the tag
+ * is not here" — which reads exactly like a broken release and is not one.
+ * One bounded fetch, and a failure is not fatal: the caller falls back to the
+ * committed snapshot and says so.
+ */
+function fetchTagIfNeeded(ref) {
+  if (!ref) return false;
+  const has = execFileSync("git", ["tag", "-l", ref], { cwd: repoRoot, encoding: "utf8" }).trim();
+  if (has) return true;
+  try {
+    execFileSync("git", ["fetch", "--depth=1", "origin", `refs/tags/${ref}:refs/tags/${ref}`], {
+      cwd: repoRoot,
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 30_000,
+    });
+    return execFileSync("git", ["tag", "-l", ref], { cwd: repoRoot, encoding: "utf8" }).trim() !== "";
+  } catch {
+    return false;
+  }
+}
+
 function installFlagsAt(ref) {
   if (ref && !existsSync(path.join(repoRoot, ".git"))) {
     fail(`cannot read ${ref}: ${repoRoot} is not a git checkout`);
+  }
+  if (ref && !fetchTagIfNeeded(ref)) {
+    console.log(`  ! tag ${ref} is not in this clone and could not be fetched; ` +
+      "checking against the committed snapshot instead");
+    return null;
   }
   const files = readdirSync(cliDir).filter((name) => name.endsWith(".go"));
   const flags = new Set();
@@ -67,11 +105,7 @@ function installFlagsAt(ref) {
     let text;
     if (ref) {
       try {
-        text = execFileSync("git", ["show", `${ref}:cmd/litespm/${file}`], {
-          cwd: repoRoot,
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "ignore"],
-        });
+        text = gitShow(ref, file);
       } catch {
         continue; // the tag predates this file
       }
@@ -182,12 +216,16 @@ async function main() {
 
   const version = publishedVersion(snapshot);
   const sourceFlags = installFlagsAt("");
-  const publishedFlags = installFlagsAt(`v${version}`);
+  // null = the tag is not in this clone (and could not be fetched), so the
+  // snapshot is the answer and the tag/snapshot comparison below is skipped.
+  const tagFlags = installFlagsAt(`v${version}`);
+  const publishedFlags = tagFlags ?? new Set(snapshot.installFlags);
 
   // The snapshot has to describe the tag it names: a file whose flag list has
   // gone stale is worse than no file, because it reads as a check that passed.
+  // (Skipped when the tag was unavailable and the snapshot is the answer.)
   const recorded = new Set(snapshot.installFlags);
-  const fromTag = publishedFlags;
+  const fromTag = tagFlags ?? new Set();
   const missing = [...fromTag].filter((flag) => !recorded.has(flag));
   const extra = [...recorded].filter((flag) => !fromTag.has(flag));
   if (missing.length > 0 || extra.length > 0) {

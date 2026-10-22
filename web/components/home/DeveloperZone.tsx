@@ -25,7 +25,10 @@ import { ARCHITECTURE_URL, DOCS_URL, REPO_URL } from "../../lib/site";
  * the tool belong before the commands.
  */
 const SNIPPETS: Array<{ cmd: string; note: string }> = [
-  { cmd: "npm install -g litespm", note: "Install the CLI" },
+  // No `npm install -g litespm` here: this list moved to /get-started, and
+  // that page's step one already teaches the install with its own copy
+  // button. Two identical copy buttons for one command on one page is the
+  // duplication the landing page was decluttered for.
   { cmd: "litespm setup", note: "Detect your agents, preview the change, approve it" },
   { cmd: "litespm catalog sync", note: "Download the capability catalog" },
   { cmd: "litespm install <id>", note: "Install an eligible package from its exact catalog ID" },

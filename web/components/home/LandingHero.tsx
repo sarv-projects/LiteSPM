@@ -4,7 +4,6 @@ import React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SearchBar } from "../navigation/SearchBar";
-import { ProductDemo } from "../marketing/ProductDemo";
 import { AgentLogo } from "../AgentLogo";
 import { AGENT_CHOICES } from "../../lib/landing";
 import { formatCount } from "../../lib/format";
@@ -20,13 +19,11 @@ import { formatCount } from "../../lib/format";
  * strip that used to sit here moved down to the curated shelf, and the
  * rotating kind figures are gone entirely.
  *
- * ## What is in the right column
+ * ## What is NOT in the right column
  *
- * `ProductDemo` — the recorded walkthrough, or, until the recording exists,
- * the clearly-labelled placeholder that says what it will cover. The old
- * right-hand column was the bridge figure, which is a diagram of the
- * architecture; the first screen of a product page has to show the product
- * working, not a picture of how it is put together.
+ * The product demo card that used to be here (and the bridge figure before
+ * it). Both explain the product; neither is the product, and the homepage's
+ * job is the search and the install. `/how-it-works` carries the walkthrough.
  *
  * ## The H1
  *
@@ -201,9 +198,6 @@ export function LandingHero({
           </p>
         </div>
 
-        <div className="enter-rise" style={{ animationDelay: "80ms" }}>
-          <ProductDemo />
-        </div>
       </div>
     </section>
   );
