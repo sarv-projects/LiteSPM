@@ -5,6 +5,16 @@
 > 2026-10-21. A document that disagrees with [STATUS.md](../STATUS.md) is the document that is
 > wrong.
 
+## Companion cross-product local manager contract (2026-10-22)
+
+[40 — LiteCowork Consumer Interoperability](40-LITECOWORK-CONSUMER-INTEROP.md)
+is the TARGET machine-interface and ownership contract for any local desktop
+consumer. The current CLI/Bridge commands are real only where supported
+by source and tests; this LLD does **not** imply that LiteCowork has an
+installed/qualified client or that all externally installed kinds can be
+adopted. The **connector** package/execution decision still follows ARCH/26
+and ARCH/29; consumer demand cannot silently mark it shipped.
+
 ## 1. Document Status & Precedence
 
 This architecture defines the complete specification for **LiteSPM**, comprising high-level system boundaries, protocol contracts, low-level component designs, database schemas, and verification suites.
