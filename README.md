@@ -5,9 +5,13 @@
 [![npm](https://img.shields.io/npm/v/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Find MCP servers, skills and plugins once, and install them into every coding
-agent you use. LiteSPM writes each agent's own config, backs it up first, and
-keeps a ledger of what it changed so you can take it back out.
+Find, inspect, install and manage MCP servers, skills and plugins across
+compatible AI agents—**including eligible capabilities you've already
+configured yourself**. LiteSPM can observe native host configurations
+without changing them and supports explicit adoption of eligible existing
+MCP entries. It tracks exact owned changes so updates/removals avoid
+destroying unrelated native configuration. Not every package type,
+agent or existing extension has a qualified management path yet.
 
 ```bash
 npm install -g litespm
@@ -16,6 +20,18 @@ litespm
 
 That opens the setup wizard. It finds the agents on your machine, shows the
 exact file it will touch, and asks before writing.
+
+## Existing integrations and LiteCowork
+
+LiteSPM is the independent cross-agent **package lifecycle** manager.
+`litespm list` / `inventory` distinguish observed external entries from
+managed and adopted installations. `litespm adopt` supports eligible
+existing MCP entries with recorded reversible ownership; it is **not**
+currently universal native skill/plugin/connector adoption. Installation
+is not an execution grant. [LiteCowork interoperability](ARCH/40-LITECOWORK-CONSUMER-INTEROP.md)
+defines a versioned authenticated local service contract for a future
+fully integrated desktop manager without duplicating LiteSPM storage or
+claiming broad runtime support.
 
 ## Quick start
 

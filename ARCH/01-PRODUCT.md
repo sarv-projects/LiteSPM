@@ -1,5 +1,19 @@
 # Product Contract & User Experience
 
+## Native-existing capability management — V1 product requirement
+
+LiteSPM does **not** start with an empty universe: agents already have native
+MCP configurations, skills, plugins and other extensions. A qualified
+host reader should first **observe** these without writing, and offer
+**adoption** only where the exact host/kind/scope supports reversible
+ownership. Newly installed, externally observed, adopted, modified and
+broken are distinct lifecycle facts. No user must reinstall a compatible
+native MCP just to obtain visibility, and existing native credentials and
+configuration must be preserved. Adoption is not equivalent to installing
+or authorizing tool execution. The supported adoption scope remains limited
+by the actual host adapters and CLI/Bridge implementations. See
+[LiteCowork consumer interoperability](40-LITECOWORK-CONSUMER-INTEROP.md).
+
 ## 1. Product Identity
 
 *   **LiteSPM Market:** The public, federated discovery surface for AI agent plugins, skills, and MCP servers. Available as a fast, static web application and a read-only HTTP catalog.

@@ -162,7 +162,7 @@ remove`).
 | Static content scan (labelled *scan*) | `IMPLEMENTED` | `internal/scan` (six rules: a discovery-only row carrying a launch line, a plugin with no fetchable source, an unpinned source, an internal skill published publicly, a credential in a public URL, a version with no traceable source), deterministic and order-stable, with the rules declared even when a rule finds nothing; wired by `litespm audit` | — |
 | Compatibility evidence records | `DESIGNED` | Host lists are publisher-declared, not test results (`ARCH/26` §4.2) | Host × OS × version × date × test records |
 | Sandbox / isolation tier declaration | `DESIGNED` | No tier is declared; `ARCH/08` refuses OS-sandbox claims and `doctor` reports process supervision only | Declare the true tier in docs and report it from `doctor` |
-| `adopt` migration flow | `DESIGNED` | No `adopt_tool` handler/tool exists; host detection is read-only | Ownership records (needs the ledger) |
+| `adopt` existing MCP server (CLI + IPC/Bridge) | `WIRED` (source/unit evidence; host/OS qualification pending) | `cmd/litespm/adopt.go` (`adoptHostEntry`), `adopt_test.go`, `cmd/litespm/main.go` `adopt` and `adopt.execute`, `internal/bridge/shim.go`, `internal/deployment/ledger.go`. Adoption records ownership of existing eligible MCP node without a configuration rewrite | Qualify supported user/project host scopes and real installed builds; extend adoption to independently qualified skills/plugins/kinds, implement explicit unmanage and recover crash windows |
 
 ## 6. Interfaces & packaging
 
