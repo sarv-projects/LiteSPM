@@ -9,7 +9,7 @@ would contain it. The two audits this session acted on live beside this file.
 | Branch | `main`, pushed (CI is red — see §4, and it was red before this session too) |
 | Go state | `go build ./...`, `go vet ./...`, `go test ./... -count=1` — **green**, 45 packages |
 | Web state | `tsc --noEmit` **green**; `npm run lint` (8 gates) **green**; `next build` **green**; browser suite **210 passed / 2 failed** (§4) |
-| Audits | [`visual-identity.md`](visual-identity.md) · [`content-and-competitors.md`](content-and-competitors.md) · [`shots/`](shots/) |
+| Audits | [`visual-identity.md`](visual-identity.md) · [`visual-identity-followup.md`](visual-identity-followup.md) · [`content-and-competitors.md`](content-and-competitors.md) · [`shots/`](shots/) |
 | Open work | `TODO.md` rows **LPSM-J016…J020** (each has evidence and a next step) |
 
 ---
