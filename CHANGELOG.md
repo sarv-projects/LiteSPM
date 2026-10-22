@@ -84,6 +84,18 @@ live documentation.
   discarded the checkpoint's result row, so a partial checkpoint produced a
   copy missing the pages still in the WAL, presented as a complete recovery
   copy. A partial checkpoint is now refused rather than copied.
+- **Backup skipped for a database that had data:** the pre-migration backup
+  was taken only when this package had already recorded a schema version, so
+  a database that carried tables and rows while `schema_migrations` was
+  empty — a file from a build that predates the migration table, or one
+  another tool created — was migrated with no recovery copy at all. The test
+  is now whether the file holds any non-system table.
+- **Error-family spelling:** three error constructors carried a category that
+  matched no other family — `LPSM-RESOLVER` where every other resolve error
+  says `LPSM-RESOLVE`, and `LPSM_RESOLVE` (underscore) on the install-target
+  and name-conflict errors, whose code still said `LPSM-INSTALL-*`. The
+  families are now `LPSM-RESOLVE` and `LPSM-INSTALL`, spelled the way the
+  codes already were.
 
 ### Added
 
@@ -119,6 +131,20 @@ live documentation.
 - The site's hook-order, contrast and settled-count gates now cover `lib/`,
   the explicit dark theme and the third counted component.
 - Ten dead `lib/` exports and three unused runtime dependencies removed.
+- **The walkthrough is three steps everywhere.** `/how-it-works` counted
+  discovery as a step of its own and put the catalog sync in a fourth, while
+  the home page showed three — so the same workflow was taught two different
+  shapes on two pages. It now shows the same three moments, in the same
+  order and with the same titles, as `components/home/HowItWorks.tsx`.
+- **Every product link is the canonical `/package/<key>/` form.** With
+  `trailingSlash: true`, Next's `normalizePathTrailingSlash` treats a last
+  path segment containing a dot as a file and strips the trailing slash it
+  was given. MCP keys carry a reverse-DNS publisher segment
+  (`…:io.github.github-mcp-server`), so the rendered HTML dropped the slash
+  for exactly those rows while skill keys kept it — one catalog, two URL
+  shapes, and eight links that pointed at a spelling nothing else in the
+  site used. `skipTrailingSlashRedirect` turns that normalization off; the
+  edge Worker already answers both spellings.
 
 ## [0.6.0] - 2026-10-21
 

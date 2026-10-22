@@ -167,7 +167,7 @@ func ErrResolveConflict(listingID, reason string) *LPSMError {
 	return &LPSMError{
 		Code:      "LPSM-RESOLVE-CONFLICT",
 		Message:   fmt.Sprintf("dependency resolution conflict for %s: %s", listingID, reason),
-		Category:  "LPSM-RESOLVER",
+		Category:  "LPSM-RESOLVE",
 		Retryable: false,
 		Details: map[string]any{
 			"listingId": listingID,
@@ -180,7 +180,7 @@ func ErrResolveCycle(cyclePath string) *LPSMError {
 	return &LPSMError{
 		Code:      "LPSM-RESOLVE-CYCLE",
 		Message:   fmt.Sprintf("dependency cycle detected: %s", cyclePath),
-		Category:  "LPSM-RESOLVER",
+		Category:  "LPSM-RESOLVE",
 		Retryable: false,
 		Details: map[string]any{
 			"cycle": cyclePath,
@@ -296,7 +296,7 @@ func ErrInstallTargetUnavailable(detail string) *LPSMError {
 	return &LPSMError{
 		Code:      "LPSM-INSTALL-TARGET-UNAVAILABLE",
 		Message:   fmt.Sprintf("no install target: %s", detail),
-		Category:  "LPSM_RESOLVE",
+		Category:  "LPSM-INSTALL",
 		Retryable: false,
 		Details: map[string]any{
 			"detail": detail,
@@ -314,7 +314,7 @@ func ErrNameConflict(detail string) *LPSMError {
 	return &LPSMError{
 		Code:      "LPSM-NAME-CONFLICT",
 		Message:   fmt.Sprintf("refusing to overwrite an existing entry: %s", detail),
-		Category:  "LPSM_RESOLVE",
+		Category:  "LPSM-RESOLVE",
 		Retryable: false,
 		Details: map[string]any{
 			"detail": detail,

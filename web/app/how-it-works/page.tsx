@@ -23,32 +23,39 @@ function Command({ children }: { children: string }) {
   );
 }
 
+/**
+ * The walkthrough is the SAME three moments the home page shows, in the same
+ * order and with the same titles.
+ *
+ * It used to be four — "discover" was a numbered step of its own, and the
+ * catalog sync was a fifth thing to run before installing. So this page said
+ * four steps while the home page said three, and a reader who clicked through
+ * had to re-learn the shape of the product. Browsing is not a step in an
+ * install (there is nothing to run, and nothing is changed), and the catalog
+ * sync is part of installing rather than a separate ceremony, so both belong
+ * in the prose of the step they serve. The home page carries the rationale
+ * for three (`components/home/HowItWorks.tsx`).
+ */
 const STEPS = [
   {
     number: "01",
-    title: "Discover a capability",
-    description:
-      "Search the marketplace by task, provider, or package name. Each listing shows its source, compatibility information, and whether LiteSPM has a supported installation path.",
-  },
-  {
-    number: "02",
     title: "Connect your coding agent",
     description:
-      "Run LiteSPM locally and choose the agent you use. The interactive setup can identify configuration locations and show changes before writing them.",
+      "Run LiteSPM locally and choose the agent you use. The interactive setup reads the adapter's own config path, shows you the file it found, and backs it up before writing a single bridge entry. Every other server, comment and line of formatting is left alone.",
     command: "npx --yes litespm@latest setup",
   },
   {
-    number: "03",
-    title: "Sync the catalog and install",
+    number: "02",
+    title: "Find and install a capability",
     description:
-      "Fetch the catalog once, then copy a package's exact install command from its marketplace page. LiteSPM checks the selected package and supported target configuration.",
-    command: "npx --yes litespm@latest catalog sync",
+      "Search the marketplace by task, provider or package name, then copy the package's exact install command from its page. Each listing shows its source, compatibility, and whether LiteSPM has a supported installation path. The first install fetches the signed catalog; after that LiteSPM resolves the package against it locally and refuses anything it cannot install, with the reason.",
+    command: "npx --yes litespm@latest install <id>",
   },
   {
-    number: "04",
-    title: "Manage what you installed",
+    number: "03",
+    title: "Manage or remove installed tools",
     description:
-      "View the locally recorded installation, remove entries managed by LiteSPM, or restore a saved configuration when necessary.",
+      "See what LiteSPM manages, remove one entry, or roll a config file back to the copy taken before the first edit. Removal takes out only the entry LiteSPM owns and leaves the rest of the file as it was.",
     command: "litespm list",
   },
 ];
@@ -78,7 +85,7 @@ export default function HowItWorksPage() {
           <div className="max-w-[72ch]">
             <p className="kicker">The workflow</p>
             <h2 id="walkthrough-title" className="band-title mt-2">
-              Four steps to extend your agent
+              Three steps to extend your agent
             </h2>
             <p className="band-sub">
               Browse on the web. Install and manage locally. No marketplace account required.
@@ -100,7 +107,7 @@ export default function HowItWorksPage() {
               machine, a real install and a real removal have been recorded. */}
           <div className="mt-8 max-w-[72ch]">
             <WalkthroughFrame
-              title="The four-step walkthrough"
+              title="The three-step walkthrough"
               captions={[
                 { time: "00:00", text: "Open Explore and describe what you want the agent to do." },
                 { time: "00:12", text: "Pick the agent you use and the scope: this project or the whole machine." },

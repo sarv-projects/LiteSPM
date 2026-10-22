@@ -22,6 +22,26 @@ const nextConfig: NextConfig = {
   },
   trailingSlash: true,
   /**
+   * Do not let `next/link` re-normalize the hrefs we hand it.
+   *
+   * With `trailingSlash: true`, Next's `normalizePathTrailingSlash` treats any
+   * last path segment that contains a dot as if it were a *file* and strips
+   * the trailing slash it was given
+   * (`if (/\.[^/]+\/?$/.test(pathname)) removeTrailingSlash(pathname)`).
+   * Our canonical entry URLs are `/package/<key>/`, and MCP keys carry a
+   * reverse-DNS publisher segment (`…:io.github.github-mcp-server`), so the
+   * rendered HTML silently dropped the slash for exactly those rows while
+   * skill keys kept it — one catalog, two URL shapes.
+   *
+   * `skipTrailingSlashRedirect` makes Next define
+   * `__NEXT_MANUAL_TRAILING_SLASH`, which short-circuits that normalization and
+   * lets the href through untouched. Nothing here needs Next's automatic
+   * `/about` ⇄ `/about/` redirect: `output: "export"` writes one
+   * `index.html` per directory, and the edge Worker already answers both
+   * spellings (`worker/index.js`).
+   */
+  skipTrailingSlashRedirect: true,
+  /**
    * One build worker, not one per CPU.
    *
    * The export prerenders 4,101 pages, and each worker holds the page graph

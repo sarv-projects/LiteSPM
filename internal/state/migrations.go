@@ -85,12 +85,30 @@ func (db *DB) ApplyMigrations(ctx context.Context, backupDir string) error {
 		return nil
 	}
 
-	// 5. Take pre-migration snapshot backup. A database with nothing applied
-	// yet holds no user data, so there is nothing to protect; any other
-	// database that cannot be backed up blocks the migration.
-	if backupDir != "" && db.dbPath != "" && currentAppliedVersion > 0 {
-		if err := db.backupDatabaseFile(backupDir, currentAppliedVersion); err != nil {
-			return fmt.Errorf("pre-migration backup failed: %w", err)
+	// 5. Take pre-migration snapshot backup.
+	//
+	// A database with nothing applied yet holds no user data, so there is
+	// nothing to protect — but "nothing applied" is not the same as "nothing
+	// in it". A file can carry tables and rows while schema_migrations is
+	// empty: a database from a build that predates the migration table, or one
+	// another tool created. Migrating that with no backup is exactly the case
+	// the backup exists for, so the test is whether the file already holds any
+	// non-system table, not whether this package has recorded a version.
+	if backupDir != "" && db.dbPath != "" {
+		holdsData := currentAppliedVersion > 0
+		if !holdsData {
+			var tables int
+			if err := db.raw.QueryRow(
+				`SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';`,
+			).Scan(&tables); err != nil {
+				return fmt.Errorf("inspect the database before migrating: %w", err)
+			}
+			holdsData = tables > 0
+		}
+		if holdsData {
+			if err := db.backupDatabaseFile(backupDir, currentAppliedVersion); err != nil {
+				return fmt.Errorf("pre-migration backup failed: %w", err)
+			}
 		}
 	}
 
