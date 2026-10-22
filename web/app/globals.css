@@ -150,8 +150,9 @@
     /* Solid-button hover: 7.14:1 under white text. */
     --accent-hover: #2749cf;
 
-    --mcp: #1f4fd8;
-    --mcp-wash: #eaf0ff;
+    /* MCP is blue-cyan, distinct from the indigo brand and readable on its wash. */
+    --mcp: #006b95;
+    --mcp-wash: #e2f4fa;
     --skill: #0b6b72;
     --skill-wash: #e2f5f2;
     --plugin: #7c3ad4;
@@ -244,8 +245,8 @@
       --accent-text: #8fa9ff;
       --accent-hover: #4061f8;
 
-      --mcp: #7fa0ff;
-      --mcp-wash: #172447;
+      --mcp: #6eeaff;
+      --mcp-wash: #102b37;
       --skill: #4fd8ce;
       --skill-wash: #0e2b2c;
       --plugin: #be9df8;
@@ -295,8 +296,8 @@
     --accent-text: #8fa9ff;
     --accent-hover: #4061f8;
 
-    --mcp: #7fa0ff;
-    --mcp-wash: #172447;
+    --mcp: #6eeaff;
+    --mcp-wash: #102b37;
     --skill: #4fd8ce;
     --skill-wash: #0e2b2c;
     --plugin: #be9df8;
@@ -1099,7 +1100,7 @@
     overflow-wrap: anywhere;
   }
 
-  /* ---- hero glow: brand -> violet, no blobs, no parallax ------------- */
+  /* ---- hero glow: brand only, no blobs, no parallax ------------------ */
   .hero-glow {
     position: relative;
     isolation: isolate;
@@ -1111,9 +1112,11 @@
     height: 420px;
     z-index: -1;
     pointer-events: none;
-    background:
-      radial-gradient(48% 60% at 18% 8%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 72%),
-      radial-gradient(44% 56% at 78% 0%, color-mix(in srgb, var(--plugin) 12%, transparent), transparent 72%);
+    background: radial-gradient(
+      48% 60% at 18% 8%,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      transparent 72%
+    );
     mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.45) 55%, transparent 100%);
     -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.45) 55%, transparent 100%);
   }

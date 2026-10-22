@@ -29,6 +29,29 @@ function fail(message) {
   process.exit(1);
 }
 
+function normalizedPublisher(name) {
+  return String(name ?? "").trim().toLowerCase();
+}
+
+function checkFilterContract(publisherMatches) {
+  const cases = [
+    [" Publisher ", "publisher", true],
+    ["Publisher", "publisher-plus", false],
+    ["publisher-plus", "Publisher", false],
+    [null, "publisher", false],
+    ["Publisher", "", true],
+  ];
+
+  for (const [name, wanted, expected] of cases) {
+    if (publisherMatches(name, wanted) !== expected) {
+      fail(
+        `lib/publisherFilter.ts no longer follows its case-folded exact-match contract ` +
+          `(name=${JSON.stringify(name)}, wanted=${JSON.stringify(wanted)})`
+      );
+    }
+  }
+}
+
 /** The site's own rule, transpiled from TypeScript. */
 async function loadRule() {
   const modulePath = path.join(webRoot, "lib", "publisherFilter.ts");
@@ -51,26 +74,35 @@ function main() {
   }
 
   return loadRule().then((publisherMatches) => {
-    // The count of each publisher, by its own name.
+    checkFilterContract(publisherMatches);
+
+    // Group once by the same case-folded exact key the filter uses. The
+    // previous implementation rescanned all 69K rows for every publisher;
+    // with 30K distinct publishers that meant over two billion comparisons.
     const exact = new Map();
     for (const row of rows) {
-      const name = (row.publisher?.name ?? "").trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
+      const key = normalizedPublisher(row.publisher?.name);
+      if (!key) continue;
       exact.set(key, (exact.get(key) ?? 0) + 1);
     }
 
-    // The count the filter returns for each publisher, measured by running
-    // the rule over every row. This is the number a link to that publisher
-    // opens, and the number every published figure has to equal.
+    // Check the production matcher against every real row name and each
+    // distinct key. Under the contract above, the grouped counts are exactly
+    // the rows each publisher filter returns.
     const mismatches = [];
-    for (const [key, count] of exact) {
-      let filtered = 0;
-      for (const row of rows) {
-        if (publisherMatches(row.publisher?.name, key)) filtered += 1;
+    for (const row of rows) {
+      const name = row.publisher?.name;
+      const key = normalizedPublisher(name);
+      if (key && !publisherMatches(name, key)) {
+        mismatches.push(`${key}: the filter does not match one of its own publisher names`);
       }
-      if (filtered !== count) {
-        mismatches.push(`${key}: the filter returns ${filtered}, the publisher published ${count}`);
+    }
+    for (const key of exact.keys()) {
+      if (
+        publisherMatches(`${key} extra`, key) ||
+        publisherMatches(`extra ${key}`, key)
+      ) {
+        mismatches.push(`${key}: the filter matches a non-exact publisher name`);
       }
     }
     if (mismatches.length > 0) {
