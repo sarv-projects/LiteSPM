@@ -256,7 +256,22 @@ competitors and the published package rather than against the working tree.
   site used. `skipTrailingSlashRedirect` turns that normalization off; the
   edge Worker already answers both spellings.
 
-## [0.6.0] - 2026-10-21
+## [0.6.0] - 2026-10-22
+
+Published 2026-10-22: `npm install -g litespm` (`latest` = 0.6.0) and the
+[`v0.6.0` release](https://github.com/sarv-projects/LiteSPM/releases/tag/v0.6.0)
+— six binaries, one Sigstore bundle each, `SHA256SUMS.txt`, a CycloneDX SBOM
+and the static site archive, all signed with a keyless Fulcio certificate
+minted by the release workflow.
+
+The version was written into `CHANGELOG.md` on 2026-10-21 and the npm tarball
+was published seven hours before the GitHub release that carries its binaries.
+The npm package's postinstall downloads from `v<version>`, so those two
+publications have to happen together: in the gap, `npx --yes litespm@latest`
+failed with HTTP 404 for every reader — which is worse than the wrong-flag
+failure it replaced, and is the reason `web/data/published-cli.json` now names
+the version the site documents and the gate checks it against npm.
+
 
 A plugin now installs from the pinned source its publisher ships, and the
 surfaces that describe an install (help, the wizard, the site) say the same

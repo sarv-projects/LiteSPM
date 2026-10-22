@@ -73,6 +73,13 @@ interface HostRow {
   name: string;
   /** Present and true only for adapters with a verified remote entry spelling. */
   remote?: boolean;
+  /**
+   * Which URL transports that spelling can express, straight from the Go
+   * registry's `RemoteEntrySpec.Transports` (`scripts/gen_hosts_ts.go`).
+   * The site used to keep its own copy of this set, which fell behind the
+   * registry from eight rows to forty-six.
+   */
+  remoteTransports?: string[];
   /** True when `install --scope project` can write this host. */
   projectScope?: boolean;
   /** True when the host documents only a repo-local config file. */

@@ -9,8 +9,12 @@ Find MCP servers, skills and plugins once, and install them into every coding
 agent you use. LiteSPM writes each agent's own config, backs it up first, and
 keeps a ledger of what it changed so you can take it back out.
 
+**Browse the catalog:** **[litespm.sarveshbh-2022.workers.dev](https://litespm.sarveshbh-2022.workers.dev/)**
+— search all 69,376 listings by kind, category, publisher, runtime or host,
+and copy the install command for anything you pick.
+
 ```bash
-npm install -g litespm
+npm install -g litespm   # Node 22.22.2+ (the wrapper downloads the signed binary for your platform)
 litespm
 ```
 
@@ -42,20 +46,25 @@ litespm list                # see what is installed
 
 ## Works with your agent
 
-LiteSPM supports **50 agent hosts** for MCP servers and **81** for skills,
-including Claude Code, OpenAI Codex, OpenCode, Cline, Pi Agent, Grok Build,
-Cursor, Zed, Gemini CLI, GitHub Copilot, Windsurf, Warp and AiderDesk.
+LiteSPM supports **50 agent hosts** for MCP servers and **81** targets for
+skills. The MCP set includes Claude Code, OpenAI Codex, OpenCode, Cline, Pi
+Agent, Grok Build, Cursor, Zed, Gemini CLI, GitHub Copilot and AiderDesk; the
+skills set is that group plus the agents that take skills only — Windsurf and
+Warp among them.
 
-**45 of the 50** hosts can also receive a remote (URL) MCP entry, because that
+**46 of the 50** hosts can also receive a remote (URL) MCP entry, because that
 is the number whose vendor documentation publishes the exact entry object the
-host expects. The other five are refused with a clear error rather than
-written in a shape the host would silently ignore.
+host expects. The other four — CodeStudio, iFlow CLI, Mux and Zcode — are
+refused with a clear error rather than written in a shape the host would
+silently ignore.
 
-Six hosts — Claude Code, Codex, OpenCode, Cline, Pi Agent and Grok Build —
-have hand-written adapters that know their config layout in detail. Every other
-host runs through the same data-driven registry, generated from each agent's
-documented format, so a new host is a registry entry rather than a new code
-path, and it gets the same plan, backup and ledger as the six.
+Each host has its own adapter: **six** — Claude Code, Codex, OpenCode, Cline,
+Pi Agent and Grok Build — are hand-written and know their config layout in
+detail (JSONC merging, TOML round-tripping, per-platform path discovery), and
+the other **forty-four** come from one data-driven registry generated from each
+agent's documented configuration format. A new host is therefore a registry
+entry rather than a new code path, and it gets the same plan, backup and
+ledger as the six.
 
 ```bash
 litespm host list      # every supported host and the file it writes

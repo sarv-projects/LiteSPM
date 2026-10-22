@@ -252,3 +252,37 @@ written read-only and the numbers in them were recomputed from
 - **The audit's suggested hero rewrite was not applied.** The current H1,
   kicker and "Works with" row together answer the five-second test's three
   questions; the report's alternative is a different headline, not a fix.
+
+---
+
+## 8. Postscript, written later the same day — 0.6.0 shipped
+
+Everything in §5's **J017** happened, and the way it happened is worth
+recording because it is a trap for the next release:
+
+1. `npm publish` was run from `npm/` and npm started serving `litespm@latest`
+   = **0.6.0** within minutes.
+2. The npm package's `postinstall` downloads its binary from the
+   **`v<version>` GitHub release**, and no `v0.6.0` release existed — so
+   `npm install litespm@latest` failed outright with `HTTP 404`, which is
+   *worse* than the wrong-flag failure it replaced. Verified in a clean
+   sandbox before anything else was done.
+3. `gh variable set ALLOW_NPM_SKIP=true`, then `git tag -a v0.6.0 && git push
+   origin v0.6.0`. The release workflow builds six binaries, signs them with
+   cosign keyless, generates the SBOM, publishes the GitHub release, runs the
+   npm wrapper tests **against the real assets** (the three that skip on a
+   machine with no release), and — because the variable is set — prints a
+   warning and skips the duplicate `npm publish` rather than failing the job.
+4. `web/data/published-cli.json` was updated from the tag, and the gate now
+   reports the published CLI as 0.6.0. The site keeps `--host`: it is the
+   spelling every release takes, so a reader who pinned 0.4.1 still succeeds,
+   and switching to `--agent` would buy nothing.
+
+**For the next release:** npm and the GitHub release have to be published
+together. Either let `release.yml` do both (set the `NPM_TOKEN` secret and
+clear `ALLOW_NPM_SKIP`), or publish npm yourself and leave
+`ALLOW_NPM_SKIP=true` in place — an npm tarball with no matching release
+assets makes `npx litespm@latest` uninstallable for everyone.
+
+`STATUS.md` §6, `TODO.md` **J017** (`DONE`) and `CHANGELOG.md` carry the
+facts; this file carries the story.

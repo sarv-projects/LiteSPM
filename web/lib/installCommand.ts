@@ -144,21 +144,22 @@ export function safeCatalogId(id: string): boolean {
  * destinations into the plan, so naming one agent cannot write another — the
  * reason a skill command used to be published without a target at all.
  *
- * It is spelled `--host` rather than `--agent` because of what the reader
- * actually runs. `npx --yes litespm@latest` resolves to the **published**
- * release, and the published `install` verb takes `--host`; `--agent` and
- * `--all-detected` arrived later. A site that printed those told a reader on
- * the published CLI to run a command that exited with `unknown flag` — the
- * single worst thing this site can do, because it looks like the product is
- * broken rather than newer than its npm tag. `--host` is accepted by the
- * published CLI and by the current one (where the help calls it "the older
- * spelling" of `--agent`), so one spelling serves both.
+ * It is spelled `--host` rather than `--agent` because that is the spelling
+ * every release takes. `npx --yes litespm@latest` resolves to the PUBLISHED
+ * release, and from 2026-10-15 to 2026-10-22 that release was 0.4.1, whose
+ * `install` verb has `--host` but neither `--agent` nor `--all-detected` —
+ * so a site printing those told a reader on the published CLI to run a
+ * command that exited with `unknown flag`, which is the single worst thing
+ * this site can do, because it looks like the product is broken rather than
+ * newer than its npm tag. 0.6.0 (published 2026-10-22) takes both, and calls
+ * `--host` the older spelling of `--agent`; keeping the older spelling means
+ * a reader who pinned an older release still succeeds.
  *
  * The gate `scripts/check-install-command.mjs` asserts this from two
  * directions: the flags this module publishes must be accepted by the
  * working tree's parser AND by the published CLI's recorded flag set
- * (`data/published-cli.json`), so the site can never again publish a command
- * the binary a reader installs would reject.
+ * (`data/published-cli.json`, which names what npm serves), so the site can
+ * never again publish a command the binary a reader installs would reject.
  */
 export function websiteInstallCommandFor(
   item: { id: string; kind: "mcp" | "skill" | "plugin"; name?: string | null },

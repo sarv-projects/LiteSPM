@@ -76,7 +76,14 @@ const SOURCE: Availability = {
 const DISCOVERY: Availability = {
   id: "discovery",
   label: "Discovery only",
-  plain: "No command and no endpoint are published, so this entry can be listed but not installed.",
+  // The reason, not just the verdict: a skill's publisher page publishes a
+  // repository that this catalog did not adopt, so the row was never
+  // verified (20,320 skills, of which 19,556 are discovery-only for exactly
+  // this reason). Saying so is the honest half; the other half is the manual
+  // path that still works — `litespm skills add <repo>` — which
+  // InstallBand prints next to the disabled button.
+  plain:
+    "Listed, but not installed: the catalog never verified a source it could clone — a repository for a skill, a command or an endpoint for a server. It can still be installed by hand from the repository the publisher names.",
   installable: false,
 };
 

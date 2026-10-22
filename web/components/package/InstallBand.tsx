@@ -52,6 +52,19 @@ export function InstallBand({
             ? `${agent?.label} is not a confirmed install target for this entry. Choose another agent below.`
             : availability.plain}
         </p>
+        {/* A discovery-only SKILL is the one case where a manual path exists
+            and works: the skill is a repository somewhere, and the installer
+            the manual command runs is the same one, with the same ledger. The
+            page already shows this row's own source below, so the two lines
+            meet without the reader having to hunt for the address. */}
+        {!incompatible && availability.id === "discovery" && item.kind === "skill" && item.skillSource ? (
+          <p className="mt-2 text-[12.5px] leading-relaxed text-ink-2">
+            Install it by hand from the repository the publisher names (shown under Source
+            below): <code className="t-mono">litespm skills add &lt;repo&gt;</code>. That path
+            verifies the skill's <code className="t-mono">SKILL.md</code> as it copies, and the
+            result is ledgered exactly like an installed listing.
+          </p>
+        ) : null}
         <button className="btn mt-3" type="button" onClick={onSeeSteps}>
           See compatibility and alternatives
         </button>
@@ -127,8 +140,8 @@ export function InstallBand({
       )}
       {!chosenId && command.command.includes("install plugin:") && (
         <p className="mt-2 text-[12px] leading-relaxed text-ink-2">
-          Installing a plugin needs a release that ships the plugin path (0.6.0). An older
-          CLI refuses it with the reason rather than installing part of it.
+          Installing a plugin needs LiteSPM 0.6.0 or newer. An older CLI refuses it
+          with the reason rather than installing part of it.
         </p>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px]">

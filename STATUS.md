@@ -176,24 +176,23 @@ remove`).
 ### The site, and the CLI a reader actually installs (2026-10-22)
 
 The website is built from this working tree; the command it prints is
-`npx --yes litespm@latest`, which resolves to **npm's `latest` — 0.4.1**
-(published 2026-10-15; the newest GitHub release is `v0.4.1`, 17 assets). The
-tree is 0.6.0 and has no release. That gap is a property of the system, not a
-typo, and every surface that depends on it now says so:
+`npx --yes litespm@latest`, which resolves to **npm's `latest`**. Those are
+different things, and for seven hours today they disagreed: npm served
+**0.4.1** while the tree was 0.6.0, so the site's `--agent` and
+`--all-detected` were flags the binary a reader installs did not take —
+`unknown flag` on the site's primary call to action. **0.6.0 was published on
+2026-10-22** (npm tarball plus the `v0.6.0` GitHub release the npm wrapper
+downloads its binary from), and the state now is:
 
 | Fact | State |
 |---|---|
-| What npm serves | `0.4.1`; its `install` verb accepts `--help/-h`, `--version/-v`, `--scope/-s`, `--workspace/-w`, `--host`, `--env`, `--force/-f`, `--frozen` |
-| What the site publishes | the target is spelled `--host` (accepted by both), an untargeted command stays bare, and the entry page says what a release that stops to ask is asking for (`web/lib/installCommand.ts`, `web/components/package/InstallBand.tsx`) |
+| What npm serves | `0.6.0`; its `install` verb accepts `--help/-h`, `--version/-v`, `--scope/-s`, `--workspace/-w`, `--host`, `--agent/-a`, `--all-detected`, `--env`, `--force/-f`, `--frozen`, `--dry-run`, `--allow-partial` |
+| What the site publishes | the target is spelled `--host` — the spelling every release takes, so a reader who pinned 0.4.1 still succeeds — and an untargeted command stays bare (`web/lib/installCommand.ts`) |
 | What stops it drifting | `web/data/published-cli.json` records the published version and its flag set; `web/scripts/check-install-command.mjs` parses the *tag's* `parseInstallFlags`, asks npm for the dist-tag when the network answers (snapshot offline), fails when they disagree, and refuses any flag the published binary lacks |
-| What the published 0.4.1 cannot do | install a plugin (it answers `LPSM-ARTIFACT-UNAVAILABLE … the "plugin" install path is not wired yet`), take `--agent`/`--all-detected`, or give `catalog sync` more than ten seconds |
+| The incident it prevents | the npm package's postinstall downloads the binary from the `v<version>` GitHub release, so npm and GitHub must be published together: for seven hours after the npm publish there was no `v0.6.0` release and `npx litespm@latest` failed outright with HTTP 404, which is worse than the wrong-flag failure it replaced |
+| Older releases | 0.4.1 refuses a plugin with `LPSM-ARTIFACT-UNAVAILABLE … the "plugin" install path is not wired yet`, rejects `--agent`/`--all-detected`, and gives `catalog sync` ten seconds — the site's entry page still says so, because a reader may have pinned it |
 | Per-host remote verdicts | one source now: `web/data/hosts.json` carries `remoteTransports` emitted from the Go registry's `RemoteEntrySpec.Transports` (`scripts/gen_hosts_ts.go`), so all **46** remote-capable hosts are described by the registry rather than by a hand-written table that had stopped at eight |
 | The local deploy artifact | `pages-dist/` (gitignored) is written by `scripts/deploy-pages.sh` and can be *stale* on a developer machine — a copy there may predate the current branding; the deploy script regenerates it |
-
-Until 0.6.0 is published, a reader who installs gets the 0.4.1 binary: MCP
-servers and skills install, plugins are refused with the reason, and the
-website's plugin and `--agent` documentation describes what the release that
-does not exist yet will do.
 
 **Companion guides for this section.** [`scripts/README.md`](scripts/README.md) inventories every
 script in `scripts/` and records which workflow (if any) runs it — `ci.yml` syntax-checks them all
