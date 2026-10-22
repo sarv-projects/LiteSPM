@@ -920,8 +920,9 @@ export function rowSignal(item: Listing): RowSignal {
 
 /**
  * Where a row came from, as one quiet line: the publisher's own manifest when
- * the row was read from one, else the directory or list it was ingested from
- * (`sourceLabel`). Never a guess — an unknown source id renders as itself.
+ * the row was read from one, else the neutral source family label (`sourceLabel`).
+ * Exact source identity remains in the row data; an unknown id is not exposed
+ * as public copy.
  */
 export function rowProvenance(item: Listing): string {
   if (item.publisher?.verified) return "From the publisher's manifest";
@@ -933,34 +934,33 @@ export function rowProvenance(item: Listing): string {
  * ------------------------------------------------------------------ */
 
 /**
- * Where each ingested row came from, in the words the Go source registry
- * already uses (`internal/source/sources.go` `KnownSources`). Only ids that
- * appear in `data/catalog.json` are listed; an unknown id falls back to the
- * raw id rather than a guessed name, so a renamed or new source shows as
- * itself and never as a label it does not have.
+ * Public, family-level names for ingested sources. The row retains its exact
+ * source ID and URL for provenance, but the public interface does not name
+ * directory feeds. Unknown IDs use a neutral fallback instead of leaking a
+ * newly added feed name into the site.
  *
  * Defined here beside `rowProvenance`, the function that renders it, and
  * re-exported by `landing.ts` where the Explore source filter and the shelf
  * headings have always imported it from.
  */
 export const SOURCE_LABELS: Record<string, string> = {
-  "builtin:mcp-registry": "Official MCP Registry",
-  "builtin:agent-skills": "Agent Skills",
-  "feed:skills-sh": "skills.sh directory",
-  "feed:mcpservers-org": "MCPServers.org directory",
-  "feed:mcpmarket-com": "MCP Market directory",
-  "feed:punkpeye-awesome-mcp-servers": "awesome-mcp-servers list",
-  "feed:voltagent-awesome-agent-skills": "awesome-agent-skills list",
-  "git:anthropics-skills": "Anthropic Agent Skills",
-  "git:claude-plugins-official": "Claude Code Plugins Directory",
-  "git:knowledge-work-plugins": "Knowledge Work Plugins",
-  "git:openai-plugins": "OpenAI Codex Plugins",
-  "git:cursor-plugins": "Cursor Plugins",
-  "git:xai-plugin-marketplace": "xAI Plugin Marketplace",
+  "builtin:mcp-registry": "MCP registry",
+  "builtin:agent-skills": "Skills index",
+  "feed:skills-sh": "Skills directory",
+  "feed:mcpservers-org": "MCP server directory",
+  "feed:mcpmarket-com": "MCP server marketplace",
+  "feed:punkpeye-awesome-mcp-servers": "Community MCP server list",
+  "feed:voltagent-awesome-agent-skills": "Community skills list",
+  "git:anthropics-skills": "Publisher skills repository",
+  "git:claude-plugins-official": "Official plugin repository",
+  "git:knowledge-work-plugins": "Workflow plugin repository",
+  "git:openai-plugins": "Coding-agent plugin repository",
+  "git:cursor-plugins": "Editor plugin repository",
+  "git:xai-plugin-marketplace": "AI agent plugin marketplace",
 };
 
-/** The Go registry's own display name for the source, or the raw id. */
+/** The public family-level label for the source, or a neutral fallback. */
 export function sourceLabel(id: string | null | undefined): string {
   if (!id) return "";
-  return SOURCE_LABELS[id] ?? id;
+  return SOURCE_LABELS[id] ?? "Catalog source";
 }

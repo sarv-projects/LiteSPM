@@ -86,6 +86,9 @@ test("the source control filters, writes its parameter and reads it back", async
   const control = page.locator("#explore-source");
   const options = await control.locator("option").allTextContents();
   expect(options.length, "the source control offers no sources").toBeGreaterThan(2);
+  expect(options.join(" ")).not.toMatch(
+    /skills\.sh|mcpservers\.org|mcp market|awesome-mcp-servers|awesome-agent-skills/i
+  );
 
   const value = (await control.locator("option").nth(1).getAttribute("value")) ?? "";
   const expected = optionCount(options[1]);
