@@ -163,7 +163,12 @@ proves they parse, not that they pass. Run them by hand before touching the prod
   targets). It fakes `HOME` to `/tmp/__litespm_home__` so no maintainer path leaks into the output.
 - **Outputs.** `web/data/hosts.json` (**50** bridge hosts) and `web/data/skill-targets.json`
   (**81** as committed; the generator emits 81 from `skills.AgentTargets()`, and the committed file
-  was regenerated on 2026-10-15 — the CI regeneration gate passes).
+  was regenerated on 2026-10-15 — the CI regeneration gate passes). Since 2026-10-22 each remote
+  host also carries `remoteTransports`, the `RemoteEntrySpec.Transports` set the binary writes
+  against (sorted, so two runs are byte-identical). Before that the site kept its own hand-written
+  copy of the same fact, which stayed at eight rows when the registry grew to forty-six and left
+  the site reporting the transport as unknown for 38 hosts — `web/lib/installFeasibility.ts` reads
+  the emitted field now.
 - **Who runs it.** Manual, whenever an adapter or skill target is added/renamed, and **before**
   `build_full_catalog.py`.
 - **Truthfulness gaps.** The committed JSON can only lag the registry if someone changes the
