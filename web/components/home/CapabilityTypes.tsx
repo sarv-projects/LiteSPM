@@ -82,7 +82,7 @@ export function CapabilityTypes() {
                 <h3 className="mt-1.5 text-[15px] font-semibold leading-snug tracking-tight text-ink">
                   {type.title}
                 </h3>
-                <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{type.body}</p>
+                <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{type.body}</p>
                 <span className="mt-auto pt-4 text-[12px] text-ink-3">{type.examples}</span>
               </DiscoveryCard>
             </li>

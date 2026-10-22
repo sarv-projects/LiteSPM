@@ -53,7 +53,7 @@ export default function SubmitPage() {
       </InfoSection>
 
       <InfoSection title="How it gets in">
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-[13px] leading-relaxed text-ink-2">
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-[14px] leading-relaxed text-ink-2">
           <li>
             The artifact exists: a repository, a registry entry, or a page the catalog's sources
             read. The catalog is built from recorded sources — a listing cannot be added by asking.
@@ -68,7 +68,7 @@ export default function SubmitPage() {
             that said plainly on its page.
           </li>
         </ol>
-        <p className="mt-4 text-[13px] leading-relaxed text-ink-2">
+        <p className="mt-4 text-[14px] leading-relaxed text-ink-2">
           If your entry is in the catalog and something about it is wrong — a dead source, a name
           that changed, a project that has moved —{" "}
           <a className="link" href={ISSUES_URL}>

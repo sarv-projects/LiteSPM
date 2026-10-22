@@ -34,7 +34,7 @@ export function InfoPage({
 
       <main id="main" tabIndex={-1} className="shell flex-1 pb-16 pt-8">
         <h1 className="text-[24px] font-semibold tracking-tight text-ink">{title}</h1>
-        <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">{lede}</p>
+        <p className="mt-2 max-w-prose text-[14px] leading-relaxed text-ink-2">{lede}</p>
 
         <div className="mt-9 max-w-[72ch] space-y-9">{children}</div>
 
@@ -68,7 +68,7 @@ export function InfoSection({
   return (
     <section>
       <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
-      <div className="mt-3 space-y-3 text-[13px] leading-relaxed text-ink-2">{children}</div>
+      <div className="mt-3 space-y-3 text-[14px] leading-relaxed text-ink-2">{children}</div>
     </section>
   );
 }
@@ -90,7 +90,7 @@ export function Fact({ label, children }: { label: string; children: React.React
   return (
     <div className="grid gap-1 border-b border-rule py-3 sm:grid-cols-[13rem_1fr] sm:gap-5">
       <dt className="t-mono text-[11px] leading-relaxed text-ink-3">{label}</dt>
-      <dd className="text-[13px] leading-relaxed text-ink-2">{children}</dd>
+      <dd className="text-[14px] leading-relaxed text-ink-2">{children}</dd>
     </div>
   );
 }

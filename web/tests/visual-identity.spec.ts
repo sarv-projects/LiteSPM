@@ -52,3 +52,32 @@ test("MCP and brand roles remain distinct and the hero glow stays on-brand", asy
   );
   expect(background.match(/radial-gradient\(/g)?.length ?? 0).toBe(1);
 });
+
+test("submit-page explanatory copy is at least 14px on desktop and mobile", async ({ page }) => {
+  await gotoSettled(page, "/submit/");
+  const lede = page.getByText("There is no upload form, and there is nothing to buy.");
+
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const fontSize = await lede.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+    expect(fontSize, `submit lede at ${width}px`).toBeGreaterThanOrEqual(14);
+  }
+});
+
+test("how-it-works explanatory copy is at least 14px on desktop and mobile", async ({ page }) => {
+  await gotoSettled(page, "/how-it-works/");
+  const description = page.locator("main ol li p").first();
+  const capabilityDescription = page
+    .locator('section[aria-labelledby="capability-types-title"] ul p')
+    .first();
+
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const fontSize = await description.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+    const capabilityFontSize = await capabilityDescription.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).fontSize)
+    );
+    expect(fontSize, `how-it-works description at ${width}px`).toBeGreaterThanOrEqual(14);
+    expect(capabilityFontSize, `capability description at ${width}px`).toBeGreaterThanOrEqual(14);
+  }
+});

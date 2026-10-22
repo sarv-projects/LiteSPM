@@ -94,10 +94,10 @@ export function WalkthroughFrame({
             <p className="t-mono text-[11px] uppercase tracking-wider text-ink-3">
               The recording has not been made
             </p>
-            <p className="mx-auto mt-2 max-w-[52ch] text-[13px] leading-relaxed text-ink-2">
+            <p className="mx-auto mt-2 max-w-[52ch] text-[14px] leading-relaxed text-ink-2">
               {placeholder}
             </p>
-            <p className="mx-auto mt-3 max-w-[52ch] text-[12.5px] leading-relaxed text-ink-3">
+            <p className="mx-auto mt-3 max-w-[52ch] text-[14px] leading-relaxed text-ink-2">
               What follows is the script the recording follows: the same beats, in the same order,
               with the commands and the files. It is text, not a picture of a terminal.
             </p>
@@ -111,7 +111,7 @@ export function WalkthroughFrame({
               className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:gap-4"
             >
               <span className="t-mono shrink-0 text-[11px] text-ink-3">{caption.time}</span>
-              <span className="text-[13px] leading-relaxed text-ink-2">{caption.text}</span>
+              <span className="text-[14px] leading-relaxed text-ink-2">{caption.text}</span>
             </li>
           ))}
         </ol>
@@ -126,7 +126,7 @@ export function WalkthroughFrame({
               →
             </span>
           </summary>
-          <div className="space-y-2 px-4 pb-4 text-[13px] leading-relaxed text-ink-2">
+          <div className="space-y-2 px-4 pb-4 text-[14px] leading-relaxed text-ink-2">
             {transcript.split("\n\n").map((paragraph, index) => (
               <p key={`${index}-${paragraph.slice(0, 16)}`}>{paragraph}</p>
             ))}
@@ -134,7 +134,7 @@ export function WalkthroughFrame({
         </details>
       </div>
 
-      <figcaption className="mt-2 text-[12px] leading-relaxed text-ink-3">
+      <figcaption className="mt-2 text-[14px] leading-relaxed text-ink-2">
         A real recording needs a real machine, a real install and a real removal. Until then, this
         page carries the script and says so, rather than showing a mock-up of a terminal.
       </figcaption>

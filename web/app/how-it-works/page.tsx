@@ -97,7 +97,7 @@ export default function HowItWorksPage() {
               <li key={step.number} className="rounded-card border border-rule bg-surface p-5">
                 <span className="t-mono text-[11px] font-semibold text-accent-text">{step.number}</span>
                 <h3 className="mt-2 text-[17px] font-semibold tracking-tight text-ink">{step.title}</h3>
-                <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">{step.description}</p>
+                <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{step.description}</p>
                 {step.command && <Command>{step.command}</Command>}
               </li>
             ))}
@@ -124,7 +124,7 @@ export default function HowItWorksPage() {
             />
           </div>
 
-          <p className="mt-4 max-w-[72ch] text-[12.5px] leading-relaxed text-ink-3">
+          <p className="mt-4 max-w-[72ch] text-[14px] leading-relaxed text-ink-2">
             First-time setup and catalog sync are separate operations in the current CLI.
             Package pages provide the exact installation command. Catalog skills may install
             into detected skill targets, while MCP servers and eligible plugins support
@@ -145,7 +145,7 @@ export default function HowItWorksPage() {
             <article className="rounded-card border border-rule bg-surface p-5">
               <span className="meta-kind meta-kind-mcp">MCP server</span>
               <h3 className="mt-3 text-[16px] font-semibold text-ink">Connect to external tools</h3>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
                 Give your agent access to supported services, databases, repositories, and
                 workflows through the Model Context Protocol. LiteSPM registers eligible
                 server connections in supported agent configurations.
@@ -157,7 +157,7 @@ export default function HowItWorksPage() {
             <article className="rounded-card border border-rule bg-surface p-5">
               <span className="meta-kind meta-kind-skill">Skill</span>
               <h3 className="mt-3 text-[16px] font-semibold text-ink">Add reusable workflows</h3>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
                 Skills package instructions and supporting resources that your agent can use
                 for specific tasks. LiteSPM installs supported skills into an agent's skills directory.
               </p>
@@ -168,7 +168,7 @@ export default function HowItWorksPage() {
             <article className="rounded-card border border-rule bg-surface p-5">
               <span className="meta-kind meta-kind-plugin">Plugin</span>
               <h3 className="mt-3 text-[16px] font-semibold text-ink">Extend agent functionality</h3>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
                 Plugins can bundle multiple capabilities. LiteSPM supports installation for
                 some plugins with pinned sources and compatible manifests; others are listed
                 for discovery only.
@@ -189,27 +189,27 @@ export default function HowItWorksPage() {
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             <article className="rounded-card border border-rule bg-surface p-5">
               <h3 className="text-[15px] font-semibold text-ink">Local installation</h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
                 The public website helps you discover packages. The CLI handles supported
                 changes on your computer, without requiring a LiteSPM account.
               </p>
             </article>
             <article className="rounded-card border border-rule bg-surface p-5">
               <h3 className="text-[15px] font-semibold text-ink">Traceable changes</h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
                 Managed installations are recorded, so you can inspect what LiteSPM added
                 and use the relevant removal or restore workflow.
               </p>
             </article>
             <article className="rounded-card border border-rule bg-surface p-5">
               <h3 className="text-[15px] font-semibold text-ink">Source transparency</h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
                 Each listing identifies its source. Source attribution and declared
                 compatibility are not security audits or guarantees of safe operation.
               </p>
             </article>
           </div>
-          <p className="mt-5 text-[13px] text-ink-2">
+          <p className="mt-5 text-[14px] leading-relaxed text-ink-2">
             Learn more in the <Link href="/security/" className="link">security guide</Link> and{" "}
             <Link href="/get-started/" className="link">installation guide</Link>.
           </p>
