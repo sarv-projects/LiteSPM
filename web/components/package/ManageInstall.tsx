@@ -160,11 +160,10 @@ export function ManageInstall({ item, onClear }: ManageInstallProps) {
 
         <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-dark-rule pt-3.5">
           <button type="button" className="btn" onClick={onClear}>
-            Not installed — clear this mark
+            Back to installation
           </button>
           <p className="text-[12px] leading-relaxed text-dark-ink-2">
-            The mark this page showed is stored in this browser only. Clearing it changes
-            nothing on your machine.
+            Use litespm list to view installed packages on your computer.
           </p>
         </div>
       </div>

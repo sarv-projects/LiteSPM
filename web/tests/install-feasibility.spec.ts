@@ -202,7 +202,7 @@ test("a row LiteSPM cannot install lists no host at all", async ({ page }) => {
 
   // The reason, and not a count of zero. The page above it already says
   // "Install unavailable", so the two statements must agree.
-  await expect(page.locator("#will-it-work")).toContainText("Nothing to install");
+  await expect(page.locator("#will-it-work")).toContainText("Publisher setup details needed");
 
   const fact = page.locator("dt", { hasText: "Agent install targets" });
   await expect(fact.locator("xpath=following-sibling::dd[1]")).toContainText(

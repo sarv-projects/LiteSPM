@@ -204,6 +204,10 @@ jobs:
         # and which both `tsc` and `next build` accept. See scripts/README.md.
         run: npm run lint
 
+      - name: Test Discovery Rules
+        working-directory: ./web
+        run: npm run test:discovery
+
       - name: Build Web Static Export
         working-directory: ./web
         run: npm run build

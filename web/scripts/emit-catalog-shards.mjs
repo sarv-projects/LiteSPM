@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { normalizeListing } from "../lib/discovery.mjs";
 // Emits the browser-served catalog shards into `web/public/data/`.
 //
 // The served dataset outgrew Cloudflare's hard 25 MiB per-file limit, so the
@@ -78,7 +79,7 @@ const SCHEMA = "litespm-web-shards/v1";
 const sha256 = (buf) => `sha256:${createHash("sha256").update(buf).digest("hex")}`;
 
 const source = readFileSync(sourcePath);
-const rows = JSON.parse(source.toString("utf8"));
+const rows = JSON.parse(source.toString("utf8")).map(normalizeListing);
 if (!Array.isArray(rows)) {
   console.error(`✖ ${sourcePath} is not a JSON array`);
   process.exit(1);

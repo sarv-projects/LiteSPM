@@ -1,3 +1,5 @@
+import featured from "../data/featured.json";
+import { normalizeListing } from "./discovery.mjs";
 // Catalog derivation helpers shared by Explore, Coverage, Agents and Categories.
 // Everything is computed from a row set that is handed in — no module state, no
 // JSON import, no `"use client"`. That is deliberate:
@@ -90,11 +92,11 @@ export const DEFAULT_SORT: SortMode = "curated";
 
 /** The default order's rule, stated once in the UI where the sort control is. */
 export const CURATED_NOTE =
-  "A mixed list of MCP servers, skills and plugins. Within each type, official listings, publisher-manifest entries and installable items come first.";
+  "Featured picks first, followed by installable packages and publisher listings.";
 
 /** How strongly the curated order prefers a row. Higher sorts first. */
 export function curatedScore(item: Listing): number {
-  let score = 0;
+  let score = featured.entries.some(entry => entry.id === item.id) ? 100 : 0;
   if (item.category === OFFICIAL_SKILLS_CATEGORY) score += 4;
   if (item.publisher?.verified) score += 2;
   if (availabilityOf(item).installable) score += 1;
@@ -535,7 +537,7 @@ export function withLinkKeys(items: Listing[]): Listing[] {
   const counts = new Map<string, number>();
   for (const item of items) counts.set(item.slug, (counts.get(item.slug) ?? 0) + 1);
   return items.map((item) => ({
-    ...item,
+    ...normalizeListing(item),
     linkKey: counts.get(item.slug) === 1 ? item.slug : item.id,
   }));
 }

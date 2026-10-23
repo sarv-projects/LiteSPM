@@ -255,6 +255,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
             </button>
           </div>
           <div className="agent-atlas-rail-hint" aria-hidden="true"><span />Scroll or swipe to explore</div>
+          <details className="mt-6 border-t border-rule pt-5"><summary className="cursor-pointer py-2 text-[14px] font-semibold text-ink">View all matching agents ({visibleAgents.length})</summary><div className="agent-directory-grid mt-5">{visibleAgents.map(agent => <AgentCard key={agent.slug} agent={agent} highlighted={agent.slug === pickedSlug} />)}</div></details>
         </section>
 
         <section className="shell agent-atlas-bottom">

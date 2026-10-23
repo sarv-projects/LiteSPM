@@ -29,7 +29,7 @@ export default function SubmitPage() {
   return (
     <InfoPage
       title="Submit a listing"
-      lede="There is no upload form, and there is nothing to buy. A listing enters the catalog when its publisher ships something the catalog can read and verify — so submitting is a matter of making that artifact exist and pointing us at it."
+      lede="Share your MCP server, skill or plugin with the LiteSPM community. Publish its source and send a listing request for review."
       sourcePath="web/app/submit/page.tsx"
     >
       <InfoSection title="What can be submitted">
@@ -57,14 +57,13 @@ export default function SubmitPage() {
         <p>
           Point us to a published source and include the details needed to check it: an MCP
           command or endpoint and transport, the path to a skill's <code>SKILL.md</code>, or a
-          plugin's pinned commit and manifest. The form asks for type-specific installation and
-          verification information.
+          plugin's pinned commit and manifest. The GitHub issue template guides you through the required details.
         </p>
         <a className="btn btn-solid mt-4 inline-flex" href={NEW_LISTING_URL}>
-          New listing
+          Request a listing on GitHub
         </a>
         <p className="mt-3">
-          An issue requests review; it does not add a listing automatically. LiteSPM does not sell
+          A GitHub account is required. An issue requests review; it does not add a listing automatically. LiteSPM does not sell
           placement or verification. A listing is not an endorsement.
         </p>
       </InfoSection>

@@ -122,6 +122,11 @@ export function SiteFooter() {
               <Link href="/privacy/" className="link text-[12px]">
                 Privacy
               </Link>
+              <Link href="/trust/" className="link text-[12px]">Trust Center</Link>
+              <a href={`${REPO}/blob/main/LICENSE`} className="link text-[12px]">Apache-2.0</a>
+              <Link href="/about/" className="link text-[12px]">About</Link>
+              <Link href="/roadmap/" className="link text-[12px]">Roadmap</Link>
+              <Link href="/changelog/" className="link text-[12px]">Changelog</Link>
               <Link href="/contact/" className="link text-[12px]">
                 Contact
               </Link>

@@ -139,7 +139,7 @@ export function tokenizeText(text) {
  * @returns {string[]}
  */
 export function queryTokens(query) {
-  return tokenizeText(query ?? "");
+  return tokenizeText(String(query ?? "").slice(0, 256));
 }
 
 /**

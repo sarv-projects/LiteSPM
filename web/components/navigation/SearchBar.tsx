@@ -184,6 +184,7 @@ export function SearchBar({
             id={labelId}
             name="q"
             type="search"
+            maxLength={256}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             spellCheck={false}

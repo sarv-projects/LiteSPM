@@ -168,49 +168,6 @@ export function Header({ onNavigate }: HeaderProps) {
   }, []);
 
   /**
-   * Scroll to the home page's install section once it exists.
-   *
-   * The section lives in the home page's dynamically imported view, so on a
-   * cross-route `/#install` navigation the App Router's own scroll attempt
-   * runs before the target has mounted and finds nothing — the reader lands at
-   * the top of the page (measured: scrollY 0 against a target 5,583px down).
-   * Polling for the element closes that window without guessing at a delay.
-   */
-  const scrollToInstall = React.useCallback(() => {
-    let tries = 0;
-    const tick = () => {
-      const el = document.getElementById("install");
-      if (el) {
-        el.scrollIntoView({ block: "start" });
-        return;
-      }
-      if (tries < 60) {
-        tries += 1;
-        window.setTimeout(tick, 50);
-      }
-    };
-    tick();
-  }, []);
-
-  // A full page load straight onto `/#install` (or a back/forward to it) also
-  // needs the wait: the target is not in the static HTML.
-  React.useEffect(() => {
-    if (pathname === "/" && window.location.hash === "#install") scrollToInstall();
-  }, [pathname, scrollToInstall]);
-
-  const onInstallClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    // The anchor keeps its href for no-JS and middle-click; a plain click is
-    // handled here so the scroll can wait for the target to mount.
-    event.preventDefault();
-    if (pathname === "/") {
-      window.history.replaceState(null, "", "/#install");
-    } else {
-      router.push("/#install");
-    }
-    scrollToInstall();
-  };
-
-  /**
    * The search control's own action: open the palette. Modified clicks are left
    * to the browser so the anchor's href still works as a link (that href is
    * also the entire no-JS story for this control).
@@ -380,8 +337,7 @@ export function Header({ onNavigate }: HeaderProps) {
           {/* The full CTA label stays visible at every width; tight mobile
               spacing leaves room for the product wordmark beside it. */}
           <Link
-            href="/#install"
-            onClick={onInstallClick}
+            href="/get-started/"
             className="btn btn-solid btn-lg whitespace-nowrap px-2! text-[13px]! sm:px-[18px]! sm:text-[14px]!"
           >
             Install LiteSPM

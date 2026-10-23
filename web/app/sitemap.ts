@@ -58,6 +58,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // listed.
     "/how-it-works/",
     "/get-started/",
+    "/docs/",
+    "/trust/",
+    "/about/",
+    "/roadmap/",
+    "/changelog/",
     "/security/",
     "/status/",
     "/support/",

@@ -130,6 +130,9 @@ func IsDirectDownloadSource(raw string) bool {
 	if err != nil || u.Host == "" {
 		return false
 	}
+	if isSkillDirectoryHost(u.Hostname()) {
+		return false
+	}
 	if isHostedArtifactURL(u) {
 		return true
 	}

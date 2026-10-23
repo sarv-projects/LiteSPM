@@ -184,7 +184,7 @@ test("an unknown ?host= is shown as applied, not silently dropped beside 'Any ag
 
   const select = worksWithSelect(page);
   await expect(select).toHaveValue("not-a-real-host");
-  const option = select.locator("option", { hasText: "not a host in this catalog" });
+  const option = select.locator('option[value="not-a-real-host"]');
   await expect(option).toHaveCount(1);
   expect(parseCount(await resultCount(page).textContent())).toBe(0);
 });

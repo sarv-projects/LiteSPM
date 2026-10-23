@@ -110,16 +110,12 @@ function PackageIndexShell({
   note?: React.ReactNode;
 }) {
   return (
-    <main id="main" tabIndex={-1} className="shell flex-1 py-16">
+    <main data-package-index id="main" tabIndex={-1} className="shell flex-1 py-16">
       <div className="max-w-prose">
-        <h1 className="t-cond text-[24px] font-semibold tracking-tight text-ink">
+        <h1 data-entry-name suppressHydrationWarning className="t-cond text-[24px] font-semibold tracking-tight text-ink">
           Find a package
         </h1>
-        <p className="mt-2.5 text-[13px] leading-relaxed text-ink-2">
-          Open any entry for the details: what it does, which agent targets LiteSPM can support, and how to
-          add it. Below is the start of the catalog&rsquo;s {formatCount(total)} entries — search the
-          full set if what you want isn&rsquo;t here.
-        </p>
+        <p data-entry-summary suppressHydrationWarning className="mt-2.5 text-[13px] leading-relaxed text-ink-2">{`Find a package, choose your agent, and follow its installation guide. Browse ${formatCount(total)} packages in Explore.`}</p>
 
         {/*
           The note slot is reserved at a fixed height, and the vertical spacing
@@ -142,15 +138,15 @@ function PackageIndexShell({
           can never appear — fills the slot with a static hint instead of
           leaving it empty (see the caller).
         */}
-        <div className="mt-6 min-h-[44px]">{note}</div>
+        <div data-index-browse className="mt-6 min-h-[44px]">{note}</div>
 
-        <div className="section-head mt-9">
+        <div data-index-browse className="section-head mt-9">
           <h2>Start of the catalog</h2>
           <Link href="/explore/" className="t-mono shrink-0 text-[12px] text-ink-2 hover:text-ink hover:underline">
             search all
           </Link>
         </div>
-        <ul>
+        <ul data-index-browse>
           {indexRows.map((item) => (
               <li key={item.id}>
                 <Link
@@ -748,6 +744,7 @@ function PackageContent({
             </h1>
 
             <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-ink-2">
+              {item.publisher?.provenance === "source-owner" && <span>Source owner:</span>}
               {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
                 <a
                   href={item.publisher.url}
@@ -761,6 +758,7 @@ function PackageContent({
                 <span>{item.publisher?.name || "unspecified publisher"}</span>
               )}
               {item.publisher?.verified && <VerifiedMark />}
+              {item.distributor && <span className="text-ink-3">Listed via {item.distributor.name}</span>}
               {/* The same availability the result cards carry. The detail page
                   stated it indirectly (a section note reading "installability
                   status"), which meant a reader arriving from a search result

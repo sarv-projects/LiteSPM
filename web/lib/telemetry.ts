@@ -25,6 +25,7 @@ export interface Listing {
    * fields it carries) source and `source` names that winner.
    */
   source?: string;
+  distributor?: { name: string; verified: boolean; url?: string };
   /** discovery_only rows have no proven command or transport; a version
    * appears only when the upstream itself published one (the Official MCP
    * Registry publishes versions and package coordinates, never a launch

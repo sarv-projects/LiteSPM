@@ -1,3 +1,4 @@
+import { normalizeListing } from "../web/lib/discovery.mjs";
 // The edge half of `/package/`: every entry's identity in the served HTML.
 //
 // Why this exists
@@ -274,6 +275,7 @@ function shellResponse(url, env) {
  * prepended inside the existing `<noscript>`.
  */
 function rewrite(response, { item, key, origin }) {
+  item = normalizeListing(item);
   const canonical = `${origin}/package/${encodeURIComponent(key)}/`;
   const description = metaDescription(item);
   const title = `${item.name} · LiteSPM`;
@@ -284,6 +286,9 @@ function rewrite(response, { item, key, origin }) {
   ];
 
   return new HTMLRewriter()
+    .on("[data-entry-name]", { element: el => el.setInnerContent(item.name) })
+    .on("[data-entry-summary]", { element: el => el.setInnerContent(item.summary || "Choose your agent to see setup instructions.") })
+    .on("head", { element: el => el.append("<style>[data-package-index] [data-index-browse]{display:none}</style>", { html: true }) })
     .on("title", { element: (el) => el.setInnerContent(title) })
     .on('meta[name="description"]', { element: (el) => el.setAttribute("content", description) })
     .on('link[rel="canonical"]', { element: (el) => el.setAttribute("href", canonical) })
