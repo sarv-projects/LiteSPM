@@ -185,6 +185,10 @@ jobs:
         working-directory: ./web
         run: npm ci
 
+      - name: Audit Web Dependencies
+        working-directory: ./web
+        run: npm audit --audit-level=high
+
       - name: Type-check Web
         working-directory: ./web
         # Runs the script rather than the raw command so `npm run type-check`

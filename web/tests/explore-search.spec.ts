@@ -34,7 +34,7 @@ test("the default catalog page introduces MCP servers, skills and plugins togeth
     skill: 16,
     plugin: 16,
   });
-  await expect(page.getByText(/mix of MCP servers, skills and plugins/i)).toBeVisible();
+  await expect(page.getByText(/mixed list of MCP servers, skills and plugins/i)).toBeVisible();
 });
 
 test("search: results settle, the count is measured, and the first row is above the fold", async ({
