@@ -24,8 +24,8 @@
 //      whose adapter has a verified remote entry spelling — `remote: true` in
 //      `data/hosts.json`. Exact in both directions: a superset promises
 //      installs that fail, a subset hides installs that work;
-//   2. a row LiteSPM cannot install lists no host at all, and the page says why
-//      rather than printing a count of zero;
+//   2. a row LiteSPM cannot install lists zero eligible hosts and the page
+//      explains that the row is discovery-only;
 //   3. a plugin keeps the hosts its publisher declared. That list is the
 //      publisher's own data, printed as "Publisher-declared" — it is a fact
 //      about the plugin, not a claim about LiteSPM, so the install gate must
@@ -206,7 +206,7 @@ test("a row LiteSPM cannot install lists no host at all", async ({ page }) => {
 
   const fact = page.locator("dt", { hasText: "Agent install targets" });
   await expect(fact.locator("xpath=following-sibling::dd[1]")).toContainText(
-    "Nothing to install"
+    "0 of 79 agent hosts in this catalog have a documented LiteSPM install path"
   );
 });
 
