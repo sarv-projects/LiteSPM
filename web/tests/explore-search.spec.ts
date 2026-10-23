@@ -20,6 +20,23 @@ import {
   worksWithSelect,
 } from "./support/site";
 
+test("the default catalog page introduces MCP servers, skills and plugins together", async ({ page }) => {
+  await gotoSettled(page, "/explore/");
+  const kinds = await page.locator("main a[data-kind]").evaluateAll((rows) =>
+    rows.slice(0, 48).map((row) => row.getAttribute("data-kind"))
+  );
+  const counts = Object.fromEntries(
+    ["mcp", "skill", "plugin"].map((kind) => [kind, kinds.filter((value) => value === kind).length])
+  );
+
+  expect(counts, "the first browse page contains 16 listings of each package type").toEqual({
+    mcp: 16,
+    skill: 16,
+    plugin: 16,
+  });
+  await expect(page.getByText(/mix of MCP servers, skills and plugins/i)).toBeVisible();
+});
+
 test("search: results settle, the count is measured, and the first row is above the fold", async ({
   page,
 }) => {

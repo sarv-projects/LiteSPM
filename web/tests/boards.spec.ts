@@ -115,8 +115,8 @@ test("the agent-host table: the figure, the host page and Explore all agree", as
     seen.add(row.href);
 
     await page.goto(row.href);
-    // The host page's own count, in the "Works with" definition list.
-    const hostCountText = await page.locator('dt:text-is("Works with") + dd').textContent();
+    // The host page's own catalog-entry count.
+    const hostCountText = await page.locator('dt:text-is("Catalog entries") + dd').textContent();
     const hostCount = parseCount(hostCountText);
     expect(
       hostCount,
@@ -124,7 +124,7 @@ test("the agent-host table: the figure, the host page and Explore all agree", as
     ).toBe(parseCount(row.entries));
 
     // …and the page's own Explore link opens that count.
-    const browse = page.getByRole("link", { name: "Browse them", exact: true });
+    const browse = page.getByRole("link", { name: "Browse entries for this agent", exact: true });
     const browseHref = await browse.getAttribute("href");
     const host = new URL(browseHref ?? "", "http://localhost").searchParams.get("host") ?? "";
     expect(host, `the Browse link on ${row.href} should name a host filter`).not.toBe("");

@@ -61,7 +61,7 @@ export interface AgentDetailViewProps {
   repoConfigPath?: string;
   /** True when `SKILL_TARGETS` registers a skills directory for this host. */
   skillsSupported: boolean;
-  /** Catalog entries that install into `name` — what the Explore link shows. */
+  /** Entries shown for this target in Explore — what the Explore link opens. */
   count: number;
   /** Vendor MCP configuration docs; carries the no-note fallback link. */
   docsHref?: string;
@@ -300,23 +300,81 @@ export default function AgentDetailView({
               </dd>
             </div>
             <div>
-              <dt>Works with</dt>
+              <dt>Catalog entries</dt>
               <dd>
                 <span className="t-cond t-tabular text-[15px] font-semibold text-ink">
                   {formatCount(count)}
                 </span>{" "}
-                catalog entries
+                entries shown for this agent
               </dd>
             </div>
           </dl>
           <div className="mt-3">
             <Link href={exploreHref} className="btn w-full justify-center">
-              Browse them
+              Browse entries for this agent
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </div>
         </aside>
         </div>
+
+        <section
+          className="mt-8 rounded-card border border-rule bg-surface p-4 shadow-card sm:p-5"
+          aria-labelledby="agent-start-title"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="kicker text-ink-3">New to LiteSPM?</p>
+              <h2 id="agent-start-title" className="mt-1 text-[20px] font-semibold tracking-tight text-ink">
+                Start with LiteSPM
+              </h2>
+            </div>
+            <p className="max-w-[52ch] text-[12.5px] leading-relaxed text-ink-2">
+              Choose this agent, then browse tools, skills, and plugins for how you work.
+            </p>
+          </div>
+
+          <ol className="mt-5 grid gap-3 sm:grid-cols-3">
+            <li className="border-t border-rule pt-3">
+              <p className="text-[13px] font-semibold text-ink">1. Get LiteSPM</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-2">
+                Install the manager once, then use it from your computer.
+              </p>
+              <Link href="/get-started/" className="link mt-2 inline-flex min-h-11 items-center text-[13px]">
+                Get LiteSPM
+                <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </li>
+            <li className="border-t border-rule pt-3">
+              <p className="text-[12px] font-semibold text-ink">
+                {skillsOnly ? "2. Check the skill path" : `2. Connect ${name}`}
+              </p>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-2">
+                {skillsOnly
+                  ? "LiteSPM lists every detected skills folder in its install plan before you approve."
+                  : `LiteSPM adds its bridge to ${name} so you can manage tools from one place.`}
+              </p>
+              <Link href="#agent-command-title" className="link mt-2 inline-flex min-h-11 items-center text-[13px]">
+                {skillsOnly ? "See the skill command" : "See the setup command"}
+                <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </li>
+            <li className="border-t border-rule pt-3">
+              <p className="text-[13px] font-semibold text-ink">3. Find a capability</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-2">
+                Browse the catalog filtered to entries that list {name} as a target.
+              </p>
+              <Link href={exploreHref} className="link mt-2 inline-flex min-h-11 items-center text-[13px]">
+                Browse packages for {name}
+                <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </li>
+          </ol>
+
+          <p className="mt-4 border-t border-rule pt-3 text-[13px] leading-relaxed text-ink-3">
+            This website does not install anything on your machine. LiteSPM applies changes locally after you review and approve them.
+          </p>
+        </section>
 
         {skillsOnly ? (
           /* A host with no configuration file: there is no file card to
@@ -400,10 +458,10 @@ export default function AgentDetailView({
           )}
         </section>
 
-        {/* ---- what works with it ----------------------------------------- */}
+        {/* ---- catalog entries for this agent ----------------------------- */}
         <section className="mt-9" aria-labelledby="agent-works-title">
           <div className="section-head">
-            <h2 id="agent-works-title">What works with it</h2>
+            <h2 id="agent-works-title">Catalog entries for this agent</h2>
             <span className="section-note">current catalog snapshot</span>
           </div>
 
@@ -412,23 +470,24 @@ export default function AgentDetailView({
               {formatCount(count)}
             </span>
             <span className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-              catalog entries declare compatibility with {name}.
+              entries appear for {name} in the current catalog snapshot.
             </span>
           </p>
 
           <div className="mt-4">
             <Link href={exploreHref} className="btn">
-              Browse them in Explore
+              Browse entries for {name}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </div>
 
-          {/* This caveat used to be its own "Honest limits" section: five
-              lines of what the page does *not* claim, standing alone right
-              before the footer. The footer's long form is gone and one line
-              here does the same job next to the number it qualifies. */}
           <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            No source publishes operating-system support, popularity or ratings for this host.
+            This count combines MCP and skill install targets with plugin hosts declared by each
+            publisher. Some plugin entries are discovery-only. The count is not a runtime test;
+            check each listing&rsquo;s install status before choosing it.
+          </p>
+          <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-ink-3">
+            The host&rsquo;s operating-system support, popularity and ratings are not published.
           </p>
         </section>
       </main>

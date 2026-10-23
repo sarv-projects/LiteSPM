@@ -27,9 +27,9 @@
 //      not map reliably to static file names on every host; only keys matching
 //      `[a-z0-9][a-z0-9._-]*` are pre-rendered. 6,527 rows of the installable
 //      verified set are excluded by this rule alone.
-//   4. **The first N in the site's own curated order.** Within the set every
-//      row scores identically on the curated axes (verified + installable), so
-//      the cap applies in the same name order the catalog uses everywhere.
+//   4. **The first N in the site's balanced curated order.** The first static
+//      pages cover MCP servers, skills and plugins in turn; within each kind,
+//      verified installable listings keep their curated name order.
 //
 // Measured against the 2026-10-15 snapshot (69,376 rows): 26,554 rows are
 // installable, 25,404 of those are publisher-manifest rows, 18,877 survive the
