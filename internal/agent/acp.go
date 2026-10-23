@@ -36,20 +36,26 @@ func ParseRegistry(data []byte) (*Registry, error) {
 func MatchTarget(goos, goarch string) (Target, bool) {
 	switch goos {
 	case "darwin":
-		if goarch == "arm64" {
+		switch goarch {
+		case "arm64":
 			return TargetDarwinARM64, true
+		case "amd64":
+			return TargetDarwinAMD64, true
 		}
-		return TargetDarwinAMD64, true
 	case "linux":
-		if goarch == "arm64" {
+		switch goarch {
+		case "arm64":
 			return TargetLinuxARM64, true
+		case "amd64":
+			return TargetLinuxAMD64, true
 		}
-		return TargetLinuxAMD64, true
 	case "windows":
-		if goarch == "arm64" {
+		switch goarch {
+		case "arm64":
 			return TargetWindowsARM64, true
+		case "amd64":
+			return TargetWindowsAMD64, true
 		}
-		return TargetWindowsAMD64, true
 	}
 	return "", false
 }

@@ -248,7 +248,7 @@ export function hostsFor(item: {
   // An MCP row and a skill are different: their host list is derived by LiteSPM
   // from the entry's kind, so it *is* an install claim. `availabilityOf` is the
   // gate the install panel, the try-prompts, the ranking and the pre-rendered
-  // entry selection already use; without it every discovery-only row — 23,017
+  // entry selection already use; without it every discovery-only row — 23,018
   // MCP and 19,556 skill rows — claimed every adapter while the page directly
   // above the list said "Install unavailable".
   if (!availabilityOf(item).installable) return [];

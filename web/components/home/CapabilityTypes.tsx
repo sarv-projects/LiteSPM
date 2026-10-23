@@ -43,9 +43,9 @@ const TYPES = [
     icon: Puzzle,
     color: "var(--plugin)",
     eyebrow: "Plugins",
-    title: "Install a complete extension in one step",
-    body: "A published package that can bundle skills and MCP configuration, installed through the same preview and approval.",
-    examples: "Skills + tools + host setup",
+    title: "Install supported components from a pinned source",
+    body: "LiteSPM installs a plugin's declared MCP servers and skills. Host-specific extras are not installed; if a bundle includes them, LiteSPM requires your explicit consent before installing the supported parts.",
+    examples: "Pinned source · MCP servers · skills",
   },
 ];
 
@@ -58,8 +58,9 @@ export function CapabilityTypes() {
           Tools, skills and plugins — what is the difference?
         </h2>
         <p className="band-sub">
-          All three install with the same command, the same preview and the same undo. They differ
-          in what they add to your agent.
+          MCP servers register a connection, skills add instruction files, and plugins install
+          supported components from a pinned source. Preview and removal details depend on the
+          package type.
         </p>
       </div>
 

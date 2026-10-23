@@ -38,9 +38,10 @@ func (a *OpenCodeAdapter) Descriptor() HostDescriptor {
 // DetectConfig resolves the global OpenCode config file.
 //
 // OpenCode resolves its config directory through xdg-basedir, so
-// $XDG_CONFIG_HOME applies on every OS including Windows, and OPENCODE_CONFIG_DIR
-// overrides the directory outright. Both `opencode.json` and `opencode.jsonc`
-// are read, `.jsonc` first (source: ConfigPaths.files() returns
+// $XDG_CONFIG_HOME applies on every OS including Windows, OPENCODE_CONFIG_DIR
+// overrides the directory, and OPENCODE_CONFIG overrides the config file. Both
+// `opencode.json` and `opencode.jsonc` are read, `.jsonc` first when resolving
+// from a directory (source: ConfigPaths.files() returns
 // ["${name}.jsonc", "${name}.json"]).
 //
 // Two paths this adapter used to probe were removed because no OpenCode release
@@ -49,6 +50,9 @@ func (a *OpenCodeAdapter) Descriptor() HostDescriptor {
 // target, so the bridge was written somewhere OpenCode never looks while setup
 // reported success.
 func (a *OpenCodeAdapter) DetectConfig(ctx context.Context, scope domain.InstallScope) (string, error) {
+	if configFile := os.Getenv("OPENCODE_CONFIG"); configFile != "" {
+		return configFile, nil
+	}
 	dir := ""
 	if v := os.Getenv("OPENCODE_CONFIG_DIR"); v != "" {
 		dir = v

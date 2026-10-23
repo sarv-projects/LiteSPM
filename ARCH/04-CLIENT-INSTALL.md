@@ -94,7 +94,7 @@ LiteSPM probes known default configuration locations by platform:
 
 | Target Agent | Linux / macOS Default Path | Windows Default Path |
 |---|---|---|
-| **Claude Code** | `~/.claude.json` (project `.mcp.json`; local scope entry inside `~/.claude.json`) | `%USERPROFILE%\.claude.json` (`CLAUDE_CONFIG_DIR` overrides the config directory for Claude Code itself; the adapter does not read it) |
+| **Claude Code** | `~/.claude.json` (project `.mcp.json`; local scope entry inside `~/.claude.json`) | `%USERPROFILE%\.claude.json`; `CLAUDE_CONFIG_DIR` relocates `.claude.json` and is honored by the adapter |
 | **OpenAI Codex** | `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`; project `.codex/config.toml`, trusted projects only) | `%USERPROFILE%\.codex\config.toml` (`$CODEX_HOME` is honoured; `%APPDATA%\Codex\config.toml` is not probed) |
 | **Grok Build** | `$GROK_HOME/config.toml` (default `~/.grok/config.toml`; project `.grok/config.toml`) | `%USERPROFILE%\.grok\config.toml` (`%APPDATA%\Grok\config.toml` is not probed) |
 | **Pi Agent** | `~/.pi/agent/mcp.json` (`PI_CODING_AGENT_DIR` relocates the agent dir; project `.pi/mcp.json`, trust-gated) | `%USERPROFILE%\.pi\agent\mcp.json` (`PI_CODING_AGENT_DIR` honoured; the former `~/.pi/config.json` / `~/.pi/mcp.json` are not probed) |
@@ -108,9 +108,9 @@ LiteSPM probes known default configuration locations by platform:
 > `~/.cline/data/settings/…` file and only migrates from globalStorage once, so LiteSPM probes it
 > last and writes the shared path (`internal/host/cline.go:30-60`).
 >
-> **Env-var overrides are per-adapter, verified data.** `$CODEX_HOME` **is** honoured
-> (`internal/host/codex.go:43-49`); `CLAUDE_CONFIG_DIR` is not — `ClaudeCodeAdapter.DetectConfig`
-> returns `$HOME/.claude.json` unconditionally (`internal/host/claudecode.go:29`) — and neither
+> **Env-var overrides are per-adapter, verified data.** `$CODEX_HOME` is honoured
+> (`internal/host/codex.go:43-49`), as are `CLAUDE_CONFIG_DIR` and OpenCode's explicit
+> `OPENCODE_CONFIG` (`internal/host/claudecode.go`, `opencode.go`). Neither
 > `%APPDATA%\Codex`, `%APPDATA%\Grok` nor `%APPDATA%\OpenCode` is probed
 > ([ARCH/16 §3.4–§3.6](16-HOST-ADAPTERS.md)). (`internal/skills` *does* honour `CODEX_HOME`,
 > `CLAUDE_CONFIG_DIR`, `GROK_HOME` and `XDG_CONFIG_HOME`, but only when choosing where to write

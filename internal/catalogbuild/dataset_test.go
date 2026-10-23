@@ -435,8 +435,8 @@ func TestConvertDatasetClaimsAreHonest(t *testing.T) {
 		}
 	}
 
-	// MCP launch line preserved, but support is NOT claimed: installing a
-	// catalog-sourced MCP server is not wired yet (STATUS.md install row).
+	// MCP launch metadata is preserved, but SupportUnknown is not evidence that
+	// the server is healthy at runtime or compatible with a selected host.
 	mcpListing, mcpVersion := listings[0], versions[0]
 	if len(mcpListing.ComponentsSummary) != 1 || mcpListing.ComponentsSummary[0].Kind != domain.ComponentMCPProvider {
 		t.Errorf("mcp components summary: %+v", mcpListing.ComponentsSummary)

@@ -51,6 +51,10 @@ func TestMatchTarget(t *testing.T) {
 		{"darwin", "amd64", TargetDarwinAMD64, true},
 		{"windows", "amd64", TargetWindowsAMD64, true},
 		{"windows", "arm64", TargetWindowsARM64, true},
+		{"linux", "riscv64", "", false},
+		{"linux", "386", "", false},
+		{"darwin", "mips64", "", false},
+		{"windows", "arm", "", false},
 		{"plan9", "amd64", "", false},
 	}
 	for _, c := range cases {

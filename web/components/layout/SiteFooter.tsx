@@ -13,6 +13,8 @@ const COUNTS = {
   skill: Number(bundledRelease.agentSkillsCount ?? 0),
   plugin: Number(bundledRelease.pluginsCount ?? 0),
 };
+const SNAPSHOT_DATE = String(bundledRelease.createdAt ?? "").slice(0, 10);
+const RELEASE_ID = String(bundledRelease.releaseId ?? "");
 
 /**
  * Footer: where this site lives, and what it is.
@@ -146,6 +148,14 @@ export function SiteFooter() {
               <dt className="t-mono text-[11px] text-ink-3">plugins</dt>
             </div>
           </dl>
+
+          <p className="t-mono text-[11px] text-ink-3">
+            Catalog snapshot{" "}
+            <Link href="/status/" className="link">
+              {RELEASE_ID}
+            </Link>
+            {SNAPSHOT_DATE ? ` · ${SNAPSHOT_DATE}` : ""}
+          </p>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <nav aria-label="Site" className="flex flex-wrap items-center gap-x-4 gap-y-1">

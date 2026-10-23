@@ -28,6 +28,9 @@ func (a *ClaudeCodeAdapter) Descriptor() HostDescriptor {
 
 func (a *ClaudeCodeAdapter) DetectConfig(ctx context.Context, scope domain.InstallScope) (string, error) {
 	homeDir := resolveHomeDir()
+	if configDir := os.Getenv("CLAUDE_CONFIG_DIR"); configDir != "" {
+		homeDir = configDir
+	}
 	return filepath.Join(homeDir, ".claude.json"), nil
 }
 

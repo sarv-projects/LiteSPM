@@ -33,8 +33,8 @@ function Command({ children }: { children: string }) {
  * four steps while the home page said three, and a reader who clicked through
  * had to re-learn the shape of the product. Browsing is not a step in an
  * install (there is nothing to run, and nothing is changed), and the catalog
- * sync is part of installing rather than a separate ceremony, so both belong
- * in the prose of the step they serve. The home page carries the rationale
+ * sync is currently a separate first-time operation, so the prose names it
+ * alongside the install step. The home page carries the rationale
  * for three (`components/home/HowItWorks.tsx`).
  */
 const STEPS = [
@@ -49,7 +49,7 @@ const STEPS = [
     number: "02",
     title: "Find and install a capability",
     description:
-      "Search the marketplace by task, provider or package name, then copy the package's exact install command from its page. Each listing shows its source, compatibility, and whether LiteSPM has a supported installation path. The first install fetches the verified catalog; after that LiteSPM resolves the package against it locally and refuses anything it cannot install, with the reason.",
+      "Search the marketplace by task, provider or package name, then copy the package's exact install command from its page. Each listing shows its source, compatibility, and whether LiteSPM has a supported installation path. Before your first catalog install, connect an agent and run `npx --yes litespm@latest catalog sync`. Then install the package using the command on its page. LiteSPM resolves it against the local catalog and refuses anything it cannot install, with the reason.",
     command: "npx --yes litespm@latest install <id>",
   },
   {

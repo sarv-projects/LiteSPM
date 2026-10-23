@@ -172,7 +172,7 @@ function Guide({
             {terminalName(os)} is enough. Nothing else is required, and there is no account to create.
           </li>
           <li>
-            <strong className="font-semibold text-ink">Node.js 18 or newer, and npm</strong> — only
+            <strong className="font-semibold text-ink">Node.js 22.22.2+ (22.x), 24.15.0+ (24.x), or 26+, and npm</strong> — only
             if you install through npm. Both come from{" "}
             <a
               href="https://nodejs.org/en/download"
@@ -192,7 +192,17 @@ function Guide({
               install guide
             </a>{" "}
             covers the two commands. The npm package downloads the binary for your platform and
-            checks its signature before it installs anything.
+            checks its signature before it installs anything. You can also download a binary
+            directly from{" "}
+            <a
+              href="https://github.com/sarv-projects/LiteSPM/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="link"
+            >
+              GitHub releases
+            </a>{" "}
+            without installing Node.js.
           </li>
           <li>
             <strong className="font-semibold text-ink">Nothing else.</strong> No account, no

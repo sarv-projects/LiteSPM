@@ -77,8 +77,9 @@ export default function SubmitPage() {
             published source, but it cannot replace the artifact itself.
           </li>
           <li>
-            The next catalog build picks it up from that source and publishes the row with its
-            publisher, its source and what it can install.
+            If the source is accepted and included in the catalog's ingestion process, a later
+            manually run catalog build may publish it with its publisher, source and install
+            details. Inclusion and timing are not guaranteed.
           </li>
           <li>
             The row becomes installable when the build can verify it: a cloneable source, a{" "}

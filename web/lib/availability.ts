@@ -33,7 +33,7 @@ import type { Listing } from "./telemetry";
  *   remote       25,400  MCP, metadata_verified, with an endpoint
  *   source          764  skills that are metadata_verified
  *   plugin          390  plugins that publish a pinned git tree
- *   discovery    42,574  MCP (23,017) and skills (19,556) that are discovery_only
+ *   discovery    42,574  MCP (23,018) and skills (19,556) that are discovery_only
  *   unsupported     248  plugins with no fetchable pinned source
  *
  * **26,554 of 69,376 rows install (38%).** An earlier revision of this module

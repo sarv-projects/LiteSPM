@@ -175,9 +175,9 @@ export default function SecurityPage() {
 
       <InfoSection title="Ready to try it">
         <p>
-          <Link href="/get-started/">Get started</Link> writes one entry into a config file it
-          backs up first, shows you the lines it is about to change, and waits. Nothing runs that
-          you did not approve — which is the whole policy above, in one command.
+          <Link href="/get-started/">Get started</Link> previews the installation plan. You approve
+          the installation plan before LiteSPM writes it. Installed capabilities are not sandboxed
+          and may run with your permissions; review them before use.
         </p>
       </InfoSection>
     </InfoPage>

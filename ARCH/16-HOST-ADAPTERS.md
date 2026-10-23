@@ -135,7 +135,7 @@ HTTP request at all**. The one wizard step that touches the network is the actio
 
 ### 3.4 Claude Code (`internal/host/claudecode.go`)
 *   **Host ID:** `claude-code`
-*   **Target Configuration:** user scope `~/.claude.json` (`DetectConfig` returns that path unconditionally); project scope `<root>/.mcp.json`, written through `ProjectConfigPath` — the file Anthropic documents as the project scope, with the same `mcpServers` container and entry shapes (`ARCH/14` §bridge table note, verified 2026-10-11). Windows user scope is `%USERPROFILE%\.claude.json`. `CLAUDE_CONFIG_DIR` and the per-project *local* entry inside `~/.claude.json` are host-documented locations LiteSPM does **not** read or write today; vendor docs are internally inconsistent on whether `CLAUDE_CONFIG_DIR` relocates `.claude.json` itself.
+*   **Target Configuration:** user scope `~/.claude.json`; when `CLAUDE_CONFIG_DIR` is set, the adapter targets `$CLAUDE_CONFIG_DIR/.claude.json` as Anthropic's current MCP quickstart documents. Project scope remains `<root>/.mcp.json`, written through `ProjectConfigPath` — the file Anthropic documents for project scope, with the same `mcpServers` container and entry shapes (`ARCH/14` §bridge table note). Windows default user scope is `%USERPROFILE%\.claude.json`. LiteSPM does not target Claude Desktop's legacy `claude_desktop_config.json` or its distinct Desktop Extensions format.
 *   **Format:** JSON.
 *   **Managed Injection:** Injects under `mcpServers.litespm`.
 *   **Detected External Capabilities:** Scans `mcpServers` in that file in read-only mode. **`.claude/skills/` is not scanned** — no adapter inspects any skills directory.

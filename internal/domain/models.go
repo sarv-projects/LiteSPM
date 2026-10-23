@@ -58,9 +58,10 @@ func (i Installability) Valid() bool {
 }
 
 // InstallWired reports whether this build has an install path for the kind:
-// skill installs as files through the skills ledger, and mcp registers a
-// server entry in each target host's config. Everything else -- plugin,
-// connector, agent, rule, hook, tool, lsp -- has no install path, and an
+// skill installs as files through the skills ledger, mcp registers a server
+// entry in each target host's config, and plugin installs fetch a pinned tree
+// and register/copy the portable components declared in its manifest.
+// Connector, agent, rule, hook, tool, and lsp kinds have no install path, and an
 // unknown kind fails closed with the same answer.
 //
 // This is the "what can LiteSPM do" axis, independent of the "what did the
@@ -87,10 +88,10 @@ func (k ListingKind) InstallWired() bool {
 // discovery_only. The two facts are independent and both are required.
 //
 // A caller that treats this as a single flag gets the conservative answer: a
-// plugin is not installable however verified its metadata, and a
-// discovery_only skill is not installable however installable its kind. A
-// caller that must explain the refusal asks Listing.Kind.InstallWired() and
-// Installability.Effective() separately.
+// plugin still needs a fetchable pinned artifact and supported manifest
+// components, and a discovery_only skill is not installable however installable
+// its kind. A caller that must explain the refusal asks Listing.Kind.InstallWired()
+// and Installability.Effective() separately, then applies kind-specific gates.
 func (l *Listing) IsInstallable() bool {
 	return l.Kind.InstallWired() && l.Installability.Effective() != InstallabilityDiscoveryOnly
 }

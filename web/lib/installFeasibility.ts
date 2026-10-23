@@ -68,10 +68,10 @@
 //      run the publisher's code. Those are the `limitations`, and every
 //      supported verdict carries at least one.
 //
-// Measured against the 2026-10-17 release (69,376 rows):
+// Measured against the 2026-10-21 release (69,376 rows):
 //
 //   supported      26,554  25,400 remote MCP rows + 764 skills + 390 plugins
-//   discovery-only 42,574  23,017 MCP + 19,556 skills with no launch line
+//   discovery-only 42,574  23,018 MCP + 19,556 skills with no launch line
 //   plugin             390  plugins that publish a pinned git tree
 //   unsupported       248  plugins with no fetchable pinned source
 //   unknown           0  no row in this release leaves the host axis open

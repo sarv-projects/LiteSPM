@@ -162,6 +162,60 @@ func TestBespokeAdaptersHonourDocumentedHomeOverrides(t *testing.T) {
 	}
 }
 
+func TestClaudeCodeConfigDirOverride(t *testing.T) {
+	useTempHome(t)
+	configDir := filepath.Join(t.TempDir(), "claude-config")
+	t.Setenv("CLAUDE_CONFIG_DIR", configDir)
+
+	adapter := &ClaudeCodeAdapter{}
+	got, err := adapter.DetectConfig(context.Background(), "user")
+	if err != nil {
+		t.Fatalf("DetectConfig: %v", err)
+	}
+	want := filepath.Join(configDir, ".claude.json")
+	if got != want {
+		t.Fatalf("CLAUDE_CONFIG_DIR ignored: got %s want %s", got, want)
+	}
+}
+
+func TestOpenCodeExplicitConfigFileOverride(t *testing.T) {
+	home := useTempHome(t)
+	configDir := filepath.Join(home, "custom-opencode")
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OPENCODE_CONFIG_DIR", configDir)
+
+	for _, tc := range []struct {
+		name         string
+		createConfig bool
+	}{
+		{name: "existing", createConfig: true},
+		{name: "missing", createConfig: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			configPath := filepath.Join(home, tc.name, "explicit.jsonc")
+			if tc.createConfig {
+				if err := os.MkdirAll(filepath.Dir(configPath), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(configPath, []byte("{}"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("OPENCODE_CONFIG", configPath)
+			adapter := &OpenCodeAdapter{}
+			got, err := adapter.DetectConfig(context.Background(), "user")
+			if err != nil {
+				t.Fatalf("DetectConfig: %v", err)
+			}
+			if got != configPath {
+				t.Fatalf("OPENCODE_CONFIG ignored (%s): got %s want %s", tc.name, got, configPath)
+			}
+		})
+	}
+}
+
 // TestPiExtensionPathFollowsAgentDir keeps the companion extension file in the
 // same overridden directory as the MCP config.
 func TestPiExtensionPathFollowsAgentDir(t *testing.T) {

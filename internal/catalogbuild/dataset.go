@@ -322,10 +322,10 @@ func DatasetSnapshotID(dataset []byte) string {
 //     attached to individual rows;
 //   - verification level is "unverified" -- the dataset carries no audit
 //     evidence, so no stronger level may be asserted;
-//   - MCP components are SupportUnknown because installing a catalog-sourced
-//     MCP server is not wired yet (STATUS.md; ARCH/13/17), while skill
-//     components are SupportYes because the shipped skills lifecycle installs
-//     and loads them today;
+//   - MCP components are SupportUnknown because catalog metadata is not runtime
+//     or host-compatibility evidence, even though supported installers can
+//     register local commands or remote endpoints; skill components are
+//     SupportYes because the shipped skills lifecycle installs and loads them;
 //   - popularity, host-compatibility, and star figures are not invented;
 //   - a row's transcribed source descriptor becomes one ArtifactRef, or none
 //     when the manifest published no transcribable descriptor: see
@@ -536,8 +536,8 @@ func datasetComponents(row DatasetRow, lid domain.ListingID) ([]domain.Component
 						// Runtime is nil: RuntimeForListing fails closed.
 						Runtime:         nil,
 						DeclaredEffects: []domain.EffectDeclaration{},
-						// Not "yes": resolving and installing this launch line from
-						// the catalog is not wired yet (STATUS.md install row).
+						// Not "yes": absence of a launch line means no installation
+						// can be constructed from this row.
 						SupportedByLiteSPM: domain.SupportUnknown,
 					}}, nil
 			}
@@ -556,8 +556,8 @@ func datasetComponents(row DatasetRow, lid domain.ListingID) ([]domain.Component
 						Endpoint: row.URL,
 					},
 					DeclaredEffects: []domain.EffectDeclaration{},
-					// Not "yes": registering a remote entry in a host config
-					// is not wired yet (STATUS.md install row).
+					// Keep support unknown: registration is possible, but runtime
+					// health and selected-host transport compatibility are unobserved.
 					SupportedByLiteSPM: domain.SupportUnknown,
 				}}, nil
 		}
@@ -576,8 +576,8 @@ func datasetComponents(row DatasetRow, lid domain.ListingID) ([]domain.Component
 					Args:    append([]string(nil), row.Args...),
 				},
 				DeclaredEffects: []domain.EffectDeclaration{},
-				// Not "yes": resolving and installing this launch line from
-				// the catalog is not wired yet (STATUS.md install row).
+				// Keep support unknown: the row supplies a launch line, but no
+				// runtime check has established that it works on the selected host.
 				SupportedByLiteSPM: domain.SupportUnknown,
 			}}, nil
 
