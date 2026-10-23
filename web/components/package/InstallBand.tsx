@@ -27,10 +27,12 @@ export function InstallBand({
   item,
   agent,
   onSeeSteps,
+  onChooseAgent,
 }: {
   item: Listing;
   agent: AgentChoice | null;
   onSeeSteps: () => void;
+  onChooseAgent: () => void;
 }) {
   const availability = availabilityOf(item);
   const chosenId = agent && agent.id !== "other" ? agent.id : null;
@@ -74,19 +76,31 @@ export function InstallBand({
   // points at it, and nothing runs on this machine. Saying "run locally" on a
   // remote entry is the contradiction the site audit found, so the badge
   // distinguishes the two runtimes instead of describing the installer.
-  const remote = isRemoteTransport(item.transport);
+  const remote = isRemoteTransport(item.transport) && Boolean(item.url);
+  const runtimeLabel = remote
+    ? "Publisher-hosted endpoint"
+    : item.kind === "skill"
+      ? "Copies skill files"
+      : item.kind === "plugin"
+        ? "Installs pinned source"
+        : "Local MCP process";
+  const installDescription = remote
+    ? "LiteSPM adds the publisher's endpoint to your agent's configuration. The server itself stays hosted by the publisher."
+    : item.kind === "skill"
+      ? "LiteSPM copies this skill into the agent's documented skills folder and records the files so you can remove or restore them."
+      : item.kind === "plugin"
+        ? "LiteSPM fetches the publisher's pinned source, reads its manifest, and registers the MCP servers that manifest declares."
+        : "LiteSPM adds this MCP server to your agent's configuration using its published install details. Its local process runs on this computer.";
   return (
     <section aria-label="Install with LiteSPM" className="mt-5 rounded-xl border border-rule-2 bg-sunken px-4 py-4 sm:px-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-[15px] font-semibold tracking-tight text-ink">Install with LiteSPM</h2>
         <span className="text-[11px] font-medium text-ink-3">
-          {remote ? "Hosted by publisher" : "Runs on your computer"} · No LiteSPM account
+          {runtimeLabel} · No LiteSPM account
         </span>
       </div>
       <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
-        {remote
-          ? "LiteSPM adds the publisher's endpoint to your agent's configuration. The server itself stays hosted by the publisher."
-          : "LiteSPM installs the server on this machine and adds it to your agent's configuration."}{" "}
+        {installDescription}{" "}
         Copy the command into your terminal; first-time setup and catalog sync are separate steps for now.
       </p>
       {/* Prerequisites come BEFORE the command: a reader who runs the install
@@ -143,6 +157,16 @@ export function InstallBand({
           Installing a plugin needs LiteSPM 0.6.0 or newer. An older CLI refuses it
           with the reason rather than installing part of it.
         </p>
+      )}
+      {!chosenId && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rule bg-surface px-3 py-2.5">
+          <p className="max-w-[56ch] text-[12px] leading-relaxed text-ink-2">
+            Want to name a specific agent? Choose it to check the target and add it to this command.
+          </p>
+          <button type="button" onClick={onChooseAgent} className="btn shrink-0">
+            Choose an agent target
+          </button>
+        </div>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px]">
         <button type="button" onClick={onSeeSteps} className="font-medium text-ink hover:underline">

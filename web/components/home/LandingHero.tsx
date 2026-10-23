@@ -9,34 +9,9 @@ import { AGENT_CHOICES } from "../../lib/landing";
 import { formatCount } from "../../lib/format";
 
 /**
- * The hero is one editorial column: the promise, the search and the proof.
- *
- * ## What is in the column
- *
- * The eyebrow, the H1, two lines of support copy, the two calls to action,
- * the search field, and the row of agent logos. That is the order a reader
- * scans it in, and nothing else is on this page above the fold: the count
- * strip that used to sit here moved down to the curated shelf, and the
- * rotating kind figures are gone entirely.
- *
- * The product demo card and bridge figure that used to share the hero both
- * explain the product; neither is the product, and the homepage's job is the
- * search and the install. `/how-it-works` carries the walkthrough.
- *
- * ## The H1
- *
- * "Give your AI agents new capabilities." It names the outcome and the thing
- * being added, without promising to know what any particular agent is missing
- * — a static export cannot check that. The safety claim lives below, where
- * the lifecycle section can actually back it with a preview, an approval, a
- * backup and an undo.
- *
- * ## The search field
- *
- * It stays below the actions: the catalogue's door, not the product's
- * headline. The shortcuts under it are the honest substitute
- * for semantic search — four words a first-time visitor can recognise, each
- * one a real prefix the matcher answers to.
+ * The first screen states what LiteSPM does and gives readers a real starting
+ * point. The overview links use actual catalog filters; the roadmap panel is
+ * clearly separate from capabilities that are available today.
  */
 export interface LandingHeroProps {
   /** Rows in the catalog — used for the search field's placeholder. */
@@ -46,24 +21,10 @@ export interface LandingHeroProps {
   totalMatches?: number;
   /** False while the search for `query` is still in flight; see SearchBar. */
   settled?: boolean;
-  /**
-   * How many entries LiteSPM can install today — the same predicate Explore's
-   * "installable" filter uses, counted at build time.
-   */
+  /** Build-time count using the same predicate as Explore's installable filter. */
   installable: number;
 }
 
-/**
- * The starting points under the search field.
- *
- * Each is a word the matcher answers to as a prefix, and each names a thing
- * the catalog actually holds. The label is the *intent* rather than the
- * package name, because a first-time visitor arrives knowing what they want
- * their agent to do, not what the package is called; the query beside it is
- * the real prefix the matcher sees. They are shortcuts, not a claim about
- * what people search for — the catalog publishes no usage data, so this page
- * does not pretend to know.
- */
 const STARTING_POINTS = [
   { label: "Use GitHub", query: "github" },
   { label: "Work with PDFs", query: "pdf" },
@@ -71,6 +32,12 @@ const STARTING_POINTS = [
   { label: "Browse the web", query: "playwright" },
   { label: "Connect a database", query: "postgres" },
 ];
+
+const CURRENT_KINDS = [
+  { id: "mcp", title: "MCP servers", summary: "Connect tools and data" },
+  { id: "skill", title: "Skills", summary: "Add reusable instructions" },
+  { id: "plugin", title: "Plugins", summary: "Publisher-provided extensions" },
+] as const;
 
 export function LandingHero({
   total,
@@ -84,28 +51,15 @@ export function LandingHero({
 
   return (
     <section className="shell hero-glow pb-10 pt-9 md:pb-14 md:pt-14">
-      <div className="max-w-[76ch]">
-        <div className="enter-rise">
-          {/* The eyebrow. It says what the product is in three words: one
-              local bridge, and the agents that reach it. The catalog sits
-              underneath it, not in place of it. */}
-          <p className="kicker">The package manager for AI agents</p>
-
-          {/* The catalog count moved below the agent row. It is a provenance
-              fact, not the product's headline: the first screen should say what
-              LiteSPM does before it says how many rows it holds. */}
-
-          {/* Fluid between the sizes the page already used: 34px on a phone,
-              42px on a tablet, 52px on a desktop, without a breakpoint
-              staircase between them. The two-line shape on a wide screen is
-              the same one the fixed sizes gave. */}
-          <h1 className="mt-4 max-w-[20ch] text-[clamp(2.125rem,1.35rem+3.1vw,3.25rem)] font-semibold leading-[1.06] tracking-tight text-ink">
-            Give your AI agents new capabilities.
+      <div className="hero-layout">
+        <div className="hero-copy enter-rise">
+          <p className="kicker">One package manager for your AI tools</p>
+          <h1 className="mt-4 max-w-[17ch] text-[clamp(2.125rem,1.35rem+3.1vw,3.25rem)] font-semibold leading-[1.06] tracking-tight text-ink">
+            Find the right tools for your AI agent.
           </h1>
-
-          <p className="mt-5 max-w-prose text-[15px] leading-relaxed text-ink-2 sm:text-[16px]">
-            Discover and install MCP servers, skills and plugins across the agents you use.
-            LiteSPM handles compatibility, setup, removal and restoration from one place.
+          <p className="mt-5 max-w-[58ch] text-[15px] leading-relaxed text-ink-2 sm:text-[16px]">
+            Browse MCP servers, skills, and eligible plugins. Choose an agent target and see what
+            LiteSPM can install before you change your local setup.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -145,10 +99,8 @@ export function LandingHero({
             />
           </div>
 
-          {/* The agents, by name. The claim is the one the catalog can back:
-              each of these has a bridge adapter and a skills directory. */}
           <div className="mt-7">
-            <p className="text-[12px] text-ink-3">Works with</p>
+            <p className="text-[12px] text-ink-3">Browse agent host profiles</p>
             <ul className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-2">
               {agents.map((agent) => (
                 <li key={agent.id}>
@@ -165,37 +117,67 @@ export function LandingHero({
             </ul>
           </div>
 
-          {/* The one number the hero carries: the rows `litespm install` can
-              actually complete for, counted at build time with the same
-              predicate Explore's "installable" filter uses. It sits below the
-              product story, and it is a snapshot rather than a live figure. */}
           <p
             id="hero-proof-count"
-            className="mt-6 flex items-baseline gap-1.5 text-[12px] text-ink-3"
+            className="mt-6 flex flex-wrap items-baseline gap-x-1.5 text-[12px] text-ink-3"
           >
             <span className="t-mono t-tabular text-[12.5px] text-ink">
               {formatCount(installable)}
             </span>
-            <span>capabilities LiteSPM can install</span>
-            {/* A snapshot, not a live figure — its own text node, so the
-                no-JS contract test can still assert the word that keeps the
-                number honest. */}
-            <span className="text-ink-3">· catalog</span>
-            <span>snapshot</span>
+            <span>entries LiteSPM can install</span>
+            <span aria-hidden="true">·</span>
+            <span>catalog snapshot</span>
           </p>
-          {/* The ratio that makes the number above read as care rather than as
-              a broken count: 26,554 of 69,376, said in one line. Without it a
-              reader meets a number that is visibly smaller than the catalog
-              the footer prints, with nothing to explain the difference. */}
           <p
             id="hero-proof-basis"
             className="mt-1.5 max-w-[56ch] text-[12px] leading-relaxed text-ink-3"
           >
-            of {formatCount(total)} entries in the catalog. The rest are listed rather than
-            hidden — each one says whether LiteSPM can install it, and why not when it can&rsquo;t.
+            of {formatCount(total)} catalog entries. Every listing shows its install status and
+            the reason when LiteSPM cannot install it.
           </p>
         </div>
 
+        <aside className="hero-overview" aria-label="What LiteSPM manages">
+          <div className="hero-overview-head">
+            <span className="hero-overview-mark" aria-hidden="true">L</span>
+            <div>
+              <p className="kicker">LiteSPM marketplace</p>
+              <p className="mt-1 text-[17px] font-semibold tracking-tight text-ink">Your agent toolbox</p>
+            </div>
+          </div>
+
+          <ul className="hero-kind-list" aria-label="Available catalog types">
+            {CURRENT_KINDS.map((kind) => (
+              <li key={kind.id}>
+                <Link href={`/explore/?kind=${kind.id}`} prefetch={false} className="hero-kind-row">
+                  <span className={`hero-kind-dot hero-kind-${kind.id}`} aria-hidden="true" />
+                  <span className="min-w-0">
+                    <strong>{kind.title}</strong>
+                    <span>{kind.summary}</span>
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-ink-3" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <p className="hero-support-note">
+            Support varies by package and agent. Each listing shows the declared targets and whether
+            LiteSPM can install it.
+          </p>
+
+          <div className="hero-roadmap">
+            <span className="hero-roadmap-label">On the roadmap</span>
+            <p>
+              <strong>Agent packages, apps, and connectors</strong> are part of the broader
+              direction; they are not available to install here yet.
+            </p>
+          </div>
+          <p className="hero-local-note">
+            Installations run locally from your terminal. This website helps you discover, check,
+            and prepare the exact path.
+          </p>
+        </aside>
       </div>
     </section>
   );

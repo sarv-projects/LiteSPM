@@ -9,6 +9,7 @@
 
 import { expect, test } from "./support/site";
 import { gotoSettled, resultCount, settle, waitForSearchGrid } from "./support/site";
+import { catalogRows, entryFixture, FLAGSHIP_ID } from "./support/catalog";
 
 interface Row {
   name: string;
@@ -119,4 +120,23 @@ test("a plugin listing's badge agrees with the plugin entry page", async ({ page
     page.locator("code").filter({ hasText: /litespm(?:@latest)? install / }).first(),
     "an installable plugin's entry page must print the install command"
   ).toBeVisible();
+});
+
+test("an agent choice cannot label a transport-incompatible entry as supported", async ({ page }) => {
+  const sseEntry = catalogRows().find(
+    (row) =>
+      row.kind === "mcp" &&
+      row.transport === "sse" &&
+      ["metadata_verified", "runtime_verified", "litespm_tested"].includes(row.installability ?? "") &&
+      row.id !== FLAGSHIP_ID
+  );
+  expect(sseEntry, "the snapshot contains a verified SSE server for this compatibility check").toBeTruthy();
+
+  await gotoSettled(page, entryFixture(sseEntry!).href);
+  await page.getByRole("button", { name: "Choose an agent target" }).click();
+  await page.getByRole("button", { name: "Codex", exact: true }).click();
+
+  await expect(page.getByRole("button", { name: "Install unavailable" }).first()).toBeDisabled();
+  await expect(page.getByText("Unsupported for Codex")).toBeVisible();
+  await expect(page.getByText("Works with Codex")).toHaveCount(0);
 });

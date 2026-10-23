@@ -4,9 +4,10 @@ import { gotoSettled } from "./support/site";
 test("agent directory distinguishes agent profiles from installable packages", async ({ page }) => {
   await gotoSettled(page, "/agents/");
 
-  await expect(page.getByRole("heading", { name: "Browse AI agents" })).toBeVisible();
-  await expect(page.getByText(/These profiles explain how LiteSPM works with each agent host/i)).toBeVisible();
-  await expect(page.getByText(/does not install agent applications themselves/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Browse agent hosts" })).toBeVisible();
+  await expect(page.getByText(/These are profiles for agent hosts LiteSPM can target/i)).toBeVisible();
+  await expect(page.getByText(/they are not listings for agent applications/i)).toBeVisible();
+  await expect(page.getByText(/Agent apps and connectors are part of the product direction/i)).toBeVisible();
 });
 
 test("agent detail pages give first-time visitors a clear local installation path", async ({ page }) => {

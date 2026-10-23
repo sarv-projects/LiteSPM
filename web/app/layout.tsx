@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     template: "%s · LiteSPM",
   },
   description:
-    "A package manager for AI agents. Find, install and remove MCP servers, skills and plugins across 50 agent hosts — one local CLI, with every change shown before it is written.",
+    "A package manager for AI agents. Discover MCP servers, skills and plugins, check package-level host support, then install and manage supported packages locally.",
   applicationName: SITE_NAME,
   keywords: [
     "MCP",
@@ -68,7 +68,7 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     title: SITE_TITLE,
     description:
-      "A package manager for AI agents. Find, install and remove MCP servers, skills and plugins across 50 agent hosts — one local CLI, with every change shown before it is written.",
+      "A package manager for AI agents. Discover MCP servers, skills and plugins, check package-level host support, then install and manage supported packages locally.",
     url: SITE_URL,
   },
   twitter: {
@@ -76,7 +76,7 @@ export const metadata: Metadata = {
     // a `summary` card would letterbox the 1200×630 asset.
     card: "summary_large_image",
     title: SITE_TITLE,
-    description: "A package manager for AI agents. Find, install and remove MCP servers, skills and plugins across 50 agent hosts — one local CLI, with every change shown before it is written.",
+    description: "A package manager for AI agents. Discover MCP servers, skills and plugins, check package-level host support, then install and manage supported packages locally.",
     images: ["/og.png"],
   },
   robots: { index: true, follow: true },

@@ -58,6 +58,14 @@
 // "Installs a plugin". v5 spends three of the flags byte's six unused bits on
 // it — publishes an artifact, is it a git tree, is it pinned — so the record
 // keeps its 13-byte fixed block and the first-search window does not grow.
+//
+// **Format v6 — endpoint presence travels with its row.** v5 carried an MCP
+// row's transport but omitted whether it had a published URL. `hostsFor` needs
+// both facts to distinguish a remote URL entry from a local launch line and to
+// check that host's exact transport. The omission made every remote row look
+// local after hydration, so Explore advertised unsupported SSE targets. v6
+// carries endpoint presence in one free flags bit; the endpoint itself stays
+// on the product page and is not duplicated into the search projection.
 // `availabilityOf` is still the only place that decides; the projection only
 // stops withholding the fact. The commit id itself is *not* carried: `pinned`
 // is the producer's statement that the descriptor published a 40-hex commit
@@ -79,7 +87,7 @@
 // answering the old question.
 
 /** Bumped when the byte layout changes; every reader refuses a mismatch. */
-export const SEARCH_FORMAT_VERSION = 5;
+export const SEARCH_FORMAT_VERSION = 6;
 
 /**
  * The flags byte's bits. The two the record has always carried, plus (v5) the
@@ -94,6 +102,7 @@ const FLAG_LINK_KEY_IS_ID = 2;
 const FLAG_ARTIFACT = 4;
 const FLAG_ARTIFACT_GIT_TREE = 8;
 const FLAG_ARTIFACT_PINNED = 16;
+const FLAG_HAS_ENDPOINT = 32;
 
 /** ASCII magic at the head of both artifacts. */
 const MAGIC = "LSPMSRCH";
@@ -1213,6 +1222,11 @@ function artifactFlags(artifact) {
   return flags;
 }
 
+/** Whether the source published a remote endpoint; the endpoint itself stays off search rows. */
+function hasEndpointFlag(row) {
+  return typeof row.url === "string" && row.url.length > 0 ? FLAG_HAS_ENDPOINT : 0;
+}
+
 /**
  * Read the artifact bits back into the `Listing.artifact` shape. No bits set
  * yields `undefined`, which is what a non-plugin row has.
@@ -1313,7 +1327,7 @@ export function buildDisplayRows(rows, options = {}) {
       intern(DICT_VERSIONS, row.version == null ? "" : String(row.version)),
       intern(DICT_INSTALLABILITY, row.installability == null ? "" : String(row.installability)),
       intern(DICT_SOURCE, row.source == null ? "" : String(row.source)),
-      artifactFlags(row.artifact),
+      hasEndpointFlag(row) | artifactFlags(row.artifact),
       (row.compatibleHosts ?? []).map((host) => intern(DICT_HOSTS, String(host))),
     ]);
   }
@@ -1578,6 +1592,7 @@ export function decodeDisplayRows(payload) {
     if (installability) listing.installability = installability;
     const source = dicts[DICT_SOURCE][sourceIdx];
     if (source) listing.source = source;
+    if (flags & FLAG_HAS_ENDPOINT) listing.hasUrl = true;
     const artifact = artifactFromFlags(flags);
     if (artifact) listing.artifact = artifact;
     if (hosts.length > 0) listing.compatibleHosts = hosts;

@@ -22,6 +22,7 @@ export interface Listing {
   category: string;
   summary?: string;
   transport?: string | null;
+  url?: string | null;
   installability?: string;
   /** Publisher-declared hosts — carried by plugin rows only. */
   compatibleHosts?: string[];

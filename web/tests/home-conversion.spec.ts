@@ -7,27 +7,23 @@
 //
 // ## What it guards
 //
-//  1. **The H1 states the outcome.** "Give your coding agents the tools
-//     they're missing — safely." The first sentence is the promise; the one
-//     word is the part the site can actually prove, because a static export
-//     cannot know what any given agent is missing.
-//  2. **Both calls to action exist and land on real pages.** A hero with no
+//  1. **The H1 names the job.** The hero explains current package types,
+//     package-level installability, and separates agent apps/connectors on the
+//     roadmap from what can be installed today.
+//  2. **The catalog overview is interactive.** Each available type opens its
+//     corresponding Explore filter, and the layout stacks at phone widths.
+//  3. **Both calls to action exist and land on real pages.** A hero with no
 //     way forward is a page that cannot convert, and a link to a route that
 //     404s is worse than no link.
-//  3. **Every goal tile opens a real filtered result set.** A tile that links
+//  4. **Every goal tile opens a real filtered result set.** A tile that links
 //     to a filter the site does not offer — or to one that returns nothing —
 //     is a dead end with a friendly label on it. The vocabulary is read from
 //     Explore's own goal control, so the tiles cannot drift from it.
-//  4. **Every curated id exists in the dataset and is one LiteSPM can
+//  5. **Every curated id exists in the dataset and is one LiteSPM can
 //     install.** The shelf is an editorial list of catalog **ids**; an id that
 //     has left the dataset, or that points at a row the binary would refuse,
 //     would be the page advertising an install that does not happen.
-//  5. **The product demo renders its poster and its transcript.** The frame
-//     has to work before the recording exists — the captions and the words
-//     are the content, and the picture is the part that is still missing.
-//  6. **Nothing presents a plugin as installable.** Plugins are browsable and
-//     not installable; the home page has to say so wherever it names them.
-//  7. **The rotating count is gone, and a stable number replaced it.** A
+//  6. **The rotating count is gone, and a stable number replaced it.** A
 //     number that changes under the reader is a number nobody can quote.
 
 import { readFileSync } from "node:fs";
@@ -81,17 +77,19 @@ function isInstallable(row: Listing): boolean {
   return true;
 }
 
-test("the H1 states the outcome, and claims only what the site can prove", async ({ page }) => {
+test("the H1 states LiteSPM's purpose, and the roadmap stays separate from available packages", async ({ page }) => {
   await gotoSettled(page, "/");
 
   const h1 = page.getByRole("heading", { level: 1 });
-  await expect(h1).toHaveText("Give your AI agents new capabilities.");
+  await expect(h1).toHaveText("Find the right tools for your AI agent.");
 
-  // The words that make the claim checkable: the page names what it adds.
-  await expect(h1).toContainText("new capabilities");
-  // The site cannot know what an agent is missing, so it must not say that it
-  // does: the claim is about safety, not about knowledge.
+  // The headline names the catalog discovery task.
+  await expect(h1).toContainText("tools for your AI agent");
   await expect(h1).not.toContainText("knows what");
+  await expect(page.getByRole("complementary", { name: "What LiteSPM manages" })).toContainText(
+    "not available to install here yet"
+  );
+  await expect(page.locator(".hero-kind-row")).toHaveCount(3);
 });
 
 test("both calls to action exist, and land on real pages", async ({ page }) => {
@@ -110,6 +108,25 @@ test("both calls to action exist, and land on real pages", async ({ page }) => {
     const response = await page.goto(path);
     expect(response?.status(), `${path} must be a real route, not a 404`).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  }
+});
+
+test("the catalog overview opens the real filter for each available kind", async ({ page }) => {
+  await gotoSettled(page, "/");
+
+  const overview = page.getByRole("complementary", { name: "What LiteSPM manages" });
+  const destinations = [
+    { label: "MCP servers", kind: "mcp", filter: "MCP Server" },
+    { label: "Skills", kind: "skill", filter: "Agent Skill" },
+    { label: "Plugins", kind: "plugin", filter: "Plugin" },
+  ];
+  for (const { label, kind, filter } of destinations) {
+    await overview.getByRole("link", { name: new RegExp(label) }).click();
+    await expect(page).toHaveURL(new RegExp(`/explore/\\?kind=${kind}`));
+    await expect(
+      page.getByRole("group", { name: "Capability kind" }).getByRole("button", { name: new RegExp(filter) })
+    ).toHaveAttribute("aria-pressed", "true");
+    await gotoSettled(page, "/");
   }
 });
 
@@ -224,11 +241,11 @@ test("the home page carries six blocks, and none of them explains the product tw
   // What is here now: the hero and its proof, six goals, one curated row,
   // three steps, the four reasons.
   await expect(page.locator("#topics-title")).toBeVisible();
-  await expect(page.locator("#hero-proof-basis")).toContainText("entries in the catalog");
+  await expect(page.locator("#hero-proof-basis")).toContainText("catalog entries");
   await expect(demo_shelf_is_one_row(page)).resolves.toBeLessThanOrEqual(6);
 });
 
-test("the desktop hero has one deliberate content track, not an empty grid column", async ({
+test("the hero has a responsive copy and catalog overview layout", async ({
   page,
 }) => {
   await gotoSettled(page, "/");
@@ -241,8 +258,13 @@ test("the desktop hero has one deliberate content track, not an empty grid colum
     };
   });
 
-  expect(layout.columns, "the hero retains a second, empty desktop track").toBe(1);
-  expect(layout.width, "the hero content has no deliberate maximum measure").toBeLessThanOrEqual(900);
+  expect(layout.columns, "the hero has the product overview beside its copy").toBe(2);
+  expect(layout.width, "the hero stays within a deliberate maximum measure").toBeLessThanOrEqual(1200);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileColumns = await page.locator(".hero-layout").evaluate((element) =>
+    getComputedStyle(element).gridTemplateColumns.split(" ").length
+  );
+  expect(mobileColumns, "the mobile hero stacks its content").toBe(1);
 });
 
 /** The curated shelf is one mixed row now, not two labelled groups. */
@@ -250,12 +272,11 @@ async function demo_shelf_is_one_row(page: import("@playwright/test").Page) {
   return page.locator("main section ul li").filter({ has: page.locator("[data-kind]") }).count();
 }
 
-test("the home page never presents a plugin it cannot fetch as installable", async ({ page }) => {
+test("the curated shelf contains only entries LiteSPM can install", async ({ page }) => {
   await gotoSettled(page, "/");
 
-  // The curated shelf is MCP servers and skills: a recommendation is a claim
-  // about what works, and a plugin's installability depends on its publisher's
-  // source, so none is curated.
+  // A recommendation is a claim about what can be installed. The curated
+  // source set contains no plugin, whose installability depends on its source.
   await expect(page.locator(".meta-kind-plugin")).toHaveCount(0);
 
   // The bridge figure names the third kind, says which plugins install, and
@@ -274,8 +295,7 @@ test("the hero's count is stable, and is the number the site's own filter produc
 }) => {
   await gotoSettled(page, "/");
 
-  // The rotating kind cycle is gone: one kind at a time, changing under the
-  // reader, in the most-read position on the page.
+  // The kind count is static, not animated under the reader.
   await expect(page.locator(".kind-cycle")).toHaveCount(0);
 
   // What replaced it is one number, and it is the number of rows the site can
@@ -283,7 +303,7 @@ test("the hero's count is stable, and is the number the site's own filter produc
   const installable = catalogRows().filter(isInstallable).length;
   const count = page.locator("#hero-proof-count");
   await expect(count).toContainText(installable.toLocaleString("en-US"));
-  await expect(count).toContainText("capabilities LiteSPM can install");
+  await expect(count).toContainText("entries LiteSPM can install");
 
   // And it does not move.
   const first = await count.textContent();

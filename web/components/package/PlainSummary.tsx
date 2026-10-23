@@ -1,7 +1,7 @@
 import React from "react";
 import type { Listing } from "../../lib/telemetry";
 import { availabilityOf } from "../../lib/availability";
-import { isRemoteTransport } from "../../lib/hosts";
+import { feasibilityFor } from "../../lib/installFeasibility";
 import { hostsNamedBy } from "../../lib/hostIdentity";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 import type { PackageTabId } from "./PackageTabs";
@@ -11,7 +11,7 @@ import { Absent } from "./Absent";
  * The plain layer of the package page: the five questions a non-developer
  * arrives with, answered in ordinary words before any technical field is
  * shown — what it is, what it does, who publishes it, whether LiteSPM can
- * install it, and which agents it works with — plus the version, which a
+ * install it, and the agent targets the catalog can support — plus the version, which a
  * non-developer also reads. The existing header keeps its own copy of the
  * entry's facts; nothing here removes or replaces it.
  *
@@ -25,8 +25,8 @@ import { Absent } from "./Absent";
  *
  *   * "verified" means the row was read from the publisher's own manifest —
  *     where the data came from — never that anyone audited or tested the entry;
- *   * compatibility is declared by kind or by the publisher, never a test
- *     result;
+ *   * target support follows LiteSPM's published metadata and config rules,
+ *     never a test result;
  *   * the install answer is the same predicate the CLI runs, not a claim that
  *     an install has happened.
  *
@@ -73,6 +73,7 @@ function Fact({
 
 export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) {
   const avail = availabilityOf(item);
+  const feasibility = feasibilityFor(item);
   // One entry per host identity (`lib/hostIdentity`): the two catalog strings
   // that name the Pi host are one compatible host, and `hostTotal` counts the
   // same identities, so "N of M" is one rule on both sides of the fraction.
@@ -161,24 +162,21 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
         </Fact>
 
         <Fact
-          term="Which agents it works with"
+          term={item.kind === "plugin" ? "Publisher-declared hosts" : "Agent install targets"}
           detail={detailLink("compatibility", "details: Compatibility →")}
         >
-          {hosts.length === 0 ? (
-            <>Nothing to install, so there is no host to set it up in.</>
-          ) : item.kind === "plugin" ? (
+          {item.kind === "plugin" ? hosts.length > 0 ? (
             <>
-              {hosts.length} host{hosts.length === 1 ? "" : "s"} — the publisher&rsquo;s own
-              declared list.
+              {hosts.length} host{hosts.length === 1 ? "" : "s"} in the publisher&rsquo;s own
+              list. This declaration does not mean the plugin has been tested.
             </>
           ) : (
+            <>The publisher did not provide a list of compatible hosts.</>
+          ) : (
             <>
-              {hosts.length} of {hostTotal} agent hosts in this catalog — every host{" "}
-              {item.kind === "mcp"
-                ? isRemoteTransport(item.transport)
-                  ? "LiteSPM can add a remote server to."
-                  : "LiteSPM can set up."
-                : "with a skills directory LiteSPM can write to."}
+              {feasibility.supportedHostIds.length} of {hostTotal} agent hosts in this catalog have
+              a documented LiteSPM install path for this entry. Select a host below to check its
+              transport and setup requirements.
             </>
           )}
         </Fact>

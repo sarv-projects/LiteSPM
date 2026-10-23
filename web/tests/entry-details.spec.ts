@@ -74,6 +74,12 @@ test("the entry page's install command is the one the CLI accepts, and the id is
 }) => {
   await gotoSettled(page, flagship.href);
 
+  const installBand = page.getByRole("region", { name: "Install with LiteSPM" });
+  if (flagship.row.kind === "skill") {
+    await expect(installBand).toContainText("copies this skill into the agent's documented skills folder");
+    await expect(installBand).not.toContainText("installs the server");
+  }
+
   // The command the page prints, and the id it names, are the same id the
   // catalog holds — the site's own gate (`scripts/check-install-command.mjs`)
   // checks the form against the CLI's own flag parser.
@@ -85,6 +91,22 @@ test("the entry page's install command is the one the CLI accepts, and the id is
   // command (the id form) or the "Details" disclosure (the short form).
   const ids = page.locator("code").filter({ hasText: flagship.row.id });
   expect(await ids.count(), "the exact id is nowhere on the page").toBeGreaterThan(0);
+});
+
+test("a reader can choose an agent on the entry page and get its exact install command", async ({
+  page,
+}) => {
+  await gotoSettled(page, flagship.href);
+
+  await page.getByRole("button", { name: "Choose an agent target" }).click();
+  await expect(page.locator("#will-it-work")).toBeFocused();
+  await page.getByRole("button", { name: "Codex", exact: true }).click();
+
+  const band = page.getByRole("region", { name: "Install with LiteSPM" });
+  await expect(band).toContainText("Selected agent: Codex");
+  await expect(band.locator("code").filter({ hasText: /litespm@latest install/ })).toHaveText(
+    `npx --yes litespm@latest install ${flagship.row.id} --host codex`
+  );
 });
 
 test("one entry, one address: the links use the path form the sitemap advertises", async ({

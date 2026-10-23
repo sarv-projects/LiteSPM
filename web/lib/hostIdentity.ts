@@ -47,10 +47,8 @@ import type { Listing } from "./telemetry";
 import {
   HOSTS,
   HOST_ALIASES,
-  REMOTE_HOSTS,
   SKILL_TARGETS,
   hostsFor,
-  isRemoteTransport,
   resolveHost,
 } from "./hosts";
 import type { HostAdapter } from "./hosts";
@@ -173,25 +171,11 @@ export function hostIdentity(id: string): HostIdentity | undefined {
  *
  * The returned arrays are shared and must not be mutated.
  */
-const MCP_IDS: string[] = Array.from(
-  new Set(HOSTS.map((adapter) => resolveHostId(adapter.name) ?? adapter.id))
-);
-/**
- * The adapters a **remote** MCP row can actually be configured for. A host
- * without a verified remote entry spelling refuses the install fail-closed, so
- * this is the honest set for anything reached over a URL — not `MCP_IDS`.
- */
-const REMOTE_MCP_IDS: string[] = Array.from(
-  new Set(REMOTE_HOSTS.map((adapter) => resolveHostId(adapter.name) ?? adapter.id))
-);
-const SKILL_IDS: string[] = Array.from(
-  new Set(SKILL_TARGETS.map((target) => resolveHostId(target.displayName) ?? joinSkillId(target.id)))
-);
 /** Shared empty result for a row with nothing installable. Never mutate. */
 const NO_HOSTS: string[] = [];
 
 export function hostIdsFor(
-  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "installability">
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "url" | "hasUrl" | "installability">
 ): string[] {
   if (item.kind === "plugin") {
     const ids: string[] = [];
@@ -213,10 +197,11 @@ export function hostIdsFor(
   // discovery-only rows were counted into all of them.
   if (!availabilityOf(item).installable) return NO_HOSTS;
 
-  if (item.kind === "mcp") {
-    return isRemoteTransport(item.transport) ? REMOTE_MCP_IDS : MCP_IDS;
-  }
-  return SKILL_IDS;
+  return Array.from(new Set(
+    hostsFor(item)
+      .map((name) => resolveHostId(name))
+      .filter((id): id is string => id !== null)
+  ));
 }
 
 /**
@@ -227,7 +212,7 @@ export function hostIdsFor(
  * name rather than silently matching nothing or everything.
  */
 export function itemMatchesHost(
-  item: Pick<Listing, "kind" | "compatibleHosts" | "transport">,
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "url" | "hasUrl" | "installability">,
   host: string | null
 ): boolean {
   if (!host) return true;
@@ -253,7 +238,7 @@ export interface NamedHost {
  * the length of this list. A spelling no registry resolves stays its own host.
  */
 export function hostsNamedBy(
-  item: Pick<Listing, "kind" | "compatibleHosts" | "transport">
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "url" | "hasUrl" | "installability">
 ): NamedHost[] {
   const out: NamedHost[] = [];
   const seen = new Set<string>();
