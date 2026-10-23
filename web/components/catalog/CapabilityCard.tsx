@@ -72,7 +72,8 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
   // the same rule counts on the entry page.
   const hosts = hostsNamedBy(item);
   const avail = availabilityOf(item);
-  const remoteEndpoint = item.kind === "mcp" && isRemoteTransport(item.transport) && Boolean(item.url);
+  const remoteEndpoint =
+    item.kind === "mcp" && isRemoteTransport(item.transport) && Boolean(item.url || item.hasUrl);
   const detail = [
     kindLabel(item.kind),
     item.publisher?.name ? `by ${item.publisher.name}` : "publisher unspecified",

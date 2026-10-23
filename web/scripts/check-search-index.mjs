@@ -197,6 +197,14 @@ async function main() {
   // same order, same link keys. A shard that resolved slug ambiguity locally
   // would send a card to the wrong entry, which no size budget would catch.
   const fullDisplay = decodeDisplayRows(decodeContainer(first.rowsRaw, SECTION_ROWS));
+  // Host compatibility for remote MCP entries depends on the exact endpoint
+  // transport and whether a URL was published. The browser's hydrated rows
+  // must retain endpoint presence, or remote SSE rows look like local entries.
+  for (let i = 0; i < rows.length; i += 1) {
+    if (Boolean(rows[i].url) !== Boolean(fullDisplay.rowAt(i).hasUrl)) {
+      fail(`display projection row ${i} lost published endpoint presence`);
+    }
+  }
   const shardCount = first.shardsRaw.length;
   if (shardCount !== Math.ceil(rows.length / SEARCH_SHARD_ROWS)) {
     fail(`expected ${Math.ceil(rows.length / SEARCH_SHARD_ROWS)} shards, built ${shardCount}`);

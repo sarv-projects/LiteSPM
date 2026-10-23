@@ -175,7 +175,7 @@ export function hostIdentity(id: string): HostIdentity | undefined {
 const NO_HOSTS: string[] = [];
 
 export function hostIdsFor(
-  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "url" | "installability">
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "url" | "hasUrl" | "installability">
 ): string[] {
   if (item.kind === "plugin") {
     const ids: string[] = [];
@@ -212,7 +212,7 @@ export function hostIdsFor(
  * name rather than silently matching nothing or everything.
  */
 export function itemMatchesHost(
-  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "url" | "installability">,
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "url" | "hasUrl" | "installability">,
   host: string | null
 ): boolean {
   if (!host) return true;
@@ -238,7 +238,7 @@ export interface NamedHost {
  * the length of this list. A spelling no registry resolves stays its own host.
  */
 export function hostsNamedBy(
-  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "url" | "installability">
+  item: Pick<Listing, "kind" | "compatibleHosts" | "transport" | "url" | "hasUrl" | "installability">
 ): NamedHost[] {
   const out: NamedHost[] = [];
   const seen = new Set<string>();

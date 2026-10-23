@@ -241,7 +241,7 @@ test("the home page carries six blocks, and none of them explains the product tw
   // What is here now: the hero and its proof, six goals, one curated row,
   // three steps, the four reasons.
   await expect(page.locator("#topics-title")).toBeVisible();
-  await expect(page.locator("#hero-proof-basis")).toContainText("entries in the catalog");
+  await expect(page.locator("#hero-proof-basis")).toContainText("catalog entries");
   await expect(demo_shelf_is_one_row(page)).resolves.toBeLessThanOrEqual(6);
 });
 

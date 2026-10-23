@@ -521,12 +521,11 @@ function ExploreContent(props: ExploreViewProps) {
       <Header />
 
       <main id="main" tabIndex={-1} className="flex-1">
-        <div className="shell pt-8">
+        <div className="shell pt-5">
           <p className="kicker">MCP servers · skills · plugins</p>
           <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-ink">Explore the marketplace</h1>
           <p className="mt-2 max-w-[66ch] text-[13px] leading-relaxed text-ink-2">
-            Browse by what you want to do, then check each package&rsquo;s agent targets and install status.
-            Compatibility is package-specific; entries LiteSPM cannot install say why.
+            Find packages by task, then check exact agent support and install status.
           </p>
 
           {savedTarget && savedAgent && (

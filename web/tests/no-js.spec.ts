@@ -57,9 +57,9 @@ test("the hero's freshness chip is truthful without JavaScript", async ({ browse
   await installHermeticRouting(context);
   const page = await context.newPage();
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  // "snapshot" is true in every state the server can render. `exact` so a
+  // "catalog snapshot" is true in every state the server can render. `exact` so a
   // regression back to the old "bundled snapshot" wording fails here.
-  await expect(page.getByText("snapshot", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("catalog snapshot", { exact: true }).first()).toBeVisible();
   // And it must not claim a check that cannot have run.
   await expect(page.getByText("catalog is current")).toHaveCount(0);
   await expect(page.getByText("checking the catalog", { exact: false })).toHaveCount(0);

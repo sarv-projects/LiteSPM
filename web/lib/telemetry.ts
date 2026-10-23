@@ -68,6 +68,8 @@ export interface Listing {
    * publisher's homepage.
    */
   url?: string | null;
+  /** True in the browser display projection when the original row has a URL. */
+  hasUrl?: boolean;
   /**
    * Publisher-declared host list. Only plugins carry one. MCP servers and
    * skills derive target eligibility from registry install rules (see

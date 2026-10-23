@@ -174,7 +174,7 @@ test("one denominator: /agents/, /compare/, the entry pages and the Explore face
   const entry = preRenderedEntry();
   await gotoSettled(page, entry.href);
   const entryText = await page
-    .locator('dt:text-is("Which agents it works with") + dd')
+    .locator('dt:text-is("Agent install targets") + dd')
     .textContent();
   const fraction = (entryText ?? "").match(/([\d,]+) of ([\d,]+) agent hosts/);
   expect(fraction, `the entry page states "N of M agent hosts": ${entryText}`).not.toBeNull();

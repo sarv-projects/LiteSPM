@@ -24,7 +24,7 @@ import { expect, test } from "./support/site";
 import { gotoSettled } from "./support/site";
 
 /** Every destination the primary rail names. */
-const DESTINATIONS = ["Explore", "Agents", "How it works", "Docs"];
+const DESTINATIONS = ["Explore", "Agent hosts", "How it works", "Docs"];
 
 /** Below this width the navigation is a menu rather than a rail. */
 const MENU_BELOW = 768;

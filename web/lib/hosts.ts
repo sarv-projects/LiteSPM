@@ -247,6 +247,7 @@ export function hostsFor(item: {
   compatibleHosts?: string[];
   transport?: string | null;
   url?: string | null;
+  hasUrl?: boolean;
   installability?: Listing["installability"];
 }): string[] {
   // A plugin's list is the publisher's own declaration, and every surface that
@@ -268,7 +269,7 @@ export function hostsFor(item: {
     // A transport without a published endpoint is registered from its local
     // launch command. For a URL entry, only hosts whose registry explicitly
     // accepts this transport can take the config LiteSPM writes.
-    if (isRemoteTransport(item.transport) && item.url) {
+    if (isRemoteTransport(item.transport) && (item.url || item.hasUrl)) {
       const transport = registryTransport(item.transport);
       return HOSTS.filter((host) => host.remote === true && host.remoteTransports?.includes(transport))
         .map((host) => host.name);

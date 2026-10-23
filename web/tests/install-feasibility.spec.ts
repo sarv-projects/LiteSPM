@@ -185,7 +185,7 @@ test("a remote MCP entry lists exactly the hosts that can reach it", async ({ pa
   // The same figure in words, in the plain summary above the tabs. Both render
   // one measurement; a page that disagrees with itself is the defect this
   // asserts against.
-  const fact = page.locator("dt", { hasText: "Which agents it works with" });
+  const fact = page.locator("dt", { hasText: "Agent install targets" });
   await expect(fact).toBeVisible();
   const stated = await fact.locator("xpath=following-sibling::dd[1]").textContent();
   expect(stated).toContain(`${transportHosts.length} of`);
@@ -204,7 +204,7 @@ test("a row LiteSPM cannot install lists no host at all", async ({ page }) => {
   // "Install unavailable", so the two statements must agree.
   await expect(page.locator("#will-it-work")).toContainText("Nothing to install");
 
-  const fact = page.locator("dt", { hasText: "Which agents it works with" });
+  const fact = page.locator("dt", { hasText: "Agent install targets" });
   await expect(fact.locator("xpath=following-sibling::dd[1]")).toContainText(
     "Nothing to install"
   );
