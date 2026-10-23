@@ -30,15 +30,15 @@ import { flagshipEntry, preRenderedEntry } from "./support/catalog";
 const preRendered = preRenderedEntry();
 const flagship = flagshipEntry();
 
-test("the entry page explains the absence of a popularity figure", async ({ page }) => {
+test("the entry page Source tab focuses on publisher links", async ({ page }) => {
   await gotoSettled(page, flagship.href);
   await page.getByRole("tab", { name: "Source" }).click();
-  await expect(
-    page.getByText("No star or download count exists for this entry", { exact: false })
-  ).toBeVisible();
+  const panel = page.locator("#pkg-panel-source");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText("No star or download count", { exact: false })).toHaveCount(0);
 });
 
-test("a skill's Capabilities tab leads with its source and collapses the absences", async ({
+test("the Capabilities tab shows available details without missing-field notes", async ({
   page,
 }) => {
   await gotoSettled(page, flagship.href);
@@ -46,12 +46,9 @@ test("a skill's Capabilities tab leads with its source and collapses the absence
   const panel = page.locator("#pkg-panel-capabilities");
   await expect(panel).toBeVisible();
 
-  // One sentence for the absences, not five rows of "not published".
-  const absent = await panel.getByText("not published", { exact: true }).count();
-  expect(absent, "the Capabilities tab is a list of absences again").toBe(0);
-  await expect(
-    panel.getByText("The catalog publishes no", { exact: false })
-  ).toBeVisible();
+  await expect(panel.getByText("The catalog publishes no", { exact: false })).toHaveCount(0);
+  await expect(panel.getByText("not published", { exact: false })).toHaveCount(0);
+  await expect(panel.locator("p").first()).not.toBeEmpty();
 });
 
 test("every link in the entry page's source block is at least 24px tall (WCAG 2.2 SC 2.5.8)", async ({
@@ -158,14 +155,14 @@ test("every host the catalog names has a page", async ({ page }) => {
   // walk of the whole index, not one assertion. It gets its own budget.
   test.setTimeout(300_000);
   await gotoSettled(page, "/agents/");
-  const rows = await page.locator("main ul > li").count();
+  const rows = await page.locator("main article.agent-atlas-card").count();
   expect(rows, "the host index lists no hosts").toBeGreaterThan(50);
 
   // Every host's NAME links to that host's own page. The counts beside the
   // name link to Explore filtered by that host, which is a different thing
   // and is meant to be.
   const hostLinks = await page
-    .locator("main ul > li a[href^='/agents/']")
+    .locator("main article.agent-atlas-card h3 a[href^='/agents/']")
     .evaluateAll((nodes) => nodes.map((n) => (n as HTMLAnchorElement).getAttribute("href") ?? ""));
   expect(
     hostLinks.length,
@@ -189,7 +186,7 @@ test("a skills-only host says what LiteSPM does for it", async ({ page }) => {
   await gotoSettled(page, "/agents/warp/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Warp");
   await expect(
-    page.getByText("LiteSPM installs agent skills into Warp", { exact: false })
+    page.getByText(/Add skills to Warp with LiteSPM/)
   ).toBeVisible();
   // No config file is shown, because there is none to show.
   await expect(page.getByRole("heading", { name: "Config file" })).toHaveCount(0);

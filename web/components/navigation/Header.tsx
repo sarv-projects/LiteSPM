@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, Search, SquareTerminal } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import { ThemeToggle } from "./ThemeToggle";
-import { DOCS_URL } from "../../lib/site";
 
 /**
  * One header for every route: logo, the primary rail, a search affordance, the
@@ -55,9 +54,9 @@ interface HeaderProps {
 
 const PRIMARY_NAV = [
   { href: "/explore/", label: "Explore" },
-  { href: "/agents/", label: "Agent hosts" },
+  { href: "/agents/", label: "Agents" },
   { href: "/how-it-works/", label: "How it works" },
-  { href: DOCS_URL, label: "Docs", external: true },
+  { href: "/docs/", label: "Developer docs" },
 ];
 
 export function Header({ onNavigate }: HeaderProps) {

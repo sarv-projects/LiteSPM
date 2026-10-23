@@ -112,7 +112,7 @@ export default function PrivacyPage() {
             separate, at <code>~/.config/litespm</code>.
           </Fact>
           <Fact label="Stored there">
-            The catalog snapshot, content-addressed copies of the files it installed, its state
+            The catalog index, content-addressed copies of the files it installed, its state
             database, a backup of every config file it edited (<code>backups/</code>), and the
             skills ledger.
           </Fact>

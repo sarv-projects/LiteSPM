@@ -1,13 +1,14 @@
 import { expect, test } from "./support/site";
 import { gotoSettled } from "./support/site";
 
-test("agent directory distinguishes agent profiles from installable packages", async ({ page }) => {
+test("the agent directory makes profiles easy to browse", async ({ page }) => {
   await gotoSettled(page, "/agents/");
 
-  await expect(page.getByRole("heading", { name: "Browse agent hosts" })).toBeVisible();
-  await expect(page.getByText(/These are profiles for agent hosts LiteSPM can target/i)).toBeVisible();
-  await expect(page.getByText(/they are not listings for agent applications/i)).toBeVisible();
-  await expect(page.getByText(/Agent apps and connectors are part of the product direction/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Choose your agent." })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "Search agent profiles" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Scrollable agent profiles" })).toBeVisible();
+  await expect(page.getByText(/Every profile includes a practical setup guide/)).toBeVisible();
+  await expect(page.getByText(/not available to install here|catalog relationships, not runtime test/i)).toHaveCount(0);
 });
 
 test("agent detail pages give first-time visitors a clear local installation path", async ({ page }) => {
@@ -20,18 +21,19 @@ test("agent detail pages give first-time visitors a clear local installation pat
     "href",
     /\/explore\/\?host=/
   );
-  await expect(start).toContainText("use it from your computer");
-  await expect(start).toContainText("This website does not install anything on your machine");
+  await expect(start).toContainText("Install the manager once, then use it from your computer.");
+  await expect(start).toContainText("Choose this agent, then find tools and skills that fit how you work.");
 });
 
-test("agent detail counts distinguish catalog listings from installable entries", async ({ page }) => {
+test("agent detail pages show the setup and catalog choices for that agent", async ({ page }) => {
   await gotoSettled(page, "/agents/claude-code/");
 
-  await expect(page.getByRole("heading", { name: "Catalog entries for this agent" })).toBeVisible();
-  await expect(page.locator('dt:text-is("Catalog entries") + dd')).toContainText(
-    "entries shown for this agent"
+  await expect(page.getByRole("heading", { name: "Find tools for Claude Code" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Start with LiteSPM" })).toBeVisible();
+  await expect(page.locator('section[aria-labelledby="agent-works-title"]')).toContainText(
+    "packages and skills to explore for Claude Code"
   );
-  await expect(page.getByText(/Some plugin entries are discovery-only/i)).toBeVisible();
+  await expect(page.getByText(/Some plugin entries are discovery-only/i)).toHaveCount(0);
 });
 
 test("skills-only agent pages do not describe a config connection", async ({ page }) => {

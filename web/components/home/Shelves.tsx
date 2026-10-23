@@ -1,12 +1,10 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { ShelfCard } from "../catalog/ShelfCard";
 import type { AgentChoice, CuratedGroup } from "../../lib/landing";
 import type { Listing } from "../../lib/telemetry";
-import type { TelemetryState } from "../../lib/telemetry";
 
 /**
  * The curated shelf — two groups, twelve entries, one of each kind of proof
@@ -53,97 +51,9 @@ import type { TelemetryState } from "../../lib/telemetry";
 export interface ShelvesProps {
   groups: CuratedGroup[];
   agent: AgentChoice | null;
-  /** The release stamp, so the reader knows which snapshot this set is from. */
-  telemetry: TelemetryState;
 }
 
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-/**
- * "17 October 2026" from the release's ISO timestamp, in UTC so the
- * prerendered HTML and the hydrated client always agree on the string.
- * Returns null for a missing or unparseable stamp rather than a placeholder
- * date — a wrong date is worse than none.
- */
-function releaseDateLabel(createdAt?: string): string | null {
-  if (!createdAt) return null;
-  const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) return null;
-  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getFullYear()}`;
-}
-
-/**
- * The catalog stamp.
- *
- * It used to sit in the hero, next to the counts that rotated. It belongs
- * here instead: this is the section that publishes specific rows out of a
- * specific snapshot, so this is where "which snapshot, and is it current?"
- * belongs. The three states are the ones the telemetry hook can actually
- * observe — the origin answered, it did not answer, or it has not answered
- * yet — and none of them claims a freshness the site has not checked.
- */
-function CatalogStamp({ telemetry }: { telemetry: TelemetryState }) {
-  const { status, data } = telemetry;
-  const title = [data.releaseId, data.sequence ? `seq ${data.sequence}` : null]
-    .filter(Boolean)
-    .join(" · ");
-  const updated = releaseDateLabel(data.createdAt);
-
-  /**
-   * The live check is a post-hydration refinement, never the server render.
-   *
-   * `status` is "loading" until the telemetry request comes back, so the
-   * pre-hydration HTML used to read "checking the catalog…" — and a reader
-   * whose JavaScript never ran saw that forever, with a dot pulsing at them.
-   * Nothing was checking: the page is the Offline catalog, and without
-   * scripting no request will be made. So the first render (server and the
-   * hydration pass that must match it) says "Offline catalog"; only after the
-   * component is mounted may it say a check is in flight.
-   */
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
-  const live = mounted ? status : "offline";
-
-  return (
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
-      {updated && (
-        <>
-          <span>Catalog updated {updated}</span>
-          <span aria-hidden="true">·</span>
-        </>
-      )}
-      <span
-        className="inline-flex items-center gap-1.5"
-        title={title ? `Catalog release ${title}` : undefined}
-      >
-        <span
-          aria-hidden="true"
-          className={`h-1.5 w-1.5 rounded-full ${
-            live === "ready" ? "bg-accent" : live === "loading" ? "animate-pulse bg-ink-3" : "bg-ink-3/50"
-          }`}
-        />
-        {live === "loading" && "checking the catalog…"}
-        {live === "ready" && "Catalog available"}
-        {live === "offline" && "Offline catalog"}
-      </span>
-    </p>
-  );
-}
-
-export function Shelves({ groups, agent, telemetry }: ShelvesProps) {
+export function Shelves({ groups, agent }: ShelvesProps) {
   if (!groups.length) return null;
 
   // One row, mixed kinds: take from each group in turn rather than showing
@@ -165,19 +75,18 @@ export function Shelves({ groups, agent, telemetry }: ShelvesProps) {
         <div>
           <p className="kicker">Start here</p>
           <h2 id="start-here-title" className="band-title mt-2">
-            Featured capabilities
+            A good place to start.
           </h2>
           <p className="band-sub">
-            Six entries, curated rather than ranked, and the whole catalog one click away.
+            Useful additions, explained in plain language.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <CatalogStamp telemetry={telemetry} />
           <Link
             href="/explore/"
             className="touch-link inline-flex items-center gap-1 text-[13px] font-medium text-ink-2 hover:text-accent-text hover:underline"
           >
-            Browse all capabilities
+            Browse all packages
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         </div>

@@ -30,9 +30,7 @@ export default function TrendingRedirect() {
             This page has moved to Insights
           </h1>
           <p className="text-[13px] leading-relaxed text-ink-2">
-            The coverage boards were served at <code className="t-mono">/trending/</code>, a name
-            that promised a trending list the catalog cannot publish — no source reports usage
-            data. The same counts are now at <code className="t-mono">/insights/</code>.
+            You&rsquo;re being taken to the agent coverage guide.
           </p>
           <a href="/insights/" className="btn btn-solid mt-2">
             Go to Insights

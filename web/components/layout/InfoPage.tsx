@@ -1,7 +1,6 @@
 import React from "react";
 import { Header } from "../navigation/Header";
 import { SiteFooter } from "./SiteFooter";
-import { REPO_URL } from "../../lib/site";
 
 /**
  * Shell for the site's static information routes (`/privacy`, `/contact`,
@@ -19,13 +18,12 @@ import { REPO_URL } from "../../lib/site";
 export function InfoPage({
   title,
   lede,
-  sourcePath,
   children,
 }: {
   title: string;
   lede: React.ReactNode;
   /** Repository-relative path of this page, for the source link. */
-  sourcePath: string;
+  sourcePath?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -38,18 +36,6 @@ export function InfoPage({
 
         <div className="mt-9 max-w-[72ch] space-y-9">{children}</div>
 
-        <p className="mt-10 max-w-[72ch] text-[12px] leading-relaxed text-ink-3">
-          This page is part of the source.{" "}
-          <a
-            href={`${REPO_URL}/blob/main/${sourcePath}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="link"
-          >
-            Read {sourcePath} on GitHub
-          </a>
-          .
-        </p>
       </main>
 
       <SiteFooter />

@@ -295,13 +295,11 @@ function Guide({
           <CommandCopy command="litespm catalog sync" label="Fetch and verify the catalog" />
         </div>
         <p className="mt-2.5 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Then search it, or browse the same catalog in your browser on the{" "}
+          Search your local catalog or browse the same packages on the{" "}
           <Link href="/explore/" className="link">
             Explore page
           </Link>
-          . A row the site marks{" "}
-          <span className="meta-avail meta-avail-blocked">Not installable</span> is a row the
-          command will refuse, and it will tell you why.
+          . Each package page shows the setup command and agent options.
         </p>
         <div className="mt-2">
           <CommandCopy command="litespm search github" label="Search the catalog you synced" />

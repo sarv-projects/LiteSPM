@@ -228,7 +228,7 @@ export function CommandPalette({ open, onOpenChange, returnFocusRef }: CommandPa
       const shown = agentMatches.slice(0, MAX_AGENTS);
       out.push({
         id: "agents",
-        title: "Agent hosts",
+        title: "Agents",
         note:
           shown.length < agentMatches.length
             ? `showing ${formatCount(shown.length)} of ${formatCount(agentMatches.length)}${q === "" ? " — type to narrow" : ""}`

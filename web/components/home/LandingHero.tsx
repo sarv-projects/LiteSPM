@@ -2,94 +2,57 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowUpRight, Check, Sparkles } from "lucide-react";
 import { SearchBar } from "../navigation/SearchBar";
 import { AgentLogo } from "../AgentLogo";
 import { AGENT_CHOICES } from "../../lib/landing";
-import { formatCount } from "../../lib/format";
+import type { AgentChoice } from "../../lib/landing";
 
-/**
- * The first screen states what LiteSPM does and gives readers a real starting
- * point. The overview links use actual catalog filters; the roadmap panel is
- * clearly separate from capabilities that are available today.
- */
 export interface LandingHeroProps {
-  /** Rows in the catalog — used for the search field's placeholder. */
   total: number;
   query: string;
   setQuery: (q: string) => void;
   totalMatches?: number;
-  /** False while the search for `query` is still in flight; see SearchBar. */
   settled?: boolean;
-  /** Build-time count using the same predicate as Explore's installable filter. */
-  installable: number;
+  choice: AgentChoice | null;
+  onAgentChange: (id: string) => void;
 }
 
 const STARTING_POINTS = [
-  { label: "Use GitHub", query: "github" },
+  { label: "Build a website", query: "web design" },
   { label: "Work with PDFs", query: "pdf" },
-  { label: "Design UI", query: "figma" },
-  { label: "Browse the web", query: "playwright" },
-  { label: "Connect a database", query: "postgres" },
+  { label: "Review code", query: "code review" },
+  { label: "Connect GitHub", query: "github" },
 ];
 
-const CURRENT_KINDS = [
-  { id: "mcp", title: "MCP servers", summary: "Connect tools and data" },
-  { id: "skill", title: "Skills", summary: "Add reusable instructions" },
-  { id: "plugin", title: "Plugins", summary: "Publisher-provided extensions" },
-] as const;
-
-export function LandingHero({
-  total,
-  query,
-  setQuery,
-  totalMatches,
-  settled,
-  installable,
-}: LandingHeroProps) {
-  const agents = AGENT_CHOICES.filter((choice) => choice.hosts.length > 0);
+export function LandingHero({ total, query, setQuery, totalMatches, settled, choice, onAgentChange }: LandingHeroProps) {
+  const agents = AGENT_CHOICES.filter((agent) => agent.hosts.length > 0).slice(0, 4);
 
   return (
-    <section className="shell hero-glow pb-10 pt-9 md:pb-14 md:pt-14">
-      <div className="hero-layout">
-        <div className="hero-copy enter-rise">
-          <p className="kicker">One package manager for your AI tools</p>
-          <h1 className="mt-4 max-w-[17ch] text-[clamp(2.125rem,1.35rem+3.1vw,3.25rem)] font-semibold leading-[1.06] tracking-tight text-ink">
-            Find the right tools for your AI agent.
+    <section className="home-editorial-hero">
+      <div className="shell home-editorial-layout">
+        <div className="home-editorial-copy">
+          <p className="home-eyebrow"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> THE AGENT PACKAGE MANAGER</p>
+          <h1 className="home-display-title">
+            Give your agents{" "}<br /><span>more possibilities.</span>
           </h1>
-          <p className="mt-5 max-w-[58ch] text-[15px] leading-relaxed text-ink-2 sm:text-[16px]">
-            Browse MCP servers, skills, and eligible plugins. Choose an agent target and see what
-            LiteSPM can install before you change your local setup.
+          <p className="home-display-subtitle">
+            Find MCP servers that connect your agent to apps and data, plus reusable skills and plugins. Choose your agent to see a clear setup path.
           </p>
-
-          <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Link href="/explore/" prefetch={false} className="btn btn-solid btn-lg">
-              Explore capabilities
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </Link>
-            <Link href="/get-started/" prefetch={false} className="btn btn-lg">
-              Get LiteSPM
-            </Link>
-          </div>
-
-          <div className="mt-7 max-w-2xl">
+          <div className="home-search-wrap">
             <SearchBar
               query={query}
               setQuery={setQuery}
               totalMatches={totalMatches}
               settled={settled}
               totalCount={total}
+              placeholder="Find tools and skills for your agent..."
               hint={
                 query ? undefined : (
-                  <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="flex flex-wrap items-center gap-2">
                     <span>Try:</span>
                     {STARTING_POINTS.map((point) => (
-                      <button
-                        key={point.query}
-                        type="button"
-                        onClick={() => setQuery(point.query)}
-                        className="chip"
-                      >
+                      <button key={point.query} type="button" onClick={() => setQuery(point.query)} className="chip">
                         {point.label}
                       </button>
                     ))}
@@ -98,86 +61,63 @@ export function LandingHero({
               }
             />
           </div>
-
-          <div className="mt-7">
-            <p className="text-[12px] text-ink-3">Browse agent host profiles</p>
-            <ul className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-2">
-              {agents.map((agent) => (
-                <li key={agent.id}>
-                  <Link
-                    href={`/agents/${agent.id}/`}
-                    prefetch={false}
-                    className="flex items-center gap-2 rounded-chip text-[12.5px] text-ink-2 transition-colors duration-state ease-out hover:text-ink"
-                  >
-                    <AgentLogo id={agent.id} name={agent.label} size={22} />
-                    {agent.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <div className="home-hero-actions">
+            <Link href="/explore/" className="btn btn-solid btn-lg">Explore the catalog <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link>
+            <Link href="/get-started/" className="home-text-link">Get LiteSPM <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
           </div>
-
-          <p
-            id="hero-proof-count"
-            className="mt-6 flex flex-wrap items-baseline gap-x-1.5 text-[12px] text-ink-3"
-          >
-            <span className="t-mono t-tabular text-[12.5px] text-ink">
-              {formatCount(installable)}
-            </span>
-            <span>entries LiteSPM can install</span>
-            <span aria-hidden="true">·</span>
-            <span>catalog snapshot</span>
-          </p>
-          <p
-            id="hero-proof-basis"
-            className="mt-1.5 max-w-[56ch] text-[12px] leading-relaxed text-ink-3"
-          >
-            of {formatCount(total)} catalog entries. Every listing shows its install status and
-            the reason when LiteSPM cannot install it.
-          </p>
+          <p className="home-trust-line"><Check className="h-3.5 w-3.5" aria-hidden="true" /> Choose your agent. Review the setup. Keep control of your machine.</p>
         </div>
 
-        <aside className="hero-overview" aria-label="What LiteSPM manages">
-          <div className="hero-overview-head">
-            <span className="hero-overview-mark" aria-hidden="true">L</span>
-            <div>
-              <p className="kicker">LiteSPM marketplace</p>
-              <p className="mt-1 text-[17px] font-semibold tracking-tight text-ink">Your agent toolbox</p>
+        <div className="home-hero-art" aria-label="Illustration of an agent with added tools and skills">
+          <div className="home-hero-window">
+            <div className="home-hero-window-top">
+              <span className="home-window-dots" aria-hidden="true"><i /><i /><i /></span>
+              <span>Your agent workspace</span>
+              <span className="home-window-example">EXAMPLE</span>
             </div>
+            <div className="home-hero-window-caption">
+              <span>ONE AGENT. MORE CAPABILITIES.</span><span>01 / 03</span>
+            </div>
+            <Link href="/agents/claude-code/" className="home-agent-focus">
+              <AgentLogo id="claude-code" name="Claude Code" size={42} />
+              <span><strong>Claude Code</strong><small>Your agent, with a little more range.</small></span>
+              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <div className="home-hero-additions">
+              <Link href="/explore/?kind=mcp" className="home-addition-card">
+                <span className="home-addition-icon home-addition-green">C7</span>
+                <span><strong>Tools and data</strong><small>Connect an MCP server</small></span>
+                <span className="home-addition-kind">MCP</span>
+              </Link>
+              <Link href="/explore/?kind=skill" className="home-addition-card">
+                <span className="home-addition-icon home-addition-ink">✦</span>
+                <span><strong>Reusable workflows</strong><small>Give your agent a new skill</small></span>
+                <span className="home-addition-kind">SKILL</span>
+              </Link>
+            </div>
+            <div className="home-hero-flow">Discover <i>→</i> Choose agent <i>→</i> Set up</div>
           </div>
+          <div className="home-hero-note"><span>↳</span><span><strong>Less configuration hunting.</strong><small>See the setup path before you make a change.</small></span></div>
+        </div>
+      </div>
 
-          <ul className="hero-kind-list" aria-label="Available catalog types">
-            {CURRENT_KINDS.map((kind) => (
-              <li key={kind.id}>
-                <Link href={`/explore/?kind=${kind.id}`} prefetch={false} className="hero-kind-row">
-                  <span className={`hero-kind-dot hero-kind-${kind.id}`} aria-hidden="true" />
-                  <span className="min-w-0">
-                    <strong>{kind.title}</strong>
-                    <span>{kind.summary}</span>
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-ink-3" aria-hidden="true" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          <p className="hero-support-note">
-            Support varies by package and agent. Each listing shows the declared targets and whether
-            LiteSPM can install it.
-          </p>
-
-          <div className="hero-roadmap">
-            <span className="hero-roadmap-label">On the roadmap</span>
-            <p>
-              <strong>Agent packages, apps, and connectors</strong> are part of the broader
-              direction; they are not available to install here yet.
-            </p>
-          </div>
-          <p className="hero-local-note">
-            Installations run locally from your terminal. This website helps you discover, check,
-            and prepare the exact path.
-          </p>
-        </aside>
+      <div className="shell home-agent-band">
+        <span className="home-agent-band-label">Start with the agent<br />you already use</span>
+        <div className="home-agent-band-list" role="group" aria-label="Choose your agent">
+          {agents.map((agent) => (
+            <button
+              key={agent.id}
+              type="button"
+              onClick={() => onAgentChange(agent.id)}
+              aria-pressed={choice?.id === agent.id}
+              className={"home-agent-chip" + (choice?.id === agent.id ? " home-agent-chip-active" : "")}
+            >
+              <AgentLogo id={agent.id} name={agent.label} size={24} />
+              <span>{agent.label}</span>
+            </button>
+          ))}
+        </div>
+        <Link href="/agents/" className="home-agent-band-all">Browse agents <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
       </div>
     </section>
   );

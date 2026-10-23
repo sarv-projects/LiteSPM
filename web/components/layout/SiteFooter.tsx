@@ -2,19 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import bundledRelease from "../../data/release.json";
-import { CountUp } from "../ui/CountUp";
-
 const REPO = "https://github.com/sarv-projects/LiteSPM";
-
-const COUNTS = {
-  total: Number(bundledRelease.totalCapabilities ?? bundledRelease.itemCount ?? 0),
-  mcp: Number(bundledRelease.mcpServersCount ?? 0),
-  skill: Number(bundledRelease.agentSkillsCount ?? 0),
-  plugin: Number(bundledRelease.pluginsCount ?? 0),
-};
-const SNAPSHOT_DATE = String(bundledRelease.createdAt ?? "").slice(0, 10);
-const RELEASE_ID = String(bundledRelease.releaseId ?? "");
 
 /**
  * Footer: where this site lives, and what it is.
@@ -58,7 +46,7 @@ export function SiteFooter() {
             </li>
             <li>
               <Link href="/agents/" className="link touch-link">
-                Agent hosts
+                Agents
               </Link>
             </li>
             <li>
@@ -98,7 +86,7 @@ export function SiteFooter() {
             </li>
             <li>
               <Link href="/status/" className="link touch-link">
-                Release status
+                Catalog status
               </Link>
             </li>
             <li>
@@ -112,6 +100,11 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
+              <Link href="/docs/" className="link touch-link">
+                Developer docs
+              </Link>
+            </li>
+            <li>
               <Link href="/support/" className="link touch-link">
                 Support
               </Link>
@@ -122,40 +115,7 @@ export function SiteFooter() {
 
       <div className="border-t border-rule bg-sunken">
         <div className="shell flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-            <div className="flex items-baseline gap-1.5">
-              <dd className="t-cond text-[18px] font-semibold leading-none text-ink">
-                <CountUp value={COUNTS.total} />
-              </dd>
-              <dt className="t-mono text-[11px] text-ink-3">capabilities</dt>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <dd className="t-cond text-[18px] font-semibold leading-none text-mcp">
-                <CountUp value={COUNTS.mcp} />
-              </dd>
-              <dt className="t-mono text-[11px] text-ink-3">MCP</dt>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <dd className="t-cond text-[18px] font-semibold leading-none text-skill">
-                <CountUp value={COUNTS.skill} />
-              </dd>
-              <dt className="t-mono text-[11px] text-ink-3">skills</dt>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <dd className="t-cond text-[18px] font-semibold leading-none text-plugin">
-                <CountUp value={COUNTS.plugin} />
-              </dd>
-              <dt className="t-mono text-[11px] text-ink-3">plugins</dt>
-            </div>
-          </dl>
-
-          <p className="t-mono text-[11px] text-ink-3">
-            Catalog snapshot{" "}
-            <Link href="/status/" className="link">
-              {RELEASE_ID}
-            </Link>
-            {SNAPSHOT_DATE ? ` · ${SNAPSHOT_DATE}` : ""}
-          </p>
+          <p className="text-[13px] font-medium text-ink-2">Built for the agents you already use.</p>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <nav aria-label="Site" className="flex flex-wrap items-center gap-x-4 gap-y-1">

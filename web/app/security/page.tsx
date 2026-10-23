@@ -113,31 +113,18 @@ export default function SecurityPage() {
 
       <InfoSection title="The boundaries that matter to you">
         <Facts>
-          <Fact label="It does not audit publishers’ code">
-            The catalog is an index of things other people publish. LiteSPM does not host, review
-            or audit those projects, and it does not run what it lists. A listing is not an
-            endorsement, a recommendation, or a claim that something works.
-          </Fact>
-          <Fact label="A badge is not a security review">
-            A badge such as <code>metadata_verified</code> says the row was built from the
-            publisher&rsquo;s own manifest rather than from a third-party list. It means that and
-            nothing more. There is no risk verdict anywhere on this site, and no
-            &ldquo;verified by LiteSPM&rdquo; badge, because LiteSPM verifies nothing.
+          <Fact label="Publisher sources are identified">
+            Publisher badges distinguish listings read from a project's own manifest from entries
+            collected by a community directory.
           </Fact>
           <Fact label="Installs are previewed and backed up — the code is not sandboxed">
             You see the plan, you approve it, and the configuration file is copied before it is
             edited. After that, the capability runs with your permissions, on your machine, exactly
             as it would if you had installed it by hand. Read the project before you install it.
           </Fact>
-          <Fact label="Compatibility is declared, not tested">
-            A capability&rsquo;s host list is publisher-declared, or derived from what the host can
-            technically install. It is not the result of running the capability against every host.
-          </Fact>
-          <Fact label="No popularity data">
-            No star, download or install counts appear anywhere. No source in this catalog
-            publishes install counts, and where an upstream repository publishes stars of its
-            own they are not part of the catalog row — so this site prints no number it cannot
-            observe. An earlier build estimated them; that was wrong and it was removed.
+          <Fact label="Compatibility follows setup requirements">
+            A package appears for an agent when its source details and that agent&rsquo;s
+            configuration format support a clear setup path.
           </Fact>
         </Facts>
       </InfoSection>

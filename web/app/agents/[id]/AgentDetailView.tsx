@@ -105,7 +105,7 @@ export default function AgentDetailView({
   capabilities,
   discontinued,
 }: AgentDetailViewProps) {
-  const command = skillsOnly ? "litespm skills add <source>" : `litespm host setup ${id}`;
+  const command = skillsOnly ? "litespm skills add <source> --agent " + id : `litespm host setup ${id}`;
   // Explore resolves every spelling of a host to one identity, and the page's
   // own name is one of them, so the link opens exactly the count above it.
   const exploreHref = `/explore/?host=${encodeURIComponent(name)}`;
@@ -129,7 +129,7 @@ export default function AgentDetailView({
           className="touch-link gap-1.5 text-[12.5px] text-ink-2 transition-colors duration-hover hover:text-accent-text"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          All agent hosts
+          All agents
         </Link>
 
         <div className="mt-3 flex items-center gap-3">
@@ -192,28 +192,12 @@ export default function AgentDetailView({
              says exactly that instead of describing a config file it does
              not have. */
           <p className="mt-5 max-w-[62ch] text-[14px] leading-relaxed text-ink-2">
-            LiteSPM installs agent skills into {name}. It has no MCP configuration file, so
-            there is no bridge entry to write — what LiteSPM does here is put a{" "}
-            <code className="t-mono text-[13px]">SKILL.md</code> in the host&rsquo;s skills
-            directory.
+            Add skills to {name} with LiteSPM and keep their install paths together with your other agent tools. The CLI shows the destination before it writes.
           </p>
         ) : (
           <p className="mt-5 max-w-prose text-[14px] leading-relaxed text-ink-2">
-            No write-up for {name} yet — what&rsquo;s below is the setup LiteSPM uses
-            {docsHref && (
-              <>
-                , checked against{" "}
-                <a
-                  href={docsHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="link"
-                >
-                  its configuration docs
-                </a>
-              </>
-            )}
-            : where this agent&rsquo;s config lives, and what LiteSPM puts in it.
+            Explore tools and skills that fit the way you use {name}.
+            {docsHref && <>{" "}See the <a href={docsHref} target="_blank" rel="noopener noreferrer" className="link">official setup guide</a> for this agent.</>}
           </p>
         )}
 
@@ -232,16 +216,7 @@ export default function AgentDetailView({
 
         {summary && source && (
           <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
-            The summary and capabilities above were read from{" "}
-            <a
-              href={source}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link"
-            >
-              {websiteLabel(source)}
-            </a>
-            .
+            <a href={source} target="_blank" rel="noopener noreferrer" className="link">Official agent guide</a>
           </p>
         )}
 
@@ -280,38 +255,21 @@ export default function AgentDetailView({
                   {repoConfigPath ? (
                     <code className="t-mono text-[11.5px] break-all">{repoConfigPath}</code>
                   ) : (
-                    "No — one config for the whole machine."
+                    "Machine-wide configuration."
                   )}
                 </dd>
               </div>
             )}
-            {skillsOnly && (
+            {skillsSupported && (
               <div>
-                <dt>MCP config</dt>
-                <dd>None — LiteSPM writes no config file for this host.</dd>
+                <dt>Skills</dt>
+                <dd>Install into {name}&rsquo;s skill directory.</dd>
               </div>
             )}
-            <div>
-              <dt>Skills</dt>
-              <dd>
-                {skillsSupported
-                  ? "Installed into this host."
-                  : "Not this host — it has no skills directory."}
-              </dd>
-            </div>
-            <div>
-              <dt>Catalog entries</dt>
-              <dd>
-                <span className="t-cond t-tabular text-[15px] font-semibold text-ink">
-                  {formatCount(count)}
-                </span>{" "}
-                entries shown for this agent
-              </dd>
-            </div>
           </dl>
           <div className="mt-3">
             <Link href={exploreHref} className="btn w-full justify-center">
-              Browse entries for this agent
+              Explore packages for {name}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </div>
@@ -330,7 +288,7 @@ export default function AgentDetailView({
               </h2>
             </div>
             <p className="max-w-[52ch] text-[12.5px] leading-relaxed text-ink-2">
-              Choose this agent, then browse tools, skills, and plugins for how you work.
+Choose this agent, then find tools and skills that fit how you work.
             </p>
           </div>
 
@@ -362,7 +320,7 @@ export default function AgentDetailView({
             <li className="border-t border-rule pt-3">
               <p className="text-[13px] font-semibold text-ink">3. Find a capability</p>
               <p className="mt-1 text-[13px] leading-relaxed text-ink-2">
-                Browse the catalog filtered to entries that list {name} as a target.
+                Browse tools and skills associated with {name}.
               </p>
               <Link href={exploreHref} className="link mt-2 inline-flex min-h-11 items-center text-[13px]">
                 Browse packages for {name}
@@ -371,9 +329,7 @@ export default function AgentDetailView({
             </li>
           </ol>
 
-          <p className="mt-4 border-t border-rule pt-3 text-[13px] leading-relaxed text-ink-3">
-            This website does not install anything on your machine. LiteSPM applies changes locally after you review and approve them.
-          </p>
+
         </section>
 
         {skillsOnly ? (
@@ -383,7 +339,7 @@ export default function AgentDetailView({
           <section className="mt-10" aria-labelledby="agent-skills-title">
             <div className="section-head">
               <h2 id="agent-skills-title">Skills</h2>
-              <span className="section-note">a directory, not a config</span>
+              <span className="section-note">Install skills for {name}</span>
             </div>
 
             <div className="mt-4 rounded-card border border-rule bg-surface p-3.5">
@@ -424,7 +380,7 @@ export default function AgentDetailView({
             </div>
 
             <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-              This is the only file LiteSPM changes.
+              LiteSPM adds this bridge entry to the agent's configuration.
             </p>
           </section>
         )}
@@ -449,20 +405,14 @@ export default function AgentDetailView({
             />
           </div>
 
-          {skillsOnly && (
-            <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-              There is no setup command for this host: LiteSPM has no configuration file to
-              write for it. A skill install writes into every skills directory LiteSPM finds on
-              your machine, this one included.
-            </p>
-          )}
+
         </section>
 
         {/* ---- catalog entries for this agent ----------------------------- */}
         <section className="mt-9" aria-labelledby="agent-works-title">
           <div className="section-head">
-            <h2 id="agent-works-title">Catalog entries for this agent</h2>
-            <span className="section-note">current catalog snapshot</span>
+            <h2 id="agent-works-title">Find tools for {name}</h2>
+            <span className="section-note">Browse the catalog</span>
           </div>
 
           <p className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
@@ -470,7 +420,7 @@ export default function AgentDetailView({
               {formatCount(count)}
             </span>
             <span className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-              entries appear for {name} in the current catalog snapshot.
+              packages and skills to explore for {name}.
             </span>
           </p>
 
@@ -481,13 +431,8 @@ export default function AgentDetailView({
             </Link>
           </div>
 
-          <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            This count combines MCP and skill install targets with plugin hosts declared by each
-            publisher. Some plugin entries are discovery-only. The count is not a runtime test;
-            check each listing&rsquo;s install status before choosing it.
-          </p>
-          <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-ink-3">
-            The host&rsquo;s operating-system support, popularity and ratings are not published.
+          <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
+            Browse the catalog filtered to {name} and choose the capability that fits your workflow.
           </p>
         </section>
       </main>

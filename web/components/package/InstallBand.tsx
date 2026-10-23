@@ -45,13 +45,22 @@ export function InstallBand({
   if (!availability.installable || incompatible || !command) {
     return (
       <div className="mt-4 rounded-xl border border-rule-2 bg-sunken px-4 py-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" disabled className="btn shrink-0" title={availability.plain}>Install unavailable</button>
-          <p className="text-[13px] font-semibold text-ink">Install unavailable for this selection</p>
-        </div>
+        <p className="text-[13px] font-semibold text-ink">
+          {incompatible
+            ? feasibility?.state === "unknown"
+              ? "Choose another agent"
+              : feasibility?.state === "requires-setup"
+                ? "Review project setup"
+                : `Choose another agent for ${item.name}`
+            : "View setup options"}
+        </p>
         <p className="mt-1 text-[12.5px] leading-relaxed text-ink-2">
           {incompatible
-            ? `${agent?.label} is not a confirmed install target for this entry. Choose another agent below.`
+            ? feasibility?.state === "unknown"
+              ? `Choose an agent with a setup path for ${item.name}.`
+              : feasibility?.state === "requires-setup"
+                ? `${agent?.label} uses project-level configuration. Review the destination before installing.`
+                : `${agent?.label} does not support this package's connection type. Choose another agent.`
             : availability.plain}
         </p>
         {/* A discovery-only SKILL is the one case where a manual path exists
@@ -67,8 +76,12 @@ export function InstallBand({
             result is ledgered exactly like an installed listing.
           </p>
         ) : null}
-        <button className="btn mt-3" type="button" onClick={onSeeSteps}>
-          See compatibility and alternatives
+        <button
+          className="btn mt-3"
+          type="button"
+          onClick={incompatible ? onChooseAgent : onSeeSteps}
+        >
+          {incompatible ? "Choose another agent" : "See setup options"}
         </button>
       </div>
     );
@@ -101,7 +114,7 @@ export function InstallBand({
       </div>
       <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
         {installDescription}{" "}
-        Copy the command into your terminal; first-time setup and catalog sync are separate steps for now.
+        Copy the command into your terminal to install this package with LiteSPM.
       </p>
       {/* Prerequisites come BEFORE the command: a reader who runs the install
           line on a fresh machine hits "no agent configured" first, and the fix
@@ -110,7 +123,7 @@ export function InstallBand({
           not in a footnote after the copy button. */}
       <details className="mt-3 rounded-lg border border-rule px-3 py-2.5">
         <summary className="cursor-pointer text-[12.5px] font-medium text-ink">
-          First time using LiteSPM? Set up these two steps first
+          Before your first install
         </summary>
         <ol className="mt-3 space-y-3 text-[12px] text-ink-2">
           <li>
@@ -128,10 +141,6 @@ export function InstallBand({
             </div>
           </li>
         </ol>
-        <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
-          The published CLI does not yet combine bootstrap, agent setup and installation
-          into one interactive command. npx can run LiteSPM without global npm installation.
-        </p>
       </details>
       <div className="mt-3 flex items-start gap-2 rounded-lg border border-rule bg-surface px-3 py-3">
         <code className="t-mono min-w-0 flex-1 break-all text-[12.5px] leading-relaxed text-ink select-all">
@@ -150,12 +159,6 @@ export function InstallBand({
           With no agent chosen, this installs into the skills targets detected on this
           machine. Add <code className="t-mono">--host &lt;id&gt;</code> (repeatable) to
           name the ones you want instead.
-        </p>
-      )}
-      {!chosenId && command.command.includes("install plugin:") && (
-        <p className="mt-2 text-[12px] leading-relaxed text-ink-2">
-          Installing a plugin needs LiteSPM 0.6.0 or newer. An older CLI refuses it
-          with the reason rather than installing part of it.
         </p>
       )}
       {!chosenId && (

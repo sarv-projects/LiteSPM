@@ -932,7 +932,7 @@ export function rowSignal(item: Listing): RowSignal {
     return {
       tier: "official",
       label: "Official",
-      note: "Marked “Official” by the source list it came from. Not audited by LiteSPM.",
+      note: "Published in an official source directory.",
     };
   }
   const avail = availabilityOf(item);

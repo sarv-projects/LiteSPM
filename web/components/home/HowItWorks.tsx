@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { DiscoveryCard } from "../ui/DiscoveryCard";
@@ -36,72 +35,12 @@ interface Step {
   n: string;
   title: string;
   plain: string;
-  cmd: string;
-  technical: React.ReactNode;
 }
 
 const STEPS: Step[] = [
-  {
-    n: "01",
-    title: "Connect your coding agent",
-    plain: "Use the setup wizard to connect LiteSPM to a supported agent.",
-    cmd: "litespm setup",
-    technical: (
-      <>
-        <p>
-          The wizard reads each adapter&rsquo;s own config path, shows you the file it found, and
-          backs it up before it writes. It adds a single{" "}
-          <code className="t-mono">litespm</code> bridge entry and leaves every other server,
-          comment and line of formatting alone.
-        </p>
-        <p className="mt-2">
-          <code className="t-mono">litespm host setup &lt;agent&gt;</code> is the same step with no
-          prompts. An install with no host set up is refused rather than left guessing which
-          config file to edit.
-        </p>
-      </>
-    ),
-  },
-  {
-    n: "02",
-    title: "Find and install a capability",
-    plain: "Copy an exact package command from the marketplace and run it locally.",
-    cmd: "litespm install <id>",
-    technical: (
-      <>
-        <p>
-          The CLI resolves the package against your synced catalog and checks its published
-          installation requirements. Host setup changes are previewed, and managed configuration
-          files are backed up before modification.
-        </p>
-        <p className="mt-2">
-          LiteSPM installs only supported package sources. Eligible pinned plugins can be installed;
-          discovery-only entries and unsupported artifacts are refused with a reason.
-        </p>
-      </>
-    ),
-  },
-  {
-    n: "03",
-    title: "Manage or remove installed tools",
-    plain: "See managed installations and remove or restore them when needed.",
-    cmd: "litespm install remove <installId>",
-    technical: (
-      <>
-        <p>
-          The removal takes out the one entry LiteSPM owns and leaves the rest of the file
-          exactly as it was.{" "}
-          <code className="t-mono">litespm restore</code> rolls a config file back to the copy
-          taken before the first edit, and{" "}
-          <code className="t-mono">litespm uninstall</code> removes the bridge entry from a host.
-        </p>
-        <p className="mt-2">
-          What was approved, what was written and what was removed is recorded
-          against the plan that asked for it, in a ledger on your machine.
-        </p>
-      </>
-    ),
-  },
+  { n: "01", title: "Choose your agent", plain: "Pick the agent you already use and the setup you want." },
+  { n: "02", title: "Find what helps", plain: "Browse by task, then see the setup for your chosen agent." },
+  { n: "03", title: "Review and manage", plain: "Check the changes before you approve, and remove tools later." },
 ];
 
 export function HowItWorks() {
@@ -135,30 +74,13 @@ export function HowItWorks() {
               </div>
 
               <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">{step.plain}</p>
-
-              <code className="t-mono mt-3 block rounded-panel border border-rule bg-sunken px-3 py-2 text-[12.5px] text-ink">
-                $ {step.cmd}
-              </code>
-
-              <details className="group mt-3 border-t border-rule pt-2">
-                <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 text-[12.5px] font-medium text-ink-2 transition-colors duration-state ease-out hover:text-ink md:min-h-[36px]">
-                  How this works technically
-                  <span
-                    aria-hidden="true"
-                    className="text-ink-3 transition-transform duration-panel ease-out group-open:rotate-90"
-                  >
-                    →
-                  </span>
-                </summary>
-                <div className="pb-1 text-[12.5px] leading-relaxed text-ink-3">{step.technical}</div>
-              </details>
             </DiscoveryCard>
           ))}
         </ol>
 
         <div className="rounded-card border border-rule bg-surface p-3 sm:p-5">
           <p className="mb-3 t-mono text-[11px] uppercase tracking-wider text-ink-3">
-            one local bridge
+            One setup for the agents you use
           </p>
           <BridgeDiagram />
         </div>

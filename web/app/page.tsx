@@ -1,12 +1,9 @@
 import catalogData from "../data/catalog.json";
 import type { Listing } from "../lib/telemetry";
-import { demoteValidationFixtures, deriveKindCounts, withLinkKeys } from "../lib/catalog";
+import { demoteValidationFixtures, withLinkKeys } from "../lib/catalog";
 import {
-  AGENT_CHOICES,
-  deriveProvenance,
   deriveShelves,
   deriveTopics,
-  rowWorksWithAgent,
 } from "../lib/landing";
 import {
   buildSearchIndex,
@@ -62,16 +59,8 @@ export default function Home() {
 
   const props: HomeViewProps = {
     total: items.length,
-    kindCounts: deriveKindCounts(items),
-    provenance: deriveProvenance(items),
     topics: deriveTopics(items, topicRanker(items)),
     shelves: deriveShelves(items),
-    // Counted here, over the same rows the strip's numbers used to come from,
-    // so the landing page can print them without loading the row set.
-    agentCounts: AGENT_CHOICES.map((choice) => ({
-      id: choice.id,
-      count: items.filter((item) => rowWorksWithAgent(item, choice)).length,
-    })),
   };
 
   return <HomeRoute {...props} />;

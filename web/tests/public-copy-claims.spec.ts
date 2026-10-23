@@ -6,10 +6,9 @@ test("plugin copy explains supported components and partial-install consent", as
   await gotoSettled(page, "/how-it-works/");
   const plugins = page.locator('section[aria-labelledby="capability-types-title"] li').nth(2);
 
-  await expect(plugins.getByRole("heading", { name: "Install supported components from a pinned source" })).toBeVisible();
-  await expect(plugins.getByText(/MCP servers and skills/)).toBeVisible();
-  await expect(plugins.getByText(/host-specific extras are not installed/i)).toBeVisible();
-  await expect(plugins.getByText(/explicit consent/)).toBeVisible();
+  await expect(plugins.getByRole("heading", { name: "Group related agent capabilities" })).toBeVisible();
+  await expect(plugins.getByText(/publisher's collection of tools and workflows/i)).toBeVisible();
+  await expect(plugins.getByText(/host-specific extras|pinned source|explicit consent/i)).toHaveCount(0);
   await expect(page.getByText(/all three install with the same command.*same undo/i)).toHaveCount(0);
 });
 
@@ -21,13 +20,14 @@ test("security copy limits approval to the installation plan", async ({ page }) 
   await expect(page.getByText(/Nothing runs that you did not approve/)).toHaveCount(0);
 });
 
-test("first-install guide clearly requires catalog sync", async ({ page }) => {
-  await gotoSettled(page, "/how-it-works/");
-  const installStep = page.locator("main ol li").nth(1);
+test("developer docs give the first search and package install commands", async ({ page }) => {
+  await gotoSettled(page, "/docs/");
 
-  await expect(installStep.getByText(/Before your first catalog install/)).toBeVisible();
-  await expect(installStep.getByText(/npx --yes litespm@latest catalog sync/)).toBeVisible();
-  await expect(page.getByText(/first install fetches the verified catalog/i)).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Quick start" })).toBeVisible();
+  await expect(page.locator("main pre code").filter({ hasText: "litespm catalog sync" }).first()).toBeVisible();
+  await expect(
+    page.locator("main pre code").filter({ hasText: "npx --yes litespm@latest install <catalog-id> --host codex" }).first()
+  ).toBeVisible();
 });
 
 test("setup guide names the published npm Node.js engine range", async ({ page }) => {
@@ -50,16 +50,12 @@ test("listing submission does not promise automatic pickup", async ({ page }) =>
   await expect(page.getByText(/The next catalog build picks it up from that source/)).toHaveCount(0);
 });
 
-test("footer identifies the catalog snapshot behind its counts", async ({ page }) => {
-  const release = JSON.parse(
-    readFileSync(path.resolve(process.cwd(), "data/release.json"), "utf8")
-  ) as { releaseId: string; createdAt: string };
+test("footer stays focused on product links rather than release metadata", async ({ page }) => {
   await gotoSettled(page, "/");
-  const snapshot = page.locator("footer").getByRole("link", { name: release.releaseId, exact: true });
-
-  await expect(snapshot).toHaveAttribute("href", "/status/");
-  await expect(page.locator("footer").getByText(/Catalog snapshot/)).toBeVisible();
-  await expect(page.locator("footer").getByText(release.createdAt.slice(0, 10))).toBeVisible();
+  const footer = await page.locator("footer").innerText();
+  expect(footer).not.toMatch(/catalog snapshot|catalog updated|rel-\d{4}/i);
+  expect(footer).not.toMatch(/\d[\d,]*\s+(?:capabilities|MCP|skills|plugins)/i);
+  await expect(page.locator("footer").getByRole("link", { name: "Developer docs" })).toHaveAttribute("href", "/docs/");
 });
 
 test("web README reports the committed catalog release, not a superseded one", () => {

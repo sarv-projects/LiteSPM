@@ -47,10 +47,8 @@ test("MCP and brand roles remain distinct and the hero glow stays on-brand", asy
     expect(tokens.contrast, `${theme} MCP text must clear 4.5:1 on its wash`).toBeGreaterThanOrEqual(4.5);
   }
 
-  const background = await page.locator(".hero-glow").evaluate((element) =>
-    getComputedStyle(element, "::before").backgroundImage
-  );
-  expect(background.match(/radial-gradient\(/g)?.length ?? 0).toBe(1);
+  await expect(page.locator(".home-hero-window")).toBeVisible();
+  await expect(page.locator(".home-hero-note")).toContainText("Less configuration hunting.");
 });
 
 test("submit-page explanatory copy is at least 14px on desktop and mobile", async ({ page }) => {

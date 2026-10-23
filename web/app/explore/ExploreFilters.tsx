@@ -323,7 +323,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
                 "Any agent" beside an empty list. Its count is 0 because no
                 row's host list carries the name. */}
             {agent !== "all" && !agents.some((a) => a.name === agent) && (
-              <option value={agent}>{agent} — not a host in this catalog (0)</option>
+              <option value={agent}>{agent} — no matching packages (0)</option>
             )}
           </select>
         </label>

@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Copy, Github } from "lucide-react";
 import { copyText } from "../../lib/clipboard";
-import { ARCHITECTURE_URL, DOCS_URL, REPO_URL } from "../../lib/site";
+import { ARCHITECTURE_URL, REPO_URL } from "../../lib/site";
 
 /**
  * The get-started band — and the `#install` anchor the header's install button
@@ -92,8 +92,8 @@ export function DeveloperZone() {
               Install and manage from the terminal
             </h2>
             <p className="band-sub">
-              Install LiteSPM from your terminal, connect a supported agent, and start adding
-              capabilities from the marketplace. First-time catalog installation requires a sync.
+              Install LiteSPM from your terminal, connect your agent, and start adding
+              capabilities from the marketplace.
             </p>
           </div>
           <Link href="/get-started/" className="btn btn-solid btn-lg">
@@ -114,9 +114,9 @@ export function DeveloperZone() {
         </ul>
 
         <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-rule pt-5">
-          <a href={DOCS_URL} target="_blank" rel="noopener noreferrer" className="btn">
-            Read the docs
-          </a>
+          <Link href="/docs/" className="btn">
+            Developer docs
+          </Link>
           <a href={ARCHITECTURE_URL} target="_blank" rel="noopener noreferrer" className="btn">
             View architecture
           </a>

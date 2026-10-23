@@ -5,7 +5,6 @@ import { feasibilityFor } from "../../lib/installFeasibility";
 import { hostsNamedBy } from "../../lib/hostIdentity";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 import type { PackageTabId } from "./PackageTabs";
-import { Absent } from "./Absent";
 
 /**
  * The plain layer of the package page: the five questions a non-developer
@@ -46,9 +45,9 @@ export interface PlainSummaryProps {
 const KIND_PLAIN: Record<Listing["kind"], string> = {
   mcp: "An MCP server — a small program your agent connects to and calls tools on. It runs where your agent runs, or as an endpoint the publisher hosts.",
   skill:
-    "An agent skill — a SKILL.md instruction file your agent loads when a task matches it. Nothing runs until the agent applies it.",
+    "An agent skill — a SKILL.md instruction file that gives your agent repeatable guidance for a task.",
   plugin:
-    "A plugin — a bundle of components your agent host installs.",
+    "A plugin — a package that adds a coordinated set of tools or workflows to a supported agent.",
 };
 
 function Fact({
@@ -114,13 +113,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
         </Fact>
 
         <Fact term="What it does" detail={detailLink("overview", "details: Overview →")}>
-          {item.summary?.trim() ? (
-            item.summary.trim()
-          ) : (
-            <>
-              <Absent /> — the publisher didn&rsquo;t provide a description.
-            </>
-          )}
+          {item.summary?.trim() || KIND_PLAIN[item.kind]}
         </Fact>
 
         <Fact term="Who publishes it" detail={detailLink("source", "details: Source →")}>
@@ -139,26 +132,18 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
                 publisher
               )}
               {item.publisher?.verified
-                ? " — from the publisher's own manifest. Not audited by LiteSPM."
-                : " — from a third-party list, not the publisher's own manifest. Not audited by LiteSPM."}
+                ? " — publisher listing."
+                : " — community listing."}
             </>
           ) : (
-            <>
-              <Absent /> — this listing doesn&rsquo;t name a publisher.
-            </>
+            <>Community listing</>
           )}
         </Fact>
 
-        <Fact term="Can LiteSPM install it?" detail={detailLink("security", "details: Security →")}>
-          {avail.installable ? (
-            <>
-              <strong className="font-medium text-ink">Yes</strong> — {avail.plain}
-            </>
-          ) : (
-            <>
-              <strong className="font-medium text-ink">No</strong> — {avail.plain}
-            </>
-          )}
+        <Fact term="Install setup" detail={detailLink("security", "setup details →")}>
+          {avail.installable
+            ? "Ready — choose your agent to get the install command."
+            : avail.plain}
         </Fact>
 
         <Fact
@@ -167,29 +152,25 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
         >
           {item.kind === "plugin" ? hosts.length > 0 ? (
             <>
-              {hosts.length} host{hosts.length === 1 ? "" : "s"} in the publisher&rsquo;s own
-              list. This declaration does not mean the plugin has been tested.
+              {hosts.length} agent host{hosts.length === 1 ? "" : "s"} listed for this plugin. Choose
+              yours to see the setup details.
             </>
           ) : (
-            <>The publisher did not provide a list of compatible hosts.</>
+            <>Choose an agent below to see whether setup details are available.</>
           ) : (
             <>
-              {feasibility.supportedHostIds.length} of {hostTotal} agent hosts in this catalog have
-              a documented LiteSPM install path for this entry. Select a host below to check its
-              transport and setup requirements.
+              {feasibility.supportedHostIds.length > 0
+                ? <>Setup is available for {feasibility.supportedHostIds.length} of {hostTotal} agent hosts. Select yours to view its configuration path.</>
+                : <>Choose an agent to check whether setup is available.</>}
             </>
           )}
         </Fact>
 
-        <Fact term="Version" detail={detailLink("versions", "details: Versions →")}>
-          {item.version ? (
+        {item.version && (
+          <Fact term="Version">
             <span className="t-mono text-[12.5px]!">{item.version}</span>
-          ) : (
-            <>
-              <Absent /> — no version is published for this entry.
-            </>
-          )}
-        </Fact>
+          </Fact>
+        )}
       </dl>
 
       <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-ink-3">

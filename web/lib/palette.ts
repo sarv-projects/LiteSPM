@@ -59,7 +59,7 @@ export const PALETTE_PAGES: PaletteDestination[] = [
   },
   {
     key: "page:agents",
-    label: "Agent hosts",
+    label: "Agents",
     detail: `The ${HOSTS.length} hosts LiteSPM can configure`,
     href: "/agents/",
   },
@@ -89,8 +89,8 @@ export const PALETTE_PAGES: PaletteDestination[] = [
   },
   {
     key: "doc:readme",
-    label: "README",
-    detail: "Install, commands and usage — on GitHub",
+    label: "Developer docs",
+    detail: "Setup, commands and integrations",
     href: DOCS_URL,
   },
   {

@@ -30,7 +30,7 @@ export default function ContactPage() {
   return (
     <InfoPage
       title="Contact"
-      lede="LiteSPM is maintained in the open, and the issue tracker is the only support channel. There is no support address, no chat and no support contract — so a report that lands in the right place is the fastest path there is."
+      lede="Get help with LiteSPM, report a catalog issue, or contact the maintainers about a security concern."
       sourcePath="web/app/contact/page.tsx"
     >
       <InfoSection title="Where a report goes">

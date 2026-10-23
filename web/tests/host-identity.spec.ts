@@ -43,7 +43,7 @@ interface IndexRow {
 
 /** The `/agents/` index: each adapter host's page link and its row total. */
 async function readAgentIndex(page: import("@playwright/test").Page): Promise<IndexRow[]> {
-  const rows = await page.locator("main ul > li").evaluateAll((items) =>
+  const rows = await page.locator("main article.agent-atlas-card").evaluateAll((items) =>
     items.map((li) => {
       const nameLink = li.querySelector('a[href^="/agents/"]');
       const kindCounts = [...li.querySelectorAll('a[href*="kind="]')].map((link) =>
@@ -65,7 +65,7 @@ async function readAgentIndex(page: import("@playwright/test").Page): Promise<In
 
 /** The figure the host page prints in its catalog-entry fact. */
 async function hostPageCount(page: import("@playwright/test").Page): Promise<number> {
-  const text = await page.locator('dt:text-is("Catalog entries") + dd').textContent();
+  const text = await page.locator('section[aria-labelledby="agent-works-title"] span.t-tabular').textContent();
   return parseCount(text);
 }
 
@@ -125,7 +125,7 @@ test("every host page's count equals its own Explore link and its /agents/ row",
         );
       }
 
-      const browse = page.getByRole("link", { name: "Browse entries for this agent", exact: true });
+      const browse = page.locator('section[aria-labelledby="agent-works-title"]').getByRole("link", { name: /Browse entries for/ });
       const href = await browse.getAttribute("href");
       const host = new URL(href ?? "", "http://localhost").searchParams.get("host") ?? "";
       expect(host, `the Browse link on ${row.href} names a host filter`).not.toBe("");
@@ -164,7 +164,7 @@ test("one denominator: /agents/, /compare/, the entry pages and the Explore face
   const facetCount = facetOptions.length - 1; // "Any agent" is the first option
 
   await gotoSettled(page, "/agents/");
-  const agentsHeader = await page.locator("main p", { hasText: "hosts ·" }).first().textContent();
+  const agentsHeader = await page.locator(".agent-atlas-stats span:last-child strong").textContent();
   const agentsCount = leadingCount(agentsHeader);
 
   await gotoSettled(page, "/compare/");

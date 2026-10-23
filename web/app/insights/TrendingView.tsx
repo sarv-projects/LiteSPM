@@ -190,7 +190,7 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
     <section>
       <div className="section-head">
         <div className="min-w-0">
-          <h2>Agent hosts by config</h2>
+          <h2>Agents by configuration</h2>
           <p className="section-note mt-0.5">Every host LiteSPM can set up, alphabetical.</p>
         </div>
       </div>

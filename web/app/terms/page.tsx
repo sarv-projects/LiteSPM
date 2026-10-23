@@ -49,23 +49,17 @@ export default function TermsPage() {
       <InfoSection title="What a listing means">
         <p>
           The catalog is an index of things other people publish. Every entry names the source its
-          row was built from, and its page shows that source, the publisher&rsquo;s own words, and
-          the snapshot the row came from. LiteSPM does not host, review or audit those projects.
+          row was built from, and its page shows the publisher&rsquo;s description and setup
+          information. LiteSPM does not host or control those projects.
         </p>
         <Facts>
           <Fact label="Badges">
-            A badge such as <code>metadata_verified</code> says where the row came from — the
-            publisher&rsquo;s own manifest rather than a third-party list. It is not a security
-            review, and the UI says so wherever the badge appears.
+            The publisher badge identifies listings read from a project&rsquo;s own manifest. It
+            distinguishes those entries from listings gathered by community directories.
           </Fact>
           <Fact label="Host lists">
-            The hosts shown on an entry are publisher-declared, or derived from what the host can
-            technically install. They are not the result of running the capability against every
-            host.
-          </Fact>
-          <Fact label="No popularity data">
-            No star, download or install counts appear anywhere, because no upstream source
-            publishes them. An earlier build estimated them; that was wrong and was removed.
+            Agent options reflect the package&rsquo;s source details and the configuration formats
+            LiteSPM supports. Each package page shows the setup path for the selected agent.
           </Fact>
           <Fact label="Inclusion">
             A listing is not an endorsement, a recommendation, or a claim that something works. It
@@ -104,10 +98,8 @@ export default function TermsPage() {
 
       <InfoSection title="Availability">
         <p>
-          The site and the catalog are served as they are. There is no account, no paid tier, no
-          uptime commitment and no support contract. The release id printed on the site is the date
-          its dataset was built, not a version of this page; these pages ship with the source and
-          change when it does.
+          LiteSPM is free to use and open source. The website and catalog are provided without an
+          uptime commitment or support contract.
         </p>
       </InfoSection>
     </InfoPage>

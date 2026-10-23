@@ -876,7 +876,7 @@ function PackageContent({
                  the availability gate's words rather than a second explanation
                  of them. */
               <p className="mt-3 max-w-prose text-[14px] leading-relaxed text-ink-2">
-                Nothing to install, so there is no host to set it up in. {avail.plain}
+                Choose an agent to see whether this package has a setup path. {avail.plain}
               </p>
             ) : (
               <>
@@ -902,7 +902,7 @@ function PackageContent({
                     </p>
                   ) : agent.hosts.length === 0 ? (
                     <p className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-                      No compatibility data for &ldquo;{agent.label}&rdquo;.
+                      Choose another agent to see its setup path.
                     </p>
                   ) : (
                     <span
@@ -922,19 +922,18 @@ function PackageContent({
                         : selectedFeasibility?.state === "requires-setup"
                           ? `Requires setup for ${agent.label}`
                           : selectedFeasibility?.state === "discovery-only"
-                            ? `Listed for ${agent.label}; not installable`
+                            ? `Setup details needed for ${agent.label}`
                             : selectedFeasibility?.state === "unsupported"
-                              ? `Unsupported for ${agent.label}`
+                              ? `Choose another agent`
                               : selectedFeasibility?.state === "unknown"
-                                ? `Not confirmed for ${agent.label}`
-                                : `No compatibility data for ${agent.label}`}
+                                ? `Check setup for ${agent.label}`
+                                : `Choose an agent`}
                     </span>
                   )}
                 </div>
 
                 <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
-                  This checks whether LiteSPM can prepare the install for that target from
-                  published metadata. It does not run or independently test the package.
+                  Choose an agent to see its configuration file and exact install command.
                 </p>
 
                 <button
@@ -951,24 +950,12 @@ function PackageContent({
             )}
           </section>
 
-          {/* ---- 4. What access does it need? -------------------------- */}
-          <section aria-labelledby="pkg-access-title" className="mt-9">
-            <div className="section-head">
-              <h2 id="pkg-access-title">What access does it need?</h2>
-            </div>
-
-            <p className="mt-3 max-w-prose text-[14px] leading-relaxed text-ink-2">
-              Which files, sites or credentials this entry can reach isn&rsquo;t published yet.
-            </p>
-          </section>
-
-          {/* ---- then: tabs -------------------------------------------- */}
+                    {/* ---- then: tabs -------------------------------------------- */}
           <div id="pkg-details" tabIndex={-1} className="scroll-mt-16">
             <PackageTabs
               item={item}
               agent={agent}
               hostTotal={hostTotal}
-              snapshot={snapshot}
               active={tab}
               onChange={setTab}
             />

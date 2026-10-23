@@ -4,16 +4,16 @@ import React, { useDeferredValue, useState, useEffect } from "react";
 import { Header } from "../components/navigation/Header";
 import { SiteFooter } from "../components/layout/SiteFooter";
 import { LandingHero } from "../components/home/LandingHero";
-import { AgentStrip } from "../components/home/AgentStrip";
 import { Shelves } from "../components/home/Shelves";
+import { CapabilityTypes } from "../components/home/CapabilityTypes";
 import { TopicTiles } from "../components/home/TopicTiles";
 import { HowItWorks } from "../components/home/HowItWorks";
 import { SearchResults } from "../components/home/SearchResults";
 import { WhyLiteSPM } from "../components/marketing/WhyLiteSPM";
-import { Listing, useTelemetry } from "../lib/telemetry";
+import type { Listing } from "../lib/telemetry";
 import { useCatalogSearch } from "../lib/useCatalogSearch";
 import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice } from "../lib/landing";
-import type { ProvenanceStats, CuratedGroup, TopicStat } from "../lib/landing";
+import type { CuratedGroup, TopicStat } from "../lib/landing";
 
 /**
  * The landing page. Every field here is computed by `app/page.tsx` — a Server
@@ -59,18 +59,9 @@ import type { ProvenanceStats, CuratedGroup, TopicStat } from "../lib/landing";
  */
 export interface HomeViewProps {
   total: number;
-  kindCounts: { all: number; mcp: number; skill: number; plugin: number };
-  provenance: ProvenanceStats;
   topics: TopicStat[];
   /** The curated groups, resolved at build time from `data/featured.json`. */
   shelves: CuratedGroup[];
-  /**
-   * Catalog-wide counts per agent choice, counted at build time from the same
-   * rows the client used to count them from. The landing page no longer loads
-   * the full row set, so these must arrive as props or the strip loses its
-   * numbers.
-   */
-  agentCounts: Array<{ id: string; count: number }>;
 }
 
 
@@ -98,9 +89,6 @@ export default function Home(props: HomeViewProps) {
   };
 
   const total = props.total;
-  const kindCounts = props.kindCounts;
-  const telemetry = useTelemetry(kindCounts);
-
   const setQuery = (q: string) => {
     // The search hydrates from the sharded projection; the full row set stays
     // unloaded on this route. The counts above are the prerendered ones.
@@ -116,10 +104,6 @@ export default function Home(props: HomeViewProps) {
 
   const agent = findAgentChoice(agentId);
 
-  // Counts come from the prerender now (props.agentCounts): the row set is no
-  // longer loaded on this route, and a count must not need it to be.
-  const agentCounts = props.agentCounts;
-
   const hasQuery = searchQuery.trim() !== "";
 
   return (
@@ -129,17 +113,13 @@ export default function Home(props: HomeViewProps) {
       <main id="main" tabIndex={-1} className="flex-1">
         <LandingHero
           total={total}
-          installable={props.provenance.installable}
           query={searchQuery}
           setQuery={setQuery}
           totalMatches={deferredQuery ? totalMatches : undefined}
           settled={settled}
+          choice={agent}
+          onAgentChange={changeAgent}
         />
-
-        {/* The reader's own agent, right under the hero: everything below it
-            is personalised by that choice, so it belongs where the choice is
-            made rather than in a band of its own further down. */}
-        <AgentStrip choice={agent} onChange={changeAgent} counts={agentCounts} total={total} />
 
         {hasQuery ? (
           <SearchResults
@@ -163,7 +143,8 @@ export default function Home(props: HomeViewProps) {
 
             {/* One curated, installable set — the shelf the reader can act on
                 without learning anything first. */}
-            <Shelves groups={props.shelves} agent={agent} telemetry={telemetry} />
+            <Shelves groups={props.shelves} agent={agent} />
+            <CapabilityTypes />
           </>
         )}
 

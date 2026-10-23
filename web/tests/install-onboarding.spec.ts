@@ -52,10 +52,10 @@ test("a package page exposes honest, copyable first-time npx steps", async ({ pa
   await gotoSettled(page, entry.href);
   const region = page.getByRole("region", { name: "Install with LiteSPM" });
   await expect(region).toBeVisible();
-  await region.getByText("First time using LiteSPM?", { exact: false }).click();
+  await region.getByText("Before your first install", { exact: true }).click();
   await expect(region.getByText(WEBSITE_SETUP_COMMAND, { exact: true })).toBeVisible();
   await expect(region.getByText(WEBSITE_CATALOG_SYNC_COMMAND, { exact: true })).toBeVisible();
-  await expect(region).toContainText("does not yet combine bootstrap");
+  await expect(region).toContainText("Download and verify the public catalog.");
 });
 
 test("every flag the website prints is one the published install verb takes", () => {

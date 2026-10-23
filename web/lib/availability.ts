@@ -75,19 +75,9 @@ const SOURCE: Availability = {
 
 const DISCOVERY: Availability = {
   id: "discovery",
-  // "Listed only", not "Discovery only": the second reads like the entry is
-  // broken. It is listed and it is readable; what it does not have is a
-  // source this build could verify well enough to install, which the text
-  // below says in one sentence.
-  label: "Listed only",
-  // The reason, not just the verdict: a skill's publisher page publishes a
-  // repository that this catalog did not adopt, so the row was never
-  // verified (20,320 skills, of which 19,556 are discovery-only for exactly
-  // this reason). Saying so is the honest half; the other half is the manual
-  // path that still works — `litespm skills add <repo>` — which
-  // InstallBand prints next to the disabled button.
+  label: "Publisher setup details needed",
   plain:
-    "Listed, but not installed: the catalog never verified a source it could clone — a repository for a skill, a command or an endpoint for a server. It can still be installed by hand from the repository the publisher names.",
+    "The publisher needs to provide a source or connection command before LiteSPM can prepare installation steps.",
   installable: false,
 };
 
@@ -101,9 +91,9 @@ const PLUGIN: Availability = {
 
 const UNSUPPORTED: Availability = {
   id: "unsupported",
-  label: "Not installable",
+  label: "Source not available",
   plain:
-    "LiteSPM cannot fetch this entry: it publishes no source, or a source it cannot fetch (a local directory, or a tree that is not pinned to a commit).",
+    "The publisher needs to provide a version-pinned source before LiteSPM can prepare installation steps for this plugin.",
   installable: false,
 };
 

@@ -43,9 +43,9 @@ const TYPES = [
     icon: Puzzle,
     color: "var(--plugin)",
     eyebrow: "Plugins",
-    title: "Install supported components from a pinned source",
-    body: "LiteSPM installs a plugin's declared MCP servers and skills. Host-specific extras are not installed; if a bundle includes them, LiteSPM requires your explicit consent before installing the supported parts.",
-    examples: "Pinned source · MCP servers · skills",
+    title: "Group related agent capabilities",
+    body: "A publisher's collection of tools and workflows. Each listing shows what's included.",
+    examples: "MCP servers · skills · one place",
   },
 ];
 
@@ -53,14 +53,13 @@ export function CapabilityTypes() {
   return (
     <section className="shell band" aria-labelledby="capability-types-title">
       <div className="max-w-2xl">
-        <p className="kicker">What you can install</p>
+        <p className="kicker">Explore package types</p>
         <h2 id="capability-types-title" className="band-title mt-2">
-          Tools, skills and plugins — what is the difference?
+          Three ways to add capabilities to an agent
         </h2>
         <p className="band-sub">
-          MCP servers register a connection, skills add instruction files, and plugins install
-          supported components from a pinned source. Preview and removal details depend on the
-          package type.
+          MCP servers connect tools, skills add reusable instructions, and plugins group related
+          capabilities. Each package shows which agents it supports and how to set it up.
         </p>
       </div>
 

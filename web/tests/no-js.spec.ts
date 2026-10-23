@@ -17,9 +17,9 @@ const nonPreRendered = nonPreRenderedEntry();
 const flagship = flagshipEntry();
 
 const ROUTES: Array<{ path: string; heading?: string; text?: string }> = [
-  { path: "/", heading: "Find the right tools for your AI agent." },
+  { path: "/", heading: "Give your agents more possibilities." },
   { path: "/explore/", heading: "Explore the marketplace" },
-  { path: "/agents/", heading: "Browse agent hosts" },
+  { path: "/agents/", heading: "Choose your agent." },
   { path: "/agents/claude-code/", heading: "Claude Code" },
   { path: "/categories/", heading: "Categories" },
   { path: "/compare/", heading: "Compare agent hosts" },
@@ -52,17 +52,15 @@ for (const { path, heading, text } of ROUTES) {
   });
 }
 
-test("the hero's freshness chip is truthful without JavaScript", async ({ browser }) => {
+test("the home page shows product discovery without release chatter when JavaScript is off", async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   await installHermeticRouting(context);
   const page = await context.newPage();
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  // "catalog snapshot" is true in every state the server can render. `exact` so a
-  // regression back to the old "bundled snapshot" wording fails here.
-  await expect(page.getByText("catalog snapshot", { exact: true }).first()).toBeVisible();
-  // And it must not claim a check that cannot have run.
-  await expect(page.getByText("catalog is current")).toHaveCount(0);
-  await expect(page.getByText("checking the catalog", { exact: false })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Give your agents more possibilities.", level: 1 })).toBeVisible();
+  const copy = (await page.locator("main").innerText()).toLowerCase();
+  expect(copy).toContain("mcp servers");
+  expect(copy).not.toMatch(/catalog snapshot|catalog updated|checking the catalog|rel-/);
   await context.close();
 });
 

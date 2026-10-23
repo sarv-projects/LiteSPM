@@ -101,6 +101,17 @@ export const HOST_NOTES: Record<string, HostNote> = {
       "Runs as a VS Code extension, CLI, desktop app or JetBrains plugin",
     ],
   },
+  codebuddy: {
+    summary: "CodeBuddy Code is Tencent Cloud’s terminal coding assistant. Describe a development task in natural language and work through code changes, tests, debugging, and deployment from your terminal.",
+    interface: "Terminal CLI",
+    website: "https://www.codebuddy.ai",
+    source: "https://www.codebuddy.ai/docs/cli/overview",
+    capabilities: [
+      "Edits files, runs commands and tests, and works with Git",
+      "Connects to external services through MCP",
+      "Supports shell pipelines and script-based workflows",
+    ],
+  },
   cursor: {
     summary: "Cursor is a coding agent for building ambitious software. You describe the change you want; it reads your project, edits files, runs shell commands, and lets you inspect the diff before you merge.",
     interface: "AI code editor and coding agent (desktop app, CLI, and web)",

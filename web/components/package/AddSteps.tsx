@@ -200,7 +200,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             ? marked
               ? "manage the install"
               : "three steps, or one prompt"
-            : "install status"}
+            : "setup details"}
         </span>
       </div>
 
@@ -224,20 +224,30 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             </button>
           </div>
         ) : !liteSPMInstallable ? (
-          // The caveat is a state of the action, not an essay: a disabled CTA
-          // and one clause naming the blocker, with the full explanation in
-          // the control's tooltip (`avail.plain`). The paragraph this
-          // replaces — error code included — read as an apology where the
-          // competitor pages simply show a short badge or a disabled control.
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-dark-rule pb-3.5">
-            <button type="button" disabled className="btn shrink-0" title={avail.plain}>
-              Install unavailable
-            </button>
-            <p className="text-[12px] leading-relaxed text-dark-ink-2" title={avail.plain}>
+          <div className="border-b border-dark-rule pb-3.5">
+            <h3 className="text-[14px] font-semibold text-dark-ink">
               {invalidSelectedHost
-                ? `${agent?.label} is not a supported installation target for this entry. Select another host.`
+                ? targetFeasibility?.state === "unknown"
+                  ? "Check this agent’s setup"
+                  : targetFeasibility?.state === "requires-setup"
+                    ? "Review project setup"
+                    : "Choose another agent"
+                : "Installation information"}
+            </h3>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-dark-ink-2">
+              {invalidSelectedHost
+                ? targetFeasibility?.state === "unknown"
+                  ? `Choose another agent to see setup options for ${item.name}.`
+                  : targetFeasibility?.state === "requires-setup"
+                    ? `${agent?.label} uses project-level configuration. Review the destination before installing.`
+                    : `${agent?.label} does not support this package's connection type. Choose another agent.`
                 : avail.plain}
             </p>
+            {invalidSelectedHost && (
+              <button type="button" className="btn mt-3" onClick={onChooseAgent}>
+                Choose another agent
+              </button>
+            )}
           </div>
         ) : targeted ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-dark-rule pb-3.5">

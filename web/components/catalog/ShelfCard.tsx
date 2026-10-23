@@ -52,7 +52,7 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
   const worksWith = rowWorksWithAgent(item, agent ?? null);
   const detail = [
     kindLabel(item.kind),
-    item.publisher?.name ? `by ${item.publisher.name}` : "publisher unspecified",
+    item.publisher?.name ? `by ${item.publisher.name}` : "community listing",
     signal.note,
     item.summary,
   ]
@@ -60,7 +60,7 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
     .map((part) => part.replace(/\.+$/, ""))
     .join(". ");
 
-  const meta = [item.publisher?.name || "publisher unspecified", categoryLabel(item.category)].filter(
+  const meta = [item.publisher?.name || "community listing", categoryLabel(item.category)].filter(
     (part): part is string => Boolean(part)
   );
 
@@ -102,7 +102,7 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
         {/* Fixed to two line-heights whether the summary is one line or two, so
             the card footer sits at the same y in every card of the shelf. */}
         <p className="mt-2.5 line-clamp-2 min-h-[42px] text-[13px] leading-relaxed text-ink-2">
-          {item.summary || "No summary was published for this entry."}
+          {item.summary || "Browse setup options and details for this package."}
         </p>
 
         <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-3">
@@ -128,13 +128,19 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
               }`}
               title={
                 worksWith
-                  ? "Works with this agent — declared, not tested."
-                  : "Not in this entry's declared host list."
+                  ? item.kind === "plugin"
+                    ? "The publisher lists this agent for the plugin."
+                    : "Setup is available for this agent."
+                  : "Choose another agent to see its setup."
               }
             >
               {worksWith && <Check className="h-3 w-3 shrink-0" aria-hidden="true" />}
               <span className="truncate">
-                {worksWith ? `Works with ${agent.label}` : `Not declared for ${agent.label}`}
+                {worksWith
+                  ? item.kind === "plugin"
+                    ? `Listed for ${agent.label}`
+                    : `Setup for ${agent.label}`
+                  : "Choose another agent"}
               </span>
             </span>
           )}

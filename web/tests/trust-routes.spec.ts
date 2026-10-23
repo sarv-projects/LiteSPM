@@ -30,7 +30,6 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/site";
 import { collectPageErrors, gotoSettled, settle } from "./support/site";
-import release from "../data/release.json";
 
 interface Route {
   path: string;
@@ -47,7 +46,7 @@ const ROUTES: Route[] = [
     section: /how it works/i,
   },
   { path: "/get-started/", heading: "Get started", section: /your guide/i },
-  { path: "/status/", heading: "Status", section: /data stamp/i },
+  { path: "/status/", heading: "Catalog status", section: /catalog information/i },
   { path: "/support/", heading: "Support", section: /where a report goes/i },
   { path: "/security/", heading: "Security", section: /where the policy lives/i },
 ];
@@ -190,35 +189,16 @@ test("the setup guide changes with the agent and the OS, and never claims an ins
   }
 });
 
-test("the status page separates the data stamp from the health statement", async ({ page }) => {
+test("catalog status shows a useful refresh date without release identifiers", async ({ page }) => {
   await gotoSettled(page, "/status/");
 
-  // The data stamp: the release this build shipped, and nothing else.
-  const stamp = page.getByRole("heading", { name: /data stamp/i, level: 2 });
-  await expect(stamp).toBeVisible();
-  const health = page.getByRole("heading", { name: /what is measured/i, level: 2 });
-  await expect(health).toBeVisible();
-
-  const text = await page.locator("main").innerText();
-  expect(text, "the release id should be printed").toContain(release.releaseId);
-  expect(text, "the release sequence should be printed").toContain(String(release.sequence));
-  expect(text, "the entry count should be printed").toContain(
-    Number(release.itemCount).toLocaleString()
-  );
-  expect(text, "the stamp should say it is not a service status").toMatch(
-    /not a service status/i
-  );
-
-  // The health statement is its own section, and it is honest about what it
-  // cannot measure.
-  expect(text).toMatch(/cannot report its own uptime/i);
-  expect(text).toMatch(/no number on this page that nothing measured/i);
-
-  // No uptime figure, and no "all systems operational".
-  expect(text, "no uptime percentage").not.toMatch(/\d+(?:\.\d+)?\s*%/);
-  expect(text, "no uptime figure").not.toMatch(/uptime[^.\n]{0,20}\d/i);
-  expect(text, "no all-clear").not.toMatch(/all systems (?:operational|go|normal)/i);
-  expect(text, "no 99.9-style SLA").not.toMatch(/\b\d{2,3}(?:\.\d+)?\s*%\s*(?:uptime|availability)/i);
+  await expect(page.getByRole("heading", { name: "Catalog information", level: 2 })).toBeVisible();
+  await expect(page.getByText("Last refreshed", { exact: true })).toBeVisible();
+  const text = (await page.locator("main").innerText()).toLowerCase();
+  expect(text).not.toContain("catalog snapshot");
+  expect(text).not.toContain("release id");
+  expect(text).not.toContain("not a service status");
+  expect(text).toMatch(/catalog availability/);
 });
 
 for (const width of [320, 390]) {

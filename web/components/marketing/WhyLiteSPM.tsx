@@ -29,52 +29,28 @@ interface Benefit {
   id: string;
   title: string;
   body: React.ReactNode;
-  /** The command, when the benefit is a command. */
-  cmd?: string;
 }
 
 const BENEFITS: Benefit[] = [
   {
     id: "agents",
-    title: "Manage capabilities across your agents",
-    body: (
-      <>
-        Use one CLI to work with supported MCP servers, skills, and plugins across multiple
-        coding agents. LiteSPM keeps a local record of the installations it manages.
-      </>
-    ),
-    cmd: "litespm install <mcp-id> --host codex",
+    title: "One toolkit across your agents",
+    body: "Browse supported MCP servers, skills, and plugins for the agents you already use.",
   },
   {
     id: "preview",
-    title: "Keep track of changes",
-    body: (
-      <>
-        Review host setup changes before applying them. LiteSPM backs up managed configuration
-        files and offers removal and restoration commands.
-      </>
-    ),
-    cmd: "litespm restore <installId>",
+    title: "Review before you change anything",
+    body: "See the setup before you approve it. LiteSPM backs up the configuration changes it manages.",
   },
   {
     id: "local",
-    title: "Local by design",
-    body: (
-      <>
-        Explore the marketplace without an account. The CLI runs locally, keeping your agent
-        configuration and installation history on your own computer.
-      </>
-    ),
+    title: "Your setup stays yours",
+    body: "Browse without an account. LiteSPM runs on your computer and keeps installation history there.",
   },
   {
     id: "surfaces",
-    title: "Fits your coding workflow",
-    body: (
-      <>
-        Use LiteSPM from the terminal or, for supported agents, find capabilities through{" "}
-        <code className="t-mono">/marketplace</code> in your agent.
-      </>
-    ),
+    title: "Fits the way you work",
+    body: <>Use LiteSPM from the terminal or browse from supported agents with <code className="t-mono">/marketplace</code>.</>,
   },
 ];
 
@@ -98,9 +74,6 @@ export function WhyLiteSPM() {
                 {benefit.title}
               </h3>
               <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">{benefit.body}</p>
-              {benefit.cmd && (
-                <code className="t-mono mt-3 block text-[12.5px] text-ink-3">$ {benefit.cmd}</code>
-              )}
             </DiscoveryCard>
           </li>
         ))}

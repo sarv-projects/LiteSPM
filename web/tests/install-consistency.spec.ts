@@ -35,8 +35,8 @@ async function listingRows(page: import("@playwright/test").Page): Promise<Row[]
 const AVAILABILITY_BADGES = new Set([
   "Remote endpoint",
   "Installs from source",
-  "Listed only",
-  "Not installable",
+  "Publisher setup details needed",
+  "Source not available",
 ]);
 
 test("a search listing's badge is the entry page's availability, both directions", async ({
@@ -46,10 +46,10 @@ test("a search listing's badge is the entry page's availability, both directions
   await waitForSearchGrid(page, "postgres");
   const rows = await listingRows(page);
 
-  const installable = rows.find((row) => AVAILABILITY_BADGES.has(row.badge) && row.badge !== "Listed only" && row.badge !== "Not installable");
-  const notInstallable = rows.find((row) => row.badge === "Listed only");
+  const installable = rows.find((row) => AVAILABILITY_BADGES.has(row.badge) && row.badge !== "Publisher setup details needed" && row.badge !== "Source not available");
+  const notInstallable = rows.find((row) => row.badge === "Publisher setup details needed");
   expect(installable, "expected an installable listing in the results").toBeTruthy();
-  expect(notInstallable, "expected a discovery-only listing in the results").toBeTruthy();
+  expect(notInstallable, "expected a listing needing publisher setup details").toBeTruthy();
 
   for (const sample of [installable!, notInstallable!]) {
     await page.goto(sample.href);
@@ -62,11 +62,9 @@ test("a search listing's badge is the entry page's availability, both directions
       `${sample.name}: entry header should carry the "${sample.badge}" chip`
     ).toBeVisible();
 
-    if (sample.badge === "Listed only" || sample.badge === "Not installable") {
-      // Both affordances must agree: the install band and the AddSteps panel.
-      const unavailable = page.getByRole("button", { name: "Install unavailable" });
-      await expect(unavailable.first()).toBeDisabled();
-      await expect(unavailable.last()).toBeDisabled();
+    if (sample.badge === "Publisher setup details needed" || sample.badge === "Source not available") {
+      await expect(page.getByRole("heading", { name: "Installation information" })).toBeVisible();
+      await expect(page.locator("code:visible").filter({ hasText: /litespm(?:@latest)? install / })).toHaveCount(0);
     } else {
       await expect(
         page.locator("code").filter({ hasText: /litespm(?:@latest)? install / }).first()
@@ -94,7 +92,7 @@ test("a plugin listing's badge agrees with the plugin entry page", async ({ page
   // page it links to.
   const plugin =
     rows.find((row) => row.badge === "Installs a plugin") ??
-    rows.find((row) => row.badge === "Not installable");
+    rows.find((row) => row.badge === "Source not available");
   expect(plugin, "every plugin row reads its installability").toBeTruthy();
 
   await page.goto(plugin!.href);
@@ -104,15 +102,13 @@ test("a plugin listing's badge agrees with the plugin entry page", async ({ page
   // The badge decides which page this is. A plugin that publishes a pinned
   // tree installs (path added 2026-10-19), so its entry page offers the
   // command; one with no fetchable source is refused, so both affordances are
-  // disabled. Asserting "unavailable" for every plugin was the pre-install-path
-  // assumption, and it failed the moment a pinned plugin row existed.
+  // setup details on a plugin without a fetchable source.
   const chip = await page.locator("[data-testid='installability']").first().innerText();
   expect(chip.trim(), "the entry page and the badge must agree").toBe(plugin!.badge);
 
-  if (plugin!.badge === "Not installable") {
-    const unavailable = page.getByRole("button", { name: "Install unavailable" });
-    await expect(unavailable.first()).toBeDisabled();
-    await expect(unavailable.last()).toBeDisabled();
+  if (plugin!.badge === "Source not available") {
+    await expect(page.getByRole("heading", { name: "Installation information" })).toBeVisible();
+    await expect(page.locator("code:visible").filter({ hasText: /litespm(?:@latest)? install / })).toHaveCount(0);
     return;
   }
 
@@ -136,7 +132,11 @@ test("an agent choice cannot label a transport-incompatible entry as supported",
   await page.getByRole("button", { name: "Choose an agent target" }).click();
   await page.getByRole("button", { name: "Codex", exact: true }).click();
 
-  await expect(page.getByRole("button", { name: "Install unavailable" }).first()).toBeDisabled();
-  await expect(page.getByText("Unsupported for Codex")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Choose another agent" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Choose another agent" }).first()).toBeVisible();
+  await expect(page.locator("#pkg-add").getByText("Codex does not support this package's connection type. Choose another agent.")).toBeVisible();
   await expect(page.getByText("Works with Codex")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Choose another agent", exact: true }).first().click();
+  await expect(page.locator("#will-it-work")).toBeFocused();
 });

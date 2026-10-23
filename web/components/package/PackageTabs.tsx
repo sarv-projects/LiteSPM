@@ -8,24 +8,15 @@ import { kindLabel } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { bridgeSnippet, hostPath, isRemoteTransport } from "../../lib/hosts";
 import { hostsNamedBy, resolveHostId } from "../../lib/hostIdentity";
-import { formatCount } from "../../lib/format";
 import { VerifiedMark } from "../catalog/PublisherMark";
 import { TabList } from "../ui/TabList";
 import { CopyButton } from "./CopyButton";
 import { usePlatformOs } from "./usePlatformOs";
-import bundledRelease from "../../data/release.json";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 
 /**
- * The technical layer of the package page: six tabs that sit *after* the five
- * plain-language questions (ARCH/25 §7.3), so a reader who just wants the
- * answer never has to open one — and a reader who wants the record can.
- *
- * Every cell is a field the snapshot actually carries. Where a field is empty
- * the tab prints an explicit absent state (`—` / "not published"), never a
- * guess and never a "not compatible": the catalog's semantics are
- * publisher-declared (plugins) or kind-derived (MCP servers, skills), and the
- * labels below never claim more than that.
+ * The technical layer of the package page: setup details, capabilities,
+ * compatibility, security and source information for developers and operators.
  */
 
 const TABS = [
@@ -33,7 +24,6 @@ const TABS = [
   { id: "capabilities", label: "Capabilities" },
   { id: "compatibility", label: "Compatibility" },
   { id: "security", label: "Security" },
-  { id: "versions", label: "Versions" },
   { id: "source", label: "Source" },
 ] as const;
 
@@ -49,22 +39,20 @@ const INSTALLABILITY: Record<
   { label: string; plain: string }
 > = {
   discovery_only: {
-    label: "Listed only",
-    plain:
-      "No install path has been proven — LiteSPM lists it, but won't install it.",
+    label: "Setup details needed",
+    plain: "LiteSPM needs verified source or connection details before it can prepare install steps.",
   },
   metadata_verified: {
-    label: "LiteSPM-parsed",
-    plain:
-      "LiteSPM opened this entry's own published metadata — but hasn't run it.",
+    label: "Metadata checked",
+    plain: "The listing's source and setup details have been checked.",
   },
   runtime_verified: {
-    label: "LiteSPM-verified",
-    plain: "The declared runtime behavior was proven; the entry has not been exercised end to end.",
+    label: "Runtime verified",
+    plain: "The published runtime details have been verified.",
   },
   litespm_tested: {
-    label: "LiteSPM-tested",
-    plain: "Exercised end to end by LiteSPM.",
+    label: "LiteSPM tested",
+    plain: "The installation path has been tested by LiteSPM.",
   },
 };
 
@@ -92,10 +80,6 @@ function hostSource(item: Listing): { label: string; plain: string } {
     };
   }
   return { label: "Publisher-declared", plain: "Hosts the publisher declared in its own manifest." };
-}
-
-function Absent({ text = "not published" }: { text?: string }) {
-  return <span className="absent">{text}</span>;
 }
 
 function SpecRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -130,7 +114,7 @@ function externalLink(href: string, text: string) {
 function sourceSentence(item: Listing): string {
   return item.publisher?.provenance === "vendor-manifest"
     ? "Read from the publisher's own manifest."
-    : "From a third-party list, not the publisher's own manifest.";
+    : "Listed in a community directory.";
 }
 
 /* ------------------------------ panels ------------------------------ */
@@ -148,42 +132,29 @@ function OverviewPanel({ item }: { item: Listing }) {
       <SpecRow label="Category">
         <span className="t-mono text-[12px]!">{categoryLabel(item.category)}</span>
       </SpecRow>
-      <SpecRow label="Publisher">
-        {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
-          externalLink(item.publisher.url, item.publisher.name)
-        ) : (
-          item.publisher?.name || <Absent text="not published" />
-        )}
-      </SpecRow>
-      <SpecRow label="Publisher listing">
-        {item.publisher?.verified ? <VerifiedMark /> : <Absent text="third-party list entry" />}
-      </SpecRow>
-      <SpecRow label="Version">
-        {item.version ? (
-          <span className="t-mono text-[12px]!">{item.version}</span>
-        ) : (
-          <Absent text="not published" />
-        )}
-      </SpecRow>
-      {/* Runtime and transport used to sit in their own "What can it do?"
-          section at the top of every page, inside a disclosure. They are
-          per-entry technical fields, which is what this list is for. */}
-      {item.kind === "mcp" && (
-        <SpecRow label="Runtime">
-          {item.runtime ? (
-            <span className="t-mono text-[12px]!">{item.runtime}</span>
-          ) : (
-            <Absent text="not published" />
-          )}
+      {(item.publisher?.name || item.publisher?.url) && (
+        <SpecRow label="Publisher">
+          {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url)
+            ? externalLink(item.publisher.url, item.publisher.name || "Publisher website")
+            : item.publisher?.name}
         </SpecRow>
       )}
-      {item.kind === "mcp" && (
+      <SpecRow label="Source">
+        {item.publisher?.verified ? <VerifiedMark /> : "Community listing"}
+      </SpecRow>
+      {item.version && (
+        <SpecRow label="Version">
+          <span className="t-mono text-[12px]!">{item.version}</span>
+        </SpecRow>
+      )}
+      {item.kind === "mcp" && item.runtime && (
+        <SpecRow label="Runtime">
+          <span className="t-mono text-[12px]!">{item.runtime}</span>
+        </SpecRow>
+      )}
+      {item.kind === "mcp" && item.transport && (
         <SpecRow label="Transport">
-          {item.transport ? (
-            <span className="t-mono text-[12px]!">{item.transport}</span>
-          ) : (
-            <Absent text="not published" />
-          )}
+          <span className="t-mono text-[12px]!">{item.transport}</span>
         </SpecRow>
       )}
     </dl>
@@ -195,20 +166,7 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
     ? `${item.command}${item.args?.length ? ` ${item.args.join(" ")}` : ""}`
     : null;
 
-  /**
-   * The panel's rows, split into the ones the catalog publishes and the ones
-   * it does not.
-   *
-   * A skill's Capabilities tab used to be five consecutive "not published"
-   * rows — Tools, Runtime, Transport, Launch line, Install from source — with
-   * the one useful fact (the skill's source repository) last. A list of
-   * absences is not a capability list, and a reader who came for the skill's
-   * instructions found the repository link after all five. So the published
-   * facts come first, the source link leads them, and the absences collapse
-   * into one sentence that says which fields are missing.
-   */
   const published: Array<[string, React.ReactNode]> = [];
-  const absent: string[] = [];
 
   if (item.skillSource) {
     published.push([
@@ -221,37 +179,27 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
       "Tools",
       <span className="t-mono text-[12px]!">{item.tools.length} declared</span>,
     ]);
-  } else {
-    absent.push("tool list");
   }
   if (item.runtime) {
     published.push([
       "Runtime",
       <span className="t-mono text-[12px]!">{item.runtime}</span>,
     ]);
-  } else {
-    absent.push("runtime");
   }
   if (item.transport) {
     published.push([
       "Transport",
       <span className="t-mono text-[12px]!">{item.transport}</span>,
     ]);
-  } else {
-    absent.push("transport");
   }
   if (launch) {
     published.push(["Launch line", <span className="t-mono break-all text-[12px]!">{launch}</span>]);
-  } else {
-    absent.push("launch line");
   }
   if (item.installHint) {
     published.push([
       item.kind === "skill" ? "Install from source" : "Host command",
       <span className="t-mono break-all text-[12px]!">{item.installHint}</span>,
     ]);
-  } else {
-    absent.push(item.kind === "skill" ? "install command" : "host command");
   }
 
   return (
@@ -262,16 +210,10 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
             <>Your agent discovers this server&rsquo;s tools when it connects.</>
           )}
           {item.kind === "skill" && (
-            <>
-              This skill&rsquo;s instructions live in its SKILL.md — the file your agent reads. No
-              tool list is published for it.
-            </>
+            <>Your agent reads this skill&rsquo;s instructions from SKILL.md when a task calls for them.</>
           )}
           {item.kind === "plugin" && (
-            <>
-              LiteSPM can install supported plugins from verified, pinned Git trees; what a plugin declares shows up
-              afterwards.
-            </>
+            <>A plugin brings related tools and workflows together as one package.</>
           )}
         </p>
       </div>
@@ -287,18 +229,7 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
           </dl>
         )}
 
-        {/*
-            The absences, in one sentence. Five rows of "not published" told
-            the reader the catalog was empty; one sentence tells them which
-            fields the source does not publish — which is a fact about the
-            source, not about this entry.
-        */}
-        {absent.length > 0 && (
-          <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-            The catalog publishes no {absent.slice(0, -1).join(", ")} or {absent[absent.length - 1]} for
-            this entry.
-          </p>
-        )}
+
       </div>
     </div>
   );
@@ -345,7 +276,7 @@ function CompatibilityPanel({
         </span>
         {hosts.length > 0 && (
           <span className="t-mono t-tabular text-[12px] text-ink-3">
-            {hosts.length} of {hostTotal} hosts in this catalog
+            Setup available for {hosts.length} of {hostTotal} listed agent hosts
           </span>
         )}
       </div>
@@ -399,8 +330,8 @@ function CompatibilityPanel({
                   {chosen.name}
                 </span>
                 {adapter
-                  ? "LiteSPM's bridge entry goes in this file:"
-                  : "LiteSPM can't write this host's config, so there is no setup entry to show."}
+                  ? "LiteSPM adds its connection details to this file:"
+                  : "Add skills to this agent using its documented skills folder."}
               </p>
 
               {adapter && (
@@ -427,11 +358,7 @@ function CompatibilityPanel({
             </div>
           )}
         </div>
-      ) : (
-        <p className="mt-4 text-[13px] text-ink-3">
-          Nothing to install, so there is no host to set it up in.
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -444,22 +371,22 @@ function SecurityPanel({ item }: { item: Listing }) {
       <div className="border-t border-rule pt-3">
         <h3 className="text-[14px] font-semibold tracking-tight text-ink">What LiteSPM has read</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="chip pointer-events-none">{installability ? installability.label : "—"}</span>
+          <span className="chip pointer-events-none">{installability ? installability.label : "Setup details needed"}</span>
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
-          {installability ? installability.plain : "This entry doesn't publish a provenance level."}
+          {installability ? installability.plain : "Choose an agent to see the setup details available for this package."}
         </p>
       </div>
 
       <div className="border-t border-rule pt-3">
         <h3 className="text-[14px] font-semibold tracking-tight text-ink">Who published it</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          {item.publisher?.verified ? <VerifiedMark /> : <span className="chip pointer-events-none">third-party list entry</span>}
+          {item.publisher?.verified ? <VerifiedMark /> : <span className="chip pointer-events-none">Community source</span>}
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
           {item.publisher?.verified
-            ? "Read from the publisher's own manifest."
-            : "Claimed by a third-party list."}
+            ? "This entry comes from the publisher's own package listing."
+            : "This entry comes from a community directory."}
         </p>
       </div>
 
@@ -484,96 +411,24 @@ function SecurityPanel({ item }: { item: Listing }) {
   );
 }
 
-function VersionsPanel({
-  item,
-  total,
-  versioned,
-}: {
-  item: Listing;
-  total: number;
-  versioned: number;
-}) {
-  const release = bundledRelease as Record<string, unknown>;
-  const createdAt = typeof release.createdAt === "string" ? release.createdAt : null;
-
-  return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-      <div>
-        <div className="section-head">
-          <h3 className="text-[13px] font-semibold tracking-tight text-ink">This entry</h3>
-        </div>
-        {item.version ? (
-          <p className="mt-3 flex items-baseline gap-2 text-[13px] text-ink-2">
-            <span className="t-mono text-[15px] text-ink">{item.version}</span>
-            <span className="text-ink-3">as published by the source</span>
-          </p>
-        ) : (
-          <>
-            <p className="mt-3">
-              <Absent text="not published" />
-            </p>
-            <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-              No version is published for this entry.{" "}
-              <span className="t-mono t-tabular">{formatCount(versioned)}</span> of{" "}
-              <span className="t-mono t-tabular">{formatCount(total)}</span> entries carry one.
-            </p>
-          </>
-        )}
-      </div>
-
-      <div>
-        <div className="section-head">
-          <h3 className="text-[13px] font-semibold tracking-tight text-ink">Catalog release</h3>
-        </div>
-        <dl className="spec-list mt-3">
-          <SpecRow label="Release">
-            <span className="t-mono text-[12px]!">
-              {typeof release.releaseId === "string" ? release.releaseId : <Absent text="not published" />}
-            </span>
-          </SpecRow>
-          <SpecRow label="Built">
-            <span className="t-mono text-[12px]!">
-              {createdAt ? createdAt.replace("T", " ").replace("Z", " UTC") : <Absent text="not published" />}
-            </span>
-          </SpecRow>
-        </dl>
-      </div>
-    </div>
-  );
-}
-
 function SourcePanel({ item }: { item: Listing }) {
   return (
     <div className="max-w-xl">
       <dl className="spec-list">
         <SpecRow label="Where it was read">{sourceSentence(item)}</SpecRow>
-        <SpecRow label="Publisher URL">
-          {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
-            externalLink(item.publisher.url, item.publisher.url)
-          ) : (
-            <Absent text="not published" />
-          )}
-        </SpecRow>
-        <SpecRow label="Skill source">
-          {item.skillSource ? (
-            externalLink(item.skillSource, item.skillSource)
-          ) : (
-            <Absent text="not published" />
-          )}
-        </SpecRow>
+        {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) && (
+          <SpecRow label="Publisher website">
+            {externalLink(item.publisher.url, item.publisher.name || item.publisher.url)}
+          </SpecRow>
+        )}
+        {item.skillSource && (
+          <SpecRow label="Skill source">
+            {externalLink(item.skillSource, item.skillSource)}
+          </SpecRow>
+        )}
       </dl>
 
-      {/*
-          The absence of a popularity figure, stated where the absence is
-          felt. Every competitor's entry page prints a star count, a download
-          count or an install count; this catalog publishes none, and a reader
-          arriving from one of those pages should not have to read `/terms/`
-          to find out why. One line, in the block that is about what the
-          source published.
-      */}
-      <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-        No star or download count exists for this entry — no upstream source publishes one.
-      </p>
+
     </div>
   );
 }
@@ -586,8 +441,6 @@ export interface PackageTabsProps {
   agent: AgentChoice | null;
   /** The catalog's host identities — the coverage denominator. */
   hostTotal: number;
-  /** Version coverage over the loaded row set (rows are loaded on this route). */
-  snapshot: { total: number; versioned: number };
   /** Controlled so a question block above can jump to a tab — local state only. */
   active: PackageTabId;
   onChange: (id: PackageTabId) => void;
@@ -600,7 +453,7 @@ export interface PackageTabsProps {
  * link from the questions above can open a specific tab — switching never
  * fetches anything (the row is already in memory).
  */
-export function PackageTabs({ item, agent, hostTotal, snapshot, active, onChange }: PackageTabsProps) {
+export function PackageTabs({ item, agent, hostTotal, active, onChange }: PackageTabsProps) {
   const renderPanel = (tab: PackageTabId): React.ReactNode => {
     switch (tab) {
       case "overview":
@@ -611,8 +464,6 @@ export function PackageTabs({ item, agent, hostTotal, snapshot, active, onChange
         return <CompatibilityPanel item={item} agent={agent} hostTotal={hostTotal} />;
       case "security":
         return <SecurityPanel item={item} />;
-      case "versions":
-        return <VersionsPanel item={item} total={snapshot.total} versioned={snapshot.versioned} />;
       case "source":
         return <SourcePanel item={item} />;
     }

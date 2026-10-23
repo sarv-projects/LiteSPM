@@ -1,143 +1,104 @@
-import React from "react";
+"use client";
 
-/**
- * The product walkthrough frame: poster, captions, transcript.
- *
- * ## The contract
- *
- * This is the shape the recording should be published in, and the shape the
- * home page's demo should use too. A component that takes these props can
- * carry either state without changing:
- *
- * ```ts
- * {
- *   title: string;                    // what the frame is called
- *   video?: { src: string; type?: string };   // present = the recording exists
- *   poster?: { src: string; alt: string };    // the still shown before playback
- *   captions: Array<{ time: string; text: string }>;  // one line per beat
- *   transcript: string;                // the spoken text, in full
- *   placeholder: string;               // what to say while there is no video
- * }
- * ```
- *
- * `video` absent means the frame renders the placeholder and says so in
- * plain words. That is the state this page ships in, because the recording
- * has not been made: a real product recording needs a real machine, a real
- * install and a real removal, and a mock-up of one would be the one thing on
- * this site that could not be checked.
- *
- * The captions and the transcript are always in the HTML, whether or not a
- * video exists. A reader with JavaScript off, a screen reader, or no interest
- * in watching anything gets the same beats in the same order, and the frame
- * is complete without the picture.
- *
- * This is a **Server Component**: the transcript is a `<details>` element and
- * the video is a plain `<video controls>`, so the frame needs no JavaScript
- * and ships none.
- */
-export interface WalkthroughCaption {
-  /** A timestamp for the beat, as `mm:ss`. */
-  time: string;
-  /** What happens at that moment, in one line. */
-  text: string;
-}
+import { useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Pause, Play, RotateCcw } from "lucide-react";
 
-export interface WalkthroughFrameProps {
-  title: string;
-  /** Present once the recording exists. Absent = the placeholder state. */
-  video?: { src: string; type?: string };
-  /** The still shown before playback, and the still in the placeholder. */
-  poster?: { src: string; alt: string };
-  /** One line per beat, in order. Always rendered. */
-  captions: WalkthroughCaption[];
-  /** The spoken text, in full. Always rendered, behind a disclosure. */
-  transcript: string;
-  /** What the frame says while there is no recording. */
-  placeholder: string;
-}
+const FLOW = [
+  {
+    title: "Choose what to add",
+    command: "litespm skills add ./my-skills --skill meeting-notes --agent codex --scope project --yes",
+    output: [
+      "Source     ./my-skills",
+      "Found      1 skill",
+      "Scope      This repo only",
+      "",
+      "meeting-notes",
+      "  → .agents/skills/meeting-notes",
+      "",
+      "Installation complete",
+    ],
+    caption: "LiteSPM finds the skill, shows its destination, then installs it in the current project.",
+  },
+  {
+    title: "See what is installed",
+    command: "litespm skills list",
+    output: [
+      "Skills installed by this tool (1 directory):",
+      "",
+      "SKILL                    HOST      DIRECTORY",
+      "────────────────────────────────────────────────────────",
+      "meeting-notes            codex     .agents/skills/meeting-notes",
+    ],
+    caption: "The inventory names the skill, target agent, and folder LiteSPM manages.",
+  },
+  {
+    title: "Remove it when you are done",
+    command: "litespm skills remove meeting-notes --scope project",
+    output: [
+      "Removed 1 skill",
+      "",
+      "meeting-notes",
+      "  Removed .agents/skills/meeting-notes",
+      "",
+      "No skills have been installed by this tool.",
+    ],
+    caption: "Removal clears the managed skill and updates the local install record.",
+  },
+];
 
-export function WalkthroughFrame({
-  title,
-  video,
-  poster,
-  captions,
-  transcript,
-  placeholder,
-}: WalkthroughFrameProps) {
+export function WalkthroughFrame() {
+  const [step, setStep] = useState(0);
+  const [playing, setPlaying] = useState(true);
+
+  useEffect(() => {
+    if (!playing || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => setStep((current) => (current + 1) % FLOW.length), 5200);
+    return () => window.clearInterval(timer);
+  }, [playing]);
+
+  const current = FLOW[step];
+  const move = (direction: number) => setStep((value) => (value + direction + FLOW.length) % FLOW.length);
+
   return (
-    <figure className="m-0">
-      <div className="overflow-hidden rounded-card border border-rule bg-surface">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule px-4 py-2.5">
-          <span className="t-mono text-[11px] font-medium uppercase tracking-wider text-ink-2">
-            {title}
-          </span>
-          {video ? (
-            <span className="t-mono text-[11px] text-ink-3">Product recording</span>
-          ) : (
-            <span className="t-mono text-[11px] text-ink-3">Not published yet</span>
-          )}
-        </div>
-
-        {video ? (
-          <video
-            className="block w-full bg-sunken"
-            controls
-            preload="none"
-            poster={poster?.src}
-            src={video.src}
-          >
-            {poster ? <img src={poster.src} alt={poster.alt} /> : null}
-            Your browser cannot play this video. The transcript below is the same content.
-          </video>
-        ) : (
-          <div className="m-4 rounded-panel border border-dashed border-ink-3 bg-sunken p-5 text-center sm:m-5">
-            <p className="t-mono text-[11px] uppercase tracking-wider text-ink-3">
-              The recording has not been made
-            </p>
-            <p className="mx-auto mt-2 max-w-[52ch] text-[14px] leading-relaxed text-ink-2">
-              {placeholder}
-            </p>
-            <p className="mx-auto mt-3 max-w-[52ch] text-[14px] leading-relaxed text-ink-2">
-              What follows is the script the recording follows: the same beats, in the same order,
-              with the commands and the files. It is text, not a picture of a terminal.
-            </p>
-          </div>
-        )}
-
-        <ol className="divide-y divide-rule border-t border-rule">
-          {captions.map((caption) => (
-            <li
-              key={caption.time}
-              className="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:gap-4"
-            >
-              <span className="t-mono shrink-0 text-[11px] text-ink-3">{caption.time}</span>
-              <span className="text-[14px] leading-relaxed text-ink-2">{caption.text}</span>
+    <section className="cli-story" aria-label="Interactive walkthrough of a real LiteSPM install">
+      <div className="cli-story-copy">
+        <p className="kicker">A real LiteSPM workflow</p>
+        <h3 className="mt-2 text-[22px] font-semibold leading-tight tracking-tight text-ink sm:text-[26px]">
+          Install it. Find it. Remove it.
+        </h3>
+        <p className="mt-3 max-w-[42ch] text-[14px] leading-relaxed text-ink-2">
+          Follow a project-scope skill from its install command to its folder and back out again.
+        </p>
+        <ol className="cli-story-steps" aria-label="Walkthrough steps">
+          {FLOW.map((item, index) => (
+            <li key={item.title}>
+              <button type="button" aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}>
+                <span>0{index + 1}</span><span>{item.title}</span>
+              </button>
             </li>
           ))}
         </ol>
-
-        <details className="group border-t border-rule">
-          <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 px-4 text-[13px] font-medium text-ink-2 transition-colors duration-state ease-out hover:text-ink md:min-h-[40px]">
-            Read the transcript
-            <span
-              aria-hidden="true"
-              className="text-ink-3 transition-transform duration-panel ease-out group-open:rotate-90"
-            >
-              →
-            </span>
-          </summary>
-          <div className="space-y-2 px-4 pb-4 text-[14px] leading-relaxed text-ink-2">
-            {transcript.split("\n\n").map((paragraph, index) => (
-              <p key={`${index}-${paragraph.slice(0, 16)}`}>{paragraph}</p>
-            ))}
-          </div>
-        </details>
+        <p className="cli-story-proof">Verified with LiteSPM on an isolated Codex project.</p>
       </div>
 
-      <figcaption className="mt-2 text-[14px] leading-relaxed text-ink-2">
-        A real recording needs a real machine, a real install and a real removal. Until then, this
-        page carries the script and says so, rather than showing a mock-up of a terminal.
-      </figcaption>
-    </figure>
+      <div className="cli-terminal" aria-live="polite" aria-atomic="true">
+        <div className="cli-terminal-bar">
+          <span className="home-window-dots" aria-hidden="true"><i /><i /><i /></span>
+          <span>LiteSPM · {current.title}</span>
+          <span className="cli-step-count">0{step + 1} / 0{FLOW.length}</span>
+        </div>
+        <div className="cli-terminal-command"><span>$</span> {current.command}</div>
+        <pre className="cli-terminal-output">{current.output.join("\n")}</pre>
+        <p className="cli-terminal-caption">{current.caption}</p>
+        <div className="cli-terminal-controls">
+          <button type="button" onClick={() => move(-1)} aria-label="Previous walkthrough step"><ArrowLeft /></button>
+          <button type="button" onClick={() => setPlaying((value) => !value)} aria-label={playing ? "Pause walkthrough" : "Play walkthrough"}>
+            {playing ? <Pause /> : <Play />}
+          </button>
+          <button type="button" onClick={() => setStep(0)} aria-label="Restart walkthrough"><RotateCcw /></button>
+          <button type="button" onClick={() => move(1)} aria-label="Next walkthrough step"><ArrowRight /></button>
+        </div>
+      </div>
+    </section>
   );
 }

@@ -77,19 +77,20 @@ function isInstallable(row: Listing): boolean {
   return true;
 }
 
-test("the H1 states LiteSPM's purpose, and the roadmap stays separate from available packages", async ({ page }) => {
+test("the first screen explains the product and makes package types easy to discover", async ({ page }) => {
   await gotoSettled(page, "/");
 
-  const h1 = page.getByRole("heading", { level: 1 });
-  await expect(h1).toHaveText("Find the right tools for your AI agent.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Give your agents more possibilities.");
+  await expect(page.locator(".home-eyebrow")).toContainText("THE AGENT PACKAGE MANAGER");
+  await expect(page.locator(".home-display-subtitle")).toContainText("MCP servers");
+  await expect(page.locator(".home-display-subtitle")).toContainText("reusable skills and plugins");
 
-  // The headline names the catalog discovery task.
-  await expect(h1).toContainText("tools for your AI agent");
-  await expect(h1).not.toContainText("knows what");
-  await expect(page.getByRole("complementary", { name: "What LiteSPM manages" })).toContainText(
-    "not available to install here yet"
-  );
-  await expect(page.locator(".hero-kind-row")).toHaveCount(3);
+  const types = page.locator('section[aria-labelledby="capability-types-title"]');
+  await expect(types.getByRole("heading", { level: 2 })).toBeVisible();
+  for (const kind of ["mcp", "skill", "plugin"]) {
+    await expect(types.locator(`a[href="/explore/?kind=${kind}"]`)).toBeVisible();
+  }
+  await expect(page.getByText(/not available to install here yet/i)).toHaveCount(0);
 });
 
 test("both calls to action exist, and land on real pages", async ({ page }) => {
@@ -99,7 +100,7 @@ test("both calls to action exist, and land on real pages", async ({ page }) => {
   await expect(get).toBeVisible();
   await expect(get).toHaveAttribute("href", "/get-started/");
 
-  const explore = page.getByRole("link", { name: "Explore capabilities" });
+  const explore = page.getByRole("link", { name: "Explore the catalog" });
   await expect(explore).toBeVisible();
   await expect(explore).toHaveAttribute("href", "/explore/");
 
@@ -114,14 +115,14 @@ test("both calls to action exist, and land on real pages", async ({ page }) => {
 test("the catalog overview opens the real filter for each available kind", async ({ page }) => {
   await gotoSettled(page, "/");
 
-  const overview = page.getByRole("complementary", { name: "What LiteSPM manages" });
+  const overview = page.locator('section[aria-labelledby="capability-types-title"]');
   const destinations = [
-    { label: "MCP servers", kind: "mcp", filter: "MCP Server" },
-    { label: "Skills", kind: "skill", filter: "Agent Skill" },
-    { label: "Plugins", kind: "plugin", filter: "Plugin" },
+    { kind: "mcp", filter: "MCP Server" },
+    { kind: "skill", filter: "Agent Skill" },
+    { kind: "plugin", filter: "Plugin" },
   ];
-  for (const { label, kind, filter } of destinations) {
-    await overview.getByRole("link", { name: new RegExp(label) }).click();
+  for (const { kind, filter } of destinations) {
+    await overview.locator(`a[href="/explore/?kind=${kind}"]`).click();
     await expect(page).toHaveURL(new RegExp(`/explore/\\?kind=${kind}`));
     await expect(
       page.getByRole("group", { name: "Capability kind" }).getByRole("button", { name: new RegExp(filter) })
@@ -228,20 +229,18 @@ test("the shelf shows exactly the curated set, and each card links to its entry"
   expect(kinds.size, "the mixed row shows more than one kind of capability").toBeGreaterThan(1);
 });
 
-test("the home page carries six blocks, and none of them explains the product twice", async ({
+test("the landing page puts discovery, package types, and setup in a clear order", async ({
   page,
 }) => {
   await gotoSettled(page, "/");
 
-  // The card that used to sit in the hero — "From discovery to local
-  // installation", five beats then three — is gone with the block it sat in.
-  // The walkthrough is /how-it-works; this page is the search and the install.
-  await expect(page.locator("#product-demo")).toHaveCount(0);
-
-  // What is here now: the hero and its proof, six goals, one curated row,
-  // three steps, the four reasons.
+  await expect(page.locator(".home-editorial-hero")).toBeVisible();
   await expect(page.locator("#topics-title")).toBeVisible();
-  await expect(page.locator("#hero-proof-basis")).toContainText("catalog entries");
+  await expect(page.locator("#start-here-title")).toBeVisible();
+  await expect(page.locator("#capability-types-title")).toBeVisible();
+  await expect(page.locator("#how-title")).toBeVisible();
+  await expect(page.locator("#hero-proof-count")).toHaveCount(0);
+  await expect(page.getByText(/catalog snapshot|catalog updated/i)).toHaveCount(0);
   await expect(demo_shelf_is_one_row(page)).resolves.toBeLessThanOrEqual(6);
 });
 
@@ -250,7 +249,7 @@ test("the hero has a responsive copy and catalog overview layout", async ({
 }) => {
   await gotoSettled(page, "/");
 
-  const layout = await page.locator("section.hero-glow > div").evaluate((element) => {
+  const layout = await page.locator(".home-editorial-layout").evaluate((element) => {
     const style = getComputedStyle(element);
     return {
       columns: style.gridTemplateColumns === "none" ? 1 : style.gridTemplateColumns.split(" ").length,
@@ -258,10 +257,10 @@ test("the hero has a responsive copy and catalog overview layout", async ({
     };
   });
 
-  expect(layout.columns, "the hero has the product overview beside its copy").toBe(2);
+  expect(layout.columns, "the desktop hero pairs its copy with the workspace visual").toBe(2);
   expect(layout.width, "the hero stays within a deliberate maximum measure").toBeLessThanOrEqual(1200);
   await page.setViewportSize({ width: 390, height: 844 });
-  const mobileColumns = await page.locator(".hero-layout").evaluate((element) =>
+  const mobileColumns = await page.locator(".home-editorial-layout").evaluate((element) =>
     getComputedStyle(element).gridTemplateColumns.split(" ").length
   );
   expect(mobileColumns, "the mobile hero stacks its content").toBe(1);
@@ -279,38 +278,23 @@ test("the curated shelf contains only entries LiteSPM can install", async ({ pag
   // source set contains no plugin, whose installability depends on its source.
   await expect(page.locator(".meta-kind-plugin")).toHaveCount(0);
 
-  // The bridge figure names the third kind, says which plugins install, and
-  // its caption says the rest are refused with the reason.
   const pluginExit = page.locator(".dg-kind[data-kind='plugin']");
   await expect(pluginExit).toBeVisible();
-  await expect(pluginExit).toContainText("pinned sources");
+  await expect(pluginExit).toContainText("Plugins");
 
-  const caption = page.locator("figcaption").filter({ hasText: "pinned source" });
-  await expect(caption).toContainText("ships a pinned source");
-  await expect(caption).toContainText("refused with the reason");
+  const caption = page.locator("figcaption");
+  await expect(caption).toContainText("Each package shows whether it fits your agent");
+  await expect(caption).not.toContainText("generic adapter");
+  await expect(caption).not.toContainText("refused with the reason");
 });
 
-test("the hero's count is stable, and is the number the site's own filter produces", async ({
-  page,
-}) => {
+test("the landing page avoids animated catalog claims", async ({ page }) => {
   await gotoSettled(page, "/");
 
-  // The kind count is static, not animated under the reader.
   await expect(page.locator(".kind-cycle")).toHaveCount(0);
-
-  // What replaced it is one number, and it is the number of rows the site can
-  // actually install — the same predicate Explore's "installable" filter uses.
-  const installable = catalogRows().filter(isInstallable).length;
-  const count = page.locator("#hero-proof-count");
-  await expect(count).toContainText(installable.toLocaleString("en-US"));
-  await expect(count).toContainText("entries LiteSPM can install");
-
-  // And it does not move.
-  const first = await count.textContent();
-  await page.waitForTimeout(2000);
-  expect(await count.textContent(), "the hero's number must not change under the reader").toBe(
-    first
-  );
+  await expect(page.locator("#hero-proof-count")).toHaveCount(0);
+  await expect(page.getByText(/catalog snapshot|catalog updated/i)).toHaveCount(0);
+  await expect(page.locator("footer").getByText(/capabilities|catalog entries/i)).toHaveCount(0);
 });
 
 test("the search field still filters the page in place, and the result count is measured", async ({

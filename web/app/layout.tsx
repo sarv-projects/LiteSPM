@@ -207,7 +207,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             JavaScript is off. Everything on this page still reads; search, filters and an
             entry&rsquo;s interactive parts need it. Install steps are in the{" "}
             <a href={DOCS_URL} className="link">
-              README
+              Developer docs
             </a>
             .
           </div>

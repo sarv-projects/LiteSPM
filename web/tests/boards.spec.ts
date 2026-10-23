@@ -54,7 +54,7 @@ async function readHostTable(
 ): Promise<Array<{ label: string; href: string; entries: string }>> {
   const section = page
     .locator("main section")
-    .filter({ has: page.getByRole("heading", { name: "Agent hosts by config" }) });
+    .filter({ has: page.getByRole("heading", { name: "Agents by configuration" }) });
   await expect(section).toBeVisible();
   return section.locator("ul li").evaluateAll((items) =>
     items.map((item) => ({
@@ -116,7 +116,7 @@ test("the agent-host table: the figure, the host page and Explore all agree", as
 
     await page.goto(row.href);
     // The host page's own catalog-entry count.
-    const hostCountText = await page.locator('dt:text-is("Catalog entries") + dd').textContent();
+    const hostCountText = await page.locator('section[aria-labelledby="agent-works-title"] span.t-tabular').textContent();
     const hostCount = parseCount(hostCountText);
     expect(
       hostCount,
@@ -124,7 +124,7 @@ test("the agent-host table: the figure, the host page and Explore all agree", as
     ).toBe(parseCount(row.entries));
 
     // …and the page's own Explore link opens that count.
-    const browse = page.getByRole("link", { name: "Browse entries for this agent", exact: true });
+    const browse = page.locator('section[aria-labelledby="agent-works-title"]').getByRole("link", { name: /Browse entries for/ });
     const browseHref = await browse.getAttribute("href");
     const host = new URL(browseHref ?? "", "http://localhost").searchParams.get("host") ?? "";
     expect(host, `the Browse link on ${row.href} should name a host filter`).not.toBe("");

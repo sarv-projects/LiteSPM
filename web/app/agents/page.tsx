@@ -5,18 +5,17 @@ import { buildAgentRows } from "./agentRows";
 import type { Metadata } from "next";
 import type { AgentsViewProps } from "./AgentsView";
 import AgentsRoute from "./AgentsRoute";
-import { AtlasTeaser } from "../../components/home/AtlasTeaser";
 
 /**
  * Its own title and preview: this page previously inherited the layout's single
  * `metadata`, so it shared a `<title>` and an `og:url` with every other route.
  */
 export const metadata: Metadata = {
-  title: "Agent hosts",
+  title: "Agents",
   description:
-    "Profiles for agent hosts LiteSPM can connect to or install skills into, with setup guidance, configuration details, and catalog targets.",
+    "Explore AI agent profiles, see what each agent does, and find tools and skills for your workflow.",
   alternates: { canonical: "/agents/" },
-  openGraph: { title: "Agent hosts · LiteSPM", url: "/agents/" },
+  openGraph: { title: "Agents · LiteSPM", url: "/agents/" },
 };
 
 /**
@@ -44,12 +43,5 @@ export default function AgentsPage() {
     agents: rows,
   };
 
-  return (
-    <>
-      <AgentsRoute {...props} />
-      {/* What each agent gets, on the page about agents. It was a block on
-          the home page, between the steps and the reasons. */}
-      <AtlasTeaser />
-    </>
-  );
+  return <AgentsRoute {...props} />;
 }

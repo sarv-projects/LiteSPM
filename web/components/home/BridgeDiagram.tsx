@@ -142,7 +142,7 @@ const AGENTS = [
 const KINDS = [
   { token: "mcp", label: "MCP servers", note: "apps & data", installable: true },
   { token: "skill", label: "Agent skills", note: "workflows", installable: true },
-  { token: "plugin", label: "Plugins", note: "pinned sources", installable: true },
+  { token: "plugin", label: "Plugins", note: "tools + skills", installable: true },
 ] as const;
 
 /**
@@ -280,7 +280,7 @@ export function BridgeDiagram() {
         <div className="dg-bus" aria-hidden="true" />
 
         <div className="dg-hub">
-          <span className="dg-hub-title">one local bridge</span>
+          <span className="dg-hub-title">LiteSPM</span>
           {/*
             The verbs are a label, not a readout any more.
 
@@ -406,11 +406,7 @@ export function BridgeDiagram() {
           servers and skills, and a plugin installs only from a pinned source
           its publisher ships. */}
       <figcaption className="sr-only">
-        Claude Code, Codex, OpenCode, Cline, Pi Agent and Grok Build each connect to one local
-        LiteSPM bridge. The other 44 registered hosts use the same bridge through the generic
-        adapter. Agents reach MCP servers and skills through it. A plugin whose publisher ships a
-        pinned source reaches it through its own manifest; one without a fetchable source is
-        refused with the reason.
+        Find packages by type and task. Each package shows whether it fits your agent and how to add it.
       </figcaption>
     </figure>
   );

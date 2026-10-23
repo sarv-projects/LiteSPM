@@ -8,7 +8,7 @@ import { CapabilityTypes } from "../../components/home/CapabilityTypes";
 export const metadata: Metadata = {
   title: "How LiteSPM works",
   description:
-    "Discover AI agent capabilities in the LiteSPM marketplace, connect your coding agent, install supported packages locally, and manage them from one place.",
+    "Find agent tools and skills, connect your agent, and manage installations from your computer with LiteSPM.",
   alternates: { canonical: "/how-it-works/" },
   openGraph: { title: "How LiteSPM works · LiteSPM", url: "/how-it-works/" },
 };
@@ -49,7 +49,7 @@ const STEPS = [
     number: "02",
     title: "Find and install a capability",
     description:
-      "Search the marketplace by task, provider or package name, then copy the package's exact install command from its page. Each listing shows its source, compatibility, and whether LiteSPM has a supported installation path. Before your first catalog install, connect an agent and run `npx --yes litespm@latest catalog sync`. Then install the package using the command on its page. LiteSPM resolves it against the local catalog and refuses anything it cannot install, with the reason.",
+      "Search by task, provider or name. Each package page shows the agent targets and the exact installation command. On your first use, run setup and sync the catalog, then use the command shown on the package page.",
     command: "npx --yes litespm@latest install <id>",
   },
   {
@@ -72,9 +72,8 @@ export default function HowItWorksPage() {
             From discovery to installation, without the config-file hassle.
           </h1>
           <p className="band-sub max-w-[72ch]">
-            LiteSPM combines a public marketplace with a local package manager for AI coding
-            agents. Find a capability, check whether it fits your setup, and install it using
-            the LiteSPM CLI. Your agent configuration stays on your machine.
+            LiteSPM brings agent tools and skills into one marketplace and package manager.
+            Find a capability, choose your agent, and follow the install path from your computer.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Link href="/explore/" className="btn btn-solid btn-lg">Explore the marketplace</Link>
@@ -103,32 +102,13 @@ export default function HowItWorksPage() {
             ))}
           </ol>
 
-          {/* The walkthrough frame is the shape the recording will publish in:
-              captions and transcript in the HTML today, the video when a real
-              machine, a real install and a real removal have been recorded. */}
-          <div className="mt-8 max-w-[72ch]">
-            <WalkthroughFrame
-              title="The three-step walkthrough"
-              captions={[
-                { time: "00:00", text: "Open Explore and describe what you want the agent to do." },
-                { time: "00:12", text: "Pick the agent you use and the scope: this project or the whole machine." },
-                { time: "00:24", text: "Review the exact configuration change LiteSPM prints, then approve it." },
-                { time: "00:38", text: "Run litespm list, and see the package, its agent, scope and version." },
-              ]}
-              transcript={
-                "The recording starts in the marketplace, not in a terminal: a search for a task, not for a package name.\n\n" +
-                "It then picks an agent and a scope, and shows the preview LiteSPM prints before it writes: the file, the entry, and the diff. Nothing is written until the human approves.\n\n" +
-                "Finally it runs litespm list, which reports what LiteSPM manages, which agent it is registered with, and how to remove it."
-              }
-              placeholder="A real recording needs a real machine, a real install and a real removal. Until that exists, this frame carries the same beats as captions and a transcript rather than a mock-up of a terminal."
-            />
+          <div className="mt-8">
+            <WalkthroughFrame />
           </div>
 
           <p className="mt-4 max-w-[72ch] text-[14px] leading-relaxed text-ink-2">
-            First-time setup and catalog sync are separate operations in the current CLI.
-            Package pages provide the exact installation command. Catalog skills may install
-            into detected skill targets, while MCP servers and eligible plugins support
-            explicit host selection.
+            Connect your agent, sync the catalog, and choose a package. LiteSPM shows the install
+            command and destination so you can keep track of what changed in your workspace.
           </p>
         </section>
 
@@ -169,9 +149,8 @@ export default function HowItWorksPage() {
               <span className="meta-kind meta-kind-plugin">Plugin</span>
               <h3 className="mt-3 text-[16px] font-semibold text-ink">Extend agent functionality</h3>
               <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
-                Plugins can bundle multiple capabilities. LiteSPM supports installation for
-                some plugins with pinned sources and compatible manifests; others are listed
-                for discovery only.
+                Plugins can bundle tools and skills. LiteSPM reads a pinned source and shows
+                the components and configuration changes in the install plan.
               </p>
               <Link href="/explore/?kind=plugin" className="mt-4 inline-block text-[13px] font-medium text-accent-text hover:underline">
                 Browse plugins →
