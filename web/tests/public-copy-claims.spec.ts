@@ -8,7 +8,7 @@ test("plugin copy explains supported components and partial-install consent", as
 
   await expect(plugins.getByRole("heading", { name: "Install supported components from a pinned source" })).toBeVisible();
   await expect(plugins.getByText(/MCP servers and skills/)).toBeVisible();
-  await expect(plugins.getByText(/host-specific extras are not installed/)).toBeVisible();
+  await expect(plugins.getByText(/host-specific extras are not installed/i)).toBeVisible();
   await expect(plugins.getByText(/explicit consent/)).toBeVisible();
   await expect(page.getByText(/all three install with the same command.*same undo/i)).toHaveCount(0);
 });
@@ -51,12 +51,15 @@ test("listing submission does not promise automatic pickup", async ({ page }) =>
 });
 
 test("footer identifies the catalog snapshot behind its counts", async ({ page }) => {
+  const release = JSON.parse(
+    readFileSync(path.resolve(process.cwd(), "data/release.json"), "utf8")
+  ) as { releaseId: string; createdAt: string };
   await gotoSettled(page, "/");
-  const snapshot = page.locator("footer").getByRole("link", { name: "rel-2026-10-21-01" });
+  const snapshot = page.locator("footer").getByRole("link", { name: release.releaseId, exact: true });
 
   await expect(snapshot).toHaveAttribute("href", "/status/");
   await expect(page.locator("footer").getByText(/Catalog snapshot/)).toBeVisible();
-  await expect(page.locator("footer").getByText(/2026-10-21/)).toBeVisible();
+  await expect(page.locator("footer").getByText(release.createdAt.slice(0, 10))).toBeVisible();
 });
 
 test("web README reports the committed catalog release, not a superseded one", () => {

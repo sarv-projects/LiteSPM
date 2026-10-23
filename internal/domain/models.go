@@ -87,11 +87,11 @@ func (k ListingKind) InstallWired() bool {
 // must have a wired install path AND its provenance must be above
 // discovery_only. The two facts are independent and both are required.
 //
-// A caller that treats this as a single flag gets the conservative answer: a
-// plugin still needs a fetchable pinned artifact and supported manifest
-// components, and a discovery_only skill is not installable however installable
-// its kind. A caller that must explain the refusal asks Listing.Kind.InstallWired()
-// and Installability.Effective() separately, then applies kind-specific gates.
+// This is a coarse kind/provenance eligibility check, not a guarantee that an
+// installer will accept or complete the operation. Installers still apply
+// kind-specific checks for artifacts, transports, host support, and partial
+// components; callers that need an actionable verdict must use the relevant
+// install preflight rather than this predicate alone.
 func (l *Listing) IsInstallable() bool {
 	return l.Kind.InstallWired() && l.Installability.Effective() != InstallabilityDiscoveryOnly
 }
