@@ -42,6 +42,21 @@ function nameKey(name) {
   return (stripped || name).toLowerCase();
 }
 
+function mixKinds(items) {
+  const kinds = ["mcp", "skill", "plugin"];
+  const byKind = new Map(kinds.map((kind) => [kind, []]));
+  for (const item of items) byKind.get(item.kind)?.push(item);
+  const mixed = [];
+  const longest = Math.max(...[...byKind.values()].map((group) => group.length));
+  for (let index = 0; index < longest; index += 1) {
+    for (const kind of kinds) {
+      const item = byKind.get(kind)?.[index];
+      if (item) mixed.push(item);
+    }
+  }
+  return mixed;
+}
+
 const nameCollator = new Intl.Collator();
 
 function oldSort(items, mode) {
@@ -64,9 +79,9 @@ function oldSort(items, mode) {
         nameKey(a.name).localeCompare(nameKey(b.name))
     );
   }
-  return copy.sort(
+  return mixKinds(copy.sort(
     (a, b) => curatedScore(b) - curatedScore(a) || nameKey(a.name).localeCompare(nameKey(b.name))
-  );
+  ));
 }
 
 function newSort(items, mode) {
@@ -100,9 +115,10 @@ function newSort(items, mode) {
     );
     return decorated.map((entry) => entry.item);
   }
-  const decorated = copy.map((item) => ({ item, score: curatedScore(item), name: nameKey(item.name) }));
-  decorated.sort((a, b) => b.score - a.score || nameCollator.compare(a.name, b.name));
-  return decorated.map((entry) => entry.item);
+  const kindRank = new Map(["mcp", "skill", "plugin"].map((kind, index) => [kind, index]));
+  const decorated = copy.map((item) => ({ item, kindRank: kindRank.get(item.kind), score: curatedScore(item), name: nameKey(item.name) }));
+  decorated.sort((a, b) => a.kindRank - b.kindRank || b.score - a.score || nameCollator.compare(a.name, b.name));
+  return mixKinds(decorated.map((entry) => entry.item));
 }
 
 let failed = false;

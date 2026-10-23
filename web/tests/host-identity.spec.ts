@@ -14,8 +14,8 @@
 //      counts on that host's own row on `/agents/` — one host, one total;
 //   2. the Explore link under the figure returns exactly that figure (the
 //      link's own `?host=` value, applied by the page);
-//   3. the headline figure in "What works with it" is the same number as the
-//      aside's "Works with" value (both render one measurement).
+//   3. the headline figure in "Catalog entries for this agent" is the same
+//      number as the aside's "Catalog entries" value (one measurement).
 //
 // A second test pins the denominator: `/agents/`, `/compare/`, a pre-rendered
 // entry page and the Explore facet must all state the same host count — the
@@ -63,9 +63,9 @@ async function readAgentIndex(page: import("@playwright/test").Page): Promise<In
   return rows.filter((row) => row.href.startsWith("/agents/"));
 }
 
-/** The figure the host page prints in its "Works with" fact. */
+/** The figure the host page prints in its catalog-entry fact. */
 async function hostPageCount(page: import("@playwright/test").Page): Promise<number> {
-  const text = await page.locator('dt:text-is("Works with") + dd').textContent();
+  const text = await page.locator('dt:text-is("Catalog entries") + dd').textContent();
   return parseCount(text);
 }
 
@@ -114,7 +114,7 @@ test("every host page's count equals its own Explore link and its /agents/ row",
         );
       }
 
-      // The headline under "What works with it" is the same measurement.
+      // The headline under "Catalog entries for this agent" is the same measurement.
       const headline = await page
         .locator('section[aria-labelledby="agent-works-title"] span.t-tabular')
         .first()
@@ -125,7 +125,7 @@ test("every host page's count equals its own Explore link and its /agents/ row",
         );
       }
 
-      const browse = page.getByRole("link", { name: "Browse them", exact: true });
+      const browse = page.getByRole("link", { name: "Browse entries for this agent", exact: true });
       const href = await browse.getAttribute("href");
       const host = new URL(href ?? "", "http://localhost").searchParams.get("host") ?? "";
       expect(host, `the Browse link on ${row.href} names a host filter`).not.toBe("");

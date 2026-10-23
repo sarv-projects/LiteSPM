@@ -90,7 +90,7 @@ export const DEFAULT_SORT: SortMode = "curated";
 
 /** The default order's rule, stated once in the UI where the sort control is. */
 export const CURATED_NOTE =
-  "Official skills first, then entries from the publisher's own manifest, then entries LiteSPM can install.";
+  "A mixed list of MCP servers, skills and plugins. Within each type, official listings, publisher-manifest entries and installable items come first.";
 
 /** How strongly the curated order prefers a row. Higher sorts first. */
 export function curatedScore(item: Listing): number {
@@ -179,13 +179,38 @@ export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[]
     return decorated.map((entry) => entry.item);
   }
   if (mode === "curated") {
+    const kindRank = new Map(KIND_ORDER.map((kind, index) => [kind, index]));
     const decorated = copy.map((item) => ({
       item,
+      kindRank: kindRank.get(item.kind) ?? KIND_ORDER.length,
       score: curatedScore(item),
       name: nameKey(item.name),
     }));
-    decorated.sort((a, b) => b.score - a.score || nameCollator.compare(a.name, b.name));
-    return decorated.map((entry) => entry.item);
+    decorated.sort(
+      (a, b) =>
+        a.kindRank - b.kindRank ||
+        b.score - a.score ||
+        nameCollator.compare(a.name, b.name)
+    );
+
+    // A marketplace's first page should show what it contains, not one type
+    // of listing repeated 48 times. Keep the curated order within each type,
+    // then interleave those ordered lists so the first viewport introduces
+    // MCP servers, skills and plugins together. Explicit type filters still
+    // leave that type's existing curated order intact.
+    const byKind = new Map<Listing["kind"], T[]>();
+    for (const kind of KIND_ORDER) byKind.set(kind, []);
+    for (const entry of decorated) byKind.get(entry.item.kind)?.push(entry.item);
+
+    const mixed: T[] = [];
+    const longest = Math.max(...[...byKind.values()].map((rows) => rows.length));
+    for (let index = 0; index < longest; index += 1) {
+      for (const kind of KIND_ORDER) {
+        const item = byKind.get(kind)?.[index];
+        if (item) mixed.push(item);
+      }
+    }
+    return mixed;
   }
   // "index" is the builder's own order: verified publishers first, then kind,
   // then name. Deterministic and identical to the release artifact.

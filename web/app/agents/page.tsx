@@ -13,7 +13,8 @@ import { AtlasTeaser } from "../../components/home/AtlasTeaser";
  */
 export const metadata: Metadata = {
   title: "Agent hosts",
-  description: `Every agent host named in the catalog, which of them LiteSPM can configure directly, and the config file each one uses.`,
+  description:
+    "Profiles for agent hosts LiteSPM can connect to or install skills into, with setup guidance, configuration details, and catalog targets.",
   alternates: { canonical: "/agents/" },
   openGraph: { title: "Agent hosts · LiteSPM", url: "/agents/" },
 };

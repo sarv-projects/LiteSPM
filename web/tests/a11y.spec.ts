@@ -224,7 +224,7 @@ test("narrow screens: the navigation is a menu; wider headers show a rail that f
     });
     await expect(menu, `the navigation menu is missing at ${width}px`).toBeVisible();
     await menu.locator("summary").click();
-    // Four destinations since the rail was cut to Explore / Works with / How
+    // Four destinations since the rail was cut to Explore / Agents / How
     // it works / Docs; the menu must carry every one of them.
     await expect(menu.locator("a"), `the menu is empty at ${width}px`).toHaveCount(4);
     const narrow = await read();

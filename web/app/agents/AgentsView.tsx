@@ -112,6 +112,18 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
           skills, and plugins for each one. Support varies by agent and package.
         </p>
 
+        <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
+          These profiles explain how LiteSPM works with each agent host: setup path, config file,
+          and capability targets. LiteSPM currently catalogs MCP servers, skills, and plugins; it
+          does not install agent applications themselves.
+        </p>
+
+        <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
+          Counts are catalog relationships, not runtime test results. MCP and skill totals follow
+          LiteSPM&rsquo;s install targets; plugin totals follow publisher-declared host lists, and
+          some plugin entries are discovery-only. Each listing shows its own install status.
+        </p>
+
         <div className="mt-7 border-b border-ink pb-2">
           <h2 className="sr-only">Agent hosts, compatible entry counts by kind, and config adapters</h2>
           {/* Column order must match the rendered cell order, which the rows
@@ -256,10 +268,6 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
           })}
         </ul>
 
-        <p className="mt-6 max-w-prose text-[12px] leading-relaxed text-ink-3">
-          Counts come from catalog metadata and each host's adapter. LiteSPM has not run every
-          capability against every agent.
-        </p>
         <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-ink-2">
           Done comparing? <Link href="/explore/" className="link">Browse what these hosts can
           run</Link>, or <Link href="/get-started/" className="link">connect one of them</Link>.
