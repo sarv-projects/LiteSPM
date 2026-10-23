@@ -185,9 +185,9 @@ export const SKILL_TARGETS: Array<{
  *
  * This is a property of the KIND, not of the individual row:
  *
- *   mcp     every bridge adapter — the bridge is one stdio entry, so any host
- *           whose config we can edit can run any MCP server.
- *   skill   every skill target — only hosts with a documented skills directory.
+ *   mcp     local rows can use every adapter; URL rows need a documented
+ *           spelling for the row's exact transport.
+ *   skill   every target with a documented user-scope skills directory.
  *   plugin  publisher-declared, because a bundle's reach genuinely varies.
  *
  * The builder previously stamped the same seven host names onto all 4,079 MCP
@@ -216,6 +216,15 @@ export function isRemoteTransport(transport?: string | null): boolean {
   return Boolean(transport) && transport !== "stdio";
 }
 
+/** Map catalog transport spellings to the registry's transport vocabulary. */
+function registryTransport(raw?: string | null): string {
+  const value = (raw ?? "").trim();
+  if (["", "http", "streamableHttp", "remote", "streamable-http"].includes(value)) {
+    return "streamable-http";
+  }
+  return value;
+}
+
 /**
  * The hosts an entry can actually be configured for.
  *
@@ -229,13 +238,15 @@ export function isRemoteTransport(transport?: string | null): boolean {
  *     claim about LiteSPM, so `availabilityOf` gates it — a row the binary
  *     refuses to install is listed for no host at all.
  *   - a **remote MCP** row needs a host with a verified URL spelling, so it is
- *     `REMOTE_HOSTS`, not every adapter: the other 42 refuse the install
- *     fail-closed and listing them would promise what the binary will not do.
+ *     only hosts whose `remoteTransports` include the row's exact transport;
+ *     the other adapters refuse the install fail-closed, and a capable remote
+ *     adapter may still reject a different transport.
  */
 export function hostsFor(item: {
   kind: Listing["kind"];
   compatibleHosts?: string[];
   transport?: string | null;
+  url?: string | null;
   installability?: Listing["installability"];
 }): string[] {
   // A plugin's list is the publisher's own declaration, and every surface that
@@ -254,9 +265,20 @@ export function hostsFor(item: {
   if (!availabilityOf(item).installable) return [];
 
   if (item.kind === "mcp") {
-    return (isRemoteTransport(item.transport) ? REMOTE_HOSTS : HOSTS).map((h) => h.name);
+    // A transport without a published endpoint is registered from its local
+    // launch command. For a URL entry, only hosts whose registry explicitly
+    // accepts this transport can take the config LiteSPM writes.
+    if (isRemoteTransport(item.transport) && item.url) {
+      const transport = registryTransport(item.transport);
+      return HOSTS.filter((host) => host.remote === true && host.remoteTransports?.includes(transport))
+        .map((host) => host.name);
+    }
+    return HOSTS.map((host) => host.name);
   }
-  return SKILL_TARGETS.map((t) => t.displayName);
+  // The website's installer defaults to user scope. Targets without a global
+  // skills directory require an explicit project-scope install and shouldn't
+  // be included in this default compatibility list.
+  return SKILL_TARGETS.filter((target) => target.hasGlobal).map((target) => target.displayName);
 }
 
 /**

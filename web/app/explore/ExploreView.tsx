@@ -354,9 +354,9 @@ function ExploreContent(props: ExploreViewProps) {
    * the agent remembered from the home page is a ranking preference — it
    * reorders results (compatible first, everything else still below), it never
    * narrows them; narrowing stays the banner button's job. Compatibility comes
-   * from what a row is: every MCP server works with every bridge adapter and
-   * every skill with every skills target, and only plugins carry their own
-   * declared host list. `lib/hostIdentity.ts` resolves the chosen spellings to
+   * from the install path LiteSPM can configure: remote MCP entries must match
+   * the target's documented transport, and skills need a user-scope directory.
+   * Plugins carry their own declared host list. `lib/hostIdentity.ts` resolves the chosen spellings to
    * one host, so "OpenAI Codex CLI" and a plugin manifest's "Codex" rank the
    * same agent.
    */
@@ -522,7 +522,12 @@ function ExploreContent(props: ExploreViewProps) {
 
       <main id="main" tabIndex={-1} className="flex-1">
         <div className="shell pt-8">
-          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Explore the marketplace</h1>
+          <p className="kicker">MCP servers · skills · plugins</p>
+          <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-ink">Explore the marketplace</h1>
+          <p className="mt-2 max-w-[66ch] text-[13px] leading-relaxed text-ink-2">
+            Browse by what you want to do, then check each package&rsquo;s agent targets and install status.
+            Compatibility is package-specific; entries LiteSPM cannot install say why.
+          </p>
 
           {savedTarget && savedAgent && (
             <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-rule bg-sunken px-4 py-3">

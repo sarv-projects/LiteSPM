@@ -76,10 +76,11 @@ const INSTALLABILITY: Record<
  */
 function hostSource(item: Listing): { label: string; plain: string } {
   if (item.kind === "mcp") {
+    const remote = isRemoteTransport(item.transport) && Boolean(item.url);
     return {
       label: "By entry type",
-      plain: isRemoteTransport(item.transport)
-        ? "Every host LiteSPM can add a remote server to. This list is LiteSPM's own, not the publisher's."
+      plain: remote
+        ? "Hosts whose documented URL-entry format accepts this listing's transport. This list is LiteSPM's own, not the publisher's."
         : "Every host LiteSPM can set up. This list is LiteSPM's own, not the publisher's.",
     };
   }
@@ -87,7 +88,7 @@ function hostSource(item: Listing): { label: string; plain: string } {
     return {
       label: "By entry type",
       plain:
-        "Every host LiteSPM can install skills into. This list is LiteSPM's own, not the publisher's.",
+        "Hosts with a documented user-scope skills directory. This list is LiteSPM's own, not the publisher's.",
     };
   }
   return { label: "Publisher-declared", plain: "Hosts the publisher declared in its own manifest." };

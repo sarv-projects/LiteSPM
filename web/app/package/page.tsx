@@ -20,7 +20,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Find a package",
   description:
-    "One entry from the LiteSPM catalog: what it does, which agent hosts it works with, and how to add it.",
+    "One entry from the LiteSPM catalog: what it does, which agent targets have a supported install path, and how to add it.",
   alternates: { canonical: "/package/" },
   openGraph: { title: "Find a package · LiteSPM", url: "/package/" },
 };

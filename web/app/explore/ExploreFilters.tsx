@@ -196,7 +196,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           are provenance, and `/categories/` is the browse-by-category
           surface, so they are not a second facet row here. */}
       <div
-        className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-rule py-3"
+        className="explore-filter-panel mt-5 flex flex-wrap items-center gap-x-5 gap-y-3"
         onPointerEnter={onIntent}
         onFocusCapture={onIntent}
       >

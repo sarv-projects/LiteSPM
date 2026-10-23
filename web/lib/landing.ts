@@ -218,9 +218,10 @@ export function findAgentChoice(id: string | null): AgentChoice | null {
 /**
  * Does this row declare support for the chosen agent?
  *
- * This is the catalog's own declared semantics, no stronger: an MCP server
- * works with every bridge adapter, a skill with every skills directory, and a
- * plugin with the publisher's own list. `lib/hostIdentity.ts` is the one rule
+ * This follows the install path LiteSPM can configure: local MCP servers use
+ * documented config adapters, URL servers use only adapters that declare the
+ * exact transport, skills use documented user-scope directories, and plugins
+ * retain the publisher's own host list. `lib/hostIdentity.ts` is the one rule
  * that decides which spellings of an agent are the same host, so the choice's
  * "Claude Code CLI" and a skill row's "Claude Code" are one host. It is a
  * declaration, never a test result — the UI says so next to the badges.

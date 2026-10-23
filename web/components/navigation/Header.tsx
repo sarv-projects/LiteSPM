@@ -13,7 +13,7 @@ import { DOCS_URL } from "../../lib/site";
  * theme toggle and the install CTA.
  *
  * The rail names the product, not the site's internal structure: Explore (the
- * marketplace), Agents (the agent support profiles), How it works and Docs.
+ * marketplace), Agent hosts (the setup and support profiles), How it works and Docs.
  * Categories, Compare and Insights still exist as routes and are linked
  * from Explore and the footer; they left the rail because a first-time reader
  * should not have to learn the site map to find the product. Docs points at the
@@ -55,7 +55,7 @@ interface HeaderProps {
 
 const PRIMARY_NAV = [
   { href: "/explore/", label: "Explore" },
-  { href: "/agents/", label: "Agents" },
+  { href: "/agents/", label: "Agent hosts" },
   { href: "/how-it-works/", label: "How it works" },
   { href: DOCS_URL, label: "Docs", external: true },
 ];

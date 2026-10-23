@@ -121,7 +121,7 @@ function pickRow(what: string, predicate: (row: Listing) => boolean): EntryFixtu
 }
 
 const REMOTE_MCP = pickRow("an MCP row with a remote transport", (row) => {
-  return row.kind === "mcp" && isRemote(row.transport) && Boolean(row.summary?.trim());
+  return row.kind === "mcp" && isRemote(row.transport) && Boolean(row.url) && Boolean(row.summary?.trim());
 });
 
 const DISCOVERY_MCP = pickRow("an MCP row with no transport", (row) => {
@@ -171,11 +171,16 @@ test("the fixture rows are the classes the catalog actually has", () => {
 test("a remote MCP entry lists exactly the hosts that can reach it", async ({ page }) => {
   await gotoSettled(page, REMOTE_MCP.href);
 
+  const rawTransport = (REMOTE_MCP.row.transport ?? "").trim();
+  const transport = ["", "http", "streamableHttp", "remote", "streamable-http"].includes(rawTransport)
+    ? "streamable-http"
+    : rawTransport;
+  const transportHosts = REMOTE_HOSTS.filter((host) => host.remoteTransports?.includes(transport));
   const { listed } = parsePair(await fitNote(page));
   expect(
     listed,
-    `${REMOTE_MCP.key} is reached over ${REMOTE_MCP.row.transport}, so it can only be listed for the ${REMOTE_HOSTS.length} hosts with a verified remote entry spelling (${REMOTE_HOSTS.map((h) => h.id).join(", ")})`
-  ).toBe(REMOTE_HOSTS.length);
+    `${REMOTE_MCP.key} is reached over ${REMOTE_MCP.row.transport}, so only hosts documenting that transport may be listed (${transportHosts.map((h) => h.id).join(", ")})`
+  ).toBe(transportHosts.length);
 
   // The same figure in words, in the plain summary above the tabs. Both render
   // one measurement; a page that disagrees with itself is the defect this
@@ -183,7 +188,7 @@ test("a remote MCP entry lists exactly the hosts that can reach it", async ({ pa
   const fact = page.locator("dt", { hasText: "Which agents it works with" });
   await expect(fact).toBeVisible();
   const stated = await fact.locator("xpath=following-sibling::dd[1]").textContent();
-  expect(stated).toContain(`${REMOTE_HOSTS.length} of`);
+  expect(stated).toContain(`${transportHosts.length} of`);
 });
 
 test("a row LiteSPM cannot install lists no host at all", async ({ page }) => {

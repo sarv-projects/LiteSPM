@@ -101,21 +101,21 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
 
       <main id="main" tabIndex={-1} className="shell flex-1 pt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Browse AI agents</h1>
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Browse agent hosts</h1>
           <p className="t-mono text-[11px] text-ink-3">
             {formatCount(hostCount)} hosts · {formatCount(HOSTS.length)} that LiteSPM configures
           </p>
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          See which coding agents LiteSPM can configure and discover available MCP servers,
-          skills, and plugins for each one. Support varies by agent and package.
+          Choose a supported agent host to see its setup path, configuration location, and the
+          packages the catalog associates with it. Support varies by agent and package.
         </p>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          These profiles explain how LiteSPM works with each agent host: setup path, config file,
-          and capability targets. LiteSPM currently catalogs MCP servers, skills, and plugins; it
-          does not install agent applications themselves.
+          These are profiles for agent hosts LiteSPM can target; they are not listings for agent
+          applications. LiteSPM currently catalogs MCP servers, skills, and plugins. Agent apps
+          and connectors are part of the product direction, but are not available to install here.
         </p>
 
         <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">

@@ -18,7 +18,7 @@ import ExploreRoute from "./ExploreRoute";
 export const metadata: Metadata = {
   title: "Explore the catalog",
   description:
-    "Search the whole catalog by name, summary, publisher, category, runtime, transport or tool name, filter by goal, and narrow to what works with the agent you actually use.",
+    "Discover MCP servers, skills and plugins by task, publisher, category or agent host. Every listing shows its declared compatibility and whether LiteSPM can install it.",
   alternates: { canonical: "/explore/" },
   openGraph: { title: "Explore the catalog · LiteSPM", url: "/explore/" },
 };

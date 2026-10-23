@@ -72,6 +72,7 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
   // the same rule counts on the entry page.
   const hosts = hostsNamedBy(item);
   const avail = availabilityOf(item);
+  const remoteEndpoint = item.kind === "mcp" && isRemoteTransport(item.transport) && Boolean(item.url);
   const detail = [
     kindLabel(item.kind),
     item.publisher?.name ? `by ${item.publisher.name}` : "publisher unspecified",
@@ -154,9 +155,9 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
             }`}
             title={
               worksWith
-                ? item.kind === "mcp" && isRemoteTransport(item.transport)
-                  ? "Remote MCP servers work only in the hosts LiteSPM can add a remote server to, skills in any host with a skills directory, and plugins only in the hosts their publisher lists."
-                  : "MCP servers work in any host LiteSPM can set up, skills in any host with a skills directory, and plugins only in the hosts their publisher lists."
+                ? remoteEndpoint
+                  ? "LiteSPM's adapter for this agent documents the URL-entry format for this listing's transport. This does not test the server itself."
+                  : "Local MCP servers use adapters LiteSPM can configure; skills use documented user-scope skills directories; plugins use the hosts their publisher lists."
                 : "Nothing declares support for this agent."
             }
           >

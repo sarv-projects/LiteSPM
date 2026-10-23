@@ -9,11 +9,12 @@ import { Listing } from "../../lib/telemetry";
 import { formatCount } from "../../lib/format";
 import { kindLabel, listingHref } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
+import { feasibilityFor } from "../../lib/installFeasibility";
 import { hostsNamedBy } from "../../lib/hostIdentity";
 import { VerifiedMark } from "../../components/catalog/PublisherMark";
 import { readInlineEntry, useProductRow } from "../../lib/catalogData";
 import { SITE_URL } from "../../lib/site";
-import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice, rowWorksWithAgent } from "../../lib/landing";
+import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { AddSteps, scrollToSection } from "../../components/package/AddSteps";
 import { InstallBand } from "../../components/package/InstallBand";
@@ -115,7 +116,7 @@ function PackageIndexShell({
           Find a package
         </h1>
         <p className="mt-2.5 text-[13px] leading-relaxed text-ink-2">
-          Open any entry for the details: what it does, which agent hosts it works with, and how to
+          Open any entry for the details: what it does, which agent targets LiteSPM can support, and how to
           add it. Below is the start of the catalog&rsquo;s {formatCount(total)} entries — search the
           full set if what you want isn&rsquo;t here.
         </p>
@@ -432,7 +433,7 @@ function PackageContent({
     const wanted = `${docTitle} · LiteSPM`;
     const description = clampMeta(
       docSummary?.trim() ||
-        `${docTitle} from the LiteSPM catalog: what it is, which agent hosts it works with, and how to add it.`
+        `${docTitle} from the LiteSPM catalog: what it is, which agent targets have a supported install path, and how to add it.`
     );
 
     const apply = () => {
@@ -641,7 +642,7 @@ function PackageContent({
   // spellings of the Pi host count once — and this fraction's numerator and
   // `hostTotal` are the same kind of thing.
   const hosts = hostsNamedBy(item);
-  const worksWith = rowWorksWithAgent(item, agent);
+  const selectedFeasibility = agent && agent.id !== "other" ? feasibilityFor(item, agent.id) : null;
   const avail = availabilityOf(item);
 
   // Emitted by the client only on the client-resolved route. A pre-rendered
@@ -676,7 +677,7 @@ function PackageContent({
         <ol className="t-mono shell flex items-center gap-1.5 overflow-x-auto py-2 text-[11px] text-ink-3">
           <li className="flex shrink-0 items-center gap-1.5">
             <Link href="/" className="hover:text-ink hover:underline">
-              Index
+              Catalog
             </Link>
             <ChevronRight className="h-3 w-3 shrink-0 text-rule-2" aria-hidden="true" />
           </li>
@@ -787,7 +788,12 @@ function PackageContent({
              * thing they came for without scrolling. The guided flow stays
              * in "How do I add it?"; the band's link is the path to it.
              */}
-            <InstallBand item={item} agent={agent} onSeeSteps={() => scrollToSection("pkg-add")} />
+            <InstallBand
+              item={item}
+              agent={agent}
+              onSeeSteps={() => scrollToSection("pkg-add")}
+              onChooseAgent={() => scrollToSection("will-it-work")}
+            />
           </header>
 
           {/* ---- 1b. The short version -------------------------------- */}
@@ -901,27 +907,34 @@ function PackageContent({
                   ) : (
                     <span
                       className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-[11px] font-medium ${
-                        worksWith
+                        selectedFeasibility?.state === "supported" ||
+                        selectedFeasibility?.state === "requires-setup"
                           ? "border-accent/30 bg-accent-wash text-accent-text"
                           : "border-rule bg-sunken text-ink-3"
                       }`}
-                      title={
-                        worksWith
-                          ? "This entry's host list includes this agent — declared by the publisher or derived from the entry's kind."
-                          : "Nothing declares support for this agent."
-                      }
+                      title={selectedFeasibility?.limitations.join(". ") ?? "No agent target selected."}
                     >
-                      {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
-                      {worksWith
-                        ? `Works with ${agent.label}`
-                        : `Not declared for ${agent.label}`}
+                      {selectedFeasibility?.state === "supported" && (
+                        <Check className="h-3 w-3" aria-hidden="true" />
+                      )}
+                      {selectedFeasibility?.state === "supported"
+                        ? `Installable for ${agent.label}`
+                        : selectedFeasibility?.state === "requires-setup"
+                          ? `Requires setup for ${agent.label}`
+                          : selectedFeasibility?.state === "discovery-only"
+                            ? `Listed for ${agent.label}; not installable`
+                            : selectedFeasibility?.state === "unsupported"
+                              ? `Unsupported for ${agent.label}`
+                              : selectedFeasibility?.state === "unknown"
+                                ? `Not confirmed for ${agent.label}`
+                                : `No compatibility data for ${agent.label}`}
                     </span>
                   )}
                 </div>
 
                 <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-3">
-                  Compatibility is declared, not tested — LiteSPM doesn&rsquo;t run what it
-                  lists.
+                  This checks whether LiteSPM can prepare the install for that target from
+                  published metadata. It does not run or independently test the package.
                 </p>
 
                 <button

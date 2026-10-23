@@ -38,7 +38,7 @@ import type { ProvenanceStats, CuratedGroup, TopicStat } from "../lib/landing";
  *
  * Now:
  *
- *   1. hero — the promise, the search and the product's own recording
+ *   1. hero — the promise, the search and a truthful map of the catalog
  *   2. what do you want your AI to do? — eight goal tiles
  *   3. start here — one curated, installable set, and one secondary group
  *   4. tools, skills and plugins — the three kinds, in plain language
