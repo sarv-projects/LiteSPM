@@ -95,11 +95,6 @@ export function SiteFooter() {
               </Link>
             </li>
             <li>
-              <Link href="/submit/" className="link touch-link">
-                Submit a listing
-              </Link>
-            </li>
-            <li>
               <Link href="/docs/" className="link touch-link">
                 Developer docs
               </Link>

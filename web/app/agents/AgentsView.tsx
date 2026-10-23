@@ -98,6 +98,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
   const [filter, setFilter] = useState<AgentFilter>("all");
   const [savedAgent, setSavedAgent] = useState<AgentChoice | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
+  const [gridView, setGridView] = useState(false);
 
   useEffect(() => {
     try {
@@ -233,10 +234,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
             </button>
             <div
               ref={railRef}
-              className="agent-atlas-rail"
+              className={"agent-atlas-rail" + (gridView ? " agent-directory-grid" : "")}
               tabIndex={0}
               role="region"
-              aria-label="Scrollable agent profiles"
+              aria-label={gridView ? "Agent profiles" : "Scrollable agent profiles"}
               aria-live="polite"
             >
               {visibleAgents.map((agent) => (
@@ -255,7 +256,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
             </button>
           </div>
           <div className="agent-atlas-rail-hint" aria-hidden="true"><span />Scroll or swipe to explore</div>
-          <details className="mt-6 border-t border-rule pt-5"><summary className="cursor-pointer py-2 text-[14px] font-semibold text-ink">View all matching agents ({visibleAgents.length})</summary><div className="agent-directory-grid mt-5">{visibleAgents.map(agent => <AgentCard key={agent.slug} agent={agent} highlighted={agent.slug === pickedSlug} />)}</div></details>
+          <button type="button" aria-pressed={gridView} onClick={() => setGridView(value => !value)} className="btn mt-5">{gridView ? "View as horizontal cards" : "View all matching agents as a grid"}</button>
         </section>
 
         <section className="shell agent-atlas-bottom">

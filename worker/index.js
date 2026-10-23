@@ -157,7 +157,7 @@ function entryJsonLd(item, url, categoryText) {
     applicationCategory: categoryText,
     applicationSubCategory: kindLabel(item.kind),
     ...(item.version ? { softwareVersion: item.version } : {}),
-    author: { "@type": "Organization", name: item.publisher?.name || "Unknown" },
+    ...(item.publisher?.provenance !== "source-owner" ? { author: { "@type": "Organization", name: item.publisher?.name || "Unknown" } } : {}),
     ...(item.publisher?.url ? { sameAs: item.publisher.url } : {}),
   };
 }
@@ -287,7 +287,7 @@ function rewrite(response, { item, key, origin }) {
 
   return new HTMLRewriter()
     .on("[data-entry-name]", { element: el => el.setInnerContent(item.name) })
-    .on("[data-entry-summary]", { element: el => el.setInnerContent(item.summary || "Choose your agent to see setup instructions.") })
+    .on("[data-entry-summary]", { element: el => el.setInnerContent((item.summary || "") + " Enable JavaScript to choose an agent and view installation instructions.") })
     .on("head", { element: el => el.append("<style>[data-package-index] [data-index-browse]{display:none}</style>", { html: true }) })
     .on("title", { element: (el) => el.setInnerContent(title) })
     .on('meta[name="description"]', { element: (el) => el.setAttribute("content", description) })

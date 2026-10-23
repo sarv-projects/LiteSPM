@@ -298,8 +298,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
               </button>
               <p className="text-[12px] leading-relaxed text-dark-ink-2">
                 Choose your agent to add <code className="t-mono">--host &lt;id&gt;</code> and
-                install into that one host; without it, a skill goes to the skills targets
-                detected on your machine.
+                install into that agent’s configuration. Review its destination before approving.
               </p>
             </div>
           </div>

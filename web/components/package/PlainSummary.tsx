@@ -116,7 +116,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
           {item.summary?.trim() || KIND_PLAIN[item.kind]}
         </Fact>
 
-        <Fact term="Who publishes it" detail={detailLink("source", "details: Source →")}>
+        <Fact term={item.publisher?.provenance === "source-owner" ? "Source owner" : "Who publishes it"} detail={detailLink("source", "details: Source →")}>
           {publisher ? (
             <>
               {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
@@ -131,9 +131,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
               ) : (
                 publisher
               )}
-              {item.publisher?.verified
-                ? " — publisher listing."
-                : " — community listing."}
+              {item.publisher?.provenance === "source-owner" ? " — source repository." : item.publisher?.verified ? " — publisher listing." : " — community listing."}
             </>
           ) : (
             <>Community listing</>

@@ -168,7 +168,7 @@ export function entryJsonLd(
     applicationCategory: categoryText,
     applicationSubCategory: kindLabel(item.kind),
     ...(item.version ? { softwareVersion: item.version } : {}),
-    author: { "@type": "Organization", name: item.publisher?.name || "Unknown" },
+    ...(item.publisher?.provenance !== "source-owner" ? { author: { "@type": "Organization", name: item.publisher?.name || "Unknown" } } : {}),
     ...(item.publisher?.url ? { sameAs: item.publisher.url } : {}),
   };
 }

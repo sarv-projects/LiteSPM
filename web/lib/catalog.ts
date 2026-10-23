@@ -95,8 +95,9 @@ export const CURATED_NOTE =
   "Featured picks first, followed by installable packages and publisher listings.";
 
 /** How strongly the curated order prefers a row. Higher sorts first. */
+const FEATURED_IDS = new Set(featured.entries.map(entry => entry.id));
 export function curatedScore(item: Listing): number {
-  let score = featured.entries.some(entry => entry.id === item.id) ? 100 : 0;
+  let score = FEATURED_IDS.has(item.id) ? 100 : 0;
   if (item.category === OFFICIAL_SKILLS_CATEGORY) score += 4;
   if (item.publisher?.verified) score += 2;
   if (availabilityOf(item).installable) score += 1;

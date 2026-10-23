@@ -49,7 +49,7 @@ export function SpecCard({ item }: { item: Listing }) {
         <Row label="Kind">{kindLabel(item.kind)}</Row>
         <Row label="Category">{categoryLabel(item.category)}</Row>
         {item.publisher?.name && (
-          <Row label="Publisher">
+          <Row label={item.publisher?.provenance === "source-owner" ? "Source owner" : "Publisher"}>
             <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               {publisherUrl ? (
                 <a href={publisherUrl} target="_blank" rel="noopener noreferrer" className="link">

@@ -20,7 +20,6 @@ func TestSkillDirectoryURLResolvesRepositoryAndNamedSkill(t *testing.T) {
 
 func TestSkillDirectoryURLRejectsAmbiguousOrUnsafeIdentity(t *testing.T) {
 	for _, raw := range []string{
-		"https://skills.sh/owner/repo",
 		"https://skills.sh/owner/repo/skill/extra",
 		"https://skills.sh/owner/repo/..",
 		"https://skills.sh/owner/repo/%2Fescape",

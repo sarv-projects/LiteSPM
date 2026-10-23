@@ -2717,3 +2717,6 @@
 .agent-directory-grid .agent-atlas-card { min-width: 0; }
 .query-pending [data-explore-results] > * { visibility: hidden; }
 .query-pending [data-explore-results]::before { content: "Applying your search and filters…"; display:block; color:var(--ink-2); padding:24px 0; }
+
+.home-hero-window { background: var(--surface); }
+.agent-atlas-current { background: var(--sunken); border-color: var(--rule); }

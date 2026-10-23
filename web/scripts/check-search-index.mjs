@@ -35,6 +35,7 @@
 //
 // Usage: node scripts/check-search-index.mjs [--root <dir>]
 
+import { normalizeListing } from "../lib/discovery.mjs";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -180,7 +181,7 @@ function buildArtifacts(rows) {
 }
 
 async function main() {
-  const rows = JSON.parse(readFileSync(path.join(webRoot, "data", "catalog.json"), "utf8"));
+  const rows = JSON.parse(readFileSync(path.join(webRoot, "data", "catalog.json"), "utf8")).map(normalizeListing);
   if (!Array.isArray(rows) || rows.length === 0) {
     fail(`data/catalog.json did not parse to a non-empty array`);
   }

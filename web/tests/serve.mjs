@@ -78,7 +78,10 @@ function parseTomlSubset(text, source) {
   return root;
 }
 
-const port = Number(process.env.LITESPM_TEST_PORT ?? 8788);
+const hostArg = process.argv.indexOf("--host");
+const host = hostArg >= 0 ? process.argv[hostArg + 1] : "127.0.0.1";
+const portArg = process.argv.indexOf("--port");
+const port = Number(process.env.LITESPM_TEST_PORT ?? (portArg >= 0 ? process.argv[portArg + 1] : 8788));
 const webRoot = new URL("../", import.meta.url);
 const repoRoot = new URL("..", webRoot);
 const configPath = fileURLToPath(new URL("wrangler.toml", repoRoot));
@@ -104,10 +107,12 @@ const mf = new Miniflare(
     // Workerd refuses module paths that climb out of its root; the repository
     // root contains both the Worker and the export.
     rootPath: fileURLToPath(repoRoot),
-    host: "127.0.0.1",
+    host,
     port,
-    modules: true,
-    scriptPath: fileURLToPath(new URL(config.main, repoRoot)),
+    modules: [
+      { type: "ESModule", path: fileURLToPath(new URL(config.main, repoRoot)) },
+      { type: "ESModule", path: fileURLToPath(new URL("web/lib/discovery.mjs", repoRoot)) },
+    ],
     compatibilityDate: config.compatibility_date,
     assets: {
       directory: fileURLToPath(new URL("out/", webRoot)),
