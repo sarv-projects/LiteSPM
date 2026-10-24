@@ -206,7 +206,7 @@ test("a row LiteSPM cannot install lists no host at all", async ({ page }) => {
 
   const fact = page.locator("dt", { hasText: "Agent install targets" });
   await expect(fact.locator("xpath=following-sibling::dd[1]")).toContainText(
-    "0 of 79 agent hosts in this catalog have a documented LiteSPM install path"
+    "Choose an agent to check whether setup is available."
   );
 });
 

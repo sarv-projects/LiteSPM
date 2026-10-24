@@ -2720,3 +2720,15 @@
 
 .home-hero-window { background: var(--surface); }
 .agent-atlas-current { background: var(--sunken); border-color: var(--rule); }
+@media (max-width: 760px) {
+  .agent-atlas-visual { display: none; }
+  .agent-atlas-hero-grid { padding-top: 32px; padding-bottom: 28px; }
+}
+@media (max-width: 600px) {
+  .home-hero-art { display: none; }
+  .home-editorial-layout { padding-top: 38px; padding-bottom: 30px; }
+}
+
+.cli-story-proof { color: var(--ink-2); font-size: 12px; }
+.cli-story-steps button span:first-child { color: var(--ink-3); font-size: 12px; }
+.cli-story-steps button:hover, .cli-story-steps button[aria-current="step"] { background: var(--hover); color: var(--ink); }

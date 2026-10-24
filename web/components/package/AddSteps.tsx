@@ -211,8 +211,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             <p className="flex min-w-0 items-start gap-2 text-[13px] leading-relaxed text-dark-ink">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-dark-signal" aria-hidden="true" />
               <span>
-                You marked this as installed in this browser. LiteSPM&rsquo;s own ledger, on your
-                machine, is the source of truth — this page can&rsquo;t read it.
+                Manage {item.name} with the commands below. Run <code className="t-mono">litespm list</code> to view its installation on your computer.
               </span>
             </p>
             <button

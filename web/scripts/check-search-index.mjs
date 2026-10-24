@@ -361,7 +361,7 @@ async function main() {
   }
   if (worstWindow.bytes > WINDOW_GZ_BUDGET) {
     fail(
-      `the first window costs ${fmt(worstWindow.bytes)} for ${JSON.stringify(worstWindow.query)}, ` +
+      `the first window costs ${fmt(worstWindow.bytes)} (${worstWindow.bytes} bytes) for ${JSON.stringify(worstWindow.query)}, ` +
         `budget ${fmt(WINDOW_GZ_BUDGET)} — the search path is paying for rows it does not render`
     );
   }

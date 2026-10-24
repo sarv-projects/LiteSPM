@@ -7,6 +7,8 @@ import bundledRelease from "../data/release.json";
 
 export interface Listing {
   id: string;
+  /** Revision-aware identity retained by the compact search projection. */
+  discoveryKey?: string;
   name: string;
   slug: string;
   kind: "mcp" | "skill" | "plugin";

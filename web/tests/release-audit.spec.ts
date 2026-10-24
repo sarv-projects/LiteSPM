@@ -45,3 +45,29 @@ for (const route of ['/trust/', '/about/', '/roadmap/', '/changelog/']) {
     await expect(footer.getByRole('link', { name: 'Apache-2.0', exact: true })).toBeVisible();
   });
 }
+
+// Retained screenshots make successful desktop/mobile states reviewable.
+for (const width of [1440, 390]) {
+  for (const theme of ['light', 'dark']) {
+    for (const route of ['/', '/explore/', '/agents/', '/get-started/']) {
+      test(`release screenshot ${route} ${width}px ${theme}`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.addInitScript(value => localStorage.setItem('litespm-theme', value), theme);
+        await page.goto(route);
+        await expect(page.locator('main h1')).toBeVisible();
+        await page.evaluate(() => document.fonts.ready);
+        const file = `${route.replace(/\//g, '') || 'home'}-${width}-${theme}.png`;
+        const path = testInfo.outputPath(file);
+        await page.screenshot({ path, fullPage: true });
+        await testInfo.attach(file, { path, contentType: 'image/png' });
+      });
+    }
+  }
+}
+
+test('the same pinned plugin appears once after interactive catalog loading', async ({ page }) => {
+  await page.goto('/explore/?q=activecampaign&kind=plugin');
+  const rows = page.locator('main a[data-kind="plugin"]');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('ActiveCampaign');
+});

@@ -7,7 +7,7 @@ test(
   async ({ page }) => {
     await gotoSettled(page, "/submit/");
 
-    const newListing = page.getByRole("link", { name: "New listing" });
+    const newListing = page.getByRole("link", { name: "Request a listing on GitHub" });
     await expect(newListing).toHaveAttribute(
       "href",
       "https://github.com/sarv-projects/LiteSPM/issues/new?template=new-listing.yml"

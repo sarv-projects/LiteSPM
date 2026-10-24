@@ -29,7 +29,7 @@ export const SORTS: Array<{ id: SortMode; label: string }> = [
   // two names that appeared nowhere else on the page, so a reader could not
   // tell what the control would do to the list.
   { id: "relevance", label: "Best match" },
-  { id: DEFAULT_SORT, label: "Recommended order" },
+  { id: DEFAULT_SORT, label: "Featured first" },
   { id: "installable", label: "Installable first" },
   { id: "name", label: "Name A–Z" },
   { id: "publisher", label: "Publisher A–Z" },

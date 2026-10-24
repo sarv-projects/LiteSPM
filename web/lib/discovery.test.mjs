@@ -25,3 +25,12 @@ test('unbroken and oversized queries are bounded consistently', () => {
   assert.equal(boundedQuery('a'.repeat(10000)).length, 256);
   assert.equal(boundedQuery('github'), 'github');
 });
+
+test('duplicate identity survives the compact search projection', async () => {
+  const { buildDisplayRows, encodeDisplayRows, decodeDisplayRows } = await import('./searchFormat.mjs');
+  const a = row('plugin:one:active', { slug: 'one-active', category: 'Tools', artifact: { type: 'git-tree', repo: 'https://github.com/acme/tool', sha: 'abc', pinned: true } });
+  const b = { ...a, id: 'plugin:two:active', slug: 'two-active' };
+  const c = { ...a, id: 'plugin:three:active', artifact: { ...a.artifact, sha: 'def' } };
+  const decoded = decodeDisplayRows(encodeDisplayRows(buildDisplayRows([a,b,c])));
+  assert.deepEqual(uniqueListings(Array.from({length: decoded.rowCount}, (_,i) => decoded.rowAt(i))).map(x => x.id), [a.id, c.id]);
+});

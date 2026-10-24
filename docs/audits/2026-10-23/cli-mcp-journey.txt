@@ -1,0 +1,103 @@
+$ litespm catalog build --dataset /tmp/litespm-mcp-audit-cteoh0xv/dataset.json --out /tmp/litespm-mcp-audit-cteoh0xv/site --release-id rel-audit-local-001
+✓ Catalog release built
+  Release:  rel-audit-local-001 (sequence 1, 1 items)
+  Snapshot: snap-cac39f4f611ddfb4
+  Manifest: sha256:9ccb1f4fac8cc4da3ae1db60243a2294cd659464cf64d00a543307bb0f7d5c09
+  Pointer:  /tmp/litespm-mcp-audit-cteoh0xv/site/v1/current.json
+  Tree:     /tmp/litespm-mcp-audit-cteoh0xv/site/v1/releases/rel-audit-local-001
+
+
+$ litespm catalog sync
+Synchronizing catalog from http://127.0.0.1:43551...
+✓ Catalog synchronization complete (Release rel-audit-local-001, 1 capabilities indexed).
+
+
+$ litespm search github
+Found 1 capabilities matching "github":
+
+NAME / ID                        KIND     PUBLISHER        SUMMARY
+--------------------------------------------------------------------------------
+GitHub                           MCP      github           Connect AI assistants to GitHub - man...
+  mcp:builtin:mcp-registry:io.github.github-github-mcp-server
+
+
+$ litespm install mcp:builtin:mcp-registry:io.github.github-github-mcp-server --host codex --workspace /tmp/litespm-mcp-audit-cteoh0xv/project
+Resolving and installing mcp:builtin:mcp-registry:io.github.github-github-mcp-server...
+✓ Registered MCP server github
+  Listing ID:  inst_project_mcp_builtin_mcp-registry_io_github_github-github-mcp-server_2_0_1
+  Endpoint:    https://api.githubcopilot.com/mcp/ (streamable-http)
+  • codex        added entry in /tmp/litespm-mcp-audit-cteoh0xv/project/.codex/config.toml
+  Note: the catalog publishes no auth headers for this server, and --env is refused for
+        remote (URL) entries (LPSM-REMOTE-ENV-REFUSED). Add any credential to the host's
+        config by hand.
+
+
+$ litespm list --project /tmp/litespm-mcp-audit-cteoh0xv/project --json
+{
+  "schema": "litespm.inventory/v1",
+  "capturedAt": "2026-10-23T23:47:29Z",
+  "filters": {
+    "kind": "",
+    "agent": "",
+    "state": "",
+    "scope": "project",
+    "projectDir": "/tmp/litespm-mcp-audit-cteoh0xv/project"
+  },
+  "counts": {
+    "uniqueCapabilities": 1,
+    "deployments": 1,
+    "unplaced": 0,
+    "managed": 1,
+    "observed": 0,
+    "adopted": 0,
+    "drifted": 0,
+    "broken": 0,
+    "unknown": 0
+  },
+  "records": [
+    {
+      "kind": "mcp",
+      "id": "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+      "name": "github",
+      "agent": "codex",
+      "scope": "project",
+      "state": "managed",
+      "placement": "deployed",
+      "origin": "catalog",
+      "installId": "inst_project_mcp_builtin_mcp-registry_io_github_github-github-mcp-server_2_0_1",
+      "configPath": "/tmp/litespm-mcp-audit-cteoh0xv/project/.codex/config.toml",
+      "locator": "mcp_servers.github",
+      "entryStyle": "native",
+      "digest": "sha256:5a2be87d4413a0f387ee7d581768a7afe066b7677a02396b474ef440426900c5",
+      "currentDigest": "sha256:5a2be87d4413a0f387ee7d581768a7afe066b7677a02396b474ef440426900c5",
+      "installedAt": "2026-10-23T23:47:29Z",
+      "updatedAt": "2026-10-23T23:47:29Z",
+      "detail": ""
+    }
+  ],
+  "warnings": []
+}
+
+
+$ litespm install remove inst_project_mcp_builtin_mcp-registry_io_github_github-github-mcp-server_2_0_1
+✓ Removed inst_project_mcp_builtin_mcp-registry_io_github_github-github-mcp-server_2_0_1
+  LiteSPM's entries were stripped from the host configs; nodes you edited were kept.
+
+
+$ litespm install mcp:builtin:mcp-registry:io.github.github-github-mcp-server --host codex --workspace /tmp/litespm-mcp-audit-cteoh0xv/project
+Resolving and installing mcp:builtin:mcp-registry:io.github.github-github-mcp-server...
+✓ Registered MCP server github
+  Listing ID:  inst_project_mcp_builtin_mcp-registry_io_github_github-github-mcp-server_2_0_1
+  Endpoint:    https://api.githubcopilot.com/mcp/ (streamable-http)
+  • codex        added entry in /tmp/litespm-mcp-audit-cteoh0xv/project/.codex/config.toml
+  Note: the catalog publishes no auth headers for this server, and --env is refused for
+        remote (URL) entries (LPSM-REMOTE-ENV-REFUSED). Add any credential to the host's
+        config by hand.
+
+
+$ litespm restore inst_project_mcp_builtin_mcp-registry_io_github_github-github-mcp-server_2_0_1
+✓ Restored inst_project_mcp_builtin_mcp-registry_io_github_github-github-mcp-server_2_0_1
+  - /tmp/litespm-mcp-audit-cteoh0xv/project/.codex/config.toml restored to its pre-install bytes
+
+
+PASS: catalog build/sync/search, actual MCP install/list/remove and byte-exact restore; unrelated configuration preserved

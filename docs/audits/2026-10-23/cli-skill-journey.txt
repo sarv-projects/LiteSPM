@@ -1,0 +1,53 @@
+LiteSPM dev (Protocol 2026-07-28, linux/amd64, go1.26.9)
+Policy: skill writes require approval (Human authorization required for effectful action); authorized by this command's installation consent.
+
+██╗     ██╗████████╗███████╗██████╗ ███████╗███╗   ███╗
+██║     ██║╚══██╔══╝██╔════╝██╔══██╗██╔════╝████╗ ████║
+██║     ██║   ██║   █████╗  ██████╔╝███████╗██╔████╔██║
+██║     ██║   ██║   ██╔══╝  ██╔═══╝ ╚════██║██║╚██╔╝██║
+███████╗██║   ██║   ███████╗██║     ███████║██║ ╚═╝ ██║
+╚══════╝╚═╝   ╚═╝   ╚══════╝╚═╝     ╚══════╝╚═╝     ╚═╝
+
+┌   skills
+│
+◇  Source: /tmp/tmp.rdLfTOr2IY/source
+│
+◇  Local directory
+│
+◇  Found 1 skill
+│
+◇  Scope: This repo only
+◇  Installation Summary ──────────────────────────────╮
+│
+│  /tmp/tmp.rdLfTOr2IY/source
+│
+│  audit-smoke
+│    → /tmp/tmp.rdLfTOr2IY/project/.agents/skills/audit-smoke
+│
+├─────────────────────────────────────────────────────╯
+│
+◇  Security Risk Assessment ──────────────────────────╮
+│
+│  skill                    verdict
+│  audit-smoke               unverified
+│
+│  Audit lookup supports public GitHub repos only.
+│  No audit data collected: review skills before use.
+├─────────────────────────────────────────────────────╯
+│
+◇  Installation complete
+│
+◇  Installed 1 skill ────────────────────╮
+│
+│  /tmp/tmp.rdLfTOr2IY/source
+│  ✓ audit-smoke (copied)
+│    → /tmp/tmp.rdLfTOr2IY/project/.agents/skills/audit-smoke
+│
+├────────────────────────────────────────╯
+│
+└  Done!  Review skills before use; they run with full agent permissions.
+  ✓ audit-smoke          removed /tmp/tmp.rdLfTOr2IY/project/.agents/skills/audit-smoke
+
+Done: 1 removed, 0 left in place.
+No skills have been installed by this tool.
+PASS: actual local skill add, list and removal

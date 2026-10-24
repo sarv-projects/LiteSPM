@@ -187,7 +187,7 @@ test("every sort option says what it does, and the control shows the order in fo
   await expect(ordering, "the order in force is never explained").toBeVisible();
   await ordering.locator("summary").click();
   await expect(
-    ordering.getByText(/mixed list of MCP servers, skills and plugins/i, {
+    ordering.getByText(/featured picks first/i, {
       exact: false,
     })
   ).toBeVisible();

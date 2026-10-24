@@ -27,6 +27,7 @@ export function normalizeListing(item) {
 }
 
 export function listingIdentity(item) {
+  if (item.discoveryKey) return item.discoveryKey;
   const upstream = repository(item.artifact?.repo);
   if (!upstream) return item.id;
   const path = String(item.artifact?.path ?? '').replace(/^\.\//, '').replace(/^\/+|\/+$/g, '');

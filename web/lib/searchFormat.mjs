@@ -87,7 +87,10 @@
 // answering the old question.
 
 /** Bumped when the byte layout changes; every reader refuses a mismatch. */
-export const SEARCH_FORMAT_VERSION = 6;
+// v7 carries plugin identity through the display projection for safe consolidation.
+import { listingIdentity } from "./discovery.mjs";
+
+export const SEARCH_FORMAT_VERSION = 7;
 
 /**
  * The flags byte's bits. The two the record has always carried, plus (v5) the
@@ -103,6 +106,7 @@ const FLAG_ARTIFACT = 4;
 const FLAG_ARTIFACT_GIT_TREE = 8;
 const FLAG_ARTIFACT_PINNED = 16;
 const FLAG_HAS_ENDPOINT = 32;
+const FLAG_DISCOVERY_KEY = 64;
 
 /** ASCII magic at the head of both artifacts. */
 const MAGIC = "LSPMSRCH";
@@ -1247,6 +1251,20 @@ function artifactFromFlags(flags) {
   return { type: "local-dir", pinned: false };
 }
 
+function duplicateKeyResolver(rows) {
+  const counts = new Map();
+  for (const row of rows) {
+    if (row.kind !== "plugin") continue;
+    const key = listingIdentity(row);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return (row) => {
+    if (row.kind !== "plugin") return "";
+    const key = listingIdentity(row);
+    return (counts.get(key) ?? 0) > 1 ? key : "";
+  };
+}
+
 /**
  * Build the display projection for every row.
  *
@@ -1263,10 +1281,11 @@ function artifactFromFlags(flags) {
  * wants.
  *
  * @param {any[]} rows
- * @param {{ linkKeyIsId?: (row: any, index: number) => boolean }} [options]
+ * @param {{ linkKeyIsId?: (row: any, index: number) => boolean, identityForRow?: (row: any) => string }} [options]
  * @returns {{ rowCount: number, dicts: string[][], records: (string | number)[][] }}
  */
 export function buildDisplayRows(rows, options = {}) {
+  const identityForRow = options.identityForRow ?? duplicateKeyResolver(rows);
   /** @type {Map<string, number>[]} */
   const dictIndex = Array.from({ length: DICT_COUNT }, () => new Map());
   /** @type {string[][]} */
@@ -1310,6 +1329,7 @@ export function buildDisplayRows(rows, options = {}) {
       String(row.name ?? ""),
       capSummary(row.summary),
       slug,
+      identityForRow(row),
       intern(DICT_CATEGORIES, String(row.category ?? "")),
       intern(DICT_PUBLISHERS, String(row.publisher?.name ?? "")),
       row.publisher?.verified ? 1 : 0,
@@ -1352,6 +1372,7 @@ export function buildDisplayRows(rows, options = {}) {
  * @returns {Uint8Array[]} one encoded container per shard, in order
  */
 export function buildDisplayShards(rows) {
+  const identityForRow = duplicateKeyResolver(rows);
   const slugCounts = new Map();
   for (const row of rows) slugCounts.set(row.slug, (slugCounts.get(row.slug) ?? 0) + 1);
   const shardCount = searchShardCount(rows.length);
@@ -1360,6 +1381,7 @@ export function buildDisplayShards(rows) {
     const [start, end] = searchShardRange(rows.length, shard);
     const display = buildDisplayRows(rows.slice(start, end), {
       linkKeyIsId: (row) => slugCounts.get(row.slug) !== 1,
+      identityForRow,
     });
     shards.push(
       encodeContainer([{ kind: SECTION_ROWS, payload: encodeDisplayRows(display) }])
@@ -1400,6 +1422,7 @@ export function encodeDisplayRows(display) {
       name,
       summary,
       slug,
+      discoveryKey,
       categoryIdx,
       publisherIdx,
       verified,
@@ -1429,7 +1452,8 @@ export function encodeDisplayRows(display) {
     recordBytes.push(
       (verified ? FLAG_VERIFIED : 0) |
         (linkKeyIsId ? FLAG_LINK_KEY_IS_ID : 0) |
-        Number(artifactFlagsOf)
+        Number(artifactFlagsOf) |
+        (discoveryKey ? FLAG_DISCOVERY_KEY : 0)
     );
     recordBytes.push(kindIdx & 0xff, provenanceIdx & 0xff, runtimeIdx & 0xff, transportIdx & 0xff);
     recordBytes.push(versionIdx & 0xff, (versionIdx >> 8) & 0xff);
@@ -1438,6 +1462,11 @@ export function encodeDisplayRows(display) {
     const hostList = /** @type {number[]} */ (hosts);
     writeVarint(hostList.length, recordBytes);
     for (const host of hostList) recordBytes.push(host & 0xff);
+    if (discoveryKey) {
+      const bytes = utf8(String(discoveryKey));
+      writeVarint(bytes.length, recordBytes);
+      for (const byte of bytes) recordBytes.push(byte);
+    }
   }
   recordOffsets[display.rowCount] = recordBytes.length;
 
@@ -1566,6 +1595,13 @@ export function decodeDisplayRows(payload) {
       hosts.push(dicts[DICT_HOSTS][payload[cursor + i]]);
     }
 
+    cursor += hostCount;
+    let discoveryKey = "";
+    if (flags & FLAG_DISCOVERY_KEY) {
+      [length, cursor] = readVarint(payload, cursor);
+      discoveryKey = decoder.decode(payload.subarray(cursor, cursor + length));
+    }
+
     /** @type {any} */
     const listing = {
       id,
@@ -1582,6 +1618,7 @@ export function decodeDisplayRows(payload) {
       version: dicts[DICT_VERSIONS][versionIdx] || null,
       linkKey: flags & FLAG_LINK_KEY_IS_ID ? id : slug,
     };
+    if (discoveryKey) listing.discoveryKey = discoveryKey;
     const provenance = dicts[DICT_PROVENANCE][provenanceIdx];
     if (provenance) listing.publisher.provenance = provenance;
     const runtime = dicts[DICT_RUNTIMES][runtimeIdx];

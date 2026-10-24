@@ -36,7 +36,7 @@ test("the default catalog page introduces MCP servers, skills and plugins togeth
   });
   const sortNote = page.locator("details").filter({ hasText: "How results are sorted" });
   await sortNote.locator("summary").click();
-  await expect(sortNote.getByText(/mixed list of MCP servers, skills and plugins/i)).toBeVisible();
+  await expect(sortNote.getByText(/featured picks first/i)).toBeVisible();
 });
 
 test("search: results settle, the count is measured, and the first row is above the fold", async ({
