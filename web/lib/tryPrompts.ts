@@ -96,7 +96,7 @@ export function examplePrompt(item: Listing): TryPrompt | null {
     label: "An example to try",
     prompt: `Use ${item.name} to ${lower}.`,
     basis:
-      "From the publisher's own description of this entry. LiteSPM hasn't run it.",
+      "Based on the publisher’s description.",
   };
 }
 

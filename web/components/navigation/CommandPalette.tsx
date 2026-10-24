@@ -176,7 +176,7 @@ export function CommandPalette({ open, onOpenChange, returnFocusRef }: CommandPa
             {
               key: "recent:clear",
               label: "Clear recent destinations",
-              detail: "Forgets this list; it is stored in this browser only",
+              detail: "Clear the recent pages saved on this device",
               action: "clear-recents" as const,
             },
           ],
