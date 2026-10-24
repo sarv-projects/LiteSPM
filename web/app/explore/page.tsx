@@ -1,4 +1,4 @@
-import { uniqueListings } from "../../lib/discovery.mjs";
+import { duplicateIndexGroups, uniqueListings } from "../../lib/discovery.mjs";
 import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import {
@@ -39,6 +39,8 @@ export default function ExplorePage() {
 
   const props: ExploreViewProps = {
     total: uniqueListings(items).length,
+    rowCount: items.length,
+    duplicateGroups: duplicateIndexGroups(items),
     kindCounts: deriveKindCounts(uniqueListings(items) as Listing[]),
     // The editorial goal facets, from the same rules the browser re-runs over
     // the fetched rows (`lib/taxonomy`), so the two cannot disagree.

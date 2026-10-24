@@ -1133,13 +1133,10 @@ export const SUMMARY_CAP = 200;
 export const SEARCH_SHARD_ROWS = 68;
 
 /**
- * How many matched rows a windowed search hydrates up front.
- *
- * The landing page renders 24 result cards and pages them 24 at a time, so a
- * 48-row window covers the first two pages with one shard fetch; `requestMore`
- * grows it. The gate pins the wire cost of this window over its query corpus.
+ * How many matched rows a windowed search hydrates up front. One page is hydrated
+ * at a time; the next page is fetched only when the reader asks to see more.
  */
-export const SEARCH_RESULT_WINDOW = 48;
+export const SEARCH_RESULT_WINDOW = 24;
 
 /** How many shards cover `rowCount` rows. */
 export function searchShardCount(rowCount) {

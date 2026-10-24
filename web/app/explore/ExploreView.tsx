@@ -3,6 +3,7 @@
 import { boundedQuery, uniqueListings } from "../../lib/discovery.mjs";
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Header } from "../../components/navigation/Header";
 import { SearchBar } from "../../components/navigation/SearchBar";
 import { SiteFooter } from "../../components/layout/SiteFooter";
@@ -31,13 +32,9 @@ import { classifyListing, taxonomyFacets } from "../../lib/taxonomy";
 import { AGENT_STORAGE_KEY, findAgentChoice, sourceLabel } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { categoryLabel } from "../categories/categoryLabel";
+import { formatCount } from "../../lib/format";
 import { ExploreFilters } from "./ExploreFilters";
-import {
-  ExploreLoadError,
-  ExploreResults,
-  ExploreSearchSkeleton,
-  SORT_NOTES,
-} from "./ExploreResults";
+import { ExploreResults, SORT_NOTES } from "./ExploreResults";
 import { ExploreWhy } from "./ExploreWhy";
 
 const KINDS_SET = new Set<string>(["all", "mcp", "skill", "plugin"]);
@@ -48,12 +45,16 @@ const SORTS_SET = new Set<string>(["relevance", "curated", "installable", "index
 /**
  * Facets and the first page of rows are computed at build time by
  * `app/explore/page.tsx` (a Server Component) and arrive as props, so the
- * prerendered HTML — and hydration — carry no dataset. The full rows are
- * fetched only when a filter, a sort or a search is actually used; until then
- * the page is complete, not a skeleton waiting on 3.8 MB.
+ * prerendered HTML — and hydration — carry no dataset. Search, kind and
+ * category use a compact index and visible result windows; richer filters
+ * fetch full rows only when they need fields the index does not contain.
  */
 export interface ExploreViewProps {
   total: number;
+  /** Full source row count used to validate browse facets without loading the search index. */
+  rowCount: number;
+  /** Compact duplicate groups let paged searches keep one canonical listing. */
+  duplicateGroups: number[][];
   /** Per-kind totals for the kind rail, counted at build time — not fetched. */
   kindCounts: { all: number; mcp: number; skill: number; plugin: number };
   /** The editorial goal facets (`lib/taxonomy`), largest first. */
@@ -124,11 +125,8 @@ function useQueryFilters(request: () => void) {
       installableOnly: p.get("installable") === "1",
       sort: SORTS_SET.has(sort) ? (sort as SortMode) : DEFAULT_SORT,
     };
-    const seeded =
-      next.query !== "" ||
-      next.kind !== "all" ||
+    const needsFullRows =
       next.goal !== "" ||
-      next.category !== "" ||
       next.agent !== "" ||
       next.publisher !== "" ||
       next.source !== "" ||
@@ -149,7 +147,7 @@ function useQueryFilters(request: () => void) {
     });
     setUrlSortPinned(sort !== "");
     setHydrated(true);
-    if (seeded) request();
+    if (needsFullRows) request();
   }, [request]);
 
   return [filters, setFilters, urlSortPinned, hydrated] as const;
@@ -235,13 +233,21 @@ function ExploreContent(props: ExploreViewProps) {
   const sortPinned = sortTouched || urlSortPinned;
   const effectiveSort: SortMode =
     !sortPinned && query.trim() !== "" && sort === DEFAULT_SORT ? "relevance" : sort;
+  const needsFullRows =
+    goal !== "all" ||
+    agent !== "all" ||
+    publisher !== "" ||
+    source !== "" ||
+    verifiedOnly ||
+    installableOnly ||
+    sort !== DEFAULT_SORT;
 
   const setQuery = (q: string) => {
-    request();
+    if (needsFullRows) request();
     setFilters((f) => ({ ...f, query: q }));
   };
   const setKind = (k: string) => {
-    request();
+    if (needsFullRows) request();
     setFilters((f) => ({ ...f, kind: k }));
   };
   const setGoal = (g: string) => {
@@ -249,7 +255,7 @@ function ExploreContent(props: ExploreViewProps) {
     setFilters((f) => ({ ...f, goal: g }));
   };
   const setCategory = (c: string) => {
-    request();
+    if (needsFullRows) request();
     setFilters((f) => ({ ...f, category: c }));
   };
   const setAgent = (a: string) => {
@@ -348,15 +354,30 @@ function ExploreContent(props: ExploreViewProps) {
     }
   }, [agent, agents, setFilters]);
 
-  const { results, searching, settled } = useCatalogSearch(full ?? [], deferredQuery, {
-    kind: kind === "all" ? null : kind,
-    category: category === "all" ? null : category,
-  });
+  const windowedEligible = !needsFullRows;
+  const {
+    results,
+    searching,
+    settled: searchSettled,
+    totalMatches: searchTotal,
+    requestMore: requestMoreResults,
+    error: searchError,
+    retry: retrySearch,
+    windowed: searchWindowed,
+  } = useCatalogSearch(
+    full ?? [],
+    deferredQuery,
+    {
+      kind: kind === "all" ? null : kind,
+      category: category === "all" ? null : category,
+    },
+    { windowed: windowedEligible, rowCount: props.rowCount, duplicateGroups: props.duplicateGroups },
+  );
 
   /**
    * The agent whose compatibility ranks first.
    *
-   * A selected `Works with` value is the reader's explicit target. Otherwise
+   * A selected agent is the reader's explicit target. Otherwise
    * the agent remembered from the home page is a ranking preference — it
    * reorders results (compatible first, everything else still below), it never
    * narrows them; narrowing stays the banner button's job. Compatibility comes
@@ -378,6 +399,9 @@ function ExploreContent(props: ExploreViewProps) {
   }, [agent, savedAgent, agents]);
 
   const filtered = useMemo(() => {
+    if (searchWindowed) {
+      return demoteValidationFixtures(sortByCompatibility(results, rankAgent?.hosts ?? null));
+    }
     const scoped = results.filter((item) => {
       // The editorial goal is filtered here, after the search, rather than
       // inside `useCatalogSearch`: the search's index and ranking are not
@@ -416,7 +440,18 @@ function ExploreContent(props: ExploreViewProps) {
     // `demoteValidationFixtures` only reorders, so the count above and the
     // rows' own pages are untouched.
     return demoteValidationFixtures(ranked);
-  }, [results, goal, agent, publisher, source, verifiedOnly, installableOnly, effectiveSort, rankAgent]);
+  }, [
+    results,
+    goal,
+    agent,
+    publisher,
+    source,
+    verifiedOnly,
+    installableOnly,
+    effectiveSort,
+    rankAgent,
+    searchWindowed,
+  ]);
 
   /**
    * Match evidence for the first results, computed from the hydrated rows with
@@ -427,9 +462,9 @@ function ExploreContent(props: ExploreViewProps) {
    */
   const explanation = useMemo(() => {
     if (effectiveSort !== "relevance") return null;
-    if (!full || !deferredQuery || !settled || filtered.length === 0) return null;
+    if (!full || !deferredQuery || !searchSettled || filtered.length === 0) return null;
     return filtered.slice(0, 8).map((item) => ({ item, reason: explainMatch(item, deferredQuery) }));
-  }, [effectiveSort, full, deferredQuery, settled, filtered]);
+  }, [effectiveSort, full, deferredQuery, searchSettled, filtered]);
 
   const hasFilters =
     query !== "" ||
@@ -467,8 +502,14 @@ function ExploreContent(props: ExploreViewProps) {
 
   // Same rule as Home: rows from the prerender until the dataset lands, an
   // empty set (skeleton) for a filter that has nothing to run against yet.
-  const gridItems = full ? filtered : hasFilters ? [] : uniqueListings(props.gridRows) as Listing[];
-  const gridPending = !full && hasFilters;
+  const gridItems = full
+    ? filtered
+    : searchWindowed && searchSettled
+      ? filtered
+      : hasFilters
+        ? []
+        : uniqueListings(props.gridRows) as Listing[];
+  const gridPending = !full && hasFilters && !(searchWindowed && searchSettled);
   /**
    * What the row set actually is. The heading used to read "All capabilities"
    * for every non-query state, so a publisher deep link (2,365 rows), a kind
@@ -482,11 +523,11 @@ function ExploreContent(props: ExploreViewProps) {
   if (category !== "all") appliedFilterLabels.push(categoryLabel(category));
   if (agent !== "all") {
     const facet = agents.find((a) => a.id === resolveHostId(agent));
-    appliedFilterLabels.push(`Works with ${facet?.name ?? agent}`);
+    appliedFilterLabels.push(`Listed for ${facet?.name ?? agent}`);
   }
   if (publisher) appliedFilterLabels.push(publisher);
   if (source) appliedFilterLabels.push(sourceLabel(source));
-  if (verifiedOnly) appliedFilterLabels.push("From publisher manifests");
+  if (verifiedOnly) appliedFilterLabels.push("Publisher setup details");
   if (installableOnly) appliedFilterLabels.push("Installable entries");
   const gridHeading = deferredQuery
     ? `Results for “${deferredQuery}”`
@@ -503,7 +544,11 @@ function ExploreContent(props: ExploreViewProps) {
    * and blanking a build-time total with "searching…" while nothing is being
    * searched would be the same defect pointed the other way.
    */
-  const gridCountSettled = !full || settled;
+  const gridCountSettled = full
+    ? searchSettled
+    : searchWindowed
+      ? searchSettled
+      : true;
 
   const clear = () => {
     setQuery("");
@@ -527,11 +572,11 @@ function ExploreContent(props: ExploreViewProps) {
       <Header />
 
       <main id="main" tabIndex={-1} className="flex-1">
-        <div className="shell pt-5">
+        <div className="shell market-explore-hero">
           <p className="kicker">MCP servers · skills · plugins</p>
-          <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-ink">Explore the marketplace</h1>
+          <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-ink">Find what your agent needs</h1>
           <p className="mt-2 max-w-[66ch] text-[13px] leading-relaxed text-ink-2">
-            Find packages by task, then check exact agent support and install status.
+            Explore MCP servers, skills and plugins. Choose an agent to see the setup path for each listing.
           </p>
 
           {savedTarget && savedAgent && (
@@ -556,16 +601,43 @@ function ExploreContent(props: ExploreViewProps) {
             </div>
           )}
 
-          <div className="mt-4">
+          <div className="market-explore-search">
             <SearchBar
               query={query}
               setQuery={setQuery}
-              totalMatches={deferredQuery && full ? filtered.length : undefined}
-              settled={settled}
+              totalMatches={
+                deferredQuery
+                  ? searchWindowed
+                    ? searchTotal
+                    : full
+                      ? filtered.length
+                      : undefined
+                  : undefined
+              }
+              settled={searchSettled}
               totalCount={total}
               autoFocusOnMount={focusSearch}
             />
           </div>
+
+          <nav className="market-category-shortcuts" aria-label="Browse categories">
+            <span className="market-category-shortcuts-label">Browse categories</span>
+            <div className="market-category-shortcuts-list">
+              {props.categories.slice(0, 6).map((facet) => (
+                <button
+                  key={facet.name}
+                  type="button"
+                  aria-pressed={category === facet.name}
+                  onClick={() => setCategory(category === facet.name ? "all" : facet.name)}
+                  className="market-category-chip"
+                >
+                  <span>{categoryLabel(facet.name)}</span>
+                  <span className="t-mono">{formatCount(facet.count)}</span>
+                </button>
+              ))}
+              <Link href="/categories/" className="market-category-all">All categories <span aria-hidden="true">↗</span></Link>
+            </div>
+          </nav>
 
           <ExploreFilters
             kind={kind}
@@ -596,37 +668,37 @@ function ExploreContent(props: ExploreViewProps) {
             setInstallableOnly={setInstallableOnly}
             hasFilters={hasFilters}
             clear={clear}
-            onIntent={request}
           />
 
         </div>
 
-        <div className="pt-7" data-explore-results>
-          {gridPending ? (
-            status === "error" ? (
-              <ExploreLoadError onRetry={request} />
-            ) : (
-              <ExploreSearchSkeleton />
-            )
-          ) : (
-            <ExploreResults
-              items={gridItems}
-              query={deferredQuery}
-              heading={gridHeading}
-              count={full ? filtered.length : total}
-              loading={searching}
-              awaiting={status === "loading"}
-              error={status === "error"}
-              onRetry={request}
-              onShowMore={request}
-              onClearFilters={clear}
-              onSuggestion={setQuery}
-              filtersActive={narrowing}
-              settled={gridCountSettled}
-              effectiveSort={effectiveSort}
-              setSort={setSort}
-            />
-          )}
+        <div className="pt-3 md:pt-4" data-explore-results>
+          <ExploreResults
+            items={gridPending ? [] : gridItems}
+            query={deferredQuery}
+            heading={gridHeading}
+            resultKey={[deferredQuery, kind, goal, category, agent, publisher, source, verifiedOnly, installableOnly, effectiveSort].join("|")}
+            count={
+              gridPending
+                ? 0
+                : full
+                  ? filtered.length
+                  : searchWindowed && searchSettled
+                    ? searchTotal
+                    : total
+            }
+            loading={gridPending || searching}
+            awaiting={gridPending || status === "loading" || (searchWindowed && searching)}
+            error={status === "error" || searchError}
+            onRetry={searchError ? retrySearch : request}
+            onShowMore={requestMoreResults}
+            onClearFilters={clear}
+            onSuggestion={setQuery}
+            filtersActive={narrowing}
+            settled={gridPending ? false : gridCountSettled}
+            effectiveSort={effectiveSort}
+            setSort={setSort}
+          />
 
           {/* The active order's rule, below the rows it orders. It states
               wherever that order is active — browsing or searching — and it

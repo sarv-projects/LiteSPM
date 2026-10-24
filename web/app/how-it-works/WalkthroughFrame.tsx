@@ -33,12 +33,11 @@ const FLOW = [
   },
   {
     title: "Remove it when you are done",
-    command: "litespm skills remove meeting-notes --scope project --yes",
+    command: "litespm skills remove meeting-notes --scope project",
     output: [
-      "Removed 1 skill",
+      "✓ meeting-notes  removed /your-project/.agents/skills/meeting-notes",
       "",
-      "meeting-notes",
-      "  Removed .agents/skills/meeting-notes",
+      "Done: 1 removed, 0 left in place.",
       "",
       "No skills have been installed by this tool.",
     ],

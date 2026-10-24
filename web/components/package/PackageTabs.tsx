@@ -292,14 +292,14 @@ function CompatibilityPanel({
               read as though only that agent worked. */}
           {wanted.size > 0 && (
             <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-3">
-              Works with
+              Agent targets
               {hosts
                 .filter((h) => wanted.has(h.value))
                 .map((h) => (
                   <span
                     key={h.value}
                     className="inline-flex min-h-[24px] items-center rounded-chip border border-accent/40 bg-accent-wash px-2 py-0.5 text-[12px] text-accent-text"
-                    title={`Matches the agent you selected. ${source.plain}`}
+                    title={`This package lists the agent you selected. ${source.plain}`}
                   >
                     {h.name}
                   </span>

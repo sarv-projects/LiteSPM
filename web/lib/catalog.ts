@@ -43,7 +43,7 @@ export const KIND_ORDER: Listing["kind"][] = ["mcp", "skill", "plugin"];
 export const OFFICIAL_SKILLS_CATEGORY = "Official Skills by";
 
 /** Rows rendered per page by ExtensionGrid; also the prerendered slice. */
-export const GRID_PAGE = 48;
+export const GRID_PAGE = 24;
 
 export function kindLabel(kind: string): string {
   switch (kind) {
@@ -56,6 +56,40 @@ export function kindLabel(kind: string): string {
     default:
       return kind;
   }
+}
+
+/** Replace machine-shaped registry ids with a readable label when possible. */
+export function displayListingName(
+  item: Pick<Listing, "name" | "kind" | "publisher">,
+): string {
+  const name = item.name.trim();
+  if (!/^[\w.@+-]+\/[\w.@+-]+$/u.test(name)) return name;
+  const leaf = name.split("/").at(-1) ?? name;
+  const key = leaf.toLowerCase();
+  if (key === "mcp" && item.kind === "mcp") {
+    const owner = item.publisher?.name ?? name.split("/")[0] ?? "";
+    const readableOwner = owner
+      .split(/[._/-]+/)
+      .filter((part) => part && !/^(com|org|io|dev|net|ai|app|github|mcp)$/i.test(part))
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+    return readableOwner ? `${readableOwner} MCP Server` : "MCP Server";
+  }
+  const labels: Record<string, string> = {
+    api: "API",
+    cli: "CLI",
+    css: "CSS",
+    docx: "Word documents",
+    github: "GitHub",
+    html: "HTML",
+    mcp: "MCP",
+    openai: "OpenAI",
+    pdf: "PDF",
+    pptx: "Presentations",
+    sql: "SQL",
+    xlsx: "Spreadsheets",
+  };
+  return labels[key] ?? leaf.replace(/[-_.]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 /**
@@ -967,7 +1001,7 @@ export function rowSignal(item: Listing): RowSignal {
  * as public copy.
  */
 export function rowProvenance(item: Listing): string {
-  if (item.publisher?.verified) return "From the publisher's manifest";
+  if (item.publisher?.verified) return "Publisher-provided details";
   return item.source ? sourceLabel(item.source) : "Origin not stated";
 }
 

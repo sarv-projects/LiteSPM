@@ -18,12 +18,12 @@ const flagship = flagshipEntry();
 
 const ROUTES: Array<{ path: string; heading?: string; text?: string }> = [
   { path: "/", heading: "Give your agents more possibilities." },
-  { path: "/explore/", heading: "Explore the marketplace" },
+  { path: "/explore/", heading: "Find what your agent needs" },
   { path: "/agents/", heading: "Choose your agent." },
   { path: "/agents/claude-code/", heading: "Claude Code" },
   { path: "/categories/", heading: "Categories" },
   { path: "/compare/", heading: "Compare agent hosts" },
-  { path: "/insights/", heading: "Insights" },
+  { path: "/insights/", heading: "Catalog coverage" },
   { path: "/package/", heading: "Find a package" },
   { path: preRendered.href, heading: preRendered.row.name },
 ];

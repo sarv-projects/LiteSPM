@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Listing } from "../../lib/telemetry";
-import { kindLabel, listingHref, rowProvenance, rowSignal } from "../../lib/catalog";
+import { displayListingName, kindLabel, listingHref, rowProvenance, rowSignal } from "../../lib/catalog";
 import { PublisherTile } from "./PublisherMark";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 
@@ -76,7 +76,8 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
     // row stays clickable, exactly as it was.
     <div
       data-row=""
-      className="group relative flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule bg-surface py-3 pl-0 pr-3 transition-colors duration-state ease-out hover:bg-hover"
+      role="listitem"
+      className="market-result-card card-lift group relative"
     >
       {/* Kind spine: 3px, the row's left edge. */}
       <span
@@ -101,7 +102,7 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
           className="block truncate text-[15px] font-semibold leading-snug tracking-tight text-ink underline-offset-2 after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink group-hover:underline"
           prefetch={false}
         >
-          {item.name}
+          {displayListingName(item)}
         </Link>
         {item.summary && (
           <span className="mt-0.5 line-clamp-2 min-h-[42px] max-w-[110ch] text-[13px] leading-relaxed text-ink-2">

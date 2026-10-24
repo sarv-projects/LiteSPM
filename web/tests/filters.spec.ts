@@ -23,6 +23,13 @@ import { expect, test } from "./support/site";
 import { gotoSettled, resultCount, settle, waitForFilteredGrid } from "./support/site";
 import { parseCount } from "./support/site";
 
+async function openAdvancedFilters(page: import("@playwright/test").Page) {
+  const details = page.locator("details.market-advanced-filters");
+  if (!(await details.evaluate((node) => (node as HTMLDetailsElement).open))) {
+    await details.locator("summary").click();
+  }
+}
+
 /** The count a filter control's own option carries. */
 function optionCount(text: string): number {
   const match = text.match(/\(([\d,]+)\)/);
@@ -34,7 +41,7 @@ test("every filter the site links to has a control", async ({ page }) => {
   await gotoSettled(page, "/explore/");
   for (const [label, id] of [
     ["Goal", "explore-goal"],
-    ["Works with", "explore-host"],
+    ["Agent", "explore-host"],
     ["Category", "explore-category"],
     ["Source", "explore-source"],
     ["Publisher", "explore-publisher"],
@@ -50,6 +57,7 @@ test("every filter the site links to has a control", async ({ page }) => {
 
 test("the category control filters, writes its parameter and reads it back", async ({ page }) => {
   await gotoSettled(page, "/explore/");
+  await openAdvancedFilters(page);
   const control = page.locator("#explore-category");
   const options = await control.locator("option").allTextContents();
   expect(options.length, "the category control offers no categories").toBeGreaterThan(10);
@@ -83,6 +91,7 @@ test("the category control filters, writes its parameter and reads it back", asy
 
 test("the source control filters, writes its parameter and reads it back", async ({ page }) => {
   await gotoSettled(page, "/explore/");
+  await openAdvancedFilters(page);
   const control = page.locator("#explore-source");
   const options = await control.locator("option").allTextContents();
   expect(options.length, "the source control offers no sources").toBeGreaterThan(2);
@@ -111,6 +120,7 @@ test("the publisher control offers the publishers and their counts, and filters 
   page,
 }) => {
   await gotoSettled(page, "/explore/");
+  await openAdvancedFilters(page);
   const control = page.locator("#explore-publisher");
 
   // The list is fetched when the control is opened, so a passive visit fetches
@@ -145,16 +155,9 @@ test("the active filters are visible and can be removed", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Clear the .* source filter/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Reset$/ })).toBeVisible();
 
-  // The page-level "why" (F-26): one line saying what each filter does. It is
-  // a disclosure under the bar rather than a paragraph in front of the rows,
-  // so the test opens it.
-  const filterWhy = page
-    .locator("details")
-    .filter({ has: page.getByText("What each filter does") });
-  await filterWhy.locator("summary").click();
-  await expect(
-    filterWhy.getByText("Every filter narrows the same list.", { exact: false })
-  ).toBeVisible();
+  await page.getByRole("button", { name: /Clear the .* source filter/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("source")).toBeNull();
+  await expect(page.getByRole("button", { name: /^Reset$/ })).toBeVisible();
 });
 
 test("the two checkboxes are at least 24px across (WCAG 2.2 SC 2.5.8)", async ({ page }) => {
@@ -193,13 +196,13 @@ test("every sort option says what it does, and the control shows the order in fo
   ).toBeVisible();
 });
 
-test("the Works with list groups the hosts that take MCP servers from the skills-only ones", async ({
+test("the Agent list groups hosts that take MCP servers from skills-only ones", async ({
   page,
 }) => {
   await gotoSettled(page, "/explore/");
   const groups = page.locator("#explore-host optgroup");
   const count = await groups.count();
-  expect(count, "the Works with list is one flat list again").toBeGreaterThan(1);
+  expect(count, "the Agent list is one flat list again").toBeGreaterThan(1);
   const groupLabels = await page
     .locator("#explore-host optgroup")
     .evaluateAll((nodes) => nodes.map((n) => (n as HTMLOptGroupElement).label));

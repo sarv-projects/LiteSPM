@@ -87,7 +87,7 @@ test("the publisher board: every figure matches the page its link opens", async 
     const shown = parseCount(await resultCount(page).textContent());
     expect(shown, `publisher ${row.label}: board says ${row.count}`).toBe(parseCount(row.count));
     await page.goBack();
-    await expect(page.getByRole("heading", { name: "Insights", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Catalog coverage", level: 1 })).toBeVisible();
   }
 });
 
@@ -156,6 +156,7 @@ test("the category board links to the category filter and its figure matches", a
       page.getByRole("button", { name: `Clear the ${row.label} category filter` })
     ).toBeVisible();
     await expect(resultCount(page)).toBeVisible();
+    await expect(resultCount(page)).not.toHaveText("searching…");
     const shown = parseCount(await resultCount(page).textContent());
     expect(shown, `category ${row.label}: board says ${row.count}`).toBe(parseCount(row.count));
   }

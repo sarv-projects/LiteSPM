@@ -15,18 +15,10 @@
 /*
  * LiteSPM design tokens.
  *
- * The subject is a manifest index, so colour is reserved for data: three kind
- * hues and one brand accent. There is no green in this palette by design -
- * nothing in the catalog data supports a "safe / verified" claim, and an accent
- * that means nothing is decoration.
- *
- * Palette revision (J001): the primary is now a deep indigo, `#3157f6`, and it
- * is the ONLY brand colour. It is allowed on the logo, the hero graphic, solid
- * CTAs, the search focus ring, the active nav item and the hero glow — and
- * nowhere on the catalog body, which stays neutral so the three kind hues keep
- * meaning "kind". Two derived tokens carry it as text (`--accent-text`, so a
- * link stays AA in dark mode where the fill colour would only reach 3.5:1) and
- * as a hover fill (`--accent-hover`).
+ * LiteSPM's signature colour is evergreen, carried by the mark, active
+ * navigation and primary actions. The catalog surface stays warm and quiet so
+ * package types and compatibility signals remain easy to scan. Light and dark
+ * modes share the same brand identity with accessible text and control states.
  *
  * Type roles (J001): Plex Sans carries headings and product copy, Plex
  * Condensed carries dense result rows and numeric tables only, Plex Mono
@@ -86,7 +78,7 @@
 @layer base {
   :root {
     color-scheme: light;
-    --site-header-height: 48px;
+    --site-header-height: 72px;
     /*
      * Height of Explore's sticky results head (`.section-head.sticky`, pinned
      * at `top: var(--stack-top)`), measured in a real browser at 1280×800.
@@ -96,24 +88,24 @@
      */
     --sticky-head-height: 45px;
 
-    --paper: #e8ecf4;
-    --surface: #fafbfe;
-    --sunken: #dde3ee;
-    --sunken-2: #d2dae8;
-    --hover: #e3e9f5;
-    --sel: #c6d7fb;
+    --paper: #f5f6f0;
+    --surface: #fdfdf9;
+    --sunken: #e9ede6;
+    --sunken-2: #dfe5db;
+    --hover: #edf1eb;
+    --sel: #d4e8dd;
 
-    --rule: #d2d9e6;
+    --rule: #d9dfd7;
     /* Clears 3:1 on --surface (3.76:1), on --paper (3.29:1), on --hover
        (3.20:1) and on --sunken (3.02:1), so --rule-2 can bound anything that
        has to be locatable rather than merely separated, on every surface the
        site prints it on. It was #79879c, which measured 2.99:1 on --hover —
        a hair under the floor — and 2.83:1 on --sunken, which is what the
        "not installable" chip's --ink-3 border exists for. */
-    --rule-2: #748299;
+    --rule-2: #718178;
 
-    --ink: #111827;
-    --ink-2: #3c495e;
+    --ink: #17251f;
+    --ink-2: #40534a;
     /* 6.46:1 on --paper, 5.94:1 on --sunken and 5.44:1 on --sunken-2, so
        11px meta text clears AA on every surface it is printed on with
        margin. It was #55627a, which measured 5.19:1 on --paper and 4.77:1 on
@@ -125,7 +117,7 @@
        darker than --ink-2 and the three-step ink hierarchy would invert.
        The gate `scripts/check-contrast.mjs` reads these values out of this
        file and holds every ink/surface pair at AA. */
-    --ink-3: #485468;
+    --ink-3: #53685d;
 
     /* The plate a brand mark or an initial sits on, and the ink drawn on it.
        The plate stays light in both themes — vendor logos are drawn for a light
@@ -136,19 +128,19 @@
        the flipping ink; both read these tokens now, and
        `scripts/check-contrast.mjs` holds the pair in both themes. */
     --logo-plate: #ffffff;
-    --logo-plate-ink: #3c495e;
+    --logo-plate-ink: #20372e;
 
     /* Brand indigo. `--accent` IS the brand token: solid CTAs, selected chips,
        the search focus ring and the active nav. White on it clears 5.49:1.
        `--brand` is the ARCH/25 §5.1 spelling of the same token, aliased here
        so the document's name and the code's name cannot drift apart. */
-    --accent: #3157f6;
+    --accent: #205d4c;
     --brand: var(--accent);
-    --accent-wash: #e9eeff;
+    --accent-wash: #e5f0e8;
     /* The same hue used as TEXT: 5.49:1 on --surface in light. */
-    --accent-text: #3157f6;
+    --accent-text: #205d4c;
     /* Solid-button hover: 7.14:1 under white text. */
-    --accent-hover: #2749cf;
+    --accent-hover: #18483c;
 
     /* MCP is blue-cyan, distinct from the indigo brand and readable on its wash. */
     --mcp: #006b95;
@@ -201,7 +193,7 @@
 
   @media (max-width: 1023px) {
     :root {
-      --site-header-height: 92px;
+      --site-header-height: 100px;
       /* Measured at 375×667: the results head wraps to two rows and its
          `.field` control takes the touch 44px floor. */
       --sticky-head-height: 93px;
@@ -219,31 +211,31 @@
     :root:not([data-theme="light"]) {
       color-scheme: dark;
 
-      --paper: #0b0e14;
-      --surface: #111620;
-      --sunken: #0e131b;
-      --sunken-2: #0c1017;
-      --hover: #171d2a;
-      --sel: #274070;
+      --paper: #0c1110;
+      --surface: #121a17;
+      --sunken: #0f1512;
+      --sunken-2: #0b100e;
+      --hover: #18221d;
+      --sel: #254a3b;
 
-      --rule: #283144;
-      --rule-2: #6a7690;
+      --rule: #26362f;
+      --rule-2: #718a7b;
 
-      --ink: #edf1f7;
-      --ink-2: #c6cfdc;
-      --ink-3: #97a3b6;
+      --ink: #eaf1ec;
+      --ink-2: #c1d0c6;
+      --ink-3: #9aaca1;
 
       /* A light plate, not pure white: the tile reads as a chip on the dark
       surface instead of a hole in it, and the ink on it measures 15.6:1
       against --logo-plate-ink #111827. */
-      --logo-plate: #e6ebf4;
-      --logo-plate-ink: #111827;
+      --logo-plate: #e6f0e9;
+      --logo-plate-ink: #16261f;
 
-      --accent: #3157f6;
-      --accent-wash: #16203a;
+      --accent: #145c46;
+      --accent-wash: #132a20;
       /* The fill would only reach 3.52:1 on #0b0e14, so TEXT uses the tint. */
-      --accent-text: #8fa9ff;
-      --accent-hover: #4061f8;
+      --accent-text: #79d4ad;
+      --accent-hover: #1c7658;
 
       --mcp: #6eeaff;
       --mcp-wash: #102b37;
@@ -271,30 +263,30 @@
   :root[data-theme="dark"] {
     color-scheme: dark;
 
-    --paper: #0b0e14;
-    --surface: #111620;
-    --sunken: #0e131b;
-    --sunken-2: #0c1017;
-    --hover: #171d2a;
-    --sel: #274070;
+    --paper: #0c1110;
+    --surface: #121a17;
+    --sunken: #0f1512;
+    --sunken-2: #0b100e;
+    --hover: #18221d;
+    --sel: #254a3b;
 
-    --rule: #283144;
-    --rule-2: #6a7690;
+    --rule: #26362f;
+    --rule-2: #718a7b;
 
-    --ink: #edf1f7;
-    --ink-2: #c6cfdc;
-    --ink-3: #97a3b6;
+    --ink: #eaf1ec;
+    --ink-2: #c1d0c6;
+    --ink-3: #9aaca1;
 
     /* A light plate, not pure white: the tile reads as a chip on the dark
     surface instead of a hole in it, and the ink on it measures 15.6:1
     against --logo-plate-ink #111827. */
-    --logo-plate: #e6ebf4;
-    --logo-plate-ink: #111827;
+    --logo-plate: #e6f0e9;
+    --logo-plate-ink: #16261f;
 
-    --accent: #3157f6;
-    --accent-wash: #16203a;
-    --accent-text: #8fa9ff;
-    --accent-hover: #4061f8;
+    --accent: #145c46;
+    --accent-wash: #132a20;
+    --accent-text: #79d4ad;
+    --accent-hover: #1c7658;
 
     --mcp: #6eeaff;
     --mcp-wash: #102b37;
@@ -2732,3 +2724,482 @@
 .cli-story-proof { color: var(--ink-2); font-size: 12px; }
 .cli-story-steps button span:first-child { color: var(--ink-3); font-size: 12px; }
 .cli-story-steps button:hover, .cli-story-steps button[aria-current="step"] { background: var(--hover); color: var(--ink); }
+
+
+/* Spacious marketplace surfaces */
+.market-explore-hero {
+  max-width: 1280px;
+  padding-top: clamp(1.5rem, 2.5vw, 2rem);
+  padding-bottom: .75rem;
+}
+.market-explore-hero > h1 {
+  margin-top: 8px;
+  max-width: none;
+  font-size: clamp(2.1rem, 3.4vw, 3rem);
+  line-height: 1;
+  letter-spacing: -.05em;
+}
+.market-explore-hero > p:not(.kicker) {
+  max-width: 66ch;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.market-explore-search { max-width: 800px; margin-top: 16px !important; }
+.market-explore-hero .explore-filter-panel {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+}
+.market-explore-hero .explore-filter-panel > label .field { max-width: 180px; }
+
+.market-results-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 18px;
+}
+.market-result-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px 12px;
+  min-width: 0;
+  min-height: 286px;
+  border: 1px solid var(--rule);
+  border-radius: 18px;
+  background: var(--surface);
+  padding: 20px;
+  box-shadow: 0 5px 20px rgba(18, 28, 45, .045);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.market-result-card > span:first-child { display: none; }
+.market-result-card > span:nth-child(2) { grid-column: 1; grid-row: 1; }
+.market-result-card > span:nth-child(3) {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+}
+.market-result-card > span:nth-child(3) > a {
+  min-height: 48px;
+  overflow: hidden;
+  white-space: normal;
+  text-overflow: unset;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 17px;
+  line-height: 1.35;
+}
+.market-result-card > span:nth-child(3) > span:nth-child(2) {
+  min-height: 46px;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.market-result-card > span:nth-child(3) > span:nth-child(3) {
+  margin-top: 14px;
+  gap: 7px;
+}
+.market-result-card > span:last-child {
+  grid-column: 1 / -1;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  border-top: 1px solid var(--rule);
+  border-left: 0;
+  padding: 13px 0 0;
+  text-align: left;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.market-result-card > span:last-child > span:last-child {
+  max-width: 58%;
+  text-align: right;
+  font-size: 10px;
+}
+.market-result-card:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  outline-offset: 3px;
+}
+.market-result-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--rule-2);
+  box-shadow: var(--shadow-card-hover);
+}
+.market-result-card:nth-child(3n + 2) { animation-delay: 35ms; }
+.market-result-card:nth-child(3n) { animation-delay: 70ms; }
+.market-result-card { animation: market-card-enter 280ms ease-out both; }
+@keyframes market-card-enter {
+  from { opacity: .55; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.market-result-skeleton {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  grid-template-rows: 42px 1fr 1fr 1fr 38px;
+  gap: 14px 12px;
+  min-height: 286px;
+  border: 1px solid var(--rule);
+  border-radius: 18px;
+  background: var(--surface);
+  padding: 20px;
+}
+.market-skeleton-mark {
+  grid-row: 1;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--sunken-2);
+}
+.market-skeleton-title {
+  align-self: center;
+  width: 78%;
+  height: 16px;
+  border-radius: 8px;
+  background: var(--sunken-2);
+}
+.market-skeleton-line {
+  grid-column: 1 / -1;
+  align-self: start;
+  width: 94%;
+  height: 11px;
+  border-radius: 8px;
+  background: var(--sunken);
+}
+.market-skeleton-line.short { width: 64%; }
+.market-skeleton-footer {
+  grid-column: 1 / -1;
+  align-self: end;
+  height: 28px;
+  border-top: 1px solid var(--rule);
+  background: linear-gradient(var(--sunken), var(--sunken)) left bottom / 110px 10px no-repeat;
+}
+.market-empty-panel {
+  display: flex;
+  min-height: 250px;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  background: var(--surface);
+  padding: clamp(24px, 5vw, 48px);
+}
+.market-more-button { min-height: 46px; padding-inline: 20px; border-radius: 999px; }
+
+.market-category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+.market-category-card {
+  display: grid;
+  min-height: 150px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 20px;
+  text-decoration: none;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.market-category-card > span:first-child {
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.market-category-card > span:nth-child(2) {
+  border-radius: 999px;
+  background: var(--sunken);
+  padding: 6px 9px;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.market-category-card > span:nth-child(3),
+.market-category-card > span:nth-child(4) { grid-column: 1 / -1; }
+.market-category-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--rule-2);
+  box-shadow: var(--shadow-card-hover);
+}
+.market-category-card:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 1050px) {
+  .market-results-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .market-category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .market-explore-hero { padding-top: 18px; }
+  .market-explore-hero > h1 { font-size: clamp(2rem, 10vw, 3rem); }
+  .market-results-grid, .market-category-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .market-result-card { min-height: 260px; padding: 17px; }
+  .market-result-skeleton { min-height: 260px; padding: 17px; }
+  .market-category-card { min-height: 132px; padding: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-result-card, .market-category-card { animation: none; transition: none; }
+}
+
+
+/* Rounded, calm marketplace chrome */
+.market-site-header {
+  padding: 8px clamp(8px, 2vw, 24px) 0;
+  background: var(--paper);
+}
+.market-site-header-inner {
+  width: min(100%, 1440px);
+  border: 1px solid var(--rule);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  padding-inline: clamp(12px, 2vw, 26px);
+}
+.market-site-header-inner > a:first-child > span:first-child {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--accent);
+}
+.market-site-header-inner > a:first-child > span:last-child {
+  font-size: 18px;
+  letter-spacing: -.04em;
+}
+.market-site-header-inner nav a[aria-current="page"] { color: var(--accent-text); }
+.market-site-header-inner a:focus-visible,
+.market-site-header-inner summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.market-category-shortcuts {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 8px 12px;
+}
+.market-category-shortcuts-label {
+  display: block;
+  flex: 0 0 auto;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.market-category-shortcuts-list {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 8px;
+  align-items: center;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  scrollbar-width: thin;
+}
+.market-category-chip,
+.market-category-all {
+  display: inline-flex;
+  min-height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+  padding: 0 11px;
+  color: var(--ink-2);
+  font-size: 11.5px;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.market-category-chip:hover,
+.market-category-all:hover { transform: translateY(-1px); border-color: var(--rule-2); background: var(--hover); }
+.market-category-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-text); }
+.market-category-chip .t-mono { color: var(--ink-3); font-size: 10px; }
+.market-category-all { border-color: transparent; background: transparent; color: var(--accent-text); text-decoration: none; }
+.market-category-chip:focus-visible,
+.market-category-all:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 2px; }
+
+.market-explore-hero .explore-filter-panel { gap: 8px; }
+.market-explore-hero .explore-filter-panel > label[for="explore-goal"],
+.market-explore-hero .explore-filter-panel > label[for="explore-host"] { gap: 7px; }
+.market-advanced-filters {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+}
+.market-advanced-filters[open] {
+  flex: 1 0 100%;
+  border-top: 1px solid var(--rule);
+  padding-top: 8px;
+}
+.market-advanced-filters > summary {
+  display: flex;
+  min-height: 36px;
+  width: fit-content;
+  cursor: pointer;
+  align-items: center;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.market-advanced-filters > summary::marker { color: var(--accent-text); }
+.market-advanced-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 4px;
+}
+.market-advanced-filter-grid .field { max-width: 240px; }
+
+.market-product-header {
+  margin-bottom: 28px;
+  border: 1px solid var(--rule);
+  border-radius: 24px;
+  background: var(--surface);
+  padding: clamp(24px, 4vw, 48px);
+  box-shadow: var(--shadow-panel);
+}
+.market-product-heading {
+  max-width: 20ch;
+  font-size: clamp(2.5rem, 5vw, 4.25rem) !important;
+  line-height: 1.02 !important;
+  letter-spacing: -.055em !important;
+}
+.market-product-summary {
+  max-width: 66ch;
+  margin-top: 16px !important;
+  font-size: clamp(1rem, 1.35vw, 1.16rem) !important;
+  line-height: 1.75 !important;
+}
+@media (max-width: 1023px) {
+  .market-site-header-inner { border-radius: 16px; padding-inline: 14px; }
+}
+@media (max-width: 700px) {
+  .market-advanced-filter-grid { grid-template-columns: minmax(0, 1fr); }
+  .market-advanced-filter-grid .field { max-width: none; }
+  .market-explore-hero .explore-filter-panel { gap: 8px; padding: 10px; }
+  .market-explore-hero .explore-filter-panel > [role="group"] {
+    width: 100%;
+    flex: 1 0 100%;
+    overflow-x: auto;
+  }
+  .market-explore-hero .explore-filter-panel > label[for="explore-goal"],
+  .market-explore-hero .explore-filter-panel > label[for="explore-host"] {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .market-explore-hero .explore-filter-panel > label[for="explore-goal"] .field,
+  .market-explore-hero .explore-filter-panel > label[for="explore-host"] .field {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+  .market-category-shortcuts { display: block; margin-top: 10px; padding: 10px; }
+  .market-category-shortcuts-label { margin-bottom: 5px; }
+  .market-product-header { border-radius: 20px; padding: 22px 18px; }
+  .market-product-heading { font-size: clamp(2.35rem, 11vw, 3.6rem) !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-category-chip, .market-category-all { transition: none; }
+}
+
+
+.submit-hero { display:grid; grid-template-columns:minmax(0,.86fr) minmax(420px,1.14fr); gap:clamp(2rem,5vw,5.5rem); align-items:start; padding-top:clamp(2.5rem,6vw,5rem); }
+.submit-hero-copy { padding-top:clamp(1rem,3vw,2.25rem); }
+.submit-hero-copy h1 { max-width:11ch; margin-top:1rem; color:var(--ink); font-size:clamp(2.75rem,5.3vw,5rem); font-weight:650; line-height:.98; letter-spacing:-.065em; }
+.submit-hero-summary { max-width:39rem; margin-top:1.4rem; color:var(--ink-2); font-size:clamp(1rem,1.2vw,1.2rem); line-height:1.65; }
+.submit-hero-links { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; margin-top:1.7rem; }
+.submit-steps { display:grid; gap:.8rem; margin-top:clamp(2.2rem,5vw,4rem); }
+.submit-steps>div { display:flex; gap:.8rem; align-items:baseline; }
+.submit-steps span { color:var(--accent-text); font:600 .75rem/1 ui-monospace,monospace; }
+.submit-steps p { color:var(--ink-2); font-size:.88rem; }
+.submit-trust-line { margin-top:1.3rem; color:var(--ink-3); font-size:.75rem; }
+.submit-form { display:grid; gap:1rem; padding:clamp(1.2rem,2.6vw,2rem); border:1px solid var(--rule); border-radius:1.35rem; background:var(--surface); box-shadow:0 22px 60px rgba(27,55,45,.08); }
+.submit-form-heading { display:flex; align-items:start; justify-content:space-between; gap:1rem; padding-bottom:.35rem; }
+.submit-form-heading h2 { margin-top:.45rem; color:var(--ink); font-size:1.35rem; font-weight:650; letter-spacing:-.035em; }
+.submit-form-time { padding:.45rem .7rem; border-radius:999px; background:var(--sunken); color:var(--ink-2); font:500 .72rem/1 ui-monospace,monospace; white-space:nowrap; }
+.submit-kind-fieldset { min-width:0; }
+.submit-kind-fieldset legend { margin-bottom:.55rem; color:var(--ink); font-size:.78rem; font-weight:600; }
+.submit-kind-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.5rem; }
+.submit-kind-option { display:flex; min-width:0; align-items:center; gap:.5rem; padding:.65rem .6rem; border:1px solid var(--rule); border-radius:.8rem; color:var(--ink-2); font-size:.75rem; font-weight:550; cursor:pointer; transition:border-color 160ms ease,background 160ms ease,color 160ms ease; }
+.submit-kind-option:has(input:checked) { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 7%,var(--surface)); color:var(--ink); }
+.submit-kind-option:focus-within { outline:3px solid color-mix(in srgb,var(--accent) 30%,transparent); outline-offset:2px; }
+.submit-kind-option input { width:.95rem; height:.95rem; accent-color:var(--accent); flex:0 0 auto; }
+.submit-kind-icon { display:grid; width:1.5rem; height:1.5rem; place-items:center; border-radius:.45rem; background:var(--sunken); color:var(--accent-text); flex:0 0 auto; }
+.submit-kind-icon svg { width:.9rem; height:.9rem; }
+.submit-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem; }
+.submit-field { display:grid; min-width:0; gap:.38rem; color:var(--ink); font-size:.74rem; font-weight:600; }
+.submit-field>span:first-child>span { color:var(--accent-text); }
+.submit-field input,.submit-field textarea { width:100%; min-width:0; border:1px solid var(--rule); border-radius:.7rem; background:var(--paper); color:var(--ink); padding:.75rem .8rem; font-size:.82rem; font-weight:400; line-height:1.45; transition:border-color 150ms ease,box-shadow 150ms ease; }
+.submit-field textarea { resize:vertical; }
+.submit-field input::placeholder,.submit-field textarea::placeholder { color:var(--ink-3); opacity:.85; }
+.submit-field input:focus,.submit-field textarea:focus { border-color:var(--accent); outline:none; box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent); }
+.submit-field-hint { color:var(--ink-3); font-size:.68rem; font-weight:400; }
+.submit-form-footer { display:grid; gap:.8rem; padding-top:.35rem; }
+.submit-form-footer p { color:var(--ink-3); font-size:.72rem; line-height:1.5; }
+.submit-form-button { justify-content:center; width:100%; }
+.submit-form-button svg { width:1rem; height:1rem; }
+.submit-types-section { margin-top:clamp(4rem,8vw,7rem); }
+.submit-section-heading { display:flex; align-items:end; justify-content:space-between; gap:2rem; }
+.submit-section-heading h2,.submit-review-copy h2 { margin-top:.55rem; color:var(--ink); font-size:clamp(1.8rem,3vw,2.5rem); font-weight:620; letter-spacing:-.05em; }
+.submit-section-heading>p { max-width:40ch; color:var(--ink-2); font-size:.9rem; line-height:1.65; }
+.submit-types-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; margin-top:1.5rem; }
+.submit-type-card { min-height:15rem; padding:1.4rem; }
+.submit-type-icon { width:1.55rem; height:1.55rem; margin-top:1.35rem; color:var(--accent-text); }
+.submit-type-card h3 { margin-top:.9rem; color:var(--ink); font-size:1.05rem; font-weight:650; letter-spacing:-.025em; }
+.submit-type-card p { margin-top:.5rem; color:var(--ink-2); font-size:.85rem; line-height:1.6; }
+.submit-review-section { display:grid; grid-template-columns:1fr 1fr; gap:2rem; align-items:center; margin-top:clamp(3.5rem,7vw,6rem); padding-top:2rem; border-top:1px solid var(--rule); }
+.submit-review-copy>p:last-child { max-width:60ch; margin-top:.85rem; color:var(--ink-2); font-size:.9rem; line-height:1.7; }
+.submit-review-card { display:flex; align-items:start; gap:1rem; padding:1.4rem; border:1px solid var(--rule); border-radius:1rem; background:var(--surface); }
+.submit-review-mark { display:grid; width:2rem; height:2rem; flex:0 0 auto; place-items:center; border-radius:50%; background:var(--sunken); color:var(--accent-text); font-weight:700; }
+.submit-review-card h3 { color:var(--ink); font-size:1rem; font-weight:650; }
+.submit-review-card p { margin-top:.35rem; margin-bottom:.75rem; color:var(--ink-2); font-size:.82rem; line-height:1.6; }
+@media(max-width:850px){.submit-hero{grid-template-columns:1fr}.submit-hero-copy{padding-top:0}.submit-hero-copy h1{max-width:15ch}}
+@media(max-width:600px){.submit-form-grid,.submit-types-grid,.submit-review-section{grid-template-columns:1fr}.submit-kind-options{gap:.35rem}.submit-kind-option{gap:.35rem;padding:.6rem .35rem;font-size:.7rem}.submit-kind-icon{width:1.25rem;height:1.25rem}.submit-section-heading{align-items:start;flex-direction:column;gap:.6rem}.submit-hero-copy h1{font-size:clamp(2.65rem,12vw,3.75rem)}}
+@media(prefers-reduced-motion:reduce){.submit-kind-option,.submit-field input,.submit-field textarea{transition:none}}
+
+
+/* Keep discovery results in the first viewport without compressing mobile controls. */
+@media (min-width: 701px) {
+  .market-explore-hero { padding-top: 24px; }
+  .market-explore-search { margin-top: 12px !important; }
+  .market-category-shortcuts {
+    margin-top: 8px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .market-category-shortcuts-list { padding-bottom: 2px; }
+  .market-category-chip,
+  .market-category-all { min-height: 32px; }
+  .market-explore-hero .explore-filter-panel {
+    margin-top: 8px;
+    padding: 8px;
+  }
+  .market-explore-hero .explore-filter-panel [role="group"] > button {
+    height: 32px;
+  }
+}

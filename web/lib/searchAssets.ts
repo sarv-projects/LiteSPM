@@ -11,9 +11,9 @@
 // does *not* compress, so a `.bin` served raw would be larger on the wire than
 // the bytes it replaces. Gzip keeps the transport independent of the CDN.
 //
-// The full projection is the facet path's transport (a count over every row
-// needs every row); the sharded one is the search path's, so a first search
-// fetches only the shards holding the results it is about to render.
+// Search, kind and category browse use compact facets and fetch only the
+// display shards they are about to render. Rich filters can use the full
+// projection when their fields are not present in the index.
 //
 // The gzip is sniffed, not assumed: if an edge or a future `_headers` rule
 // serves the asset with `Content-Encoding: gzip`, the browser has already
@@ -29,6 +29,7 @@ import {
   SECTION_INDEX,
   SECTION_ROWS,
 } from "./searchFormat.mjs";
+import { isSearchFacets } from "./searchFacets.mjs";
 
 export type DecodedSearchIndex = ReturnType<typeof decodeSearchIndex>;
 export type DecodedDisplayShard = ReturnType<typeof decodeDisplayRows>;
@@ -36,6 +37,15 @@ export type DecodedDisplayShard = ReturnType<typeof decodeDisplayRows>;
 export interface LoadedSearchIndex {
   rowCount: number;
   index: DecodedSearchIndex;
+}
+
+export interface SearchFacets {
+  schema: "litespm-search-facets/v1";
+  rowCount: number;
+  categories: string[];
+  kindIds: number[];
+  categoryIds: number[];
+  browseOrder: number[];
 }
 
 const GZIP_MAGIC_0 = 0x1f;
@@ -68,6 +78,24 @@ export async function fetchSearchIndex(url: string): Promise<LoadedSearchIndex> 
   const payload = decodeContainer(await fetchAsset(url), SECTION_INDEX);
   const index = decodeSearchIndex(payload);
   return { rowCount: index.rowCount, index };
+}
+
+const searchFacetCache = new Map<string, Promise<SearchFacets>>();
+
+export function fetchSearchFacets(url: string, rowCount?: number): Promise<SearchFacets> {
+  const cached = searchFacetCache.get(url);
+  if (cached) return cached;
+  const pending = fetchAsset(url)
+    .then((bytes) => JSON.parse(new TextDecoder().decode(bytes)) as unknown)
+    .then((value) => {
+      if (!isSearchFacets(value, rowCount)) {
+        throw new Error("search facets do not match the postings index");
+      }
+      return value as SearchFacets;
+    });
+  searchFacetCache.set(url, pending);
+  pending.catch(() => searchFacetCache.delete(url));
+  return pending;
 }
 
 /**

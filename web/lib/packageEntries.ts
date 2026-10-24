@@ -44,7 +44,7 @@
 
 import type { Listing } from "./telemetry";
 import { availabilityOf } from "./availability";
-import { kindLabel, sortListings } from "./catalog";
+import { displayListingName, kindLabel, sortListings } from "./catalog";
 
 /**
  * How many entries get a real page. Chosen from the measured budgets, not a
@@ -133,7 +133,7 @@ export function entryMetaDescription(item: Listing): string {
   const summary = item.summary?.trim();
   if (summary) return clampMeta(summary);
   return clampMeta(
-    `${item.name} — one entry from the LiteSPM catalog: what it is, who publishes it, and how to add it.`
+    `${displayListingName(item)} — an entry in the LiteSPM catalog.`
   );
 }
 
@@ -162,7 +162,7 @@ export function entryJsonLd(
   return {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: item.name,
+    name: displayListingName(item),
     ...(item.summary?.trim() ? { description: item.summary.trim() } : {}),
     url,
     applicationCategory: categoryText,

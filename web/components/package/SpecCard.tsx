@@ -89,7 +89,7 @@ export function SpecCard({ item }: { item: Listing }) {
           <span title={avail.plain}>{avail.label}</span>
         </Row>
         {item.kind === "plugin" && item.compatibleHosts && item.compatibleHosts.length > 0 && (
-          <Row label="Works with">{item.compatibleHosts.join(", ")}</Row>
+          <Row label="Publisher-listed agent targets">{item.compatibleHosts.join(", ")}</Row>
         )}
       </dl>
     </section>

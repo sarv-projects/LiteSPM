@@ -31,7 +31,7 @@ import {
   resultCount,
   stubImages,
   waitForFilteredGrid,
-  worksWithSelect,
+  agentFilterSelect,
 } from "./support/site";
 import { preRenderedEntry } from "./support/catalog";
 
@@ -160,7 +160,7 @@ test("one denominator: /agents/, /compare/, the entry pages and the Explore face
   page,
 }) => {
   await gotoSettled(page, "/explore/");
-  const facetOptions = await worksWithSelect(page).locator("option").allTextContents();
+  const facetOptions = await agentFilterSelect(page).locator("option").allTextContents();
   const facetCount = facetOptions.length - 1; // "Any agent" is the first option
 
   await gotoSettled(page, "/agents/");
@@ -196,9 +196,9 @@ test("one denominator: /agents/, /compare/, the entry pages and the Explore face
   });
 });
 
-test("the Works with facet offers one option per host — no spelling twice", async ({ page }) => {
+test("the Agent filter offers one option per host — no spelling twice", async ({ page }) => {
   await gotoSettled(page, "/explore/");
-  const options = await worksWithSelect(page).locator("option").allTextContents();
+  const options = await agentFilterSelect(page).locator("option").allTextContents();
   expect(options[0]).toBe("Any agent");
 
   const names = options.slice(1).map(facetName);

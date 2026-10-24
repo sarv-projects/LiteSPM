@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronRight, Search, SquareTerminal } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Search, Zap } from "lucide-react";
 import { CommandPalette } from "./CommandPalette";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -179,16 +179,16 @@ export function Header({ onNavigate }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-rule bg-surface">
+    <header className="market-site-header sticky top-0 z-40">
       {/* The header is opaque, not glassy. A blur layer over a ruled table
           costs paint on every scroll frame and buys nothing here. */}
-      <div className="shell grid h-[92px] grid-cols-[auto_minmax(0,1fr)] grid-rows-[48px_44px] items-center gap-x-2 lg:flex lg:h-12 lg:gap-4">
+      <div className="shell market-site-header-inner grid h-[92px] grid-cols-[auto_minmax(0,1fr)] grid-rows-[48px_44px] items-center gap-x-2 lg:flex lg:h-16 lg:gap-5">
         <Link href="/" className="col-start-1 row-start-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center gap-2" aria-label="LiteSPM home">
           {/* The logo tile is one of the six places the brand indigo is allowed. */}
-          <span className="flex h-7 w-7 items-center justify-center rounded-chip bg-accent">
-            <SquareTerminal className="h-4 w-4 text-white" strokeWidth={2.25} aria-hidden="true" />
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent">
+            <Zap className="h-4 w-4 text-white" strokeWidth={2.5} aria-hidden="true" />
           </span>
-          <span className="text-[13px] font-semibold tracking-tight text-ink sm:text-[15px]">
+          <span className="text-[14px] font-semibold tracking-tight text-ink sm:text-[16px]">
             LiteSPM
           </span>
         </Link>

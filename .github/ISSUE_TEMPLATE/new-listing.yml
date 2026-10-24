@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        A submission is a request for review, not an automatic catalog addition or a promise of inclusion or timing. LiteSPM does not sell placement or verification, and a listing is not an endorsement.
+        Thanks for suggesting an agent capability. The LiteSPM team reviews the publisher source, setup details, and stated compatibility before adding a listing. LiteSPM does not sell paid placement.
   - type: dropdown
     id: listing-type
     attributes:
@@ -23,6 +23,14 @@ body:
       label: Listing name
       description: Use the name shown by the publisher in its source or manifest.
       placeholder: "Example: Example MCP Server"
+    validations:
+      required: true
+  - type: textarea
+    id: listing-summary
+    attributes:
+      label: What does it do?
+      description: Describe the capability in plain language.
+      placeholder: What can an agent accomplish with it?
     validations:
       required: true
   - type: input

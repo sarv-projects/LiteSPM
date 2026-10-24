@@ -12,18 +12,11 @@
 // There are two ways a matched row becomes renderable, and they differ only in
 // which artifact carries the display bytes:
 //
-//   caller rows   the caller handed over the complete row set (Explore, which
-//                 loads the full projection for its facets): matched rows
-//                 hydrate from memory, no extra transport.
-//   windowed      the caller has no rows and asked for `{ windowed: true }`
-//                 (the landing page): matched rows hydrate from the **sharded
-//                 display projection** — one self-contained container per
-//                 `SEARCH_SHARD_ROWS` rows — and only the first
-//                 `SEARCH_RESULT_WINDOW` results are fetched up front. The
-//                 index still measures the whole match set, so
-//                 `totalMatches` is the same count the full projection would
-//                 have produced; `requestMore()` grows the hydrated window as
-//                 the reader pages.
+//   caller rows   a richer filter or a previously loaded result supplied rows;
+//                 matches and display data stay in memory.
+//   windowed      Explore filters compact row ids first, then hydrates only
+//                 the display shards for visible results. `requestMore()`
+//                 adds the next window as the reader pages.
 //
 // The windowed path exists because the wire is what the reader feels: the
 // first search used to fetch the postings index (2.7 MiB gzipped) *and* the
@@ -55,8 +48,15 @@ import { uniqueMatchIndices } from "./discovery.mjs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Listing } from "./telemetry";
 import { matchesQuery } from "./telemetry";
-import { loadCatalog, SEARCH_INDEX_URL, searchShardUrl } from "./catalogData";
-import { fetchSearchIndex, hydrateDisplayRows } from "./searchAssets";
+import {
+  loadCatalog,
+  SEARCH_FACETS_URL,
+  SEARCH_INDEX_URL,
+  searchShardUrl,
+} from "./catalogData";
+import { fetchSearchFacets, fetchSearchIndex, hydrateDisplayRows } from "./searchAssets";
+import type { SearchFacets } from "./searchAssets";
+import { filterSearchIndices } from "./searchFacets.mjs";
 import {
   querySearchIndex,
   SEARCH_RESULT_WINDOW,
@@ -81,6 +81,8 @@ export interface CatalogSearchOptions {
    * the hydrated rows.
    */
   windowed?: boolean;
+  /** Build-time full row count, allowing browse facets to load without the search index. */
+  rowCount?: number;
   duplicateGroups?: number[][];
 }
 
@@ -114,6 +116,8 @@ export interface CatalogSearchState {
    * rows this stays false, exactly as it did when the rows were the measurement.
    */
   settled: boolean;
+  /** True after a filtered or paged browse uses index ids and display shards. */
+  windowed: boolean;
 }
 
 const DEBOUNCE_MS = 120;
@@ -179,7 +183,11 @@ export function useCatalogSearch(
   const kind = filters.kind ?? null;
   const category = filters.category ?? null;
   const trimmedQuery = query.trim();
+  const [windowActivated, setWindowActivated] = useState(false);
   const needsSearch = trimmedQuery !== "" || kind !== null || category !== null;
+  // Type/category browsing already has a compact row-aligned facet table and
+  // curated order. Fetch the large postings index only when the reader enters
+  // a text query; browse windows can filter ids directly from those facets.
   const wantsIndex = trimmedQuery !== "";
 
   /** Results computed by the index paths; the browse path below is derived. */
@@ -193,18 +201,26 @@ export function useCatalogSearch(
    *  without re-running on every transition. */
   const [indexState, setIndexState] = useState<IndexState>("idle");
   const [indexRowCount, setIndexRowCount] = useState(0);
+  const [facetState, setFacetState] = useState<IndexState>("idle");
+  const facetsRef = useRef<SearchFacets | null>(null);
   const [rows, setRows] = useState<Listing[] | null>(rowsInput.length > 0 ? rowsInput : null);
 
   const workerRef = useRef<Worker | null>(null);
   const indexRef = useRef<DecodedSearchIndex | null>(null);
   const indexStateRef = useRef<IndexState>("idle");
+  const facetRequestRef = useRef(false);
   const rowsRef = useRef<Listing[] | null>(rows);
   /** The key whose search is in flight, so the worker reply can be attributed. */
   const inflightKeyRef = useRef<string | null>(null);
   /** The filters of the in-flight worker request, applied at reply time. */
-  const pendingFiltersRef = useRef<{ kind: string | null; category: string | null }>({
+  const pendingFiltersRef = useRef<{
+    kind: string | null;
+    category: string | null;
+    rankBrowse: boolean;
+  }>({
     kind: null,
     category: null,
+    rankBrowse: false,
   });
   const requestIdRef = useRef(0);
   /** The exact inputs of the last effect run, so a re-render with identical
@@ -214,23 +230,24 @@ export function useCatalogSearch(
   // -------------------------------------------------------------------------
   // Which hydration path this run takes.
   //
-  // A windowed search is only ever the query path with no filters: a filter is
-  // a whole-set claim (its count must cover every matched row), and a browse
-  // must show the rows themselves. Both of those are the facet path, which
-  // loads the full projection through `loadCatalog` — the same bytes it always
-  // has. Caller rows win over windowing when the caller actually has them.
+  // Text search uses the postings index; kind/category browse uses compact
+  // facets; rich filters request the full projection elsewhere.
+  // Caller rows win over windowing when the caller actually has them.
   // -------------------------------------------------------------------------
   const callerRowsFull =
     rowsInput.length > 0 && (indexRowCount === 0 || rowsInput.length === indexRowCount);
   const windowed =
     options?.windowed === true &&
-    trimmedQuery !== "" &&
-    kind === null &&
-    category === null &&
-    !callerRowsFull;
+    !callerRowsFull &&
+    (needsSearch || windowActivated);
   /** Mirrored for the worker's `onmessage`, which is bound once. */
   const windowedRef = useRef(windowed);
   windowedRef.current = windowed;
+  const browseOnly = windowed && trimmedQuery === "";
+  const expectedRowCount = options?.rowCount ?? indexRowCount;
+  const needsFacets = windowed && (trimmedQuery === "" || kind !== null || category !== null);
+  const needsFacetsRef = useRef(needsFacets);
+  needsFacetsRef.current = needsFacets;
 
   // -------------------------------------------------------------------------
   // The hydrated window.
@@ -249,6 +266,7 @@ export function useCatalogSearch(
   }));
   const windowSize = windowState.key === key ? windowState.size : SEARCH_RESULT_WINDOW;
   const requestMore = useCallback(() => {
+    setWindowActivated(true);
     setWindowState((current) => {
       const currentKey = keyRef.current;
       const base = current.key === currentKey ? current.size : SEARCH_RESULT_WINDOW;
@@ -335,11 +353,20 @@ export function useCatalogSearch(
           if (message.id !== requestIdRef.current) return;
 
           if (windowedRef.current) {
-            // Keep the whole match list; the windowed hydration effect fetches
-            // only the shards holding the first window of it.
+            // Filter row ids before fetching display data. A kind or category
+            // selection never hydrates the full result set on the main thread.
+            const pending = pendingFiltersRef.current;
+            const indices = needsFacetsRef.current && facetsRef.current
+              ? filterSearchIndices(
+                  message.indices,
+                  facetsRef.current,
+                  pending,
+                  { rankBrowse: pending.rankBrowse },
+                )
+              : message.indices;
             matchesRef.current = {
               key: inflightKeyRef.current ?? "",
-              indices: uniqueMatchIndices(message.indices, duplicateGroupsRef.current),
+              indices: uniqueMatchIndices(indices, duplicateGroupsRef.current),
             };
             setMatchRun((n) => n + 1);
             return;
@@ -398,6 +425,30 @@ export function useCatalogSearch(
     };
   }, [wantsIndex, attempt]);
 
+  useEffect(() => {
+    if (!needsFacets || expectedRowCount <= 0) return;
+    if (!browseOnly && indexState !== "ready") return;
+    if (facetsRef.current || facetRequestRef.current) return;
+
+    facetRequestRef.current = true;
+    setFacetState("loading");
+    let alive = true;
+    fetchSearchFacets(SEARCH_FACETS_URL, expectedRowCount)
+      .then((facets) => {
+        if (!alive) return;
+        facetsRef.current = facets;
+        setFacetState("ready");
+      })
+      .catch(() => {
+        if (!alive) return;
+        facetRequestRef.current = false;
+        setFacetState("error");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [needsFacets, browseOnly, expectedRowCount, indexState, attempt]);
+
   // Terminate the worker on unmount. A separate mount-once effect, because the
   // load effect above must not re-run (and re-create the worker) when the
   // reader clears the query and types again.
@@ -417,18 +468,52 @@ export function useCatalogSearch(
     rowsRef.current = rows;
 
     const runKey = searchKey(query, kind, category);
-    const runSignature = `${runKey}::${indexState}::${
+    const runSignature = `${runKey}::${indexState}::${facetState}::${
       windowed ? "window" : rows === null ? "no-rows" : "rows"
     }::${attempt}`;
     if (lastRunRef.current === runSignature) return;
     lastRunRef.current = runSignature;
 
-    // The browse path (empty query) is derived during render, not here — see
-    // `browseResults` below. Nothing async is involved, so no search state is
-    // written except clearing a pending "searching" from a query the reader
-    // just cleared.
-    if (trimmedQuery === "") {
+    // A passive, unfiltered visit uses the prerendered first page. A query,
+    // kind/category filter, or an explicit "Show more" request uses the index.
+    if (trimmedQuery === "" && !windowed) {
       setSearching(false);
+      setSettledKey(runKey);
+      return;
+    }
+
+    // Browsing by type/category needs no text index: facets already contain
+    // the complete curated row order and the two row-aligned filter columns.
+    // This keeps an MCP deep link to a small facet file plus visible shards.
+    if (browseOnly) {
+      if (facetState !== "ready" || !facetsRef.current) {
+        setSearching(facetState !== "error");
+        if (facetState === "error") setError(true);
+        setSettledKey(null);
+        return;
+      }
+      const indices = filterSearchIndices(
+        facetsRef.current.browseOrder,
+        facetsRef.current,
+        { kind, category },
+        { rankBrowse: true },
+      );
+      matchesRef.current = {
+        key: runKey,
+        indices: uniqueMatchIndices(indices, duplicateGroupsRef.current),
+      };
+      setMatchRun((n) => n + 1);
+      return;
+    }
+
+    if (
+      needsFacets &&
+      facetState !== "ready" &&
+      indexState === "ready"
+    ) {
+      setSearching(facetState !== "error");
+      if (facetState === "error") setError(true);
+      setSettledKey(null);
       return;
     }
 
@@ -451,7 +536,7 @@ export function useCatalogSearch(
         const id = requestIdRef.current + 1;
         requestIdRef.current = id;
         inflightKeyRef.current = runKey;
-        pendingFiltersRef.current = { kind, category };
+        pendingFiltersRef.current = { kind, category, rankBrowse: trimmedQuery === "" };
         setSearching(true);
         setSettledKey(null);
 
@@ -475,7 +560,18 @@ export function useCatalogSearch(
       const decoded = indexRef.current;
       const indices = decoded ? querySearchIndex(decoded, query) : [];
       if (windowed) {
-        matchesRef.current = { key: runKey, indices: uniqueMatchIndices(indices, duplicateGroupsRef.current) };
+        const filteredIndices = facetsRef.current
+          ? filterSearchIndices(
+              indices,
+              facetsRef.current,
+              { kind, category },
+              { rankBrowse: trimmedQuery === "" },
+            )
+          : indices;
+        matchesRef.current = {
+          key: runKey,
+          indices: uniqueMatchIndices(filteredIndices, duplicateGroupsRef.current),
+        };
         setMatchRun((n) => n + 1);
         return;
       }
@@ -506,7 +602,11 @@ export function useCatalogSearch(
         .then((full) => {
           if (!alive) return;
           setRows(full);
-          const next = full.filter((row) => matchesQuery(row, query));
+          const next = full.filter(
+            (row) =>
+              matchesFilters(row, kind, category) &&
+              (trimmedQuery === "" || matchesQuery(row, query)),
+          );
           setIndexedResults(next);
           setTotalMatches(next.length);
           setSearching(false);
@@ -528,7 +628,21 @@ export function useCatalogSearch(
     setTotalMatches(next.length);
     setSearching(false);
     setSettledKey(runKey);
-  }, [rowsInput, query, kind, category, indexState, rows, trimmedQuery, windowed, attempt]);
+  }, [
+    rowsInput,
+    browseOnly,
+    query,
+    kind,
+    category,
+    indexState,
+    facetState,
+    needsSearch,
+    needsFacets,
+    rows,
+    trimmedQuery,
+    windowed,
+    attempt,
+  ]);
 
   // -------------------------------------------------------------------------
   // Windowed hydration: fetch only the shards that hold the results about to
@@ -554,7 +668,11 @@ export function useCatalogSearch(
       setSettledKey(runKey);
       return;
     }
-    hydrateDisplayRows(wanted, indexRowCount, searchShardUrl)
+    hydrateDisplayRows(
+      wanted,
+      indexRowCount || expectedRowCount || facetsRef.current?.rowCount || 0,
+      searchShardUrl,
+    )
       .then((next) => {
         if (!alive) return;
         setIndexedResults(next);
@@ -586,7 +704,7 @@ export function useCatalogSearch(
     return () => {
       alive = false;
     };
-  }, [windowed, matchRun, windowSize, query, kind, category, indexRowCount, attempt]);
+  }, [windowed, matchRun, windowSize, query, kind, category, indexRowCount, expectedRowCount, attempt]);
 
   const retry = useCallback(() => {
     setError(false);
@@ -594,8 +712,12 @@ export function useCatalogSearch(
       indexStateRef.current = "idle";
       setIndexState("idle");
     }
+    if (facetState === "error") {
+      facetRequestRef.current = false;
+      setFacetState("idle");
+    }
     setAttempt((n) => n + 1);
-  }, []);
+  }, [facetState]);
 
   // The browse path is a pure function of the rows and the filters, so it is
   // computed during render: a filter change renders the right rows on the
@@ -606,17 +728,18 @@ export function useCatalogSearch(
     [browseRows, kind, category]
   );
 
-  const isBrowse = trimmedQuery === "";
-  // `settled` must be false when zero rows were measured. For a query that
-  // needs the index, "measured" means the index decoded with a non-zero row
-  // count; for the browse path it means the rows are actually in hand.
-  const measured = isBrowse
-    ? browseRows !== null && browseRows.length > 0
-    : indexState === "ready"
-      ? indexRowCount > 0
-      : indexState === "error"
-        ? rows !== null && rows.length > 0
-        : false;
+  const isBrowse = trimmedQuery === "" && !windowed;
+  // "Settled" means the first result window has been measured and hydrated,
+  // while the passive route remains complete from its prerendered page.
+  const measured = windowed
+    ? (browseOnly || indexState === "ready") && (!needsFacets || facetState === "ready")
+    : isBrowse
+      ? browseRows !== null && browseRows.length > 0
+      : indexState === "ready"
+        ? indexRowCount > 0
+        : indexState === "error"
+          ? rows !== null && rows.length > 0
+          : false;
 
   return {
     results: isBrowse ? browseResults : indexedResults,
@@ -626,5 +749,6 @@ export function useCatalogSearch(
     retry,
     searching: isBrowse ? false : searching,
     settled: isBrowse ? measured : settledKey === key && measured,
+    windowed,
   };
 }

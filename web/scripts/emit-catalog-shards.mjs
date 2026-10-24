@@ -53,6 +53,7 @@ import {
   SECTION_INDEX,
   SECTION_ROWS,
 } from "../lib/searchFormat.mjs";
+import { buildSearchFacets } from "../lib/searchFacets.mjs";
 import {
   categorySlug,
   SIBLING_CATEGORY_MAX,
@@ -368,6 +369,13 @@ const searchIndexRaw = encodeContainer([
 const searchIndexGz = gzipSync(searchIndexRaw, { level: 9 });
 writeFileSync(path.join(outDir, SEARCH_INDEX_FILE), searchIndexGz);
 
+// Row-aligned kind/category ids and the curated browse order let Explore
+// filter and page without hydrating the full display projection.
+const featured = JSON.parse(readFileSync(path.join(webRoot, "data", "featured.json"), "utf8"));
+const searchFacets = buildSearchFacets(rows, featured.entries.map((entry) => entry.id));
+const searchFacetsGz = gzipSync(Buffer.from(JSON.stringify(searchFacets)), { level: 9 });
+writeFileSync(path.join(outDir, "catalog-search-facets.json.gz"), searchFacetsGz);
+
 const displayRows = buildDisplayRows(rows);
 const searchRowsRaw = encodeContainer([
   { kind: SECTION_ROWS, payload: encodeDisplayRows(displayRows) },
@@ -410,6 +418,9 @@ console.log(
 console.log(
   `✔ search rows: ${rows.length.toLocaleString("en-US")} rows, ` +
     `${MiB(searchRowsRaw.length)} raw / ${MiB(searchRowsGz.length)} gzip → ${SEARCH_ROWS_FILE}`,
+);
+console.log(
+  `✔ search facets: ${(searchFacetsGz.length / 1024).toFixed(1)} KiB gzip → catalog-search-facets.json.gz`,
 );
 console.log(
   `✔ search shards: ${shardRaws.length.toLocaleString("en-US")} shard(s) of ${SEARCH_SHARD_ROWS} rows, ` +

@@ -102,17 +102,6 @@ export interface ExploreFiltersProps {
   hasFilters: boolean;
   clear: () => void;
 
-  /**
-   * Called when the reader shows intent to filter.
-   *
-   * The whole row set is 5 MiB, and the first filter pays for fetching and
-   * hydrating it. A reader who moves the pointer toward the controls — or
-   * tabs into one — is about to filter, so the fetch starts then: the wait
-   * happens while the pointer is still travelling, and a reader who never
-   * filters never pays for it. The call is idempotent; the second one is a
-   * no-op.
-   */
-  onIntent?: () => void;
 }
 
 /**
@@ -123,12 +112,6 @@ export interface ExploreFiltersProps {
  * about the *filtering*. A reader who has just narrowed 69,376 rows to 764
  * deserves to be told what the narrowing did.
  */
-const FILTER_WHY =
-  "Every filter narrows the same list. Kind is what the entry is; Goal is what it is for; " +
-  "Category is the label its source publishes; Publisher is the publisher's own name; Source is " +
-  "where the row was read from; Works with is the agent host the entry works with. The count beside " +
-  "each one is what that filter returns on its own.";
-
 export function ExploreFilters(props: ExploreFiltersProps) {
   const {
     kind,
@@ -159,7 +142,6 @@ export function ExploreFilters(props: ExploreFiltersProps) {
     setInstallableOnly,
     hasFilters,
     clear,
-    onIntent,
   } = props;
 
 
@@ -172,9 +154,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           surface, so they are not a second facet row here. */}
       <div
         className="explore-filter-panel mt-5 flex flex-wrap items-center gap-x-5 gap-y-3"
-        onPointerEnter={onIntent}
-        onFocusCapture={onIntent}
-      >
+       >
         <div
           className="flex items-center gap-0.5 border border-ink-3 bg-sunken p-0.5"
           role="group"
@@ -204,13 +184,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
                   rail does not have. Hidden under md: four counts make
                   this rail wider than a phone, and the labels are what the
                   control is for. */}
-              <span
-                className={`t-mono t-tabular hidden text-[11px] md:inline ${
-                  kind === k ? "text-surface/75" : "text-ink-3"
-                }`}
-              >
-                {formatCount(kindCounts[k])}
-              </span>
+              <span className="sr-only">{formatCount(kindCounts[k])} listings</span>
             </button>
           ))}
         </div>
@@ -244,12 +218,13 @@ export function ExploreFilters(props: ExploreFiltersProps) {
         </label>
 
         <label htmlFor="explore-host" className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2">
-          Works with
+          Agent
           <select
             id="explore-host"
             name="host"
             value={agent}
             onChange={(e) => setAgent(e.target.value)}
+            title="Filter by the agent named in a listing. Each package shows its setup status."
             className="field"
           >
             <option value="all">Any agent</option>
@@ -303,46 +278,49 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           </select>
         </label>
 
-        <label
-          htmlFor="explore-category"
-          className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2"
-        >
-          Category
-          <select
-            id="explore-category"
-            name="category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            title="The label the source itself publishes."
-            className="field"
-          >
-            <option value="all">All categories</option>
-            {categories.map((c) => (
-              <option key={c.name} value={c.name}>
-                {categoryLabel(c.name)} ({formatCount(c.count)})
-              </option>
-            ))}
-          </select>
-        </label>
+        <details className="market-advanced-filters">
+          <summary>More filters</summary>
+          <div className="market-advanced-filter-grid">
+            <label
+              htmlFor="explore-category"
+              className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2"
+            >
+              Category
+              <select
+                id="explore-category"
+                name="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                title="The label the source itself publishes."
+                className="field"
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {categoryLabel(c.name)} ({formatCount(c.count)})
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label htmlFor="explore-source" className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2">
-          Source
-          <select
-            id="explore-source"
-            name="source"
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            title="Where the row was read from."
-            className="field"
-          >
-            <option value="">All sources</option>
-            {sources.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label} ({formatCount(s.count)})
-              </option>
-            ))}
-          </select>
-        </label>
+            <label htmlFor="explore-source" className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2">
+              Source
+              <select
+                id="explore-source"
+                name="source"
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                title="Where this listing comes from."
+                className="field"
+              >
+                <option value="">All sources</option>
+                {sources.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label} ({formatCount(s.count)})
+                  </option>
+                ))}
+              </select>
+            </label>
 
         <label htmlFor="explore-publisher" className="flex min-w-0 items-center gap-2 text-[12px] text-ink-2">
           Publisher
@@ -355,8 +333,12 @@ export function ExploreFilters(props: ExploreFiltersProps) {
             onChange={(e) => setPublisher(e.target.value)}
             title={
               publishersFailed
-                ? "The publisher list could not be loaded. ?publisher= still takes any publisher's name."
-                : `The publishers that shipped more than one entry, with the number of rows each published. Open the list to load ${formatCount(publisherTotal)} names.`
+                ? "The publisher list could not be loaded. Retry to choose a publisher."
+                : publishersLoading
+                  ? "Loading publisher options…"
+                  : publisherTotal > 0
+                    ? `${formatCount(publisherTotal)} publishers. Open the list to choose one.`
+                    : "Choose a publisher to narrow results. Names load when opened."
             }
             className="field"
           >
@@ -403,7 +385,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
             // the visible control is what a reader aims at.
             className="h-6 w-6 shrink-0 accent-ink"
           />
-          Only entries from publisher manifests
+          Publisher supplied setup information
         </label>
 
         <label
@@ -420,13 +402,13 @@ export function ExploreFilters(props: ExploreFiltersProps) {
             // the visible control is what a reader aims at.
             className="h-6 w-6 shrink-0 accent-ink"
           />
-          Only entries LiteSPM can install
+          Ready to install
         </label>
 
-        {/* A category set by a deep link or an old bookmark. The upstream
-            labels are not offered as a browse axis here — `/categories/`
-            is — but a link that carries one still applies it, so the chip
-            keeps that filter visible and clearable like every other. */}
+          </div>
+        </details>
+
+        {/* A category from a deep link stays visible and clearable. */}
         {category !== "all" && (
           <span className="inline-flex items-center gap-1.5 rounded-chip border border-rule bg-sunken px-2 py-1 text-[12px] text-ink-2">
             <span className="t-mono text-[11px] text-ink-3">category</span>
@@ -485,15 +467,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
         )}
       </div>
 
-      {/* The rule each filter follows, collapsed: it is reference, and as a
-          paragraph it sat between the controls and the first result, which is
-          where the reader is looking. The test below opens it. */}
-      <details className="mt-2 text-[12px] leading-relaxed text-ink-3">
-        <summary className="cursor-pointer text-[12px] text-ink-2">
-          What each filter does
-        </summary>
-        <p className="mt-1 max-w-prose">{FILTER_WHY}</p>
-      </details>
+
     </>
   );
 }

@@ -17,26 +17,50 @@ import {
   settle,
   waitForFilteredGrid,
   waitForSearchGrid,
-  worksWithSelect,
+  agentFilterSelect,
 } from "./support/site";
 
 test("the default catalog page introduces MCP servers, skills and plugins together", async ({ page }) => {
   await gotoSettled(page, "/explore/");
   const kinds = await page.locator("main a[data-kind]").evaluateAll((rows) =>
-    rows.slice(0, 48).map((row) => row.getAttribute("data-kind"))
+    rows.slice(0, 24).map((row) => row.getAttribute("data-kind"))
   );
   const counts = Object.fromEntries(
     ["mcp", "skill", "plugin"].map((kind) => [kind, kinds.filter((value) => value === kind).length])
   );
 
-  expect(counts, "the first browse page contains 16 listings of each package type").toEqual({
-    mcp: 16,
-    skill: 16,
-    plugin: 16,
+  expect(counts, "the first browse window contains 8 listings of each package type").toEqual({
+    mcp: 8,
+    skill: 8,
+    plugin: 8,
   });
   const sortNote = page.locator("details").filter({ hasText: "How results are sorted" });
   await sortNote.locator("summary").click();
   await expect(sortNote.getByText(/featured picks first/i)).toBeVisible();
+});
+
+test("a kind deep link pages results without downloading the full display catalog", async ({ page }) => {
+  const dataRequests = collectDataRequests(page);
+  await gotoSettled(page, "/explore/?kind=mcp");
+
+  await expect(page.getByRole("button", { name: /MCP Server/ })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await expect(page.locator("main h2").filter({ hasText: "MCP Servers" })).toBeVisible();
+  await expect(page.locator("main a[data-kind]").first()).toBeVisible();
+  await expect(resultCount(page)).toContainText("48,418 matched");
+
+  const cardKinds = await page.locator("main a[data-kind]").evaluateAll((rows) =>
+    rows.map((row) => row.getAttribute("data-kind"))
+  );
+  expect(cardKinds.length).toBeLessThanOrEqual(24);
+  expect(new Set(cardKinds)).toEqual(new Set(["mcp"]));
+  expect(dataRequests).not.toContain("/data/catalog-search-index.bin.gz");
+  expect(dataRequests).toContain("/data/catalog-search-facets.json.gz");
+  expect(dataRequests.some((path) => /\/data\/search-shards\/r\d+\//.test(path))).toBe(true);
+  expect(dataRequests).not.toContain("/data/catalog-search-rows.bin.gz");
+  expect(dataRequests.some((path) => /^\/data\/catalog-\d+\.json$/.test(path))).toBe(false);
 });
 
 test("search: results settle, the count is measured, and the first row is above the fold", async ({
@@ -59,20 +83,17 @@ test("search: results settle, the count is measured, and the first row is above 
   expect(top, `first result top: ${Math.round(top)}px`).toBeLessThan(560);
 
   // The ordering evidence is below the rows, not in front of them.
-  const explanation = page.locator("details", { hasText: "Why these results?" });
+  const explanation = page.locator("details", { hasText: "How results are sorted" });
   await expect(explanation).toBeAttached();
   const explanationTop = await explanation.evaluate((el) => el.getBoundingClientRect().top);
   expect(explanationTop).toBeGreaterThan(top);
 });
 
 test("the grid count never prints a figure before the search measured one", async ({ page }) => {
-  // Hold the search index so the unsettled window is deterministic instead of
-  // a race. Until it resolves, `filtered` is empty — and the count must read
-  // "searching…", not print that emptiness as "0 entries". That was the
-  // defect: a figure for a search that had not run. The heading renders only
-  // once the full row set is in hand, so at the first assertion the grid is on
-  // screen and only the search itself is outstanding.
-  await page.route("**/data/catalog-search-index.bin.gz*", async (route) => {
+  // Hold the worker index request so the unsettled window is deterministic.
+  // The result heading remains visible while the count says searching and the
+  // cards show a loading state; it must not print a figure before measurement.
+  await page.context().route("**/data/catalog-search-index.bin.gz*", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 5000));
     await route.continue();
   });
@@ -136,14 +157,15 @@ test("sort applies, lands in the URL, and orders the rows", async ({ page }) => 
 
   await page.locator("#explore-sort").selectOption("name");
   await expect(page).toHaveURL(/sort=name/);
+  await waitForFilteredGrid(page, {});
 
   // The row's link is its title, so the link's own text is the name.
   const names = await page.locator("main a[data-kind]").evaluateAll((rows) =>
     rows.slice(0, 6).map((row) => row.textContent?.trim() ?? "")
   );
   expect(names.length).toBeGreaterThan(1);
-  const sorted = [...names].sort((a, b) => a.localeCompare(b));
-  expect(names).toEqual(sorted);
+  const folded = names.map((name) => name.toLocaleLowerCase());
+  expect(folded).toEqual([...folded].sort((a, b) => a.localeCompare(b)));
 });
 
 test("Reset leaves no filters in the URL and a reload shows what the screen showed", async ({
@@ -182,7 +204,7 @@ test("an unknown ?host= is shown as applied, not silently dropped beside 'Any ag
   await gotoSettled(page, "/explore/?host=not-a-real-host");
   await waitForFilteredGrid(page, { host: "not-a-real-host" });
 
-  const select = worksWithSelect(page);
+  const select = agentFilterSelect(page);
   await expect(select).toHaveValue("not-a-real-host");
   const option = select.locator('option[value="not-a-real-host"]');
   await expect(option).toHaveCount(1);

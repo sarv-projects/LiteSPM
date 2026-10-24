@@ -165,12 +165,12 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
           </div>
         </div>
 
-        <ul>
+        <ul className="market-category-grid">
           {categories.map((cat) => (
             <li key={cat.name}>
               <Link
                 href={`/explore/?category=${encodeURIComponent(cat.name)}`}
-                className="grid grid-cols-[minmax(0,1fr)_56px] items-center gap-4 border-b border-rule py-2.5 transition-colors hover:bg-hover md:grid-cols-[260px_64px_170px_minmax(120px,1fr)]"
+                className="market-category-card"
               >
                 <span className="t-cond truncate text-[14px] font-medium text-ink">
                   {categoryLabel(cat.name)}

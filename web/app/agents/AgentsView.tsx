@@ -190,7 +190,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
               </h2>
             </div>
             <p className="max-w-[38ch] text-[13px] leading-relaxed text-ink-2">
-              Swipe or scroll to browse {hostCount} agent profiles. Open a profile for setup details and tools that work with your agent.
+              Swipe or scroll to browse {hostCount} agent profiles. Open a profile for setup details and packages listed for your agent.
             </p>
           </div>
 

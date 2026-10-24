@@ -130,37 +130,35 @@ export async function waitForSearchGrid(page: Page, query: string): Promise<void
   await expect(
     page.locator("main h2").filter({ hasText: `Results for “${query}”` })
   ).toBeVisible();
-  await expect(page.locator("main a[data-kind]").first()).toBeVisible();
+  await expect(page.locator("main a[data-kind]").first()).toBeVisible({ timeout: 60_000 });
   await expect(resultCount(page)).toBeVisible();
+  await expect(resultCount(page)).not.toHaveText("searching…", { timeout: 60_000 });
 }
 
 /**
- * The "Works with" select on Explore.
+ * The agent filter on Explore.
  *
  * `getByLabel` is not usable here: the control is wrapped by its `<label>`, and
  * Playwright's label-text algorithm folds the select's own options into the
  * label text, so neither a loose nor an exact name is stable. The wrapping
  * label element is.
  */
-export function worksWithSelect(page: Page) {
-  return page.locator("label").filter({ hasText: "Works with" }).locator("select");
+export function agentFilterSelect(page: Page) {
+  return page.locator("#explore-host");
 }
 
 /**
  * Wait until Explore's grid is rendered for a deep-linked filter (no query).
  *
- * Order matters and is the whole point: the *filter control* reflecting the
- * deep link proves hydration ran, and in that same commit the grid unmounts
- * for its skeleton. Waiting for the count element after that means waiting for
- * the filtered rows to be in hand — not reading the prerendered unfiltered
- * count that was on screen before hydration.
+ * The filter control and result header stay visible while the full row set is
+ * requested. The count must leave its loading label before the test reads it.
  */
 export async function waitForFilteredGrid(
   page: Page,
   filter: { host?: string; publisher?: string } = {}
 ): Promise<void> {
   if (filter.host) {
-    await expect(worksWithSelect(page)).toHaveValue(filter.host);
+    await expect(agentFilterSelect(page)).toHaveValue(filter.host);
   }
   if (filter.publisher) {
     await expect(
@@ -168,6 +166,7 @@ export async function waitForFilteredGrid(
     ).toBeVisible();
   }
   await expect(resultCount(page)).toBeVisible();
+  await expect(resultCount(page)).not.toHaveText("searching…");
 }
 
 /** The plain number a count element shows: "2,365 entries" → 2365. */

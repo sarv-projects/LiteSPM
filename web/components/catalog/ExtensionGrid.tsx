@@ -10,6 +10,8 @@ import { formatCount } from "../../lib/format";
 interface ExtensionGridProps {
   items: Listing[];
   query: string;
+  /** Reset paging when the applied search or filter identity changes. */
+  resultKey?: string;
   /**
    * The grid's heading, when the caller knows what the row set is (Explore
    * names the applied filter: "Plugins", "Works with Zed", …). Falls back to
@@ -24,10 +26,9 @@ interface ExtensionGridProps {
   count?: number;
   loading?: boolean;
   /**
-   * The full row set is being fetched (first search, first filter, first sort).
-   * Distinct from `loading`: it starts on the interaction itself, so the empty
-   * state must never flash "Nothing matches" before the rows have even been
-   * requested.
+   * Result data or the next display window is being fetched. Distinct from
+   * `loading`: the empty state must not flash "Nothing matches" before the
+   * request has settled.
    */
   awaiting?: boolean;
   /** The dataset fetch failed — say so instead of implying "no matches". */
@@ -35,9 +36,8 @@ interface ExtensionGridProps {
   onRetry?: () => void;
   onClearFilters?: () => void;
   /**
-   * Fired by "Show more". On the prerendered page the browser only holds one
-   * page of rows, so this is where the full row set is requested — the reader
-   * asked for more, which is the interaction that justifies the fetch.
+   * Fired by "Show more". The next display shards are fetched only after the
+   * reader asks to see another window of results.
    */
   onShowMore?: () => void;
   /**
@@ -85,8 +85,8 @@ function CatalogError({ onRetry, inline }: { onRetry?: () => void; inline?: bool
         <h3 className="text-[15px] font-semibold">The catalog could not be loaded</h3>
         <p className="text-[13px] text-ink-2">
           {inline
-            ? "The full catalog didn’t load, so search, filters and “show more” are unavailable right now. The rows below still open."
-            : "The full catalog didn’t load, so search and filters are unavailable right now."}
+            ? "More results could not be loaded. The packages already shown are still available."
+            : "The catalog could not be loaded. Try again in a moment."}
         </p>
         {onRetry && (
           <button type="button" onClick={onRetry} className="btn btn-solid mt-2">
@@ -101,6 +101,7 @@ function CatalogError({ onRetry, inline }: { onRetry?: () => void; inline?: bool
 export function ExtensionGrid({
   items,
   query,
+  resultKey,
   heading,
   count,
   loading,
@@ -122,7 +123,7 @@ export function ExtensionGrid({
   // would throw away the click that triggered it.
   useEffect(() => {
     setVisible(GRID_PAGE);
-  }, [query]);
+  }, [query, resultKey]);
 
   // With rows on screen, a slow search keeps them (a fast search must never
   // flash a loading state) until the results replace them. With nothing on
@@ -176,9 +177,11 @@ export function ExtensionGrid({
             aria-live="polite"
             data-testid="result-count"
           >
-            {settled === false
-              ? "searching…"
-              : reported === 1
+            {error
+              ? "Could not load results"
+              : settled === false
+                ? "searching…"
+                : reported === 1
                 ? "1 entry"
                 : // A count that dwarfs the list is not a result count, it is a
                   // measure of how many rows mention the word. "github" appears
@@ -201,18 +204,11 @@ export function ExtensionGrid({
 
       {shown.length > 0 ? (
         <>
-          <div
-            className="t-mono hidden border-b border-rule py-2 pr-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-2 lg:grid lg:grid-cols-[3px_28px_minmax(0,1fr)_200px] lg:items-center lg:gap-x-3"
-          >
-            <span />
-            <span />
-            <span>Capability</span>
-            <span className="text-right">Availability &amp; source</span>
+          <div className="market-results-grid" role="list">
+            {shown.map((item) => (
+              <ExtensionCard key={item.id} item={item} />
+            ))}
           </div>
-
-          {shown.map((item) => (
-            <ExtensionCard key={item.id} item={item} />
-          ))}
 
           {remaining > 0 && (
             <div className="flex items-center justify-center gap-3 pt-6">
@@ -224,10 +220,10 @@ export function ExtensionGrid({
                 type="button"
                 onClick={loadingMore ? undefined : showMore}
                 aria-disabled={loadingMore || undefined}
-                className={`btn${loadingMore ? " pointer-events-none opacity-60" : ""}`}
+                className={`btn market-more-button${loadingMore ? " pointer-events-none opacity-60" : ""}`}
               >
                 {loadingMore
-                  ? "Loading the catalog…"
+                  ? "Loading more results…"
                   : `Show ${formatCount(Math.min(GRID_PAGE, remaining))} more`}
               </button>
               <span className="t-mono t-tabular text-[11px] text-ink-3">
@@ -239,28 +235,19 @@ export function ExtensionGrid({
       ) : error ? (
         <CatalogError onRetry={onRetry} />
       ) : showSkeleton ? (
-        <ul className="pt-px" aria-hidden="true">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <li
-              key={i}
-              className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule bg-surface py-3 pr-3"
-            >
-              <span className="self-stretch rounded-[1px] bg-rule" style={{ width: 3 }} />
-              <span className="h-7 w-7 shrink-0 rounded-[6px] border border-rule bg-sunken-2" />
-              <span className="min-w-0 flex-1 basis-[60%]">
-                <span className="block h-3.5 w-2/5 animate-pulse bg-sunken-2" />
-                <span className="mt-2 block h-2.5 w-2/3 animate-pulse bg-sunken" />
-                <span className="mt-2 block h-2.5 w-1/3 animate-pulse bg-sunken" />
-              </span>
-              <span className="flex w-full shrink-0 flex-wrap gap-x-2 gap-y-1 lg:ml-auto lg:w-[200px] lg:flex-col lg:items-end">
-                <span className="block h-4 w-24 animate-pulse bg-sunken" />
-                <span className="block h-2.5 w-32 animate-pulse bg-sunken" />
-              </span>
-            </li>
+        <div className="market-results-grid" aria-hidden="true">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="market-result-skeleton">
+              <span className="market-skeleton-mark animate-pulse" />
+              <span className="market-skeleton-title animate-pulse" />
+              <span className="market-skeleton-line animate-pulse" />
+              <span className="market-skeleton-line short animate-pulse" />
+              <span className="market-skeleton-footer animate-pulse" />
+            </div>
           ))}
-        </ul>
+        </div>
       ) : (
-        <div className="border-b border-rule py-14">
+        <div className="market-empty-panel">
           <div className="flex max-w-prose flex-col items-start gap-3">
             <SearchX className="h-6 w-6 text-ink-3" aria-hidden="true" />
             <h3 className="text-[15px] font-semibold">Nothing matches</h3>

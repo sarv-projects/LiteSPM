@@ -23,6 +23,7 @@ const NAV = [
   { id: "skills", label: "Manage skills" },
   { id: "bridge", label: "MCP bridge" },
   { id: "security", label: "Security" },
+  { id: "publish", label: "Publish a listing" },
 ];
 
 export default function DeveloperDocsPage() {
@@ -95,6 +96,17 @@ litespm skills remove frontend-design --scope project`}</Code>
             <p>Skills can influence an agent’s behavior. Read the package instructions and source before adding them to an agent workspace. LiteSPM shows the destination and requires approval before it writes.</p>
             <p>Use <code>litespm list</code> to inspect managed entries. Remove individual skills with <code>litespm skills remove</code>, or remove the bridge from a host with <code>litespm uninstall</code>.</p>
             <Link href="/security/" className="btn mt-4">Read the security guide <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+          <section id="publish" className="docs-section">
+            <div className="docs-section-heading"><BookOpen aria-hidden="true" /><div><p className="kicker">07 · Catalog publishing</p><h2>Publish a listing</h2></div></div>
+            <p>Use the listing request form to suggest a public MCP server, agent skill, or plugin. Include the published source and the details a reviewer needs to verify how it installs.</p>
+            <ul>
+              <li><strong>MCP server:</strong> command and arguments, or endpoint and transport; include required environment variables and authentication details.</li>
+              <li><strong>Agent skill:</strong> repository path to <code>SKILL.md</code> and any supporting files or setup requirements.</li>
+              <li><strong>Plugin:</strong> pinned commit, manifest path, and the MCP servers or skills it contains.</li>
+            </ul>
+            <p>List agent hosts, operating systems, and runtime requirements only when you know them. The request opens a GitHub issue for review; submission does not publish a listing automatically.</p>
+            <Link href="/submit/" className="btn btn-solid mt-4">Open the listing guide <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+          </section>
           </section>
         </div>
       </main>

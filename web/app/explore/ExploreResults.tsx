@@ -1,10 +1,8 @@
 "use client";
 
 import React from "react";
-import { RotateCw } from "lucide-react";
 import { ExtensionGrid } from "../../components/catalog/ExtensionGrid";
 import type { Listing } from "../../lib/telemetry";
-import { formatCount } from "../../lib/format";
 import { CURATED_NOTE, DEFAULT_SORT, type SortMode } from "../../lib/catalog";
 
 /**
@@ -53,61 +51,10 @@ export const SORT_NOTES: Record<SortMode, string> = {
     "Uses the order of the published catalog.",
 };
 
-/**
- * The full row set is being fetched for a search or filter. The grid cannot
- * render yet — and must not print a count, because there is no measurement to
- * print. (It used to fall back to the catalog total here, which read as
- * "search returned everything" on a page that had not searched anything yet.)
- */
-export function ExploreSearchSkeleton() {
-  return (
-    <section className="shell pb-16">
-      <p className="sr-only" role="status">
-        Searching the catalog…
-      </p>
-      <ul aria-hidden="true" className="pt-px">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <li
-            key={i}
-            className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-rule bg-surface py-3 pr-3"
-          >
-            <span className="self-stretch rounded-[1px] bg-rule" style={{ width: 3 }} />
-            <span className="h-7 w-7 shrink-0 rounded-[6px] border border-rule bg-sunken-2" />
-            <span className="min-w-0 flex-1 basis-[60%]">
-              <span className="block h-3.5 w-2/5 animate-pulse bg-sunken-2" />
-              <span className="mt-2 block h-2.5 w-2/3 animate-pulse bg-sunken" />
-              <span className="mt-2 block h-2.5 w-1/3 animate-pulse bg-sunken" />
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/** The row-set fetch failed before any count existed; say so, offer a retry. */
-export function ExploreLoadError({ onRetry }: { onRetry: () => void }) {
-  return (
-    <section className="shell pb-16">
-      <div className="border-b border-rule py-14">
-        <div className="flex max-w-prose flex-col items-start gap-3">
-          <RotateCw className="h-6 w-6 text-ink-3" aria-hidden="true" />
-          <h3 className="text-[15px] font-semibold">The catalog could not be loaded</h3>
-          <p className="text-[13px] text-ink-2">
-            The full catalog didn&rsquo;t load, so search and filtering are unavailable right now.
-          </p>
-          <button type="button" onClick={onRetry} className="btn btn-solid mt-2">
-            Try again
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export interface ExploreResultsProps {
   items: Listing[];
   query: string;
+  resultKey: string;
   heading: string;
   count: number;
   loading: boolean;
@@ -128,6 +75,7 @@ export function ExploreResults(props: ExploreResultsProps) {
   const {
     items,
     query,
+    resultKey,
     heading,
     count,
     loading,
@@ -147,6 +95,7 @@ export function ExploreResults(props: ExploreResultsProps) {
     <ExtensionGrid
       items={items}
       query={query}
+      resultKey={resultKey}
       heading={heading}
       count={count}
       loading={loading}

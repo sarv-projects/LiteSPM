@@ -143,7 +143,7 @@ export function SearchResults({
           <div className="flex max-w-prose flex-col items-start gap-3">
             <RotateCw className="h-5 w-5 text-ink-3" aria-hidden="true" />
             <p className="text-[13px] text-ink-2">
-              Search needs the full catalog rows, and that request did not come back.
+              Search is temporarily unavailable. Try again in a moment.
             </p>
             <button type="button" onClick={onRetry} className="btn btn-solid">
               Try again

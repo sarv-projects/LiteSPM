@@ -7,7 +7,7 @@ import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { Listing } from "../../lib/telemetry";
 import { formatCount } from "../../lib/format";
-import { kindLabel, listingHref } from "../../lib/catalog";
+import { displayListingName, kindLabel, listingHref } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { feasibilityFor } from "../../lib/installFeasibility";
 import { hostsNamedBy } from "../../lib/hostIdentity";
@@ -693,7 +693,7 @@ function PackageContent({
             <ChevronRight className="h-3 w-3 shrink-0 text-rule-2" aria-hidden="true" />
           </li>
           <li aria-current="page" className="truncate text-ink">
-            {item.name}
+            {displayListingName(item)}
           </li>
         </ol>
       </nav>
@@ -721,7 +721,7 @@ function PackageContent({
           <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_296px] lg:gap-x-10">
             <div className="lg:col-start-1 lg:row-start-1">
           {/* ---- 1. What is this? -------------------------------------- */}
-          <header aria-labelledby="pkg-title">
+          <header aria-labelledby="pkg-title" className="market-product-header">
             <p className="kicker">What is this?</p>
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -738,9 +738,9 @@ function PackageContent({
 
             <h1
               id="pkg-title"
-              className="mt-3 text-[28px] font-semibold leading-tight tracking-tight text-ink sm:text-[32px]"
+              className="market-product-heading mt-3 text-[28px] font-semibold leading-tight tracking-tight text-ink sm:text-[32px]"
             >
-              {item.name}
+              {displayListingName(item)}
             </h1>
 
             <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-ink-2">
@@ -776,7 +776,7 @@ function PackageContent({
               </span>
             </p>
 
-            <p className="mt-2.5 max-w-prose text-[14px] leading-relaxed text-ink-2">{item.summary}</p>
+            <p className="market-product-summary mt-2.5 max-w-prose text-[14px] leading-relaxed text-ink-2">{item.summary}</p>
 
             {/* ---- 1c. The action, on the first screen ------------------- */}
             {/*

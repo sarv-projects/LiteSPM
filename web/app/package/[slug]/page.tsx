@@ -12,6 +12,7 @@ import {
 } from "../../../lib/packageEntries";
 import { SITE_URL } from "../../../lib/site";
 import { categoryLabel } from "../../categories/categoryLabel";
+import { displayListingName } from "../../../lib/catalog";
 
 /**
  * One real, pre-rendered page per entry in the bounded set.
@@ -59,13 +60,13 @@ export async function generateMetadata({
 
   return {
     // The layout's template appends " · LiteSPM".
-    title: item.name,
+    title: displayListingName(item),
     description,
     alternates: { canonical },
     openGraph: {
       type: "website",
       // Open Graph titles are used verbatim, so the site name is explicit here.
-      title: `${item.name} · LiteSPM`,
+      title: `${displayListingName(item)} · LiteSPM`,
       description,
       url: canonical,
     },

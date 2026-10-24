@@ -16,11 +16,11 @@ import type { Metadata } from "next";
 import TrendingRoute from "./TrendingRoute";
 
 export const metadata: Metadata = {
-  title: "Insights",
+  title: "Catalog coverage",
   description:
     "What the catalog contains: entries per capability kind, agent host, category and publisher.",
   alternates: { canonical: "/insights/" },
-  openGraph: { title: "Insights · LiteSPM", url: "/insights/" },
+  openGraph: { title: "Catalog coverage · LiteSPM", url: "/insights/" },
 };
 
 /**

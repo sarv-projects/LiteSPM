@@ -18,7 +18,7 @@
     "audit:a11y": "node scripts/audit-a11y.mjs",
     "check:sort-order": "node scripts/check-sort-order.mjs",
     "profile:projection": "node scripts/profile-projection.mjs",
-    "test:discovery": "node --test lib/discovery.test.mjs && node scripts/check-facet-counts.mjs"
+    "test:discovery": "node --test lib/discovery.test.mjs lib/searchFacets.test.mjs && node scripts/check-facet-counts.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",

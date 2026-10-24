@@ -27,7 +27,7 @@ export default function TermsPage() {
   return (
     <InfoPage
       title="Terms"
-      lede="There is no account to create and nothing to accept. What actually applies is below: the license, the warranty, and what a listing on this site does and does not mean."
+      lede="Plain-language terms for using LiteSPM, browsing third-party listings, and installing packages on your machine."
       sourcePath="web/app/terms/page.tsx"
     >
       <InfoSection title="License">

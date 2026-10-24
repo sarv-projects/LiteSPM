@@ -46,7 +46,7 @@ const ROUTES: Route[] = [
     section: /how it works/i,
   },
   { path: "/get-started/", heading: "Get started", section: /your guide/i },
-  { path: "/status/", heading: "Catalog status", section: /catalog information/i },
+  { path: "/status/", heading: "Catalog availability", section: /package information/i },
   { path: "/support/", heading: "Support", section: /where a report goes/i },
   { path: "/security/", heading: "Security", section: /where the policy lives/i },
 ];
@@ -192,13 +192,31 @@ test("the setup guide changes with the agent and the OS, and never claims an ins
 test("catalog status shows a useful refresh date without release identifiers", async ({ page }) => {
   await gotoSettled(page, "/status/");
 
-  await expect(page.getByRole("heading", { name: "Catalog information", level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Package information", level: 2 })).toBeVisible();
   await expect(page.getByText("Last refreshed", { exact: true })).toBeVisible();
   const text = (await page.locator("main").innerText()).toLowerCase();
   expect(text).not.toContain("catalog snapshot");
   expect(text).not.toContain("release id");
   expect(text).not.toContain("not a service status");
   expect(text).toMatch(/catalog availability/);
+});
+
+test("catalog status can retry after an unavailable response", async ({ page }) => {
+  let attempts = 0;
+  await page.route("**/v1/current.json", async (route) => {
+    attempts += 1;
+    if (attempts === 1) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+    } else {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+    }
+  });
+
+  await gotoSettled(page, "/status/");
+  await expect(page.getByRole("status").filter({ hasText: "Catalog temporarily unavailable." })).toBeVisible();
+  await page.getByRole("button", { name: "Check again" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Catalog available." })).toBeVisible();
+  expect(attempts).toBe(2);
 });
 
 for (const width of [320, 390]) {

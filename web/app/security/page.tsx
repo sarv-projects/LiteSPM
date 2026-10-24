@@ -33,7 +33,7 @@ export default function SecurityPage() {
   return (
     <InfoPage
       title="Security"
-      lede="The repository's SECURITY.md is the policy; this page is its boundaries in plain words. It adds no certification, no audit badge, and no promise about anybody else's code."
+      lede="See how LiteSPM handles agent configuration, local credentials, package sources, and vulnerability reports."
       sourcePath="web/app/security/page.tsx"
     >
       <InfoSection title="Where the policy lives">

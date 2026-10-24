@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { waitForSearchGrid } from './support/site';
 
 // Real navigation and first-response checks, independent of editorial wording.
 test('global install opens a working setup path', async ({ page }) => {
@@ -10,6 +11,7 @@ test('global install opens a working setup path', async ({ page }) => {
 
 test('publisher options load through keyboard focus and recover after filtering', async ({ page }) => {
   await page.goto('/explore/');
+  await page.locator('details.market-advanced-filters > summary').click();
   const publisher = page.locator('#explore-publisher');
   await publisher.focus();
   await expect.poll(() => publisher.locator('option').count()).toBeGreaterThan(2);
@@ -67,6 +69,7 @@ for (const width of [1440, 390]) {
 
 test('the same pinned plugin appears once after interactive catalog loading', async ({ page }) => {
   await page.goto('/explore/?q=activecampaign&kind=plugin');
+  await waitForSearchGrid(page, 'activecampaign');
   const rows = page.locator('main a[data-kind="plugin"]');
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText('ActiveCampaign');

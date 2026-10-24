@@ -157,13 +157,13 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
             title={
               worksWith
                 ? remoteEndpoint
-                  ? "LiteSPM's adapter for this agent documents the URL-entry format for this listing's transport. This does not test the server itself."
-                  : "Local MCP servers use adapters LiteSPM can configure; skills use documented user-scope skills directories; plugins use the hosts their publisher lists."
-                : "Nothing declares support for this agent."
+                  ? "LiteSPM has a setup path for this agent and connection type. The publisher provides the service."
+                  : "This agent is listed for the package. Its install status appears above."
+                : "This agent is not listed for the package."
             }
           >
             {worksWith && <Check className="h-3 w-3" aria-hidden="true" />}
-            {worksWith ? `Works with ${agent.label}` : `Not declared for ${agent.label}`}
+            {worksWith ? `Listed for ${agent.label}` : `Not listed for ${agent.label}`}
           </span>
         )}
       </div>

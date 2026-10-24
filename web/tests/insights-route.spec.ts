@@ -21,16 +21,14 @@ test("/trending/ now redirects to /insights/", async ({ page }) => {
       timeout: 10_000,
     })
     .toBe("/insights/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Insights");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Catalog coverage");
 });
 
-test("the insights page says it is a census, not a trending list", async ({ page }) => {
+test("catalog coverage describes available data without unsupported popularity claims", async ({ page }) => {
   await gotoSettled(page, "/insights/");
-  await expect(
-    page.getByText("There is no trending list here: no source publishes usage data.", {
-      exact: false,
-    })
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Catalog coverage", level: 1 })).toBeVisible();
+  await expect(page.getByText(/Explore the catalog across agent hosts, package types, categories and publishers/)).toBeVisible();
+  await expect(page.getByText(/no source publishes usage data|this is a census|no trending list/i)).toHaveCount(0);
 });
 
 test("the rail and the footer name the route they link to", async ({ page }) => {

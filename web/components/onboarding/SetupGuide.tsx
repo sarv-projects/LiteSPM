@@ -415,10 +415,10 @@ export function SetupGuide({ agents }: { agents: GuideAgent[] }) {
           id="get-started-agent-legend"
           className="text-[14px] font-semibold text-ink"
         >
-          Which coding agent do you use?
+          Which agent do you use?
         </legend>
         <p className="mt-1 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
-          LiteSPM supports {agents.length} agent hosts. Start typing to narrow the list.
+          Choose from {agents.length} agent setup profiles. Start typing to narrow the list.
         </p>
 
         <label htmlFor="get-started-agent-search" className="mt-3 block text-[12px] text-ink-2">

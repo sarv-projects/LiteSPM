@@ -42,13 +42,18 @@ test("setup guide names the published npm Node.js engine range", async ({ page }
   await expect(page.getByText(/Node\.js 18 or newer/)).toHaveCount(0);
 });
 
-test("listing submission does not promise automatic pickup", async ({ page }) => {
+test("listing page provides an accessible source-and-setup request form", async ({ page }) => {
   await gotoSettled(page, "/submit/");
 
-  await expect(page.getByText(/If the source is accepted and included in the catalog's ingestion process/)).toBeVisible();
-  await expect(page.getByText(/a later manually run catalog build may publish it/)).toBeVisible();
-  await expect(page.getByText(/The next catalog build picks it up from that source/)).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Bring your agent project to LiteSPM" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "What are you submitting?" })).toBeVisible();
+  await expect(page.getByLabel("Project name")).toHaveAttribute("required", "");
+  await expect(page.getByLabel("Project or publisher URL")).toHaveAttribute("type", "url");
+  await expect(page.getByLabel("Setup or install details")).toHaveAttribute("required", "");
+  await expect(page.getByRole("button", { name: "Continue to GitHub" })).toBeVisible();
+  await expect(page.getByText(/the LiteSPM team reviews the publisher source/i)).toBeVisible();
 });
+
 
 test("footer stays focused on product links rather than release metadata", async ({ page }) => {
   await gotoSettled(page, "/");

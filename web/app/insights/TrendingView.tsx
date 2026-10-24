@@ -167,7 +167,7 @@ const HOST_COLUMNS: Array<{ label: string; hint: string }> = [
   { label: "Config file", hint: "where LiteSPM writes" },
   { label: "Project config", hint: "per-repository file" },
   { label: "Skills", hint: "install target" },
-  { label: "Entries", hint: "compatible with it" },
+  { label: "Entries", hint: "listed for it" },
   { label: "Docs", hint: "vendor documentation" },
 ];
 
@@ -355,25 +355,12 @@ export default function InsightsPage({ total, boards, hosts, boardTotals }: Tren
 
       <main id="main" tabIndex={-1} className="shell flex-1 pt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Insights</h1>
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Catalog coverage</h1>
           <p className="t-mono text-[11px] text-ink-3">{formatCount(total)} entries</p>
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Every entry in the catalog, counted by agent host, capability kind, category and
-          publisher.
-        </p>
-
-        {/*
-            The line the route name used to deny. This page was served at
-            `/trending/`, so every competitor-shaped expectation ("trending",
-            "this week", "most popular") landed on a page that answers none of
-            them — and the site never said why. It is a census: no source
-            publishes usage data, so nothing here is ranked by popularity and
-            nothing here moves.
-        */}
-        <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-3">
-          There is no trending list here: no source publishes usage data. This is a census.
+          Explore the catalog across agent hosts, package types, categories and publishers.
         </p>
 
         <div className="mt-7">
@@ -403,9 +390,9 @@ export default function InsightsPage({ total, boards, hosts, boardTotals }: Tren
         </div>
 
         <p className="mt-8 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          This is a census, not a leaderboard — nothing is ranked by popularity, because no source
-          publishes usage. <Link href="/explore/" className="link">Browse the catalog these hosts
-          work with</Link>.
+          Choose a host to see its setup guide, or continue browsing the packages and skills in the
+          catalog. <Link href="/agents/" className="link">Explore agent profiles</Link> ·{" "}
+          <Link href="/explore/" className="link">Browse packages</Link>.
         </p>
       </main>
 

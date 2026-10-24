@@ -52,6 +52,9 @@ export const SEARCH_ROWS_PATH = "/data/catalog-search-rows.bin.gz";
 /** Postings index; fetched by `lib/search.worker.ts` (or in-thread fallback). */
 export const SEARCH_INDEX_PATH = "/data/catalog-search-index.bin.gz";
 
+/** Compact row-aligned facets used to filter ids before display shards load. */
+export const SEARCH_FACETS_PATH = "/data/catalog-search-facets.json.gz";
+
 /**
  * Palette facets: the catalog's category list with real counts, emitted by
  * `scripts/emit-catalog-shards.mjs`. The command palette is the only consumer,
@@ -102,6 +105,7 @@ const DATASET_VERSION = (() => {
 export const CATALOG_URL = `${CATALOG_PATH}${DATASET_VERSION}`;
 export const SEARCH_ROWS_URL = `${SEARCH_ROWS_PATH}${DATASET_VERSION}`;
 export const SEARCH_INDEX_URL = `${SEARCH_INDEX_PATH}${DATASET_VERSION}`;
+export const SEARCH_FACETS_URL = `${SEARCH_FACETS_PATH}${DATASET_VERSION}`;
 export const CATEGORIES_URL = `${CATEGORIES_PATH}${DATASET_VERSION}`;
 export const PUBLISHERS_URL = `${PUBLISHERS_PATH}${DATASET_VERSION}`;
 
