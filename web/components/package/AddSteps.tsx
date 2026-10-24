@@ -253,7 +253,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             <p className="flex min-w-0 items-start gap-2 text-[13px] leading-relaxed text-dark-ink">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-dark-signal" aria-hidden="true" />
               <span>
-                Installing for <strong className="font-medium">{agent?.label}</strong>.
+                Install target: <strong className="font-medium">{agent?.label}</strong>.
               </span>
             </p>
             <button
@@ -276,13 +276,12 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                   You chose{" "}
                   <strong className="font-medium text-dark-ink">&ldquo;{agent.label}&rdquo;</strong>.
                   {item.kind === "skill"
-                    ? " This host has no LiteSPM id, so the command installs into every skills target detected on your machine."
-                    : " The CLI will check the selected host before installation."}
+                    ? " This agent has no dedicated install target. The command will use every supported skill location on your machine."
+                    : " LiteSPM will check this agent before installation."}
                 </>
               ) : (
                 <>
-                  This command installs into detected skill targets or configured MCP hosts.
-                  The CLI will not automatically configure a missing agent.
+                  Without an agent choice, LiteSPM uses the skill locations and MCP hosts already set up on your machine.
                 </>
               )}
             </p>

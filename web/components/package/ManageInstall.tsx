@@ -42,7 +42,7 @@ function commandsFor(item: Listing): ManageCommand[] {
       label: "See what is really installed",
       cmd: "litespm list",
       note:
-        "The ledger on your machine is the source of truth, and it prints the install id the other commands take. `litespm list mcp` and `litespm list skills` narrow it.",
+        "Lists the packages LiteSPM installed and the IDs used by the commands below. Add `mcp` or `skills` to narrow the list.",
     },
   ];
 
@@ -51,26 +51,26 @@ function commandsFor(item: Listing): ManageCommand[] {
       label: "Update the skill",
       cmd: "litespm skills update",
       note:
-        "No arguments updates every skill LiteSPM installed, each from the source its ledger row recorded; add a name to scope it.",
+        "Updates all LiteSPM-managed skills from their original sources. Add a name to update one skill.",
     });
     commands.push({
       label: "Remove the skill",
       cmd: "litespm skills remove <name>",
       note:
-        "Takes the name `litespm skills list` prints. Removal is ledger-scoped: only directories the ledger names are deleted.",
+        "Use the name shown by `litespm skills list`. LiteSPM removes only the skill directory it manages.",
     });
   } else {
     commands.push({
       label: "Update or re-register it",
       cmd: `litespm install ${item.id}`,
       note:
-        "Re-running the install re-reads this entry and rewrites the host entries LiteSPM manages for it; nothing is removed that you edited.",
+        "Re-running the install reads the current listing and updates its LiteSPM-managed host entry. Your other settings stay in place.",
     });
     commands.push({
       label: "Remove it",
       cmd: "litespm install remove <installId>",
       note:
-        "Takes the install id `litespm list` prints. It strips only LiteSPM's entries and keeps any node you edited.",
+        "Use the install ID shown by `litespm list`. LiteSPM removes only its own host entry and leaves your other settings in place.",
     });
   }
 
@@ -78,7 +78,7 @@ function commandsFor(item: Listing): ManageCommand[] {
     label: "Undo the config write",
     cmd: "litespm restore <installId>",
     note:
-      "Puts the host config back from the backup LiteSPM took before it wrote. `litespm restore --host <host-id>` restores every install for one host.",
+      "Restores the host configuration from the backup saved before the change. Add `--host <host-id>` to restore installs for one agent.",
   });
 
   return commands;
@@ -112,14 +112,12 @@ export function ManageInstall({ item, onClear }: ManageInstallProps) {
     >
       <div className="section-head">
         <h2 id="pkg-manage-title">Manage this install</h2>
-        <span className="section-note">the ledger stays on your machine</span>
+        <span className="section-note">Install records stay on your computer</span>
       </div>
 
       <div className="on-dark panel-dark mt-3">
         <p className="border-b border-dark-rule pb-3.5 text-[13px] leading-relaxed text-dark-ink">
-          These are the commands you run yourself —{" "}
-          <code className="t-mono text-dark-ink">litespm list</code> is the one source of truth
-          for what is installed.
+          Use these commands to see, update or remove this package. <code className="t-mono text-dark-ink">litespm list</code> shows what LiteSPM manages on your computer.
         </p>
 
         <ul className="mt-4 space-y-4">
@@ -141,8 +139,7 @@ export function ManageInstall({ item, onClear }: ManageInstallProps) {
             Ask your agent what it sees
           </h3>
           <p className="mt-1 max-w-prose text-[12px] leading-relaxed text-dark-ink-2">
-            The LiteSPM bridge runs where the ledger does, so your agent can check this for
-            real. Paste this into the agent you installed it for — it only reads.
+            If the LiteSPM bridge is connected to your agent, it can check the install record on your computer. Paste this prompt into that agent; it only reads information.
           </p>
           <div className="mt-2 border border-dark-rule bg-dark-2 px-3 py-2.5">
             <div className="flex items-start gap-3">
@@ -163,7 +160,7 @@ export function ManageInstall({ item, onClear }: ManageInstallProps) {
             Back to installation
           </button>
           <p className="text-[12px] leading-relaxed text-dark-ink-2">
-            Use litespm list to view installed packages on your computer.
+            Use litespm list to see the packages LiteSPM manages on your computer.
           </p>
         </div>
       </div>
