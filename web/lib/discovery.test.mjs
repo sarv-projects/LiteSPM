@@ -34,3 +34,12 @@ test('duplicate identity survives the compact search projection', async () => {
   const decoded = decodeDisplayRows(encodeDisplayRows(buildDisplayRows([a,b,c])));
   assert.deepEqual(uniqueListings(Array.from({length: decoded.rowCount}, (_,i) => decoded.rowAt(i))).map(x => x.id), [a.id, c.id]);
 });
+
+test('windowed counts group only matched identities and preserve match order', async () => {
+  const { duplicateIndexGroups, uniqueMatchIndices } = await import('./discovery.mjs');
+  const a = row('a', { artifact: { repo: 'https://github.com/acme/tool', sha: 'abc' } });
+  const groups = duplicateIndexGroups([a, {...a,id:'b'},row('c')]);
+  assert.deepEqual(groups, [[0,1]]);
+  assert.deepEqual(uniqueMatchIndices([1,2,0], groups), [1,2]);
+  assert.deepEqual(uniqueMatchIndices([1], groups), [1]);
+});

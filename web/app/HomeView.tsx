@@ -61,6 +61,7 @@ import type { CuratedGroup, TopicStat } from "../lib/landing";
  */
 export interface HomeViewProps {
   total: number;
+  duplicateGroups: number[][];
   topics: TopicStat[];
   /** The curated groups, resolved at build time from `data/featured.json`. */
   shelves: CuratedGroup[];
@@ -101,7 +102,7 @@ export default function Home(props: HomeViewProps) {
     [],
     deferredQuery,
     { kind: null, category: null },
-    { windowed: true }
+    { windowed: true, duplicateGroups: props.duplicateGroups }
   );
 
   const groupedResults = useMemo(() => uniqueListings(results) as Listing[], [results]);

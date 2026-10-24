@@ -143,10 +143,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
           <div className="shell agent-atlas-hero-grid">
             <div className="max-w-[690px]">
               <p className="agent-atlas-eyebrow"><Sparkles className="h-3.5 w-3.5" /> THE AGENT TOOLBOX</p>
-              <h1 className="mt-5 max-w-[12ch] text-[clamp(2.6rem,5.5vw,5.2rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-[#142923]">
-                Choose your<br /><span className="text-[#24715a]">agent.</span>
+              <h1 className="mt-5 max-w-[12ch] text-[clamp(2.6rem,5.5vw,5.2rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-ink">
+                Choose your<br /><span className="text-accent-text">agent.</span>
               </h1>
-              <p className="mt-5 max-w-[52ch] text-[16px] leading-relaxed text-[#53645d] sm:text-[18px]">
+              <p className="mt-5 max-w-[52ch] text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
                 Find the agent you already use, then explore the tools and skills that make it more useful.
                 Every profile includes a practical setup guide.
               </p>

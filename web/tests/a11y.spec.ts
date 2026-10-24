@@ -59,7 +59,7 @@ for (const path of CONTRAST_ROUTES) {
 test.describe("dark theme contrast", () => {
   test.use({ colorScheme: "dark" });
 
-  for (const path of ["/", "/explore/", "/package/00widget/", "/privacy/"]) {
+  for (const path of ["/", "/explore/", "/agents/", "/package/00widget/", "/privacy/"]) {
     test(`contrast: ${path} in the dark palette has no color-contrast violations`, async ({
       page,
     }) => {

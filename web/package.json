@@ -39,6 +39,7 @@
     "typescript": "^5.7.3"
   },
   "overrides": {
-    "postcss": "$postcss"
+    "postcss": "$postcss",
+    "undici": "7.30.1"
   }
 }

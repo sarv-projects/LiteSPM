@@ -2355,7 +2355,7 @@
   display: inline-flex;
   align-items: center;
   gap: .55rem;
-  color: #245d49;
+  color: var(--accent-text);
   font: 700 11px/1 var(--font-mono);
   letter-spacing: .14em;
 }
@@ -2425,7 +2425,7 @@
 .agent-atlas-connectors small { color: var(--ink-2); font-size: 12px; }
 .agent-atlas-connectors b { color: #47745e; background: #eff5ed; border-radius: 6px; padding: 4px 6px; font-size: 12px; font-weight: 600; }
 .agent-atlas-caption { padding: 13px 4px 2px; color: var(--ink-2); font-size: 12px; }
-.agent-atlas-caption span { color: #8fa297; padding: 0 4px; }
+.agent-atlas-caption span { color: var(--ink-3); padding: 0 4px; }
 .agent-atlas-callout {
   position: relative;
   display: flex;
@@ -2474,9 +2474,9 @@
   font-weight: 600;
   transition: background .18s ease, color .18s ease, border-color .18s ease;
 }
-.agent-filter-chip:hover { border-color: #9eb9a8; color: #1e5b46; }
-.agent-filter-chip-active { border-color: #172a22; background: #172a22; color: var(--surface); }
-.agent-filter-chip-active:hover { color: var(--surface); background: #204d3c; }
+.agent-filter-chip:hover { border-color: #9eb9a8; color: var(--accent-text); }
+.agent-filter-chip-active { border-color: #172a22; background: #172a22; color: #fff; }
+.agent-filter-chip-active:hover { color: #fff; background: #204d3c; }
 .agent-atlas-stats { display: flex; gap: 24px; margin: 18px 0 12px; color: var(--ink-3); font: 11px var(--font-mono); }
 .agent-atlas-stats strong { color: var(--ink); font-weight: 700; }
 .agent-atlas-rail-wrap { position: relative; }
@@ -2509,8 +2509,8 @@
 .agent-count-link { display: grid; gap: 4px; color: var(--ink-3); text-decoration: none; }
 .agent-count-link strong { color: var(--ink); font: 600 16px var(--font-mono); }
 .agent-count-link span { font-size: 12px; }
-.agent-count-link:hover strong, .agent-count-link:hover span { color: #28664e; }
-.agent-card-link { display: inline-flex; align-items: center; gap: 5px; min-height: 40px; color: #1e634b; font-size: 12px; font-weight: 700; }
+.agent-count-link:hover strong, .agent-count-link:hover span { color: var(--accent-text); }
+.agent-card-link { display: inline-flex; align-items: center; gap: 5px; min-height: 40px; color: var(--accent-text); font-size: 12px; font-weight: 700; }
 .agent-card-link:hover { text-decoration: underline; }
 .agent-rail-arrow {
   position: absolute;
@@ -2588,11 +2588,11 @@
 .home-eyebrow { display: flex; align-items: center; gap: .55rem; color: var(--accent-text); font: 700 11px/1.2 var(--font-mono); letter-spacing: .15em; }
 .home-display-title { margin-top: 22px; color: var(--ink); font-size: clamp(2.7rem, 5.6vw, 5.3rem); font-weight: 650; line-height: .99; letter-spacing: -.06em; }
 .home-display-title span { color: var(--accent-text); }
-.home-display-subtitle { max-width: 54ch; margin-top: 22px; color: #55665e; font-size: clamp(15px, 1.4vw, 17px); line-height: 1.65; }
+.home-display-subtitle { max-width: 54ch; margin-top: 22px; color: var(--ink-2); font-size: clamp(15px, 1.4vw, 17px); line-height: 1.65; }
 .home-search-wrap { max-width: 620px; margin-top: 28px; }
 .home-search-prompt { margin-top: 10px; color: var(--ink-3); font-size: 12px; }
 .home-hero-actions { display: flex; align-items: center; gap: 19px; flex-wrap: wrap; margin-top: 17px; }
-.home-text-link { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; color: #315d49; font-size: 13px; font-weight: 650; }
+.home-text-link { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; color: var(--accent-text); font-size: 13px; font-weight: 650; }
 .home-text-link:hover { text-decoration: underline; }
 .home-trust-line { display: flex; align-items: center; gap: 8px; margin-top: 19px; color: var(--ink-2); font-size: 12px; }
 .home-trust-line svg { color: #337152; }

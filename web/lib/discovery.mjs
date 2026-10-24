@@ -58,3 +58,26 @@ export function relatedListings(item, rows) {
     .sort((a, b) => b.score - a.score || a.row.name.localeCompare(b.row.name))
     .map(({ row }) => row);
 }
+
+/** Compact duplicate groups keep windowed counts exact without fetching all rows. */
+export function duplicateIndexGroups(rows) {
+  const groups = new Map();
+  rows.forEach((row, index) => {
+    const key = listingIdentity(row);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(index);
+  });
+  return [...groups.values()].filter(group => group.length > 1);
+}
+
+export function uniqueMatchIndices(indices, groups = []) {
+  const identity = new Map();
+  for (const group of groups) for (const index of group) identity.set(index, group[0]);
+  const seen = new Set();
+  return indices.filter(index => {
+    const key = identity.get(index) ?? index;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

@@ -1,3 +1,4 @@
+import { duplicateIndexGroups, uniqueListings } from "../lib/discovery.mjs";
 import catalogData from "../data/catalog.json";
 import type { Listing } from "../lib/telemetry";
 import { demoteValidationFixtures, withLinkKeys } from "../lib/catalog";
@@ -58,7 +59,8 @@ export default function Home() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);
 
   const props: HomeViewProps = {
-    total: items.length,
+    total: uniqueListings(items).length,
+    duplicateGroups: duplicateIndexGroups(items),
     topics: deriveTopics(items, topicRanker(items)),
     shelves: deriveShelves(items),
   };
