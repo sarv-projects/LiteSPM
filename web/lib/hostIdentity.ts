@@ -294,31 +294,34 @@ export function tallyHosts(items: Listing[]): Map<string, HostTally> {
     else if (kind === "plugin") tally.plugin += 1;
   };
 
-  const counted = new Set<string>();
+  // Retain one identity per package, rather than one long identity string per
+  // package/host pair. Most rows are unique; only repeated identities need a
+  // membership check, and their target lists are merged without losing hosts.
+  const counted = new Map<string, string[]>();
   for (const item of items) {
+    const identity = listingIdentity(item);
+    const previous = counted.get(identity);
+    const named = previous ?? [];
+    const add = (key: string, name: string) => {
+      if (previous?.includes(key)) return;
+      named.push(key);
+      bump(ensure(key, name), item.kind);
+    };
     for (const id of hostIdsFor(item)) {
-      const key = id + "|" + listingIdentity(item);
-      if (counted.has(key)) continue;
-      counted.add(key);
-      bump(ensure(id, IDENTITY_BY_ID.get(id)?.name ?? id), item.kind);
+      add(id, IDENTITY_BY_ID.get(id)?.name ?? id);
     }
-    // A plugin carries its own declared list; MCP and skills rows derive
-    // theirs from the kind, so every string they name resolves by construction.
-    if (item.kind !== "plugin") continue;
-    const seen = new Set<string>();
-    for (const raw of item.compatibleHosts ?? []) {
-      const name = raw.trim();
-      if (!name) continue;
-      const key = resolveHostId(name);
-      if (key) continue;
-      const rawKey = `raw:${norm(name)}`;
-      if (seen.has(rawKey)) continue;
-      seen.add(rawKey);
-      const identity = rawKey + "|" + listingIdentity(item);
-      if (counted.has(identity)) continue;
-      counted.add(identity);
-      bump(ensure(rawKey, name), item.kind);
+    if (item.kind === "plugin") {
+      const seen = new Set<string>();
+      for (const raw of item.compatibleHosts ?? []) {
+        const name = raw.trim();
+        if (!name || resolveHostId(name)) continue;
+        const key = `raw:${norm(name)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        add(key, name);
+      }
     }
+    if (!previous) counted.set(identity, named);
   }
   return map;
 }

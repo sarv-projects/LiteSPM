@@ -214,3 +214,22 @@ test("the Works with facet offers one option per host — no spelling twice", as
   expect(names).not.toContain("Grok");
   expect(names).not.toContain("Grok Build (xAI Dev Tool)");
 });
+
+
+test("duplicate packages merge host declarations without dropping distinct revisions", async () => {
+  const { tallyHosts } = await import("../lib/hostIdentity");
+  const base: import("../lib/telemetry").Listing = {
+    id: "plugin:first", name: "Host union fixture", slug: "host-union", kind: "plugin",
+    summary: "Host union fixture", category: "Testing", publisher: { name: "Fixture", verified: false },
+    stars: null, version: "1.0.0", artifact: { repo: "https://github.com/example/fixture", sha: "abc" },
+    compatibleHosts: ["Claude Code", "Example Host A"],
+  };
+  const counts = tallyHosts([
+    base,
+    { ...base, id: "plugin:second", compatibleHosts: ["Codex", "example host a"] },
+    { ...base, id: "plugin:revision", artifact: { ...base.artifact, sha: "def" }, compatibleHosts: ["Claude Code"] },
+  ]);
+  expect(counts.get("claude-code")?.total).toBe(2);
+  expect(counts.get("codex")?.total).toBe(1);
+  expect([...counts.values()].find(host => host.name === "Example Host A")?.total).toBe(1);
+});
