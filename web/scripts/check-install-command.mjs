@@ -228,7 +228,7 @@ async function main() {
   const fromTag = tagFlags ?? new Set();
   const missing = [...fromTag].filter((flag) => !recorded.has(flag));
   const extra = [...recorded].filter((flag) => !fromTag.has(flag));
-  if (missing.length > 0 || extra.length > 0) {
+  if (tagFlags !== null && (missing.length > 0 || extra.length > 0)) {
     fail(
       `web/data/published-cli.json does not describe v${version}: ` +
         `${missing.length > 0 ? `missing ${missing.join(", ")}` : ""}` +

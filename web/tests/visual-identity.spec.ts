@@ -53,7 +53,7 @@ test("MCP and brand roles remain distinct and the hero glow stays on-brand", asy
 
 test("submit-page explanatory copy is at least 14px on desktop and mobile", async ({ page }) => {
   await gotoSettled(page, "/submit/");
-  const lede = page.getByText("There is no upload form, and there is nothing to buy.");
+  const lede = page.locator("main > p").first();
 
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });

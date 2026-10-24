@@ -297,6 +297,9 @@ func runSkillsAdd(args []string) {
 		fmt.Fprintf(out, "◇  Found %d skill%s\n", len(found), plural(len(found)))
 	}
 
+	if len(opts.skills) == 0 && src.RequestedSkill != "" {
+		opts.skills = []string{src.RequestedSkill}
+	}
 	var selected []skills.DiscoveredSkill
 	if len(opts.skills) > 0 {
 		var missing []string

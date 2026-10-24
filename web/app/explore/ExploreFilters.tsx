@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { X } from "lucide-react";
 import { formatCount } from "../../lib/format";
 import { kindLabel } from "../../lib/catalog";
@@ -162,31 +162,6 @@ export function ExploreFilters(props: ExploreFiltersProps) {
     onIntent,
   } = props;
 
-  /**
-   * The publisher list is fetched when the control is opened, not on mount:
-   * a passive visit to Explore fetches nothing under `/data/`, and 5,286 names
-   * do not belong in a page's first paint either.
-   */
-  const [opened, setOpened] = useState(false);
-  useEffect(() => {
-    if (opened) return;
-    const open = () => {
-      setOpened(true);
-      onOpenPublishers();
-    };
-    // Focus covers the keyboard; pointerdown covers the mouse, and fires
-    // before the dropdown opens, so the list is on its way as it opens.
-    const node = document.getElementById("explore-publisher");
-    if (!node) return;
-    node.addEventListener("pointerdown", open, { once: true });
-    node.addEventListener("focus", open, { once: true });
-    node.addEventListener("keydown", open, { once: true });
-    return () => {
-      node.removeEventListener("pointerdown", open);
-      node.removeEventListener("focus", open);
-      node.removeEventListener("keydown", open);
-    };
-  }, [opened, onOpenPublishers]);
 
   return (
     <>
@@ -373,6 +348,8 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           Publisher
           <select
             id="explore-publisher"
+            onFocus={onOpenPublishers}
+            onPointerDown={onOpenPublishers}
             name="publisher"
             value={publisher}
             onChange={(e) => setPublisher(e.target.value)}
@@ -383,7 +360,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
             }
             className="field"
           >
-            <option value="">Any publisher</option>
+            <option value="">{publishersLoading ? "Loading publishers…" : "Any publisher"}</option>
             {/*
                 The applied publisher is always an option, even before the
                 list arrives and even when it is not in the list (a name with
@@ -402,6 +379,7 @@ export function ExploreFilters(props: ExploreFiltersProps) {
               </option>
             ))}
           </select>
+          {publishersFailed && <button type="button" className="link" onClick={onOpenPublishers}>Retry publishers</button>}
         </label>
 
         {/*

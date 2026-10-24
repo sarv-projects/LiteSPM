@@ -51,6 +51,7 @@
 // index, and results come back as row indices (4 bytes each) into the
 // hydration source the page holds.
 
+import { uniqueMatchIndices } from "./discovery.mjs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Listing } from "./telemetry";
 import { matchesQuery } from "./telemetry";
@@ -80,6 +81,7 @@ export interface CatalogSearchOptions {
    * the hydrated rows.
    */
   windowed?: boolean;
+  duplicateGroups?: number[][];
 }
 
 export interface CatalogSearchState {
@@ -171,6 +173,8 @@ export function useCatalogSearch(
   // Normalize every "empty" input to one shared identity: an empty row set is
   // an empty row set, and callers passing `full ?? []` would otherwise hand a
   // brand-new array to the effects below on every render.
+  const duplicateGroupsRef = useRef(options?.duplicateGroups);
+  duplicateGroupsRef.current = options?.duplicateGroups;
   const rowsInput = listings.length === 0 ? EMPTY_LISTINGS : listings;
   const kind = filters.kind ?? null;
   const category = filters.category ?? null;
@@ -335,7 +339,7 @@ export function useCatalogSearch(
             // only the shards holding the first window of it.
             matchesRef.current = {
               key: inflightKeyRef.current ?? "",
-              indices: message.indices,
+              indices: uniqueMatchIndices(message.indices, duplicateGroupsRef.current),
             };
             setMatchRun((n) => n + 1);
             return;
@@ -471,7 +475,7 @@ export function useCatalogSearch(
       const decoded = indexRef.current;
       const indices = decoded ? querySearchIndex(decoded, query) : [];
       if (windowed) {
-        matchesRef.current = { key: runKey, indices };
+        matchesRef.current = { key: runKey, indices: uniqueMatchIndices(indices, duplicateGroupsRef.current) };
         setMatchRun((n) => n + 1);
         return;
       }

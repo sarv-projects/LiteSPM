@@ -98,6 +98,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
   const [filter, setFilter] = useState<AgentFilter>("all");
   const [savedAgent, setSavedAgent] = useState<AgentChoice | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
+  const [gridView, setGridView] = useState(false);
 
   useEffect(() => {
     try {
@@ -142,10 +143,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
           <div className="shell agent-atlas-hero-grid">
             <div className="max-w-[690px]">
               <p className="agent-atlas-eyebrow"><Sparkles className="h-3.5 w-3.5" /> THE AGENT TOOLBOX</p>
-              <h1 className="mt-5 max-w-[12ch] text-[clamp(2.6rem,5.5vw,5.2rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-[#142923]">
-                Choose your<br /><span className="text-[#24715a]">agent.</span>
+              <h1 className="mt-5 max-w-[12ch] text-[clamp(2.6rem,5.5vw,5.2rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-ink">
+                Choose your<br /><span className="text-accent-text">agent.</span>
               </h1>
-              <p className="mt-5 max-w-[52ch] text-[16px] leading-relaxed text-[#53645d] sm:text-[18px]">
+              <p className="mt-5 max-w-[52ch] text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
                 Find the agent you already use, then explore the tools and skills that make it more useful.
                 Every profile includes a practical setup guide.
               </p>
@@ -233,10 +234,10 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
             </button>
             <div
               ref={railRef}
-              className="agent-atlas-rail"
+              className={"agent-atlas-rail" + (gridView ? " agent-directory-grid" : "")}
               tabIndex={0}
               role="region"
-              aria-label="Scrollable agent profiles"
+              aria-label={gridView ? "Agent profiles" : "Scrollable agent profiles"}
               aria-live="polite"
             >
               {visibleAgents.map((agent) => (
@@ -255,6 +256,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
             </button>
           </div>
           <div className="agent-atlas-rail-hint" aria-hidden="true"><span />Scroll or swipe to explore</div>
+          <button type="button" aria-pressed={gridView} onClick={() => setGridView(value => !value)} className="btn mt-5">{gridView ? "View as horizontal cards" : "View all matching agents as a grid"}</button>
         </section>
 
         <section className="shell agent-atlas-bottom">

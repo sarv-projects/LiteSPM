@@ -33,7 +33,7 @@ const FLOW = [
   },
   {
     title: "Remove it when you are done",
-    command: "litespm skills remove meeting-notes --scope project",
+    command: "litespm skills remove meeting-notes --scope project --yes",
     output: [
       "Removed 1 skill",
       "",

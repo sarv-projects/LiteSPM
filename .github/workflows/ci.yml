@@ -139,6 +139,10 @@ jobs:
         run: go test -v -shuffle=on ./...
         if: matrix.os == 'windows-latest'
 
+      - name: Stress Windows lock contention
+        if: matrix.os == 'windows-latest'
+        run: go test -v -count=20 -run 'Test(StaleRecoveryRetriesWindowsSharingViolation|ConcurrentAcquireIsMutuallyExclusive)$' ./internal/fslock
+
   build-web:
     name: Build Next.js Static Export
     runs-on: ubuntu-latest
@@ -177,7 +181,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
 
@@ -203,6 +207,10 @@ jobs:
         # codebase — a Hook below an early return, which React reports as #310
         # and which both `tsc` and `next build` accept. See scripts/README.md.
         run: npm run lint
+
+      - name: Test Discovery Rules
+        working-directory: ./web
+        run: npm run test:discovery
 
       - name: Build Web Static Export
         working-directory: ./web
@@ -291,7 +299,7 @@ jobs:
         run: npx playwright test
 
       - name: Upload Playwright Report
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report

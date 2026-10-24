@@ -1,3 +1,4 @@
+import { uniqueListings } from "../../lib/discovery.mjs";
 import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import {
@@ -37,8 +38,8 @@ export default function ExplorePage() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);
 
   const props: ExploreViewProps = {
-    total: items.length,
-    kindCounts: deriveKindCounts(items),
+    total: uniqueListings(items).length,
+    kindCounts: deriveKindCounts(uniqueListings(items) as Listing[]),
     // The editorial goal facets, from the same rules the browser re-runs over
     // the fetched rows (`lib/taxonomy`), so the two cannot disagree.
     goals: taxonomyFacets(items).map((facet) => ({
@@ -58,7 +59,7 @@ export default function ExplorePage() {
     sources: sourceFacets(items),
     // Sorted with the same function and the same default the browser uses, so
     // the prerendered page and the hydrated one agree on what "first" means.
-    gridRows: sortListings(items, DEFAULT_SORT).slice(0, GRID_PAGE),
+    gridRows: uniqueListings(sortListings(items, DEFAULT_SORT)).slice(0, GRID_PAGE) as Listing[],
   };
 
   return <ExploreRoute {...props} />;

@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useDeferredValue, useState, useEffect } from "react";
+import { uniqueListings } from "../lib/discovery.mjs";
+
+import React, { useDeferredValue, useState, useEffect, useMemo } from "react";
 import { Header } from "../components/navigation/Header";
 import { SiteFooter } from "../components/layout/SiteFooter";
 import { LandingHero } from "../components/home/LandingHero";
@@ -59,6 +61,7 @@ import type { CuratedGroup, TopicStat } from "../lib/landing";
  */
 export interface HomeViewProps {
   total: number;
+  duplicateGroups: number[][];
   topics: TopicStat[];
   /** The curated groups, resolved at build time from `data/featured.json`. */
   shelves: CuratedGroup[];
@@ -99,8 +102,11 @@ export default function Home(props: HomeViewProps) {
     [],
     deferredQuery,
     { kind: null, category: null },
-    { windowed: true }
+    { windowed: true, duplicateGroups: props.duplicateGroups }
   );
+
+  const groupedResults = useMemo(() => uniqueListings(results) as Listing[], [results]);
+  const matchedCount = results.length >= totalMatches ? groupedResults.length : totalMatches;
 
   const agent = findAgentChoice(agentId);
 
@@ -115,7 +121,7 @@ export default function Home(props: HomeViewProps) {
           total={total}
           query={searchQuery}
           setQuery={setQuery}
-          totalMatches={deferredQuery ? totalMatches : undefined}
+          totalMatches={deferredQuery ? matchedCount : undefined}
           settled={settled}
           choice={agent}
           onAgentChange={changeAgent}
@@ -123,9 +129,9 @@ export default function Home(props: HomeViewProps) {
 
         {hasQuery ? (
           <SearchResults
-            items={results}
+            items={groupedResults}
             query={searchQuery}
-            count={totalMatches}
+            count={matchedCount}
             loading={searching}
             settled={settled}
             awaiting={searching && results.length === 0}

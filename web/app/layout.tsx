@@ -165,7 +165,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           property="og:image:alt"
           content={SITE_TITLE}
         />
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT + `if(location.pathname.startsWith("/explore") && [...new URLSearchParams(location.search).keys()].some(k => ["q","kind","goal","category","host","publisher","source","verified","installable","sort"].includes(k))) document.documentElement.classList.add("query-pending");` }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(SITE_JSON_LD) }}

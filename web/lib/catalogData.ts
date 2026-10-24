@@ -32,7 +32,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Listing } from "./telemetry";
 import { withLinkKeys } from "./catalog";
 import { fetchDisplayRows } from "./searchAssets";
-import { SEARCH_SHARD_ROWS } from "./searchFormat.mjs";
+import { SEARCH_SHARD_ROWS, SEARCH_FORMAT_VERSION } from "./searchFormat.mjs";
 import { categorySlug } from "./categoryFiles.mjs";
 import { publisherFileStem, sourceFileSlug } from "./relatedFiles.mjs";
 import bundledRelease from "../data/release.json";
@@ -95,8 +95,8 @@ export const SEARCH_SHARDS_DIR = "/data/search-shards";
 const DATASET_VERSION = (() => {
   const digest = (bundledRelease as Record<string, unknown>).datasetDigest;
   return typeof digest === "string" && digest.length > 0
-    ? `?v=${encodeURIComponent(digest)}`
-    : "";
+    ? `?format=${SEARCH_FORMAT_VERSION}&v=${encodeURIComponent(digest)}`
+    : `?format=${SEARCH_FORMAT_VERSION}`;
 })();
 
 export const CATALOG_URL = `${CATALOG_PATH}${DATASET_VERSION}`;

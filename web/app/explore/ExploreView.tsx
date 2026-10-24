@@ -1,5 +1,6 @@
 "use client";
 
+import { boundedQuery, uniqueListings } from "../../lib/discovery.mjs";
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "../../components/navigation/Header";
@@ -112,7 +113,7 @@ function useQueryFilters(request: () => void) {
     const p = new URLSearchParams(window.location.search);
     const sort = p.get("sort") ?? "";
     const next = {
-      query: p.get("q") ?? "",
+      query: boundedQuery(p.get("q")),
       kind: KINDS_SET.has(p.get("kind") ?? "") ? (p.get("kind") as string) : "all",
       goal: p.get("goal") ?? "",
       category: p.get("category") ?? "",
@@ -160,6 +161,9 @@ function ExploreContent(props: ExploreViewProps) {
   const { query, kind, goal, category, agent, publisher, source, verifiedOnly, installableOnly, sort } =
     filters;
   const router = useRouter();
+  useEffect(() => {
+    if (hydrated) document.documentElement.classList.remove("query-pending");
+  }, [hydrated]);
 
   /**
    * `?focus=search` is what the header's search affordance deep-links to. It
@@ -180,6 +184,8 @@ function ExploreContent(props: ExploreViewProps) {
   const [publishersLoading, setPublishersLoading] = useState(false);
   const [publishersFailed, setPublishersFailed] = useState(false);
   const loadPublishers = useCallback(() => {
+    if (publishersLoading || publishers.length > 0) return;
+    setPublishersFailed(false);
     setPublishersLoading(true);
     loadCatalogPublishers()
       .then((facets) => {
@@ -191,7 +197,7 @@ function ExploreContent(props: ExploreViewProps) {
         setPublishersFailed(true);
         setPublishersLoading(false);
       });
-  }, []);
+  }, [publishersLoading, publishers.length]);
 
   /**
    * The agent chosen on the home page.
@@ -307,8 +313,8 @@ function ExploreContent(props: ExploreViewProps) {
   const live = useMemo(() => {
     if (!full) return null;
     return {
-      total: full.length,
-      kindCounts: deriveKindCounts(full),
+      total: uniqueListings(full).length,
+      kindCounts: deriveKindCounts(uniqueListings(full) as Listing[]),
       goals: taxonomyFacets(full).map((facet) => ({
         id: facet.id,
         label: facet.label,
@@ -400,7 +406,7 @@ function ExploreContent(props: ExploreViewProps) {
       if (installableOnly && !isInstallable(item)) return false;
       return true;
     });
-    const ordered = sortListings(scoped, effectiveSort);
+    const ordered = sortListings(uniqueListings(scoped) as Listing[], effectiveSort);
     // Compatibility is a ranking preference over the search order, not a
     // filter and not an override of an explicitly chosen sort.
     if (effectiveSort !== "relevance") return ordered;
@@ -461,7 +467,7 @@ function ExploreContent(props: ExploreViewProps) {
 
   // Same rule as Home: rows from the prerender until the dataset lands, an
   // empty set (skeleton) for a filter that has nothing to run against yet.
-  const gridItems = full ? filtered : hasFilters ? [] : props.gridRows;
+  const gridItems = full ? filtered : hasFilters ? [] : uniqueListings(props.gridRows) as Listing[];
   const gridPending = !full && hasFilters;
   /**
    * What the row set actually is. The heading used to read "All capabilities"
@@ -595,7 +601,7 @@ function ExploreContent(props: ExploreViewProps) {
 
         </div>
 
-        <div className="pt-7">
+        <div className="pt-7" data-explore-results>
           {gridPending ? (
             status === "error" ? (
               <ExploreLoadError onRetry={request} />

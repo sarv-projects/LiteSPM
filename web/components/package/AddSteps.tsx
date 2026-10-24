@@ -211,8 +211,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             <p className="flex min-w-0 items-start gap-2 text-[13px] leading-relaxed text-dark-ink">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-dark-signal" aria-hidden="true" />
               <span>
-                You marked this as installed in this browser. LiteSPM&rsquo;s own ledger, on your
-                machine, is the source of truth — this page can&rsquo;t read it.
+                Manage {item.name} with the commands below. Run <code className="t-mono">litespm list</code> to view its installation on your computer.
               </span>
             </p>
             <button
@@ -254,8 +253,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
             <p className="flex min-w-0 items-start gap-2 text-[13px] leading-relaxed text-dark-ink">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-dark-signal" aria-hidden="true" />
               <span>
-                You chose <strong className="font-medium">{agent?.label}</strong> — a pick stored in
-                this browser only.
+                Installing for <strong className="font-medium">{agent?.label}</strong>.
               </span>
             </p>
             <button
@@ -299,8 +297,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
               </button>
               <p className="text-[12px] leading-relaxed text-dark-ink-2">
                 Choose your agent to add <code className="t-mono">--host &lt;id&gt;</code> and
-                install into that one host; without it, a skill goes to the skills targets
-                detected on your machine.
+                install into that agent’s configuration. Review its destination before approving.
               </p>
             </div>
           </div>
@@ -477,11 +474,10 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
                 that, and the wording says exactly what the click does. */}
             <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-dark-rule pt-3.5">
               <button type="button" className="btn btn-solid" onClick={markInstalled}>
-                I ran this — show me how to manage it
+                Show management commands
               </button>
               <p className="max-w-prose text-[12px] leading-relaxed text-dark-ink-2">
-                This doesn&rsquo;t check your machine. It switches this page to its management
-                view and remembers the choice in this browser only.
+                After installation, use these commands to view, update or remove the package.
               </p>
             </div>
           </>

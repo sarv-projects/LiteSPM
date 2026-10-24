@@ -1,3 +1,4 @@
+import { uniqueListings } from "../../lib/discovery.mjs";
 import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import { categoryIndex, withLinkKeys } from "../../lib/catalog";
@@ -24,7 +25,7 @@ export default function CategoriesPage() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);
 
   const props: CategoriesViewProps = {
-    total: items.length,
+    total: uniqueListings(items).length,
     categories: categoryIndex(items),
     taxonomy: taxonomyIndex(items),
   };

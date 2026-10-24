@@ -36,7 +36,7 @@ test("the default catalog page introduces MCP servers, skills and plugins togeth
   });
   const sortNote = page.locator("details").filter({ hasText: "How results are sorted" });
   await sortNote.locator("summary").click();
-  await expect(sortNote.getByText(/mixed list of MCP servers, skills and plugins/i)).toBeVisible();
+  await expect(sortNote.getByText(/featured picks first/i)).toBeVisible();
 });
 
 test("search: results settle, the count is measured, and the first row is above the fold", async ({
@@ -184,7 +184,7 @@ test("an unknown ?host= is shown as applied, not silently dropped beside 'Any ag
 
   const select = worksWithSelect(page);
   await expect(select).toHaveValue("not-a-real-host");
-  const option = select.locator("option", { hasText: "not a host in this catalog" });
+  const option = select.locator('option[value="not-a-real-host"]');
   await expect(option).toHaveCount(1);
   expect(parseCount(await resultCount(page).textContent())).toBe(0);
 });

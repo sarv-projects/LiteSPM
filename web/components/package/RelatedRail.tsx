@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { relatedListings, listingIdentity } from "../../lib/discovery.mjs";
 import type { Listing } from "../../lib/telemetry";
 import { listingHref, sourceLabel } from "../../lib/catalog";
 import {
@@ -110,13 +111,13 @@ export function RelatedRail({
     // it (or is the entry being read) cannot appear again under publisher or
     // source. Within a group, file order is kept — it is catalog order, the
     // same order every visitor of this entry sees.
-    const shown = new Set<string>([item.id]);
+    const shown = new Set<string>([listingIdentity(item)]);
     const take = (rows: Listing[] | null): Listing[] => {
       if (!rows) return [];
       const out: Listing[] = [];
-      for (const row of rows) {
-        if (shown.has(row.id)) continue;
-        shown.add(row.id);
+      for (const row of relatedListings(item, rows)) {
+        if (shown.has(listingIdentity(row))) continue;
+        shown.add(listingIdentity(row));
         out.push(row);
         if (out.length >= RAIL_SIZE) break;
       }

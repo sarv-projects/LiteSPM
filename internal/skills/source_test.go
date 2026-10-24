@@ -17,7 +17,7 @@ func TestParseSkillSourceURLForms(t *testing.T) {
 		// Plain HTTPS must be left exactly as written (no blind `.git`).
 		{"https://example.com/skills.tar.gz", "url", "https://example.com/skills.tar.gz", "", false, ""},
 		{"https://example.com/skills", "url", "https://example.com/skills", "", false, ""},
-		{"https://skills.sh/anthropics/skills", "url", "https://skills.sh/anthropics/skills", "", false, ""},
+		{"https://skills.sh/anthropics/skills", "repo", "https://github.com/anthropics/skills.git", "anthropics/skills", true, ""},
 		{"https://example.com/skills?foo=bar", "url", "https://example.com/skills?foo=bar", "", false, ""},
 		// Recognized git hosts get the clone suffix.
 		{"https://github.com/mattpocock/skills", "url", "https://github.com/mattpocock/skills.git", "mattpocock/skills", true, ""},

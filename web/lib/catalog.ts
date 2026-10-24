@@ -1,3 +1,5 @@
+import featured from "../data/featured.json";
+import { normalizeListing, listingIdentity, uniqueListings } from "./discovery.mjs";
 // Catalog derivation helpers shared by Explore, Coverage, Agents and Categories.
 // Everything is computed from a row set that is handed in — no module state, no
 // JSON import, no `"use client"`. That is deliberate:
@@ -90,11 +92,12 @@ export const DEFAULT_SORT: SortMode = "curated";
 
 /** The default order's rule, stated once in the UI where the sort control is. */
 export const CURATED_NOTE =
-  "A mixed list of MCP servers, skills and plugins. Within each type, official listings, publisher-manifest entries and installable items come first.";
+  "Featured picks first, followed by installable packages and publisher listings.";
 
 /** How strongly the curated order prefers a row. Higher sorts first. */
+const FEATURED_IDS = new Set(featured.entries.map(entry => entry.id));
 export function curatedScore(item: Listing): number {
-  let score = 0;
+  let score = FEATURED_IDS.has(item.id) ? 100 : 0;
   if (item.category === OFFICIAL_SKILLS_CATEGORY) score += 4;
   if (item.publisher?.verified) score += 2;
   if (availabilityOf(item).installable) score += 1;
@@ -402,6 +405,7 @@ export function matchesHost(item: Listing, agentName: string | null): boolean {
  * say 249 for nvidia while the link beside it opened 250.
  */
 export function publisherFacets(items: Listing[], limit = 24): Array<{ name: string; count: number }> {
+  items = uniqueListings(items) as Listing[];
   const counts = new Map<string, { count: number; spellings: Map<string, number> }>();
   for (const item of items) {
     const name = item.publisher?.name?.trim();
@@ -440,9 +444,10 @@ export function kindBreakdown(items: Listing[]): Array<{
   count: number;
   share: number;
 }> {
-  const total = items.length || 1;
+  const unique = uniqueListings(items) as Listing[];
+  const total = unique.length || 1;
   return KIND_ORDER.map((kind) => {
-    const count = items.filter((i) => i.kind === kind).length;
+    const count = unique.filter((i) => i.kind === kind).length;
     return { kind, count, share: count / total };
   });
 }
@@ -468,9 +473,13 @@ export function deriveKindCounts(items: Listing[]): {
 /** Distinct categories with counts, ordered by frequency (then name). */
 export function categoryFacets(items: Listing[], limit = 16): Array<{ name: string; count: number }> {
   const counts = new Map<string, number>();
+  const seen = new Set<string>();
   for (const item of items) {
     const key = item.category?.trim();
     if (!key) continue;
+    const identity = key + "|" + listingIdentity(item);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return Array.from(counts, ([name, count]) => ({ name, count }))
@@ -502,9 +511,13 @@ export function sourceFacets(
   items: Listing[]
 ): Array<{ id: string; label: string; count: number }> {
   const counts = new Map<string, number>();
+  const seen = new Set<string>();
   for (const item of items) {
     const id = item.source;
     if (!id) continue;
+    const identity = id + "|" + listingIdentity(item);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
     counts.set(id, (counts.get(id) ?? 0) + 1);
   }
   return Array.from(counts, ([id, count]) => ({ id, label: sourceLabel(id), count })).sort(
@@ -535,7 +548,7 @@ export function withLinkKeys(items: Listing[]): Listing[] {
   const counts = new Map<string, number>();
   for (const item of items) counts.set(item.slug, (counts.get(item.slug) ?? 0) + 1);
   return items.map((item) => ({
-    ...item,
+    ...normalizeListing(item),
     linkKey: counts.get(item.slug) === 1 ? item.slug : item.id,
   }));
 }
@@ -576,9 +589,13 @@ export interface CategoryFacet {
 export function categoryIndex(items: Listing[]): CategoryFacet[] {
   const map = new Map<string, CategoryFacet>();
   let max = 1;
+  const seen = new Set<string>();
   for (const item of items) {
     const name = item.category?.trim();
     if (!name) continue;
+    const key = name + "|" + listingIdentity(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
     let facet = map.get(name);
     if (!facet) {
       facet = { name, count: 0, byKind: { mcp: 0, skill: 0, plugin: 0 }, share: 0 };

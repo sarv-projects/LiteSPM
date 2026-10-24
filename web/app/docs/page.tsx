@@ -36,6 +36,7 @@ export default function DeveloperDocsPage() {
           <p className="mt-3 text-[14px] leading-relaxed text-ink-2">
             Install the CLI, connect an agent, and manage the skills in your workspace.
           </p>
+          <a className="docs-source-link" href="/docs/litespm-guide.md" download>Download offline guide</a>
           <nav className="docs-toc" aria-label="On this page">
             {NAV.map((item) => <a key={item.id} href={"#" + item.id}>{item.label}</a>)}
           </nav>
@@ -46,6 +47,7 @@ export default function DeveloperDocsPage() {
         <div className="docs-content">
           <section id="quickstart" className="docs-section">
             <div className="docs-section-heading"><Terminal aria-hidden="true" /><div><p className="kicker">01 · Start here</p><h2>Quick start</h2></div></div>
+            <p>Use Node.js 22.22.2 or later for the npm installer. Signed binaries are available for Linux, macOS and Windows on supported x64 and arm64 platforms.</p>
             <p>Install the LiteSPM command line tool, then open its interactive setup.</p>
             <Code>{`npm install -g litespm
 litespm setup`}</Code>

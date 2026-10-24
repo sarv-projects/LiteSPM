@@ -51,6 +51,8 @@ type SkillSource struct {
 	// repository root. Callers that scan the checkout must join this onto the
 	// clone root before discovering skills.
 	Subpath string
+	// RequestedSkill is the exact skill named by a directory detail URL.
+	RequestedSkill string
 }
 
 // knownGitHosts are hosts where a bare `owner/name` path is a git remote and a
@@ -136,6 +138,22 @@ func ParseSkillSource(raw string) (SkillSource, error) {
 		// http:// and file: are refused on purpose: they are either plaintext
 		// or local-path transports the installer must not fetch through.
 		return SkillSource{}, fmt.Errorf("invalid skill source %q: only https and ssh git URLs are accepted", s)
+	}
+
+	// skills.sh detail URLs publish owner/repository/skill coordinates. Fetch
+	// the repository through the existing hardened git path, never the HTML.
+	if isSkillDirectoryHost(u.Hostname()) {
+		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+		if u.User != nil || u.Port() != "" || u.RawQuery != "" || u.Fragment != "" || (len(parts) != 2 && len(parts) != 3) ||
+			!validOwnerRepo(parts[0]) || !validOwnerRepo(parts[1]) || parts[0] == "." || parts[0] == ".." || parts[1] == "." || parts[1] == ".." || (len(parts) == 3 && !validSkillName.MatchString(parts[2])) {
+			return SkillSource{}, fmt.Errorf("invalid skill directory URL: expected https://skills.sh/owner/repository/skill")
+		}
+		repo := parts[0] + "/" + strings.TrimSuffix(parts[1], ".git")
+		requested := ""
+		if len(parts) == 3 {
+			requested = parts[2]
+		}
+		return SkillSource{Kind: "repo", Display: s, CloneURL: "https://github.com/" + repo + ".git", RepoPath: repo, Git: true, RequestedSkill: requested}, nil
 	}
 
 	// Azure Repos addresses a git repository with a /_git/<repo> path and puts
@@ -930,4 +948,8 @@ func copyFile(src, dst string, mode fs.FileMode, expectedSize int64) error {
 		return copyErr
 	}
 	return closeErr
+}
+
+func isSkillDirectoryHost(host string) bool {
+	return strings.EqualFold(host, "skills.sh") || strings.EqualFold(host, "www.skills.sh")
 }
