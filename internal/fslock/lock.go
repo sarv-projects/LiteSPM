@@ -218,6 +218,11 @@ func reclaim(path string) error {
 		return nil
 	}
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		if isRemoveContention(err) {
+			// Other contenders may still be reading this stale file on Windows.
+			// Release the reclaim guard and let Acquire retry within its deadline.
+			return fmt.Errorf("remove stale lock %s: %w: %w", path, ErrBusy, err)
+		}
 		return fmt.Errorf("remove stale lock %s: %w", path, err)
 	}
 	return nil

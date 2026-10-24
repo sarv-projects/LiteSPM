@@ -2,7 +2,10 @@
 
 package fslock
 
-import "syscall"
+import (
+	"errors"
+	"syscall"
+)
 
 const (
 	processQueryLimitedInformation = 0x1000
@@ -28,4 +31,9 @@ func ProcessAlive(pid int) bool {
 		return false
 	}
 	return code == stillActive
+}
+
+// A Windows reader can deny deletion while keeping the lock contents readable.
+func isRemoveContention(err error) bool {
+	return errors.Is(err, syscall.Errno(32)) || errors.Is(err, syscall.Errno(33))
 }

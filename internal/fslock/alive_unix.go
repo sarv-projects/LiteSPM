@@ -24,3 +24,6 @@ func ProcessAlive(pid int) bool {
 	}
 	return errors.Is(err, syscall.EPERM)
 }
+
+// Unix unlink does not conflict with an open reader.
+func isRemoveContention(error) bool { return false }
