@@ -1,3 +1,4 @@
+import { listingIdentity } from "./discovery.mjs";
 // The editorial goal taxonomy — the browse axis the source categories are not.
 //
 // Why it exists: measured over this catalog, the sources' own labels put
@@ -501,5 +502,11 @@ export function taxonomyIndex(items: Listing[]): TaxonomyIndex {
 
 /** Just the facet list — what the Explore goal filter needs. */
 export function taxonomyFacets(items: Listing[]): GoalFacet[] {
-  return taxonomyIndex(items).facets;
+  const groups = new Map<string, Set<string>>();
+  for (const item of items) {
+    const goal = classifyListing(item);
+    if (!groups.has(goal)) groups.set(goal, new Set());
+    groups.get(goal)!.add(listingIdentity(item));
+  }
+  return taxonomyIndex(items).facets.map(facet => ({ ...facet, count: groups.get(facet.id)?.size ?? 0 }));
 }

@@ -313,8 +313,8 @@ function ExploreContent(props: ExploreViewProps) {
   const live = useMemo(() => {
     if (!full) return null;
     return {
-      total: full.length,
-      kindCounts: deriveKindCounts(full),
+      total: uniqueListings(full).length,
+      kindCounts: deriveKindCounts(uniqueListings(full) as Listing[]),
       goals: taxonomyFacets(full).map((facet) => ({
         id: facet.id,
         label: facet.label,

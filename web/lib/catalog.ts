@@ -1,5 +1,5 @@
 import featured from "../data/featured.json";
-import { normalizeListing } from "./discovery.mjs";
+import { normalizeListing, listingIdentity, uniqueListings } from "./discovery.mjs";
 // Catalog derivation helpers shared by Explore, Coverage, Agents and Categories.
 // Everything is computed from a row set that is handed in — no module state, no
 // JSON import, no `"use client"`. That is deliberate:
@@ -405,6 +405,7 @@ export function matchesHost(item: Listing, agentName: string | null): boolean {
  * say 249 for nvidia while the link beside it opened 250.
  */
 export function publisherFacets(items: Listing[], limit = 24): Array<{ name: string; count: number }> {
+  items = uniqueListings(items) as Listing[];
   const counts = new Map<string, { count: number; spellings: Map<string, number> }>();
   for (const item of items) {
     const name = item.publisher?.name?.trim();
@@ -471,9 +472,13 @@ export function deriveKindCounts(items: Listing[]): {
 /** Distinct categories with counts, ordered by frequency (then name). */
 export function categoryFacets(items: Listing[], limit = 16): Array<{ name: string; count: number }> {
   const counts = new Map<string, number>();
+  const seen = new Set<string>();
   for (const item of items) {
     const key = item.category?.trim();
     if (!key) continue;
+    const identity = key + "|" + listingIdentity(item);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return Array.from(counts, ([name, count]) => ({ name, count }))
@@ -505,9 +510,13 @@ export function sourceFacets(
   items: Listing[]
 ): Array<{ id: string; label: string; count: number }> {
   const counts = new Map<string, number>();
+  const seen = new Set<string>();
   for (const item of items) {
     const id = item.source;
     if (!id) continue;
+    const identity = id + "|" + listingIdentity(item);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
     counts.set(id, (counts.get(id) ?? 0) + 1);
   }
   return Array.from(counts, ([id, count]) => ({ id, label: sourceLabel(id), count })).sort(

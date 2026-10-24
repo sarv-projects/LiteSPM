@@ -15,7 +15,7 @@
 //
 // Usage: node scripts/check-publisher-counts.mjs [--root <dir>]
 
-import { normalizeListing } from "../lib/discovery.mjs";
+import { normalizeListing, uniqueListings } from "../lib/discovery.mjs";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -70,6 +70,7 @@ async function loadRule() {
 
 function main() {
   const rows = JSON.parse(readFileSync(path.join(webRoot, "data", "catalog.json"), "utf8")).map(normalizeListing);
+  const displayRows = uniqueListings(rows);
   if (!Array.isArray(rows) || rows.length === 0) {
     fail("data/catalog.json did not parse to a non-empty array");
   }
@@ -81,7 +82,7 @@ function main() {
     // previous implementation rescanned all 69K rows for every publisher;
     // with 30K distinct publishers that meant over two billion comparisons.
     const exact = new Map();
-    for (const row of rows) {
+    for (const row of displayRows) {
       const key = normalizedPublisher(row.publisher?.name);
       if (!key) continue;
       exact.set(key, (exact.get(key) ?? 0) + 1);

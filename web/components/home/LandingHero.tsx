@@ -37,7 +37,7 @@ export function LandingHero({ total, query, setQuery, totalMatches, settled, cho
             Give your agents{" "}<br /><span>more possibilities.</span>
           </h1>
           <p className="home-display-subtitle">
-            Find, install and manage MCP servers, skills and plugins across your AI agents. Pick a package, choose your agent, and review the change before installing.
+            Find, install and manage MCP servers, reusable skills and plugins across your AI agents. Pick a package, choose your agent, and review the change before installing.
           </p>
           <div className="home-search-wrap">
             <SearchBar

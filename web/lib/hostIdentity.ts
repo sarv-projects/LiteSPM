@@ -1,3 +1,4 @@
+import { listingIdentity } from "./discovery.mjs";
 // One agent host, one identity, one count — the single host-matching rule.
 //
 // The catalog names one agent host through more than one string. An adapter's
@@ -293,8 +294,14 @@ export function tallyHosts(items: Listing[]): Map<string, HostTally> {
     else if (kind === "plugin") tally.plugin += 1;
   };
 
+  const counted = new Set<string>();
   for (const item of items) {
-    for (const id of hostIdsFor(item)) bump(ensure(id, IDENTITY_BY_ID.get(id)?.name ?? id), item.kind);
+    for (const id of hostIdsFor(item)) {
+      const key = id + "|" + listingIdentity(item);
+      if (counted.has(key)) continue;
+      counted.add(key);
+      bump(ensure(id, IDENTITY_BY_ID.get(id)?.name ?? id), item.kind);
+    }
     // A plugin carries its own declared list; MCP and skills rows derive
     // theirs from the kind, so every string they name resolves by construction.
     if (item.kind !== "plugin") continue;
@@ -307,6 +314,9 @@ export function tallyHosts(items: Listing[]): Map<string, HostTally> {
       const rawKey = `raw:${norm(name)}`;
       if (seen.has(rawKey)) continue;
       seen.add(rawKey);
+      const identity = rawKey + "|" + listingIdentity(item);
+      if (counted.has(identity)) continue;
+      counted.add(identity);
       bump(ensure(rawKey, name), item.kind);
     }
   }
@@ -315,9 +325,9 @@ export function tallyHosts(items: Listing[]): Map<string, HostTally> {
 
 /** How many rows name this identity — what a host page prints and links. */
 export function hostEntryCount(items: Listing[], id: string): number {
-  let count = 0;
+  const identities = new Set<string>();
   for (const item of items) {
-    if (hostIdsFor(item).includes(id)) count += 1;
+    if (hostIdsFor(item).includes(id)) identities.add(listingIdentity(item));
   }
-  return count;
+  return identities.size;
 }

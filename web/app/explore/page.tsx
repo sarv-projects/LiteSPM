@@ -38,8 +38,8 @@ export default function ExplorePage() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);
 
   const props: ExploreViewProps = {
-    total: items.length,
-    kindCounts: deriveKindCounts(items),
+    total: uniqueListings(items).length,
+    kindCounts: deriveKindCounts(uniqueListings(items) as Listing[]),
     // The editorial goal facets, from the same rules the browser re-runs over
     // the fetched rows (`lib/taxonomy`), so the two cannot disagree.
     goals: taxonomyFacets(items).map((facet) => ({

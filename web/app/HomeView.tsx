@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useDeferredValue, useState, useEffect } from "react";
+import { uniqueListings } from "../lib/discovery.mjs";
+
+import React, { useDeferredValue, useState, useEffect, useMemo } from "react";
 import { Header } from "../components/navigation/Header";
 import { SiteFooter } from "../components/layout/SiteFooter";
 import { LandingHero } from "../components/home/LandingHero";
@@ -102,6 +104,9 @@ export default function Home(props: HomeViewProps) {
     { windowed: true }
   );
 
+  const groupedResults = useMemo(() => uniqueListings(results) as Listing[], [results]);
+  const matchedCount = results.length >= totalMatches ? groupedResults.length : totalMatches;
+
   const agent = findAgentChoice(agentId);
 
   const hasQuery = searchQuery.trim() !== "";
@@ -115,7 +120,7 @@ export default function Home(props: HomeViewProps) {
           total={total}
           query={searchQuery}
           setQuery={setQuery}
-          totalMatches={deferredQuery ? totalMatches : undefined}
+          totalMatches={deferredQuery ? matchedCount : undefined}
           settled={settled}
           choice={agent}
           onAgentChange={changeAgent}
@@ -123,9 +128,9 @@ export default function Home(props: HomeViewProps) {
 
         {hasQuery ? (
           <SearchResults
-            items={results}
+            items={groupedResults}
             query={searchQuery}
-            count={totalMatches}
+            count={matchedCount}
             loading={searching}
             settled={settled}
             awaiting={searching && results.length === 0}

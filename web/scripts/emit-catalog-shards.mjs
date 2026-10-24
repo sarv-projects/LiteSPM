@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { normalizeListing } from "../lib/discovery.mjs";
+import { normalizeListing, uniqueListings, listingIdentity } from "../lib/discovery.mjs";
 // Emits the browser-served catalog shards into `web/public/data/`.
 //
 // The served dataset outgrew Cloudflare's hard 25 MiB per-file limit, so the
@@ -436,9 +436,13 @@ console.log(
 // ---------------------------------------------------------------------------
 const CATEGORIES_FILE = "catalog-categories.json";
 const categoryCounts = new Map();
+const categoryIdentities = new Set();
 for (const row of rows) {
   const name = row.category?.trim();
   if (!name) continue;
+  const identity = name + "|" + listingIdentity(row);
+  if (categoryIdentities.has(identity)) continue;
+  categoryIdentities.add(identity);
   categoryCounts.set(name, (categoryCounts.get(name) ?? 0) + 1);
 }
 const categoriesDoc = {
@@ -483,7 +487,7 @@ const PUBLISHERS_FILE = "catalog-publishers.json";
 // `scripts/check-publisher-counts.mjs` holds this, the site's board
 // (`lib/catalog.ts` `publisherFacets`) and the filter together.
 const publisherCounts = new Map();
-for (const row of rows) {
+for (const row of uniqueListings(rows)) {
   const name = row.publisher?.name?.trim();
   if (!name) continue;
   const key = name.toLowerCase();
