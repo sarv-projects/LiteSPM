@@ -3,6 +3,7 @@ export const MAX_QUERY_LENGTH = 256;
 export const boundedQuery = (value) => String(value ?? '').slice(0, MAX_QUERY_LENGTH);
 
 function repository(value) {
+  if (typeof value !== "string" || !value) return null;
   try {
     const url = new URL(value);
     if (url.protocol !== 'https:' || url.hostname !== 'github.com') return null;

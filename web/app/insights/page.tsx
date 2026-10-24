@@ -1,3 +1,4 @@
+import { uniqueListings } from "../../lib/discovery.mjs";
 import catalogData from "../../data/catalog.json";
 import type { Listing } from "../../lib/telemetry";
 import {
@@ -63,7 +64,7 @@ export default function InsightsPage() {
   hosts.sort((a, b) => a.name.localeCompare(b.name));
 
   const props: TrendingViewProps = {
-    total: items.length,
+    total: uniqueListings(items).length,
     boards: {
       categories: categories
         .slice(0, 15)

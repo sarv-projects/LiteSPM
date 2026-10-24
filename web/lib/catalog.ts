@@ -444,9 +444,10 @@ export function kindBreakdown(items: Listing[]): Array<{
   count: number;
   share: number;
 }> {
-  const total = items.length || 1;
+  const unique = uniqueListings(items) as Listing[];
+  const total = unique.length || 1;
   return KIND_ORDER.map((kind) => {
-    const count = items.filter((i) => i.kind === kind).length;
+    const count = unique.filter((i) => i.kind === kind).length;
     return { kind, count, share: count / total };
   });
 }
@@ -588,9 +589,13 @@ export interface CategoryFacet {
 export function categoryIndex(items: Listing[]): CategoryFacet[] {
   const map = new Map<string, CategoryFacet>();
   let max = 1;
+  const seen = new Set<string>();
   for (const item of items) {
     const name = item.category?.trim();
     if (!name) continue;
+    const key = name + "|" + listingIdentity(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
     let facet = map.get(name);
     if (!facet) {
       facet = { name, count: 0, byKind: { mcp: 0, skill: 0, plugin: 0 }, share: 0 };

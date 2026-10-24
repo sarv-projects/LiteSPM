@@ -394,9 +394,9 @@ export interface GoalFacet {
 }
 
 export interface TaxonomyCoverage {
-  /** Rows the map placed in one of the eleven goals. */
+  /** Distinct packages placed in at least one of the eleven goals. */
   mapped: number;
-  /** Rows that fell through to `other`. */
+  /** Distinct packages matching `other`; source variants can overlap facets. */
   other: number;
   /** `mapped / total`, 0–1. */
   coverage: number;
@@ -423,7 +423,9 @@ export interface TaxonomyIndex {
 export function taxonomyIndex(items: Listing[]): TaxonomyIndex {
   const counts = new Map<GoalOrOther, GoalFacet>();
   const categoriesByGoal = new Map<GoalOrOther, Map<string, number>>();
-  let mapped = 0;
+  const seen = new Set<string>();
+  const identities = new Set<string>();
+  const mappedIdentities = new Set<string>();
 
   const seed = (id: GoalOrOther): GoalFacet => {
     const definition = GOAL_BY_ID.get(id);
@@ -440,6 +442,11 @@ export function taxonomyIndex(items: Listing[]): TaxonomyIndex {
 
   for (const item of items) {
     const id = classifyListing(item);
+    const identity = listingIdentity(item);
+    identities.add(identity);
+    const key = id + "|" + identity;
+    if (seen.has(key)) continue;
+    seen.add(key);
     let facet = counts.get(id);
     if (!facet) {
       facet = seed(id);
@@ -447,7 +454,7 @@ export function taxonomyIndex(items: Listing[]): TaxonomyIndex {
     }
     facet.count += 1;
     facet.byKind[item.kind] += 1;
-    if (id !== "other") mapped += 1;
+    if (id !== "other") mappedIdentities.add(identity);
 
     const category = item.category?.trim();
     if (category) {
@@ -462,7 +469,8 @@ export function taxonomyIndex(items: Listing[]): TaxonomyIndex {
   for (const goal of GOALS) if (!counts.has(goal.id)) counts.set(goal.id, seed(goal.id));
   if (!counts.has("other")) counts.set("other", seed("other"));
 
-  const total = items.length;
+  const total = identities.size;
+  const mapped = mappedIdentities.size;
   const facets = Array.from(counts.values())
     .map((facet) => {
       const categories = categoriesByGoal.get(facet.id);
@@ -488,7 +496,7 @@ export function taxonomyIndex(items: Listing[]): TaxonomyIndex {
     facets,
     coverage: {
       mapped,
-      other: total - mapped,
+      other: counts.get("other")?.count ?? 0,
       coverage: total === 0 ? 0 : mapped / total,
       largest: {
         id: largest.id,
@@ -502,11 +510,5 @@ export function taxonomyIndex(items: Listing[]): TaxonomyIndex {
 
 /** Just the facet list — what the Explore goal filter needs. */
 export function taxonomyFacets(items: Listing[]): GoalFacet[] {
-  const groups = new Map<string, Set<string>>();
-  for (const item of items) {
-    const goal = classifyListing(item);
-    if (!groups.has(goal)) groups.set(goal, new Set());
-    groups.get(goal)!.add(listingIdentity(item));
-  }
-  return taxonomyIndex(items).facets.map(facet => ({ ...facet, count: groups.get(facet.id)?.size ?? 0 }));
+  return taxonomyIndex(items).facets;
 }
