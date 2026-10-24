@@ -34,7 +34,7 @@ export function LandingHero({ total, query, setQuery, totalMatches, settled, cho
         <div className="home-editorial-copy">
           <p className="home-eyebrow"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> THE OPEN-SOURCE AGENT PACKAGE MANAGER</p>
           <h1 className="home-display-title">
-            One package manager{" "}<br /><span>for your agents.</span>
+            One package manager{" "}<br className="hidden md:block" /><span>for your agents.</span>
           </h1>
           <p className="home-display-subtitle">
             Find MCP servers, skills and plugins for the agent you already use. The open-source LiteSPM CLI applies supported installs on your machine, after you review the setup.
