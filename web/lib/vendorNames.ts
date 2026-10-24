@@ -34,7 +34,6 @@ export const VENDOR_NAMES: Record<string, string> = {
   mux: "Xum",
   cortex: "CoCo CLI",
   deepagents: "Deep Agents Code",
-  codestudio: "Syncfusion MCP Server",
 };
 
 /**

@@ -109,7 +109,7 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
             {item.summary}
           </span>
         )}
-        <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-ink-3">
+        <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-3">
           <span className="max-w-[24ch] truncate font-medium text-ink-2">
             {item.publisher?.name || "publisher unspecified"}
           </span>
@@ -132,7 +132,7 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
           column instead of a gap. */}
       <span className="flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-1 lg:ml-auto lg:w-[240px] lg:flex-col lg:items-end lg:gap-y-1.5 lg:border-l lg:border-rule lg:pl-4 lg:text-right">
         <span
-          className={`inline-flex shrink-0 items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
+          className={`inline-flex shrink-0 items-center rounded-chip border px-1.5 py-0.5 text-[11.5px] font-medium ${
             signal.tier === "official"
               ? "border-accent/40 bg-accent-wash text-accent-text"
               : signal.tier === "installable"
@@ -143,7 +143,7 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
         >
           {signal.label}
         </span>
-        <span className="t-mono min-w-0 truncate text-[10.5px] text-ink-3" title={provenance}>
+        <span className="t-mono min-w-0 truncate text-[11.5px] text-ink-3" title={provenance}>
           {provenance}
         </span>
       </span>

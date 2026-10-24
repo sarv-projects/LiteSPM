@@ -563,14 +563,14 @@ export const HOST_NOTES: Record<string, HostNote> = {
     ],
   },
   codestudio: {
-    summary: "The Syncfusion MCP Server brings deep knowledge of Syncfusion's component libraries into an AI-powered IDE. Through Model Context Protocol it serves documentation, API references and code generation, so an agent follows Syncfusion's own integration practices.",
-    interface: "MCP server for AI-powered IDEs",
-    website: "https://www.syncfusion.com/",
-    source: "https://ej2.syncfusion.com/angular/documentation/mcp",
+    summary: "Code Studio is Syncfusion's AI-powered IDE for enterprise software teams. It brings design, planning and development work into one workspace for teams building complex enterprise systems.",
+    interface: "AI-powered IDE",
+    website: "https://www.syncfusion.com/code-studio",
+    source: "https://www.syncfusion.com/code-studio",
     capabilities: [
-      "Serves Syncfusion documentation and API references into the IDE",
-      "Generates component code inside the development environment",
-      "Reinforces best practices for Syncfusion component integration",
+      "Design and plan enterprise software projects",
+      "Build and ship complex enterprise systems",
+      "Bring AI assistance into the development workspace",
     ],
   },
   cortex: {
