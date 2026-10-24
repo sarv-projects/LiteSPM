@@ -17,7 +17,7 @@ const nonPreRendered = nonPreRenderedEntry();
 const flagship = flagshipEntry();
 
 const ROUTES: Array<{ path: string; heading?: string; text?: string }> = [
-  { path: "/", heading: "Give your agents more possibilities." },
+  { path: "/", heading: "One package manager for your agents." },
   { path: "/explore/", heading: "Find what your agent needs" },
   { path: "/agents/", heading: "Choose your agent." },
   { path: "/agents/claude-code/", heading: "Claude Code" },
@@ -57,7 +57,7 @@ test("the home page shows product discovery without release chatter when JavaScr
   await installHermeticRouting(context);
   const page = await context.newPage();
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Give your agents more possibilities.", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "One package manager for your agents.", level: 1 })).toBeVisible();
   const copy = (await page.locator("main").innerText()).toLowerCase();
   expect(copy).toContain("mcp servers");
   expect(copy).not.toMatch(/catalog snapshot|catalog updated|checking the catalog|rel-/);

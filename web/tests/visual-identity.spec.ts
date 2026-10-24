@@ -43,7 +43,7 @@ test("MCP and brand roles remain distinct and the hero glow stays on-brand", asy
       return { hueDistance, contrast: (high + 0.05) / (low + 0.05) };
     });
 
-    expect(tokens.hueDistance, `${theme} MCP should not read as the brand indigo`).toBeGreaterThanOrEqual(25);
+    expect(tokens.hueDistance, `${theme} MCP should not read as the brand cobalt`).toBeGreaterThanOrEqual(25);
     expect(tokens.contrast, `${theme} MCP text must clear 4.5:1 on its wash`).toBeGreaterThanOrEqual(4.5);
   }
 

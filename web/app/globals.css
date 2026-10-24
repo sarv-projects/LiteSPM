@@ -90,8 +90,8 @@
     --accent-hover: #2445d8;
 
     /* Catalog kinds stay distinct from the brand and readable on their own washes. */
-    --mcp: #175da8;
-    --mcp-wash: #e7f0ff;
+    --mcp: #006b95;
+    --mcp-wash: #e2f4fa;
     --skill: #6841a5;
     --skill-wash: #f0eaff;
     --plugin: #42536b;
@@ -184,8 +184,8 @@
       --accent-text: #a9bbff;
       --accent-hover: #2445d8;
 
-      --mcp: #8fc5ff;
-      --mcp-wash: #13243a;
+      --mcp: #6eeaff;
+      --mcp-wash: #102b37;
       --skill: #d0b4ff;
       --skill-wash: #281c3d;
       --plugin: #b4c0d2;
@@ -235,8 +235,8 @@
     --accent-text: #a9bbff;
     --accent-hover: #2445d8;
 
-    --mcp: #8fc5ff;
-    --mcp-wash: #13243a;
+    --mcp: #6eeaff;
+    --mcp-wash: #102b37;
     --skill: #d0b4ff;
     --skill-wash: #281c3d;
     --plugin: #b4c0d2;

@@ -80,10 +80,10 @@ function isInstallable(row: Listing): boolean {
 test("the first screen explains the product and makes package types easy to discover", async ({ page }) => {
   await gotoSettled(page, "/");
 
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Give your agents more possibilities.");
-  await expect(page.locator(".home-eyebrow")).toContainText("THE AGENT PACKAGE MANAGER");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("One package manager for your agents.");
+  await expect(page.locator(".home-eyebrow")).toContainText("THE OPEN-SOURCE AGENT PACKAGE MANAGER");
   await expect(page.locator(".home-display-subtitle")).toContainText("MCP servers");
-  await expect(page.locator(".home-display-subtitle")).toContainText("reusable skills and plugins");
+  await expect(page.locator(".home-display-subtitle")).toContainText("skills and plugins");
 
   const types = page.locator('section[aria-labelledby="capability-types-title"]');
   await expect(types.getByRole("heading", { level: 2 })).toBeVisible();
@@ -96,11 +96,11 @@ test("the first screen explains the product and makes package types easy to disc
 test("both calls to action exist, and land on real pages", async ({ page }) => {
   await gotoSettled(page, "/");
 
-  const get = page.getByRole("link", { name: "Get LiteSPM" });
+  const get = page.getByRole("link", { name: "Install the LiteSPM CLI" });
   await expect(get).toBeVisible();
   await expect(get).toHaveAttribute("href", "/get-started/");
 
-  const explore = page.getByRole("link", { name: "Explore the catalog" });
+  const explore = page.getByRole("link", { name: "Explore packages" });
   await expect(explore).toBeVisible();
   await expect(explore).toHaveAttribute("href", "/explore/");
 

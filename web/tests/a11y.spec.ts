@@ -69,7 +69,7 @@ test.describe("dark theme contrast", () => {
       // before judging contrast against it.
       await expect(page.locator("html")).toHaveAttribute("data-theme", "system");
       const paper = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-      expect(paper, "the dark palette should be active").toBe("rgb(12, 17, 16)");
+      expect(paper, "the dark palette should be active").toBe("rgb(11, 14, 20)");
       const results = await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze();
       const summary = results.violations
         .flatMap((violation) =>
