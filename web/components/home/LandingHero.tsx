@@ -32,12 +32,12 @@ export function LandingHero({ total, query, setQuery, totalMatches, settled, cho
     <section className="home-editorial-hero">
       <div className="shell home-editorial-layout">
         <div className="home-editorial-copy">
-          <p className="home-eyebrow"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> THE AGENT PACKAGE MANAGER</p>
+          <p className="home-eyebrow"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> THE OPEN-SOURCE AGENT PACKAGE MANAGER</p>
           <h1 className="home-display-title">
-            Give your agents{" "}<br /><span>more possibilities.</span>
+            One package manager{" "}<br /><span>for your agents.</span>
           </h1>
           <p className="home-display-subtitle">
-            Find, install and manage MCP servers, reusable skills and plugins across your AI agents. Pick a package, choose your agent, and review the change before installing.
+            Find MCP servers, skills and plugins for the agent you already use. The open-source LiteSPM CLI applies supported installs on your machine, after you review the setup.
           </p>
           <div className="home-search-wrap">
             <SearchBar
@@ -62,10 +62,10 @@ export function LandingHero({ total, query, setQuery, totalMatches, settled, cho
             />
           </div>
           <div className="home-hero-actions">
-            <Link href="/explore/" className="btn btn-solid btn-lg">Explore the catalog <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link>
-            <Link href="/get-started/" className="home-text-link">Get LiteSPM <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+            <Link href="/explore/" className="btn btn-solid btn-lg">Explore packages <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link>
+            <Link href="/get-started/" className="home-text-link">Install the LiteSPM CLI <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
           </div>
-          <p className="home-trust-line"><Check className="h-3.5 w-3.5" aria-hidden="true" /> Choose your agent. Review the setup. Keep control of your machine.</p>
+          <p className="home-trust-line"><Check className="h-3.5 w-3.5" aria-hidden="true" /> Choose a supported agent. Review the install steps before applying them.</p>
         </div>
 
         <div className="home-hero-art" aria-label="Illustration of an agent with added tools and skills">
@@ -76,7 +76,7 @@ export function LandingHero({ total, query, setQuery, totalMatches, settled, cho
               <span className="home-window-example">EXAMPLE</span>
             </div>
             <div className="home-hero-window-caption">
-              <span>ONE AGENT. MORE CAPABILITIES.</span><span>01 / 03</span>
+              <span>ONE AGENT. MORE CAPABILITIES.</span>
             </div>
             <Link href="/agents/claude-code/" className="home-agent-focus">
               <AgentLogo id="claude-code" name="Claude Code" size={42} />

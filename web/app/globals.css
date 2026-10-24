@@ -13,67 +13,14 @@
 }
 
 /*
- * LiteSPM design tokens.
+ * LiteSPM's market UI uses cool neutral surfaces, charcoal typography and a
+ * cobalt action color. Catalog kinds have separate blue, violet and slate
+ * signals; no state depends on color alone. Light and dark themes use the same
+ * hue roles, with contrast checked by scripts/check-contrast.mjs.
  *
- * LiteSPM's signature colour is evergreen, carried by the mark, active
- * navigation and primary actions. The catalog surface stays warm and quiet so
- * package types and compatibility signals remain easy to scan. Light and dark
- * modes share the same brand identity with accessible text and control states.
- *
- * Type roles (J001): Plex Sans carries headings and product copy, Plex
- * Condensed carries dense result rows and numeric tables only, Plex Mono
- * carries ids, versions, paths, commands and code.
- *
- * Every text/background pair below was checked against WCAG 2.2:
- *
- *   light  --ink #111827 on --paper .............. 14.98:1
- *          --ink-2 #3c495e on --surface .......... 8.80:1
- *          --ink-3 #485468 on --paper ............ 6.46:1
- *          white on --accent #3157f6 ............. 5.49:1
- *          --accent #3157f6 on --surface ......... 5.31:1
- *          --rule-2 #748299 on --surface ......... 3.76:1  (1.4.11)
- *          --ink-3 #485468 on --sunken ........... 5.94:1  (the dashed
- *              "not installable" chip border; --rule-2 only reaches 2.83:1
- *              against --sunken, so it no longer bounds that chip)
- *          --ink-3 #485468 on --sunken-2 ......... 5.44:1
- *          each kind hue on its own wash ......... >= 5.26:1 (11px tile text)
- *   dark   --ink #edf1f7 on --paper #0b0e14 ...... 17.04:1
- *          --ink-3 #97a3b6 on --paper ............ 7.57:1
- *          white on --accent ..................... 5.49:1  (unchanged)
- *          --accent-text #8fa9ff on --surface .... 8.01:1
- *          --rule-2 #6a7690 on --surface ......... 3.97:1  (1.4.11)
- *          each kind hue on its dark wash ........ >= 6.07:1
- *
- * Surfaces (2026-10-14): the light theme was two near-whites stacked on each
- * other — #ffffff cards on a #f5f7fb base, 1.07:1 apart, which reads as one
- * flat field. The base and its recesses are now a visible step down from the
- * cards (--paper #e8ecf4, --surface #fafbfe, --sunken #dde3ee, --sunken-2
- * #d2dae8, --hover #e3e9f5) — the card/base pair measures 1.14:1, but the base
- * itself dropped 7-13 points per RGB channel, which is what gives the page its
- * planes. The ink triad was darkened to keep every text pair clearing AA
- * without moving a single accent or kind hue. One measured exception: --accent
- * as TEXT on --sunken is 4.26:1 (< 4.5:1), so nothing on a sunken plane uses
- * --accent-text — those hovers ink up instead.
- *
- * Radius is assigned per element role, not globally:
- *   0px  table rows and ruled lists
- *   2px  letter tiles (a stamped chip)
- *   4px  interactive controls
- *   6px  the snippet terminal
- *   8px  the single dark install panel
- *   12px discovery cards (CapabilityCard and friends — a card is furniture,
- *        not a record, so it is the one place a soft radius belongs)
- *
- * Motion scale (J001): 120ms state / 160ms hover / 200ms panel / 240ms
- * entrance, ease-out. The previous 90ms linear read as a terminal redraw.
- *
- * Type scale decision (2026-10-15): explanatory prose is 13px, and the single
- * lead paragraph of a record page — the summary directly under the title — is
- * 14px. The 13.5px rung is retired; it sat between those two without belonging
- * to either, and the pages that used it for prose disagreed with each other.
- * Metadata, controls and small print keep their own smaller rungs (10-12.5px);
- * those are labels, not prose. `.btn-lg` carries 14px as its control label —
- * the only non-prose use of that rung.
+ * Type roles: Plex Sans for headings and product copy, Plex Condensed for
+ * dense result rows and numeric tables, Plex Mono for ids, versions, paths,
+ * commands and code.
  */
 @layer base {
   :root {
@@ -88,24 +35,24 @@
      */
     --sticky-head-height: 45px;
 
-    --paper: #f5f6f0;
-    --surface: #fdfdf9;
-    --sunken: #e9ede6;
-    --sunken-2: #dfe5db;
-    --hover: #edf1eb;
-    --sel: #d4e8dd;
+    --paper: #f5f6f8;
+    --surface: #ffffff;
+    --sunken: #edf0f4;
+    --sunken-2: #e4e8ef;
+    --hover: #eef2f7;
+    --sel: #e7edff;
 
-    --rule: #d9dfd7;
+    --rule: #d9dee7;
     /* Clears 3:1 on --surface (3.76:1), on --paper (3.29:1), on --hover
        (3.20:1) and on --sunken (3.02:1), so --rule-2 can bound anything that
        has to be locatable rather than merely separated, on every surface the
        site prints it on. It was #79879c, which measured 2.99:1 on --hover —
        a hair under the floor — and 2.83:1 on --sunken, which is what the
        "not installable" chip's --ink-3 border exists for. */
-    --rule-2: #718178;
+    --rule-2: #727d91;
 
-    --ink: #17251f;
-    --ink-2: #40534a;
+    --ink: #141821;
+    --ink-2: #3e4858;
     /* 6.46:1 on --paper, 5.94:1 on --sunken and 5.44:1 on --sunken-2, so
        11px meta text clears AA on every surface it is printed on with
        margin. It was #55627a, which measured 5.19:1 on --paper and 4.77:1 on
@@ -117,7 +64,7 @@
        darker than --ink-2 and the three-step ink hierarchy would invert.
        The gate `scripts/check-contrast.mjs` reads these values out of this
        file and holds every ink/surface pair at AA. */
-    --ink-3: #53685d;
+    --ink-3: #596477;
 
     /* The plate a brand mark or an initial sits on, and the ink drawn on it.
        The plate stays light in both themes — vendor logos are drawn for a light
@@ -128,30 +75,30 @@
        the flipping ink; both read these tokens now, and
        `scripts/check-contrast.mjs` holds the pair in both themes. */
     --logo-plate: #ffffff;
-    --logo-plate-ink: #20372e;
+    --logo-plate-ink: #1e293b;
 
-    /* Brand indigo. `--accent` IS the brand token: solid CTAs, selected chips,
+    /* Cobalt brand. `--accent` IS the brand token: solid CTAs, selected chips,
        the search focus ring and the active nav. White on it clears 5.49:1.
        `--brand` is the ARCH/25 §5.1 spelling of the same token, aliased here
        so the document's name and the code's name cannot drift apart. */
-    --accent: #205d4c;
+    --accent: #3157f6;
     --brand: var(--accent);
-    --accent-wash: #e5f0e8;
+    --accent-wash: #e9edff;
     /* The same hue used as TEXT: 5.49:1 on --surface in light. */
-    --accent-text: #205d4c;
+    --accent-text: #3157f6;
     /* Solid-button hover: 7.14:1 under white text. */
-    --accent-hover: #18483c;
+    --accent-hover: #2445d8;
 
-    /* MCP is blue-cyan, distinct from the indigo brand and readable on its wash. */
-    --mcp: #006b95;
-    --mcp-wash: #e2f4fa;
-    --skill: #0b6b72;
-    --skill-wash: #e2f5f2;
-    --plugin: #7c3ad4;
-    --plugin-wash: #f2eafd;
+    /* Catalog kinds stay distinct from the brand and readable on their own washes. */
+    --mcp: #175da8;
+    --mcp-wash: #e7f0ff;
+    --skill: #6841a5;
+    --skill-wash: #f0eaff;
+    --plugin: #42536b;
+    --plugin-wash: #e9edf3;
 
-    --pop: #9a5b08;
-    --pop-wash: #fdf1e0;
+    --pop: #b42318;
+    --pop-wash: #fff0ee;
 
     /*
      * Dark-surface tokens. These are only legible on the dark planes they were
@@ -211,41 +158,41 @@
     :root:not([data-theme="light"]) {
       color-scheme: dark;
 
-      --paper: #0c1110;
-      --surface: #121a17;
-      --sunken: #0f1512;
-      --sunken-2: #0b100e;
-      --hover: #18221d;
-      --sel: #254a3b;
+      --paper: #0b0e14;
+      --surface: #111620;
+      --sunken: #0e131c;
+      --sunken-2: #090d14;
+      --hover: #171d2a;
+      --sel: #1d2a4a;
 
-      --rule: #26362f;
-      --rule-2: #718a7b;
+      --rule: #283244;
+      --rule-2: #78869c;
 
-      --ink: #eaf1ec;
-      --ink-2: #c1d0c6;
-      --ink-3: #9aaca1;
+      --ink: #edf1f7;
+      --ink-2: #c3ccda;
+      --ink-3: #9aa7bc;
 
       /* A light plate, not pure white: the tile reads as a chip on the dark
       surface instead of a hole in it, and the ink on it measures 15.6:1
       against --logo-plate-ink #111827. */
-      --logo-plate: #e6f0e9;
-      --logo-plate-ink: #16261f;
+      --logo-plate: #e8edf5;
+      --logo-plate-ink: #111827;
 
-      --accent: #145c46;
-      --accent-wash: #132a20;
+      --accent: #3157f6;
+      --accent-wash: #182449;
       /* The fill would only reach 3.52:1 on #0b0e14, so TEXT uses the tint. */
-      --accent-text: #79d4ad;
-      --accent-hover: #1c7658;
+      --accent-text: #a9bbff;
+      --accent-hover: #2445d8;
 
-      --mcp: #6eeaff;
-      --mcp-wash: #102b37;
-      --skill: #4fd8ce;
-      --skill-wash: #0e2b2c;
-      --plugin: #be9df8;
-      --plugin-wash: #211a36;
+      --mcp: #8fc5ff;
+      --mcp-wash: #13243a;
+      --skill: #d0b4ff;
+      --skill-wash: #281c3d;
+      --plugin: #b4c0d2;
+      --plugin-wash: #1d2735;
 
-      --pop: #9a5b08;
-      --pop-wash: #2a1e0b;
+      --pop: #8f2738;
+      --pop-wash: #3a181b;
 
       --dark: #171d2a;
       --dark-2: #1e2536;
@@ -263,40 +210,40 @@
   :root[data-theme="dark"] {
     color-scheme: dark;
 
-    --paper: #0c1110;
-    --surface: #121a17;
-    --sunken: #0f1512;
-    --sunken-2: #0b100e;
-    --hover: #18221d;
-    --sel: #254a3b;
+    --paper: #0b0e14;
+    --surface: #111620;
+    --sunken: #0e131c;
+    --sunken-2: #090d14;
+    --hover: #171d2a;
+    --sel: #1d2a4a;
 
-    --rule: #26362f;
-    --rule-2: #718a7b;
+    --rule: #283244;
+    --rule-2: #78869c;
 
-    --ink: #eaf1ec;
-    --ink-2: #c1d0c6;
-    --ink-3: #9aaca1;
+    --ink: #edf1f7;
+    --ink-2: #c3ccda;
+    --ink-3: #9aa7bc;
 
     /* A light plate, not pure white: the tile reads as a chip on the dark
     surface instead of a hole in it, and the ink on it measures 15.6:1
     against --logo-plate-ink #111827. */
-    --logo-plate: #e6f0e9;
-    --logo-plate-ink: #16261f;
+    --logo-plate: #e8edf5;
+    --logo-plate-ink: #111827;
 
-    --accent: #145c46;
-    --accent-wash: #132a20;
-    --accent-text: #79d4ad;
-    --accent-hover: #1c7658;
+    --accent: #3157f6;
+    --accent-wash: #182449;
+    --accent-text: #a9bbff;
+    --accent-hover: #2445d8;
 
-    --mcp: #6eeaff;
-    --mcp-wash: #102b37;
-    --skill: #4fd8ce;
-    --skill-wash: #0e2b2c;
-    --plugin: #be9df8;
-    --plugin-wash: #211a36;
+    --mcp: #8fc5ff;
+    --mcp-wash: #13243a;
+    --skill: #d0b4ff;
+    --skill-wash: #281c3d;
+    --plugin: #b4c0d2;
+    --plugin-wash: #1d2735;
 
-    --pop: #9a5b08;
-    --pop-wash: #2a1e0b;
+    --pop: #8f2738;
+    --pop-wash: #3a181b;
 
     --dark: #171d2a;
     --dark-2: #1e2536;
@@ -2330,7 +2277,7 @@
 .agent-atlas-hero {
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 78% 30%, rgba(177, 211, 188, 0.2), transparent 32rem),
+    radial-gradient(ellipse at 78% 30%, rgba(171, 190, 255, 0.22), transparent 32rem),
     var(--paper);
   border-bottom: 1px solid var(--rule);
 }
@@ -2361,7 +2308,7 @@
   border: 1px solid var(--rule);
   border-radius: 22px;
   background: var(--surface);
-  box-shadow: 0 22px 54px rgba(28, 53, 42, .11), 0 2px 6px rgba(28, 53, 42, .05);
+  box-shadow: 0 22px 54px rgba(26, 39, 76, .10), 0 2px 6px rgba(26, 39, 76, .045);
   padding: 15px;
 }
 .agent-atlas-window-bar {
@@ -2369,7 +2316,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #e9ece7;
+  border-bottom: 1px solid #e7eaf0;
   padding: 0 2px 13px;
   color: var(--ink-2);
   font-size: 12px;
@@ -2411,8 +2358,8 @@
   padding: 9px 11px;
 }
 .agent-mini-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; font: 700 11px var(--font-mono); }
-.agent-mini-green { color: #34715b; background: #e9f2e7; }
-.agent-mini-ink { color: #30443a; background: #edf0ed; }
+.agent-mini-green { color: #3157f6; background: #e9edff; }
+.agent-mini-ink { color: #414b61; background: #edf0f4; }
 .agent-atlas-connectors > div > span:nth-child(2) { display: grid; gap: 3px; min-width: 0; flex: 1; }
 .agent-atlas-connectors small { color: var(--ink-2); font-size: 12px; }
 .agent-atlas-connectors b { color: #47745e; background: #eff5ed; border-radius: 6px; padding: 4px 6px; font-size: 12px; font-weight: 600; }
@@ -2564,7 +2511,7 @@
 /* Home: an editorial entry point inspired by the attached direction. */
 .home-editorial-hero {
   background:
-    radial-gradient(ellipse at 81% 29%, rgba(179, 210, 187, .19), transparent 34rem),
+    radial-gradient(ellipse at 81% 29%, rgba(171, 190, 255, .21), transparent 34rem),
     var(--paper);
 }
 .home-editorial-layout {
@@ -2605,8 +2552,8 @@
 .home-addition-card { display: flex; align-items: center; gap: 11px; min-height: 59px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); padding: 9px 11px; color: inherit; text-decoration: none; }
 .home-addition-card:hover { border-color: #b7cbbc; background: #fbfdfb; }
 .home-addition-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; font: 700 11px var(--font-mono); }
-.home-addition-green { color: #34715b; background: #e9f2e7; }
-.home-addition-ink { color: #30443a; background: #edf0ed; font-size: 18px; }
+.home-addition-green { color: #3157f6; background: #e9edff; }
+.home-addition-ink { color: #414b61; background: #edf0f4; font-size: 18px; }
 .home-addition-card > span:nth-child(2) { display: grid; gap: 3px; flex: 1; min-width: 0; }
 .home-addition-card strong { color: var(--ink); font-size: 12px; }
 .home-addition-card small { color: var(--ink-2); font-size: 12px; }
