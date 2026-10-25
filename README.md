@@ -24,7 +24,10 @@ connection and open the manager directly. From the menu, you can search
 LiteSPM's catalog or hand a GitHub repository, Git URL, skill URL, or local
 folder to the interactive skills installer. The installer discovers skills,
 lets you choose skills and agent targets, previews destinations, and asks
-before it writes.
+before it writes. In a terminal, menus support keyboard navigation and
+search; catalog updates show a live progress indicator. For Qwen Code, restart
+the CLI after setup, then use `/marketplace` to browse through the connected
+LiteSPM MCP server.
 
 ## Quick start
 
