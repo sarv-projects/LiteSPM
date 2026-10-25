@@ -193,8 +193,12 @@ test("related recommendations avoid broad source dumps and weak drafts", async (
   const flagship = flagshipEntry();
   await gotoSettled(page, flagship.href);
 
+  // RelatedRail waits until the reader reaches this area before loading siblings.
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
   const related = page.getByRole("region", { name: "Related entries" });
-  await related.scrollIntoViewIfNeeded();
   await expect(related.locator('a[href^="/package/"]').first()).toBeVisible();
   await expect(related.getByText(/Still WiP/i)).toHaveCount(0);
 
