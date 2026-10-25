@@ -199,7 +199,7 @@ function displayListingName(item) {
 }
 
 function categoryLabel(name) {
-  return name === "Official Skills by" ? "Skills by publisher" : name;
+  return name === "Official Skills by" || name === "Official publisher skills" ? "Publisher skills" : name;
 }
 
 /** Cut at a word boundary around 155 characters (`clampMeta`). */

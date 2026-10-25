@@ -235,17 +235,17 @@ export function ExploreFilters(props: ExploreFiltersProps) {
                 option's own tooltip carries the split.
             */}
             {(() => {
-              const managed = agents.filter((a) => a.managed);
-              const skillsOnly = agents.filter((a) => !a.managed);
+              const managed = agents.filter((a) => a.managed && a.count > 0);
+              const skillsOnly = agents.filter((a) => !a.managed && a.count > 0);
               return (
                 <>
                   {managed.length > 0 && (
-                    <optgroup label={`MCP servers and skills (${managed.length})`}>
+                    <optgroup label={`Agents with MCP setup (${managed.length})`}>
                       {managed.map((a) => (
                         <option
                           key={a.id}
                           value={a.name}
-                          title={`${formatCount(a.mcp)} MCP servers · ${formatCount(a.skill)} skills`}
+                          title={`${formatCount(a.mcp)} MCP servers · ${formatCount(a.skill)} skills listed`}
                         >
                           {a.name} ({formatCount(a.count)})
                         </option>
@@ -253,12 +253,12 @@ export function ExploreFilters(props: ExploreFiltersProps) {
                     </optgroup>
                   )}
                   {skillsOnly.length > 0 && (
-                    <optgroup label={`Skills only (${skillsOnly.length})`}>
+                    <optgroup label={`Skills destinations (${skillsOnly.length})`}>
                       {skillsOnly.map((a) => (
                         <option
                           key={a.id}
                           value={a.name}
-                          title={`${formatCount(a.skill)} skills · no MCP config for this host`}
+                          title={`${formatCount(a.skill)} skills listed for ${a.id === "universal" ? "the shared folder" : "this destination"}`}
                         >
                           {a.name} ({formatCount(a.count)})
                         </option>

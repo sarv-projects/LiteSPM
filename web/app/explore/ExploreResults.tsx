@@ -3,7 +3,7 @@
 import React from "react";
 import { ExtensionGrid } from "../../components/catalog/ExtensionGrid";
 import type { Listing } from "../../lib/telemetry";
-import { CURATED_NOTE, DEFAULT_SORT, type SortMode } from "../../lib/catalog";
+import { DEFAULT_SORT, type SortMode } from "../../lib/catalog";
 
 /**
  * Explore's result list: the heading, the measured count, the sort control and
@@ -27,29 +27,12 @@ export const SORTS: Array<{ id: SortMode; label: string }> = [
   // two names that appeared nowhere else on the page, so a reader could not
   // tell what the control would do to the list.
   { id: "relevance", label: "Best match" },
-  { id: DEFAULT_SORT, label: "Featured first" },
+  { id: DEFAULT_SORT, label: "Recommended" },
   { id: "installable", label: "Installable first" },
   { id: "name", label: "Name A–Z" },
   { id: "publisher", label: "Publisher A–Z" },
-  { id: "index", label: "Catalog order" },
+  { id: "index", label: "Original order" },
 ];
-
-/**
- * What each order does, in one sentence, stated under the filter row whenever
- * that order is the active one. The curated rule is the site's own note
- * (`CURATED_NOTE`), so the browse default reads exactly as it always did.
- */
-export const SORT_NOTES: Record<SortMode, string> = {
-  relevance:
-    "Ranks results by relevance to your search terms.",
-  curated: CURATED_NOTE,
-  installable:
-    "Shows available LiteSPM installations before discovery-only listings.",
-  name: "Sorts capabilities alphabetically by name.",
-  publisher: "Sorts by publisher, then package name.",
-  index:
-    "Uses the order of the published catalog.",
-};
 
 export interface ExploreResultsProps {
   items: Listing[];
@@ -121,11 +104,7 @@ export function ExploreResults(props: ExploreResultsProps) {
             name="sort"
             value={effectiveSort}
             onChange={(e) => setSort(e.target.value as SortMode)}
-            title={
-              effectiveSort === "curated"
-                ? CURATED_NOTE
-                : "Best match orders by where the query matched."
-            }
+
             className="field py-0! text-[12px]"
           >
             {SORTS.map((s) => (

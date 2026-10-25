@@ -27,15 +27,13 @@ import {
 import type { AgentFacet } from "../../lib/catalog";
 import { resolveHostId } from "../../lib/hostIdentity";
 import { publisherMatches } from "../../lib/publisherFilter";
-import { explainMatch } from "../../lib/searchFormat.mjs";
 import { classifyListing, taxonomyFacets } from "../../lib/taxonomy";
 import { AGENT_STORAGE_KEY, findAgentChoice, sourceLabel } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { categoryLabel } from "../categories/categoryLabel";
 import { formatCount } from "../../lib/format";
 import { ExploreFilters } from "./ExploreFilters";
-import { ExploreResults, SORT_NOTES } from "./ExploreResults";
-import { ExploreWhy } from "./ExploreWhy";
+import { ExploreResults } from "./ExploreResults";
 
 const KINDS_SET = new Set<string>(["all", "mcp", "skill", "plugin"]);
 
@@ -453,19 +451,6 @@ function ExploreContent(props: ExploreViewProps) {
     searchWindowed,
   ]);
 
-  /**
-   * Match evidence for the first results, computed from the hydrated rows with
-   * the same classifier the index was built from. Eight rows is enough to show
-   * the classes at work; the panel states the rule that covers the rest. Only
-   * shown under "Best match" — under an explicit sort the order is that sort's,
-   * and the curated note (or the sort's own label) is the explanation.
-   */
-  const explanation = useMemo(() => {
-    if (effectiveSort !== "relevance") return null;
-    if (!full || !deferredQuery || !searchSettled || filtered.length === 0) return null;
-    return filtered.slice(0, 8).map((item) => ({ item, reason: explainMatch(item, deferredQuery) }));
-  }, [effectiveSort, full, deferredQuery, searchSettled, filtered]);
-
   const hasFilters =
     query !== "" ||
     kind !== "all" ||
@@ -700,29 +685,7 @@ function ExploreContent(props: ExploreViewProps) {
             setSort={setSort}
           />
 
-          {/* The active order's rule, below the rows it orders. It states
-              wherever that order is active — browsing or searching — and it
-              used to sit above the grid, where the measured first row started
-              at y≈586 of a 900px viewport. The rule that put the ranking
-              evidence below the rows applies to this evidence too. */}
-          <details className="mt-4 border border-rule bg-sunken px-4 py-3">
-            <summary className="cursor-pointer text-[13px] font-medium text-ink">
-              How results are sorted
-            </summary>
-            <p className="mt-2 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
-              {SORT_NOTES[effectiveSort]}
-            </p>
-          </details>
 
-          {/* The ordering evidence, below the rows it explains. A search's
-              first answer has to be the matching rows; the analysis of their
-              order is a follow-up question, so it is a collapsed disclosure
-              after the result set and never a block in front of it. */}
-          {explanation && (
-            <div className="shell pb-16">
-              <ExploreWhy entries={explanation} host={rankAgent?.label ?? null} />
-            </div>
-          )}
         </div>
       </main>
 

@@ -22,7 +22,7 @@ export interface AgentsViewProps {
 type AgentFilter = "all" | "configured" | "skills";
 
 const FILTERS: Array<{ id: AgentFilter; label: string }> = [
-  { id: "all", label: "All agents" },
+  { id: "all", label: "All profiles" },
   { id: "configured", label: "MCP setup" },
   { id: "skills", label: "Skills" },
 ];
@@ -36,6 +36,7 @@ function AgentCard({
 }) {
   const host = agent.hostId ? HOSTS.find((item) => item.id === agent.hostId) : undefined;
   const note = hostNote(agent.slug);
+  const profileType = note?.profileType ?? (host ? "MCP servers + skills" : agent.skill ? "Agent skills" : "Agent profile");
   const summary = note?.summary ??
     (agent.skill
       ? "Bring reusable agent skills into " + agent.name + " and keep them with the rest of your agent toolkit."
@@ -51,7 +52,7 @@ function AgentCard({
           <div className="min-w-0">
             <h3 className="truncate text-[18px] font-semibold tracking-tight text-ink"><Link href={href} prefetch={false} className="hover:text-accent-text focus-visible:underline">{agent.name}</Link></h3>
             <p className="mt-0.5 text-[12px] text-ink-3">
-              {host ? "MCP servers + skills" : agent.skill ? "Agent skills" : "Agent profile"}
+              {profileType}
             </p>
           </div>
         </div>
@@ -147,8 +148,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                 Choose your<br /><span className="text-accent-text">agent.</span>
               </h1>
               <p className="mt-5 max-w-[52ch] text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
-                Find the agent you already use, then explore the tools and skills that make it more useful.
-                Every profile includes a practical setup guide.
+                Choose the agent you use—or a shared skills folder—then browse packages with clear setup details. Each profile includes sourced product details and a practical setup guide.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <Link href="/explore/" className="btn btn-solid btn-lg">

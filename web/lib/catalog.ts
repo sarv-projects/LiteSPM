@@ -111,7 +111,7 @@ export function publisherDisplayName(value: string | null | undefined): string {
 
 /** Replace machine-shaped registry ids with a readable label when possible. */
 export function displayListingName(
-  item: Pick<Listing, "name" | "kind" | "publisher">,
+  item: Pick<Listing, "name" | "kind"> & Partial<Pick<Listing, "publisher">>,
 ): string {
   const name = item.name.trim();
   const labels: Record<string, string> = {
@@ -164,28 +164,14 @@ export function displayListingName(
  * over rows a search already ranked — `sortListings` preserves the order it is
  * handed — and Explore uses it as the default while a query is active.
  *
- * "curated" is the browse default, and it is the only order this catalog can
- * honestly put first. "installable first" was the old default: true, but
- * useless as a front door, because the block of installable rows it led with
- * is ordered by name and that opened the catalog on `00Widget`. Curated orders
- * by three facts the dataset carries and the reader can check on any row:
- *
- *   1. skills the publisher itself ships (the upstream "Official Skills by"
- *      section),
- *   2. rows read from the publisher's own manifest (`publisher.verified`),
- *   3. rows LiteSPM can actually install (`availabilityOf`).
- *
- * No popularity figure exists in the data, so none is used — the rule is
- * stated in the UI next to the control, and every step of it is a field the
- * reader can see on the row's own page.
+ * "curated" puts listings with a usable install path first. Within each
+ * readiness group it favors featured picks, publisher skills, and publisher
+ * details, then sorts by name. The catalog has no popularity measure, so the
+ * recommendation order does not invent one.
  */
 export type SortMode = "relevance" | "curated" | "installable" | "index" | "name" | "publisher";
 
 export const DEFAULT_SORT: SortMode = "curated";
-
-/** The default order's rule, stated once in the UI where the sort control is. */
-export const CURATED_NOTE =
-  "Featured picks first, followed by installable packages and publisher listings.";
 
 /** How strongly the curated order prefers a row. Higher sorts first. */
 const FEATURED_IDS = new Set(featured.entries.map(entry => entry.id));
@@ -278,32 +264,34 @@ export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[]
     const kindRank = new Map(KIND_ORDER.map((kind, index) => [kind, index]));
     const decorated = copy.map((item) => ({
       item,
+      ready: availabilityOf(item).installable ? 1 : 0,
       kindRank: kindRank.get(item.kind) ?? KIND_ORDER.length,
       score: curatedScore(item),
       name: nameKey(item.name),
     }));
     decorated.sort(
       (a, b) =>
+        b.ready - a.ready ||
         a.kindRank - b.kindRank ||
         b.score - a.score ||
         nameCollator.compare(a.name, b.name)
     );
 
-    // A marketplace's first page should show what it contains, not one type
-    // of listing repeated 48 times. Keep the curated order within each type,
-    // then interleave those ordered lists so the first viewport introduces
-    // MCP servers, skills and plugins together. Explicit type filters still
-    // leave that type's existing curated order intact.
-    const byKind = new Map<Listing["kind"], T[]>();
-    for (const kind of KIND_ORDER) byKind.set(kind, []);
-    for (const entry of decorated) byKind.get(entry.item.kind)?.push(entry.item);
-
+    // Interleave listing types inside two readiness bands. Packages with a
+    // usable install path appear first; other listings stay available below.
     const mixed: T[] = [];
-    const longest = Math.max(...[...byKind.values()].map((rows) => rows.length));
-    for (let index = 0; index < longest; index += 1) {
-      for (const kind of KIND_ORDER) {
-        const item = byKind.get(kind)?.[index];
-        if (item) mixed.push(item);
+    for (const ready of [1, 0]) {
+      const byKind = new Map<Listing["kind"], T[]>();
+      for (const kind of KIND_ORDER) byKind.set(kind, []);
+      for (const entry of decorated) {
+        if (entry.ready === ready) byKind.get(entry.item.kind)?.push(entry.item);
+      }
+      const longest = Math.max(...[...byKind.values()].map((rows) => rows.length));
+      for (let index = 0; index < longest; index += 1) {
+        for (const kind of KIND_ORDER) {
+          const item = byKind.get(kind)?.[index];
+          if (item) mixed.push(item);
+        }
       }
     }
     return mixed;
@@ -1039,7 +1027,7 @@ export function rowSignal(item: Listing): RowSignal {
     return {
       tier: "publisher",
       label: "Publisher skill",
-      note: "Grouped in the source directory’s publisher-skills collection.",
+      note: "A skill from the publisher’s collection.",
     };
   }
   const avail = availabilityOf(item);
@@ -1058,6 +1046,9 @@ export function rowSignal(item: Listing): RowSignal {
  */
 export function rowProvenance(item: Listing): string {
   if (item.publisher?.verified) return "Publisher-provided details";
+  if (item.kind === "skill" && (item.category === OFFICIAL_SKILLS_CATEGORY || item.category === "Official publisher skills")) {
+    return "Publisher collection";
+  }
   return item.source ? sourceLabel(item.source) : "Origin not stated";
 }
 

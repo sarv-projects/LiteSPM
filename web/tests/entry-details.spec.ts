@@ -34,8 +34,8 @@ test("the package page opens the setup checklist beside the install command", as
   await gotoSettled(page, flagship.href);
   const checklist = page.locator("details").filter({ hasText: "Before your first install" });
   await expect(checklist).toHaveAttribute("open", "");
-  await expect(checklist.getByText("litespm setup", { exact: false })).toBeVisible();
-  await expect(checklist.getByText("litespm catalog sync", { exact: false })).toBeVisible();
+  await expect(checklist.getByText(/npx --yes litespm@latest setup/)).toBeVisible();
+  await expect(checklist.getByText(/npx --yes litespm@latest catalog sync/)).toBeVisible();
 });
 
 test("the entry page Source tab focuses on publisher links", async ({ page }) => {

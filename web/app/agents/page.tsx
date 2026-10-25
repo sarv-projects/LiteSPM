@@ -13,7 +13,7 @@ import AgentsRoute from "./AgentsRoute";
 export const metadata: Metadata = {
   title: "Agents",
   description:
-    "Explore AI agent profiles, see what each agent does, and find tools and skills for your workflow.",
+    "Browse sourced product profiles and see how LiteSPM sets up supported agent apps and skill destinations.",
   alternates: { canonical: "/agents/" },
   openGraph: { title: "Agents · LiteSPM", url: "/agents/" },
 };

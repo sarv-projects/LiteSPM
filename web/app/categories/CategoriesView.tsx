@@ -71,8 +71,8 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Categories</h1>
           <p className="t-mono text-[11px] text-ink-3">
-            {formatCount(goals.length)} goals · {formatCount(categories.length)} source categories ·{" "}
-            {formatCount(total)} entries
+            {formatCount(goals.length)} tasks · {formatCount(categories.length)} topics ·{" "}
+            {formatCount(total)} packages
           </p>
         </div>
 
@@ -147,18 +147,18 @@ export default function CategoriesPage({ total, categories, taxonomy }: Categori
 
         <div className="mt-10 border-b border-ink pb-2">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <h2 className="band-title">All categories</h2>
+            <h2 className="band-title">Browse all topics</h2>
             <p className="t-mono text-[11px] text-ink-3">
-              {formatCount(categories.length)} source labels
+              {formatCount(categories.length)} topics
             </p>
           </div>
         </div>
 
         {/* Column headers are a real table header, not an ALL-CAPS eyebrow. */}
         <div className="mt-5 border-b border-ink pb-2">
-          <h3 className="sr-only">All source categories with entry counts</h3>
+          <h3 className="sr-only">All topics with package counts</h3>
           <div className="t-mono grid grid-cols-[minmax(0,1fr)_56px] items-center gap-4 text-[10px] text-ink-3 md:grid-cols-[260px_64px_170px_minmax(120px,1fr)]">
-            <span>Category</span>
+            <span>Topic</span>
             <span className="text-right">Entries</span>
             <span className="hidden md:block">Kind mix</span>
             <span className="hidden md:block">Relative size</span>

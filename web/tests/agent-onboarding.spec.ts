@@ -7,7 +7,7 @@ test("the agent directory makes profiles easy to browse", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Choose your agent." })).toBeVisible();
   await expect(page.getByRole("searchbox", { name: "Search agent profiles" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Scrollable agent profiles" })).toBeVisible();
-  await expect(page.getByText(/Every profile includes a practical setup guide/)).toBeVisible();
+  await expect(page.getByText(/Each profile includes sourced product details and a practical setup guide/)).toBeVisible();
   await expect(page.getByText(/not available to install here|catalog relationships, not runtime test/i)).toHaveCount(0);
 });
 
@@ -47,4 +47,42 @@ test("skills-only agent pages do not describe a config connection", async ({ pag
     "#agent-command-title"
   );
   await expect(start.getByText("Connect Warp", { exact: true })).toHaveCount(0);
+});
+
+
+test("agent profiles distinguish products from shared skill destinations", async ({ page }) => {
+  await gotoSettled(page, "/agents/adal/");
+  await expect(page.getByRole("heading", { name: "AdaL" })).toBeVisible();
+  await expect(page.getByText(/Sylph’s AI agent for coding and computer tasks/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "docs.sylph.ai" })).toHaveAttribute("href", "https://docs.sylph.ai/");
+
+  await gotoSettled(page, "/agents/universal/");
+  await expect(page.getByText("Shared skills folder", { exact: true })).toBeVisible();
+  await expect(page.getByText(/\.agents\/skills/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find skills for the shared folder" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Setup details" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Browse skills for the shared folder" })).toHaveAttribute(
+    "href",
+    /\/explore\/\?host=/
+  );
+});
+
+test("category browsing uses task and topic language", async ({ page }) => {
+  await gotoSettled(page, "/categories/");
+  await expect(page.getByRole("heading", { name: "Browse by task" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Browse all topics" })).toBeVisible();
+  await expect(page.getByText(/source categories|source labels/i)).toHaveCount(0);
+});
+
+
+test("Explore groups only destinations with catalog listings", async ({ page }) => {
+  await gotoSettled(page, "/explore/");
+  await expect(page.locator('#explore-host optgroup[label^="Agents with MCP setup"]')).toHaveCount(1);
+  await expect(page.locator('#explore-host optgroup[label^="Skills destinations"]')).toHaveCount(1);
+  await expect(page.locator('#explore-host option[title*="no MCP config"]')).toHaveCount(0);
+  await expect(page.locator('#explore-host option[value="Universal"]')).toHaveAttribute(
+    "title",
+    /shared folder/
+  );
+  await expect(page.locator('#explore-host option[value="Eve"]')).toHaveCount(0);
 });

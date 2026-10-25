@@ -75,7 +75,9 @@ export async function generateMetadata({
         ? note
           ? `${note.summary} LiteSPM writes a single bridge entry into ${name}'s own configuration.`
           : `Where ${name} keeps its MCP configuration, and the single bridge entry LiteSPM adds to it.`
-        : `${name} takes agent skills. LiteSPM installs skills into it, and writes no MCP configuration file for it.`
+        : note
+          ? `${note.summary} LiteSPM can install skills into this target.`
+          : `${name} takes agent skills. LiteSPM installs skills into it, and writes no MCP configuration file for it.`
   );
 
   return {

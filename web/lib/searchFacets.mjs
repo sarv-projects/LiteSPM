@@ -7,51 +7,58 @@ const KIND_ORDER = ["mcp", "skill", "plugin"];
 const INSTALLABLE_STATES = new Set(["metadata_verified", "runtime_verified", "litespm_tested"]);
 const nameCollator = new Intl.Collator();
 
+function rowInstallable(row) {
+  if (row.kind === "plugin") {
+    return row.artifact?.type === "git-tree" && Boolean(row.artifact.pinned);
+  }
+  return (
+    INSTALLABLE_STATES.has(row.installability) &&
+    (row.kind !== "mcp" || Boolean(row.transport))
+  );
+}
+
 function browseScore(row, featuredIds) {
   let score = featuredIds.has(row.id) ? 100 : 0;
   if (row.category === "Official Skills by") score += 4;
   if (row.publisher?.verified) score += 2;
-
-  if (row.kind === "plugin") {
-    if (row.artifact?.type === "git-tree" && row.artifact.pinned) score += 1;
-  } else if (
-    INSTALLABLE_STATES.has(row.installability) &&
-    (row.kind !== "mcp" || Boolean(row.transport))
-  ) {
-    score += 1;
-  }
   return score;
 }
 
 /**
- * Match the marketplace's existing curated order at build time. The result is
- * a compact row-id sequence, so browser filters preserve the same first page
- * without sorting or constructing every listing object on the main thread.
+ * Keep install-ready listings at the front of the catalog. The compact row-id
+ * sequence lets browser filters preserve the same order without sorting or
+ * constructing every listing object on the main thread.
  */
 function curatedBrowseOrder(rows, featuredIds) {
-  const byKind = new Map(KIND_ORDER.map((kind) => [kind, []]));
   const decorated = rows.map((row, index) => ({
     row,
     index,
+    ready: rowInstallable(row) ? 1 : 0,
     kindRank: KIND_ORDER.indexOf(row.kind),
     score: browseScore(row, featuredIds),
-    name: (row.name ?? "").replace(/^[^0-9A-Za-z]+/, "") || row.name || "",
+    name: ((row.name ?? "").replace(/^[^0-9A-Za-z]+/, "") || row.name || "").toLowerCase(),
   }));
 
   decorated.sort(
     (a, b) =>
+      b.ready - a.ready ||
       a.kindRank - b.kindRank ||
       b.score - a.score ||
       nameCollator.compare(a.name, b.name),
   );
-  for (const entry of decorated) byKind.get(entry.row.kind)?.push(entry.index);
 
   const order = [];
-  const longest = Math.max(0, ...[...byKind.values()].map((rowsForKind) => rowsForKind.length));
-  for (let index = 0; index < longest; index += 1) {
-    for (const kind of KIND_ORDER) {
-      const rowId = byKind.get(kind)?.[index];
-      if (rowId !== undefined) order.push(rowId);
+  for (const ready of [1, 0]) {
+    const byKind = new Map(KIND_ORDER.map((kind) => [kind, []]));
+    for (const entry of decorated) {
+      if (entry.ready === ready) byKind.get(entry.row.kind)?.push(entry.index);
+    }
+    const longest = Math.max(0, ...[...byKind.values()].map((rowsForKind) => rowsForKind.length));
+    for (let index = 0; index < longest; index += 1) {
+      for (const kind of KIND_ORDER) {
+        const rowId = byKind.get(kind)?.[index];
+        if (rowId !== undefined) order.push(rowId);
+      }
     }
   }
   return order;

@@ -110,6 +110,7 @@ export default function AgentDetailView({
   // own name is one of them, so the link opens exactly the count above it.
   const exploreHref = `/explore/?host=${encodeURIComponent(name)}`;
   const nameDiffers = name !== registryName;
+  const sharedSkillsFolder = id === "universal";
 
   return (
     <div
@@ -225,7 +226,7 @@ export default function AgentDetailView({
 
         <aside className="rounded-card border border-rule bg-surface p-4 lg:sticky lg:top-20">
           <h2 className="text-[13px] font-semibold tracking-tight text-ink">
-            What LiteSPM does here
+            Setup details
           </h2>
           <dl className="spec-list mt-2">
             {/*
@@ -263,13 +264,13 @@ export default function AgentDetailView({
             {skillsSupported && (
               <div>
                 <dt>Skills</dt>
-                <dd>Install into {name}&rsquo;s skill directory.</dd>
+                <dd>{sharedSkillsFolder ? <>Use the shared <code className="t-mono">.agents/skills/</code> folder.</> : <>Install into {name}&rsquo;s skill directory.</>}</dd>
               </div>
             )}
           </dl>
           <div className="mt-3">
             <Link href={exploreHref} className="btn w-full justify-center">
-              Explore packages for {name}
+              {skillsOnly ? `Browse skills for ${sharedSkillsFolder ? "the shared folder" : name}` : `Browse packages and skills for ${name}`}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </div>
@@ -288,7 +289,7 @@ export default function AgentDetailView({
               </h2>
             </div>
             <p className="max-w-[52ch] text-[12.5px] leading-relaxed text-ink-2">
-Choose this agent, then find tools and skills that fit how you work.
+{skillsOnly ? "Choose this destination, then browse skills that fit your workflow." : "Choose this agent, then find tools and skills that fit how you work."}
             </p>
           </div>
 
@@ -411,7 +412,7 @@ Choose this agent, then find tools and skills that fit how you work.
         {/* ---- catalog entries for this agent ----------------------------- */}
         <section className="mt-9" aria-labelledby="agent-works-title">
           <div className="section-head">
-            <h2 id="agent-works-title">Find tools for {name}</h2>
+            <h2 id="agent-works-title">{skillsOnly ? (sharedSkillsFolder ? "Find skills for the shared folder" : `Find skills for ${name}`) : `Find tools for ${name}`}</h2>
             <span className="section-note">Browse the catalog</span>
           </div>
 
@@ -420,13 +421,13 @@ Choose this agent, then find tools and skills that fit how you work.
               {formatCount(count)}
             </span>
             <span className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-              packages and skills to explore for {name}.
+              {sharedSkillsFolder ? "Skills listed for the shared folder." : skillsOnly ? `Catalog listings for ${name}.` : `Packages and skills to explore for ${name}.`}
             </span>
           </p>
 
           <div className="mt-4">
             <Link href={exploreHref} className="btn">
-              Browse entries for {name}
+              {skillsOnly ? `Browse skills for ${sharedSkillsFolder ? "the shared folder" : name}` : `Browse packages for ${name}`}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </div>

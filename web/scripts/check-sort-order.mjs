@@ -7,9 +7,12 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildSearchFacets } from "../lib/searchFacets.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const rows = JSON.parse(readFileSync(join(here, "..", "data", "catalog.json"), "utf8"));
+const featured = JSON.parse(readFileSync(join(here, "..", "data", "featured.json"), "utf8"));
+const featuredIds = new Set(featured.entries.map((entry) => entry.id));
 
 const OFFICIAL_SKILLS_CATEGORY = "Official Skills by";
 
@@ -30,7 +33,7 @@ function availabilityOf(item) {
 }
 
 function curatedScore(item) {
-  let score = 0;
+  let score = featuredIds.has(item.id) ? 100 : 0;
   if (item.category === OFFICIAL_SKILLS_CATEGORY) score += 4;
   if (item.publisher?.verified) score += 2;
   if (availabilityOf(item).installable) score += 1;
@@ -79,9 +82,15 @@ function oldSort(items, mode) {
         nameKey(a.name).localeCompare(nameKey(b.name))
     );
   }
-  return mixKinds(copy.sort(
-    (a, b) => curatedScore(b) - curatedScore(a) || nameKey(a.name).localeCompare(nameKey(b.name))
-  ));
+  const byReadiness = (ready) =>
+    copy
+      .filter((item) => availabilityOf(item).installable === ready)
+      .sort(
+        (a, b) =>
+          curatedScore(b) - curatedScore(a) ||
+          nameKey(a.name).localeCompare(nameKey(b.name))
+      );
+  return [...mixKinds(byReadiness(true)), ...mixKinds(byReadiness(false))];
 }
 
 function newSort(items, mode) {
@@ -116,9 +125,23 @@ function newSort(items, mode) {
     return decorated.map((entry) => entry.item);
   }
   const kindRank = new Map(["mcp", "skill", "plugin"].map((kind, index) => [kind, index]));
-  const decorated = copy.map((item) => ({ item, kindRank: kindRank.get(item.kind), score: curatedScore(item), name: nameKey(item.name) }));
-  decorated.sort((a, b) => a.kindRank - b.kindRank || b.score - a.score || nameCollator.compare(a.name, b.name));
-  return mixKinds(decorated.map((entry) => entry.item));
+  const decorated = copy.map((item) => ({
+    item,
+    ready: availabilityOf(item).installable ? 1 : 0,
+    kindRank: kindRank.get(item.kind),
+    score: curatedScore(item),
+    name: nameKey(item.name),
+  }));
+  decorated.sort(
+    (a, b) =>
+      b.ready - a.ready ||
+      a.kindRank - b.kindRank ||
+      b.score - a.score ||
+      nameCollator.compare(a.name, b.name)
+  );
+  return [1, 0].flatMap((ready) =>
+    mixKinds(decorated.filter((entry) => entry.ready === ready).map((entry) => entry.item))
+  );
 }
 
 let failed = false;
@@ -151,6 +174,27 @@ for (const mode of ["curated", "name"]) {
   newSort(rows, mode);
   const newMs = Date.now() - t1;
   console.log(`  ${mode}: old ${oldMs} ms -> new ${newMs} ms`);
+}
+
+const curated = newSort(rows, "curated");
+const facetOrder = buildSearchFacets(rows, [...featuredIds]).browseOrder.map((index) => rows[index].id);
+const curatedIds = curated.map((item) => item.id);
+const facetMismatch = facetOrder.findIndex((id, index) => id !== curatedIds[index]);
+if (facetMismatch >= 0) {
+  failed = true;
+  console.log(`  XX  compact browse order differs at ${facetMismatch}: ${facetOrder[facetMismatch]} vs ${curatedIds[facetMismatch]}`);
+} else {
+  console.log(`  ok  compact browse order matches the catalog order over ${facetOrder.length} rows`);
+}
+const firstUnready = curated.findIndex((item) => !availabilityOf(item).installable);
+if (
+  firstUnready >= 0 &&
+  curated.slice(firstUnready).some((item) => availabilityOf(item).installable)
+) {
+  failed = true;
+  console.log("  XX  curated: an installable listing appears after an install-incomplete listing");
+} else {
+  console.log("  ok  curated: install-ready listings all appear before install-incomplete listings");
 }
 
 process.exit(failed ? 1 : 0);

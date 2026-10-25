@@ -59,9 +59,9 @@ export function WalkthroughFrame() {
   const move = (direction: number) => setStep((value) => (value + direction + FLOW.length) % FLOW.length);
 
   return (
-    <section className="cli-story" aria-label="Interactive walkthrough of a real LiteSPM install">
+    <section className="cli-story" aria-label="Interactive walkthrough of a sample install">
       <div className="cli-story-copy">
-        <p className="kicker">A real LiteSPM workflow</p>
+        <p className="kicker">Interactive walkthrough</p>
         <h3 className="mt-2 text-[22px] font-semibold leading-tight tracking-tight text-ink sm:text-[26px]">
           Install it. Find it. Remove it.
         </h3>
@@ -77,13 +77,13 @@ export function WalkthroughFrame() {
             </li>
           ))}
         </ol>
-        <p className="cli-story-proof">Verified with LiteSPM on an isolated Codex project.</p>
+        <p className="cli-story-proof">Example output from a project-scope skill workflow.</p>
       </div>
 
       <div className="cli-terminal" aria-live="polite" aria-atomic="true">
         <div className="cli-terminal-bar">
           <span className="home-window-dots" aria-hidden="true"><i /><i /><i /></span>
-          <span>LiteSPM · {current.title}</span>
+          <span>Example · {current.title}</span>
           <span className="cli-step-count">0{step + 1} / 0{FLOW.length}</span>
         </div>
         <div className="cli-terminal-command"><span>$</span> {current.command}</div>
