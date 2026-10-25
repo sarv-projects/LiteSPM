@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -127,6 +128,97 @@ func TestWizard_PrintUsage(t *testing.T) {
 	printUsage()
 }
 
+func TestWizard_InstallSkillFromSourceAction(t *testing.T) {
+	hermeticWizardHome(t)
+	w, out := newTestWizard(t, "https://github.com/acme/agent-skills\n", tempWizardPaths(t))
+	var got string
+	w.launchSkillInstaller = func(_ context.Context, source string) error {
+		got = source
+		return nil
+	}
+
+	if err := w.actionInstallSkillFromSource(context.Background()); err != nil {
+		t.Fatalf("actionInstallSkillFromSource: %v", err)
+	}
+	if got != "https://github.com/acme/agent-skills" {
+		t.Fatalf("installer source = %q", got)
+	}
+	if !strings.Contains(out.String(), "skills add") || !strings.Contains(out.String(), "GitHub") {
+		t.Fatalf("expected source installer guidance, got:\n%s", out.String())
+	}
+}
+
+func TestWizard_InstallSkillFromSourceCanReturnToMenu(t *testing.T) {
+	w, out := newTestWizard(t, "\n", tempWizardPaths(t))
+	called := false
+	w.launchSkillInstaller = func(context.Context, string) error {
+		called = true
+		return nil
+	}
+
+	if err := w.actionInstallSkillFromSource(context.Background()); err != nil {
+		t.Fatalf("actionInstallSkillFromSource: %v", err)
+	}
+	if called {
+		t.Fatal("installer launched without a source")
+	}
+	if !strings.Contains(out.String(), "Enter a source") {
+		t.Fatalf("expected an empty-source hint, got:\n%s", out.String())
+	}
+}
+
+func TestWizard_ActionMenuLaunchesSkillInstaller(t *testing.T) {
+	hermeticWizardHome(t)
+	paths := tempWizardPaths(t)
+	db, err := state.Open(paths.StateDBPath())
+	if err != nil {
+		t.Fatalf("open state db: %v", err)
+	}
+	defer db.Close()
+	w, out := newTestWizard(t, "s\n6\nacme/agent-skills\nq\n", paths)
+	w.openState = func() (*state.DB, error) { return db, nil }
+	w.catalogClient = func() *catalog.Client { return catalog.NewClient("", t.TempDir(), nil) }
+	var gotSource string
+	w.launchSkillInstaller = func(_ context.Context, source string) error {
+		gotSource = source
+		return nil
+	}
+
+	if err := w.Run(context.Background()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if gotSource != "acme/agent-skills" {
+		t.Fatalf("source passed to installer = %q", gotSource)
+	}
+	if !strings.Contains(out.String(), "Install skills from GitHub") {
+		t.Fatalf("menu does not advertise the GitHub installer:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "Agent connection skipped") {
+		t.Fatalf("expected the first-run agent skip path:\n%s", out.String())
+	}
+}
+
+func TestWizard_ActionMenuAllowsSourceInstallWhenManagerStateCannotOpen(t *testing.T) {
+	w, out := newTestWizard(t, "2\n6\nacme/agent-skills\nq\n", tempWizardPaths(t))
+	w.openState = func() (*state.DB, error) { return nil, errors.New("fixture database error") }
+	w.catalogClient = func() *catalog.Client { return catalog.NewClient("", t.TempDir(), nil) }
+	var gotSource string
+	w.launchSkillInstaller = func(_ context.Context, source string) error {
+		gotSource = source
+		return nil
+	}
+
+	if err := w.runActionMenu(context.Background()); err != nil {
+		t.Fatalf("runActionMenu: %v", err)
+	}
+	if gotSource != "acme/agent-skills" {
+		t.Fatalf("source passed to installer = %q", gotSource)
+	}
+	if !strings.Contains(out.String(), "fixture database error") {
+		t.Fatalf("expected state error explanation:\n%s", out.String())
+	}
+}
+
 // --- item 2: EOF at every input site exits cleanly -------------------------
 
 // TestWizard_EOFStopsAtEveryPrompt feeds an input stream that ends at each
@@ -185,6 +277,11 @@ func TestWizard_EOFStopsAtEveryPrompt(t *testing.T) {
 			name:       "remove picker",
 			configured: true,
 			input:      func(*testing.T, string, *Wizard) string { return "3\n" },
+		},
+		{
+			name:       "GitHub skill source prompt",
+			configured: true,
+			input:      func(*testing.T, string, *Wizard) string { return "6\n" },
 		},
 	}
 

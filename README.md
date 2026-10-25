@@ -19,7 +19,12 @@ litespm
 ```
 
 That opens the setup wizard. It finds the agents on your machine, shows the
-exact file it will touch, and asks before writing.
+exact file it will touch, and asks before writing. You can skip agent
+connection and open the manager directly. From the menu, you can search
+LiteSPM's catalog or hand a GitHub repository, Git URL, skill URL, or local
+folder to the interactive skills installer. The installer discovers skills,
+lets you choose skills and agent targets, previews destinations, and asks
+before it writes.
 
 ## Quick start
 
