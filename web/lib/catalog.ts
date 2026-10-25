@@ -111,7 +111,7 @@ export function publisherDisplayName(value: string | null | undefined): string {
 
 /** Replace machine-shaped registry ids with a readable label when possible. */
 export function displayListingName(
-  item: Pick<Listing, "name" | "kind"> & Partial<Pick<Listing, "publisher">>,
+  item: Pick<Listing, "name" | "kind"> & { publisher?: { name?: string } },
 ): string {
   const name = item.name.trim();
   const labels: Record<string, string> = {
