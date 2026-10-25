@@ -58,10 +58,10 @@ test("agent profiles distinguish products from shared skill destinations", async
 
   await gotoSettled(page, "/agents/universal/");
   await expect(page.getByText("Shared skills folder", { exact: true })).toBeVisible();
-  await expect(page.getByText(/\.agents\/skills/)).toBeVisible();
+  await expect(page.getByText(/\.agents\/skills/).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Find skills for the shared folder" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Setup details" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Browse skills for the shared folder" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Browse skills for the shared folder", exact: true }).first()).toHaveAttribute(
     "href",
     /\/explore\/\?host=/
   );
