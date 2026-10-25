@@ -109,10 +109,11 @@ export function RelatedRail({
     const itemTerms = terms(item);
     const take = (rows: Listing[] | null): Listing[] => {
       if (!rows) return [];
-      const ranked = relatedListings(item, rows)
-        .filter((row) => availabilityOf(row).installable)
+      const relatedRows = relatedListings(item, rows) as Listing[];
+      const ranked = relatedRows
+        .filter((row: Listing) => availabilityOf(row).installable)
         .sort(
-          (a, b) =>
+          (a: Listing, b: Listing) =>
             relevance(item, itemGoal, itemTerms, b) -
               relevance(item, itemGoal, itemTerms, a) ||
             a.name.localeCompare(b.name)

@@ -27,7 +27,7 @@ test("publisher display names read like brands without changing unknown IDs", ()
   expect(displayListingName({
     name: "com.cloudflare.mcp/mcp",
     kind: "mcp",
-    publisher: { name: "com.cloudflare.mcp", verified: true },
+    publisher: { name: "com.cloudflare.mcp" },
   })).toBe("Cloudflare MCP Server");
 });
 
