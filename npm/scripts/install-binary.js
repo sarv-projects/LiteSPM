@@ -876,7 +876,7 @@ async function verifyReleaseArtifact(binaryPath, binName, releaseBase, options =
 
 async function installBinary() {
   const binName = getBinaryName();
-  const targetDir = path.join(os.homedir(), ".litespm", "bin");
+  const targetDir = path.join(os.homedir(), ".litespm", "bin", `v${VERSION}`);
   ensureDir(targetDir);
   const targetPath = path.join(targetDir, binName);
   const stampPath = `${targetPath}.version`;

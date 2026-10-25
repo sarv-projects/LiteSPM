@@ -335,6 +335,9 @@ func parseSkillsRemoveArgs(args []string) (skillsRemoveOptions, error) {
 		opts.sources = append(opts.sources, src.Display)
 	}
 	if opts.all {
+		if len(opts.names) > 0 || len(opts.sources) > 0 || hasNarrowSelector(opts.skills) || hasNarrowSelector(opts.agents) {
+			return opts, fmt.Errorf("--all cannot be combined with named skill, source, or agent selectors; omit --all to narrow the removal")
+		}
 		// --all is exactly `--skill '*' --agent '*' -y`; recording the same
 		// selection makes the two spellings indistinguishable (asserted in
 		// tests), so they cannot drift apart.
@@ -352,6 +355,15 @@ func parseSkillsRemoveArgs(args []string) (skillsRemoveOptions, error) {
 		opts.scope = "project"
 	}
 	return opts, nil
+}
+
+func hasNarrowSelector(values []string) bool {
+	for _, value := range values {
+		if value != "*" {
+			return true
+		}
+	}
+	return false
 }
 
 // appendWildcard adds '*' once to a repeatable value list.

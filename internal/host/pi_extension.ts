@@ -38,10 +38,15 @@ function agentDir(): string {
 function liteSPMBinary(): string {
   try {
     const raw = readFileSync(join(agentDir(), "mcp.json"), "utf8");
-    const parsed = JSON.parse(raw) as { mcpServers?: Record<string, { command?: string[] }> };
+    const parsed = JSON.parse(raw) as {
+      mcpServers?: Record<string, { command?: string | string[] }>;
+    };
     const entry = parsed.mcpServers ? parsed.mcpServers.litespm : undefined;
     const command = entry ? entry.command : undefined;
-    if (command && command.length > 0) return command[0];
+    if (typeof command === "string" && command.trim() !== "") return command;
+    if (Array.isArray(command) && typeof command[0] === "string" && command[0] !== "") {
+      return command[0];
+    }
   } catch {
     // No readable config: PATH lookup below is the honest fallback.
   }

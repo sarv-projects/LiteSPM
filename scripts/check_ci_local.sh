@@ -54,8 +54,6 @@ node --check npm/bin/litespm.js || fail "node check (wrapper)"
 node --check npm/scripts/install-binary.js || fail "node check (installer)"
 
 stage "npm wrapper and installer tests"
-mkdir -p dist
-go build -o "dist/$(node -p "require('./npm/bin/litespm.js').getBinaryName()")" ./cmd/litespm || fail "build for npm test"
 (cd npm && npm test) || fail "npm test"
 
 stage "dataset reproduces the released tree"

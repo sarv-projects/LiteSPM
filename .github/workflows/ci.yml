@@ -75,15 +75,11 @@ jobs:
 
       # The installer is the only place this project executes a downloaded
       # native binary, so its refusal paths are tested rather than assumed.
-      # test_npm.js needs a binary to resolve, so one is built first and dropped
-      # in dist/ under the name the wrapper looks for.
-      #
       # --ignore-scripts: the package's own postinstall downloads and verifies
       # the published binary, which the tests exercise deliberately. Running it
       # here would only add a second, redundant network fetch.
       - name: Test npm Wrapper and Installer
         run: |
-          go build -o "dist/$(node -p "require('./npm/bin/litespm.js').getBinaryName()")" ./cmd/litespm
           cd npm && npm ci --ignore-scripts && npm test
 
       # The committed dataset is the input to every published release. Nothing

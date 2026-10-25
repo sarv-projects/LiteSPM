@@ -26,21 +26,44 @@ function getBinaryName() {
   return `litespm-${osName}-${archName}${ext}`;
 }
 
+function getManagedBinaryPath() {
+  const binName = getBinaryName();
+  return path.join(os.homedir(), ".litespm", "bin", `v${VERSION}`, binName);
+}
+
 function resolveBinary() {
   const binName = getBinaryName();
-  
-  // 1. Check inside npm package bin/ or dist/
+
+  // The package-local copy is version-pinned by the package tarball. Managed
+  // downloads live in a version-specific directory so a second global npm
+  // install cannot execute the previous version's binary.
   const candidates = [
     path.join(__dirname, binName),
-    path.join(__dirname, "..", "dist", binName),
-    path.join(__dirname, "..", "..", "dist", binName),
-    path.join(os.homedir(), ".litespm", "bin", binName),
+    getManagedBinaryPath(),
   ];
 
   for (const c of candidates) {
-    if (fs.existsSync(c)) {
-      return c;
+    if (!fs.existsSync(c)) continue;
+    if (c === getManagedBinaryPath()) {
+      let installedVersion = "";
+      try {
+        installedVersion = fs.readFileSync(`${c}.version`, "utf8").trim();
+      } catch (err) {
+        continue;
+      }
+      if (installedVersion !== VERSION &&
+          !(installedVersion === `${VERSION}-local` && process.env.LITESPM_ALLOW_LOCAL_DIST === "1")) {
+        continue;
+      }
     }
+    if (process.platform !== "win32") {
+      try {
+        fs.accessSync(c, fs.constants.X_OK);
+      } catch (err) {
+        continue;
+      }
+    }
+    return c;
   }
 
   // There is deliberately NO "whatever `litespm` is on PATH" fallback.
@@ -62,11 +85,19 @@ function main() {
     try {
       const installScript = path.join(__dirname, "..", "scripts", "install-binary.js");
       if (fs.existsSync(installScript)) {
-        spawnSync(process.execPath, [installScript], { stdio: "inherit" });
+        const result = spawnSync(process.execPath, [installScript], { stdio: "inherit" });
+        const failure = installerResultError(result);
+        if (failure) {
+          console.error(failure);
+          process.exit(result.status === 0 ? 1 : (result.status || 1));
+          return;
+        }
         binaryPath = resolveBinary();
       }
-    } catch (e) {
-      // Ignored
+    } catch (err) {
+      console.error(`[litespm] Could not run the binary installer: ${err.message}`);
+      process.exit(1);
+      return;
     }
   }
 
@@ -95,8 +126,21 @@ function main() {
   });
 }
 
+function installerResultError(result) {
+  if (result.error) {
+    return `[litespm] Could not start the binary installer: ${result.error.message}`;
+  }
+  if (result.status !== 0) {
+    if (result.signal) {
+      return `[litespm] Binary installer stopped by signal ${result.signal}.`;
+    }
+    return `[litespm] Binary installer failed with exit code ${result.status ?? 1}.`;
+  }
+  return null;
+}
+
 if (require.main === module) {
   main();
 }
 
-module.exports = { getBinaryName, resolveBinary };
+module.exports = { getBinaryName, getManagedBinaryPath, installerResultError, resolveBinary };

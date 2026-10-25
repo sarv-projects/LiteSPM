@@ -77,6 +77,12 @@ place.
 npm install -g litespm
 ```
 
+On Linux or WSL, `bash: .../bin/litespm: Permission denied` means the installed
+command shim is missing its executable bit. This repository now preserves and
+checks that bit in the npm tarball. For an already-installed broken shim, repair
+it with `chmod +x "$(readlink -f "$(command -v litespm)")"` or reinstall after
+the fixed package version is published.
+
 Prefer a standalone binary? Grab the release for your platform from
 [GitHub Releases](https://github.com/sarv-projects/LiteSPM/releases). The npm
 package is a thin launcher: it downloads the native binary for your OS and
@@ -103,7 +109,7 @@ prints `INSTALL REFUSED` and exits non-zero:
 
 ```text
 [litespm] INSTALL REFUSED — refusing to install litespm-linux-amd64: signature verification failed: digest mismatch
-[litespm] The download was discarded rather than installed unverified. Nothing was written to ~/.litespm/bin/litespm-linux-amd64.
+[litespm] The download was discarded rather than installed unverified. Nothing was written to ~/.litespm/bin/v<version>/litespm-linux-amd64.
 [litespm] Check https://github.com/sarv-projects/LiteSPM/releases/tag/v0.4.1 for litespm-linux-amd64 and its .sigstore.json bundle, then reinstall. Setting LITESPM_ALLOW_UNSIGNED_RELEASE=1 disables publisher authentication and is not a fix.
 ```
 

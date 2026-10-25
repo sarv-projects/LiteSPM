@@ -4,7 +4,11 @@ set -euo pipefail
 # LiteSPM Multi-Platform Build Script
 # Targets: Windows (amd64, arm64), Linux (amd64, arm64), macOS (amd64, arm64)
 
-VERSION="${VERSION:-0.3.0}"
+VERSION="${VERSION:?Set VERSION to the release version, for example VERSION=0.6.0}"
+if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+    echo "Invalid VERSION '${VERSION}'; expected a semantic version." >&2
+    exit 2
+fi
 DIST_DIR="dist"
 mkdir -p "${DIST_DIR}"
 
@@ -41,6 +45,9 @@ echo "● Generating SHA-256 Checksums..."
         sha256sum litespm-* > SHA256SUMS.txt
     elif command -v shasum >/dev/null 2>&1; then
         shasum -a 256 litespm-* > SHA256SUMS.txt
+    else
+        echo "Cannot generate SHA256SUMS.txt: install sha256sum or shasum." >&2
+        exit 1
     fi
 )
 
