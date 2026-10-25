@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/skills"
 )
@@ -64,6 +65,17 @@ func isTerminal(f *os.File) bool {
 		return false
 	}
 	return fi.Mode()&os.ModeCharDevice != 0
+}
+
+func runSkillsAddForm(out *bufio.Writer, fields ...huh.Field) error {
+	if err := out.Flush(); err != nil {
+		return err
+	}
+	err := runTerminalForm(os.Stdin, os.Stdout, fields...)
+	if flushErr := out.Flush(); err == nil {
+		err = flushErr
+	}
+	return err
 }
 
 type skillsAddOptions struct {
@@ -174,6 +186,7 @@ func runSkillsAdd(args []string) {
 	}
 
 	interactive := isTerminal(os.Stdin) && !opts.yes && !opts.jsonOut
+	interactiveTUI := interactive && isTerminal(os.Stdout)
 
 	home, _ := os.UserHomeDir()
 	project, _ := os.Getwd()
@@ -322,16 +335,37 @@ func runSkillsAdd(args []string) {
 
 	// --- Scope selection (global, or this repo only) ---
 	if interactive && !opts.scopeGiven && !opts.global {
-		fmt.Fprintln(out, "◇  Installation scope")
-		fmt.Fprintln(out, "│  1) This repo only")
-		fmt.Fprintln(out, "│  2) Global (user-wide)")
-		fmt.Fprint(out, "│  > ")
-		out.Flush()
-		switch askLine() {
-		case "2", "global":
-			opts.scope = "global"
-		default:
-			opts.scope = "project"
+		if interactiveTUI {
+			scope := "project"
+			field := huh.NewSelect[string]().
+				Title("Installation scope").
+				Description("Choose where LiteSPM should copy the selected skills.").
+				Options(
+					huh.NewOption("This project  ·  committed with this repository", "project").Selected(true),
+					huh.NewOption("Global  ·  available to you across projects", "global"),
+				).
+				Value(&scope)
+			if err := runSkillsAddForm(out, field); err != nil {
+				if errors.Is(err, huh.ErrUserAborted) {
+					fmt.Fprintln(out, "Cancelled.")
+					return
+				}
+				fmt.Fprintf(os.Stderr, "Error selecting installation scope: %v\n", err)
+				os.Exit(1)
+			}
+			opts.scope = scope
+		} else {
+			fmt.Fprintln(out, "◇  Installation scope")
+			fmt.Fprintln(out, "│  1) This repo only")
+			fmt.Fprintln(out, "│  2) Global (user-wide)")
+			fmt.Fprint(out, "│  > ")
+			out.Flush()
+			switch askLine() {
+			case "2", "global":
+				opts.scope = "global"
+			default:
+				opts.scope = "project"
+			}
 		}
 	}
 	if !opts.jsonOut {
@@ -371,17 +405,53 @@ func runSkillsAdd(args []string) {
 	}
 
 	if len(selected) == 0 && interactive {
-		fmt.Fprintln(out, "◇  Select skills to install (numbers, comma-separated, or 'all')")
-		for i, f := range found {
-			fmt.Fprintf(out, "│  %d) %s — %s\n", i+1, f.Pkg.Name, truncateRunes(f.Pkg.Description, 80))
-		}
-		fmt.Fprint(out, "│  > ")
-		out.Flush()
-		answer := askLine()
-		picked, err := parseNumberSelection(answer, len(found))
-		if err != nil || len(picked) == 0 {
-			fmt.Fprintln(os.Stderr, "Error: no skills selected.")
-			os.Exit(1)
+		var picked []int
+		if interactiveTUI {
+			options := make([]huh.Option[string], 0, len(found))
+			for i, skill := range found {
+				label := fmt.Sprintf("%s  ·  %s", skill.Pkg.Name, truncateRunes(skill.Pkg.Description, 72))
+				options = append(options, huh.NewOption(label, strconv.Itoa(i)))
+			}
+			pickedValues := []string{}
+			field := huh.NewMultiSelect[string]().
+				Title("Choose skills to install").
+				Description("Space selects a skill. Enter confirms the selection.").
+				Options(options...).
+				Value(&pickedValues).
+				Filterable(true).
+				Validate(func(values []string) error {
+					if len(values) == 0 {
+						return errors.New("select at least one skill")
+					}
+					return nil
+				}).
+				WithHeight(12)
+			if err := runSkillsAddForm(out, field); err != nil {
+				if errors.Is(err, huh.ErrUserAborted) {
+					fmt.Fprintln(out, "Cancelled.")
+					return
+				}
+				fmt.Fprintf(os.Stderr, "Error selecting skills: %v\n", err)
+				os.Exit(1)
+			}
+			for _, value := range pickedValues {
+				index, _ := strconv.Atoi(value)
+				picked = append(picked, index)
+			}
+		} else {
+			fmt.Fprintln(out, "◇  Select skills to install (numbers, comma-separated, or 'all')")
+			for i, f := range found {
+				fmt.Fprintf(out, "│  %d) %s — %s\n", i+1, f.Pkg.Name, truncateRunes(f.Pkg.Description, 80))
+			}
+			fmt.Fprint(out, "│  > ")
+			out.Flush()
+			answer := askLine()
+			var err error
+			picked, err = parseNumberSelection(answer, len(found))
+			if err != nil || len(picked) == 0 {
+				fmt.Fprintln(os.Stderr, "Error: no skills selected.")
+				os.Exit(1)
+			}
 		}
 		for _, idx := range picked {
 			selected = append(selected, found[idx])
@@ -395,61 +465,100 @@ func runSkillsAdd(args []string) {
 		// Popularity is NOT used to order agents: we have no measured usage
 		// data, so this is presence-first then alphabetical.
 		detectedTargets, otherTargets := splitAgentsByDetection(targets, project, home)
-		fmt.Fprintf(out, "◇  %d agents (%d detected)\n", len(targets), len(detectedTargets))
-		fmt.Fprintln(out, "◇  Which agents do you want to install to?")
 		ids := make([]string, 0, len(targets))
 		detectedIDs := make([]string, 0, len(detectedTargets))
 		for _, a := range detectedTargets {
 			detectedIDs = append(detectedIDs, a.ID)
 		}
-		i := 1
-		for _, group := range []struct {
-			label string
-			list  []skills.AgentTarget
-		}{{"Detected", detectedTargets}, {"All agents", otherTargets}} {
-			if len(group.list) == 0 {
-				continue
-			}
-			if group.label == "All agents" {
-				fmt.Fprintln(out, "│")
-			}
-			fmt.Fprintf(out, "◇  %s\n", group.label)
-			for _, a := range group.list {
-				dir, ok := skills.AgentSkillDir(a.ID, opts.scope, project, home)
-				pathText := "no global location"
-				if ok {
-					pathText = shortHome(dir, home)
-				} else if opts.scope != "global" {
-					pathText = "—"
+		if interactiveTUI {
+			options := make([]huh.Option[string], 0, len(targets))
+			for _, agent := range detectedTargets {
+				label := agent.DisplayName + "  ·  detected"
+				if agent.Universal {
+					label += "  ·  shared skills folder"
 				}
-				mark := " "
-				if a.Universal {
-					mark = "◦"
-				}
-				fmt.Fprintf(out, "│  %d) [%s] %-22s %s\n", i, mark, a.DisplayName, pathText)
-				ids = append(ids, a.ID)
-				i++
+				options = append(options, huh.NewOption(label, agent.ID).Selected(true))
 			}
-		}
-		fmt.Fprintln(out, "│  [ ] needs its own dir   [◦] shares .agents/skills")
-		fmt.Fprint(out, "│  numbers, comma-separated, or empty for detected > ")
-		out.Flush()
-		answer := strings.TrimSpace(askLine())
-		if answer == "" {
-			agents = detectedIDs
-		} else {
-			picked, err := parseNumberSelection(answer, len(ids))
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "Error: invalid agent selection.")
+			for _, agent := range otherTargets {
+				label := agent.DisplayName
+				if agent.Universal {
+					label += "  ·  shared skills folder"
+				}
+				options = append(options, huh.NewOption(label, agent.ID))
+			}
+			field := huh.NewMultiSelect[string]().
+				Title(fmt.Sprintf("Choose agents  ·  %d supported, %d detected", len(targets), len(detectedTargets))).
+				Description("Detected agents are preselected. Filter with /, move with ↑/↓, Space toggles, Enter confirms.").
+				Options(options...).
+				Value(&agents).
+				Filterable(true).
+				Validate(func(values []string) error {
+					if len(values) == 0 {
+						return errors.New("select at least one agent")
+					}
+					return nil
+				}).
+				WithHeight(16)
+			if err := runSkillsAddForm(out, field); err != nil {
+				if errors.Is(err, huh.ErrUserAborted) {
+					fmt.Fprintln(out, "Cancelled.")
+					return
+				}
+				fmt.Fprintf(os.Stderr, "Error selecting agents: %v\n", err)
 				os.Exit(1)
 			}
-			for _, idx := range picked {
-				agents = append(agents, ids[idx])
+		} else {
+			fmt.Fprintf(out, "◇  %d agents (%d detected)\n", len(targets), len(detectedTargets))
+			fmt.Fprintln(out, "◇  Which agents do you want to install to?")
+			i := 1
+			for _, group := range []struct {
+				label string
+				list  []skills.AgentTarget
+			}{{"Detected", detectedTargets}, {"All agents", otherTargets}} {
+				if len(group.list) == 0 {
+					continue
+				}
+				if group.label == "All agents" {
+					fmt.Fprintln(out, "│")
+				}
+				fmt.Fprintf(out, "◇  %s\n", group.label)
+				for _, agent := range group.list {
+					dir, ok := skills.AgentSkillDir(agent.ID, opts.scope, project, home)
+					pathText := "no global location"
+					if ok {
+						pathText = shortHome(dir, home)
+					} else if opts.scope != "global" {
+						pathText = "—"
+					}
+					mark := " "
+					if agent.Universal {
+						mark = "◦"
+					}
+					fmt.Fprintf(out, "│  %d) [%s] %-22s %s\n", i, mark, agent.DisplayName, pathText)
+					ids = append(ids, agent.ID)
+					i++
+				}
 			}
-		}
-		if len(agents) == 0 {
-			fmt.Fprintln(os.Stderr, "Error: no agents selected and none detected.")
-			os.Exit(1)
+			fmt.Fprintln(out, "│  [ ] needs its own dir   [◦] shares .agents/skills")
+			fmt.Fprint(out, "│  numbers, comma-separated, or empty for detected > ")
+			out.Flush()
+			answer := strings.TrimSpace(askLine())
+			if answer == "" {
+				agents = detectedIDs
+			} else {
+				picked, err := parseNumberSelection(answer, len(ids))
+				if err != nil {
+					fmt.Fprintln(os.Stderr, "Error: invalid agent selection.")
+					os.Exit(1)
+				}
+				for _, idx := range picked {
+					agents = append(agents, ids[idx])
+				}
+			}
+			if len(agents) == 0 {
+				fmt.Fprintln(os.Stderr, "Error: no agents selected and none detected.")
+				os.Exit(1)
+			}
 		}
 	}
 
@@ -469,10 +578,26 @@ func runSkillsAdd(args []string) {
 		printInstallSummary(out, src, selected, ops)
 		printRiskPanel(out, src, selected)
 		if interactive {
-			fmt.Fprint(out, "◇  Proceed with installation? [y/N] > ")
-			out.Flush()
-			answer := strings.ToLower(askLine())
-			proceed = answer == "y" || answer == "yes"
+			if interactiveTUI {
+				field := huh.NewConfirm().
+					Title("Proceed with installation?").
+					Affirmative("Install selected skills").
+					Negative("Cancel").
+					Value(&proceed)
+				if err := runSkillsAddForm(out, field); err != nil {
+					if errors.Is(err, huh.ErrUserAborted) {
+						fmt.Fprintln(out, "Cancelled.")
+						return
+					}
+					fmt.Fprintf(os.Stderr, "Error confirming installation: %v\n", err)
+					os.Exit(1)
+				}
+			} else {
+				fmt.Fprint(out, "◇  Proceed with installation? [y/N] > ")
+				out.Flush()
+				answer := strings.ToLower(askLine())
+				proceed = answer == "y" || answer == "yes"
+			}
 		} else {
 			proceed = true
 		}

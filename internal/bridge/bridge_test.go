@@ -146,6 +146,69 @@ func TestBridge_InitializeAndListTools(t *testing.T) {
 	}
 }
 
+func TestBridge_QwenMarketplacePromptIsPublishedAsSlashCommand(t *testing.T) {
+	ctx := context.Background()
+	shim := NewShim("qwen-code", nil, nil, nil)
+	id := json.RawMessage(`1`)
+	init := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "initialize"})
+	var initialized struct {
+		Capabilities map[string]json.RawMessage `json:"capabilities"`
+	}
+	if err := json.Unmarshal(init.Result, &initialized); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := initialized.Capabilities["prompts"]; !ok {
+		t.Fatal("Qwen bridge must advertise MCP prompts so /marketplace is discoverable")
+	}
+
+	list := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "prompts/list"})
+	var listed struct {
+		Prompts []struct {
+			Name      string `json:"name"`
+			Arguments []struct {
+				Name     string `json:"name"`
+				Required bool   `json:"required"`
+			} `json:"arguments"`
+		} `json:"prompts"`
+	}
+	if err := json.Unmarshal(list.Result, &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Prompts) != 1 || listed.Prompts[0].Name != "marketplace" {
+		t.Fatalf("Qwen prompts = %+v, want /marketplace", listed.Prompts)
+	}
+	if len(listed.Prompts[0].Arguments) != 1 || listed.Prompts[0].Arguments[0].Name != "query" {
+		t.Fatalf("marketplace prompt arguments = %+v, want optional query", listed.Prompts[0].Arguments)
+	}
+
+	get := shim.HandleRequest(ctx, &ipc.Request{
+		JSONRPC: "2.0", ID: &id, Method: "prompts/get",
+		Params: json.RawMessage(`{"name":"marketplace","arguments":{"query":"github"}}`),
+	})
+	if get == nil || get.Error != nil {
+		t.Fatalf("prompts/get failed: %+v", get)
+	}
+	if !strings.Contains(string(get.Result), "search_catalog") || !strings.Contains(string(get.Result), "github") || !strings.Contains(string(get.Result), "approvalToken") {
+		t.Fatalf("marketplace prompt does not guide catalog search: %s", get.Result)
+	}
+}
+
+func TestBridge_NonQwenHostsDoNotAdvertiseQwenSlashPrompt(t *testing.T) {
+	ctx := context.Background()
+	shim := NewShim("codex", nil, nil, nil)
+	id := json.RawMessage(`1`)
+	resp := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "initialize"})
+	var initialized struct {
+		Capabilities map[string]json.RawMessage `json:"capabilities"`
+	}
+	if err := json.Unmarshal(resp.Result, &initialized); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := initialized.Capabilities["prompts"]; ok {
+		t.Fatal("non-Qwen host should keep the existing tools-only bridge contract")
+	}
+}
+
 func TestBridge_ToolDispatchAndErrorFormatting(t *testing.T) {
 	ctx := context.Background()
 

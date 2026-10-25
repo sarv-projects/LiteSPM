@@ -244,15 +244,20 @@ func negotiatedProtocolVersion(params json.RawMessage) string {
 func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Response {
 	switch req.Method {
 	case "initialize":
+		capabilities := map[string]any{"tools": map[string]any{}}
+		if s.hostID == "qwen-code" {
+			// Qwen Code turns MCP prompts into slash commands. Advertising only
+			// tools leaves the registered bridge usable through tool calls but
+			// makes the adapter's documented /marketplace command nonexistent.
+			capabilities["prompts"] = map[string]any{}
+		}
 		result, _ := json.Marshal(map[string]any{
 			"protocolVersion": negotiatedProtocolVersion(req.Params),
 			"serverInfo": map[string]any{
 				"name":    "litespm-bridge",
 				"version": buildinfo.Version,
 			},
-			"capabilities": map[string]any{
-				"tools": map[string]any{},
-			},
+			"capabilities": capabilities,
 		})
 		return &ipc.Response{
 			JSONRPC: "2.0",
@@ -282,6 +287,60 @@ func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Respons
 			ID:      req.ID,
 			Result:  result,
 		}
+
+	case "prompts/list":
+		if s.hostID != "qwen-code" {
+			return methodNotFound(req, "prompts/list")
+		}
+		result, _ := json.Marshal(map[string]any{
+			"prompts": []map[string]any{{
+				"name":        "marketplace",
+				"title":       "LiteSPM Marketplace",
+				"description": "Search, inspect, and request installation of MCP servers, skills, and plugins from LiteSPM.",
+				"arguments": []map[string]any{{
+					"name":        "query",
+					"description": "Optional search terms, such as github, postgres, or code review.",
+					"required":    false,
+				}},
+			}},
+		})
+		return &ipc.Response{JSONRPC: "2.0", ID: req.ID, Result: result}
+
+	case "prompts/get":
+		if s.hostID != "qwen-code" {
+			return methodNotFound(req, "prompts/get")
+		}
+		var params struct {
+			Name      string            `json:"name"`
+			Arguments map[string]string `json:"arguments"`
+		}
+		if err := json.Unmarshal(req.Params, &params); err != nil || params.Name != "marketplace" {
+			if req.ID == nil {
+				return nil
+			}
+			message := "unknown prompt; available prompt: marketplace"
+			if err != nil {
+				message = fmt.Sprintf("invalid prompts/get params: %v", err)
+			}
+			return &ipc.Response{JSONRPC: "2.0", ID: req.ID, Error: &ipc.RPCError{
+				Code: ipc.CodeInvalidParams, Message: message,
+			}}
+		}
+		query := strings.TrimSpace(params.Arguments["query"])
+		if len(query) > 240 {
+			query = query[:240]
+		}
+		result, _ := json.Marshal(map[string]any{
+			"description": "Browse the LiteSPM capability catalog using the LiteSPM MCP tools.",
+			"messages": []map[string]any{{
+				"role": "user",
+				"content": map[string]any{
+					"type": "text",
+					"text": marketplacePromptText(query),
+				},
+			}},
+		})
+		return &ipc.Response{JSONRPC: "2.0", ID: req.ID, Result: result}
 
 	case "tools/call":
 		var callParams struct {
@@ -325,6 +384,27 @@ func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Respons
 			},
 		}
 	}
+}
+
+func methodNotFound(req *ipc.Request, method string) *ipc.Response {
+	if req.ID == nil {
+		return nil
+	}
+	return &ipc.Response{JSONRPC: "2.0", ID: req.ID, Error: &ipc.RPCError{
+		Code: ipc.CodeMethodNotFound, Message: fmt.Sprintf("method not found: %s", method),
+	}}
+}
+
+func marketplacePromptText(query string) string {
+	var b strings.Builder
+	b.WriteString("You are browsing the LiteSPM marketplace through the connected LiteSPM MCP server. Use search_catalog to find listings and get_extension to inspect them; do not invent listings, compatibility, or installation results.\n\n")
+	if query != "" {
+		fmt.Fprintf(&b, "Search for: %s\n\n", query)
+	} else {
+		b.WriteString("Ask what the user wants to find, or show a few useful catalog categories.\n\n")
+	}
+	b.WriteString("For each result, show its name, kind (MCP server, skill, or plugin), a concise description, and the available host/source details. Use get_extension before describing a selected item in detail. If the user wants it installed, call prepare_install and show the plan, destinations, effects, and any warnings. Ask the user to approve that exact plan; only after approval call request_install with the planId and approvalToken returned by prepare_install. Never claim success until the tool confirms it. If the bridge reports that a capability cannot be installed, explain the reason and leave the machine unchanged.")
+	return b.String()
 }
 
 // DispatchTool routes a tool call to the local daemon IPC client or handler.

@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/sarv-projects/litespm/internal/catalog"
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/deployment"
@@ -159,6 +160,13 @@ func (w *Wizard) readLine() (string, error) {
 
 func (w *Wizard) printBanner() {
 	fmt.Fprintln(w.out, "")
+	if terminalUIAvailable(w.in, w.out) {
+		fmt.Fprintln(w.out, renderLiteSPMWordmark())
+		fmt.Fprintln(w.out, "Discover and manage MCP servers, skills, and plugins across your agents.")
+		fmt.Fprintln(w.out, "────────────────────────────────────────────────────────────────────────")
+		fmt.Fprintln(w.out, "")
+		return
+	}
 	fmt.Fprintln(w.out, "┌────────────────────────────────────────────────────────────────────────┐")
 	fmt.Fprintln(w.out, "│                LiteSPM — setup and capability manager                  │")
 	fmt.Fprintln(w.out, "│                     for your AI coding agent                           │")
@@ -299,6 +307,9 @@ func (w *Wizard) promptAgentSelection(ctx context.Context) (host.HostAdapter, er
 			detected = append(detected, r)
 		}
 	}
+	if terminalUIAvailable(w.in, w.out) {
+		return w.promptAgentSelectionTUI(rows, detected)
+	}
 
 	fmt.Fprintln(w.out, "Which AI coding agent do you use?")
 	fmt.Fprintln(w.out, "")
@@ -354,6 +365,66 @@ func (w *Wizard) promptAgentSelection(ctx context.Context) (host.HostAdapter, er
 		}
 		fmt.Fprintln(w.out, "Not recognised. Enter the number next to your agent, its name, or 'a' for the full list.")
 	}
+}
+
+func (w *Wizard) promptAgentSelectionTUI(rows, detected []agentMenuRow) (host.HostAdapter, error) {
+	options := make([]huh.Option[string], 0, len(detected)+3)
+	for _, row := range detected {
+		label := row.descriptor.DisplayName + "  ·  detected  ·  " + truncate(row.configPath, 48)
+		options = append(options, huh.NewOption(label, row.descriptor.HostID))
+	}
+	if len(detected) == 0 {
+		options = append(options, huh.NewOption(fmt.Sprintf("Choose from %d supported agents…", len(rows)), "__all__"))
+	} else if len(rows) > len(detected) {
+		options = append(options, huh.NewOption(fmt.Sprintf("Browse all %d supported agents…", len(rows)), "__all__"))
+	}
+	options = append(options,
+		huh.NewOption("Continue without connecting an agent", "__skip__"),
+		huh.NewOption("Quit setup", "__quit__"),
+	)
+	choice := ""
+	field := huh.NewSelect[string]().
+		Title("Connect an AI coding agent").
+		Description("Detected configurations appear first. LiteSPM previews and backs up the exact file before writing.").
+		Options(options...).
+		Value(&choice).
+		WithHeight(12)
+	if err := runTerminalForm(w.in, w.out, field); err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	switch choice {
+	case "__skip__":
+		return nil, errSetupSkipped
+	case "__quit__", "":
+		return nil, nil
+	case "__all__":
+		all := make([]huh.Option[string], 0, len(rows))
+		for _, row := range rows {
+			label := row.descriptor.DisplayName
+			if row.exists {
+				label += "  ·  detected  ·  " + truncate(row.configPath, 48)
+			}
+			all = append(all, huh.NewOption(label, row.descriptor.HostID))
+		}
+		selected := ""
+		picker := huh.NewSelect[string]().
+			Title("Choose an agent").
+			Description("Type / to filter the list; press Enter to continue.").
+			Options(all...).
+			Value(&selected).
+			WithHeight(16)
+		if err := runTerminalForm(w.in, w.out, picker); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		choice = selected
+	}
+	return host.GetAdapter(choice)
 }
 
 func (w *Wizard) printAgentRows(rows []agentMenuRow) {
@@ -611,23 +682,56 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 	}()
 
 	for {
-		fmt.Fprintln(w.out, "")
-		fmt.Fprintln(w.out, "What would you like to do?")
-		if c := w.catalog(); c != nil && c.Count() == 0 {
-			fmt.Fprintln(w.out, "  [1] Update the capability catalog (needed before you can search)")
+		choice := ""
+		if terminalUIAvailable(w.in, w.out) {
+			cat := w.catalog()
+			catalogEmpty := cat == nil || cat.Count() == 0
+			catalogLabel := "Update catalog"
+			if catalogEmpty {
+				catalogLabel += "  ·  download the capability index"
+			} else {
+				catalogLabel += "  ·  refresh the capability index"
+			}
+			field := huh.NewSelect[string]().
+				Title("LiteSPM Manager").
+				Description("Choose an action. Use ↑/↓ to move, Enter to select, or / to filter.").
+				Options(
+					huh.NewOption(catalogLabel, "1"),
+					huh.NewOption("Find and install  ·  search the local catalog", "2"),
+					huh.NewOption("Remove an install  ·  review destinations first", "3"),
+					huh.NewOption("View installed capabilities", "4"),
+					huh.NewOption("Connect or repair an agent", "5"),
+					huh.NewOption("Install a skill  ·  GitHub, URL, or local folder", "6"),
+					huh.NewOption("Finish", "q"),
+				).
+				Value(&choice).
+				WithHeight(10)
+			if err := runTerminalForm(w.in, w.out, field); err != nil {
+				if errors.Is(err, huh.ErrUserAborted) {
+					return nil
+				}
+				return err
+			}
 		} else {
-			fmt.Fprintln(w.out, "  [1] Update the capability catalog")
-		}
-		fmt.Fprintln(w.out, "  [2] Find and install a capability")
-		fmt.Fprintln(w.out, "  [3] Remove something LiteSPM installed")
-		fmt.Fprintln(w.out, "  [4] See what is installed")
-		fmt.Fprintln(w.out, "  [5] Set up or repair an agent connection")
-		fmt.Fprintln(w.out, "  [6] Install skills from GitHub, a URL, or a folder")
-		fmt.Fprintln(w.out, "  [q] Finish")
-		fmt.Fprint(w.out, "Enter choice [1-6, q]: ")
-		choice, err := w.readLine()
-		if err != nil {
-			return err
+			fmt.Fprintln(w.out, "")
+			fmt.Fprintln(w.out, "What would you like to do?")
+			if c := w.catalog(); c != nil && c.Count() == 0 {
+				fmt.Fprintln(w.out, "  [1] Update the capability catalog (needed before you can search)")
+			} else {
+				fmt.Fprintln(w.out, "  [1] Update the capability catalog")
+			}
+			fmt.Fprintln(w.out, "  [2] Find and install a capability")
+			fmt.Fprintln(w.out, "  [3] Remove something LiteSPM installed")
+			fmt.Fprintln(w.out, "  [4] See what is installed")
+			fmt.Fprintln(w.out, "  [5] Set up or repair an agent connection")
+			fmt.Fprintln(w.out, "  [6] Install skills from GitHub, a URL, or a folder")
+			fmt.Fprintln(w.out, "  [q] Finish")
+			fmt.Fprint(w.out, "Enter choice [1-6, q]: ")
+			var err error
+			choice, err = w.readLine()
+			if err != nil {
+				return err
+			}
 		}
 
 		var actionErr error
@@ -666,10 +770,26 @@ func (w *Wizard) actionInstallSkillFromSource(ctx context.Context) error {
 	fmt.Fprintln(w.out, "\nInstall a skill from a source")
 	fmt.Fprintln(w.out, "Paste a GitHub owner/repo, Git URL, direct SKILL.md/archive URL, or local folder.")
 	fmt.Fprintln(w.out, "This opens the same installer as `litespm skills add`.")
-	fmt.Fprint(w.out, "Enter a source (or press Enter to go back): ")
-	source, err := w.readLine()
-	if err != nil {
-		return err
+	source := ""
+	if terminalUIAvailable(w.in, w.out) {
+		field := huh.NewInput().
+			Title("Skill source").
+			Description("GitHub owner/repo, Git URL, direct skill/archive URL, or local folder.").
+			Placeholder("owner/repo or https://github.com/owner/repo").
+			Value(&source)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return nil
+			}
+			return err
+		}
+	} else {
+		fmt.Fprint(w.out, "Enter a source (or press Enter to go back): ")
+		var err error
+		source, err = w.readLine()
+		if err != nil {
+			return err
+		}
 	}
 	if source == "" {
 		fmt.Fprintln(w.out, "No source entered. Back to the menu.")
@@ -762,7 +882,9 @@ func (w *Wizard) actionSyncCatalog(ctx context.Context) error {
 
 	syncCtx, cancel := context.WithTimeout(ctx, catalogSyncTimeout(cfg))
 	defer cancel()
-	res, err := catClient.Sync(syncCtx)
+	res, err := runWithSpinner(syncCtx, w.in, w.out, "Updating capability catalog", func() (*catalog.SyncResult, error) {
+		return catClient.Sync(syncCtx)
+	})
 	if err != nil {
 		fmt.Fprintf(w.out, "✗ Could not update the catalog: %v\n", err)
 		if empty {
