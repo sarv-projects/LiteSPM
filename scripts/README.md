@@ -52,9 +52,9 @@ network responses, so producer safety checks do not depend on upstream availabil
 ## `build-release.sh` — cross-platform release binaries
 
 - **Purpose.** Compile the CLI for six targets and write a checksum file.
-- **Invocation.** `VERSION=0.4.1 ./scripts/build-release.sh` (from the repo root; the script's own
-  default is `0.3.0`, and the release workflow always passes the tag's version, then asserts it
-  equals `npm/package.json`).
+- **Invocation.** `VERSION=0.6.0 ./scripts/build-release.sh` (from the repo root; `VERSION` is
+  required, and the release workflow passes the tag's version then asserts it equals
+  `npm/package.json`).
 - **Inputs.** `./cmd/litespm` source, the Go toolchain.
 - **Outputs.** `dist/litespm-windows-{amd64,arm64}.exe`, `dist/litespm-linux-{amd64,arm64}`,
   `dist/litespm-darwin-{amd64,arm64}`, `dist/SHA256SUMS.txt` (from `sha256sum` or `shasum -a 256`),
@@ -65,9 +65,8 @@ network responses, so producer safety checks do not depend on upstream availabil
 - **Truthfulness gaps.** `SHA256SUMS.txt` generated here is a hash-only record: the release's
   authenticity comes from the sibling Sigstore bundles the release workflow writes beside each
   artifact (`cosign sign-blob --bundle`, see [SECURITY.md](../SECURITY.md)); the npm installer
-  checks only the hash. The checksum step in this script is silently skipped if neither
-  `sha256sum` nor `shasum` exists (the release job's `cp` of `SHA256SUMS.txt` then fails the
-  build, so a published release always has one).
+  checks both the hash and signature. The script fails with an actionable error if neither
+  `sha256sum` nor `shasum` exists.
 
 ## `deploy-pages.sh` — Cloudflare Pages packaging + leak audit
 

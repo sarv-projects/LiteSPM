@@ -7,6 +7,8 @@ const { spawn, spawnSync } = require("child_process");
 
 const {
   getBinaryName,
+  getManagedBinaryPath,
+  installerResultError,
   resolveBinary,
 } = require("./bin/litespm.js");
 const {
@@ -105,6 +107,48 @@ check("binary name is platform-shaped", () => {
   const binName = getBinaryName();
   assert(typeof binName === "string" && binName.startsWith("litespm-"));
   assert(/-amd64|-arm64/.test(binName), `unexpected arch in ${binName}`);
+});
+
+check("npm command shim is executable", () => {
+  const mode = fs.statSync(path.join(__dirname, "bin", "litespm.js")).mode;
+  assert(mode & 0o111, "bin/litespm.js must carry an executable bit in git");
+});
+
+check("managed binary cache is scoped to this package version", () => {
+  const sandbox = tempDir("litespm-cache-version-");
+  const realHome = os.homedir;
+  try {
+    os.homedir = () => sandbox;
+    const legacyPath = path.join(sandbox, ".litespm", "bin", getBinaryName());
+    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    fs.writeFileSync(legacyPath, "old", { mode: 0o755 });
+    assert.strictEqual(resolveBinary(), null, "an unversioned cache must not be executed");
+
+    const managedPath = getManagedBinaryPath();
+    assert.strictEqual(
+      managedPath,
+      path.join(sandbox, ".litespm", "bin", `v${VERSION}`, getBinaryName())
+    );
+    fs.mkdirSync(path.dirname(managedPath), { recursive: true });
+    fs.writeFileSync(managedPath, "versioned", { mode: 0o755 });
+    assert.strictEqual(resolveBinary(), null, "a cache without an install stamp must not be executed");
+    fs.writeFileSync(`${managedPath}.version`, `${VERSION}\n`);
+    assert.strictEqual(
+      resolveBinary(),
+      managedPath,
+      "a version stamped cache should be selected"
+    );
+  } finally {
+    os.homedir = realHome;
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+check("wrapper reports installer failures instead of swallowing them", () => {
+  assert.match(installerResultError({ status: 7, signal: null }), /exit code 7/);
+  assert.match(installerResultError({ status: null, signal: "SIGTERM" }), /SIGTERM/);
+  assert.match(installerResultError({ status: null, error: new Error("spawn failed") }), /spawn failed/);
+  assert.strictEqual(installerResultError({ status: 0, signal: null }), null);
 });
 
 // ------------------------------------------------------------ checksum parsing
@@ -617,6 +661,8 @@ async function main() {
         "scripts/install-binary.js",
       ];
       assert.deepStrictEqual(shipped, expected, `unexpected tarball contents: ${shipped.join(", ")}`);
+      const shim = meta.files.find((f) => f.path === "bin/litespm.js");
+      assert(shim && (shim.mode & 0o111), "packed bin/litespm.js must be executable");
       // The publish workflow writes npm/.npmrc with an auth token; it must
       // never be able to reach a consumer.
       assert(!shipped.some((f) => f.includes(".npmrc")), ".npmrc would be published");
@@ -1108,7 +1154,7 @@ async function fullInstallCases(tmp, binName, fixtures) {
           /Verified Sigstore signature/.test(res.out),
           `the installer did not report signature verification:\n${res.out}`
         );
-        const installed = path.join(home, ".litespm", "bin", binName);
+        const installed = path.join(home, ".litespm", "bin", `v${VERSION}`, binName);
         assert(fs.existsSync(installed), "the genuine artifact was not installed");
         assert.strictEqual(
           computeFileSHA256(installed),
@@ -1145,10 +1191,10 @@ async function fullInstallCases(tmp, binName, fixtures) {
             /signature verification failed|digest mismatch/.test(res.out),
             `the refusal was not a signature failure:\n${res.out}`
           );
-          const installed = path.join(home, ".litespm", "bin", binName);
+          const installed = path.join(home, ".litespm", "bin", `v${VERSION}`, binName);
           assert(!fs.existsSync(installed), "the tampered binary was installed");
           // Nothing partial may survive either.
-          const binDir = path.join(home, ".litespm", "bin");
+          const binDir = path.join(home, ".litespm", "bin", `v${VERSION}`);
           const leftovers = fs.existsSync(binDir)
             ? fs.readdirSync(binDir).filter((f) => f.includes(".tmp."))
             : [];
@@ -1179,7 +1225,7 @@ async function fullInstallCases(tmp, binName, fixtures) {
             `the refusal did not name the missing bundle:\n${res.out}`
           );
           assert(
-            !fs.existsSync(path.join(home2, ".litespm", "bin", binName)),
+            !fs.existsSync(path.join(home2, ".litespm", "bin", `v${VERSION}`, binName)),
             "an unsigned release was installed"
           );
           console.log(`    refused (exit ${res.status}): ${refusalLine(res.out)}`);
@@ -1271,7 +1317,7 @@ async function fullInstallCases(tmp, binName, fixtures) {
             `the refusal did not explain the mirror rule:\n${out}`
           );
           assert(
-            !fs.existsSync(path.join(home, ".litespm", "bin", binName)),
+            !fs.existsSync(path.join(home, ".litespm", "bin", `v${VERSION}`, binName)),
             "an implicitly-trusted mirror was installed from"
           );
           console.log(`    refused (exit ${status}): ${refusalLine(out)}`);

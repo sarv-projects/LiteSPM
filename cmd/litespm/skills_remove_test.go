@@ -53,6 +53,8 @@ func TestParseSkillsRemoveArgs(t *testing.T) {
 		}},
 		{name: "unknown flag", args: []string{"pdf", "--nope"}, wantErr: true},
 		{name: "invalid scope", args: []string{"pdf", "--scope", "user"}, wantErr: true},
+		{name: "all refuses a named skill selector", args: []string{"--all", "pdf"}, wantErr: true},
+		{name: "all refuses a narrowed agent selector", args: []string{"--all", "--agent", "codex"}, wantErr: true},
 		{name: "missing scope value", args: []string{"pdf", "--scope"}, wantErr: true},
 	}
 

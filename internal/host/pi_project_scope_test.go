@@ -142,6 +142,10 @@ func TestPiExtensionGeneratedUsesRealExtensionAPI(t *testing.T) {
 		"handleInput(data: string): void",
 		// Its data path: the CLI, not a tool call a command handler cannot make.
 		"pi.exec",
+		// Pi MCP entries use command as a string; accept argv-shaped legacy
+		// configs too, but never take the first character of a string path.
+		`typeof command === "string"`,
+		`Array.isArray(command)`,
 		`"--json"`,
 		// Colour comes from the Theme the host passes in, never from an import.
 		"ctx.ui.theme",
