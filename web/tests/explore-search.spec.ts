@@ -49,7 +49,8 @@ test("a kind deep link pages results without downloading the full display catalo
   );
   await expect(page.locator("main h2").filter({ hasText: "MCP Servers" })).toBeVisible();
   await expect(page.locator("main a[data-kind]").first()).toBeVisible();
-  await expect(resultCount(page)).toContainText("48,418 matched");
+  await expect(resultCount(page)).toContainText("48,418 listings");
+  await expect(resultCount(page)).not.toContainText(/most relevant/i);
 
   const cardKinds = await page.locator("main a[data-kind]").evaluateAll((rows) =>
     rows.map((row) => row.getAttribute("data-kind"))

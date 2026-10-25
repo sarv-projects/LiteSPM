@@ -125,8 +125,81 @@ function kindLabel(kind) {
 }
 
 /** The screen form of a category name (`web/app/categories/categoryLabel.ts`). */
+const PUBLISHER_ID_PREFIXES = new Set([
+  "com", "org", "net", "io", "dev", "ai", "app", "me", "co", "jp", "de", "uk", "us",
+  "edu", "gov",
+]);
+const PUBLISHER_NAME_LABELS = {
+  "1password": "1Password",
+  anthropic: "Anthropic",
+  anthropics: "Anthropic",
+  aws: "AWS",
+  cloudflare: "Cloudflare",
+  figma: "Figma",
+  github: "GitHub",
+  gcp: "GCP",
+  mcp: "MCP",
+  neon: "Neon",
+  notion: "Notion",
+  nvidia: "NVIDIA",
+  openai: "OpenAI",
+  supabase: "Supabase",
+  upstash: "Upstash",
+};
+
+function publisherDisplayName(value) {
+  const raw = value?.trim();
+  if (!raw) return "";
+  const direct = PUBLISHER_NAME_LABELS[raw.toLowerCase()];
+  if (direct) return direct;
+
+  let readable = raw;
+  if (raw.toLowerCase().startsWith("io.github.")) {
+    readable = raw.slice("io.github.".length).split("/")[0] || raw;
+  } else {
+    const parts = raw.split(/[./]+/).filter(Boolean);
+    if (parts.length > 1 && PUBLISHER_ID_PREFIXES.has(parts[0].toLowerCase())) {
+      readable = parts[1] || raw;
+    } else if (/[./]/.test(raw)) {
+      return raw;
+    }
+  }
+
+  return readable
+    .replace(/[-_.]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => PUBLISHER_NAME_LABELS[word.toLowerCase()] || word[0].toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function displayListingName(item) {
+  const name = item.name.trim();
+  const labels = {
+    api: "API", cli: "CLI", css: "CSS", docx: "Word documents", github: "GitHub",
+    html: "HTML", mcp: "MCP", openai: "OpenAI", pdf: "PDF", pptx: "Presentations",
+    sql: "SQL", xlsx: "Spreadsheets",
+  };
+  if (labels[name.toLowerCase()]) return labels[name.toLowerCase()];
+
+  const parts = name.split(/[/.]+/).filter(Boolean);
+  const leaf = parts[parts.length - 1] || name;
+  const machineLike = !/\s/.test(name) && (name.includes("/") || /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(name));
+  const publisher = publisherDisplayName(item.publisher?.name);
+
+  if (item.kind === "mcp" && machineLike && /(?:^|-)mcp(?:-server)?$/i.test(leaf)) {
+    return publisher ? publisher + " MCP Server" : "MCP Server";
+  }
+  if (machineLike && /^io\.github\./i.test(name)) return publisherDisplayName(name);
+  if (machineLike && /^[\w.@+-]+\/[\w.@+-]+$/.test(name)) {
+    return labels[leaf.toLowerCase()] || leaf.replace(/[-_.]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+  return name;
+}
+
 function categoryLabel(name) {
-  return name === "Official Skills by" ? "Official publisher skills" : name;
+  return name === "Official Skills by" ? "Skills by publisher" : name;
 }
 
 /** Cut at a word boundary around 155 characters (`clampMeta`). */
@@ -142,7 +215,7 @@ function metaDescription(item) {
   const summary = item.summary?.trim();
   if (summary) return clampMeta(summary);
   return clampMeta(
-    `${item.name} — one entry from the LiteSPM catalog: what it is, who publishes it, and how to add it.`
+    `${displayListingName(item)} — one entry from the LiteSPM catalog: what it is, who publishes it, and how to add it.`
   );
 }
 
@@ -151,13 +224,13 @@ function entryJsonLd(item, url, categoryText) {
   return {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: item.name,
+    name: displayListingName(item),
     ...(item.summary?.trim() ? { description: item.summary.trim() } : {}),
     url,
     applicationCategory: categoryText,
     applicationSubCategory: kindLabel(item.kind),
     ...(item.version ? { softwareVersion: item.version } : {}),
-    ...(item.publisher?.provenance !== "source-owner" ? { author: { "@type": "Organization", name: item.publisher?.name || "Unknown" } } : {}),
+    ...(item.publisher?.name ? { author: { "@type": "Organization", name: publisherDisplayName(item.publisher.name) } } : {}),
     ...(item.publisher?.url ? { sameAs: item.publisher.url } : {}),
   };
 }
@@ -181,7 +254,7 @@ function entryBreadcrumbJsonLd(item, siteUrl, categoryText) {
         name: categoryText,
         item: `${siteUrl}/explore/?category=${encodeURIComponent(item.category)}`,
       },
-      { "@type": "ListItem", position: 4, name: item.name },
+      { "@type": "ListItem", position: 4, name: displayListingName(item) },
     ],
   };
 }
@@ -211,10 +284,10 @@ function jsonLdScript(doc) {
  * from `web/app/layout.tsx` so Tailwind has already compiled them.
  */
 function noScriptBlock(item, key, categoryText) {
-  const publisher = item.publisher?.name ? ` · ${esc(item.publisher.name)}` : "";
+  const publisher = item.publisher?.name ? ` · ${esc(publisherDisplayName(item.publisher.name))}` : "";
   return (
     `<div class="border-b border-rule bg-sunken px-4 py-2.5 text-center text-[12.5px] leading-relaxed text-ink-2">` +
-    `<p><strong>${esc(item.name)}</strong>${publisher}</p>` +
+    `<p><strong>${esc(displayListingName(item))}</strong>${publisher}</p>` +
     (item.summary ? `<p>${esc(item.summary)}</p>` : "") +
     `<p>${esc(kindLabel(item.kind))} · ${esc(categoryText)} · <a class="link" href="/package/${encodeURIComponent(key)}/">Open this entry</a></p>` +
     `</div>`
@@ -278,7 +351,7 @@ function rewrite(response, { item, key, origin }) {
   item = normalizeListing(item);
   const canonical = `${origin}/package/${encodeURIComponent(key)}/`;
   const description = metaDescription(item);
-  const title = `${item.name} · LiteSPM`;
+  const title = `${displayListingName(item)} · LiteSPM`;
   const categoryText = categoryLabel(item.category);
   const structured = [
     entryJsonLd(item, canonical, categoryText),
@@ -286,8 +359,8 @@ function rewrite(response, { item, key, origin }) {
   ];
 
   return new HTMLRewriter()
-    .on("[data-entry-name]", { element: el => el.setInnerContent(item.name) })
-    .on("[data-entry-summary]", { element: el => el.setInnerContent((item.summary || "") + " Enable JavaScript to choose an agent and view installation instructions.") })
+    .on("[data-entry-name]", { element: el => el.setInnerContent(displayListingName(item)) })
+    .on("[data-entry-summary]", { element: el => el.setInnerContent((item.summary || "") + " Choose an agent to see its installation steps.") })
     .on("head", { element: el => el.append("<style>[data-package-index] [data-index-browse]{display:none}</style>", { html: true }) })
     .on("title", { element: (el) => el.setInnerContent(title) })
     .on('meta[name="description"]', { element: (el) => el.setAttribute("content", description) })

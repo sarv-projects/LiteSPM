@@ -16,6 +16,7 @@
 
 import { expect, test } from "./support/site";
 import { flagshipEntry, htmlContains, nonPreRenderedEntry, preRenderedEntry } from "./support/catalog";
+import { displayListingName } from "../lib/catalog";
 
 const preRendered = preRenderedEntry();
 const nonPreRendered = nonPreRenderedEntry();
@@ -29,6 +30,7 @@ const cases = [
 ];
 
 for (const { label, entry, url } of cases) {
+  const displayName = displayListingName(entry.row);
   test(`${label}: served HTML names the entry and carries its title`, async ({ request }) => {
     const response = await request.get(url);
     expect(response.status()).toBe(200);
@@ -37,8 +39,8 @@ for (const { label, entry, url } of cases) {
 
     // The generic shell's own title must not appear on an entry page.
     expect(html).not.toMatch(/<title>Find a package/);
-    expect(html).toContain(`<title>${entry.row.name} · LiteSPM</title>`);
-    expect(htmlContains(html, entry.row.name)).toBe(true);
+    expect(html).toContain(`<title>${displayName} · LiteSPM</title>`);
+    expect(htmlContains(html, displayName)).toBe(true);
 
     // The identity is structured, not only visible: one SoftwareApplication
     // block naming the entry (the client view removes the Worker's injected
@@ -57,7 +59,7 @@ for (const { label, entry, url } of cases) {
       .filter(Boolean) as Array<Record<string, unknown>>;
     const software = blocks.filter((block) => block["@type"] === "SoftwareApplication");
     expect(software.length).toBeGreaterThanOrEqual(1);
-    expect(software.some((block) => block.name === entry.row.name)).toBe(true);
+    expect(software.some((block) => block.name === displayName)).toBe(true);
   });
 }
 

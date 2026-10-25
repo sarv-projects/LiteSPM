@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Listing } from "../../lib/telemetry";
-import { kindLabel, listingHref, rowSignal } from "../../lib/catalog";
+import { displayListingName, kindLabel, listingHref, publisherDisplayName, rowSignal } from "../../lib/catalog";
 import type { AgentChoice } from "../../lib/landing";
 import { rowWorksWithAgent } from "../../lib/landing";
 import { PublisherTile } from "./PublisherMark";
@@ -27,7 +27,7 @@ import { DiscoveryCard } from "../ui/DiscoveryCard";
  * own line; they are not *removed* from the card to be implied by it. The
  * accessible name below carries every value too.
  *
- * The signal is `rowSignal` — "Official" for the publisher's own skills, else
+ * The signal is `rowSignal` — "Publisher skill" for the source-directory collection, else
  * the same installability predicate `litespm install` applies ("Remote
  * endpoint" / "Installs from source" when the row installs today, "Discovery
  * only" / "Not installable" when it cannot). The catalog publishes no star,
@@ -52,7 +52,7 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
   const worksWith = rowWorksWithAgent(item, agent ?? null);
   const detail = [
     kindLabel(item.kind),
-    item.publisher?.name ? `by ${item.publisher.name}` : "community listing",
+    item.publisher?.name ? `by ${publisherDisplayName(item.publisher.name)}` : "community listing",
     signal.note,
     item.summary,
   ]
@@ -60,7 +60,7 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
     .map((part) => part.replace(/\.+$/, ""))
     .join(". ");
 
-  const meta = [item.publisher?.name || "community listing", categoryLabel(item.category)].filter(
+  const meta = [item.publisher?.name ? publisherDisplayName(item.publisher.name) : "community listing", categoryLabel(item.category)].filter(
     (part): part is string => Boolean(part)
   );
 
@@ -80,11 +80,11 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
             <h3 className="truncate text-[15px] font-semibold leading-snug tracking-tight text-ink">
               <Link
                 href={listingHref(item)}
-                aria-label={`${item.name}. ${detail}`}
+                aria-label={`${displayListingName(item)}. ${detail}`}
                 className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                 prefetch={false}
               >
-                {item.name}
+                {displayListingName(item)}
               </Link>
             </h3>
             {/* Publisher · category, then the row's own specification fields —
@@ -109,7 +109,7 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
           <span className={`meta-kind meta-kind-${item.kind}`}>{kindLabel(item.kind)}</span>
           <span
             className={`inline-flex shrink-0 items-center rounded-chip border px-1.5 py-0.5 text-[10.5px] font-medium ${
-              signal.tier === "official"
+              signal.tier === "publisher"
                 ? "border-accent/40 bg-accent-wash text-accent-text"
                 : signal.tier === "installable"
                   ? "border-rule-2 bg-surface text-ink-2"

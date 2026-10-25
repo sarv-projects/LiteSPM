@@ -30,11 +30,9 @@ import { availabilityOf } from "./availability";
 export const KIND_ORDER: Listing["kind"][] = ["mcp", "skill", "plugin"];
 
 /**
- * The catalog's own category for skills the publisher itself ships.
- *
- * The trailing preposition is the upstream section name, and it is the exact
- * value Explore filters on — it must stay untouched in every URL and
- * comparison. It is only wrong on screen, where `categoryLabel` normalises it.
+ * The catalog category used for the source directory's publisher-skills
+ * collection. The exact upstream value remains in filters and URLs; display
+ * copy is normalized by `categoryLabel`.
  *
  * Defined here rather than in `landing.ts` because it is a dataset value: the
  * curated sort below reads it, and `landing.ts` re-exports it so the label
@@ -58,23 +56,64 @@ export function kindLabel(kind: string): string {
   }
 }
 
+const PUBLISHER_ID_PREFIXES = new Set([
+  "com", "org", "net", "io", "dev", "ai", "app", "me", "co", "jp", "de", "uk", "us",
+  "edu", "gov",
+]);
+
+const PUBLISHER_NAME_LABELS: Record<string, string> = {
+  "1password": "1Password",
+  anthropic: "Anthropic",
+  anthropics: "Anthropic",
+  aws: "AWS",
+  cloudflare: "Cloudflare",
+  figma: "Figma",
+  github: "GitHub",
+  gcp: "GCP",
+  mcp: "MCP",
+  neon: "Neon",
+  notion: "Notion",
+  nvidia: "NVIDIA",
+  openai: "OpenAI",
+  supabase: "Supabase",
+  upstash: "Upstash",
+};
+
+/** Turn registry-shaped publisher names into a label people can scan. */
+export function publisherDisplayName(value: string | null | undefined): string {
+  const raw = value?.trim();
+  if (!raw) return "";
+
+  const direct = PUBLISHER_NAME_LABELS[raw.toLowerCase()];
+  if (direct) return direct;
+
+  let readable = raw;
+  const lower = raw.toLowerCase();
+  if (lower.startsWith("io.github.")) {
+    readable = raw.slice("io.github.".length).split("/")[0] || raw;
+  } else {
+    const parts = raw.split(/[./]+/).filter(Boolean);
+    if (parts.length > 1 && PUBLISHER_ID_PREFIXES.has(parts[0].toLowerCase())) {
+      readable = parts[1] || raw;
+    } else if (/[./]/.test(raw)) {
+      return raw;
+    }
+  }
+
+  return readable
+    .replace(/[-_.]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => PUBLISHER_NAME_LABELS[word.toLowerCase()] ?? `${word[0].toUpperCase()}${word.slice(1)}`)
+    .join(" ");
+}
+
 /** Replace machine-shaped registry ids with a readable label when possible. */
 export function displayListingName(
   item: Pick<Listing, "name" | "kind" | "publisher">,
 ): string {
   const name = item.name.trim();
-  if (!/^[\w.@+-]+\/[\w.@+-]+$/u.test(name)) return name;
-  const leaf = name.split("/").at(-1) ?? name;
-  const key = leaf.toLowerCase();
-  if (key === "mcp" && item.kind === "mcp") {
-    const owner = item.publisher?.name ?? name.split("/")[0] ?? "";
-    const readableOwner = owner
-      .split(/[._/-]+/)
-      .filter((part) => part && !/^(com|org|io|dev|net|ai|app|github|mcp)$/i.test(part))
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ");
-    return readableOwner ? `${readableOwner} MCP Server` : "MCP Server";
-  }
   const labels: Record<string, string> = {
     api: "API",
     cli: "CLI",
@@ -89,7 +128,27 @@ export function displayListingName(
     sql: "SQL",
     xlsx: "Spreadsheets",
   };
-  return labels[key] ?? leaf.replace(/[-_.]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const directLabel = labels[name.toLowerCase()];
+  if (directLabel) return directLabel;
+
+  const parts = name.split(/[/.]+/).filter(Boolean);
+  const leaf = parts.at(-1) ?? name;
+  const machineLike = !/\s/u.test(name) && (name.includes("/") || /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/iu.test(name));
+  const publisher = publisherDisplayName(item.publisher?.name);
+
+  if (item.kind === "mcp" && machineLike && /(?:^|-)mcp(?:-server)?$/iu.test(leaf)) {
+    return publisher ? publisher + " MCP Server" : "MCP Server";
+  }
+
+  if (machineLike && /^io\.github\./iu.test(name)) {
+    return publisherDisplayName(name);
+  }
+
+  if (machineLike && /^[\w.@+-]+\/[\w.@+-]+$/u.test(name)) {
+    return labels[leaf.toLowerCase()] ?? leaf.replace(/[-_.]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  return name;
 }
 
 /**
@@ -952,7 +1011,7 @@ export function publisherMark(item: Listing): PublisherMark | null {
  * Row signal — the strongest true claim a row can make
  * ------------------------------------------------------------------ */
 
-export type RowSignalTier = "official" | "installable" | "discovery";
+export type RowSignalTier = "publisher" | "installable" | "discovery";
 
 export interface RowSignal {
   tier: RowSignalTier;
@@ -965,15 +1024,12 @@ export interface RowSignal {
 /**
  * The one claim a row leads with, strongest first:
  *
- *   1. **Official** — the row's own category is the upstream directory's
- *      “Official Skills by …” section, carried verbatim. Nothing in the data
- *      outranks a directory's own statement that a vendor published the skill,
- *      and the chip's note names it as that directory's classification rather
- *      than LiteSPM's finding. 285 rows.
+ *   1. **Publisher skill collection** — the source directory groups the row in
+ *      its publisher-skills collection. This is a directory label, not a
+ *      verification claim.
  *   2. **Can be installed now** — the same predicate `litespm install` runs
  *      (`lib/availability`). The reader's actual question.
- *   3. **Discovery only** — listed but not installable. Stated so a click is
- *      not a surprise, never dressed up.
+ *   3. **Setup details needed** — listed but not ready for LiteSPM to install.
  *
  * The catalog publishes no star, download or install count, so no tier here is
  * a popularity figure — each is a field the reader can check on the row.
@@ -981,9 +1037,9 @@ export interface RowSignal {
 export function rowSignal(item: Listing): RowSignal {
   if (item.category === OFFICIAL_SKILLS_CATEGORY) {
     return {
-      tier: "official",
-      label: "Official",
-      note: "Published in an official source directory.",
+      tier: "publisher",
+      label: "Publisher skill",
+      note: "Grouped in the source directory’s publisher-skills collection.",
     };
   }
   const avail = availabilityOf(item);

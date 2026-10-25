@@ -2381,7 +2381,7 @@
 .agent-atlas-callout > span { font-size: 21px; }
 .agent-atlas-callout div { display: grid; gap: 3px; }
 .agent-atlas-callout strong { font-size: 12px; }
-.agent-atlas-callout small { color: #d4dcec; font-size: 12px; }
+.agent-atlas-callout small { color: #fff; font-size: 12px; }
 .agent-atlas-rail-section { max-width: 1360px; padding-top: 52px; padding-bottom: 52px; }
 .agent-atlas-rail-intro { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 .agent-atlas-controls { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-top: 24px; }
@@ -2564,7 +2564,7 @@
 .home-hero-note > span:first-child { font-size: 20px; }
 .home-hero-note > span:last-child { display: grid; gap: 3px; }
 .home-hero-note strong { font-size: 12px; }
-.home-hero-note small { color: #d4dcec; font-size: 12px; }
+.home-hero-note small { color: #fff; font-size: 12px; }
 .home-agent-band { display: flex; align-items: center; gap: clamp(18px, 4vw, 44px); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding-top: 17px; padding-bottom: 17px; }
 .home-agent-band-label { flex: 0 0 auto; color: var(--ink-2); font-size: 12px; line-height: 1.45; }
 .home-agent-band-list { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 12px clamp(16px, 3vw, 34px); }

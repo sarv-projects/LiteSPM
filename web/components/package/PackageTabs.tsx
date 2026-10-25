@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
-import { kindLabel } from "../../lib/catalog";
+import { kindLabel, publisherDisplayName, sourceLabel } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { bridgeSnippet, hostPath, isRemoteTransport } from "../../lib/hosts";
 import { hostsNamedBy, resolveHostId } from "../../lib/hostIdentity";
@@ -23,7 +23,7 @@ const TABS = [
   { id: "overview", label: "Overview" },
   { id: "capabilities", label: "Capabilities" },
   { id: "compatibility", label: "Compatibility" },
-  { id: "security", label: "Security" },
+  { id: "security", label: "Trust & security" },
   { id: "source", label: "Source" },
 ] as const;
 
@@ -112,9 +112,9 @@ function externalLink(href: string, text: string) {
 
 /** Where this listing came from, for the panels that print it as a line. */
 function sourceSentence(item: Listing): string {
-  return item.publisher?.provenance === "vendor-manifest"
-    ? "Read from the publisher's own manifest."
-    : "Listed in a community directory.";
+  return item.publisher?.verified
+    ? "Publisher manifest"
+    : "Directory listing";
 }
 
 /* ------------------------------ panels ------------------------------ */
@@ -135,13 +135,14 @@ function OverviewPanel({ item }: { item: Listing }) {
       {(item.publisher?.name || item.publisher?.url) && (
         <SpecRow label="Publisher">
           {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url)
-            ? externalLink(item.publisher.url, item.publisher.name || "Publisher website")
-            : item.publisher?.name}
+            ? externalLink(item.publisher.url, publisherDisplayName(item.publisher.name) || "Publisher website")
+            : publisherDisplayName(item.publisher?.name) || "Publisher not listed"}
         </SpecRow>
       )}
-      <SpecRow label="Source">
-        {item.publisher?.verified ? <VerifiedMark /> : "Community listing"}
+      <SpecRow label="Publisher listing">
+        {item.publisher?.verified ? <VerifiedMark /> : sourceSentence(item)}
       </SpecRow>
+      <SpecRow label="Catalog source">{sourceLabel(item.source) || "Source not listed"}</SpecRow>
       {item.version && (
         <SpecRow label="Version">
           <span className="t-mono text-[12px]!">{item.version}</span>
@@ -369,7 +370,7 @@ function SecurityPanel({ item }: { item: Listing }) {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       <div className="border-t border-rule pt-3">
-        <h3 className="text-[14px] font-semibold tracking-tight text-ink">What LiteSPM has read</h3>
+        <h3 className="text-[14px] font-semibold tracking-tight text-ink">Install setup</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="chip pointer-events-none">{installability ? installability.label : "Setup details needed"}</span>
         </div>
@@ -379,14 +380,15 @@ function SecurityPanel({ item }: { item: Listing }) {
       </div>
 
       <div className="border-t border-rule pt-3">
-        <h3 className="text-[14px] font-semibold tracking-tight text-ink">Who published it</h3>
+        <h3 className="text-[14px] font-semibold tracking-tight text-ink">Publisher and source</h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          {item.publisher?.verified ? <VerifiedMark /> : <span className="chip pointer-events-none">Community source</span>}
+          {item.publisher?.verified ? <VerifiedMark /> : <span className="chip pointer-events-none">{sourceLabel(item.source) || "Catalog listing"}</span>}
+          {item.publisher?.name && <span className="text-[13px] font-medium text-ink">{publisherDisplayName(item.publisher.name)}</span>}
         </div>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
           {item.publisher?.verified
-            ? "This entry comes from the publisher's own package listing."
-            : "This entry comes from a community directory."}
+            ? "Listing details come from the publisher's own package manifest."
+            : "This entry is listed through " + sourceLabel(item.source) + "."}
         </p>
       </div>
 
@@ -415,10 +417,12 @@ function SourcePanel({ item }: { item: Listing }) {
   return (
     <div className="max-w-xl">
       <dl className="spec-list">
-        <SpecRow label="Where it was read">{sourceSentence(item)}</SpecRow>
+        <SpecRow label="Catalog source">{sourceLabel(item.source) || "Source not listed"}</SpecRow>
+        <SpecRow label="Publisher listing">{sourceSentence(item)}</SpecRow>
+        {item.publisher?.name && <SpecRow label="Publisher ID"><span className="t-mono text-[12px]!">{item.publisher.name}</span></SpecRow>}
         {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) && (
           <SpecRow label="Publisher website">
-            {externalLink(item.publisher.url, item.publisher.name || item.publisher.url)}
+            {externalLink(item.publisher.url, publisherDisplayName(item.publisher.name) || item.publisher.url)}
           </SpecRow>
         )}
         {item.skillSource && (

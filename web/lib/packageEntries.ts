@@ -44,7 +44,7 @@
 
 import type { Listing } from "./telemetry";
 import { availabilityOf } from "./availability";
-import { displayListingName, kindLabel, sortListings } from "./catalog";
+import { displayListingName, kindLabel, publisherDisplayName, sortListings } from "./catalog";
 
 /**
  * How many entries get a real page. Chosen from the measured budgets, not a
@@ -168,7 +168,7 @@ export function entryJsonLd(
     applicationCategory: categoryText,
     applicationSubCategory: kindLabel(item.kind),
     ...(item.version ? { softwareVersion: item.version } : {}),
-    ...(item.publisher?.provenance !== "source-owner" ? { author: { "@type": "Organization", name: item.publisher?.name || "Unknown" } } : {}),
+    ...(item.publisher?.name ? { author: { "@type": "Organization", name: publisherDisplayName(item.publisher.name) } } : {}),
     ...(item.publisher?.url ? { sameAs: item.publisher.url } : {}),
   };
 }
@@ -196,7 +196,7 @@ export function entryBreadcrumbJsonLd(
         name: categoryText,
         item: `${siteUrl}/explore/?category=${encodeURIComponent(item.category)}`,
       },
-      { "@type": "ListItem", position: 4, name: item.name },
+      { "@type": "ListItem", position: 4, name: displayListingName(item) },
     ],
   };
 }

@@ -7,7 +7,7 @@ import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { Listing } from "../../lib/telemetry";
 import { formatCount } from "../../lib/format";
-import { displayListingName, kindLabel, listingHref } from "../../lib/catalog";
+import { displayListingName, kindLabel, listingHref, publisherDisplayName } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { feasibilityFor } from "../../lib/installFeasibility";
 import { hostsNamedBy } from "../../lib/hostIdentity";
@@ -160,9 +160,9 @@ function PackageIndexShell({
                     style={{ backgroundColor: `var(--${item.kind})` }}
                   />
                   <span className="min-w-0">
-                    <span className="t-cond block truncate text-[14px] font-medium text-ink">{item.name}</span>
+                    <span className="t-cond block truncate text-[14px] font-medium text-ink">{displayListingName(item)}</span>
                     <span className="row-meta">
-                      <span>{item.publisher?.name || "unspecified"}</span>
+                      <span>{item.publisher?.name ? publisherDisplayName(item.publisher.name) : "Publisher not listed"}</span>
                       <span className="t-mono">{item.kind}</span>
                       <span className="truncate">{categoryLabel(item.category)}</span>
                     </span>
@@ -744,7 +744,7 @@ function PackageContent({
             </h1>
 
             <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-ink-2">
-              {item.publisher?.provenance === "source-owner" && <span>Source owner:</span>}
+              {item.publisher?.provenance === "source-owner" && <span>Publisher:</span>}
               {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
                 <a
                   href={item.publisher.url}
@@ -752,13 +752,13 @@ function PackageContent({
                   rel="noopener noreferrer"
                   className="link"
                 >
-                  {item.publisher.name}
+                  {publisherDisplayName(item.publisher.name)}
                 </a>
               ) : (
-                <span>{item.publisher?.name || "unspecified publisher"}</span>
+                <span>{item.publisher?.name ? publisherDisplayName(item.publisher.name) : "Publisher not listed"}</span>
               )}
               {item.publisher?.verified && <VerifiedMark />}
-              {item.distributor && <span className="text-ink-3">Listed via {item.distributor.name}</span>}
+              
               {/* The same availability the result cards carry. The detail page
                   stated it indirectly (a section note reading "installability
                   status"), which meant a reader arriving from a search result

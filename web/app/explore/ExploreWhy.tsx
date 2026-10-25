@@ -77,7 +77,7 @@ export function ExploreWhy({
       <p className="mt-2 max-w-prose text-[12.5px] leading-relaxed text-ink-2">
         Results rank by where the query was found — the name first, then the publisher, web
         address and description. Ties go to entries LiteSPM can install, then to publisher
-        manifests and official skills.
+        manifests and publisher skills.
         {host && (
           <>
             {" "}
@@ -136,7 +136,7 @@ export function ExploreWhy({
               {[
                 availabilityOf(item).installable ? "installable" : null,
                 item.publisher?.verified ? "publisher manifest" : null,
-                item.category === OFFICIAL_SKILLS_CATEGORY ? "official skills" : null,
+                item.category === OFFICIAL_SKILLS_CATEGORY ? "publisher skills" : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}

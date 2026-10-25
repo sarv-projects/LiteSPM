@@ -1,5 +1,6 @@
 import React from "react";
 import type { Listing } from "../../lib/telemetry";
+import { publisherDisplayName } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { feasibilityFor } from "../../lib/installFeasibility";
 import { hostsNamedBy } from "../../lib/hostIdentity";
@@ -95,7 +96,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
     </a>
   );
 
-  const publisher = item.publisher?.name?.trim();
+  const publisher = publisherDisplayName(item.publisher?.name);
 
   return (
     <section id="pkg-plain" aria-labelledby="pkg-plain-title" className="mt-8">
@@ -116,7 +117,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
           {item.summary?.trim() || KIND_PLAIN[item.kind]}
         </Fact>
 
-        <Fact term={item.publisher?.provenance === "source-owner" ? "Source owner" : "Who publishes it"} detail={detailLink("source", "details: Source →")}>
+        <Fact term="Publisher" detail={detailLink("source", "details: Source →")}>
           {publisher ? (
             <>
               {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? (
@@ -131,10 +132,10 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
               ) : (
                 publisher
               )}
-              {item.publisher?.provenance === "source-owner" ? " — source repository." : item.publisher?.verified ? " — publisher listing." : " — community listing."}
+              
             </>
           ) : (
-            <>Community listing</>
+            <>Publisher not listed</>
           )}
         </Fact>
 

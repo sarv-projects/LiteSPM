@@ -101,19 +101,9 @@ export function Header({ onNavigate }: HeaderProps) {
       if (event.target instanceof Node && menu.contains(event.target)) return;
       menu.open = false;
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      const menu = menuRef.current;
-      if (!menu) return;
-      menu.open = false;
-      const summary = menu.querySelector("summary");
-      if (summary instanceof HTMLElement) summary.focus();
-    };
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
     };
   }, [menuOpen]);
 
@@ -214,6 +204,13 @@ export function Header({ onNavigate }: HeaderProps) {
           onToggle={(event) => {
             if (event.currentTarget.open) setMenuOpen(true);
             else setMenuOpen(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || !event.currentTarget.open) return;
+            event.preventDefault();
+            event.currentTarget.open = false;
+            setMenuOpen(false);
+            event.currentTarget.querySelector("summary")?.focus();
           }}
         >
           <summary className="flex h-11 cursor-pointer list-none items-center justify-between px-1 text-[13px] font-medium text-ink-2 hover:text-ink focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink [&::-webkit-details-marker]:hidden">

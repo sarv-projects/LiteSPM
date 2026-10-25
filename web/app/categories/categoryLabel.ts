@@ -13,5 +13,5 @@ import { OFFICIAL_SKILLS_CATEGORY } from "../../lib/landing";
  * raw value.
  */
 export function categoryLabel(name: string): string {
-  return name === OFFICIAL_SKILLS_CATEGORY ? "Official publisher skills" : name;
+  return name === OFFICIAL_SKILLS_CATEGORY ? "Skills by publisher" : name;
 }

@@ -181,17 +181,7 @@ export function ExtensionGrid({
               ? "Could not load results"
               : settled === false
                 ? "searching…"
-                : reported === 1
-                ? "1 entry"
-                : // A count that dwarfs the list is not a result count, it is a
-                  // measure of how many rows mention the word. "github" appears
-                  // in the web address of most of the catalog, so the bare
-                  // number reads as a broken filter; saying what the number
-                  // means keeps the ranking (which is good — the official
-                  // GitHub server is first) in front of the reader.
-                  reported > 200
-                  ? `${formatCount(reported)} matched — showing the most relevant`
-                  : `${formatCount(reported)} entries`}
+                : `${formatCount(reported)} ${reported === 1 ? "listing" : "listings"}`}
           </span>
         </div>
         {toolbar}

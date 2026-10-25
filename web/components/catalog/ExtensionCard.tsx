@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Listing } from "../../lib/telemetry";
-import { displayListingName, kindLabel, listingHref, rowProvenance, rowSignal } from "../../lib/catalog";
+import { displayListingName, kindLabel, listingHref, publisherDisplayName, rowProvenance, rowSignal } from "../../lib/catalog";
 import { PublisherTile } from "./PublisherMark";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 
@@ -32,7 +32,7 @@ const KIND_TAG: Record<Listing["kind"], string> = {
  *            whether it fills them or not, so every row in the list is the
  *            same height and the meta lines line up down the page;
  *   meta     publisher · kind chip · category · transport/runtime;
- *   signal   the strongest true claim the row makes (`rowSignal`: Official /
+ *   signal   the strongest true claim the row makes (`rowSignal`: Publisher skill /
  *            can be installed now / discovery only), then its provenance
  *            (`rowProvenance`: the publisher's manifest, or the directory the
  *            row was ingested from).
@@ -55,7 +55,7 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
   const provenance = rowProvenance(item);
   const detail = [
     kindLabel(item.kind),
-    item.publisher?.name ? `by ${item.publisher.name}` : "publisher unspecified",
+    item.publisher?.name ? `by ${publisherDisplayName(item.publisher.name)}` : "publisher not listed",
     signal.note,
     item.summary,
   ]
@@ -98,7 +98,7 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
         <Link
           href={listingHref(item)}
           data-kind={item.kind}
-          aria-label={`${item.name}. ${detail}`}
+          aria-label={`${displayListingName(item)}. ${detail}`}
           className="block truncate text-[15px] font-semibold leading-snug tracking-tight text-ink underline-offset-2 after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink group-hover:underline"
           prefetch={false}
         >
@@ -111,7 +111,7 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
         )}
         <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-3">
           <span className="max-w-[24ch] truncate font-medium text-ink-2">
-            {item.publisher?.name || "publisher unspecified"}
+            {item.publisher?.name ? publisherDisplayName(item.publisher.name) : "publisher not listed"}
           </span>
           <span className={`meta-kind meta-kind-${item.kind}`}>{KIND_TAG[item.kind]}</span>
           <span className="truncate">{categoryLabel(item.category)}</span>
@@ -133,7 +133,7 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
       <span className="flex w-full shrink-0 flex-wrap items-center gap-x-2 gap-y-1 lg:ml-auto lg:w-[240px] lg:flex-col lg:items-end lg:gap-y-1.5 lg:border-l lg:border-rule lg:pl-4 lg:text-right">
         <span
           className={`inline-flex shrink-0 items-center rounded-chip border px-1.5 py-0.5 text-[11.5px] font-medium ${
-            signal.tier === "official"
+            signal.tier === "publisher"
               ? "border-accent/40 bg-accent-wash text-accent-text"
               : signal.tier === "installable"
                 ? "border-rule-2 bg-surface text-ink-2"

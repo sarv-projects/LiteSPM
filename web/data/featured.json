@@ -12,8 +12,8 @@
     {
       "id": "skills",
       "title": "Featured agent skills",
-      "blurb": "Discover skills for documents, spreadsheets, presentations, web design, and application testing. Source labels reflect the upstream catalog.",
-      "viewAllLabel": "Browse official skills",
+      "blurb": "Start with practical skills for documents, presentations, design, and testing.",
+      "viewAllLabel": "Browse agent skills",
       "viewAllHref": "/explore/?category=Official%20Skills%20by&installable=1"
     }
   ],

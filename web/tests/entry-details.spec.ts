@@ -30,6 +30,14 @@ import { flagshipEntry, preRenderedEntry } from "./support/catalog";
 const preRendered = preRenderedEntry();
 const flagship = flagshipEntry();
 
+test("the package page opens the setup checklist beside the install command", async ({ page }) => {
+  await gotoSettled(page, flagship.href);
+  const checklist = page.locator("details").filter({ hasText: "Before your first install" });
+  await expect(checklist).toHaveAttribute("open", "");
+  await expect(checklist.getByText("litespm setup", { exact: false })).toBeVisible();
+  await expect(checklist.getByText("litespm catalog sync", { exact: false })).toBeVisible();
+});
+
 test("the entry page Source tab focuses on publisher links", async ({ page }) => {
   await gotoSettled(page, flagship.href);
   await page.getByRole("tab", { name: "Source" }).click();

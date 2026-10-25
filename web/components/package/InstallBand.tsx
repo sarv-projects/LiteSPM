@@ -121,7 +121,7 @@ export function InstallBand({
           then looks like a separate product. The published CLI still needs
           these two steps; the panel says so where the reader is about to act,
           not in a footnote after the copy button. */}
-      <details className="mt-3 rounded-lg border border-rule px-3 py-2.5">
+      <details open className="mt-3 rounded-lg border border-rule px-3 py-2.5">
         <summary className="cursor-pointer text-[12.5px] font-medium text-ink">
           Before your first install
         </summary>

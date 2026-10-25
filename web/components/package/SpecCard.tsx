@@ -1,6 +1,6 @@
 import React from "react";
 import type { Listing } from "../../lib/telemetry";
-import { kindLabel, sourceLabel } from "../../lib/catalog";
+import { kindLabel, publisherDisplayName, sourceLabel } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { VerifiedMark } from "../catalog/PublisherMark";
 import { categoryLabel } from "../../app/categories/categoryLabel";
@@ -49,14 +49,14 @@ export function SpecCard({ item }: { item: Listing }) {
         <Row label="Kind">{kindLabel(item.kind)}</Row>
         <Row label="Category">{categoryLabel(item.category)}</Row>
         {item.publisher?.name && (
-          <Row label={item.publisher?.provenance === "source-owner" ? "Source owner" : "Publisher"}>
+          <Row label="Publisher">
             <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               {publisherUrl ? (
                 <a href={publisherUrl} target="_blank" rel="noopener noreferrer" className="link">
-                  {item.publisher.name}
+                  {publisherDisplayName(item.publisher.name)}
                 </a>
               ) : (
-                <span>{item.publisher.name}</span>
+                <span>{publisherDisplayName(item.publisher.name)}</span>
               )}
               {item.publisher.verified && <VerifiedMark />}
             </span>
@@ -84,7 +84,7 @@ export function SpecCard({ item }: { item: Listing }) {
             </a>
           </Row>
         )}
-        {item.source && <Row label="Source">{sourceLabel(item.source)}</Row>}
+        {item.source && <Row label="Catalog source">{sourceLabel(item.source) || "Source not listed"}</Row>}
         <Row label="Install">
           <span title={avail.plain}>{avail.label}</span>
         </Row>

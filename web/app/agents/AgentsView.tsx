@@ -51,7 +51,7 @@ function AgentCard({
           <div className="min-w-0">
             <h3 className="truncate text-[18px] font-semibold tracking-tight text-ink"><Link href={href} prefetch={false} className="hover:text-accent-text focus-visible:underline">{agent.name}</Link></h3>
             <p className="mt-0.5 text-[12px] text-ink-3">
-              {host ? "MCP tools + skills" : agent.skill ? "Agent skills" : "Agent profile"}
+              {host ? "MCP servers + skills" : agent.skill ? "Agent skills" : "Agent profile"}
             </p>
           </div>
         </div>
@@ -72,7 +72,7 @@ function AgentCard({
       <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(72px,1fr))] gap-2 border-t border-rule pt-4">
         {agent.mcp && <Link href={exploreHref + "&kind=mcp"} prefetch={false} className="agent-count-link">
           <strong>{formatCount(agent.mcp.count)}</strong>
-          <span>MCP tools</span>
+          <span>MCP servers</span>
         </Link>}
         {agent.skill && <Link href={exploreHref + "&kind=skill"} prefetch={false} className="agent-count-link">
           <strong>{formatCount(agent.skill.count)}</strong>

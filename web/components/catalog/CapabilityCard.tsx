@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowUpRight, Check, ChevronDown } from "lucide-react";
 import { Listing } from "../../lib/telemetry";
-import { kindLabel, listingHref } from "../../lib/catalog";
+import { displayListingName, kindLabel, listingHref, publisherDisplayName } from "../../lib/catalog";
 import { hostsNamedBy } from "../../lib/hostIdentity";
 import { isRemoteTransport } from "../../lib/hosts";
 import type { AgentChoice } from "../../lib/landing";
@@ -76,7 +76,7 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
     item.kind === "mcp" && isRemoteTransport(item.transport) && Boolean(item.url || item.hasUrl);
   const detail = [
     kindLabel(item.kind),
-    item.publisher?.name ? `by ${item.publisher.name}` : "publisher unspecified",
+    item.publisher?.name ? `by ${publisherDisplayName(item.publisher.name)}` : "publisher not listed",
     avail.plain,
     item.summary,
   ]
@@ -115,11 +115,11 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
           <h3 className="pr-6 text-[15px] font-semibold leading-snug tracking-tight text-ink">
             <Link
               href={listingHref(item)}
-              aria-label={`${item.name}. ${detail}`}
+              aria-label={`${displayListingName(item)}. ${detail}`}
               className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
               prefetch={false}
             >
-              {item.name}
+              {displayListingName(item)}
             </Link>
             <ArrowUpRight
               className="card-arrow ml-1 inline h-3.5 w-3.5 align-baseline text-ink-3 opacity-0 group-hover:opacity-100"
