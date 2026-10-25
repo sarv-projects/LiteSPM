@@ -21,12 +21,12 @@ package main
 //     the wizard with one guidance line instead of looping forever.
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,10 +42,11 @@ import (
 // errInputEnded reports that the input stream ended before an answer was read.
 // It is a normal stop with guidance, not a crash: see finishInput.
 var errInputEnded = errors.New("input ended before an answer was read")
+var errSetupSkipped = errors.New("agent setup skipped")
 
 // Wizard handles interactive setup and management of agent host integration.
 type Wizard struct {
-	in     *bufio.Reader
+	in     io.Reader
 	out    io.Writer
 	paths  *config.PlatformPaths
 	binary string
@@ -60,6 +61,10 @@ type Wizard struct {
 	// same configured client `litespm search`, `litespm install` and
 	// `litespm catalog sync` build.
 	catalogClient func() *catalog.Client
+	// launchSkillInstaller re-enters the existing skills installer with a
+	// source chosen in this wizard. Tests inject a recorder; production keeps
+	// the installer's own interactive prompts and approval path.
+	launchSkillInstaller func(ctx context.Context, source string) error
 	// openState opens the state database the menu actions read and write.
 	// Tests inject the database they assert against; nil means opening
 	// paths.StateDBPath().
@@ -74,7 +79,7 @@ func NewWizard(in io.Reader, out io.Writer, paths *config.PlatformPaths) *Wizard
 	}
 
 	return &Wizard{
-		in:     bufio.NewReader(in),
+		in:     in,
 		out:    out,
 		paths:  paths,
 		binary: execPath,
@@ -129,16 +134,27 @@ func (w *Wizard) finishInput(err error) error {
 // an empty answer, which is how the old menu turned Ctrl-D into an endless
 // "Invalid option." loop.
 func (w *Wizard) readLine() (string, error) {
-	line, err := w.in.ReadString('\n')
-	if err != nil {
-		if line == "" {
-			return "", errInputEnded
+	var line strings.Builder
+	var one [1]byte
+	for {
+		n, err := w.in.Read(one[:])
+		if n > 0 {
+			if one[0] == '\n' {
+				return strings.TrimSpace(line.String()), nil
+			}
+			if one[0] != '\r' {
+				line.WriteByte(one[0])
+			}
 		}
-		// A final line without a trailing newline is still an answer; the next
-		// read reports the end of input.
-		return strings.TrimSpace(line), nil
+		if err != nil {
+			if line.Len() == 0 {
+				return "", errInputEnded
+			}
+			// A final line without a trailing newline is still an answer; the
+			// next read reports the end of input.
+			return strings.TrimSpace(line.String()), nil
+		}
 	}
-	return strings.TrimSpace(line), nil
 }
 
 func (w *Wizard) printBanner() {
@@ -204,6 +220,10 @@ func (w *Wizard) printConfiguredSummary(configured []host.HostVerification) {
 func (w *Wizard) runSetup(ctx context.Context) (bool, error) {
 	adapter, err := w.promptAgentSelection(ctx)
 	if err != nil {
+		if errors.Is(err, errSetupSkipped) {
+			fmt.Fprintln(w.out, "Agent connection skipped. You can set it up later from the manager menu.")
+			return false, nil
+		}
 		return false, err
 	}
 	if adapter == nil {
@@ -290,6 +310,7 @@ func (w *Wizard) promptAgentSelection(ctx context.Context) (host.HostAdapter, er
 		fmt.Fprintln(w.out, "No agent configuration file was found on this machine yet.")
 		fmt.Fprintf(w.out, "  [a] Show all %d supported agents\n", len(rows))
 	}
+	fmt.Fprintln(w.out, "  [s] Continue without connecting an agent")
 	fmt.Fprintln(w.out, "  [q] Quit")
 	fmt.Fprintln(w.out, "")
 
@@ -302,6 +323,9 @@ func (w *Wizard) promptAgentSelection(ctx context.Context) (host.HostAdapter, er
 		}
 		if line == "" || strings.EqualFold(line, "q") {
 			return nil, nil
+		}
+		if strings.EqualFold(line, "s") {
+			return nil, errSetupSkipped
 		}
 		if strings.EqualFold(line, "a") {
 			if !showAll {
@@ -565,16 +589,26 @@ func (w *Wizard) printNextStep(adapter host.HostAdapter) {
 // already configured (a second bare `litespm` run). Every entry performs a real
 // action; nothing here leads to a refusal.
 func (w *Wizard) runActionMenu(ctx context.Context) error {
-	db, closeDB, err := w.openStateDB()
-	if err != nil {
-		fmt.Fprintf(w.out, "\nLiteSPM's local state could not be opened: %v\n", err)
-		fmt.Fprintln(w.out, "Installing and removing need it. You can still run:")
-		fmt.Fprintln(w.out, "  litespm catalog sync     download the capability catalog")
-		fmt.Fprintln(w.out, "  litespm search <text>    look for capabilities")
-		fmt.Fprintln(w.out, "  litespm install <id>     install one by its id")
-		return nil
+	var db *state.DB
+	var closeDB func()
+	ensureDB := func() bool {
+		if db != nil {
+			return true
+		}
+		opened, close, err := w.openStateDB()
+		if err != nil {
+			fmt.Fprintf(w.out, "\nLiteSPM's local state could not be opened: %v\n", err)
+			fmt.Fprintln(w.out, "Catalog updates, direct skill source installs, and agent setup are still available here.")
+			return false
+		}
+		db, closeDB = opened, close
+		return true
 	}
-	defer closeDB()
+	defer func() {
+		if closeDB != nil {
+			closeDB()
+		}
+	}()
 
 	for {
 		fmt.Fprintln(w.out, "")
@@ -588,8 +622,9 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 		fmt.Fprintln(w.out, "  [3] Remove something LiteSPM installed")
 		fmt.Fprintln(w.out, "  [4] See what is installed")
 		fmt.Fprintln(w.out, "  [5] Set up or repair an agent connection")
+		fmt.Fprintln(w.out, "  [6] Install skills from GitHub, a URL, or a folder")
 		fmt.Fprintln(w.out, "  [q] Finish")
-		fmt.Fprint(w.out, "Enter choice [1-5, q]: ")
+		fmt.Fprint(w.out, "Enter choice [1-6, q]: ")
 		choice, err := w.readLine()
 		if err != nil {
 			return err
@@ -600,22 +635,69 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 		case "1":
 			actionErr = w.actionSyncCatalog(ctx)
 		case "2":
-			actionErr = w.actionFindAndInstall(ctx, db)
+			if ensureDB() {
+				actionErr = w.actionFindAndInstall(ctx, db)
+			}
 		case "3":
-			actionErr = w.actionRemove(ctx, db)
+			if ensureDB() {
+				actionErr = w.actionRemove(ctx, db)
+			}
 		case "4":
 			actionErr = w.actionListInstalled()
 		case "5":
 			_, actionErr = w.runSetup(ctx)
+		case "6":
+			actionErr = w.actionInstallSkillFromSource(ctx)
 		case "q", "Q":
 			return nil
 		default:
-			fmt.Fprintln(w.out, "Please enter 1, 2, 3, 4, 5 or q.")
+			fmt.Fprintln(w.out, "Please enter 1, 2, 3, 4, 5, 6 or q.")
 		}
 		if actionErr != nil {
 			return actionErr
 		}
 	}
+}
+
+// actionInstallSkillFromSource opens the same interactive source installer
+// exposed by `litespm skills add`. Keeping it in a subprocess preserves that
+// installer's discovery, agent/scope selection, consent, and ledger behavior.
+func (w *Wizard) actionInstallSkillFromSource(ctx context.Context) error {
+	fmt.Fprintln(w.out, "\nInstall a skill from a source")
+	fmt.Fprintln(w.out, "Paste a GitHub owner/repo, Git URL, direct SKILL.md/archive URL, or local folder.")
+	fmt.Fprintln(w.out, "This opens the same installer as `litespm skills add`.")
+	fmt.Fprint(w.out, "Enter a source (or press Enter to go back): ")
+	source, err := w.readLine()
+	if err != nil {
+		return err
+	}
+	if source == "" {
+		fmt.Fprintln(w.out, "No source entered. Back to the menu.")
+		return nil
+	}
+
+	launch := w.launchSkillInstaller
+	if launch == nil {
+		launch = func(ctx context.Context, source string) error {
+			cmd := exec.CommandContext(ctx, w.binary, "skills", "add", source)
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = w.out
+			cmd.Stderr = w.out
+			if err := cmd.Run(); err != nil {
+				var exitErr *exec.ExitError
+				if errors.As(err, &exitErr) {
+					return fmt.Errorf("skills add exited with status %d", exitErr.ExitCode())
+				}
+				return fmt.Errorf("could not start skills add: %w", err)
+			}
+			return nil
+		}
+	}
+	if err := launch(ctx, source); err != nil {
+		fmt.Fprintf(w.out, "Skill installer stopped: %v\n", err)
+		return nil
+	}
+	return nil
 }
 
 // openStateDB opens the state database for the menu actions. The returned
