@@ -34,9 +34,9 @@ test("the default catalog page introduces MCP servers, skills and plugins togeth
     skill: 8,
     plugin: 8,
   });
-  const sortNote = page.locator("details").filter({ hasText: "How results are sorted" });
-  await sortNote.locator("summary").click();
-  await expect(sortNote.getByText(/featured picks first/i)).toBeVisible();
+  await expect(page.locator("#explore-sort")).toHaveValue("curated");
+  await expect(page.getByText(/How results are sorted/i)).toHaveCount(0);
+  await expect(page.getByText(/featured picks first/i)).toHaveCount(0);
 });
 
 test("a kind deep link pages results without downloading the full display catalog", async ({ page }) => {
@@ -83,11 +83,9 @@ test("search: results settle, the count is measured, and the first row is above 
   const top = (box?.y ?? 0) + (await page.evaluate(() => window.scrollY));
   expect(top, `first result top: ${Math.round(top)}px`).toBeLessThan(560);
 
-  // The ordering evidence is below the rows, not in front of them.
-  const explanation = page.locator("details", { hasText: "How results are sorted" });
-  await expect(explanation).toBeAttached();
-  const explanationTop = await explanation.evaluate((el) => el.getBoundingClientRect().top);
-  expect(explanationTop).toBeGreaterThan(top);
+  // Ranking internals stay out of the customer-facing result list.
+  await expect(page.getByText(/How results are sorted/i)).toHaveCount(0);
+  await expect(page.getByText(/publisher manifests|publisher skills/i)).toHaveCount(0);
 });
 
 test("the grid count never prints a figure before the search measured one", async ({ page }) => {

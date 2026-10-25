@@ -189,6 +189,19 @@ test("every host the catalog names has a page", async ({ page }) => {
   }
 });
 
+test("related recommendations avoid broad source dumps and weak drafts", async ({ page }) => {
+  const flagship = flagshipEntry();
+  await gotoSettled(page, flagship.href);
+
+  const related = page.getByRole("region", { name: "Related entries" });
+  await related.scrollIntoViewIfNeeded();
+  await expect(related.locator('a[href^="/package/"]').first()).toBeVisible();
+  await expect(related.getByText(/Still WiP/i)).toHaveCount(0);
+
+  const headings = await related.locator("h2").allTextContents();
+  expect(headings.join(" ")).not.toMatch(/registry|directory|feed/i);
+});
+
 test("a skills-only host says what LiteSPM does for it", async ({ page }) => {
   // "Warp" has a skills directory and no MCP configuration adapter.
   await gotoSettled(page, "/agents/warp/");

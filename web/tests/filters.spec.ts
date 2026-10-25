@@ -181,19 +181,9 @@ test("every sort option says what it does, and the control shows the order in fo
   }
   // The default browse order is the curated one, and the control says so.
   await expect(control).toHaveValue("curated");
-  // The rule is stated below the rows it orders, in a disclosure: the
-  // ordering evidence follows the result set, never precedes it. The reader
-  // opens it; the test opens it too.
-  const ordering = page.locator("details").filter({
-    has: page.getByText("How results are sorted"),
-  });
-  await expect(ordering, "the order in force is never explained").toBeVisible();
-  await ordering.locator("summary").click();
-  await expect(
-    ordering.getByText(/featured picks first/i, {
-      exact: false,
-    })
-  ).toBeVisible();
+  await expect(control.locator("option:checked")).toHaveText("Recommended");
+  await expect(page.getByText(/How results are sorted/i)).toHaveCount(0);
+  await expect(page.getByText(/featured picks first/i)).toHaveCount(0);
 });
 
 test("the Agent list groups hosts that take MCP servers from skills-only ones", async ({
