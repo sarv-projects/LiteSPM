@@ -9,16 +9,16 @@
 // host-level answer, and that is where the two halves of the site disagreed
 // with the binary:
 //
-//   * `lib/hosts.ts` `hostsFor` returns the eight adapters with a verified
-//     remote (URL) entry spelling for a remote row, but it ignores the
-//     TRANSPORT. The registry records that Claude Code, Cline and Cursor
-//     document `sse` while Codex, Grok Build, OpenCode, Pi Agent and Zed
+//   * `lib/hosts.ts` `hostsFor` used to return only eight adapters with a
+//     verified remote (URL) entry spelling for a remote row, but it ignored
+//     the TRANSPORT. The registry records that Claude Code, Cline and Cursor
+//     document `sse` while Codex, Grok Build, OpenCode, Pi and Zed
 //     document `streamable-http` only, and the binary refuses the other five
 //     by name (LPSM-HOST-REMOTE-UNSUPPORTED, "cannot express a %q remote
 //     (URL) MCP entry"). The 732 `sse` rows in the release are therefore
 //     installable into three agents, not eight.
 //   * the site has no answer at all for the SCOPE. `--scope project` is
-//     refused for the seven adapters that document only a user-scope config
+//     refused for the eight adapters that document only a user-scope config
 //     (`host.SupportsProjectScope`), and a user-scope install into the three
 //     agents that document only a repo-local config lands inside whatever
 //     project the command was run from.
@@ -38,7 +38,7 @@
 //     a remote spelling (Cursor, Zed).
 //   * `internal/host/registry.go` — the six bespoke adapters, of which four
 //     carry a remote spelling (Claude Code, Cline, OpenCode, Codex) plus the
-//     the separate Pi profile, which shares Pi Agent's documented MCP format.
+//     the separate Pi profile, whose native MCP config is read by the Pi CLI.
 //   * `cmd/litespm/install_kind.go` — the KIND gate: a plugin is refused
 //     before anything else is consulted (LPSM-ARTIFACT-UNAVAILABLE).
 //   * `cmd/litespm/install_mcp.go` — the provenance gate
@@ -57,8 +57,8 @@
 //      not record a capability for is `unknown`, never `unsupported` and
 //      never `supported`. The generated registry marks a remote-capable host
 //      with `remote: true` and leaves the field off every other host, so a
-//      remote row is `unknown` — not `unsupported` — on the 42 hosts the
-//      registry says nothing about. (The Go registry is stricter: it refuses
+//      remote row is `unknown` — not `unsupported` — on the five MCP adapters
+//      with no recorded remote capability. (The Go registry is stricter: it refuses
 //      them fail-closed. The site says "unknown" where the binary says "no",
 //      which is the safe direction; see the report.)
 //   2. **`supported` is a statement about the install PATH, not about the
@@ -83,7 +83,7 @@
 
 import type { Listing } from "./telemetry";
 import { availabilityOf } from "./availability";
-import { HOSTS, SKILL_TARGETS, isRemoteTransport, type HostAdapter } from "./hosts";
+import { HOSTS, MCP_HOSTS, SKILL_TARGETS, isRemoteTransport, type HostAdapter } from "./hosts";
 import { resolveHostId } from "./hostIdentity";
 
 /**
@@ -136,7 +136,7 @@ export interface Feasibility {
  * of the fact here, with a drift guard that failed when the two disagreed.
  *
  * The guard did its job and then went off: the adapters were re-verified
- * against live vendor documentation (46 of 50 hosts, 2026-10-21) and this
+ * against live vendor documentation (46 of 51 MCP adapters, 2026-10-21) and this
  * table stayed at its eight rows, so a reader was told the transport was
  * UNKNOWN for 38 agents the binary would happily install into. The generator
  * emits the set now (`scripts/gen_hosts_ts.go`), which is what the table's
@@ -224,7 +224,7 @@ const SKILLS_BY_ID: Map<string, SkillTargetRow> = (() => {
 })();
 
 /** How many agents the registry holds — the denominator of every "N of M". */
-const AGENT_COUNT = HOSTS.length;
+const AGENT_COUNT = MCP_HOSTS.length;
 
 /* ------------------------------------------------------------------ *
  * The mode: which kind of install the row's metadata describes
@@ -569,7 +569,7 @@ function publisherHostIds(item: Listing): string[] {
  *
  * `scope` is the install scope the reader is asking about. It changes the
  * answer for skills (an agent with no user-level skills directory takes no
- * user-scope skill) and for MCP entries (seven adapters document only a
+ * user-scope skill) and for MCP entries (eight adapters document only a
  * user-scope config, and three document only a repo-local one).
  */
 /**

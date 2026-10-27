@@ -24,7 +24,7 @@ import { assertAdapterSourcesMatchRegistry, assertCompareCountsAgree, compareDat
 export const metadata: Metadata = {
   title: "Compare agent hosts",
   description:
-    "The 50 agent hosts LiteSPM can configure, the config file it adds one entry to, where skills install — and the 29 more that take skills only.",
+    "Compare the MCP configuration, extension and skills setup paths LiteSPM supports across AI agent products.",
   alternates: { canonical: "/compare/" },
   openGraph: { title: "Compare agent hosts · LiteSPM", url: "/compare/" },
 };

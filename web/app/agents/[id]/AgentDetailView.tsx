@@ -47,7 +47,7 @@ export interface AgentDetailViewProps {
   /** The single bridge entry this host receives, ready to paste. */
   snippet: string;
   /** Config format from the adapter registry. */
-  format: "json" | "toml";
+  format: "json" | "toml" | "extension";
   /**
    * True when the host takes skills and has no MCP configuration adapter.
    *
@@ -117,7 +117,11 @@ export default function AgentDetailView({
   capabilities,
   discontinued,
 }: AgentDetailViewProps) {
-  const command = skillsOnly ? "litespm skills add <source> --agent " + id : `litespm host setup ${id}`;
+  const command = format === "extension"
+    ? `litespm host setup ${id}`
+    : skillsOnly
+      ? "litespm skills add <source> --agent " + id
+      : `litespm host setup ${id}`;
   // Explore resolves every spelling of a host to one identity, and the page's
   // own name is one of them, so the link opens exactly the count above it.
   const exploreHref = `/explore/?host=${encodeURIComponent(name)}`;
@@ -247,7 +251,7 @@ export default function AgentDetailView({
                 "—", which reads as "we do not know" rather than "there is
                 no such thing here".
             */}
-            {!skillsOnly && (
+            {(!skillsOnly || format === "extension") && (
               <div>
                 <dt>Config file</dt>
                 <dd>
@@ -255,13 +259,13 @@ export default function AgentDetailView({
                 </dd>
               </div>
             )}
-            {!skillsOnly && (
+            {(!skillsOnly || format === "extension") && (
               <div>
                 <dt>Format</dt>
-                <dd>{format === "toml" ? "TOML" : "JSON"}</dd>
+                <dd>{format === "toml" ? "TOML" : format === "extension" ? "TypeScript extension" : "JSON"}</dd>
               </div>
             )}
-            {!skillsOnly && (
+            {!skillsOnly && format !== "extension" && (
               <div>
                 <dt>Project config</dt>
                 <dd>
@@ -327,25 +331,29 @@ export default function AgentDetailView({
             </li>
             <li className="border-t border-rule pt-3">
               <p className="text-[12px] font-semibold text-ink">
-                {skillsOnly ? "2. Check the skill path" : `2. Connect ${name}`}
+                {format === "extension" ? "2. Install the extension" : skillsOnly ? "2. Check the skill path" : `2. Connect ${name}`}
               </p>
               <p className="mt-1 text-[13px] leading-relaxed text-ink-2">
-                {skillsOnly
+                {format === "extension"
+                  ? "LiteSPM adds the /marketplace command to Pi Agent."
+                  : skillsOnly
                   ? "LiteSPM lists every detected skills folder in its install plan before you approve."
                   : `LiteSPM adds its bridge to ${name} so you can manage tools from one place.`}
               </p>
               <Link href="#agent-command-title" className="link mt-2 inline-flex min-h-11 items-center text-[13px]">
-                {skillsOnly ? "See the skill command" : "See the setup command"}
+                {format === "extension" ? "See the extension setup command" : skillsOnly ? "See the skill command" : "See the setup command"}
                 <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </li>
             <li className="border-t border-rule pt-3">
               <p className="text-[13px] font-semibold text-ink">3. Find a capability</p>
               <p className="mt-1 text-[13px] leading-relaxed text-ink-2">
-                Browse tools and skills associated with {name}.
+                {skillsOnly
+                  ? `Browse skills for ${name}.`
+                  : `Browse tools and skills associated with ${name}.`}
               </p>
               <Link href={exploreHref} className="link mt-2 inline-flex min-h-11 items-center text-[13px]">
-                Browse packages for {name}
+                {skillsOnly ? `Browse skills for ${name}` : `Browse packages for ${name}`}
                 <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </li>
@@ -359,7 +367,7 @@ export default function AgentDetailView({
           <div className="section-head">
             <h2 id="agent-command-title">One command</h2>
             <span className="section-note">
-              {skillsOnly ? "installs a skill here" : "writes the same entry"}
+              {format === "extension" ? "installs /marketplace" : skillsOnly ? "installs a skill here" : "writes the same entry"}
             </span>
           </div>
 
@@ -374,6 +382,21 @@ export default function AgentDetailView({
             />
           </div>
         </section>
+
+        {format === "extension" && (
+          <section className="mt-10" aria-labelledby="agent-extension-title">
+            <div className="section-head">
+              <h2 id="agent-extension-title">LiteSPM extension</h2>
+              <span className="section-note">Pi Agent integration</span>
+            </div>
+            <div className="mt-4 rounded-card border border-rule bg-surface p-4">
+              <p className="text-[13px] leading-relaxed text-ink-2">
+                LiteSPM installs a user-level extension at <code className="t-mono text-[12px]">{filePath}</code>.
+                Restart Pi Agent, then open <code className="t-mono text-[12px]">/marketplace</code> to browse capabilities.
+              </p>
+            </div>
+          </section>
+        )}
 
         {skillsOnly ? (
           /* A host with no configuration file: there is no file card to

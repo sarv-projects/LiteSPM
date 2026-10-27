@@ -124,7 +124,7 @@ test("the agent-host table: the figure, the host page and Explore all agree", as
     ).toBe(parseCount(row.entries));
 
     // …and the page's own Explore link opens that count.
-    const browse = page.locator('section[aria-labelledby="agent-works-title"]').getByRole("link", { name: /Browse entries for/ });
+    const browse = page.locator('section[aria-labelledby="agent-works-title"] a[href^="/explore/?host="]');
     const browseHref = await browse.getAttribute("href");
     const host = new URL(browseHref ?? "", "http://localhost").searchParams.get("host") ?? "";
     expect(host, `the Browse link on ${row.href} should name a host filter`).not.toBe("");

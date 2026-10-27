@@ -18,7 +18,7 @@ import { usePlatformOs } from "./usePlatformOs";
 
 function preferredBridgeHost(agent: AgentChoice | null): string {
   const selected = agent && agent.id !== "other" ? resolveHost(agent.id) : undefined;
-  return selected?.id ?? "";
+  return selected && selected.shape !== "" ? selected.id : "";
 }
 
 function preferredSkillTarget(agent: AgentChoice | null): string {
@@ -216,7 +216,7 @@ function BridgeSetup({
           className="field max-w-full"
         >
           <option value="">Choose an agent…</option>
-          {HOSTS.map((candidate) => (
+          {HOSTS.filter((candidate) => candidate.shape !== "").map((candidate) => (
             <option key={candidate.id} value={candidate.id}>
               {candidate.name}
             </option>
@@ -228,7 +228,7 @@ function BridgeSetup({
         <>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <p className="t-mono text-[10px] text-ink-3">Config file</p>
+          <p className="t-mono text-[10px] text-ink-3">{host.kind === "extension" ? "Extension file" : "Config file"}</p>
           <div className="mt-1 flex items-start gap-2">
             <code className="t-mono min-w-0 flex-1 break-all border border-rule-2 bg-sunken px-2.5 py-2 text-[11px] text-ink-2">
               {hostPath(host, platformOs)}
@@ -247,12 +247,13 @@ function BridgeSetup({
 
           <div className="mt-4">
             <h4 className="text-[13px] font-semibold text-ink">
-              Config entry <span className="ml-2 font-normal text-ink-3">LiteSPM bridge</span>
+              {host.kind === "extension" ? "Install the integration" : "Config entry"}
+              <span className="ml-2 font-normal text-ink-3">{host.kind === "extension" ? "interactive capability browser" : "LiteSPM bridge"}</span>
             </h4>
             <div className="on-dark mt-2 overflow-hidden rounded-panel bg-dark">
               <div className="flex items-center justify-between gap-2 border-b border-dark-rule px-3 py-2">
                 <span className="t-mono truncate text-[11px] text-dark-ink-2">
-                  {host.name} · {host.kind === "toml" ? "config.toml" : "JSON config"}
+                  {host.kind === "extension" ? "LiteSPM setup command" : `${host.name} · ${host.kind === "toml" ? "config.toml" : "JSON config"}`}
                 </span>
                 <CopyButton text={snippet} label="Copy configuration snippet" message="Snippet copied" />
               </div>
@@ -266,14 +267,17 @@ function BridgeSetup({
             <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>
               {selected?.id === host.id ? `${selected.name} is selected above. ` : ""}
-              Running <code className="t-mono text-ink-2">litespm host setup {host.id}</code> backs up the
-              config and adds this entry. <code className="t-mono text-ink-2">litespm restore</code> restores
-              the saved file.
+              Running <code className="t-mono text-ink-2">litespm host setup {host.id}</code>{" "}
+              {host.kind === "extension"
+                ? "installs the extension and enables /marketplace."
+                : <>backs up the config and adds this entry. <code className="t-mono text-ink-2">litespm restore</code> restores the saved file.</>}
             </span>
           </p>
         </>
       ) : (
-        <p className="mt-3 text-[12px] leading-relaxed text-ink-3">Choose an agent to see its config path and bridge entry.</p>
+        <p className="mt-3 text-[12px] leading-relaxed text-ink-3">
+          Choose an MCP-capable agent to see its config path and bridge entry. Pi Agent uses its extension for skills and does not accept MCP server entries.
+        </p>
       )}
     </div>
   );

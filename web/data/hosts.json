@@ -408,14 +408,10 @@
     "id": "grok",
     "name": "Grok CLI",
     "format": "json",
-    "keyPath": "mcpServers",
-    "shape": "object",
-    "userPath": "\u003cproject\u003e/.grok/settings.json",
-    "projectOnly": true,
-    "docsUrl": "https://github.com/superagent-ai/grok-cli",
-    "generic": true,
-    "projectScope": true,
-    "projectPath": ".grok/settings.json"
+    "keyPath": "mcp.servers",
+    "shape": "array-object",
+    "userPath": "~/.grok/user-settings.json",
+    "generic": false
   },
   {
     "id": "grok-build",
@@ -639,7 +635,8 @@
     "keyPath": "mcpServers",
     "shape": "object",
     "userPath": "~/.pi/agent/mcp.json",
-    "generic": false,
+    "docsUrl": "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md",
+    "generic": true,
     "projectScope": true,
     "projectPath": ".pi/mcp.json",
     "remote": true,
@@ -649,18 +646,10 @@
   },
   {
     "id": "pi-agent",
-    "name": "Pi Agent (Terminal Agent)",
-    "format": "json",
-    "keyPath": "mcpServers",
-    "shape": "object",
-    "userPath": "~/.pi/agent/mcp.json",
-    "generic": false,
-    "projectScope": true,
-    "projectPath": ".pi/mcp.json",
-    "remote": true,
-    "remoteTransports": [
-      "streamable-http"
-    ]
+    "name": "Pi Agent",
+    "format": "extension",
+    "userPath": "~/.pi/agent/extensions/litespm.ts",
+    "generic": false
   },
   {
     "id": "pochi",

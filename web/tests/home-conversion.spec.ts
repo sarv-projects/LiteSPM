@@ -227,22 +227,26 @@ test("the shelf shows exactly the curated set, and each card links to its entry"
   expect(kinds.size, "the mixed row shows more than one kind of capability").toBeGreaterThan(1);
 });
 
-test("the landing page puts discovery, package types, and setup in a clear order", async ({
+test("the landing page puts discovery, the starting shelf, and setup in a clear order", async ({
   page,
 }) => {
   await gotoSettled(page, "/");
 
-  await expect(page.locator(".home-editorial-hero")).toBeVisible();
-  await expect(page.locator("#topics-title")).toBeVisible();
-  await expect(page.locator("#start-here-title")).toBeVisible();
-  await expect(page.locator("#capability-types-title")).toBeVisible();
-  await expect(page.locator("#how-title")).toBeVisible();
+  const order = await page.evaluate(() => {
+    const selectors = [".home-editorial-hero", "#topics-title", "#start-here-title", "#how-title"];
+    const nodes = selectors.map((selector) => document.querySelector(selector));
+    return nodes.every((node, index) =>
+      node !== null && (index === 0 || Boolean(nodes[index - 1]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING))
+    );
+  });
+  expect(order, "the landing page's main sections follow the reader's discovery path").toBe(true);
+  await expect(page.locator("#capability-types-title")).toHaveCount(0);
   await expect(page.locator("#hero-proof-count")).toHaveCount(0);
   await expect(page.getByText(/catalog snapshot|catalog updated/i)).toHaveCount(0);
   await expect(demo_shelf_is_one_row(page)).resolves.toBeLessThanOrEqual(6);
 });
 
-test("the hero has a responsive copy and catalog overview layout", async ({
+test("the hero pairs responsive copy with the install preview", async ({
   page,
 }) => {
   await gotoSettled(page, "/");
@@ -276,14 +280,13 @@ test("the curated shelf contains only entries LiteSPM can install", async ({ pag
   // source set contains no plugin, whose installability depends on its source.
   await expect(page.locator(".meta-kind-plugin")).toHaveCount(0);
 
-  const pluginExit = page.locator(".dg-kind[data-kind='plugin']");
-  await expect(pluginExit).toBeVisible();
-  await expect(pluginExit).toContainText("Plugins");
-
-  const caption = page.locator("figcaption");
-  await expect(caption).toContainText("Each package shows whether it fits your agent");
-  await expect(caption).not.toContainText("generic adapter");
-  await expect(caption).not.toContainText("refused with the reason");
+  await expect(page.locator(".home-hero-art")).toHaveAttribute(
+    "aria-label",
+    /Example install plan.*no install has run/
+  );
+  await expect(page.locator(".home-window-example")).toHaveText("EXAMPLE ONLY");
+  await expect(page.locator(".home-hero-note")).toContainText("Example only. Nothing is installed here.");
+  await expect(page.locator(".home-hero-note")).toContainText("The CLI shows the destination before it writes.");
 });
 
 test("the landing page avoids animated catalog claims", async ({ page }) => {

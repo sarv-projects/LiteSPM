@@ -78,7 +78,7 @@ export function buildAgentRows(items: Listing[]): AgentRow[] {
       strings: identity.strings.slice(),
       // A registry row's absence is "no data", rendered as nothing; a row
       // whose registry exists keeps its count, a measured zero included.
-      mcp: identity.adapter
+      mcp: identity.adapter && identity.adapter.shape !== ""
         ? { count: counts?.mcp ?? 0, host: identity.adapter.name }
         : null,
       skill: identity.skill

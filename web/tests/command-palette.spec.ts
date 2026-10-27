@@ -69,9 +69,15 @@ test("the Install LiteSPM palette destination reaches the setup guide", async ({
   const dialog = page.locator(DIALOG);
   await expect(dialog).toBeVisible();
   await dialog.locator('input[role="combobox"]').fill("Install LiteSPM");
-  const destination = dialog.getByRole("option", { name: /Install LiteSPM/ });
+  const destination = dialog
+    .getByRole("option")
+    .filter({ hasText: "Install the CLI and follow the guided setup" });
   await expect(destination).toBeVisible();
-  await destination.press("Enter");
+  const input = dialog.locator('input[role="combobox"]');
+  const destinationId = await destination.getAttribute("id");
+  expect(destinationId, "the destination has a listbox option id").toBeTruthy();
+  await expect(input).toHaveAttribute("aria-activedescendant", destinationId ?? "");
+  await input.press("Enter");
   await expect(page).toHaveURL(/\/get-started\//);
   await expect(page.getByRole("heading", { name: "Get started", level: 1 })).toBeVisible();
 });

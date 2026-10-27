@@ -20,7 +20,7 @@ export interface TrendingBoards {
 export interface TrendingHostRow {
   id: string;
   name: string;
-  format: "json" | "toml";
+  format: "json" | "toml" | "extension";
   configPath: string;
   repoConfigPath?: string;
   skillName?: string;

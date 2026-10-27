@@ -197,11 +197,11 @@ test("the Agent list groups hosts that take MCP servers from skills-only ones", 
     .locator("#explore-host optgroup")
     .evaluateAll((nodes) => nodes.map((n) => (n as HTMLOptGroupElement).label));
   expect(
-    groupLabels.some((label) => /MCP servers and skills/.test(label)),
+    groupLabels.some((label) => /Agents with MCP setup/.test(label)),
     `no managed group in ${JSON.stringify(groupLabels)}`
   ).toBe(true);
   expect(
-    groupLabels.some((label) => /Skills only/.test(label)),
+    groupLabels.some((label) => /Skills destinations/.test(label)),
     `no skills-only group in ${JSON.stringify(groupLabels)}`
   ).toBe(true);
 });

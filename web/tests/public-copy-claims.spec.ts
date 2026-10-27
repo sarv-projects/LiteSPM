@@ -33,12 +33,13 @@ test("developer docs give the first search and package install commands", async 
 test("setup guide names the published npm Node.js engine range", async ({ page }) => {
   await gotoSettled(page, "/get-started/");
 
-  await expect(page.getByText(/Node\.js 22\.22\.2\+ \(22\.x\), 24\.15\.0\+ \(24\.x\), or 26\+/)).toBeVisible();
-  await expect(page.getByRole("link", { name: "GitHub releases", exact: true })).toHaveAttribute(
+  await expect(page.getByText(/Node\.js 22\.22\.2\+ on 22\.x, 24\.15\.0\+ on 24\.x, or 26\+/)).toBeVisible();
+  await page.locator("details[data-setup-details] summary").click();
+  await expect(page.getByRole("link", { name: "GitHub release binaries", exact: true })).toHaveAttribute(
     "href",
     "https://github.com/sarv-projects/LiteSPM/releases/latest"
   );
-  await expect(page.getByText(/without installing Node\.js/)).toBeVisible();
+  await expect(page.getByText(/install without Node\.js/)).toBeVisible();
   await expect(page.getByText(/Node\.js 18 or newer/)).toHaveCount(0);
 });
 

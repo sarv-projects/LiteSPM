@@ -18,7 +18,7 @@ import { gotoSettled } from "./support/site";
 
 test.describe("prefers-reduced-motion: reduce", () => {
   test("the bridge figure is still, and no animation is running", async ({ page }) => {
-    await gotoSettled(page, "/");
+    await gotoSettled(page, "/how-it-works/");
     await page.locator(".dg-stage").scrollIntoViewIfNeeded();
     // One explicit window: the IntersectionObserver must have had the chance
     // to (not) start anything before this is asserted.
@@ -41,7 +41,7 @@ test.describe("prefers-reduced-motion: no-preference", () => {
   test("the same figure does run, so the still state is a gate and not a dead component", async ({
     page,
   }) => {
-    await gotoSettled(page, "/");
+    await gotoSettled(page, "/how-it-works/");
     await page.locator(".dg-stage").scrollIntoViewIfNeeded();
 
     await expect(page.locator(".dg-stage[data-live]")).toHaveCount(1);

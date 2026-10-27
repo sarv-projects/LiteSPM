@@ -564,20 +564,24 @@ function ExploreContent(props: ExploreViewProps) {
         <div className="shell market-explore-hero">
           <p className="kicker">MCP servers · skills · plugins</p>
           <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-ink">Find what your agent needs</h1>
-          <p className="mt-2 max-w-[66ch] text-[13px] leading-relaxed text-ink-2">
-            Explore MCP servers, skills and plugins. Choose an agent to see the setup path for each listing.
-          </p>
-          <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px] text-ink-3" aria-label="Catalog readiness">
-            <span><strong className="font-semibold text-ink">{formatCount(total)}</strong> indexed</span>
-            <span aria-hidden="true">·</span>
-            <span><strong className="font-semibold text-ink">{formatCount(props.installableCount)}</strong> pass current install rules</span>
-            {props.evidenceCounts.metadataChecked > 0 && <><span aria-hidden="true">·</span><span><strong className="font-semibold text-ink">{formatCount(props.evidenceCounts.metadataChecked)}</strong> metadata checked</span></>}
-            {props.evidenceCounts.runtimeVerified > 0 && <><span aria-hidden="true">·</span><span><strong className="font-semibold text-ink">{formatCount(props.evidenceCounts.runtimeVerified)}</strong> runtime verified</span></>}
-            {props.evidenceCounts.litespmTested > 0 && <><span aria-hidden="true">·</span><span><strong className="font-semibold text-ink">{formatCount(props.evidenceCounts.litespmTested)}</strong> LiteSPM tested</span></>}
-          </div>
-          <p className="mt-1 text-[11.5px] leading-relaxed text-ink-3">
-            Evidence labels describe setup checks, not independent security audits. <Link href="/compare/" className="link">How support is counted</Link>
-          </p>
+          {!query.trim() && (
+            <>
+              <p className="mt-2 max-w-[66ch] text-[13px] leading-relaxed text-ink-2">
+                Explore MCP servers, skills and plugins. Choose an agent to see the setup path for each listing.
+              </p>
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px] text-ink-3" aria-label="Catalog readiness">
+                <span><strong className="font-semibold text-ink">{formatCount(total)}</strong> indexed</span>
+                <span aria-hidden="true">·</span>
+                <span><strong className="font-semibold text-ink">{formatCount(props.installableCount)}</strong> pass current install rules</span>
+                {props.evidenceCounts.metadataChecked > 0 && <><span aria-hidden="true">·</span><span><strong className="font-semibold text-ink">{formatCount(props.evidenceCounts.metadataChecked)}</strong> metadata checked</span></>}
+                {props.evidenceCounts.runtimeVerified > 0 && <><span aria-hidden="true">·</span><span><strong className="font-semibold text-ink">{formatCount(props.evidenceCounts.runtimeVerified)}</strong> runtime verified</span></>}
+                {props.evidenceCounts.litespmTested > 0 && <><span aria-hidden="true">·</span><span><strong className="font-semibold text-ink">{formatCount(props.evidenceCounts.litespmTested)}</strong> LiteSPM tested</span></>}
+              </div>
+              <p className="mt-1 text-[11.5px] leading-relaxed text-ink-3">
+                Evidence labels describe setup checks, not independent security audits. <Link href="/compare/" className="link">How support is counted</Link>
+              </p>
+            </>
+          )}
 
           {savedTarget && savedAgent && (
             <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-rule bg-sunken px-4 py-3">

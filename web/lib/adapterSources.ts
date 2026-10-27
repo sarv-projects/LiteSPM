@@ -14,8 +14,8 @@ export const ADAPTER_SOURCE: Record<string, string> = {
   "claude-code": "internal/host/claudecode.go",
   cline: "internal/host/cline.go",
   codex: "internal/host/codex.go",
+  grok: "internal/host/grok.go",
   "grok-build": "internal/host/grokbuild.go",
   opencode: "internal/host/opencode.go",
-  pi: "internal/host/piagent.go",
   "pi-agent": "internal/host/piagent.go",
 };

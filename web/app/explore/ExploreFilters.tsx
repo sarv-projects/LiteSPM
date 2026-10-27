@@ -229,10 +229,8 @@ export function ExploreFilters(props: ExploreFiltersProps) {
           >
             <option value="all">Any agent</option>
             {/*
-                Two groups, because the flat list told the reader nothing: 71 of
-                the 79 hosts can take skills and nothing else, and all 71 read
-                "(764)". The group says which kind of host it is, and the
-                option's own tooltip carries the split.
+                Two groups distinguish MCP-config hosts from skills-only
+                destinations. Each option's tooltip carries its per-kind split.
             */}
             {(() => {
               const managed = agents.filter((a) => a.managed && a.count > 0);

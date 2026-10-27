@@ -278,7 +278,7 @@ export function CommandPalette({ open, onOpenChange, returnFocusRef }: CommandPa
 
     const pageMatches = localMatches(q, PALETTE_PAGES, (entry) => entry);
     if (pageMatches.length > 0) {
-      out.push({
+      const pageSection: PaletteSection = {
         id: "pages",
         title: "Docs & pages",
         rows: pageMatches.map((entry) => ({
@@ -287,7 +287,15 @@ export function CommandPalette({ open, onOpenChange, returnFocusRef }: CommandPa
           detail: entry.detail,
           href: entry.href,
         })),
-      });
+      };
+      // An exact navigation action should be the first keyboard choice. A
+      // generic "search Explore for …" row is still useful, but should not
+      // intercept Enter when the reader typed a page's exact name.
+      const hasExactPageMatch = pageMatches.some(
+        (entry) => entry.label.trim().toLowerCase() === q.toLowerCase(),
+      );
+      if (hasExactPageMatch) out.unshift(pageSection);
+      else out.push(pageSection);
     }
 
     return out;

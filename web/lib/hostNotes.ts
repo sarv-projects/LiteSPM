@@ -75,7 +75,8 @@ export const HOST_NOTES: Record<string, HostNote> = {
     capabilities: [
       "Reads and edits files in the current project",
       "Runs project commands from the terminal",
-      "Connects MCP servers from project settings",
+      "Loads MCP server records from ~/.grok/user-settings.json",
+      "Uses LiteSPM through its native stdio MCP connection",
     ],
   },
   "grok-build": {
@@ -98,7 +99,8 @@ export const HOST_NOTES: Record<string, HostNote> = {
     capabilities: [
       "Inspects files, runs commands and edits content through multi-step tasks",
       "Resume or branch a saved session without losing history",
-      "Print mode, JSON event stream and RPC mode for scripted and embedded use",
+      "Opens LiteSPM's interactive capability browser with /marketplace",
+      "Integrates through a Pi Agent extension; this fork has no built-in MCP client",
     ],
   },
 

@@ -56,6 +56,10 @@ export interface CompareRow {
   name: string;
   /** True when LiteSPM has an adapter that can write this host's MCP config. */
   configurable: boolean;
+  /** True when LiteSPM adds a native agent extension instead of MCP config. */
+  extension: boolean;
+  /** Extension file LiteSPM installs, with home shown as `~`. */
+  extensionPath?: string;
   /** The user-scope config file LiteSPM adds one entry to, home shown as `~`. */
   configFile?: string;
   /** The project-scope config file, relative to a project root. */
@@ -77,7 +81,7 @@ export interface CompareRow {
 
 export interface CompareGroup {
   /** Stable id for the section heading's `id`. */
-  key: string;
+  key: "configure" | "extension" | "skills";
   title: string;
   /** One short line naming what puts a host in this group. */
   note: string;
@@ -90,6 +94,8 @@ export interface CompareData {
   hostCount: number;
   /** Hosts LiteSPM can configure — the ones in the first group. */
   setupCount: number;
+  /** Agent extensions LiteSPM can install outside the MCP config path. */
+  extensionCount: number;
   /** MCP servers in the current release — a property of the kind, stated once
    *  in the page's intro rather than repeated on every row. */
   serverCount: number;
@@ -121,7 +127,7 @@ const SKILL_COUNT = Number(release.agentSkillsCount ?? 0);
  * How many of those the *binary* can actually install, counted with the same
  * predicate every other surface uses (`availabilityOf`, the copy of the CLI's
  * own gate). The intro sentence is about a per-host capability, so a catalog
- * total is the wrong number for it: 4 of the 50 configurable hosts accept no
+ * total is the wrong number for it: 5 of the 51 configurable hosts accept no
  * remote server at all (their vendor publishes no remote entry object), and
  * the 46 that do take 25,400 of the 48,418 — not 48,418. The eight was the
  * count before the host adapters were re-verified against live vendor
@@ -165,6 +171,7 @@ function docsFor(id: string, registryDocs?: string): Pick<CompareRow, "docs" | "
  */
 export function compareData(): CompareData {
   const withAdapter: CompareRow[] = [];
+  const extensions: CompareRow[] = [];
   const skillsOnly: CompareRow[] = [];
 
   for (const identity of HOST_IDENTITIES) {
@@ -173,23 +180,30 @@ export function compareData(): CompareData {
     // One row per host identity. Genuine spelling variants join by registry
     // id; separate products such as Pi / Pi Agent and Grok CLI / Grok Build
     // keep separate rows even when their config paths overlap.
+    const mcpAdapter = host && host.shape !== "" ? host : undefined;
+    const extension = host?.kind === "extension" ? host : undefined;
     const row: CompareRow = {
       id: identity.id,
       name: identity.name,
-      configurable: Boolean(host),
-      configFile: host?.userPath || undefined,
-      projectFile: host?.projectPath,
+      configurable: Boolean(mcpAdapter),
+      extension: Boolean(extension),
+      extensionPath: extension?.userPath || undefined,
+      configFile: mcpAdapter?.userPath || undefined,
+      projectFile: mcpAdapter?.projectPath,
       skills: Boolean(target),
       skillsAtUser: Boolean(target?.hasGlobal),
       skillsShared: Boolean(target?.universal),
-      ...docsFor(identity.id, host?.docsUrl),
-      remote: Boolean(host?.remote),
+      ...docsFor(identity.id, mcpAdapter?.docsUrl),
+      remote: Boolean(mcpAdapter?.remote),
     };
-    (host ? withAdapter : skillsOnly).push(row);
+    if (mcpAdapter) withAdapter.push(row);
+    else if (extension) extensions.push(row);
+    else skillsOnly.push(row);
   }
 
   const byName = (a: CompareRow, b: CompareRow) => a.name.localeCompare(b.name);
   withAdapter.sort(byName);
+  extensions.sort(byName);
   skillsOnly.sort(byName);
 
   return {
@@ -201,14 +215,21 @@ export function compareData(): CompareData {
         rows: withAdapter,
       },
       {
+        key: "extension",
+        title: "Agent extensions",
+        note: "installed separately from MCP config",
+        rows: extensions,
+      },
+      {
         key: "skills",
-        title: "Skills-only agents",
-        note: "no config file",
+        title: "Skills destinations",
+        note: "no MCP config or extension",
         rows: skillsOnly,
       },
     ],
     hostCount: HOST_IDENTITIES.length,
     setupCount: withAdapter.length,
+    extensionCount: extensions.length,
     serverCount: SERVER_COUNT,
     skillCount: SKILL_COUNT,
     installableServerCount: INSTALLABLE_SERVER_COUNT,

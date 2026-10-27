@@ -200,7 +200,10 @@ export default async function AgentDetailPage({
      * The page then says what LiteSPM does for it — install skills — instead
      * of showing a config file and a bridge entry it does not have.
      */
-    skillsOnly: !adapter,
+    // Pi Agent has a LiteSPM extension, but no native MCP configuration. Its
+    // package compatibility is therefore skills-only like hosts with no
+    // bridge adapter, while its extension file remains visible below.
+    skillsOnly: !adapter || adapter.kind === "extension",
     count,
     docsHref: adapter?.docsUrl ?? note?.website,
     capabilities: note?.capabilities,

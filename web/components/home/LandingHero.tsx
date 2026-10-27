@@ -92,7 +92,11 @@ export function LandingHero({ total, query, setQuery, totalMatches, settled, cho
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
             </Link>
             <div className="home-hero-additions">
-              <Link href="/package/skill%3Aanthropics%3Afrontend-design/" className="home-addition-card">
+              <Link
+                href="/package/skill%3Aanthropics%3Afrontend-design/"
+                prefetch={false}
+                className="home-addition-card"
+              >
                 <span className="home-addition-icon home-addition-ink">✦</span>
                 <span><strong>Frontend Design</strong><small>Reusable skill · Anthropic</small></span>
                 <span className="home-addition-kind">SKILL</span>

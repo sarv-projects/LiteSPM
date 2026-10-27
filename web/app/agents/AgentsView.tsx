@@ -27,6 +27,18 @@ const FILTERS: Array<{ id: AgentFilter; label: string }> = [
   { id: "skills", label: "Skills" },
 ];
 
+function AgentCount({ count, href, label }: { count: number; href: string; label: string }) {
+  const content = (
+    <>
+      <strong>{formatCount(count)}</strong>
+      <span>{label}</span>
+    </>
+  );
+  return count > 0
+    ? <Link href={href} prefetch={false} className="agent-count-link">{content}</Link>
+    : <span className="agent-count-static">{content}</span>;
+}
+
 function AgentCard({
   agent,
   highlighted,
@@ -35,8 +47,9 @@ function AgentCard({
   highlighted: boolean;
 }) {
   const host = agent.hostId ? HOSTS.find((item) => item.id === agent.hostId) : undefined;
+  const mcpHost = host && host.shape !== "";
   const note = hostNote(agent.slug);
-  const profileType = note?.profileType ?? (host ? "MCP servers + skills" : agent.skill ? "Agent skills" : "Agent profile");
+  const profileType = note?.profileType ?? (mcpHost ? "MCP servers + skills" : host?.kind === "extension" ? "Agent extension + skills" : agent.skill ? "Agent skills" : "Agent profile");
   const summary = note?.summary?.trim();
   const href = "/agents/" + (agent.pageId ?? agent.slug) + "/";
   const exploreHref = "/explore/?host=" + encodeURIComponent(agent.name);
@@ -59,30 +72,26 @@ function AgentCard({
       {summary && <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-ink-2">{summary}</p>}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {host && <span className="agent-tag">MCP setup</span>}
+        {mcpHost && <span className="agent-tag">MCP setup</span>}
+        {host?.kind === "extension" && <span className="agent-tag">LiteSPM extension</span>}
         {agent.skill && <span className="agent-tag">Skills</span>}
         {host?.projectScope && <span className="agent-tag">Project setup</span>}
         {isDiscontinued(agent.hostId ?? "") && <span className="agent-tag agent-tag-muted">Legacy</span>}
       </div>
 
       <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(72px,1fr))] gap-2 border-t border-rule pt-4">
-        {agent.mcp && <Link href={exploreHref + "&kind=mcp"} prefetch={false} className="agent-count-link">
-          <strong>{formatCount(agent.mcp.count)}</strong>
-          <span>MCP listings</span>
-        </Link>}
-        {agent.skill && <Link href={exploreHref + "&kind=skill"} prefetch={false} className="agent-count-link">
-          <strong>{formatCount(agent.skill.count)}</strong>
-          <span>Skill listings</span>
-        </Link>}
-        {agent.plugin && <Link href={exploreHref + "&kind=plugin"} prefetch={false} className="agent-count-link">
-          <strong>{formatCount(agent.plugin.count)}</strong>
-          <span>Plugin listings</span>
-        </Link>}
+        {agent.mcp && <AgentCount count={agent.mcp.count} href={exploreHref + "&kind=mcp"} label="MCP listings" />}
+        {agent.skill && <AgentCount count={agent.skill.count} href={exploreHref + "&kind=skill"} label="Skill listings" />}
+        {agent.plugin && <AgentCount count={agent.plugin.count} href={exploreHref + "&kind=plugin"} label="Plugin listings" />}
       </div>
 
       <div className="mt-4 flex justify-end border-t border-rule pt-3">
-        <Link href={exploreHref} prefetch={false} className="text-[12px] font-medium text-ink-2 hover:text-accent-text">
-          Explore tools
+        <Link
+          href={agent.total === 0 ? "/submit/" : exploreHref}
+          prefetch={false}
+          className="text-[12px] font-medium text-ink-2 hover:text-accent-text"
+        >
+          {agent.total === 0 ? "Suggest a listing" : "Explore tools"}
         </Link>
       </div>
     </article>
@@ -114,7 +123,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
   const visibleAgents = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return agents.filter((agent) => {
-      if (filter === "configured" && !agent.hostId) return false;
+      if (filter === "configured" && (!agent.hostId || HOSTS.find((host) => host.id === agent.hostId)?.shape === "")) return false;
       if (filter === "skills" && !agent.skill) return false;
       if (!normalized) return true;
       const note = hostNote(agent.slug);
@@ -124,7 +133,8 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
     });
   }, [agents, filter, query]);
 
-  const configuredCount = agents.filter((agent) => agent.hostId).length;
+  const configuredCount = agents.filter((agent) => agent.hostId && HOSTS.find((host) => host.id === agent.hostId)?.shape !== "").length;
+  const extensionCount = agents.filter((agent) => agent.hostId && HOSTS.find((host) => host.id === agent.hostId)?.kind === "extension").length;
   const skillsCount = agents.filter((agent) => agent.skill).length;
 
   const scrollRail = (direction: -1 | 1) => {
@@ -188,6 +198,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
 
           <div className="agent-atlas-stats" aria-label="Agent profile coverage">
             <span><strong>{formatCount(configuredCount)}</strong> profiles with MCP setup</span>
+            {extensionCount > 0 && <span><strong>{formatCount(extensionCount)}</strong> profiles with an agent extension</span>}
             <span><strong>{formatCount(skillsCount)}</strong> profiles with a skills destination</span>
             <span><strong>{formatCount(hostCount)}</strong> agent profiles</span>
           </div>

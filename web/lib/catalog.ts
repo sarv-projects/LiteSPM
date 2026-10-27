@@ -245,7 +245,11 @@ export function sortListings<T extends Listing>(items: T[], mode: SortMode): T[]
     return copy;
   }
   if (mode === "name") {
-    const decorated = copy.map((item) => ({ item, name: nameKey(item.name) }));
+    // Sort by the label the card displays. Some registry ids are humanized
+    // from slugs or publisher names; sorting the raw value made "Name A–Z"
+    // visibly out of order for rows such as `a2asearch-mcp` → "Tadas GitHub
+    // MCP Server".
+    const decorated = copy.map((item) => ({ item, name: nameKey(displayListingName(item)) }));
     decorated.sort((a, b) => nameCollator.compare(a.name, b.name));
     return decorated.map((entry) => entry.item);
   }
@@ -419,10 +423,9 @@ export interface AgentFacet {
   /** Compatible entries, counted once per item (lib/hostIdentity). */
   count: number;
   /**
-   * The count by kind. The Works-with control shows these beside the total,
-   * because the total is 764 for seventy-one of the seventy-nine hosts: the
-   * reader cannot otherwise tell a host LiteSPM can write an MCP config for
-   * from one that only has a skills directory.
+   * The count by kind. The Works-with control shows these beside the total so
+   * readers can distinguish a host LiteSPM can configure for MCP from a
+   * destination that only has a skills directory.
    */
   mcp: number;
   skill: number;
@@ -453,7 +456,7 @@ export function agentFacets(items: Listing[]): AgentFacet[] {
       mcp: counts?.mcp ?? 0,
       skill: counts?.skill ?? 0,
       plugin: counts?.plugin ?? 0,
-      managed: Boolean(identity.adapter),
+      managed: Boolean(identity.adapter && identity.adapter.shape !== ""),
     };
   });
   for (const [key, host] of tally) {

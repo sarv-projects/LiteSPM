@@ -25,7 +25,7 @@
 
 import { expect, test } from "./support/site";
 import { gotoSettled, settle } from "./support/site";
-import { flagshipEntry, preRenderedEntry } from "./support/catalog";
+import { flagshipEntry, preRenderedEntry, recommendationEntry } from "./support/catalog";
 
 const preRendered = preRenderedEntry();
 const flagship = flagshipEntry();
@@ -200,8 +200,8 @@ test("every host the catalog names has a page", async ({ page }) => {
 });
 
 test("related recommendations avoid broad source dumps and weak drafts", async ({ page }) => {
-  const flagship = flagshipEntry();
-  await gotoSettled(page, flagship.href);
+  const recommendation = recommendationEntry();
+  await gotoSettled(page, recommendation.href);
 
   // RelatedRail waits until the reader reaches this area before loading siblings.
   await page.evaluate(() => {
@@ -220,9 +220,9 @@ test("a skills-only host says what LiteSPM does for it", async ({ page }) => {
   // "Warp" has a skills directory and no MCP configuration adapter.
   await gotoSettled(page, "/agents/warp/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Warp");
-  await expect(
-    page.getByText(/Add skills to Warp with LiteSPM/)
-  ).toBeVisible();
+  const start = page.getByRole("region", { name: "Start with LiteSPM" });
+  await expect(start).toBeVisible();
+  await expect(start.getByText("Choose this destination, then browse skills that fit your workflow.")).toBeVisible();
   // No config file is shown, because there is none to show.
   await expect(page.getByRole("heading", { name: "Config file" })).toHaveCount(0);
 });

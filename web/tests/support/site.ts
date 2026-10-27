@@ -167,6 +167,15 @@ export async function waitForFilteredGrid(
   }
   await expect(resultCount(page)).toBeVisible();
   await expect(resultCount(page)).not.toHaveText("searching…");
+  const count = parseCount(await resultCount(page).textContent());
+  if (count > 0) {
+    // A settled count can precede the full row request for advanced filters
+    // and explicit sorts. Do not let callers read the prerendered/windowed
+    // order while the rows for the selected filter are still arriving.
+    await expect(page.locator("main a[data-kind]").first()).toBeVisible();
+  } else {
+    await expect(page.locator("main a[data-kind]")).toHaveCount(0);
+  }
 }
 
 /** The plain number a count element shows: "2,365 entries" → 2365. */

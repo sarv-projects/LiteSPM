@@ -33,10 +33,10 @@ test("agent detail pages give first-time visitors a clear local installation pat
 test("agent detail pages show the setup and catalog choices for that agent", async ({ page }) => {
   await gotoSettled(page, "/agents/claude-code/");
 
-  await expect(page.getByRole("heading", { name: "Find tools for Claude Code" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find tools for Claude Code CLI" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Start with LiteSPM" })).toBeVisible();
   await expect(page.locator('section[aria-labelledby="agent-works-title"]')).toContainText(
-    "packages and skills to explore for Claude Code"
+    /packages and skills to explore for Claude Code CLI/i
   );
   await expect(page.getByText(/Some plugin entries are discovery-only/i)).toHaveCount(0);
 });
@@ -57,7 +57,7 @@ test("skills-only agent pages do not describe a config connection", async ({ pag
 
 test("agent profiles distinguish products from shared skill destinations", async ({ page }) => {
   await gotoSettled(page, "/agents/adal/");
-  await expect(page.getByRole("heading", { name: "AdaL" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "AdaL" })).toBeVisible();
   await expect(page.getByText(/Sylph’s AI agent for coding and computer tasks/)).toBeVisible();
   await expect(page.getByRole("link", { name: "docs.sylph.ai" })).toHaveAttribute("href", "https://docs.sylph.ai/");
 

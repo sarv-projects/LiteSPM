@@ -131,7 +131,9 @@ function identityCell(row: CompareRow, layout: Layout) {
       <Link
         href={`/agents/${row.id}/`}
         prefetch={false}
-        title={`Open ${row.name}: the config file and the entry LiteSPM adds.`}
+        title={row.extension
+          ? `Open ${row.name}: the LiteSPM extension and its command.`
+          : `Open ${row.name}: the config file and the entry LiteSPM adds.`}
         className={linkClass(
           layout,
           "t-cond min-w-0 text-[14px] font-medium text-ink transition-colors duration-hover hover:text-accent-text"
@@ -360,8 +362,8 @@ function SkillsSection({ group }: { group: CompareGroup }) {
       </div>
 
       <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-        LiteSPM cannot edit these agents&rsquo; MCP configuration, but it can install skills into
-        them.
+        LiteSPM has no MCP config or extension setup for these destinations; it can install skills
+        into the paths their agent documents.
       </p>
 
       <ul className="mt-2 grid grid-cols-1 gap-x-10 sm:grid-cols-2">
@@ -389,6 +391,32 @@ function SkillsSection({ group }: { group: CompareGroup }) {
   );
 }
 
+function ExtensionsSection({ group }: { group: CompareGroup }) {
+  return (
+    <section className="mt-9" aria-labelledby="compare-extensions">
+      <div className="section-head">
+        <h2 id="compare-extensions">{group.title}</h2>
+        <span className="section-note t-mono">
+          {formatCount(group.rows.length)} · {group.note}
+        </span>
+      </div>
+      <ul className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {group.rows.map((row) => (
+          <li key={row.id} className="rounded-card border border-rule bg-surface p-3.5">
+            {identityCell(row, "card")}
+            <p className="kicker mt-3">Extension file</p>
+            <Path value={row.extensionPath ?? ""} className="t-mono block break-words text-[11.5px] leading-relaxed text-ink" />
+            <p className="mt-2 text-[12px] leading-relaxed text-ink-2">
+              This integration adds LiteSPM&rsquo;s marketplace command inside the agent. It does not
+              register an MCP server.
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function CompareView({ data }: CompareViewProps) {
   return (
     <div
@@ -401,14 +429,14 @@ export default function CompareView({ data }: CompareViewProps) {
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-[24px] font-semibold tracking-tight text-ink">Compare agent hosts</h1>
           <p className="t-mono text-[11px] text-ink-3">
-            {formatCount(data.hostCount)} hosts · {formatCount(data.setupCount)} LiteSPM can
-            configure
+            {formatCount(data.hostCount)} profiles · {formatCount(data.setupCount)} MCP setups · {formatCount(data.extensionCount)} extension
           </p>
         </div>
 
         <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          LiteSPM sets an agent up by adding one entry to a config file the agent already reads; the
-          rest of the file is left as it is. That one entry is why{" "}
+          LiteSPM adds one MCP entry to each configured agent&rsquo;s existing file; the rest of that
+          file is left as it is. It can also install native agent extensions where supported. That
+          config path is why{" "}
           {formatCount(data.installableServerCount)} of the {formatCount(data.serverCount)} MCP
           servers in the catalog can be installed — into the {data.remoteHostCount} agents that take
           a remote server — and {formatCount(data.installableSkillCount)} of the{" "}
@@ -417,21 +445,20 @@ export default function CompareView({ data }: CompareViewProps) {
           line, so there is nothing to install.
         </p>
 
-        {data.groups.map((group) =>
-          group.key === "configure" ? (
-            <ConfigureSection key={group.key} group={group} />
-          ) : (
-            <SkillsSection key={group.key} group={group} />
-          )
-        )}
+        {data.groups.map((group) => group.key === "configure" ? (
+          <ConfigureSection key={group.key} group={group} />
+        ) : group.key === "extension" ? (
+          <ExtensionsSection key={group.key} group={group} />
+        ) : (
+          <SkillsSection key={group.key} group={group} />
+        ))}
 
         <p className="mt-8 max-w-prose text-[12px] leading-relaxed text-ink-3">
           A dash means no value is recorded for that agent.
         </p>
         <p className="mt-3 max-w-prose text-[13px] leading-relaxed text-ink-2">
-          Comparing them all leaves you looking for one? Its own page names the exact config file
-          and the entry LiteSPM writes into it — <Link href="/agents/" className="link">all 50
-          agent hosts</Link>.
+          Comparing them all leaves you looking for one? Its own page shows the setup path —{" "}
+          <Link href="/agents/" className="link">all {data.hostCount} agent profiles</Link>.
         </p>
       </main>
 

@@ -110,8 +110,9 @@ const catalog = JSON.parse(
   readFileSync(new URL("../data/catalog.json", import.meta.url), "utf8")
 ) as Listing[];
 
-const REMOTE_HOST_IDS = hosts.filter((h) => h.remote === true).map((h) => h.id).sort();
-const NON_REMOTE_HOST_IDS = hosts.filter((h) => h.remote !== true).map((h) => h.id).sort();
+const MCP_ADAPTERS = hosts.filter((h) => Boolean(h.shape));
+const REMOTE_HOST_IDS = MCP_ADAPTERS.filter((h) => h.remote === true).map((h) => h.id).sort();
+const NON_REMOTE_HOST_IDS = MCP_ADAPTERS.filter((h) => h.remote !== true).map((h) => h.id).sort();
 
 /** A row with every field the type requires, and whatever the case needs. */
 function row(overrides: Partial<Listing> & Pick<Listing, "kind">): Listing {
@@ -250,9 +251,9 @@ const DISCOVERY = row({
     [...verdict.supportedHostIds].sort(),
     REMOTE_HOST_IDS
   );
-  equal("remote: eight hosts carry a remote spelling", REMOTE_HOST_IDS.length, 8);
+  equal("remote: 46 hosts carry a remote spelling", REMOTE_HOST_IDS.length, 46);
   equal(
-    "remote: the other forty-two are not in the supported set",
+    "remote: the other five MCP adapters are not in the supported set",
     NON_REMOTE_HOST_IDS.filter((id) => verdict.supportedHostIds.includes(id)),
     []
   );
@@ -313,9 +314,9 @@ const DISCOVERY = row({
   const verdict = feasibilityFor(LOCAL);
   equal("local: state", verdict.state, "supported");
   equal("local: mode", verdict.mode, "mcp-local");
-  equal("local: every adapter takes a local entry", verdict.supportedHostIds.length, hosts.length);
+  equal("local: every MCP adapter takes a local entry", verdict.supportedHostIds.length, MCP_ADAPTERS.length);
 
-  // Project scope: the seven adapters that document only a user-scope config
+  // Project scope: the eight adapters that document only a user-scope config
   // refuse a project-scope entry.
   const projectVerdict = feasibilityFor(LOCAL, "cline", "project");
   equal("local: project scope refuses a user-scope-only host", projectVerdict.state, "unsupported");

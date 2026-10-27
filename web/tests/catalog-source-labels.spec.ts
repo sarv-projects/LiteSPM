@@ -32,7 +32,7 @@ test("publisher display names read like brands without changing unknown IDs", ()
 });
 
 test("source collection wording never presents a directory category as verification", () => {
-  expect(categoryLabel(OFFICIAL_SKILLS_CATEGORY)).toBe("Skills by publisher");
+  expect(categoryLabel(OFFICIAL_SKILLS_CATEGORY)).toBe("Publisher skills");
   const signal = rowSignal({
     id: "skill:fixture",
     name: "Fixture",

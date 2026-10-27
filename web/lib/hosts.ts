@@ -20,11 +20,11 @@ import { availabilityOf } from "./availability";
 import type { Listing } from "./telemetry";
 
 export type PlatformOS = "win" | "mac" | "linux";
-export type HostFormat = "json" | "toml";
-export type HostShape = "object" | "local-array" | "stdio-typed" | "command-string" | "";
+export type HostFormat = "json" | "toml" | "extension";
+export type HostShape = "object" | "local-array" | "array-object" | "stdio-typed" | "command-string" | "";
 
 export interface HostAdapter {
-  /** Registry id passed to `litespm bridge stdio --host <id>`. */
+  /** Registry id used by LiteSPM's host integration. */
   id: string;
   name: string;
   kind: HostFormat;
@@ -57,8 +57,8 @@ export interface HostAdapter {
   /**
    * True when the registry has a verified remote (URL) MCP entry spelling for
    * this host (`host.RemoteEntrySpecFor`); absent means a remote install there
-   * is refused fail-closed. Forty-six of the fifty rows carry it (the four
-   * that do not publish no such object). It was declared on `GeneratedHost`
+   * is refused fail-closed. Forty-six of the fifty-one MCP adapter rows carry
+   * it (the five others publish no such object). It was declared on `GeneratedHost`
    * below and then dropped by the mapper, so no surface could read it;
    * `/compare` needs it and carries it through instead.
    */
@@ -120,7 +120,8 @@ const PATH_OVERRIDES: Record<string, Partial<Record<PlatformOS, string>>> = {
   // internal/host/cline.go); the previous win/mac overrides pointed at a
   // location current Cline only reads once, as a legacy migration.
   cline: { win: "%USERPROFILE%\\.cline\\data\\settings\\cline_mcp_settings.json" },
-  "pi-agent": { win: "%USERPROFILE%\\.pi\\agent\\mcp.json" },
+  "pi-agent": { win: "%USERPROFILE%\\.pi\\agent\\extensions\\litespm.ts" },
+  grok: { win: "%USERPROFILE%\\.grok\\user-settings.json" },
   "grok-build": { win: "%USERPROFILE%\\.grok\\config.toml" },
 };
 
@@ -129,13 +130,14 @@ export const HOSTS: HostAdapter[] = (generated as GeneratedHost[]).map((h) => {
   // adapter — the six hand-written ones included — from the same registry the
   // binary writes with, so this file no longer restates them. The fallbacks
   // below only cover a host the registry declares no layout for.
-  const fallback = h.format === "toml" ? "mcp_servers" : "mcpServers";
-  const keyPath = h.keyPath || fallback;
-  const shape: HostShape = (h.shape as HostShape) || "object";
+  const kind: HostFormat = h.format === "extension" ? "extension" : h.format === "toml" ? "toml" : "json";
+  const fallback = kind === "toml" ? "mcp_servers" : "mcpServers";
+  const keyPath = h.keyPath || (kind === "extension" ? "" : fallback);
+  const shape: HostShape = (h.shape as HostShape) || (kind === "extension" ? "" : "object");
   return {
     id: h.id,
     name: h.name,
-    kind: h.format === "toml" ? "toml" : "json",
+    kind,
     keyPath,
     shape,
     userPath: h.userPath || "",
@@ -149,6 +151,9 @@ export const HOSTS: HostAdapter[] = (generated as GeneratedHost[]).map((h) => {
     remoteTransports: h.remoteTransports,
   };
 });
+
+/** Hosts with a native MCP server configuration LiteSPM can write. */
+export const MCP_HOSTS: HostAdapter[] = HOSTS.filter((host) => host.shape !== "");
 
 /** Resolve the documented config path for one host on one platform. */
 export function hostPath(host: HostAdapter, os: PlatformOS): string {
@@ -261,7 +266,7 @@ export function skillTargetPaths(target: SkillTarget, os: PlatformOS = "linux"):
  * install fail-closed, so these are the only hosts a remote row can honestly
  * be said to work with.
  */
-export const REMOTE_HOSTS = HOSTS.filter((h) => h.remote === true);
+export const REMOTE_HOSTS = MCP_HOSTS.filter((h) => h.remote === true);
 
 /**
  * True when an MCP row reaches its server over a URL rather than launching a
@@ -293,9 +298,9 @@ function registryTransport(raw?: string | null): string {
  *     about the plugin, printed as "Publisher-declared", so it is returned as
  *     published even though LiteSPM will not install a plugin yet.
  *   - a **skill** row and a **local MCP** row are derived from the entry's kind:
- *     LiteSPM can write any adapter's config, or any skills directory. That is a
- *     claim about LiteSPM, so `availabilityOf` gates it — a row the binary
- *     refuses to install is listed for no host at all.
+ *     LiteSPM can write any skills directory, but an MCP entry needs a native
+ *     MCP config adapter. Extension-only Pi Agent is therefore included for
+ *     skills and excluded for MCP. `availabilityOf` gates installability too.
  *   - a **remote MCP** row needs a host with a verified URL spelling, so it is
  *     only hosts whose `remoteTransports` include the row's exact transport;
  *     the other adapters refuse the install fail-closed, and a capable remote
@@ -330,10 +335,10 @@ export function hostsFor(item: {
     // accepts this transport can take the config LiteSPM writes.
     if (isRemoteTransport(item.transport) && (item.url || item.hasUrl)) {
       const transport = registryTransport(item.transport);
-      return HOSTS.filter((host) => host.remote === true && host.remoteTransports?.includes(transport))
+      return MCP_HOSTS.filter((host) => host.remote === true && host.remoteTransports?.includes(transport))
         .map((host) => host.name);
     }
-    return HOSTS.map((host) => host.name);
+    return MCP_HOSTS.map((host) => host.name);
   }
   // The website's installer defaults to user scope. Targets without a global
   // skills directory require an explicit project-scope install and shouldn't
@@ -414,6 +419,8 @@ export function bridgeEntry(host: HostAdapter, binary = "litespm"): unknown {
       return { type: "stdio", command: binary, args };
     case "command-string":
       return `${binary} ${args.join(" ")}`;
+    case "array-object":
+      return { id: "litespm", label: "LiteSPM", enabled: true, transport: "stdio", command: binary, args };
     default:
       return { command: binary, args };
   }
@@ -421,6 +428,9 @@ export function bridgeEntry(host: HostAdapter, binary = "litespm"): unknown {
 
 /** Pure, host-accurate configuration payload for the single litespm bridge entry. */
 export function bridgeSnippet(host: HostAdapter, binary = "litespm", _os: PlatformOS = "linux"): string {
+  if (host.kind === "extension") {
+    return "Run `litespm host setup pi-agent`, then restart Pi Agent and open `/marketplace`.";
+  }
   const keyPath = host.keyPath || "mcpServers";
 
   if (host.kind === "toml") {
@@ -428,6 +438,8 @@ export function bridgeSnippet(host: HostAdapter, binary = "litespm", _os: Platfo
     return `[${table}]\ncommand = "${binary}"\nargs = ["bridge", "stdio", "--host", "${host.id}"]\n`;
   }
 
-  const body = nest(keyPath, { litespm: bridgeEntry(host, binary) });
+  const body = host.shape === "array-object"
+    ? nest("mcp", { servers: [bridgeEntry(host, binary)] })
+    : nest(keyPath, { litespm: bridgeEntry(host, binary) });
   return JSON.stringify(body, null, 2);
 }

@@ -6,7 +6,7 @@
     "predev": "node scripts/emit-catalog-shards.mjs",
     "dev": "next dev",
     "prebuild": "node scripts/emit-catalog-shards.mjs && node scripts/gen_brand_logos.mjs",
-    "build": "next build",
+    "build": "next build && node scripts/materialize-entry-sitemap.mjs",
     "start": "next start",
     "lint": "node scripts/check-hook-order.mjs && node scripts/check-orphan-components.mjs && node scripts/check-search-settled.mjs && node scripts/check-search-index.mjs && node scripts/check-install-command.mjs && node scripts/check-contrast.mjs && node scripts/check-publisher-counts.mjs && node scripts/check-og-image.mjs",
     "lint:links": "python3 ../scripts/check_site_links.py out --dataset data/catalog.json --featured data/featured.json",

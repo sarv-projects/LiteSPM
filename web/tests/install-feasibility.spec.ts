@@ -7,9 +7,9 @@
 // agreed with itself and disagreed with `data/hosts.json` and with
 // `lib/availability`:
 //
-//   - `hostsFor` returned all 50 adapters for every MCP row, including the
-//     25,400 remote-only rows whose install the binary refuses on 42 of those
-//     adapters (`LPSM-HOST-REMOTE-UNSUPPORTED`), and
+//   - `hostsFor` returned every adapter for remote MCP rows even where the
+//     registry had no remote entry spelling or did not support that transport
+//     (`LPSM-HOST-REMOTE-UNSUPPORTED`), and
 //   - it returned every adapter or every skill target for the 42,574
 //     discovery-only rows that have no install method at all — while the page
 //     directly above the list said "Install unavailable".
@@ -35,14 +35,14 @@
 // gates onto the site (`lib/installFeasibility.ts`) against the same
 // committed files the binary reads:
 //
-//   4. the eight adapters with a verified remote (URL) entry spelling are
+//   4. the 46 MCP adapters with a verified remote (URL) entry spelling are
 //      exactly the hosts the module calls `supported` for a remote MCP row,
-//      and the 42 it says nothing about are never called `supported`;
+//      and the five MCP adapters without remote capability are never called `supported`;
 //   5. the transport the entry publishes decides the host set — only Claude
 //      Code, Cline and Cursor document `sse`, and the binary refuses the
 //      other five by name (LPSM-HOST-REMOTE-UNSUPPORTED);
 //   6. a local MCP row reaches every adapter, and a project-scope install is
-//      refused for the seven adapters that document only a user-scope config;
+//      refused for the eight adapters that document only a user-scope config;
 //   7. a skill is copied into a skills directory: user scope refuses the two
 //      targets that document no user-level directory, project scope takes
 //      them;
@@ -84,6 +84,7 @@ interface HostRow {
   projectScope?: boolean;
   /** True when the host documents only a repo-local config file. */
   projectOnly?: boolean;
+  shape?: string;
 }
 
 interface SkillTargetRow {
@@ -97,7 +98,10 @@ const HOST_ROWS: HostRow[] = JSON.parse(
   readFileSync(join(WEB_ROOT, "data", "hosts.json"), "utf8")
 ) as HostRow[];
 
-const REMOTE_HOSTS = HOST_ROWS.filter((host) => host.remote === true);
+// Pi Agent is a skills extension, not an MCP config adapter. It remains part
+// of the host identity catalog, but cannot take an MCP server entry.
+const MCP_ADAPTER_ROWS = HOST_ROWS.filter((host) => Boolean(host.shape));
+const REMOTE_HOSTS = MCP_ADAPTER_ROWS.filter((host) => host.remote === true);
 
 /**
  * The rule `lib/hosts.ts` applies, restated here rather than imported: a row
@@ -132,7 +136,7 @@ const PLUGIN = pickRow("a plugin with publisher-declared hosts", (row) => {
   return row.kind === "plugin" && (row.compatibleHosts?.length ?? 0) > 0;
 });
 
-/** The compatibility section's note: "8 of 79 hosts", or an availability label. */
+/** The compatibility section's note: "N of M hosts", or an availability label. */
 async function fitNote(page: import("@playwright/test").Page): Promise<string> {
   const note = page.locator("#will-it-work .section-note");
   await expect(note).toBeVisible();
@@ -158,7 +162,7 @@ test("the fixture rows are the classes the catalog actually has", () => {
     REMOTE_HOSTS.length,
     "data/hosts.json must mark some hosts remote and leave others without it, or this file cannot tell the two classes apart"
   ).toBeGreaterThan(0);
-  expect(REMOTE_HOSTS.length).toBeLessThan(HOST_ROWS.length);
+  expect(REMOTE_HOSTS.length).toBeLessThan(MCP_ADAPTER_ROWS.length);
 
   expect(isRemote(REMOTE_MCP.row.transport)).toBe(true);
   expect(isRemote(DISCOVERY_MCP.row.transport)).toBe(false);
@@ -294,16 +298,14 @@ const SKILL_ROW = moduleRow({
 });
 
 test("the registry's remote capability is exactly the module's remote verdict", () => {
-  const capable = HOST_ROWS.filter((host) => host.remote === true);
-  const silent = HOST_ROWS.filter((host) => host.remote !== true);
+  const capable = MCP_ADAPTER_ROWS.filter((host) => host.remote === true);
+  const silent = MCP_ADAPTER_ROWS.filter((host) => host.remote !== true);
 
-  // 46 of 50 since the adapters were re-read against live vendor documentation
-  // (2026-10-21): every host whose vendor publishes an entry object takes a
-  // remote URL. The four that do not — codestudio, iflow-cli, mux and zcode —
+  // 46 of 51 MCP adapters have a verified remote entry spelling. The five
+  // that do not — codestudio, grok, iflow-cli, mux and zcode —
   // publish no such object, so writing one would be a config the host ignores.
-  // This assertion pinned the pre-audit count of 8.
   expect(capable.length, "the Go registry ships 46 remote entry spellings").toBe(46);
-  expect(silent.length, "and four hosts whose vendor publishes no entry object").toBe(4);
+  expect(silent.length, "five MCP adapters publish no remote entry object").toBe(5);
 
   const verdict = feasibilityFor(REMOTE_HTTP_ROW);
   expect(
@@ -347,7 +349,7 @@ test("a remote MCP row is supported for a capable host and refused for an incapa
     "a supported verdict must not promise the publisher's runtime works"
   ).toContain("the publisher's runtime is not tested by LiteSPM");
 
-  const incapable = HOST_ROWS.find((host) => host.remote !== true);
+  const incapable = MCP_ADAPTER_ROWS.find((host) => host.remote !== true);
   expect(incapable, "the registry has hosts without a remote spelling").toBeTruthy();
   const refused = feasibilityFor(REMOTE_HTTP_ROW, incapable!.id);
   expect(refused.state).not.toBe("supported");
@@ -364,7 +366,7 @@ test("the transport the entry publishes decides the host set", () => {
   // 50 take a URL entry; 23 of those document sse). Deriving the expectation
   // from the same generated data is what keeps this assertion true on the
   // next re-verification.
-  const sseCapable = HOST_ROWS.filter((host) =>
+  const sseCapable = MCP_ADAPTER_ROWS.filter((host) =>
     (host.remoteTransports ?? []).includes("sse")
   )
     .map((host) => host.id)
@@ -382,10 +384,10 @@ test("a local MCP row reaches every adapter, and project scope refuses the user-
   const local = feasibilityFor(LOCAL_MCP_ROW);
   expect(local.state).toBe("supported");
   expect(local.mode).toBe("mcp-local");
-  expect(local.supportedHostIds.length).toBe(HOST_ROWS.length);
+  expect(local.supportedHostIds.length).toBe(MCP_ADAPTER_ROWS.length);
 
-  const userScopeOnly = HOST_ROWS.filter((host) => !host.projectScope);
-  expect(userScopeOnly.length, "seven adapters document only a user-scope config").toBe(7);
+  const userScopeOnly = MCP_ADAPTER_ROWS.filter((host) => !host.projectScope);
+  expect(userScopeOnly.length, "eight adapters document only a user-scope config").toBe(8);
   for (const host of userScopeOnly) {
     expect(
       feasibilityFor(LOCAL_MCP_ROW, host.id, "project").state,
@@ -395,7 +397,7 @@ test("a local MCP row reaches every adapter, and project scope refuses the user-
 
   // The three agents that document only a repo-local config: the install
   // lands inside the project it is run from, so it needs setup first.
-  const repoLocalOnly = HOST_ROWS.filter((host) => host.projectOnly);
+  const repoLocalOnly = MCP_ADAPTER_ROWS.filter((host) => host.projectOnly);
   expect(repoLocalOnly.length).toBe(3);
   for (const host of repoLocalOnly) {
     expect(

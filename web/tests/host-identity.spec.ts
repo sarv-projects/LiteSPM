@@ -1,6 +1,6 @@
 // One host, one count — checked on every host page, not a sample.
 //
-// The defect this file was written against: nine of the fifty host pages
+// The defect this file was written against: nine of the host pages
 // counted only the catalog rows that name the host the way the MCP registry
 // spells it ("Claude Code CLI") while the same host's row on `/agents/`, its
 // `/insights/` figure and its own Explore link counted every row that names
@@ -34,6 +34,7 @@ import {
   agentFilterSelect,
 } from "./support/site";
 import { preRenderedEntry } from "./support/catalog";
+import { HOSTS, hostsFor } from "../lib/hosts";
 
 interface IndexRow {
   href: string;
@@ -125,7 +126,13 @@ test("every host page's count equals its own Explore link and its /agents/ row",
         );
       }
 
-      const browse = page.locator('section[aria-labelledby="agent-works-title"]').getByRole("link", { name: /Browse entries for/ });
+      const section = page.locator('section[aria-labelledby="agent-works-title"]');
+      const browse = section.locator('a[href^="/explore/?host="]');
+      if (pageCount === 0) {
+        await expect(section.getByRole("link", { name: "Suggest a listing" })).toHaveAttribute("href", "/submit/");
+        await expect(browse).toHaveCount(0);
+        continue;
+      }
       const href = await browse.getAttribute("href");
       const host = new URL(href ?? "", "http://localhost").searchParams.get("host") ?? "";
       expect(host, `the Browse link on ${row.href} names a host filter`).not.toBe("");
@@ -150,25 +157,44 @@ function facetName(option: string): string {
   return option.replace(/ \(\d[\d,]*\)$/, "").trim();
 }
 
-/** The first number in a string ("79 hosts · 50 LiteSPM can set up" → 79). */
+/** The first number in a string ("52 profiles · 51 MCP setups" → 52). */
 function leadingCount(text: string | null): number {
   const match = (text ?? "").match(/[\d,]+/);
   return parseCount(match?.[0] ?? text);
 }
 
-test("one denominator: /agents/, /compare/, the entry pages and the Explore facet agree", async ({
+test("profile totals and listing destinations use their own clear denominators", async ({
   page,
 }) => {
   await gotoSettled(page, "/explore/");
   const facetOptions = await agentFilterSelect(page).locator("option").allTextContents();
-  const facetCount = facetOptions.length - 1; // "Any agent" is the first option
+  const facetCount = facetOptions.length - 1; // "Any agent" is first; only destinations with listings follow
 
   await gotoSettled(page, "/agents/");
   const agentsHeader = await page.locator(".agent-atlas-stats span:last-child strong").textContent();
   const agentsCount = leadingCount(agentsHeader);
+  const agentRows = page.locator("main article.agent-atlas-card");
+  const zeroCountLinks = await agentRows.locator("a.agent-count-link").evaluateAll((links) =>
+    links.filter((link) => Number.parseInt(link.querySelector("strong")?.textContent ?? "0", 10) === 0)
+      .map((link) => link.textContent?.trim() ?? "")
+  );
+  expect(zeroCountLinks, "a zero listing count is information, not an empty Explore link").toEqual([]);
+  const rowsWithListings = await agentRows.locator("a.agent-count-link").evaluateAll((links) =>
+    new Set(links.map((link) => new URL((link as HTMLAnchorElement).href).searchParams.get("host"))).size
+  );
+  const noListingCards = await agentRows.evaluateAll((cards) =>
+    cards.filter((card) => !card.querySelector("a.agent-count-link")).map((card) => ({
+      links: [...card.querySelectorAll("a")].map((link) => link.getAttribute("href")),
+    }))
+  );
+  expect(noListingCards).toHaveLength(2);
+  expect(
+    noListingCards.every(({ links }) => links.includes("/submit/") && !links.some((href) => href?.startsWith("/explore/?host="))),
+    "profiles with no matching listings suggest one instead of opening an empty catalog"
+  ).toBe(true);
 
   await gotoSettled(page, "/compare/");
-  const compareHeader = await page.locator("main p", { hasText: "hosts ·" }).first().textContent();
+  const compareHeader = await page.locator("main p", { hasText: "profiles ·" }).first().textContent();
   const compareCount = leadingCount(compareHeader);
 
   const entry = preRenderedEntry();
@@ -180,20 +206,15 @@ test("one denominator: /agents/, /compare/, the entry pages and the Explore face
   expect(fraction, `the entry page states "N of M agent hosts": ${entryText}`).not.toBeNull();
   const entryDenominator = parseCount(fraction?.[2] ?? "");
 
+  expect(compareCount, "Compare includes every host profile").toBe(agentsCount);
+  expect(entryDenominator, "package coverage uses the full host profile set").toBe(agentsCount);
+  expect(facetCount, "Explore offers every host destination with catalog listings").toBe(rowsWithListings);
+  expect(facetCount).toBeLessThanOrEqual(agentsCount);
+  const zeroCountFacets = facetOptions.slice(1).filter((option) => /\(0\)$/.test(option)).length;
   expect(
-    {
-      exploreFacet: facetCount,
-      agents: agentsCount,
-      compare: compareCount,
-      entryDenominator,
-    },
-    "every surface states the same host count"
-  ).toEqual({
-    exploreFacet: facetCount,
-    agents: facetCount,
-    compare: facetCount,
-    entryDenominator: facetCount,
-  });
+    zeroCountFacets,
+    "Explore does not send a first-time visitor into a zero-result host filter"
+  ).toBe(0);
 });
 
 test("the Agent filter keeps distinct Pi and Grok products as separate options", async ({ page }) => {
@@ -211,4 +232,27 @@ test("the Agent filter keeps distinct Pi and Grok products as separate options",
   expect(once("Pi Agent"), "the Pi Agent host is one option").toBe(1);
   expect(once("Grok CLI"), "the community Grok CLI is one option").toBe(1);
   expect(once("Grok Build"), "xAI Grok Build is one option").toBe(1);
+});
+
+test("Pi Agent is a skills extension, while Pi CLI and Grok CLI keep their MCP configs", () => {
+  const byId = (id: string) => HOSTS.find((host) => host.id === id);
+  expect(byId("pi")?.kind).toBe("json");
+  expect(byId("pi")?.keyPath).toBe("mcpServers");
+  expect(byId("pi-agent")?.kind).toBe("extension");
+  expect(byId("pi-agent")?.shape).toBe("");
+  expect(byId("grok")?.userPath).toBe("~/.grok/user-settings.json");
+  expect(byId("grok")?.keyPath).toBe("mcp.servers");
+  expect(byId("grok-build")?.kind).toBe("toml");
+
+  const mcp = { kind: "mcp" as const, installability: "metadata_verified" as const, transport: "stdio" };
+  const mcpHosts = hostsFor(mcp);
+  expect(mcpHosts).toContain("Pi (Terminal Agent)");
+  expect(mcpHosts).not.toContain("Pi Agent");
+  expect(mcpHosts).toContain("Grok CLI");
+  expect(mcpHosts).toContain("Grok Build (xAI Dev Tool)");
+
+  const skill = { kind: "skill" as const, installability: "metadata_verified" as const };
+  const skillHosts = hostsFor(skill);
+  expect(skillHosts).toContain("Pi Agent");
+  expect(skillHosts).toContain("Pi");
 });

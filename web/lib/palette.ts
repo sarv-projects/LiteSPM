@@ -13,7 +13,7 @@
 // catalog byte may not enter a JavaScript chunk (J002's acceptance).
 
 import { useCallback, useEffect, useState } from "react";
-import { HOSTS } from "./hosts";
+import { HOSTS, MCP_HOSTS } from "./hosts";
 import { vendorName } from "./vendorNames";
 import { loadCatalogCategories } from "./catalogData";
 import { tokenizeText } from "./searchFormat.mjs";
@@ -54,7 +54,7 @@ export const PALETTE_PAGES: PaletteDestination[] = [
   {
     key: "page:agents",
     label: "Agents",
-    detail: `The ${HOSTS.length} hosts LiteSPM can configure`,
+    detail: `The ${MCP_HOSTS.length} agents LiteSPM can configure for MCP`,
     href: "/agents/",
   },
   {

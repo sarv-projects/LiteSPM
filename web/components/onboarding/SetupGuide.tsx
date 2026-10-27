@@ -40,7 +40,7 @@ export interface GuideAgent {
   /** The display name the registry publishes. */
   name: string;
   /** The configuration file's format. */
-  format: "json" | "toml";
+  format: "json" | "toml" | "extension";
   /** The key the bridge entry is written under, in the host's own spelling. */
   keyPath: string;
   /** The user-scope configuration file, per platform. */
@@ -124,7 +124,7 @@ function Guide({
           <p className="t-mono text-[11px] font-medium text-accent-text">01 · INSTALL</p>
           <h3 className="mt-1 text-[14px] font-semibold text-ink">Install LiteSPM</h3>
           <p className="mt-1 text-[12.5px] leading-relaxed text-ink-2">
-            Requires Node.js 22.22.2+ on 22.x, 24.15.0+ on 24.x, or 26+ and npm. Direct binaries are also available.
+            Requires Node.js 22.22.2+ on 22.x, 24.15.0+ on 24.x, or 26+ and npm. Signed binaries are available if you prefer to install without Node.js.
           </p>
           <div className="mt-3">
             <CommandCopy command="npm install -g litespm" label="Install the CLI" note={`Run this in ${terminalName(os)}.`} />
@@ -145,7 +145,9 @@ function Guide({
               <p className="t-mono text-[10.5px] uppercase tracking-wider text-ink-3">File for {agent!.name}</p>
               <p className="t-mono mt-1 break-all text-[12.5px] text-ink">{path}</p>
               <p className="mt-1.5 text-[12px] leading-relaxed text-ink-3">
-                {agent!.format.toUpperCase()}; bridge entry under <code className="t-mono text-ink-2">{agent!.keyPath}</code>.
+                {agent!.format === "extension"
+                  ? "TypeScript extension; opens the /marketplace command."
+                  : <>{agent!.format.toUpperCase()}; bridge entry under <code className="t-mono text-ink-2">{agent!.keyPath}</code>.</>}
               </p>
             </div>
           ) : agent ? (

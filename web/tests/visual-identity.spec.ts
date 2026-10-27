@@ -48,7 +48,7 @@ test("MCP and brand roles remain distinct and the hero glow stays on-brand", asy
   }
 
   await expect(page.locator(".home-hero-window")).toBeVisible();
-  await expect(page.locator(".home-hero-note")).toContainText("Less configuration hunting.");
+  await expect(page.locator(".home-hero-note")).toContainText("Example only. Nothing is installed here.");
 });
 
 test("submit-page explanatory copy is at least 14px on desktop and mobile", async ({ page }) => {

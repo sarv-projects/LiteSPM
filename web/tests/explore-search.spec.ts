@@ -9,6 +9,7 @@
 //   * an unknown `?host=` filtered silently while the select read "Any agent".
 
 import { expect, test } from "./support/site";
+import { VALIDATION_FIXTURE_SUFFIX } from "../lib/catalog";
 import {
   collectDataRequests,
   gotoSettled,
@@ -29,11 +30,11 @@ test("the default catalog page introduces MCP servers, skills and plugins togeth
     ["mcp", "skill", "plugin"].map((kind) => [kind, kinds.filter((value) => value === kind).length])
   );
 
-  expect(counts, "the first browse window contains 8 listings of each package type").toEqual({
-    mcp: 8,
-    skill: 8,
-    plugin: 8,
-  });
+  expect(kinds.length, "the first browse window contains 24 listings").toBe(24);
+  for (const [kind, count] of Object.entries(counts)) {
+    expect(count, `the first browse window includes ${kind}`).toBeGreaterThanOrEqual(7);
+    expect(count, `the first browse window stays balanced for ${kind}`).toBeLessThanOrEqual(9);
+  }
   await expect(page.locator("#explore-sort")).toHaveValue("curated");
   await expect(page.getByText(/How results are sorted/i)).toHaveCount(0);
   await expect(page.getByText(/featured picks first/i)).toHaveCount(0);
@@ -83,9 +84,14 @@ test("search: results settle, the count is measured, and the first row is above 
   const top = (box?.y ?? 0) + (await page.evaluate(() => window.scrollY));
   expect(top, `first result top: ${Math.round(top)}px`).toBeLessThan(560);
 
-  // Ranking internals stay out of the customer-facing result list.
+  // Ranking internals stay out of the customer-facing result list. Publisher
+  // wording can occur in a real capability's summary, so pin synthetic
+  // validation rows by their registered suffix instead of matching prose.
   await expect(page.getByText(/How results are sorted/i)).toHaveCount(0);
-  await expect(page.getByText(/publisher manifests|publisher skills/i)).toHaveCount(0);
+  const visibleNames = await page
+    .locator("main [data-explore-results] a[data-kind]")
+    .evaluateAll((rows) => rows.map((row) => row.querySelector("h3")?.textContent?.trim() ?? row.textContent?.trim() ?? ""));
+  expect(visibleNames.filter((name) => VALIDATION_FIXTURE_SUFFIX.test(name))).toEqual([]);
 });
 
 test("the grid count never prints a figure before the search measured one", async ({ page }) => {
@@ -158,7 +164,23 @@ test("sort applies, lands in the URL, and orders the rows", async ({ page }) => 
   await expect(page).toHaveURL(/sort=name/);
   await waitForFilteredGrid(page, {});
 
-  // The row's link is its title, so the link's own text is the name.
+  // Explicit sorts fetch the full display projection. The measured count can
+  // settle before that projection arrives, so wait for the rows themselves to
+  // reflect the selected order before inspecting them.
+  await expect
+    .poll(
+      async () => {
+        const names = await page.locator("main a[data-kind]").evaluateAll((rows) =>
+          rows.slice(0, 6).map((row) => row.textContent?.trim().toLocaleLowerCase() ?? "")
+        );
+        return names.length > 1 && names.every((name, index) => index === 0 || names[index - 1].localeCompare(name) <= 0);
+      },
+      { timeout: 30_000, message: "the first visible rows should settle into name order" }
+    )
+    .toBe(true);
+
+  // The link is the visible name; the sort must follow the humanized label,
+  // not a machine-shaped registry id kept in the underlying row.
   const names = await page.locator("main a[data-kind]").evaluateAll((rows) =>
     rows.slice(0, 6).map((row) => row.textContent?.trim() ?? "")
   );

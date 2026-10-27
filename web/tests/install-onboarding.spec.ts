@@ -47,15 +47,21 @@ test("untrusted package ids and agent ids never enter a shell command", () => {
   expect(() => websiteInstallCommandFor({ id: "mcp:ok", kind: "mcp" }, "codex;echo")).toThrow();
 });
 
-test("a package page exposes honest, copyable first-time npx steps", async ({ page }) => {
+test("a package page links its install command to the first-time setup flow", async ({ page }) => {
   const entry = preRenderedEntry();
   await gotoSettled(page, entry.href);
-  const region = page.getByRole("region", { name: "Install with LiteSPM" });
-  await expect(region).toBeVisible();
-  await expect(region.getByText("Before your first install", { exact: true })).toBeVisible();
-  await expect(region.getByText(WEBSITE_SETUP_COMMAND, { exact: true })).toBeVisible();
-  await expect(region.getByText(WEBSITE_CATALOG_SYNC_COMMAND, { exact: true })).toBeVisible();
-  await expect(region).toContainText("Download and verify the public catalog.");
+  const install = page.getByRole("region", { name: "Install with LiteSPM" });
+  await expect(install).toBeVisible();
+  await expect(install.locator("code")).toHaveText(websiteInstallCommandFor(entry.row).command);
+  await expect(install.getByRole("button", { name: "Copy install command" })).toBeVisible();
+  await expect(install.getByRole("link", { name: "Setup help" })).toHaveAttribute("href", "/get-started/");
+
+  const flow = page.getByRole("region", { name: "How do I add it?" });
+  await expect(flow.getByRole("heading", { name: "Connect your agent with LiteSPM" })).toBeVisible();
+  await expect(flow.getByRole("heading", { name: "Download the capability catalog" })).toBeVisible();
+  await expect(flow.getByText(WEBSITE_SETUP_COMMAND, { exact: true })).toBeVisible();
+  await expect(flow.getByText(WEBSITE_CATALOG_SYNC_COMMAND, { exact: true })).toBeVisible();
+  await expect(flow).toContainText("Sync it once before the install command.");
 });
 
 test("every flag the website prints is one the published install verb takes", () => {

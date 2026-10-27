@@ -16,7 +16,7 @@ import { listingIdentity } from "./discovery.mjs";
 //
 //   * `data/hosts.json` — bridge adapters, generated from the compiled-in Go
 //     registry (`internal/host/registry.go`); one row per host LiteSPM can
-//     write an MCP config for.
+//     write MCP config for or integrate through a native extension.
 //   * `data/skill-targets.json` — skills targets, generated from
 //     `internal/skills/agents.go`; one row per host with a documented skills
 //     directory. Separate product entries remain separate IDs here even when

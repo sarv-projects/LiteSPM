@@ -17,7 +17,7 @@ const flagship = flagshipEntry();
 const ROUTES: Array<{ path: string; heading?: string }> = [
   { path: "/", heading: "One package manager for your agents." },
   { path: "/explore/", heading: "Find what your agent needs" },
-  { path: "/agents/", heading: "Choose your agent." },
+  { path: "/agents/", heading: "Agent directory" },
   { path: "/agents/claude-code/", heading: "Claude Code" },
   { path: "/categories/", heading: "Categories" },
   { path: "/compare/", heading: "Compare agent hosts" },
@@ -58,4 +58,12 @@ test("an unknown route answers 404 with the site's own 404 document", async ({ p
   await settle(page);
   await expect(page.getByRole("heading", { name: "Page not found." })).toBeVisible();
   expect(pageErrors, `uncaught errors on the 404 route:\n${pageErrors.join("\n")}`).toEqual([]);
+});
+
+test("the bounded package sitemap is exported and served as XML", async ({ request }) => {
+  const response = await request.get("/package/entries/sitemap.xml");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("application/xml");
+  const xml = await response.text();
+  expect(xml).toContain(`<loc>https://litespm.sarveshbh-2022.workers.dev${preRendered.href}</loc>`);
 });

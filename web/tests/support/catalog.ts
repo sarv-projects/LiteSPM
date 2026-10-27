@@ -2,10 +2,10 @@
 //
 // Every entry a spec navigates to is derived from the committed dataset and
 // the build's own artifacts — never hardcoded — so the suite keeps testing the
-// site that actually shipped when the catalog changes. The one deliberate
-// exception is the flagship colon-bearing entry, which is named because it is
-// the case the P0 was reported with; if it ever leaves the dataset, the
-// fixture fails loudly instead of silently switching to a different row.
+// site that actually shipped when the catalog changes. The deliberate
+// exceptions are the flagship colon-bearing entry and a publisher-sibling
+// recommendation fixture; each is named because the test covers that exact
+// behavior and fails loudly if its catalog contract disappears.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -176,6 +176,16 @@ export function flagshipEntry(): EntryFixture {
     );
   }
   return fixture;
+}
+
+/** A vendor skill with an installable sibling for the related-entry rail. */
+export function recommendationEntry(): EntryFixture {
+  const id = "skill:cloudflare:wrangler";
+  const row = catalogRows().find((candidate) => candidate.id === id);
+  if (!row) {
+    throw new Error(`the related-entry fixture ${id} is not in data/catalog.json`);
+  }
+  return entryFixture(row);
 }
 
 /** HTML-escape the way React escapes text and attribute values. */

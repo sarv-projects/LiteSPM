@@ -2445,9 +2445,9 @@
 .agent-pick-pill { border-radius: 999px; background: #e9edff; color: #3157f6; padding: 5px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .agent-tag { border: 1px solid #d9dee7; border-radius: 999px; background: #f4f6f9; color: #4b5565; padding: 4px 8px; font-size: 12px; font-weight: 600; }
 .agent-tag-muted { color: #596477; background: #f4f6f9; border-color: #d9dee7; }
-.agent-count-link { display: grid; gap: 4px; color: var(--ink-3); text-decoration: none; }
-.agent-count-link strong { color: var(--ink); font: 600 16px var(--font-mono); }
-.agent-count-link span { font-size: 12px; }
+.agent-count-link, .agent-count-static { display: grid; gap: 4px; color: var(--ink-3); text-decoration: none; }
+.agent-count-link strong, .agent-count-static strong { color: var(--ink); font: 600 16px var(--font-mono); }
+.agent-count-link span, .agent-count-static span { font-size: 12px; }
 .agent-count-link:hover strong, .agent-count-link:hover span { color: var(--accent-text); }
 .agent-card-link { display: inline-flex; align-items: center; gap: 5px; min-height: 40px; color: var(--accent-text); font-size: 12px; font-weight: 700; }
 .agent-card-link:hover { text-decoration: underline; }
