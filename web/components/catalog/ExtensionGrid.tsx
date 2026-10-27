@@ -238,13 +238,13 @@ export function ExtensionGrid({
         </div>
       ) : (
         <div className="market-empty-panel">
-          <div className="flex max-w-prose flex-col items-start gap-3">
+          <div className="flex min-w-0 max-w-prose flex-col items-start gap-3">
             <SearchX className="h-6 w-6 text-ink-3" aria-hidden="true" />
             <h3 className="text-[15px] font-semibold">Nothing matches</h3>
             <p className="text-[13px] text-ink-2">
               {query ? (
                 <>
-                  No entry matches “{query}”{filtersActive ? " with the current filters" : ""}. We
+                  No entry matches “<span className="break-all">{query}</span>”{filtersActive ? " with the current filters" : ""}. We
                   match the <em>start</em> of each word, so a misspelling finds nothing — check the
                   spelling and try the first part of the name.
                 </>

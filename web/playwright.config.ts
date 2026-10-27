@@ -22,7 +22,7 @@ import { defineConfig, devices } from "@playwright/test";
  * Why no retries: a flaky suite gets ignored. If something is genuinely
  * unreliable, it belongs in the report, not behind a retry.
  */
-const PORT = 8788;
+const PORT = Number(process.env.LITESPM_TEST_PORT ?? 8788);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
@@ -59,7 +59,12 @@ export default defineConfig({
          * with a large one, and it is the difference between a suite that
          * measures the site and a suite that measures the runner.
          */
-        launchOptions: { args: ["--disable-dev-shm-usage"] },
+        launchOptions: {
+          ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+            ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+            : {}),
+          args: ["--disable-dev-shm-usage"],
+        },
       },
     },
   ],

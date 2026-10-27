@@ -238,3 +238,11 @@ test("?focus=search focuses the field without fetching the dataset", async ({ pa
   await expect(page.locator('input[name="q"]')).toBeFocused();
   expect(dataRequests, `unexpected dataset fetches: ${dataRequests.join(", ")}`).toEqual([]);
 });
+
+test("the same pinned plugin appears once after interactive catalog loading", async ({ page }) => {
+  await gotoSettled(page, "/explore/?q=activecampaign&kind=plugin");
+  await waitForSearchGrid(page, "activecampaign");
+  const rows = page.locator('main a[data-kind="plugin"]');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("ActiveCampaign");
+});

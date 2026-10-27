@@ -65,33 +65,3 @@ for (const width of [1440, 390]) {
     }
   }
 }
-
-test('the same pinned plugin appears once after interactive catalog loading', async ({ page }) => {
-  await page.addInitScript(() => {
-    const NativeWorker = window.Worker;
-    (window as unknown as { __workerDebug: unknown[] }).__workerDebug = [];
-    window.Worker = class extends NativeWorker {
-      constructor(url: string | URL, options?: WorkerOptions) {
-        super(url, options);
-        this.addEventListener("message", (event) => {
-          (window as unknown as { __workerDebug: unknown[] }).__workerDebug.push({ direction: "from", data: event.data });
-        });
-      }
-      postMessage(message: unknown, transfer?: Transferable[]) {
-        (window as unknown as { __workerDebug: unknown[] }).__workerDebug.push({ direction: "to", data: message });
-        return super.postMessage(message, transfer ?? []);
-      }
-    };
-  });
-  await gotoSettled(page, '/explore/?q=activecampaign&kind=plugin');
-  await page.waitForTimeout(8000);
-  console.log("ACTIVE CAMPAIGN WORKER", JSON.stringify(await page.evaluate(() => ({
-    debug: (window as unknown as { __workerDebug: unknown[] }).__workerDebug,
-    count: document.querySelector('[data-testid="result-count"]')?.textContent,
-    rows: document.querySelectorAll("main a[data-kind]").length,
-  }))));
-  await waitForSearchGrid(page, 'activecampaign');
-  const rows = page.locator('main a[data-kind="plugin"]');
-  await expect(rows).toHaveCount(1);
-  await expect(rows.first()).toContainText('ActiveCampaign');
-});
