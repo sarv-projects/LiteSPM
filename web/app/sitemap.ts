@@ -25,10 +25,10 @@ import { SITE_URL } from "../lib/site";
  * `/package/` is deliberately absent. It resolves an entry from `?slug=` in
  * the browser and answers an unknown slug with HTTP 200, so it presents a
  * crawler with an unbounded set of identical pages and no prerendered content
- * to index. The pre-rendered entry pages (`/package/<key>/`) are listed at
- * `/package/entries/sitemap.xml` instead, and `public/robots.txt` no longer
- * disallows the subtree — the page's own canonical and noindex rules do that
- * work.
+ * to index. Entry URLs are listed in the package sitemaps advertised by
+ * `public/robots.txt`: pre-rendered pages at `/package/entries/sitemap.xml`,
+ * and the remaining known catalog rows in its supplemental sitemap index.
+ * The page's own canonical and noindex rules keep unknown keys out.
  *
  * `lastmod` is the catalog release's own creation time from
  * `data/release.json` — the one date this build can honestly claim for every

@@ -11,8 +11,10 @@ import { SITE_URL } from "../../../lib/site";
  * names the routes the export emits, and the entry pages are a bounded set of
  * that export rather than a route. This nested sitemap is the honest list of
  * that set — it reads the same `selectStaticEntries` rule
- * `generateStaticParams` used, so a URL can never appear here without a page
- * behind it, and no page can exist without appearing here.
+ * `generateStaticParams` used, so every URL here has a pre-rendered page. The
+ * post-build materializer writes `remaining-sitemap.xml` and its URL shards
+ * for the rest of the catalog, which the edge Worker serves with per-entry
+ * metadata but does not pre-render as individual files.
  *
  * The path is `/package/entries/sitemap.xml`, not `/package/sitemap.xml`,
  * because the edge Worker claims the one-segment `/package/<key>` form (it
@@ -20,9 +22,9 @@ import { SITE_URL } from "../../../lib/site";
  * sitemap must live at a path that is not an entry address, or crawlers would
  * receive HTML instead of XML.
  *
- * `lastmod` is the catalog release's own creation time, the same date the root
- * sitemap publishes for every page: the rows all come from that one snapshot,
- * and no per-entry date exists in the data to publish instead.
+ * `lastmod` is the catalog release's own creation time: all rows come from
+ * that one snapshot, and no per-entry date exists in the data to publish
+ * instead.
  */
 export const dynamic = "force-static";
 

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
-import { kindLabel, publisherDisplayName, sourceLabel } from "../../lib/catalog";
+import { publisherDisplayName, sourceLabel } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { bridgeSnippet, hostPath, isRemoteTransport } from "../../lib/hosts";
 import { hostsNamedBy, resolveHostId } from "../../lib/hostIdentity";
@@ -12,7 +12,6 @@ import { VerifiedMark } from "../catalog/PublisherMark";
 import { TabList } from "../ui/TabList";
 import { CopyButton } from "./CopyButton";
 import { usePlatformOs } from "./usePlatformOs";
-import { categoryLabel } from "../../app/categories/categoryLabel";
 
 /**
  * The technical layer of the package page: setup details, capabilities,
@@ -20,7 +19,6 @@ import { categoryLabel } from "../../app/categories/categoryLabel";
  */
 
 const TABS = [
-  { id: "overview", label: "Overview" },
   { id: "capabilities", label: "Capabilities" },
   { id: "compatibility", label: "Compatibility" },
   { id: "security", label: "Trust & security" },
@@ -119,49 +117,6 @@ function sourceSentence(item: Listing): string {
 
 /* ------------------------------ panels ------------------------------ */
 
-function OverviewPanel({ item }: { item: Listing }) {
-  // The provenance sentence that led this panel repeated the "Publisher
-  // listing" row below it and the Source tab's "Where it was read", so the
-  // panel is now the record itself.
-  return (
-    <dl className="spec-list max-w-xl">
-      <SpecRow label="ID">
-        <span className="t-mono text-[12px]!">{item.id}</span>
-      </SpecRow>
-      <SpecRow label="Kind">{kindLabel(item.kind)}</SpecRow>
-      <SpecRow label="Category">
-        <span className="t-mono text-[12px]!">{categoryLabel(item.category)}</span>
-      </SpecRow>
-      {(item.publisher?.name || item.publisher?.url) && (
-        <SpecRow label="Publisher">
-          {item.publisher?.url && /^https?:\/\//i.test(item.publisher.url)
-            ? externalLink(item.publisher.url, publisherDisplayName(item.publisher.name) || "Publisher website")
-            : publisherDisplayName(item.publisher?.name) || "Publisher not listed"}
-        </SpecRow>
-      )}
-      <SpecRow label="Publisher listing">
-        {item.publisher?.verified ? <VerifiedMark /> : sourceSentence(item)}
-      </SpecRow>
-      <SpecRow label="Catalog source">{sourceLabel(item.source) || "Source not listed"}</SpecRow>
-      {item.version && (
-        <SpecRow label="Version">
-          <span className="t-mono text-[12px]!">{item.version}</span>
-        </SpecRow>
-      )}
-      {item.kind === "mcp" && item.runtime && (
-        <SpecRow label="Runtime">
-          <span className="t-mono text-[12px]!">{item.runtime}</span>
-        </SpecRow>
-      )}
-      {item.kind === "mcp" && item.transport && (
-        <SpecRow label="Transport">
-          <span className="t-mono text-[12px]!">{item.transport}</span>
-        </SpecRow>
-      )}
-    </dl>
-  );
-}
-
 function CapabilitiesPanel({ item }: { item: Listing }) {
   const launch = item.command
     ? `${item.command}${item.args?.length ? ` ${item.args.join(" ")}` : ""}`
@@ -179,18 +134,6 @@ function CapabilitiesPanel({ item }: { item: Listing }) {
     published.push([
       "Tools",
       <span className="t-mono text-[12px]!">{item.tools.length} declared</span>,
-    ]);
-  }
-  if (item.runtime) {
-    published.push([
-      "Runtime",
-      <span className="t-mono text-[12px]!">{item.runtime}</span>,
-    ]);
-  }
-  if (item.transport) {
-    published.push([
-      "Transport",
-      <span className="t-mono text-[12px]!">{item.transport}</span>,
     ]);
   }
   if (launch) {
@@ -418,6 +361,9 @@ function SourcePanel({ item }: { item: Listing }) {
   return (
     <div className="max-w-xl">
       <dl className="spec-list">
+        <SpecRow label="Catalog ID">
+          <span className="t-mono break-all text-[12px]!">{item.id}</span>
+        </SpecRow>
         <SpecRow label="Catalog source">{sourceLabel(item.source) || "Source not listed"}</SpecRow>
         <SpecRow label="Publisher listing">{sourceSentence(item)}</SpecRow>
         {item.publisher?.name && <SpecRow label="Publisher ID"><span className="t-mono text-[12px]!">{item.publisher.name}</span></SpecRow>}
@@ -452,7 +398,7 @@ export interface PackageTabsProps {
 }
 
 /**
- * Six tabs, one record. The strip itself is `ui/TabList` (shared with the
+ * Four focused tabs, one record. The strip itself is `ui/TabList` (shared with the
  * install panel's Command | Prompt choice); the active tab carries the accent
  * underline, the inactive ones stay neutral. The state lives in the view so a
  * link from the questions above can open a specific tab — switching never
@@ -461,8 +407,6 @@ export interface PackageTabsProps {
 export function PackageTabs({ item, agent, hostTotal, active, onChange }: PackageTabsProps) {
   const renderPanel = (tab: PackageTabId): React.ReactNode => {
     switch (tab) {
-      case "overview":
-        return <OverviewPanel item={item} />;
       case "capabilities":
         return <CapabilitiesPanel item={item} />;
       case "compatibility":

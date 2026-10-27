@@ -11,7 +11,8 @@ Allow: /
 #   * /package/<key>/ serves the entry — the pre-rendered page when the entry
 #     has one (listed at /package/entries/sitemap.xml), and the edge-served
 #     shell carrying the entry's own title, description, canonical, Open Graph
-#     tags and JSON-LD otherwise. An unknown key is a real 404 here.
+#     tags and JSON-LD otherwise. Both sets are listed in the package sitemaps.
+#     An unknown key is a real 404 here.
 #   * /package/<key> and the query form serve the same shell; a known entry
 #     declares /package/<key>/ as its canonical, and an unknown one is marked
 #     noindex in the served HTML.
@@ -26,5 +27,7 @@ Disallow: /data/
 Disallow: /v1/
 
 Sitemap: https://litespm.sarveshbh-2022.workers.dev/sitemap.xml
-# The bounded set of pre-rendered entry pages, and nothing else.
+# Pre-rendered entry pages.
 Sitemap: https://litespm.sarveshbh-2022.workers.dev/package/entries/sitemap.xml
+# Remaining catalog entries served with their own metadata by the edge Worker.
+Sitemap: https://litespm.sarveshbh-2022.workers.dev/package/entries/remaining-sitemap.xml

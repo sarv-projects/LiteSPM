@@ -1,31 +1,18 @@
 import React from "react";
 import type { Listing } from "../../lib/telemetry";
-import { kindLabel, publisherDisplayName, sourceLabel } from "../../lib/catalog";
-import { availabilityOf } from "../../lib/availability";
-import { VerifiedMark } from "../catalog/PublisherMark";
-import { categoryLabel } from "../../app/categories/categoryLabel";
 
 /**
- * The entry's specifications, as the sidebar card every competitor detail
- * page carries (mcpservers.org puts a "MCP server details" aside beside the
- * title; mcp.so does the same). It states only fields this snapshot actually
- * holds, and **omits a row entirely when the field is absent** rather than
- * printing a `—` or `Unknown` placeholder: a specification list that has to
- * pad itself is advertising how little it knows.
+ * Technical specifications that do not already appear in the title block.
+ * Identity, publisher, category and installability are stated there once;
+ * this card keeps only version and connection details. It omits a row entirely
+ * when the snapshot has no value rather than padding it with placeholders.
  *
  * Which rows can appear, and the field each reads:
  *
- *   Kind          kind                     always present
- *   Category      category                 always present
- *   Publisher     publisher.name / .url    always present (link when the record
- *                                          carries a usable http(s) URL)
  *   Version       version                  40,097 of 69,376 rows
  *   Transport     transport                25,400 rows (MCP servers)
  *   Runtime       runtime                  4,079 rows
  *   Endpoint      url                      25,400 rows, linked
- *   Source        source                   every row; shown as its display name
- *   Install       installability + kind    derived by `availabilityOf`, the
- *                                          same predicate the CLI applies
  *   Works with    compatibleHosts          638 rows (plugins only)
  *
  * A Licence row is deliberately absent as a *row rule*, not a per-entry
@@ -34,11 +21,12 @@ import { categoryLabel } from "../../app/categories/categoryLabel";
  * for the same reason, and no popularity figure appears here at all.)
  */
 export function SpecCard({ item }: { item: Listing }) {
-  const avail = availabilityOf(item);
-  const publisherUrl =
-    item.publisher?.url && /^https?:\/\//i.test(item.publisher.url) ? item.publisher.url : null;
   const endpoint =
     item.url && /^https?:\/\//i.test(item.url) ? item.url : null;
+  const hasPublisherHosts = item.kind === "plugin" && Boolean(item.compatibleHosts?.length);
+  if (!item.version && !item.transport && !item.runtime && !endpoint && !hasPublisherHosts) {
+    return null;
+  }
 
   return (
     <section aria-labelledby="pkg-spec-title" className="border border-rule-2 bg-surface p-4">
@@ -46,22 +34,6 @@ export function SpecCard({ item }: { item: Listing }) {
         Specifications
       </h2>
       <dl className="spec-list mt-1">
-        <Row label="Kind">{kindLabel(item.kind)}</Row>
-        <Row label="Category">{categoryLabel(item.category)}</Row>
-        {item.publisher?.name && (
-          <Row label="Publisher">
-            <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-              {publisherUrl ? (
-                <a href={publisherUrl} target="_blank" rel="noopener noreferrer" className="link">
-                  {publisherDisplayName(item.publisher.name)}
-                </a>
-              ) : (
-                <span>{publisherDisplayName(item.publisher.name)}</span>
-              )}
-              {item.publisher.verified && <VerifiedMark />}
-            </span>
-          </Row>
-        )}
         {item.version && (
           <Row label="Version" mono>
             {item.version}
@@ -84,10 +56,6 @@ export function SpecCard({ item }: { item: Listing }) {
             </a>
           </Row>
         )}
-        {item.source && <Row label="Catalog source">{sourceLabel(item.source) || "Source not listed"}</Row>}
-        <Row label="Install">
-          <span title={avail.plain}>{avail.label}</span>
-        </Row>
         {item.kind === "plugin" && item.compatibleHosts && item.compatibleHosts.length > 0 && (
           <Row label="Publisher-listed agent targets">{item.compatibleHosts.join(", ")}</Row>
         )}

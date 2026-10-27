@@ -8,7 +8,7 @@
 
 import { expect, test } from "./support/site";
 import { collectPageErrors, gotoSettled, settle } from "./support/site";
-import { flagshipEntry, nonPreRenderedEntry, preRenderedEntry } from "./support/catalog";
+import { catalogRows, flagshipEntry, keyOf, nonPreRenderedEntry, preRenderedEntry, preRenderedKeys } from "./support/catalog";
 
 const preRendered = preRenderedEntry();
 const nonPreRendered = nonPreRenderedEntry();
@@ -66,4 +66,32 @@ test("the bounded package sitemap is exported and served as XML", async ({ reque
   expect(response.headers()["content-type"]).toContain("application/xml");
   const xml = await response.text();
   expect(xml).toContain(`<loc>https://litespm.sarveshbh-2022.workers.dev${preRendered.href}</loc>`);
+});
+
+test("the supplemental sitemap shards cover every non-pre-rendered catalog entry", async ({ request }) => {
+  const indexResponse = await request.get("/package/entries/remaining-sitemap.xml");
+  expect(indexResponse.status()).toBe(200);
+  expect(indexResponse.headers()["content-type"]).toContain("application/xml");
+
+  const indexXml = await indexResponse.text();
+  expect(indexXml).toContain("<sitemapindex");
+  const shardPaths = [...indexXml.matchAll(/<loc>https?:\/\/[^/]+(\/package\/entries\/remaining-\d{3,}\.xml)<\/loc>/g)]
+    .map((match) => match[1]);
+  expect(shardPaths.length).toBeGreaterThan(0);
+
+  const shardResponses = await Promise.all(shardPaths.map((path) => request.get(path)));
+  const shardXml = await Promise.all(shardResponses.map(async (response) => {
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("application/xml");
+    return response.text();
+  }));
+  const listedKeys = new Set(shardXml.flatMap((xml) =>
+    [...xml.matchAll(/<loc>https?:\/\/[^/]+\/package\/([^<]+)<\/loc>/g)]
+      .map((match) => decodeURIComponent(match[1].replace(/\/$/, "")))
+  ));
+  const staticKeys = preRenderedKeys();
+  const expectedKeys = new Set(catalogRows().map(keyOf).filter((key) => !staticKeys.has(key)));
+
+  expect(listedKeys).toEqual(expectedKeys);
+  expect(listedKeys.size).toBe(catalogRows().length - staticKeys.size);
 });

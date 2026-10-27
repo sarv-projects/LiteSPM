@@ -366,7 +366,7 @@ function PackageContent({
 
   // Which tab the detail section is showing. Local state only: switching a tab
   // renders rows already in memory, nothing is fetched.
-  const [tab, setTab] = useState<PackageTabId>("overview");
+  const [tab, setTab] = useState<PackageTabId>("capabilities");
 
   // Version coverage over the loaded row set — a count only because this route
   // has the rows in memory once a slug resolved. The pre-rendered pages pass
@@ -799,14 +799,12 @@ function PackageContent({
             />
           </header>
 
-          {/* ---- 1b. The short version -------------------------------- */}
+          {/* ---- 1b. Setup and agent fit ------------------------------ */}
           {/*
-           * The plain layer (ARCH/25 §7.1: "nontechnical text is the default;
-           * the technical layer sits behind disclosure"). The header above
-           * states the identity; this block answers the five questions a
-           * non-developer arrives with, each pointing at the tab that holds
-           * the exact field. It sits before the action so a reader knows what
-           * they are looking at before being told how to add it.
+           * Identity and published facts live in the header and spec card.
+           * This short block keeps only the two decisions a new reader needs:
+           * whether LiteSPM has a setup path and how that path fits their
+           * agent. The technical tabs below hold the exact fields.
            */}
           <PlainSummary
             item={item}

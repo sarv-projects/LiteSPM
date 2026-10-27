@@ -6,6 +6,38 @@
 > kept as a dated record, not as instructions. If you are picking the repo up, read this header and
 > the top section; ignore the rest until you need the history.
 
+## Session 2026-10-27 — competitor cross-check, full route pass, and package discovery
+
+**Read this first if you are picking the repo up.** This continues the website upgrade on
+`codex/litespm-website-upgrade-20261027`. The review notes are in
+[`docs/audits/2026-10-27/site-review.md`](docs/audits/2026-10-27/site-review.md). The changes in
+this session address two concrete findings: repetitive product detail pages and a sitemap that
+advertised only the 4,000 static product pages even though the edge Worker serves metadata for the
+rest of the catalog.
+
+| What | State |
+|---|---|
+| Website route review | **done** — 21 top-level routes and one agent profile checked in the built-in browser by headings, sections, links and rendered page state; homepage first fold and footer visually inspected; theme toggle changed System → Light → System; one live Explore search exercised |
+| Competitor cross-check | **done** — MCP Market, skills.sh, MCP.so, MCPServers.org, skild.sh, AgenticSkills.io and AgentSkillsHub compared; the report records the useful differences and what LiteSPM can adopt without contradicting its no-telemetry promise |
+| Product detail repetition | **fixed locally** — removed duplicate identity/source/installability facts from the specs and summary, removed the redundant Overview tab, and retained four task-focused tabs |
+| Product sitemap coverage | **fixed locally** — static sitemap still lists 4,000 pre-rendered pages; the new index and 45,000-URL shards cover the remaining 65,376 Worker-served catalog keys |
+| Verification | **green** — production export (4,110 routes), type-check, lint, discovery checks, product-link checks, sort-order check, search projection profile, `git diff --check`, and an in-process Worker route/sitemap check |
+| Browser-suite visual verification | **blocked by this executor** — Playwright's Chromium binary is absent and its official download returned a zero-byte/corrupt archive; the built-in browser cannot reach this executor's local port. Live-site visual inspection and in-process Worker checks continued |
+| Production | **unchanged** — no deploy was made |
+
+The live catalog has duplicate summaries (1,218 normalized duplicate groups covering 2,958 rows),
+and 7,128 rows have summaries shorter than 60 characters. This is evidence of repetition and uneven
+editorial quality, not proof that publishers used AI; do not silently rewrite publisher-authored
+text or delete distinct listings. Search performance profiling measured 5.00 MiB compressed and
+13.49 MiB expanded for the full search rows, with about 269 ms to hydrate all 69,376 rows in the
+profile script. That is a data-path measurement, not a controlled browser/Lighthouse score.
+
+**Resume rule:** do not stop at the local-browser limitation. The live built-in browser, static
+export, and in-process Worker harness are still usable. The one remaining verification gap is a
+real Chromium browser-suite run; retry it only when this executor has a working Chromium binary.
+The Superpowers plugin label was requested, but its skill package was not available in this
+session, so the diagnosis and audit were continued directly.
+
 ## Session 2026-10-19 (later) — the site's first browser run, the audit command, and the CAS scratch fix
 
 **Read this first if you are picking the repo up.** The site's browser suite ran for the *first*
