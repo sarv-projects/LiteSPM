@@ -1,7 +1,7 @@
-// The six hand-written bridge adapters and the source file each lives in.
+// The hand-written bridge adapters and the source file each lives in.
 //
 // `hosts.json` carries the `generic` flag — true for the data-driven rows that
-// `internal/host/targets_data.go` emits, false for the six adapters written by
+// `internal/host/targets_data.go` emits, false for adapters written by
 // hand — but not the file each hand-written adapter lives in. This mapping is
 // taken from `internal/host/registry.go`, which names the type behind each id,
 // and from `AGENTS.md` §1, which lists the file per host. It is the only thing
@@ -16,5 +16,6 @@ export const ADAPTER_SOURCE: Record<string, string> = {
   codex: "internal/host/codex.go",
   "grok-build": "internal/host/grokbuild.go",
   opencode: "internal/host/opencode.go",
+  pi: "internal/host/piagent.go",
   "pi-agent": "internal/host/piagent.go",
 };

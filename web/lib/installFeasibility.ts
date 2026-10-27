@@ -38,7 +38,7 @@
 //     a remote spelling (Cursor, Zed).
 //   * `internal/host/registry.go` — the six bespoke adapters, of which four
 //     carry a remote spelling (Claude Code, Cline, OpenCode, Codex) plus the
-//     Pi and Grok aliases of two of them.
+//     the separate Pi profile, which shares Pi Agent's documented MCP format.
 //   * `cmd/litespm/install_kind.go` — the KIND gate: a plugin is refused
 //     before anything else is consulted (LPSM-ARTIFACT-UNAVAILABLE).
 //   * `cmd/litespm/install_mcp.go` — the provenance gate
@@ -209,10 +209,9 @@ const ADAPTERS_BY_ID: Map<string, HostAdapter> = (() => {
 })();
 
 /**
- * Every skill target, keyed by identity id. The reference installer's own
- * spellings of two rows ("pi" for "pi-agent", "grok" for "grok-build") join
- * the same directories, so the canonical row is the one whose own id IS the
- * identity id.
+ * Every skill target, keyed by identity id. Distinct product IDs keep their
+ * own rows even when their paths overlap; only a genuine spelling variant is
+ * joined to its registry identity.
  */
 const SKILLS_BY_ID: Map<string, SkillTargetRow> = (() => {
   const map = new Map<string, SkillTargetRow>();

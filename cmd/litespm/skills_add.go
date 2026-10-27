@@ -54,8 +54,9 @@ INSTALL_INTERNAL_SKILLS=1 is set.
 Each selected skill is copied into every selected agent's own skill
 directory: repo-local for project scope, or the user-global dir for global
 scope (honours CODEX_HOME, CLAUDE_CONFIG_DIR, GROK_HOME and XDG_CONFIG_HOME).
-Hosts with no dedicated dir (cline, pi-agent) share the universal
-.agents/skills tree. Risk data is not collected: every skill is reported
+Universal-target agents such as Cline, Pi and Grok CLI share the
+.agents/skills tree. Pi Agent and Grok Build keep their own skill paths.
+Risk data is not collected: every skill is reported
 unverified until a real audit source exists.`)
 }
 

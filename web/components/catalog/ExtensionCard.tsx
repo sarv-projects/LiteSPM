@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Listing } from "../../lib/telemetry";
-import { displayListingName, kindLabel, listingHref, publisherDisplayName, rowProvenance, rowSignal } from "../../lib/catalog";
+import { displayListingName, kindLabel, listingSummary, listingHref, publisherDisplayName, rowProvenance, rowSignal } from "../../lib/catalog";
 import { PublisherTile } from "./PublisherMark";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 
@@ -53,11 +53,12 @@ const KIND_TAG: Record<Listing["kind"], string> = {
 export function ExtensionCard({ item }: ExtensionCardProps) {
   const signal = rowSignal(item);
   const provenance = rowProvenance(item);
+  const summary = listingSummary(item);
   const detail = [
     kindLabel(item.kind),
     item.publisher?.name ? `by ${publisherDisplayName(item.publisher.name)}` : "publisher not listed",
     signal.note,
-    item.summary,
+    summary,
   ]
     // Each part is its own sentence and may already end in a period; the join
     // supplies one, so strip the part's own first — "locally.. Manage …" is
@@ -104,9 +105,9 @@ export function ExtensionCard({ item }: ExtensionCardProps) {
         >
           {displayListingName(item)}
         </Link>
-        {item.summary && (
+        {summary && (
           <span className="mt-0.5 line-clamp-2 min-h-[42px] max-w-[110ch] text-[13px] leading-relaxed text-ink-2">
-            {item.summary}
+            {summary}
           </span>
         )}
         <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-3">

@@ -24,6 +24,8 @@ export interface TrendingHostRow {
   configPath: string;
   repoConfigPath?: string;
   skillName?: string;
+  /** The documented directory name when it differs from the product's current name. */
+  skillTargetName?: string;
   docsHref?: string;
   /** Compatible entries by kind, and their total — `null` when unstated. */
   mcp: number | null;
@@ -166,7 +168,7 @@ const HOST_COLUMNS: Array<{ label: string; hint: string }> = [
   { label: "Host", hint: "" },
   { label: "Config file", hint: "where LiteSPM writes" },
   { label: "Project config", hint: "per-repository file" },
-  { label: "Skills", hint: "install target" },
+  { label: "Skills destination", hint: "product and folder" },
   { label: "Entries", hint: "listed for it" },
   { label: "Docs", hint: "vendor documentation" },
 ];
@@ -259,9 +261,14 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
                   {row.skillName ? (
                     <span
                       className="t-cond block truncate text-[12px] text-ink-2"
-                      title={`Skills install into this host under the name “${row.skillName}”.`}
+                      title={row.skillTargetName && row.skillTargetName !== row.skillName
+                        ? `${row.skillName} uses the “${row.skillTargetName}” skills folder.`
+                        : `Skills install into the ${row.skillName} destination.`}
                     >
                       {row.skillName}
+                      {row.skillTargetName && row.skillTargetName !== row.skillName && (
+                        <span className="ml-1 text-ink-3">(folder: {row.skillTargetName})</span>
+                      )}
                     </span>
                   ) : (
                     <span
@@ -322,7 +329,7 @@ function HostBoard({ rows }: { rows: TrendingHostRow[] }) {
                   {row.skillName && (
                     <>
                       <span aria-hidden="true">·</span>
-                      <span>skills: {row.skillName}</span>
+                      <span>skills: {row.skillName}{row.skillTargetName && row.skillTargetName !== row.skillName ? ` (folder: ${row.skillTargetName})` : ""}</span>
                     </>
                   )}
                   {docs && (

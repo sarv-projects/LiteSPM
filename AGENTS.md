@@ -146,73 +146,28 @@ action it offers delegates to the same shared implementation the CLI uses.
 
 ---
 
-## 3. The In-Agent `/marketplace` Experience
+## 3. The In-Agent Marketplace Experience
 
-Once configured, simply launch your agent and type:
-```text
-/marketplace
-```
+After setup, LiteSPM exposes its catalog tools and a `marketplace` MCP prompt through the bridge on all 50 MCP hosts. MCP does not prescribe how an agent displays that prompt, so the command differs by client. The setup wizard only prints a literal slash command where the host documents one; otherwise, ask the agent to browse LiteSPM using its connected MCP tools.
 
-### UX Architecture: Portable Contract vs. Rich Host UI
-*   **Portable Text / MCP Contract:** For terminal CLI agents (`claude`, `codex`, `grok`, `opencode`), `/marketplace` exposes 13 Bridge tools. Those that resolve against the daemon today: `search_catalog`, `get_extension`, `prepare_install`, `list_installed`, `load_skill`, `read_skill_resource`, `search_capabilities`, `describe_capability`, `invoke_capability`, `adopt_capability`. `request_install` reaches `install.execute`, which — behind the plan + human-approval gate in `cmd/litespm/install_authz.go` — **completes for skill listings** (real skill files through the skills ledger), **for MCP-server listings** (the server is registered in each target host's config) and **for plugin listings whose publisher ships a pinned git tree** (the tree is fetched at that commit, its manifest read, its declared servers registered and its skills copied into each target host's skills tree); a plugin with no fetchable source fails closed with the reason it cannot be installed. `get_invocation` and `cancel_invocation` answer from the invocation registry (`ARCH/34`): an id that was never issued is a typed `LPSM-INVOCATION-NOT-FOUND`, not a `-32601` stub.
-*   **Rich Host Renderer:** In hosts supporting rich extension panels or terminal TUIs (e.g. Cline in VS Code or Pi Agent TUI), `/marketplace` opens the **LiteSPM Capability Panel** with 4 dedicated tabs:
+Examples of confirmed commands:
 
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                          LiteSPM Capabilities                          │
-├──────────────┬──────────────┬──────────────┬───────────────────────────┤
-│ [MCP SERVERS]│[AGENT SKILLS]│  [PLUGINS]   │     [INSTALLED (n)] ●     │
-└──────────────┴──────────────┴──────────────┴───────────────────────────┘
-```
+| Agent | In-agent entry point |
+|---|---|
+| Claude Code | `/mcp__litespm__marketplace` (also listed in `/` command menu) |
+| CodeBuddy | `/litespm:marketplace` |
+| Devin CLI | `/mcp__litespm__marketplace` |
+| Gemini CLI | `/marketplace` |
+| Kiro CLI V3 | `/marketplace` (setup omits it because the installed CLI version is unknown) |
+| OpenCode | `/litespm:marketplace` |
+| Pi Agent | `/marketplace` (LiteSPM's native Pi extension) |
+| Qwen Code | `/marketplace` |
 
-`n` is a placeholder: the renderer prints the live item count,
-`fmt.Sprintf("…[INSTALLED (%d)]…", len(items))` (`internal/bridge/shim.go` `FormatInstalledPanel`), so the header
-reads `[INSTALLED (0)]` on an empty install and grows with the ledger plus detected externals.
+Cursor, Crush, Jazz, and Zed support MCP prompts through their own UI, but their vendor docs do not define the same literal command. For all other supported MCP hosts, use a normal request such as “Search the LiteSPM catalog for PostgreSQL tools.” The agent can call the bridge tools directly. Codex currently has the tools path and no documented MCP-prompt command.
 
-### Tab 1: MCP Servers
-*   Full search bar filtering by name, category, or transport (`stdio` / `Streamable HTTP`).
-*   Displays verified badges and upstream GitHub links. No star, download or install counts are shown: no upstream source exposes them, so the catalog publishes none rather than an estimate.
-*   One-click install button that prepares an `InstallPlan`. **Execution completes for skills** (installs files through the skills ledger), **for MCP servers** (registers the server in each target host's config) and **for plugins with a pinned source** (fetches that commit, registers the servers its manifest declares and copies its skills into each target host), all behind the plan + human-approval gate; a plugin with no fetchable source is refused with its reason, and a plugin whose manifest declares extras this build cannot install is refused with `LPSM-INSTALL-PARTIAL` until that partial install is acknowledged ([STATUS.md](STATUS.md) §3).
+The prompt guides the agent through catalog search and item inspection. If the user asks to install something, the agent prepares a plan and requests human approval for that exact plan before calling the install tool. The prompt itself does not grant approval.
 
-### Tab 2: Agent Skills
-*   Search portable `SKILL.md` workflows from `agentskills.io`.
-*   Preview instructions, tools used, and triggers.
-
-### Tab 3: Plugins
-*   Curated multi-component toolkits and extensions for complex workflows.
-
-### Tab 4: Installed & Detected External Capabilities
-The **Installed** view lists ledger-backed installs plus read-only components detected in the host's
-own config file. It does **not** assert runtime health:
-
-1.  **No health light is fabricated.** LiteSPM does not health-check installed capabilities, so a
-    capability whose status was not observed renders as `— Unknown`. The `● Ready` / `🟡 Needs Auth`
-    / `○ Stopped` lights exist in the renderer but are only shown for a status the daemon can
-    actually observe (`internal/bridge/shim.go` `FormatInstalledPanel`).
-2.  **Project-scope installs are visible in their own project.** The Bridge treats the directory the
-    agent host starts it in as the project it belongs to (`bridge stdio --workspace <dir>` overrides
-    it), and the daemon includes that workspace's project-scope installs alongside the user-scope
-    ones, each row labelled with its scope. A project install is created with
-    `litespm install <id> --workspace <dir>` (which implies `--scope project`); the workspace is
-    sealed into the plan the approval binds. Outside that project — or when the bridge has no
-    project context — only user-scope installs are listed, which is the pre-2026-10-11 behaviour.
-3.  **Detected External Capabilities (Read-Only):**
-    *   LiteSPM scans the agent's primary configuration file for **pre-existing native tools**
-        (e.g. servers previously added to `cline_mcp_settings.json` or `config.toml`).
-    *   Detection is limited to documented on-disk config files known to the adapter.
-    *   Pre-existing items are rendered with an `[External / Detected]` badge in **read-only mode**
-        (no toggle controls).
-    *   **Adoption is implemented, in the panel and on the CLI.** The panel renders an
-        `[External / Detected] (adopt with adopt_capability)` label (`internal/bridge/shim.go`
-        `FormatInstalledPanel`), and the `adopt_capability` Bridge tool takes ownership of a server
-        the user already had. The CLI has the same operation: `litespm adopt <name> --host <id>`
-        (`--scope project` with `--workspace` for a project's config) takes an MCP server that is
-        already in a host's configuration, and `litespm skills adopt <name>` takes a skill that is
-        already in an agent's skills tree. Every one of them records ownership **without writing a
-        byte to the host's configuration**, and every one of them is reversible — the removal
-        restores the node rather than deleting it, and keeps any edit made since.
-
----
+See the [full host-by-host entry-point audit](docs/audits/2026-10-25/marketplace-agent-entrypoints.md) for all MCP hosts and the skill-only targets.
 
 ## 4. Agent-Specific Integration Guides
 
@@ -220,8 +175,7 @@ own config file. It does **not** assert runtime health:
 *   **How it works:** LiteSPM adds itself to `cline_mcp_settings.json` under `mcpServers.litespm`. The file it writes is the **shared** one every current Cline client reads — `~/.cline/data/settings/cline_mcp_settings.json` (`CLINE_MCP_SETTINGS_PATH`, `CLINE_DATA_DIR` or `CLINE_DIR` relocate it). The VS Code extension's `globalStorage` copy (`%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev\settings\`, `~/Library/Application Support/Code/User/globalStorage/…`, `~/.config/Code/User/globalStorage/…`, plus `Code - Insiders`) is **legacy**: current Cline reads it only in a one-shot migration, so LiteSPM probes it last and only for a client too old to have migrated (`internal/host/cline.go`). There is no separate, unmanaged CLI file.
 *   **Accessing in Cline:**
     1.  Open VS Code and launch the Cline panel.
-    2.  Click the MCP icon or type `/marketplace` in the prompt.
-    3.  Browse available tools or view existing tools. Cline displays the green status dot in its MCP settings view.
+    2.  Ask Cline to search or inspect capabilities using the connected LiteSPM MCP tools. A Cline-specific marketplace slash command is not documented.
 
 ### 4.2 Pi Agent (`pi-coding-agent`)
 *   **How it works:** Minimalist terminal agent by Mario Zechner. LiteSPM registers under the `mcpServers` key — the only container Pi reads — in `<agent-dir>/mcp.json`, where the agent directory is `~/.pi/agent` (`%USERPROFILE%\.pi\agent` on Windows) unless `PI_CODING_AGENT_DIR` overrides it, and creates `<agent-dir>/extensions/litespm.ts`. A project-scope install writes `<project>/.pi/mcp.json` under the same `mcpServers` key; Pi replaces a user entry with a same-named project entry. There is no legacy-fallback file: `~/.pi/config.json` and `~/.pi/mcp.json` appear in no Pi documentation or source, and probing them used to write the bridge into a file Pi never reads (`internal/host/piagent.go`).
@@ -234,12 +188,11 @@ own config file. It does **not** assert runtime health:
 *   **How it works:** Host id is `grok-build`. LiteSPM injects the stdio bridge under `[mcp_servers.litespm]` in `$GROK_HOME/config.toml` (default `~/.grok/config.toml`; on native Windows `%USERPROFILE%\.grok\config.toml`). `%APPDATA%\Grok\config.toml` appears in no xAI documentation and was **removed** as a fallback; the host-documented project file `.grok/config.toml` **is** written (`internal/host/grokbuild.go`, `ARCH/16` §3).
 *   **Accessing in Grok Build:**
     1.  Launch `grok` in terminal.
-    2.  Type `/marketplace` to open the capability browser.
-    3.  Grok detects the companion command hook and loads selected tools directly into its execution loop.
+    2.  Ask Grok Build to browse LiteSPM's catalog using the connected MCP tools. A LiteSPM-specific slash command is not documented.
 
 ### 4.4 OpenAI Codex
 *   **How it works:** LiteSPM injects the stdio bridge into `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`; native Windows `%USERPROFILE%\.codex\config.toml`) under `[mcp_servers.litespm]`. The adapter **does** honour `$CODEX_HOME`, and the `%APPDATA%\Codex\config.toml` fallback was **removed** — it appears in no OpenAI documentation (the documented Windows system path is the administrator-owned `%ProgramData%\OpenAI\Codex\config.toml`, which LiteSPM does not write). The host-documented project file `.codex/config.toml` **is** written (`internal/host/codex.go`, `ARCH/16` §3.5).
-*   **Accessing in Codex:** Launch `codex` and type `/marketplace` or use the registered companion skill.
+*   **Accessing in Codex:** Launch `codex` and ask it to browse LiteSPM's catalog using the connected MCP tools. Codex does not document an MCP-prompt slash command, and LiteSPM setup does not write a companion skill.
 
 ### 4.5 OpenCode
 *   **How it works:** LiteSPM writes into `$OPENCODE_CONFIG_DIR/opencode.jsonc` (preferred) or `opencode.json`, falling back to `$XDG_CONFIG_HOME/opencode/` — default `~/.config/opencode/` on Unix and `%USERPROFILE%\.config\opencode\` on Windows — because OpenCode resolves its config directory through xdg-basedir on every OS. `%APPDATA%\OpenCode\opencode.json` is read by no OpenCode release and is not probed. Project scope is `opencode.json` / `opencode.jsonc` at the project root (the `.opencode/` subdirectory form is the next candidate in the same upward walk from the working directory), and a `--scope project` install writes `<root>/opencode.json` (`internal/host/opencode.go`, `ARCH/16` §3.6).
@@ -248,8 +201,8 @@ own config file. It does **not** assert runtime health:
     ```json
     {"mcp":{"servers":{"litespm":{"type":"local","command":["litespm","bridge","stdio","--host","opencode"]}}}}
     ```
-*   **Accessing in OpenCode:** Type `/marketplace` in the OpenCode CLI.
+*   **Accessing in OpenCode:** Type `/litespm:marketplace` in OpenCode. The prompt name is qualified by the MCP server name.
 
 ### 4.6 Claude Code
 *   **How it works:** User-scope servers live under the top-level `mcpServers` object in `~/.claude.json` (Windows `%USERPROFILE%\.claude.json`). Project scope is `.mcp.json` in the project root; local scope is a per-project entry inside `~/.claude.json`. When set, `CLAUDE_CONFIG_DIR` relocates `.claude.json` and LiteSPM follows it (`internal/host/claudecode.go`).
-*   **Accessing in Claude Code:** Type `/marketplace` in the terminal to invoke the bootstrap skill.
+*   **Accessing in Claude Code:** Type `/mcp__litespm__marketplace`, or select `/litespm:marketplace` from the slash-command menu. This is an MCP prompt; LiteSPM does not write a bootstrap skill.

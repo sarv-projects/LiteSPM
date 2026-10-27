@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -123,6 +124,9 @@ func TestEnsureRuntimeRootRefusesForeignOwner(t *testing.T) {
 	}
 	// Running as root: hand the directory to an unprivileged uid.
 	if err := os.Chown(root, 65534, 65534); err != nil {
+		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.EACCES) {
+			t.Skipf("container does not permit changing file ownership: %v", err)
+		}
 		t.Fatalf("chown: %v", err)
 	}
 

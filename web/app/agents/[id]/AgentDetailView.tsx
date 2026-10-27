@@ -61,6 +61,14 @@ export interface AgentDetailViewProps {
   repoConfigPath?: string;
   /** True when `SKILL_TARGETS` registers a skills directory for this host. */
   skillsSupported: boolean;
+  /** Default user-scope destination derived from the skills registry. */
+  skillUserPath?: string;
+  /** Environment override for the user-scope destination, when applicable. */
+  skillUserPathOverride?: string;
+  /** Project-scope destination relative to the repository root. */
+  skillProjectPath?: string;
+  /** Qualifier for a dynamic or environment-based skills path. */
+  skillPathNote?: string;
   /** Entries shown for this target in Explore — what the Explore link opens. */
   count: number;
   /** Vendor MCP configuration docs; carries the no-note fallback link. */
@@ -99,6 +107,10 @@ export default function AgentDetailView({
   format,
   repoConfigPath,
   skillsSupported,
+  skillUserPath,
+  skillUserPathOverride,
+  skillProjectPath,
+  skillPathNote,
   skillsOnly = false,
   count,
   docsHref,
@@ -264,7 +276,16 @@ export default function AgentDetailView({
             {skillsSupported && (
               <div>
                 <dt>Skills</dt>
-                <dd>{sharedSkillsFolder ? <>Use the shared <code className="t-mono">.agents/skills/</code> folder.</> : <>Install into {name}&rsquo;s skill directory.</>}</dd>
+                <dd className="space-y-1">
+                  {skillUserPath ? (
+                    <p>User path (Unix): <code className="t-mono text-[11px] break-all">{skillUserPath}</code></p>
+                  ) : (
+                    <p>Project scope only.</p>
+                  )}
+                  {skillProjectPath && <p>Project: <code className="t-mono text-[11px] break-all">{skillProjectPath}</code></p>}
+                  {skillUserPathOverride && <p className="text-[11px] text-ink-3">Override (Unix): <code className="t-mono break-all">{skillUserPathOverride}</code></p>}
+                  {skillPathNote && <p className="text-[11px] text-ink-3">{skillPathNote}</p>}
+                </dd>
               </div>
             )}
           </dl>
@@ -333,6 +354,27 @@ export default function AgentDetailView({
 
         </section>
 
+        {/* ---- one command, before the file detail ----------------------- */}
+        <section className="mt-7" aria-labelledby="agent-command-title">
+          <div className="section-head">
+            <h2 id="agent-command-title">One command</h2>
+            <span className="section-note">
+              {skillsOnly ? "installs a skill here" : "writes the same entry"}
+            </span>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-rule bg-sunken px-3 py-2.5">
+            <code className="t-mono min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[13px] text-ink">
+              {command}
+            </code>
+            <CopyButton
+              text={command}
+              label="Copy the host setup command"
+              message="Command copied"
+            />
+          </div>
+        </section>
+
         {skillsOnly ? (
           /* A host with no configuration file: there is no file card to
              show, and a card with an empty body would be a card about
@@ -349,6 +391,12 @@ export default function AgentDetailView({
                 <code className="t-mono text-[12px]">SKILL.md</code> into the host&rsquo;s skills
                 directory. It records every file it wrote, so the install can be undone.
               </p>
+              <dl className="spec-list mt-3 max-w-xl">
+                {skillUserPath ? <div><dt>User (Unix)</dt><dd><code className="t-mono text-[11.5px] break-all">{skillUserPath}</code></dd></div> : <div><dt>User scope</dt><dd>No global skills directory is documented.</dd></div>}
+                {skillProjectPath && <div><dt>Project scope</dt><dd><code className="t-mono text-[11.5px] break-all">{skillProjectPath}</code></dd></div>}
+              </dl>
+              {skillUserPathOverride && <p className="mt-2 text-[12px] leading-relaxed text-ink-3">If set, <code className="t-mono">{skillUserPathOverride}</code> overrides the default.</p>}
+              {skillPathNote && <p className="mt-2 text-[12px] leading-relaxed text-ink-3">{skillPathNote}</p>}
             </div>
           </section>
         ) : (
@@ -386,34 +434,11 @@ export default function AgentDetailView({
           </section>
         )}
 
-        {/* ---- one command ----------------------------------------------- */}
-        <section className="mt-9" aria-labelledby="agent-command-title">
-          <div className="section-head">
-            <h2 id="agent-command-title">One command</h2>
-            <span className="section-note">
-              {skillsOnly ? "installs a skill here" : "writes the same entry"}
-            </span>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-rule bg-sunken px-3 py-2.5">
-            <code className="t-mono min-w-0 break-all text-[13px] text-ink">
-              {command}
-            </code>
-            <CopyButton
-              text={command}
-              label="Copy the host setup command"
-              message="Command copied"
-            />
-          </div>
-
-
-        </section>
-
         {/* ---- catalog entries for this agent ----------------------------- */}
         <section className="mt-9" aria-labelledby="agent-works-title">
           <div className="section-head">
             <h2 id="agent-works-title">{skillsOnly ? (sharedSkillsFolder ? "Find skills for the shared folder" : `Find skills for ${name}`) : `Find tools for ${name}`}</h2>
-            <span className="section-note">Browse the catalog</span>
+            <span className="section-note">{count === 0 ? "No matching listings" : "Browse the catalog"}</span>
           </div>
 
           <p className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
@@ -421,20 +446,30 @@ export default function AgentDetailView({
               {formatCount(count)}
             </span>
             <span className="max-w-prose text-[13px] leading-relaxed text-ink-2">
-              {sharedSkillsFolder ? "Skills listed for the shared folder." : skillsOnly ? `Catalog listings for ${name}.` : `Packages and skills to explore for ${name}.`}
+              {count === 0
+                ? skillsOnly
+                  ? `No catalog listings currently name ${name}. You can still install a skill from a public source with the command above.`
+                  : `No catalog listings currently have a supported setup for ${name}. Suggest a listing if you know one.`
+                : sharedSkillsFolder
+                  ? "Skills listed for the shared folder."
+                  : skillsOnly
+                    ? `Catalog listings for ${name}.`
+                    : `Packages and skills to explore for ${name}.`}
             </span>
           </p>
 
           <div className="mt-4">
-            <Link href={exploreHref} className="btn">
-              {skillsOnly ? `Browse skills for ${sharedSkillsFolder ? "the shared folder" : name}` : `Browse packages for ${name}`}
+            <Link href={count === 0 ? "/submit/" : exploreHref} className="btn">
+              {count === 0 ? "Suggest a listing" : skillsOnly ? `Browse skills for ${sharedSkillsFolder ? "the shared folder" : name}` : `Browse packages for ${name}`}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           </div>
 
-          <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
-            Browse the catalog filtered to {name} and choose the capability that fits your workflow.
-          </p>
+          {count > 0 && (
+            <p className="mt-3 max-w-prose text-[12px] leading-relaxed text-ink-3">
+              Browse the catalog filtered to {name} and choose the capability that fits your workflow.
+            </p>
+          )}
         </section>
       </main>
 

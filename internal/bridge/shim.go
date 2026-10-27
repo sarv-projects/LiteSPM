@@ -68,7 +68,7 @@ type CapabilityItem struct {
 	Triggers   []string        `json:"triggers,omitempty"`
 }
 
-// Shim serves the 12 canonical LiteSPM tools over standard input/output.
+// Shim serves LiteSPM's canonical MCP tools and prompts over standard input/output.
 type Shim struct {
 	client *ipc.Client
 	hostID string
@@ -244,20 +244,19 @@ func negotiatedProtocolVersion(params json.RawMessage) string {
 func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Response {
 	switch req.Method {
 	case "initialize":
-		capabilities := map[string]any{"tools": map[string]any{}}
-		if s.hostID == "qwen-code" {
-			// Qwen Code turns MCP prompts into slash commands. Advertising only
-			// tools leaves the registered bridge usable through tool calls but
-			// makes the adapter's documented /marketplace command nonexistent.
-			capabilities["prompts"] = map[string]any{}
-		}
 		result, _ := json.Marshal(map[string]any{
 			"protocolVersion": negotiatedProtocolVersion(req.Params),
 			"serverInfo": map[string]any{
 				"name":    "litespm-bridge",
 				"version": buildinfo.Version,
 			},
-			"capabilities": capabilities,
+			// MCP clients choose how to surface prompts: as slash commands, in
+			// a picker, or only to the model. The host id alone does not identify
+			// that UI behavior reliably across app and CLI surfaces.
+			"capabilities": map[string]any{
+				"tools":   map[string]any{},
+				"prompts": map[string]any{},
+			},
 		})
 		return &ipc.Response{
 			JSONRPC: "2.0",
@@ -289,9 +288,6 @@ func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Respons
 		}
 
 	case "prompts/list":
-		if s.hostID != "qwen-code" {
-			return methodNotFound(req, "prompts/list")
-		}
 		result, _ := json.Marshal(map[string]any{
 			"prompts": []map[string]any{{
 				"name":        "marketplace",
@@ -307,9 +303,6 @@ func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Respons
 		return &ipc.Response{JSONRPC: "2.0", ID: req.ID, Result: result}
 
 	case "prompts/get":
-		if s.hostID != "qwen-code" {
-			return methodNotFound(req, "prompts/get")
-		}
 		var params struct {
 			Name      string            `json:"name"`
 			Arguments map[string]string `json:"arguments"`
@@ -813,7 +806,7 @@ func FormatInstalledPanel(items []CapabilityItem) string {
 	return sb.String()
 }
 
-// knownTool reports whether name is one of the 12 canonical tools this shim
+// knownTool reports whether name is one of the canonical tools this shim
 // advertises in tools/list.
 func (s *Shim) knownTool(name string) bool {
 	for _, tool := range s.tools {

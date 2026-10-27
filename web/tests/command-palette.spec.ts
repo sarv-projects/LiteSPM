@@ -63,6 +63,19 @@ test("opens from the header control and from Ctrl+K", async ({ page }) => {
     .toBe(true);
 });
 
+test("the Install LiteSPM palette destination reaches the setup guide", async ({ page }) => {
+  await gotoSettled(page, "/");
+  await page.getByRole("link", { name: "Search the catalog" }).click();
+  const dialog = page.locator(DIALOG);
+  await expect(dialog).toBeVisible();
+  await dialog.locator('input[role="combobox"]').fill("Install LiteSPM");
+  const destination = dialog.getByRole("option", { name: /Install LiteSPM/ });
+  await expect(destination).toBeVisible();
+  await destination.press("Enter");
+  await expect(page).toHaveURL(/\/get-started\//);
+  await expect(page.getByRole("heading", { name: "Get started", level: 1 })).toBeVisible();
+});
+
 test("Escape closes the palette and returns focus to the header control", async ({ page }) => {
   await gotoSettled(page, "/");
   const opener = page.getByRole("link", { name: "Search the catalog" });

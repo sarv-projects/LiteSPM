@@ -94,9 +94,9 @@ Two consequences worth stating precisely:
     daemon's `rpc error: code=-32601 message=not implemented: …` reason, with
     `isError: true`.
 
-### 1.2 The 12 tools and what each resolves to today
+### 1.2 The 13 tools and what each resolves to today
 
-`tools/list` advertises exactly 12 tools (`internal/bridge/shim.go:112-174`);
+`tools/list` advertises exactly 13 tools (`internal/bridge/shim.go:112-174`);
 `knownTool` rejects anything else (`shim.go:694`).
 
 | # | MCP tool | Daemon method (`internal/bridge/shim.go`) | Status |
@@ -106,13 +106,15 @@ Two consequences worth stating precisely:
 | 3 | `prepare_install` | `resolver.prepare_plan` (`:420`) | `WIRED` — plan persisted with `planHash`; a project-scope call must name its `projectRoot` |
 | 4 | `request_install` | `install.execute` (`:440`) | `WIRED` **for skills, MCP servers and plugins with a pinned source** (installs files through the skills ledger / registers the server in each target host's config / fetches the plugin's pinned tree and installs its portable components, all behind the plan + approval gate), `LPSM-ARTIFACT-UNAVAILABLE` for a plugin with no fetchable pinned source, `LPSM-INSTALL-PARTIAL` when an unacknowledged plugin install would skip declared components ([STATUS.md](../STATUS.md) §3) |
 | 5 | `list_installed` | `tools.list` (`:455`) | `WIRED` — installs + read-only detected external tools; sends `projectRoot` so the agent also sees the workspace's project-scope installs, each labelled with its scope |
-| 6 | `search_capabilities` | `capabilities.search` (`:471`) | Resolves — searches the tools **discovered on this machine**, which is a different question from `search_catalog`'s registry search |
-| 7 | `describe_capability` | `capabilities.describe` (`:490`) | Resolves — returns the real input schema, fingerprint and the command behind it |
-| 8 | `load_skill` | `skills.load_body` (`:512`) | `WIRED` — `projectRoot` as tool 5; user scope wins a name collision |
-| 9 | `read_skill_resource` | `skills.read_resource` (`:542`) | `WIRED` — path-traversal checked (`main.go:2951-2958`); `projectRoot` as tool 5 |
-| 10 | `invoke_capability` | `provider.invoke` (`:564`) | Resolves — spawns the installed server and calls the discovered tool; refuses on schema drift |
-| 11 | `get_invocation` | `invocation.get` (`:585`) | `WIRED` — answers from the invocation registry and receipt chain; an unknown id is `LPSM-INVOCATION-NOT-FOUND` |
-| 12 | `cancel_invocation` | `invocation.cancel` (`:605`) | `WIRED` — cooperative cancellation over the same registry |
+| 6 | `adopt_capability` | `adopt.execute` (`:566`) | `WIRED` — records ownership of an MCP server that is already configured |
+| 7 | `search_capabilities` | `capabilities.search` (`:471`) | Resolves — searches the tools **discovered on this machine**, which is a different question from `search_catalog`'s registry search |
+| 8 | `describe_capability` | `capabilities.describe` (`:490`) | Resolves — returns the real input schema, fingerprint and the command behind it |
+| 9 | `load_skill` | `skills.load_body` (`:512`) | `WIRED` — `projectRoot` as tool 5; user scope wins a name collision |
+| 10 | `read_skill_resource` | `skills.read_resource` (`:542`) | `WIRED` — path-traversal checked (`main.go:2951-2958`); `projectRoot` as tool 5 |
+| 11 | `invoke_capability` | `provider.invoke` (`:564`) | Resolves — spawns the installed server and calls the discovered tool; refuses on schema drift |
+| 12 | `get_invocation` | `invocation.get` (`:585`) | `WIRED` — answers from the invocation registry and receipt chain; an unknown id is `LPSM-INVOCATION-NOT-FOUND` |
+| 13 | `cancel_invocation` | `invocation.cancel` (`:605`) | `WIRED` — cooperative cancellation over the same registry |
+| 13 | `adopt_capability` | `tools.adopt` (`:625`) | `WIRED` — records an already configured external MCP server in LiteSPM's install ledger |
 
 > Line numbers in the table are the `s.client.Call` sites inside `DispatchTool`
 > (`shim.go:328-620`). `litespm bridge stdio [--workspace <dir>]` sets the project
@@ -310,7 +312,7 @@ LiteSPM exposes installed capabilities to an agent host in one of two modes:
 ┌──────────────────────────────────────────────┬──────────────────────────────────────────────┐
 │ Routed Mode (Default in v1)                  │ Projected Mode (Optional Future UX)          │
 ├──────────────────────────────────────────────┼──────────────────────────────────────────────┤
-│ Host tool list remains small (12 tools).     │ Pre-approved capabilities projected directly │
+│ Host tool list remains small (13 tools).     │ Pre-approved capabilities projected directly │
 │ Host invokes:                                │ as native tools in host agent context:       │
 │   invoke_capability(                         │   psm_postgres_query(sql="...")              │
 │     capability_id="inst_user_mcp_builtin_mcp-│ Requires deterministic namespacing and       │

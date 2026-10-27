@@ -196,21 +196,19 @@ test("one denominator: /agents/, /compare/, the entry pages and the Explore face
   });
 });
 
-test("the Agent filter offers one option per host — no spelling twice", async ({ page }) => {
+test("the Agent filter keeps distinct Pi and Grok products as separate options", async ({ page }) => {
   await gotoSettled(page, "/explore/");
   const options = await agentFilterSelect(page).locator("option").allTextContents();
   expect(options[0]).toBe("Any agent");
 
   const names = options.slice(1).map(facetName);
-  // The defect this guards: the same host offered under two spellings ("Pi"
-  // and "Pi Agent (Terminal Agent)", "Grok" and "Grok Build (xAI Dev Tool)").
+  // Alternate spellings of one registry identity may collapse, but these are
+  // four separate products and each must have its own option.
   expect(new Set(names).size, `duplicate facet names: ${names.join(", ")}`).toBe(names.length);
 
   const once = (name: string) => names.filter((n) => n === name).length;
   expect(once("Pi"), "the Pi host is one option").toBe(1);
-  expect(names).not.toContain("Pi Agent");
-  expect(names).not.toContain("Pi Agent (Terminal Agent)");
-  expect(once("Grok Build"), "the Grok host is one option").toBe(1);
-  expect(names).not.toContain("Grok");
-  expect(names).not.toContain("Grok Build (xAI Dev Tool)");
+  expect(once("Pi Agent"), "the Pi Agent host is one option").toBe(1);
+  expect(once("Grok CLI"), "the community Grok CLI is one option").toBe(1);
+  expect(once("Grok Build"), "xAI Grok Build is one option").toBe(1);
 });

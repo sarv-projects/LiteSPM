@@ -15,9 +15,8 @@ import { ThemeToggle } from "./ThemeToggle";
  * marketplace), Agent hosts (the setup and support profiles), How it works and Docs.
  * Categories, Compare and Insights still exist as routes and are linked
  * from Explore and the footer; they left the rail because a first-time reader
- * should not have to learn the site map to find the product. Docs points at the
- * repository README (`lib/site` DOCS_URL) rather than a route that does not
- * exist yet.
+ * should not have to learn the site map to find the product. Developer docs
+ * opens the in-site setup and integration guide.
  *
  * The kind tabs that used to sit on a second row are gone: filtering by kind is
  * what `/explore` is for. `--stack-top` follows the responsive height so sticky

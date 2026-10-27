@@ -15,7 +15,7 @@ import (
 // target table. A verified target must never claim one of these ids, or the
 // registry would silently shadow a tested adapter with a table row.
 var bespokeAdapterIDs = []string{
-	"codex", "claude-code", "opencode", "cline", "pi-agent", "pi", "grok", "grok-build",
+	"codex", "claude-code", "opencode", "cline", "pi-agent", "pi", "grok-build",
 }
 
 func TestBridgeTargetTableHasUniqueIDs(t *testing.T) {
@@ -366,6 +366,12 @@ func TestGenericAdapterRejectsProjectScopeWhenUndocumented(t *testing.T) {
 }
 
 func TestGenericAdapterDescriptorIsComplete(t *testing.T) {
+	marketplaceCommands := map[string]string{
+		"devin":      "/mcp__litespm__marketplace",
+		"gemini-cli": "/marketplace",
+		"codebuddy":  "/litespm:marketplace",
+		"qwen-code":  "/marketplace",
+	}
 	for _, tgt := range verifiedBridgeTargets {
 		d := NewGenericAdapter(tgt).Descriptor()
 		if d.HostID != tgt.ID {
@@ -374,11 +380,37 @@ func TestGenericAdapterDescriptorIsComplete(t *testing.T) {
 		if d.DisplayName != tgt.Name {
 			t.Errorf("%s: descriptor name %q", tgt.ID, d.DisplayName)
 		}
-		if d.SlashCommandTrigger != "/marketplace" {
-			t.Errorf("%s: unexpected slash trigger %q", tgt.ID, d.SlashCommandTrigger)
+		if want := marketplaceCommands[tgt.ID]; d.SlashCommandTrigger != want {
+			t.Errorf("%s: slash trigger %q, want verified value %q", tgt.ID, d.SlashCommandTrigger, want)
 		}
 		if d.ConfigFormat != string(tgt.Format) {
 			t.Errorf("%s: descriptor format %q", tgt.ID, d.ConfigFormat)
+		}
+	}
+}
+
+func TestAdaptersAdvertiseOnlyVerifiedMarketplaceCommands(t *testing.T) {
+	verifiedCommands := map[string]string{
+		"claude-code": "/mcp__litespm__marketplace",
+		"codebuddy":   "/litespm:marketplace",
+		"devin":       "/mcp__litespm__marketplace",
+		"gemini-cli":  "/marketplace",
+		"opencode":    "/litespm:marketplace",
+		"pi":          "/marketplace",
+		"pi-agent":    "/marketplace",
+		"qwen-code":   "/marketplace",
+	}
+	seen := make(map[string]bool)
+	for _, adapter := range ListAdapters() {
+		d := adapter.Descriptor()
+		seen[d.HostID] = true
+		if want := verifiedCommands[d.HostID]; d.SlashCommandTrigger != want {
+			t.Errorf("%s: slash trigger %q, want verified value %q", d.HostID, d.SlashCommandTrigger, want)
+		}
+	}
+	for hostID := range verifiedCommands {
+		if !seen[hostID] {
+			t.Errorf("verified marketplace command is assigned to an unregistered host %q", hostID)
 		}
 	}
 }
@@ -483,9 +515,9 @@ func TestStrictJSONHostsRefuseCommentedFiles(t *testing.T) {
 // --- remote (URL) capability matrix — B1 acceptance, PART 1 §1.4/§1.5 -----
 
 // remoteCapableBespokeIDs are the hand-written adapter ids whose remote shape
-// §1.3 verified, including the two documented alias ids (pi and grok) that
-// resolve to the same adapters as pi-agent and grok-build.
-var remoteCapableBespokeIDs = []string{"claude-code", "cline", "opencode", "codex", "pi-agent", "pi", "grok", "grok-build"}
+// §1.3 verified. Pi and Pi Agent are separate host profiles even though both
+// use the same documented MCP entry format.
+var remoteCapableBespokeIDs = []string{"claude-code", "cline", "opencode", "codex", "pi-agent", "pi", "grok-build"}
 
 // remoteCapableGenericIDs are the generic targets whose exact remote entry
 // object was read from the row's DocsURL (or, where the vendor documents the
@@ -518,12 +550,13 @@ var remoteCapableGenericIDs = []string{
 // remoteRefusedGenericIDs are the generic targets whose vendor publishes no
 // remote entry object, so a remote install stays refused for them.
 var remoteRefusedGenericIDs = []string{
-	"codestudio", "iflow-cli", "mux", "zcode",
+	"codestudio", "grok", "iflow-cli", "mux", "zcode",
 }
 
 // TestRemoteCapabilityMatrixCounts is the anti-mass-enable guard: for every
 // registered host RemoteEntrySpecFor must answer (spec or false), and the
-// counts must stay at exactly 8 capable hosts / 42 refused targets. Enabling
+// counts must stay at exactly 7 capable bespoke hosts plus 40 generic / 5
+// refused targets. Enabling
 // a Tier B/C/D row without evidence — or disabling a verified one — fails
 // here rather than silently changing what installs write.
 func TestRemoteCapabilityMatrixCounts(t *testing.T) {
@@ -542,12 +575,12 @@ func TestRemoteCapabilityMatrixCounts(t *testing.T) {
 		}
 	}
 
-	// Exactly 46 capable HOSTS among the registered adapter ids: the six
+	// Exactly 47 capable HOSTS among the registered adapter ids: the seven
 	// hand-written adapters, whose remote shapes were verified from the
 	// vendors' own documentation, plus the 40 generic rows above.
 	wantCapable := map[string]bool{
 		"claude-code": true, "cline": true, "opencode": true, "codex": true,
-		"pi-agent": true, "grok-build": true,
+		"pi-agent": true, "pi": true, "grok-build": true,
 	}
 	for _, id := range remoteCapableGenericIDs {
 		wantCapable[id] = true
@@ -565,7 +598,7 @@ func TestRemoteCapabilityMatrixCounts(t *testing.T) {
 			t.Errorf("host %q is remote-capable but is not in the verified set — a spec was enabled without evidence", id)
 		}
 	}
-	// Exactly 4 refused targets, and the two sets cover the registry.
+	// Exactly 5 refused targets, and the two sets cover the registry.
 	if len(refusedIDs) != len(remoteRefusedGenericIDs) {
 		t.Errorf("remote-refused hosts = %d, want %d (refused ids: %v)", len(refusedIDs), len(remoteRefusedGenericIDs), refusedIDs)
 	}
@@ -578,13 +611,7 @@ func TestRemoteCapabilityMatrixCounts(t *testing.T) {
 		t.Errorf("matrix does not cover the registry: %d capable + %d refused vs %d adapters",
 			len(capableIDs), len(refusedIDs), len(ListAdapters()))
 	}
-	// The alias ids answer too (they resolve to the same adapters).
-	for _, alias := range []string{"pi", "grok"} {
-		if _, ok := RemoteEntrySpecFor(alias); !ok {
-			t.Errorf("alias id %q must resolve the same remote capability as its canonical adapter", alias)
-		}
-	}
-	// Every bespoke adapter must be capable (§1.3 verified all six); the
+	// Every bespoke adapter must be capable (§1.3 verified all seven); the
 	// refused set is generic-rows-only.
 	for _, id := range remoteCapableBespokeIDs {
 		if refusedIDs[id] {

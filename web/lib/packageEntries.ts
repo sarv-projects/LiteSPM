@@ -45,6 +45,7 @@
 import type { Listing } from "./telemetry";
 import { availabilityOf } from "./availability";
 import { displayListingName, kindLabel, publisherDisplayName, sortListings } from "./catalog";
+import { listingSummary } from "./listingSummary.mjs";
 
 /**
  * How many entries get a real page. Chosen from the measured budgets, not a
@@ -130,7 +131,7 @@ export function clampMeta(text: string, max = 155): string {
 /** The description every surface uses for one entry. Never invents a fact:
  *  the publisher's summary when there is one, otherwise the entry's kind. */
 export function entryMetaDescription(item: Listing): string {
-  const summary = item.summary?.trim();
+  const summary = listingSummary(item);
   if (summary) return clampMeta(summary);
   return clampMeta(
     `${displayListingName(item)} — an entry in the LiteSPM catalog.`
@@ -163,7 +164,7 @@ export function entryJsonLd(
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: displayListingName(item),
-    ...(item.summary?.trim() ? { description: item.summary.trim() } : {}),
+    ...(listingSummary(item) ? { description: listingSummary(item) } : {}),
     url,
     applicationCategory: categoryText,
     applicationSubCategory: kindLabel(item.kind),

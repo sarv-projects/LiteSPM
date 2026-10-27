@@ -77,19 +77,17 @@ function isInstallable(row: Listing): boolean {
   return true;
 }
 
-test("the first screen explains the product and makes package types easy to discover", async ({ page }) => {
+test("the first screen explains the product without repeating its later explanations", async ({ page }) => {
   await gotoSettled(page, "/");
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("One package manager for your agents.");
   await expect(page.locator(".home-eyebrow")).toContainText("THE OPEN-SOURCE AGENT PACKAGE MANAGER");
   await expect(page.locator(".home-display-subtitle")).toContainText("MCP servers");
   await expect(page.locator(".home-display-subtitle")).toContainText("skills and plugins");
-
-  const types = page.locator('section[aria-labelledby="capability-types-title"]');
-  await expect(types.getByRole("heading", { level: 2 })).toBeVisible();
-  for (const kind of ["mcp", "skill", "plugin"]) {
-    await expect(types.locator(`a[href="/explore/?kind=${kind}"]`)).toBeVisible();
-  }
+  await expect(page.getByRole("heading", { name: "Explore by what you want to do" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A good place to start." })).toBeVisible();
+  await expect(page.locator('section[aria-labelledby="capability-types-title"]')).toHaveCount(0);
+  await expect(page.locator('section[aria-labelledby="why-title"]')).toHaveCount(0);
   await expect(page.getByText(/not available to install here yet/i)).toHaveCount(0);
 });
 
@@ -113,7 +111,7 @@ test("both calls to action exist, and land on real pages", async ({ page }) => {
 });
 
 test("the catalog overview opens the real filter for each available kind", async ({ page }) => {
-  await gotoSettled(page, "/");
+  await gotoSettled(page, "/how-it-works/");
 
   const overview = page.locator('section[aria-labelledby="capability-types-title"]');
   const destinations = [
@@ -127,7 +125,7 @@ test("the catalog overview opens the real filter for each available kind", async
     await expect(
       page.getByRole("group", { name: "Capability kind" }).getByRole("button", { name: new RegExp(filter) })
     ).toHaveAttribute("aria-pressed", "true");
-    await gotoSettled(page, "/");
+    await gotoSettled(page, "/how-it-works/");
   }
 });
 

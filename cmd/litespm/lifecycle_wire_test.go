@@ -30,7 +30,7 @@ func TestHostLocatorForKeepsBespokeHostsByteIdentical(t *testing.T) {
 		"pi":          "mcpServers.demo",
 		"opencode":    "mcp.servers.demo",
 		"codex":       "mcp_servers.demo",
-		"grok":        "mcp_servers.demo",
+		"grok":        "mcpServers.demo",
 		"grok-build":  "mcp_servers.demo",
 	}
 	for hostID, wantLoc := range want {

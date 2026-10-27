@@ -17,7 +17,7 @@ type HostDescriptor struct {
 	ConfigFormat           string   `json:"configFormat"` // json | toml
 	SupportsFormElicit     bool     `json:"supportsFormElicit"`
 	RequiresBootstrapSkill bool     `json:"requiresBootstrapSkill"`
-	SlashCommandTrigger    string   `json:"slashCommandTrigger"`
+	SlashCommandTrigger    string   `json:"slashCommandTrigger,omitempty"`
 }
 
 // PreExistingComponent represents a native capability detected in host configuration (read-only).

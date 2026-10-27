@@ -25,16 +25,12 @@ func NewGenericAdapter(t BridgeTarget) *GenericAdapter { return &GenericAdapter{
 
 // Descriptor implements HostAdapter.
 func (a *GenericAdapter) Descriptor() HostDescriptor {
-	trigger := a.Target.SlashCommandTrigger
-	if trigger == "" {
-		trigger = "/marketplace"
-	}
 	return HostDescriptor{
 		HostID:                a.Target.ID,
 		DisplayName:           a.Target.Name,
 		DefaultConfigFileName: a.Target.ID + configExt(a.Target.Format),
 		ConfigFormat:          string(a.Target.Format),
-		SlashCommandTrigger:   trigger,
+		SlashCommandTrigger:   a.Target.SlashCommandTrigger,
 	}
 }
 

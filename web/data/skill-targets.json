@@ -2,430 +2,685 @@
   {
     "id": "adal",
     "displayName": "AdaL",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".adal/skills",
+    "globalDir": ".adal/skills",
+    "base": "home"
   },
   {
     "id": "aider-desk",
     "displayName": "AiderDesk",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".aider-desk/skills",
+    "globalDir": ".aider-desk/skills",
+    "base": "home"
   },
   {
     "id": "amp",
     "displayName": "Amp",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": "agents/skills",
+    "base": "xdg"
   },
   {
     "id": "antigravity",
     "displayName": "Antigravity",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".gemini/antigravity/skills",
+    "base": "home"
   },
   {
     "id": "antigravity-cli",
     "displayName": "Antigravity CLI",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".gemini/antigravity-cli/skills",
+    "base": "home"
   },
   {
     "id": "astrbot",
     "displayName": "AstrBot",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": "data/skills",
+    "globalDir": ".astrbot/data/skills",
+    "base": "home"
   },
   {
     "id": "augment",
     "displayName": "Augment",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".augment/skills",
+    "globalDir": ".augment/skills",
+    "base": "home"
   },
   {
     "id": "autohand-code",
     "displayName": "Autohand Code CLI",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".autohand/skills",
+    "globalDir": "skills",
+    "base": "env",
+    "envVar": "AUTOHAND_HOME",
+    "defaultBase": ".autohand"
   },
   {
     "id": "bob",
     "displayName": "IBM Bob",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".bob/skills",
+    "globalDir": ".bob/skills",
+    "base": "home"
   },
   {
     "id": "claude-code",
     "displayName": "Claude Code",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".claude/skills",
+    "globalDir": "skills",
+    "base": "env",
+    "envVar": "CLAUDE_CONFIG_DIR",
+    "defaultBase": ".claude"
   },
   {
     "id": "cline",
     "displayName": "Cline",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".agents/skills",
+    "base": "home"
   },
   {
     "id": "codearts-agent",
     "displayName": "CodeArts Agent",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".codeartsdoer/skills",
+    "globalDir": ".codeartsdoer/skills",
+    "base": "home"
   },
   {
     "id": "codebuddy",
     "displayName": "CodeBuddy",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".codebuddy/skills",
+    "globalDir": ".codebuddy/skills",
+    "base": "home"
   },
   {
     "id": "codemaker",
     "displayName": "Codemaker",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".codemaker/skills",
+    "globalDir": ".codemaker/skills",
+    "base": "home"
   },
   {
     "id": "codestudio",
     "displayName": "Code Studio",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".codestudio/skills",
+    "globalDir": ".codestudio/skills",
+    "base": "home"
   },
   {
     "id": "codex",
     "displayName": "Codex",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": "skills",
+    "base": "env",
+    "envVar": "CODEX_HOME",
+    "defaultBase": ".codex"
   },
   {
     "id": "command-code",
     "displayName": "Command Code",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".commandcode/skills",
+    "globalDir": ".commandcode/skills",
+    "base": "home"
   },
   {
     "id": "continue",
     "displayName": "Continue",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".continue/skills",
+    "globalDir": ".continue/skills",
+    "base": "home"
   },
   {
     "id": "cortex",
     "displayName": "Cortex Code",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".cortex/skills",
+    "globalDir": ".snowflake/cortex/skills",
+    "base": "home"
   },
   {
     "id": "crush",
     "displayName": "Crush",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".crush/skills",
+    "globalDir": "crush/skills",
+    "base": "xdg"
   },
   {
     "id": "cursor",
     "displayName": "Cursor",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".cursor/skills",
+    "base": "home"
   },
   {
     "id": "deepagents",
     "displayName": "Deep Agents",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".deepagents/agent/skills",
+    "base": "home"
   },
   {
     "id": "devin",
     "displayName": "Devin for Terminal",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".devin/skills",
+    "globalDir": "devin/skills",
+    "base": "xdg"
   },
   {
     "id": "dexto",
     "displayName": "Dexto",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".agents/skills",
+    "base": "home"
   },
   {
     "id": "droid",
     "displayName": "Droid",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".factory/skills",
+    "base": "home"
   },
   {
     "id": "eve",
     "displayName": "Eve",
-    "hasGlobal": false
+    "hasGlobal": false,
+    "projectDir": "agent/skills",
+    "base": "home"
   },
   {
     "id": "firebender",
     "displayName": "Firebender",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".firebender/skills",
+    "base": "home"
   },
   {
     "id": "forgecode",
     "displayName": "ForgeCode",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".forge/skills",
+    "globalDir": ".forge/skills",
+    "base": "home"
   },
   {
     "id": "fx",
     "displayName": "fx",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".fx/skills",
+    "globalDir": ".fx/skills",
+    "base": "home"
   },
   {
     "id": "gemini-cli",
     "displayName": "Gemini CLI",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".gemini/skills",
+    "base": "home"
   },
   {
     "id": "github-copilot",
     "displayName": "GitHub Copilot",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".copilot/skills",
+    "base": "home"
   },
   {
     "id": "goose",
     "displayName": "Goose",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".goose/skills",
+    "globalDir": "goose/skills",
+    "base": "xdg"
   },
   {
     "id": "grok",
-    "displayName": "Grok",
-    "hasGlobal": true
+    "displayName": "Grok CLI",
+    "universal": true,
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".agents/skills",
+    "base": "home"
   },
   {
     "id": "grok-build",
     "displayName": "Grok Build",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".grok/skills",
+    "globalDir": "skills",
+    "base": "env",
+    "envVar": "GROK_HOME",
+    "defaultBase": ".grok"
   },
   {
     "id": "hermes-agent",
     "displayName": "Hermes Agent",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".hermes/skills",
+    "globalDir": "skills",
+    "base": "env",
+    "envVar": "HERMES_HOME",
+    "defaultBase": ".hermes"
   },
   {
     "id": "iflow-cli",
     "displayName": "iFlow CLI",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".iflow/skills",
+    "globalDir": ".iflow/skills",
+    "base": "home"
   },
   {
     "id": "inference-sh",
     "displayName": "inference.sh",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".inferencesh/skills",
+    "globalDir": ".inferencesh/skills",
+    "base": "home"
   },
   {
     "id": "jazz",
     "displayName": "Jazz",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".jazz/skills",
+    "globalDir": ".jazz/skills",
+    "base": "home"
   },
   {
     "id": "junie",
     "displayName": "Junie",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".junie/skills",
+    "globalDir": ".junie/skills",
+    "base": "home"
   },
   {
     "id": "kilo",
     "displayName": "Kilo Code",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".kilo/skills",
+    "base": "home"
   },
   {
     "id": "kimchi",
     "displayName": "Kimchi",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".kimchi/skills",
+    "globalDir": ".config/kimchi/harness/skills",
+    "base": "home"
   },
   {
     "id": "kimi-code-cli",
     "displayName": "Kimi Code CLI",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".agents/skills",
+    "base": "home"
   },
   {
     "id": "kiro-cli",
     "displayName": "Kiro CLI",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".kiro/skills",
+    "globalDir": ".kiro/skills",
+    "base": "home"
   },
   {
     "id": "kode",
     "displayName": "Kode",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".kode/skills",
+    "globalDir": ".kode/skills",
+    "base": "home"
   },
   {
     "id": "lingma",
     "displayName": "Lingma",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".lingma/skills",
+    "globalDir": ".lingma/skills",
+    "base": "home"
   },
   {
     "id": "loaf",
     "displayName": "Loaf",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".agents/skills",
+    "base": "home"
   },
   {
     "id": "mcpjam",
     "displayName": "MCPJam",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".mcpjam/skills",
+    "globalDir": ".mcpjam/skills",
+    "base": "home"
   },
   {
     "id": "minimax-code",
     "displayName": "minimax Code",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".minimax/skills",
+    "globalDir": ".minimax/skills",
+    "base": "home"
   },
   {
     "id": "mistral-vibe",
     "displayName": "Mistral Vibe",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".vibe/skills",
+    "globalDir": "skills",
+    "base": "env",
+    "envVar": "VIBE_HOME",
+    "defaultBase": ".vibe"
   },
   {
     "id": "moxby",
     "displayName": "Moxby",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".moxby/skills",
+    "globalDir": ".moxby/skills",
+    "base": "home"
   },
   {
     "id": "mux",
     "displayName": "Mux",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".mux/skills",
+    "globalDir": ".mux/skills",
+    "base": "home"
   },
   {
     "id": "neovate",
     "displayName": "Neovate",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".neovate/skills",
+    "globalDir": ".neovate/skills",
+    "base": "home"
   },
   {
     "id": "ona",
     "displayName": "Ona",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".ona/skills",
+    "globalDir": ".ona/skills",
+    "base": "home"
   },
   {
     "id": "openclaw",
     "displayName": "OpenClaw",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": "skills",
+    "globalDir": ".openclaw/skills",
+    "base": "home"
   },
   {
     "id": "opencode",
     "displayName": "OpenCode",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": "opencode/skills",
+    "base": "xdg"
   },
   {
     "id": "openhands",
     "displayName": "OpenHands",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".openhands/skills",
+    "globalDir": ".openhands/skills",
+    "base": "home"
   },
   {
     "id": "pi",
     "displayName": "Pi",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".agents/skills",
+    "base": "home"
   },
   {
     "id": "pi-agent",
     "displayName": "Pi Agent",
-    "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".pi/skills",
+    "globalDir": ".pi/agent/skills",
+    "base": "home"
   },
   {
     "id": "pochi",
     "displayName": "Pochi",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".pochi/skills",
+    "globalDir": ".pochi/skills",
+    "base": "home"
   },
   {
     "id": "posit-assistant",
     "displayName": "Posit Assistant",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".posit/assistant/skills",
+    "globalDir": ".posit/assistant/skills",
+    "base": "home"
   },
   {
     "id": "promptscript",
     "displayName": "PromptScript",
     "universal": true,
-    "hasGlobal": false
+    "hasGlobal": false,
+    "projectDir": ".agents/skills",
+    "base": "home"
   },
   {
     "id": "qoder",
     "displayName": "Qoder",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".qoder/skills",
+    "globalDir": ".qoder/skills",
+    "base": "home"
   },
   {
     "id": "qoder-cn",
     "displayName": "Qoder CN",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".qoder/skills",
+    "globalDir": ".qoder-cn/skills",
+    "base": "home"
   },
   {
     "id": "qwen-code",
     "displayName": "Qwen Code",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".qwen/skills",
+    "globalDir": ".qwen/skills",
+    "base": "home"
   },
   {
     "id": "reasonix",
     "displayName": "Reasonix",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".reasonix/skills",
+    "globalDir": ".reasonix/skills",
+    "base": "home"
   },
   {
     "id": "replit",
     "displayName": "Replit",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": "agents/skills",
+    "base": "xdg"
   },
   {
     "id": "roo",
     "displayName": "Roo Code",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".roo/skills",
+    "globalDir": ".roo/skills",
+    "base": "home"
   },
   {
     "id": "rovodev",
     "displayName": "Rovo Dev",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".rovodev/skills",
+    "globalDir": ".rovodev/skills",
+    "base": "home"
   },
   {
     "id": "sarvam-code",
     "displayName": "Sarvam Code",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".agents/skills",
+    "base": "env",
+    "envVar": "SARVAM_HOME",
+    "defaultBase": ".sarvam"
   },
   {
     "id": "tabnine-cli",
     "displayName": "Tabnine CLI",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".tabnine/agent/skills",
+    "globalDir": ".tabnine/agent/skills",
+    "base": "home"
   },
   {
     "id": "terramind",
     "displayName": "Terramind",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".terramind/skills",
+    "globalDir": ".terramind/skills",
+    "base": "home"
   },
   {
     "id": "tinycloud",
     "displayName": "Tinycloud",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".tinycloud/skills",
+    "globalDir": ".tinycloud/skills",
+    "base": "home"
   },
   {
     "id": "trae",
     "displayName": "Trae",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".trae/skills",
+    "globalDir": ".trae/skills",
+    "base": "home"
   },
   {
     "id": "trae-cn",
     "displayName": "Trae CN",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".trae/skills",
+    "globalDir": ".trae-cn/skills",
+    "base": "home"
   },
   {
     "id": "universal",
     "displayName": "Universal",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": "agents/skills",
+    "base": "xdg"
   },
   {
     "id": "warp",
     "displayName": "Warp",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".agents/skills",
+    "base": "home"
   },
   {
     "id": "windsurf",
     "displayName": "Windsurf",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".windsurf/skills",
+    "globalDir": ".codeium/windsurf/skills",
+    "base": "home"
   },
   {
     "id": "zcode",
     "displayName": "ZCode",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".zcode/skills",
+    "globalDir": ".zcode/skills",
+    "base": "home"
   },
   {
     "id": "zed",
     "displayName": "Zed",
     "universal": true,
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".agents/skills",
+    "globalDir": ".agents/skills",
+    "base": "home"
   },
   {
     "id": "zencoder",
     "displayName": "Zencoder",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".zencoder/skills",
+    "globalDir": ".zencoder/skills",
+    "base": "home"
   },
   {
     "id": "zenflow",
     "displayName": "Zenflow",
-    "hasGlobal": true
+    "hasGlobal": true,
+    "projectDir": ".zencoder/skills",
+    "globalDir": ".zencoder/skills",
+    "base": "home"
   }
 ]

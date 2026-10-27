@@ -45,7 +45,7 @@ const ROUTES: Route[] = [
     heading: "From discovery to installation, without the config-file hassle.",
     section: /how it works/i,
   },
-  { path: "/get-started/", heading: "Get started", section: /your guide/i },
+  { path: "/get-started/", heading: "Get started", section: /your first three steps/i },
   { path: "/status/", heading: "Catalog availability", section: /package information/i },
   { path: "/support/", heading: "Support", section: /where a report goes/i },
   { path: "/security/", heading: "Security", section: /where the policy lives/i },
@@ -147,6 +147,17 @@ test("the setup guide changes with the agent and the OS, and never claims an ins
 }) => {
   await gotoSettled(page, "/get-started/");
 
+  const picker = page.locator("details[data-agent-picker]");
+  await expect(picker).toBeVisible();
+  await expect(picker).not.toHaveAttribute("open", "");
+  await expect(page.getByRole("radio", { name: "Not sure / just exploring" })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Windows" })).toBeVisible();
+  await expect(page.getByText("npm install -g litespm", { exact: true })).toBeVisible();
+  await expect(page.getByText("For an agent you have not identified yet.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your first three steps" })).toBeVisible();
+  await expect(page.locator("details[data-setup-details]")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#install")).toHaveCount(0);
+
   // The sentence the whole route exists to make: the commands are the reader's
   // to run, not something this page does for them.
   await expect(
@@ -157,7 +168,10 @@ test("the setup guide changes with the agent and the OS, and never claims an ins
   ).toBeVisible();
 
   // The agent answer changes the file the guide prints.
+  await picker.locator("summary").click();
   await page.getByRole("radio", { name: "Claude Code CLI" }).check();
+  await expect(page.getByText("Choose a system to show its path.", { exact: true })).toBeVisible();
+  await page.getByRole("radio", { name: "Linux" }).check();
   await expect(page.getByText("~/.claude.json", { exact: true })).toBeVisible();
 
   // The operating system changes it again: the same file, a different path.
@@ -217,6 +231,34 @@ test("catalog status can retry after an unavailable response", async ({ page }) 
   await page.getByRole("button", { name: "Check again" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Catalog available." })).toBeVisible();
   expect(attempts).toBe(2);
+});
+
+test("the docs use one setup path and keep their sections as siblings", async ({ page }) => {
+  await gotoSettled(page, "/docs/");
+  const quickStart = page.locator("#quickstart");
+  await expect(quickStart.locator("pre code").first()).toHaveText("npm install -g litespm\nlitespm");
+  await expect(page.locator("#security #publish")).toHaveCount(0);
+
+  await gotoSettled(page, "/how-it-works/");
+  await expect(page.locator("#walkthrough-title")).toBeVisible();
+  await expect(page.locator("main pre code").first()).toHaveText("npm install -g litespm\nlitespm");
+  await gotoSettled(page, "/get-started/");
+  await expect(page.getByText(/--yes.*only accepts npm.*download prompt/i)).toBeVisible();
+});
+
+test("contact routes readers to the right place and leaves diagnostics to Support", async ({ page }) => {
+  await gotoSettled(page, "/contact/");
+  await expect(page.getByRole("link", { name: "Support and troubleshooting" })).toHaveAttribute("href", "/support/");
+  await expect(page.getByRole("link", { name: "private security advisory" })).toHaveAttribute(
+    "href",
+    "https://github.com/sarv-projects/LiteSPM/security/advisories/new"
+  );
+  await expect(page.getByText("litespm doctor", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/acknowledged within seven days/i)).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Page source" })).toHaveAttribute(
+    "href",
+    "https://github.com/sarv-projects/LiteSPM/blob/main/web/app/contact/page.tsx"
+  );
 });
 
 for (const width of [320, 390]) {

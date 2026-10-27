@@ -191,23 +191,19 @@ func TestInstallExecuteRefusesPluginWithArtifactUnavailable(t *testing.T) {
 	}
 }
 
-// TestWizardRefusesPluginBeforeAskingScopeOrConsent pins the user-facing
-// ordering: the scripted conversation answers only the search and the result
-// number, so if the wizard asked for a scope or a confirmation the refusal
-// would come after a question whose answer could not change anything.
-// The wizard may now ask for the scope and the consent: a plugin is
-// installable in principle, so the answer can change something. What must
-// hold is the outcome — the attempt fails with a reason, nothing changes,
-// and no plan is sealed for an install that cannot happen.
-func TestWizardRefusesPluginBeforeAskingScopeOrConsent(t *testing.T) {
+// TestWizardHidesUninstallablePluginFromTheInstallChoice pins the user-facing
+// ordering: artifact availability is checked before scope or consent. A
+// listing with no published install source remains discoverable but must not
+// look like a ready-to-install choice.
+func TestWizardHidesUninstallablePluginFromTheInstallChoice(t *testing.T) {
 	const id = "plugin:cursor-plugins:demo-plugin"
 	h := newHarnessWith(t, []*domain.Listing{pluginFixture(id)})
 	wizardEnvForHarness(t, h)
 	activateWizardListing(t, h, id)
 
-	// 2 = find and install, the query, the first result, the scope, the
-	// consent, then quit.
-	w, out := newTestWizard(t, "2\ndemo-plugin\n1\n1\ny\nq\n", h.paths)
+	// 2 = find and install, then search. The missing artifact is explained
+	// without asking for a scope or approval; q returns from the menu.
+	w, out := newTestWizard(t, "2\ndemo-plugin\nq\n", h.paths)
 	w.registeredHosts = func(context.Context) ([]host.HostVerification, error) {
 		return []host.HostVerification{{HostID: "cursor", Registered: true, Status: "ready"}}, nil
 	}
@@ -218,12 +214,11 @@ func TestWizardRefusesPluginBeforeAskingScopeOrConsent(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 	outStr := out.String()
-	// The wizard asks for the scope and the consent (a plugin is installable
-	// in principle, so the answer matters), attempts the install, and the
-	// attempt fails with a reason. What must hold is that nothing changed
-	// and that no plan was sealed for an install that could not happen.
-	if !strings.Contains(outStr, "Nothing was changed.") {
-		t.Fatalf("the refusal does not say nothing changed:\n%s", outStr)
+	if !strings.Contains(outStr, "No published plugin version is available to install.") {
+		t.Fatalf("the unavailable source was not explained in plain language:\n%s", outStr)
+	}
+	if strings.Contains(outStr, "Install Demo Plugin (") || strings.Contains(outStr, "Install refused before anything was changed") {
+		t.Fatalf("the wizard asked for approval or surfaced an internal refusal:\n%s", outStr)
 	}
 	if after := countPlans(t, h); after != 0 {
 		t.Fatalf("the refusal sealed %d plan(s)", after)
@@ -246,5 +241,18 @@ func TestPluginFixtureStaysVerifiedButUninstallable(t *testing.T) {
 	}
 	if !l.Kind.InstallWired() {
 		t.Fatal("the plugin install path exists; the kind must report it")
+	}
+}
+
+func TestWizardExplainsLocalOnlyPluginSourceBeforeConsent(t *testing.T) {
+	listing := pluginListing("plugin:example:local-only")
+	catClient := pluginCatalog(t, listing, domain.ArtifactRef{
+		ArtifactID: "art_local",
+		Type:       domain.ArtifactLocalDir,
+		Locator:    "/publisher/workspace/context7",
+	})
+	reason := wizardInstallabilityReason(catClient, listing)
+	if !strings.Contains(reason, "local-only") || !strings.Contains(reason, "pinned Git repository") {
+		t.Fatalf("local-only artifact reason = %q, want a clear pinned-Git explanation", reason)
 	}
 }

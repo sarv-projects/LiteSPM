@@ -405,6 +405,19 @@
     ]
   },
   {
+    "id": "grok",
+    "name": "Grok CLI",
+    "format": "json",
+    "keyPath": "mcpServers",
+    "shape": "object",
+    "userPath": "\u003cproject\u003e/.grok/settings.json",
+    "projectOnly": true,
+    "docsUrl": "https://github.com/superagent-ai/grok-cli",
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".grok/settings.json"
+  },
+  {
     "id": "grok-build",
     "name": "Grok Build (xAI Dev Tool)",
     "format": "toml",
@@ -616,6 +629,21 @@
     "remote": true,
     "remoteTransports": [
       "sse",
+      "streamable-http"
+    ]
+  },
+  {
+    "id": "pi",
+    "name": "Pi (Terminal Agent)",
+    "format": "json",
+    "keyPath": "mcpServers",
+    "shape": "object",
+    "userPath": "~/.pi/agent/mcp.json",
+    "generic": false,
+    "projectScope": true,
+    "projectPath": ".pi/mcp.json",
+    "remote": true,
+    "remoteTransports": [
       "streamable-http"
     ]
   },

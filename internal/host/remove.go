@@ -60,7 +60,6 @@ var bespokeRemovalSpecs = map[string]removalSpec{
 	"pi-agent":    {Format: FormatJSON, KeyPath: []string{"mcpServers"}},
 	"pi":          {Format: FormatJSON, KeyPath: []string{"mcpServers"}},
 	"codex":       {Format: FormatTOML, KeyPath: []string{"mcp_servers"}},
-	"grok":        {Format: FormatTOML, KeyPath: []string{"mcp_servers"}},
 	"grok-build":  {Format: FormatTOML, KeyPath: []string{"mcp_servers"}},
 }
 

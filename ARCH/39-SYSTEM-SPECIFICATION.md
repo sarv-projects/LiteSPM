@@ -150,7 +150,7 @@ litespm skills find design --owner vercel-labs        # search the catalog by ke
 | Discovery | Walks the source tree up to depth 3 for directories containing `SKILL.md`/`skill.md` with both `name` and `description`, so the catalog layout `skills/<category>/<name>/SKILL.md` is found. `.git`, `node_modules`, `dist`, `build` and `__pycache__` are never descended; a root `SKILL.md` makes the source itself a skill; if the bounded walk finds nothing, a recursive search runs before reporting failure; `--full-depth` drops both bounds. A skill directory is never treated as a parent of another skill. |
 | Internal skills | A skill with `metadata.internal: true` is hidden and refused unless `INSTALL_INTERNAL_SKILLS=1` — on every path (`add`, `use`, `update`). |
 | Scope | `This repo only` (default) writes project-relative dirs; `Global (user-wide)` writes user dirs and honours `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `GROK_HOME`, `XDG_CONFIG_HOME`. |
-| Agents | Each selected skill is copied into every selected agent's own directory. Hosts without a dedicated dir (Cline, Pi Agent) share the universal `.agents/skills` tree: `--agent '*'` expands to all 81 ids and the shared destinations are de-duplicated, so one skill becomes 54 copies, not 81. No universal copy is forced. |
+| Agents | Each selected skill is copied into every selected agent's documented directory. Universal targets such as Cline, Pi and Grok CLI share `.agents/skills`; Pi Agent and Grok Build have their own native paths. `--agent '*'` expands to all 81 ids and de-duplicates identical destinations, so the current registry writes 55 project directories, not 81. No universal copy is forced. |
 | Copy | Symlinks are refused, hidden VCS dirs are skipped, each skill is bounded at 32 MiB, and an existing destination is refused unless `--force` — which prints `overwrites: <path>`, records a pre-image digest and a byte-exact backup first, so a rollback can put the original bytes back. |
 | Risk panel | Always rendered. Without a real audit source it reports `unverified` per skill — a verdict is never invented. |
 
@@ -165,9 +165,11 @@ LiteSPM's registry tracks **81 agents** — the 77 rows transcribed from the ref
 | `codex` | `<repo>/.agents/skills` | `$CODEX_HOME/skills` (default `~/.codex/skills`) |
 | `opencode` | `<repo>/.agents/skills` | `$XDG_CONFIG_HOME/opencode/skills` (default `~/.config/opencode/skills`) |
 | `grok-build` | `<repo>/.grok/skills` | `$GROK_HOME/skills` (default `~/.grok/skills`) |
+| `grok` (Grok CLI) | `<repo>/.agents/skills` | `~/.agents/skills` |
+| `pi-agent` (Pi Agent) | `<repo>/.pi/skills` | `~/.pi/agent/skills` |
 | `windsurf` | `<repo>/.windsurf/skills` | `~/.codeium/windsurf/skills` |
 | `gemini-cli`, `github-copilot`, `cursor`, `amp`, `kilo`, `zed`, `droid`, … | `<repo>/.agents/skills` | per-agent |
-| `cline`, `pi-agent`, `kimi-code-cli` | `<repo>/.agents/skills` | `~/.agents/skills` |
+| `cline`, `pi`, `grok`, `kimi-code-cli` | `<repo>/.agents/skills` | `~/.agents/skills` |
 
 Agents sharing one directory (the universal `.agents/skills` group) collapse to a
 single write, so installing for several of them never collides. Agents detected
@@ -191,12 +193,14 @@ release manifest, verifies the binary's SHA-256 checksum, and applies it only on
 Version-diff rendering for installed capabilities is designed and not implemented — see
 [STATUS.md](../STATUS.md).
 
-### 2.4 The In-Agent `/marketplace` Experience
-Typing `/marketplace` in a configured agent invokes the Bridge's discovery tools. The portable
-contract is the 12 Bridge tools (`search_catalog`, `get_extension`, `prepare_install`,
-`request_install`, `list_installed`, `search_capabilities`, `describe_capability`, `load_skill`,
-`read_skill_resource`, `invoke_capability`, `get_invocation`, `cancel_invocation`); rich hosts
-render the installed view as a table. Tool-by-tool state is in [STATUS.md](../STATUS.md) §4.
+### 2.4 In-Agent Marketplace Entry Points
+The Bridge publishes its `marketplace` MCP prompt and 13 tools to all configured MCP hosts.
+MCP defines prompt discovery and retrieval, while each agent chooses how to expose prompts.
+Literal commands therefore vary by host; the wizard prints one only where its exact syntax is
+verified. Otherwise, users can ask the agent to browse LiteSPM using the connected MCP tools.
+The [host-by-host audit](../docs/audits/2026-10-25/marketplace-agent-entrypoints.md) records
+all 50 MCP hosts and the separate skill-only targets. Tool-by-tool state is in
+[STATUS.md](../STATUS.md) §4.
 
 *   **Discovery (`search_catalog`, `get_extension`):** resolve against the daemon over real catalog
     data (`catalog.search` / `catalog.get_item`).
@@ -298,10 +302,10 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
   │   ├── install/                                      # Atomic CAS staging + SQLite commit
   │   ├── skills/                                       # Skill loader, 81-agent installer, ledger
   │   ├── agent/                                        # ACP registry + launch-spec resolution + overrides
-  │   ├── bridge/                                       # Stdio Bridge shim (12 tools)
+  │   ├── bridge/                                       # Stdio Bridge shim (13 tools + marketplace prompt)
   │   ├── provider/                                     # Supervisor (Job Objects/watchdog) + isolation
   │   ├── policy/                                       # 17-action effect taxonomy + 5-tier engine
-  │   ├── host/                                         # 6 bespoke adapters + 44 generic BridgeTargets (50 total)
+  │   ├── host/                                         # 7 dedicated profiles + 45 generic targets (52 IDs)
   │   ├── mcpclient/                                    # Dual-profile MCP client (2026-07-28 + legacy)
   │   ├── secrets/                                      # OS vault + memory/file stores
   │   ├── auth/                                         # OAuth PKCE loopback broker

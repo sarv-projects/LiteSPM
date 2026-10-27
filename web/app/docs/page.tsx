@@ -48,10 +48,11 @@ export default function DeveloperDocsPage() {
         <div className="docs-content">
           <section id="quickstart" className="docs-section">
             <div className="docs-section-heading"><Terminal aria-hidden="true" /><div><p className="kicker">01 · Start here</p><h2>Quick start</h2></div></div>
-            <p>Use Node.js 22.22.2 or later for the npm installer. Signed binaries are available for Linux, macOS and Windows on supported x64 and arm64 platforms.</p>
+            <p>Use Node.js 22.22.2+ on 22.x, 24.15.0+ on 24.x, or 26+ for the npm installer. Signed binaries are also available for Linux, macOS and Windows on supported x64 and arm64 platforms.</p>
             <p>Install the LiteSPM command line tool, then open its interactive setup.</p>
             <Code>{`npm install -g litespm
-litespm setup`}</Code>
+litespm`}</Code>
+            <p><code>npx --yes</code> can replace the global install when you prefer a one-off run. That <code>--yes</code> accepts npm&rsquo;s download prompt; LiteSPM still previews changes and asks before writing.</p>
             <p>Choose an agent on your computer. LiteSPM shows the configuration file it will update and backs it up before writing the bridge entry.</p>
             <p>Sync the package catalog before your first search:</p>
             <Code>{`litespm catalog sync
@@ -75,13 +76,14 @@ npx --yes litespm@latest install <catalog-id> --host codex`}</Code>
           <section id="skills" className="docs-section">
             <div className="docs-section-heading"><Code2 aria-hidden="true" /><div><p className="kicker">04 · Package workflow</p><h2>Manage skills</h2></div></div>
             <p>Add a skill from a repository or local folder. Pick an agent and a project or machine-wide destination.</p>
-            <Code>{`litespm skills add anthropics/skills --skill frontend-design --agent codex --scope project --yes
+            <Code>{`litespm skills add anthropics/skills --skill frontend-design --agent codex --scope project
 litespm skills list
 litespm skills remove frontend-design --scope project`}</Code>
             <ul>
               <li><code>--scope project</code> stores the skill with the current repository.</li>
               <li><code>--scope global</code> stores it in your user-level skills folder.</li>
               <li><code>--agent</code> selects one or more agent targets by ID.</li>
+            <li><code>--yes</code> is an explicit approval for non-interactive use; review the source and destination before using it.</li>
             </ul>
             <p>LiteSPM records the files it writes so a managed skill can be listed, updated, and removed later.</p>
           </section>
@@ -96,6 +98,7 @@ litespm skills remove frontend-design --scope project`}</Code>
             <p>Skills can influence an agent’s behavior. Read the package instructions and source before adding them to an agent workspace. LiteSPM shows the destination and requires approval before it writes.</p>
             <p>Use <code>litespm list</code> to inspect managed entries. Remove individual skills with <code>litespm skills remove</code>, or remove the bridge from a host with <code>litespm uninstall</code>.</p>
             <Link href="/security/" className="btn mt-4">Read the security guide <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+          </section>
           <section id="publish" className="docs-section">
             <div className="docs-section-heading"><BookOpen aria-hidden="true" /><div><p className="kicker">07 · Catalog publishing</p><h2>Publish a listing</h2></div></div>
             <p>Use the listing request form to suggest a public MCP server, agent skill, or plugin. Include the published source and the details a reviewer needs to verify how it installs.</p>
@@ -106,7 +109,6 @@ litespm skills remove frontend-design --scope project`}</Code>
             </ul>
             <p>List agent hosts, operating systems, and runtime requirements only when you know them. The request opens a GitHub issue for review; submission does not publish a listing automatically.</p>
             <Link href="/submit/" className="btn btn-solid mt-4">Open the listing guide <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
-          </section>
           </section>
         </div>
       </main>

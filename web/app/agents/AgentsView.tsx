@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search } from "lucide-react";
 import { Header } from "../../components/navigation/Header";
 import { SiteFooter } from "../../components/layout/SiteFooter";
 import { AgentLogo } from "../../components/AgentLogo";
@@ -37,10 +37,7 @@ function AgentCard({
   const host = agent.hostId ? HOSTS.find((item) => item.id === agent.hostId) : undefined;
   const note = hostNote(agent.slug);
   const profileType = note?.profileType ?? (host ? "MCP servers + skills" : agent.skill ? "Agent skills" : "Agent profile");
-  const summary = note?.summary ??
-    (agent.skill
-      ? "Bring reusable agent skills into " + agent.name + " and keep them with the rest of your agent toolkit."
-      : "Find tools and extensions for " + agent.name + " and explore the capabilities associated with it.");
+  const summary = note?.summary?.trim();
   const href = "/agents/" + (agent.pageId ?? agent.slug) + "/";
   const exploreHref = "/explore/?host=" + encodeURIComponent(agent.name);
 
@@ -59,9 +56,7 @@ function AgentCard({
         {highlighted && <span className="agent-pick-pill">Your agent</span>}
       </div>
 
-      <p className="mt-4 line-clamp-3 min-h-[4.7rem] text-[13px] leading-relaxed text-ink-2">
-        {summary}
-      </p>
+      {summary && <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-ink-2">{summary}</p>}
 
       <div className="mt-4 flex flex-wrap gap-2">
         {host && <span className="agent-tag">MCP setup</span>}
@@ -73,15 +68,15 @@ function AgentCard({
       <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(72px,1fr))] gap-2 border-t border-rule pt-4">
         {agent.mcp && <Link href={exploreHref + "&kind=mcp"} prefetch={false} className="agent-count-link">
           <strong>{formatCount(agent.mcp.count)}</strong>
-          <span>MCP servers</span>
+          <span>MCP listings</span>
         </Link>}
         {agent.skill && <Link href={exploreHref + "&kind=skill"} prefetch={false} className="agent-count-link">
           <strong>{formatCount(agent.skill.count)}</strong>
-          <span>Skills</span>
+          <span>Skill listings</span>
         </Link>}
         {agent.plugin && <Link href={exploreHref + "&kind=plugin"} prefetch={false} className="agent-count-link">
           <strong>{formatCount(agent.plugin.count)}</strong>
-          <span>Plugins</span>
+          <span>Plugin listings</span>
         </Link>}
       </div>
 
@@ -99,7 +94,7 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
   const [filter, setFilter] = useState<AgentFilter>("all");
   const [savedAgent, setSavedAgent] = useState<AgentChoice | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
-  const [gridView, setGridView] = useState(false);
+  const [gridView, setGridView] = useState(true);
 
   useEffect(() => {
     try {
@@ -140,57 +135,26 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
     <div className="flex min-h-screen flex-col">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1">
-        <section className="agent-atlas-hero">
-          <div className="shell agent-atlas-hero-grid">
-            <div className="max-w-[690px]">
-              <p className="agent-atlas-eyebrow"><Sparkles className="h-3.5 w-3.5" /> THE AGENT TOOLBOX</p>
-              <h1 className="mt-5 max-w-[12ch] text-[clamp(2.6rem,5.5vw,5.2rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-ink">
-                Choose your<br /><span className="text-accent-text">agent.</span>
-              </h1>
-              <p className="mt-5 max-w-[52ch] text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
-                Choose the agent you use—or a shared skills folder—then browse packages with clear setup details. Each profile includes sourced product details and a practical setup guide.
-              </p>
-              <div className="mt-7 flex flex-wrap gap-3">
-                <Link href="/explore/" className="btn btn-solid btn-lg">
-                  Explore the catalog <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-                <Link href="/get-started/" className="btn btn-lg">Get LiteSPM</Link>
-              </div>
-            </div>
-
-            <div className="agent-atlas-visual" aria-label="One agent connected to skills and tools">
-              <div className="agent-atlas-window">
-                <div className="agent-atlas-window-bar">
-                  <span className="agent-window-dots" aria-hidden="true"><i /><i /><i /></span>
-                  <span>Your agent workspace</span>
-                  <span className="agent-window-step">01 / 03</span>
-                </div>
-                <div className="agent-atlas-current">
-                  <AgentLogo id="claude-code" name="Claude Code" size={48} />
-                  <div><strong>One agent, more capabilities.</strong><span>Keep your setup in one place.</span></div>
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </div>
-                <div className="agent-atlas-connectors">
-                  <div><span className="agent-mini-icon agent-mini-green">C7</span><span><strong>Context7</strong><small>Documentation that stays current</small></span><b>MCP</b></div>
-                  <div><span className="agent-mini-icon agent-mini-ink">▲</span><span><strong>Web design guidelines</strong><small>A sharper interface review</small></span><b>Skill</b></div>
-                </div>
-                <div className="agent-atlas-caption">Discover <span>→</span> Choose agent <span>→</span> Set up</div>
-              </div>
-              <div className="agent-atlas-callout"><span>↳</span><div><strong>Less configuration hunting.</strong><small>Find a path that fits your setup.</small></div></div>
-            </div>
-          </div>
+        <section className="shell agent-directory-heading" aria-labelledby="agent-directory-title">
+          <p className="kicker">Agent profiles</p>
+          <h1 id="agent-directory-title" className="mt-2 text-[30px] font-semibold tracking-tight text-ink sm:text-[38px]">
+            Agent directory
+          </h1>
+          <p className="mt-3 max-w-[68ch] text-[14px] leading-relaxed text-ink-2">
+            Find the product you use, then check its setup profile and the packages listed for it.
+            Each profile includes sourced product details and a practical setup guide.
+          </p>
         </section>
 
         <section className="shell agent-atlas-rail-section" aria-labelledby="agent-rail-title">
           <div className="agent-atlas-rail-intro">
             <div>
-              <p className="kicker">Start with your agent</p>
               <h2 id="agent-rail-title" className="mt-1 text-[23px] font-semibold tracking-tight text-ink">
-                Find your workspace
+                Browse {formatCount(hostCount)} profiles
               </h2>
             </div>
-            <p className="max-w-[38ch] text-[13px] leading-relaxed text-ink-2">
-              Swipe or scroll to browse {hostCount} agent profiles. Open a profile for setup details and packages listed for your agent.
+            <p className="max-w-[48ch] text-[13px] leading-relaxed text-ink-2">
+              Search by product, then open a profile for its setup path and available listings.
             </p>
           </div>
 
@@ -223,15 +187,18 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
           </div>
 
           <div className="agent-atlas-stats" aria-label="Agent profile coverage">
-            <span><strong>{formatCount(configuredCount)}</strong> agents with MCP setup</span>
-            <span><strong>{formatCount(skillsCount)}</strong> agents with skills</span>
-            <span><strong>{formatCount(hostCount)}</strong> profiles</span>
+            <span><strong>{formatCount(configuredCount)}</strong> profiles with MCP setup</span>
+            <span><strong>{formatCount(skillsCount)}</strong> profiles with a skills destination</span>
+            <span><strong>{formatCount(hostCount)}</strong> agent profiles</span>
           </div>
+          <p className="mb-3 text-[12px] leading-relaxed text-ink-3">
+            These profile counts do not measure the number of installable catalog entries; readiness is shown on each listing.
+          </p>
 
           <div className="agent-atlas-rail-wrap">
-            <button className="agent-rail-arrow agent-rail-arrow-left" type="button" aria-label="Scroll agents left" onClick={() => scrollRail(-1)}>
+            {!gridView && <button className="agent-rail-arrow agent-rail-arrow-left" type="button" aria-label="Scroll agents left" onClick={() => scrollRail(-1)}>
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            </button>
+            </button>}
             <div
               ref={railRef}
               className={"agent-atlas-rail" + (gridView ? " agent-directory-grid" : "")}
@@ -251,25 +218,12 @@ export default function AgentsPage({ hostCount, agents }: AgentsViewProps) {
                 </div>
               )}
             </div>
-            <button className="agent-rail-arrow agent-rail-arrow-right" type="button" aria-label="Scroll agents right" onClick={() => scrollRail(1)}>
+            {!gridView && <button className="agent-rail-arrow agent-rail-arrow-right" type="button" aria-label="Scroll agents right" onClick={() => scrollRail(1)}>
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </button>
+            </button>}
           </div>
-          <div className="agent-atlas-rail-hint" aria-hidden="true"><span />Scroll or swipe to explore</div>
-          <button type="button" aria-pressed={gridView} onClick={() => setGridView(value => !value)} className="btn mt-5">{gridView ? "View as horizontal cards" : "View all matching agents as a grid"}</button>
-        </section>
-
-        <section className="shell agent-atlas-bottom">
-          <div>
-            <p className="kicker">Make your agent yours</p>
-            <h2 className="mt-2 text-[25px] font-semibold tracking-tight text-ink">Start with a capability</h2>
-            <p className="mt-2 max-w-[54ch] text-[14px] leading-relaxed text-ink-2">
-              Browse by the work you want done. Compare package details and follow the setup path for your agent.
-            </p>
-          </div>
-          <Link href="/explore/" className="btn btn-solid">
-            Browse tools and skills <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
+          {!gridView && <div className="agent-atlas-rail-hint" aria-hidden="true"><span />Scroll or swipe to explore</div>}
+          <button type="button" aria-pressed={gridView} onClick={() => setGridView(value => !value)} className="btn mt-5">{gridView ? "View as horizontal cards" : "View matching agents as a grid"}</button>
         </section>
       </main>
       <SiteFooter />

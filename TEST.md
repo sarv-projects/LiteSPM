@@ -142,20 +142,20 @@ args = ["mcp-server-sqlite", "--db-path", "test.db"]
        rather than `ready`/`disabled`).
     4. Assert no mutation of external entries is possible (there is no adopt/toggle tool).
 
-### Test Case 5: Slash Command (`/marketplace`) Registration
-*   **Objective:** Confirm the host descriptor advertises the `/marketplace` trigger.
-*   **Status:** Host adapters perform an **MCP-entry merge only** — they record
-    `SlashCommandTrigger` metadata (`internal/host/*.go`) but do **not** write an extension, custom
-    instruction, or command hook into the host — **with one exception**: the Pi Agent adapter also
-    creates the companion extension `<agent-dir>/extensions/litespm.ts`, which registers a Pi
-    command **`marketplace`** (the capability panel — search, `[installed]` badges, Enter to
-    install/remove through the real CLI) and a **`litespm`** command that lists the bridge's
-    connected `mcp__litespm__*` tools through `pi.getAllTools()`
-    (`internal/host/pi_extension.ts`; `ARCH/16` §3.2, `AGENTS.md` §4.2). That file is **not**
-    removed by `host remove`/`uninstall` — removal only strips config entries. Any claim that the Pi
-    adapter writes no extension is wrong; every other host writes none.
-*   **Procedure (implemented part):** Assert the adapter descriptor for each host reports
-    `SlashCommandTrigger: "/marketplace"` (`internal/host/targets_data_test.go:376`).
+### Test Case 5: In-agent Marketplace Prompt
+*   **Objective:** Publish the MCP marketplace prompt to each bridge host and show only verified
+    host-specific commands in the setup wizard.
+*   **Status:** The bridge advertises `prompts` and serves `marketplace` for every MCP host.
+    Host clients choose whether to show the prompt as a slash command, a picker, or not at all.
+    `SlashCommandTrigger` stores only verified literal commands; an empty value means the wizard
+    instructs users to ask the agent to browse through the connected MCP tools. The Pi Agent also
+    creates `<agent-dir>/extensions/litespm.ts`, which registers its native `/marketplace` command
+    and `/litespm` helper. That extension is not removed by `host remove`/`uninstall`.
+*   **Procedure:** `internal/bridge/bridge_test.go` checks prompt capability, listing, and retrieval
+    for all 50 MCP host IDs. `internal/host/targets_data_test.go` pins exact documented commands,
+    and `cmd/litespm/wizard_test.go` confirms the wizard uses a command only when one is verified.
+    Agent entry-point evidence is maintained in
+    `docs/audits/2026-10-25/marketplace-agent-entrypoints.md`.
 
 ### Test Case 6: Dynamic Runtime Adapter Advisory Fetching (`DESIGNED` — not implemented)
 *   **Objective:** Verify the client queries the remote manifest at runtime for compatibility advisories without executing remote code.

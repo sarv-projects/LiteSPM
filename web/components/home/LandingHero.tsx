@@ -7,6 +7,7 @@ import { SearchBar } from "../navigation/SearchBar";
 import { AgentLogo } from "../AgentLogo";
 import { AGENT_CHOICES } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
+import { SKILL_TARGETS, skillTargetPaths } from "../../lib/hosts";
 
 export interface LandingHeroProps {
   total: number;
@@ -27,6 +28,13 @@ const STARTING_POINTS = [
 
 export function LandingHero({ total, query, setQuery, totalMatches, settled, choice, onAgentChange }: LandingHeroProps) {
   const agents = AGENT_CHOICES.filter((agent) => agent.hosts.length > 0).slice(0, 4);
+  const exampleAgent = choice && choice.id !== "other"
+    ? choice
+    : AGENT_CHOICES.find((agent) => agent.id === "codex") ?? agents[0];
+  const exampleTarget = exampleAgent
+    ? SKILL_TARGETS.find((target) => target.id === exampleAgent.id)
+    : undefined;
+  const exampleDestination = exampleTarget ? skillTargetPaths(exampleTarget).userPath : undefined;
 
   return (
     <section className="home-editorial-hero">
@@ -68,36 +76,35 @@ export function LandingHero({ total, query, setQuery, totalMatches, settled, cho
           <p className="home-trust-line"><Check className="h-3.5 w-3.5" aria-hidden="true" /> Choose a supported agent. Review the install steps before applying them.</p>
         </div>
 
-        <div className="home-hero-art" aria-label="Illustration of an agent with added tools and skills">
+        <div className="home-hero-art" aria-label={`Example install plan for ${exampleAgent?.label ?? "an agent"}; no install has run`}>
           <div className="home-hero-window">
             <div className="home-hero-window-top">
               <span className="home-window-dots" aria-hidden="true"><i /><i /><i /></span>
-              <span>Your agent workspace</span>
-              <span className="home-window-example">EXAMPLE</span>
+              <span>LiteSPM install preview</span>
+              <span className="home-window-example">EXAMPLE ONLY</span>
             </div>
             <div className="home-hero-window-caption">
-              <span>ONE AGENT. MORE CAPABILITIES.</span>
+              <span>REVIEW THE CHANGE BEFORE APPROVAL</span>
             </div>
-            <Link href="/agents/claude-code/" className="home-agent-focus">
-              <AgentLogo id="claude-code" name="Claude Code" size={42} />
-              <span><strong>Claude Code</strong><small>Your agent, with a little more range.</small></span>
+            <Link href={`/agents/${exampleAgent?.id ?? "codex"}/`} className="home-agent-focus">
+              <AgentLogo id={exampleAgent?.id ?? "codex"} name={exampleAgent?.label ?? "Codex"} size={42} />
+              <span><strong>{exampleAgent?.label ?? "Codex"}</strong><small>Selected install target</small></span>
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
             </Link>
             <div className="home-hero-additions">
-              <Link href="/explore/?kind=mcp" className="home-addition-card">
-                <span className="home-addition-icon home-addition-green">C7</span>
-                <span><strong>Tools and data</strong><small>Connect an MCP server</small></span>
-                <span className="home-addition-kind">MCP</span>
-              </Link>
-              <Link href="/explore/?kind=skill" className="home-addition-card">
+              <Link href="/package/skill%3Aanthropics%3Afrontend-design/" className="home-addition-card">
                 <span className="home-addition-icon home-addition-ink">✦</span>
-                <span><strong>Reusable workflows</strong><small>Give your agent a new skill</small></span>
+                <span><strong>Frontend Design</strong><small>Reusable skill · Anthropic</small></span>
                 <span className="home-addition-kind">SKILL</span>
               </Link>
             </div>
-            <div className="home-hero-flow">Discover <i>→</i> Choose agent <i>→</i> Set up</div>
+            <div className="home-hero-destination">
+              <span>DEFAULT USER DESTINATION · UNIX FORM</span>
+              <code>{exampleDestination ?? "Previewed in the LiteSPM install plan"}</code>
+            </div>
+            <div className="home-hero-flow">Preview files <i>→</i> Approve <i>→</i> Manage or remove</div>
           </div>
-          <div className="home-hero-note"><span>↳</span><span><strong>Less configuration hunting.</strong><small>See the setup path before you make a change.</small></span></div>
+          <div className="home-hero-note"><span>↳</span><span><strong>Example only. Nothing is installed here.</strong><small>The CLI shows the destination before it writes.</small></span></div>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 # ARCH-30 — Data-Driven Agent Bridge Targets
 
-Status: **`WIRED`.** The 44-row table is compiled into the adapter registry (`internal/host/registry.go:34-41`) and drives `host detect/setup` through `GenericAdapter`; `litespm host list` reports 50 adapters (6 bespoke + 44 generic).
+Status: **`WIRED`.** The current 45-row table is compiled into the adapter registry (`internal/host/registry.go`) and drives `host detect/setup` through `GenericAdapter`; `litespm host list` reports 52 independent host IDs (45 generic targets plus seven dedicated profiles). The 2026-10-27 E2E audit confirmed all 52 setup/verify/remove flows and real bridge JSON-RPC exchanges.
 Related: [16 — Host Adapters](16-HOST-ADAPTERS.md), [14 — Bridge & Provider MCP](14-BRIDGE-PROVIDER-MCP.md), [29 — Connector System Design](29-CONNECTOR-SYSTEM-DESIGN.md).
 
 ---

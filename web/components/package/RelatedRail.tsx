@@ -11,6 +11,8 @@ import {
   fetchCategorySiblings,
   fetchPublisherSiblings,
 } from "../../lib/catalogData";
+import { categoryLabel } from "../../app/categories/categoryLabel";
+import { listingSummary } from "../../lib/listingSummary.mjs";
 
 /** Items per group, with the full set one click away. */
 const RAIL_SIZE = 6;
@@ -28,7 +30,7 @@ interface RailGroup {
 }
 
 function terms(item: Listing): Set<string> {
-  const words = `${item.name} ${item.summary ?? ""}`.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  const words = `${item.name} ${listingSummary(item)}`.toLowerCase().match(/[a-z0-9]+/g) ?? [];
   return new Set(words.filter((word) => word.length >= 4 && !RELATED_STOP_WORDS.has(word)));
 }
 
@@ -133,7 +135,7 @@ export function RelatedRail({
     if (categoryGroup.length > 0) {
       out.push({
         id: "category",
-        title: `Also in ${item.category}`,
+        title: `More in ${categoryLabel(item.category)}`,
         href: `/explore/?category=${encodeURIComponent(item.category)}`,
         rows: categoryGroup,
       });
@@ -197,7 +199,7 @@ export function RelatedRail({
                     </span>
                     <span className="row-meta">
                       <span className="meta-publisher">{row.publisher?.name || "unspecified"}</span>
-                      <span className="truncate text-ink-3">{row.summary}</span>
+                      {listingSummary(row) && <span className="truncate text-ink-3">{listingSummary(row)}</span>}
                     </span>
                   </span>
                   <span className="t-mono t-tabular shrink-0 text-[11px] text-ink-3">

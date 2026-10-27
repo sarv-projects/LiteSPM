@@ -14,9 +14,9 @@
 // key both registries share and they legitimately spell a product differently:
 // the bridge row for Cline reads "Cline (VS Code Extension)" while its skill
 // target reads "Cline". Matching on names would either miss that join or
-// invent one. The reference installer's two alias ids ("pi", "grok") merge
-// into the adapter rows the alias table in `lib/hosts.ts` already names —
-// the same join `internal/host/registry.go` makes.
+// invent one. Separate product IDs remain separate even when their config
+// formats or skill directories overlap: pi/pi-agent and grok/grok-build are
+// four distinct registry rows.
 //
 // Every value here comes from one of those two files. Nothing is inferred from
 // another column, no fact is carried over from a sibling row, and a host whose
@@ -144,7 +144,7 @@ const INSTALLABLE_SKILL_COUNT = DATASET.filter(
 /**
  * The vendor documentation each configurable host gets, and what kind of page
  * it is. The adapter registry carries an MCP-configuration URL for every
- * data-driven row; the six hand-written adapters carry none, so their row
+ * data-driven row; hand-written adapters carry none, so their row
  * falls back to the vendor documentation recorded beside the host's write-up
  * in `hostNotes.ts` — never to the adapter's source file, which is this
  * repository's business and not the reader's.
@@ -170,9 +170,9 @@ export function compareData(): CompareData {
   for (const identity of HOST_IDENTITIES) {
     const host = identity.adapter;
     const target = identity.skill;
-    // One row per host identity: the skills registry's alias spellings
-    // ("Pi", "Grok") join the adapter rows they name rather than appearing as
-    // second hosts, and the id is the key both registries share.
+    // One row per host identity. Genuine spelling variants join by registry
+    // id; separate products such as Pi / Pi Agent and Grok CLI / Grok Build
+    // keep separate rows even when their config paths overlap.
     const row: CompareRow = {
       id: identity.id,
       name: identity.name,

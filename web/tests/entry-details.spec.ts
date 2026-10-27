@@ -30,12 +30,22 @@ import { flagshipEntry, preRenderedEntry } from "./support/catalog";
 const preRendered = preRenderedEntry();
 const flagship = flagshipEntry();
 
-test("the package page opens the setup checklist beside the install command", async ({ page }) => {
+test("the package page links the install command to its full setup guide", async ({ page }) => {
   await gotoSettled(page, flagship.href);
-  const checklist = page.locator("details").filter({ hasText: "Before your first install" });
-  await expect(checklist).toHaveAttribute("open", "");
-  await expect(checklist.getByText(/npx --yes litespm@latest setup/)).toBeVisible();
-  await expect(checklist.getByText(/npx --yes litespm@latest catalog sync/)).toBeVisible();
+  const installBand = page.getByRole("region", { name: "Install with LiteSPM" });
+  await expect(installBand.getByText("First install? The guide covers agent setup and catalog sync.")).toBeVisible();
+  await installBand.getByRole("button", { name: "Full installation guide" }).click();
+  await expect(page.locator("#pkg-add-title")).toBeVisible();
+});
+
+test("the package description appears once, without a repeated What it does row", async ({ page }) => {
+  await gotoSettled(page, flagship.href);
+  const description = page.locator(".market-product-summary");
+  if (await description.count()) {
+    const text = (await description.textContent())?.trim() ?? "";
+    await expect(page.locator("#pkg-plain").getByText(text, { exact: true })).toHaveCount(0);
+  }
+  await expect(page.locator("#pkg-plain").getByText("What it does", { exact: true })).toHaveCount(0);
 });
 
 test("the entry page Source tab focuses on publisher links", async ({ page }) => {

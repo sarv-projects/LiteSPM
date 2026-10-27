@@ -1,13 +1,10 @@
 // The `/agents/` index row model: one row per agent host, not per catalog
 // spelling.
 //
-// The catalog names one host through more than one string. An adapter's
+// The catalog can name one host through more than one string. An adapter's
 // registry name ("OpenAI Codex CLI") and its skill target's display name
-// ("Codex") are different strings for the same host, and a host whose product
-// was renamed can carry two skill strings ("Grok" and "Grok Build"). Counting
-// the strings separately put the same host on the page twice — sometimes with
-// the same displayed name, the same link and two different counts — which a
-// reader cannot tell apart and which this module exists to remove.
+// ("Codex") may be alternate spellings for one ID. Distinct IDs such as Pi / Pi
+// Agent and Grok CLI / Grok Build remain separate rows.
 //
 // The row set is now the registry's own identity list (`lib/hostIdentity.ts`),
 // so a host cannot drop off the page for want of a catalog string, and every

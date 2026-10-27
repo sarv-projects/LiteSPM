@@ -299,7 +299,8 @@ var verifiedBridgeTargets = []BridgeTarget{
 	},
 	{
 		ID: "devin", Name: "Devin", Format: FormatJSON,
-		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
+		SlashCommandTrigger: "/mcp__litespm__marketplace",
+		UserKey:             []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject,
 		// Remote shape read from this row's DocsURL: a {"url": …} member and a
 		// "transport" discriminator whose values are "http" and "sse".
@@ -411,7 +412,8 @@ var verifiedBridgeTargets = []BridgeTarget{
 	},
 	{
 		ID: "gemini-cli", Name: "Gemini CLI", Format: FormatJSON,
-		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
+		SlashCommandTrigger: "/marketplace",
+		UserKey:             []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject,
 		UserPath: func(home string) string {
 			if v := os.Getenv("GEMINI_CLI_HOME"); v != "" {
@@ -459,6 +461,19 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectBinaries: []string{"copilot"},
 		DocsURL:        "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers",
 		Note:           "Project scope beats user scope; .mcp.json beats .github/mcp.json. Remote: a url member with a \"type\" discriminator (http / sse).",
+	},
+	{
+		ID: "grok", Name: "Grok CLI", Format: FormatJSON,
+		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
+		Shape: ShapeObject,
+		// Grok CLI publishes MCP configuration in the project settings file
+		// `.grok/settings.json`. Its global user settings file is a separate
+		// `~/.grok/user-settings.json` and does not document MCP servers.
+		ProjectPath:    func(root string) string { return filepath.Join(root, ".grok", "settings.json") },
+		DetectPaths:    []string{".grok"},
+		DetectBinaries: []string{"grok"},
+		DocsURL:        "https://github.com/superagent-ai/grok-cli",
+		Note:           "Community Grok CLI (not xAI Grok Build). MCP servers use mcpServers in project .grok/settings.json; no user-scope MCP config or remote entry object is documented.",
 	},
 	{
 		ID: "iflow-cli", Name: "iFlow CLI", Format: FormatJSON,
@@ -756,7 +771,8 @@ var verifiedBridgeTargets = []BridgeTarget{
 	},
 	{
 		ID: "codebuddy", Name: "CodeBuddy", Format: FormatJSON,
-		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
+		SlashCommandTrigger: "/litespm:marketplace",
+		UserKey:             []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject, TolerateComments: true,
 		// Remote shape read from the vendor's MCP page (the same content is served at
 		// codebuddy.ai/docs/cli/mcp and workbuddy.ai/docs/cli/mcp): a {"url": …}
@@ -959,7 +975,8 @@ var verifiedBridgeTargets = []BridgeTarget{
 	},
 	{
 		ID: "qwen-code", Name: "Qwen Code", Format: FormatJSON,
-		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
+		SlashCommandTrigger: "/marketplace",
+		UserKey:             []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
 		Shape: ShapeObject,
 		// Remote shape read from this row's DocsURL: the streamable-http endpoint
 		// lives in "httpUrl"; the legacy SSE form lives in "url", which is a DIFFERENT

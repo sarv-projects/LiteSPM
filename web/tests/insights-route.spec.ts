@@ -31,6 +31,15 @@ test("catalog coverage describes available data without unsupported popularity c
   await expect(page.getByText(/no source publishes usage data|this is a census|no trending list/i)).toHaveCount(0);
 });
 
+test("coverage uses the current agent name and explains legacy skills-folder names", async ({ page }) => {
+  await gotoSettled(page, "/insights/");
+
+  await expect(page.getByRole("link", { name: "Auggie CLI", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Xum", exact: true })).toBeVisible();
+  await expect(page.getByText(/folder: Augment/).first()).toBeVisible();
+  await expect(page.getByText(/folder: Mux/).first()).toBeVisible();
+});
+
 test("the rail and the footer name the route they link to", async ({ page }) => {
   await gotoSettled(page, "/");
   const nav = page.locator('nav[aria-label="Primary"]');

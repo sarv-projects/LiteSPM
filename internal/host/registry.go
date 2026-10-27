@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -15,8 +16,7 @@ var (
 		"opencode":    &OpenCodeAdapter{},
 		"cline":       &ClineAdapter{},
 		"pi-agent":    &PiAgentAdapter{},
-		"pi":          &PiAgentAdapter{},
-		"grok":        &GrokBuildAdapter{},
+		"pi":          &PiAdapter{PiAgentAdapter: PiAgentAdapter{hostID: "pi"}},
 		"grok-build":  &GrokBuildAdapter{},
 	}
 )
@@ -68,6 +68,9 @@ func ListAdapters() []HostAdapter {
 			list = append(list, a)
 		}
 	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].Descriptor().HostID < list[j].Descriptor().HostID
+	})
 	return list
 }
 

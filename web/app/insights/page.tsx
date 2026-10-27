@@ -44,13 +44,15 @@ export default function InsightsPage() {
   const byHostId = new Map(rows.filter((row) => row.hostId).map((row) => [row.hostId!, row]));
   const hosts: TrendingHostRow[] = HOSTS.map((host) => {
     const row = byHostId.get(host.id);
+    const skillTarget = SKILL_TARGETS.find((target) => target.id === host.id);
     return {
       id: host.id,
       name: vendorName(host.id, host.name),
       format: host.kind,
       configPath: host.userPath,
       repoConfigPath: host.projectPath,
-      skillName: SKILL_TARGETS.find((target) => target.id === host.id)?.displayName,
+      skillName: skillTarget ? vendorName(host.id, skillTarget.displayName) : undefined,
+      skillTargetName: skillTarget?.displayName,
       docsHref: host.docsUrl,
       mcp: row?.mcp?.count ?? null,
       skill: row?.skill?.count ?? null,

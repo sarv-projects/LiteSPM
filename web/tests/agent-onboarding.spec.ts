@@ -1,12 +1,17 @@
 import { expect, test } from "./support/site";
 import { gotoSettled } from "./support/site";
 
-test("the agent directory makes profiles easy to browse", async ({ page }) => {
+test("the agent directory opens with a searchable grid and clearly named counts", async ({ page }) => {
   await gotoSettled(page, "/agents/");
 
-  await expect(page.getByRole("heading", { name: "Choose your agent." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agent directory" })).toBeVisible();
   await expect(page.getByRole("searchbox", { name: "Search agent profiles" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Scrollable agent profiles" })).toBeVisible();
+  const directory = page.getByRole("region", { name: "Agent profiles" });
+  await expect(directory).toBeVisible();
+  await expect(directory).toHaveClass(/agent-directory-grid/);
+  await expect(page.getByText(/profiles with MCP setup/i)).toBeVisible();
+  await expect(page.getByText(/profiles with a skills destination/i)).toBeVisible();
+  await expect(page.getByText(/These profile counts do not measure the number of installable catalog entries/)).toBeVisible();
   await expect(page.getByText(/Each profile includes sourced product details and a practical setup guide/)).toBeVisible();
   await expect(page.getByText(/not available to install here|catalog relationships, not runtime test/i)).toHaveCount(0);
 });
@@ -74,6 +79,18 @@ test("category browsing uses task and topic language", async ({ page }) => {
   await expect(page.getByText(/source categories|source labels/i)).toHaveCount(0);
 });
 
+test("a task category opens Explore with that same goal selected", async ({ page }) => {
+  await gotoSettled(page, "/categories/");
+  const firstTask = page.locator('a[href^="/explore/?goal="]').first();
+  const href = await firstTask.getAttribute("href");
+  expect(href).toBeTruthy();
+  const goal = new URL(href!, "https://example.invalid").searchParams.get("goal");
+  expect(goal).toBeTruthy();
+
+  await firstTask.click();
+  await expect(page).toHaveURL(new RegExp(`/explore/\\?goal=${encodeURIComponent(goal!)}`));
+  await expect(page.locator("#explore-goal")).toHaveValue(goal!);
+});
 
 test("Explore groups only destinations with catalog listings", async ({ page }) => {
   await gotoSettled(page, "/explore/");

@@ -10,22 +10,20 @@ import { listingIdentity } from "./discovery.mjs";
 // their own compatibility, because each page counted only the one string its
 // own registry uses. This module is the one place a string becomes a host.
 //
-// THE IDENTITY is the id both registries join on:
+// THE IDENTITY is the id both registries join on. Distinct product IDs remain
+// distinct even when they share an MCP format or skill directory:
+// `pi` != `pi-agent`, and `grok` != `grok-build`.
 //
 //   * `data/hosts.json` — bridge adapters, generated from the compiled-in Go
 //     registry (`internal/host/registry.go`); one row per host LiteSPM can
 //     write an MCP config for.
 //   * `data/skill-targets.json` — skills targets, generated from
 //     `internal/skills/agents.go`; one row per host with a documented skills
-//     directory. The reference installer's spellings of two of those rows
-//     ("pi", "grok") are appended there as their own ids, and
-//     `internal/host/registry.go` itself registers those two ids against the
-//     same adapters as "pi-agent" and "grok-build".
+//     directory. Separate product entries remain separate IDs here even when
+//     their install paths overlap.
 //
-// `HOST_ALIASES` in `lib/hosts.ts` is the join for those two — the alias table
-// already resolves "pi" and "grok" to the adapter rows — so this module does
-// not invent a second mapping. A skill id the alias table resolves is that
-// adapter's identity, not a second host.
+// `HOST_ALIASES` in `lib/hosts.ts` joins spelling variants to a registry id; it
+// does not merge distinct products.
 //
 // THE RULE, applied by every surface that counts or filters hosts:
 //
@@ -52,17 +50,9 @@ import {
   hostsFor,
   resolveHost,
 } from "./hosts";
-import type { HostAdapter } from "./hosts";
+import type { HostAdapter, SkillTarget } from "./hosts";
 import { availabilityOf } from "./availability";
 import { vendorName } from "./vendorNames";
-
-/** Shape of one row in the generated `web/data/skill-targets.json`. */
-export interface SkillTarget {
-  id: string;
-  displayName: string;
-  universal?: boolean;
-  hasGlobal: boolean;
-}
 
 /**
  * One agent host. `id` is the registry key both tables join on; `name` is what
@@ -84,10 +74,8 @@ function norm(raw: string): string {
 }
 
 /**
- * The identity a skills-registry id belongs to: the adapter the alias table
- * resolves it to, or itself. `resolveHost("pi").id === "pi-agent"` and
- * `resolveHost("grok").id === "grok-build"`; every other skill id resolves to
- * nothing and stays its own identity.
+ * The identity a skills-registry id belongs to: the adapter that owns that
+ * exact registry id, or the skill id itself when there is no MCP adapter.
  */
 function joinSkillId(id: string): string {
   return resolveHost(id)?.id ?? id;
@@ -111,9 +99,8 @@ export const HOST_IDENTITIES: HostIdentity[] = (() => {
       identity = { id, name: vendorName(id, target.displayName), strings: [] };
       byId.set(id, identity);
     }
-    // The canonical row is the target whose own id is the identity id; the
-    // reference installer's alias ("pi" for "pi-agent") joins the same
-    // directories, so it must not be the row the site states its facts from.
+    // Prefer the matching ID's row when several spellings resolve to one
+    // identity. Product IDs themselves are not collapsed.
     if (!identity.skill || target.id === id) identity.skill = target;
     if (!identity.strings.includes(target.displayName)) identity.strings.push(target.displayName);
   }

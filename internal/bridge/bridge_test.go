@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/sarv-projects/litespm/internal/buildinfo"
+	hostregistry "github.com/sarv-projects/litespm/internal/host"
 	"github.com/sarv-projects/litespm/internal/ipc"
 )
 
@@ -134,7 +135,7 @@ func TestBridge_InitializeAndListTools(t *testing.T) {
 
 	expectedTools := []string{
 		"search_catalog", "get_extension", "prepare_install", "request_install",
-		"list_installed", "search_capabilities", "describe_capability",
+		"list_installed", "adopt_capability", "search_capabilities", "describe_capability",
 		"load_skill", "read_skill_resource", "invoke_capability",
 		"get_invocation", "cancel_invocation",
 	}
@@ -146,66 +147,63 @@ func TestBridge_InitializeAndListTools(t *testing.T) {
 	}
 }
 
-func TestBridge_QwenMarketplacePromptIsPublishedAsSlashCommand(t *testing.T) {
+func TestBridge_MarketplacePromptIsPublishedForConnectedHosts(t *testing.T) {
 	ctx := context.Background()
-	shim := NewShim("qwen-code", nil, nil, nil)
 	id := json.RawMessage(`1`)
-	init := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "initialize"})
-	var initialized struct {
-		Capabilities map[string]json.RawMessage `json:"capabilities"`
+	// Pull data-driven hosts from the actual setup registry so a newly added
+	// adapter is covered automatically. Add the hand-written adapter IDs here.
+	hostIDs := make([]string, 0, len(hostregistry.VerifiedBridgeTargets())+8)
+	for _, target := range hostregistry.VerifiedBridgeTargets() {
+		hostIDs = append(hostIDs, target.ID)
 	}
-	if err := json.Unmarshal(init.Result, &initialized); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := initialized.Capabilities["prompts"]; !ok {
-		t.Fatal("Qwen bridge must advertise MCP prompts so /marketplace is discoverable")
-	}
+	hostIDs = append(hostIDs,
+		"codex", "claude-code", "opencode", "cline", "pi-agent", "pi", "grok", "grok-build",
+	)
+	for _, hostID := range hostIDs {
+		t.Run(hostID, func(t *testing.T) {
+			shim := NewShim(hostID, nil, nil, nil)
+			init := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "initialize"})
+			var initialized struct {
+				Capabilities map[string]json.RawMessage `json:"capabilities"`
+			}
+			if err := json.Unmarshal(init.Result, &initialized); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := initialized.Capabilities["prompts"]; !ok {
+				t.Fatal("LiteSPM MCP prompt capability is missing")
+			}
 
-	list := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "prompts/list"})
-	var listed struct {
-		Prompts []struct {
-			Name      string `json:"name"`
-			Arguments []struct {
-				Name     string `json:"name"`
-				Required bool   `json:"required"`
-			} `json:"arguments"`
-		} `json:"prompts"`
-	}
-	if err := json.Unmarshal(list.Result, &listed); err != nil {
-		t.Fatal(err)
-	}
-	if len(listed.Prompts) != 1 || listed.Prompts[0].Name != "marketplace" {
-		t.Fatalf("Qwen prompts = %+v, want /marketplace", listed.Prompts)
-	}
-	if len(listed.Prompts[0].Arguments) != 1 || listed.Prompts[0].Arguments[0].Name != "query" {
-		t.Fatalf("marketplace prompt arguments = %+v, want optional query", listed.Prompts[0].Arguments)
-	}
+			list := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "prompts/list"})
+			var listed struct {
+				Prompts []struct {
+					Name      string `json:"name"`
+					Arguments []struct {
+						Name     string `json:"name"`
+						Required bool   `json:"required"`
+					} `json:"arguments"`
+				} `json:"prompts"`
+			}
+			if err := json.Unmarshal(list.Result, &listed); err != nil {
+				t.Fatal(err)
+			}
+			if len(listed.Prompts) != 1 || listed.Prompts[0].Name != "marketplace" {
+				t.Fatalf("prompts = %+v, want marketplace", listed.Prompts)
+			}
+			if len(listed.Prompts[0].Arguments) != 1 || listed.Prompts[0].Arguments[0].Name != "query" {
+				t.Fatalf("marketplace prompt arguments = %+v, want optional query", listed.Prompts[0].Arguments)
+			}
 
-	get := shim.HandleRequest(ctx, &ipc.Request{
-		JSONRPC: "2.0", ID: &id, Method: "prompts/get",
-		Params: json.RawMessage(`{"name":"marketplace","arguments":{"query":"github"}}`),
-	})
-	if get == nil || get.Error != nil {
-		t.Fatalf("prompts/get failed: %+v", get)
-	}
-	if !strings.Contains(string(get.Result), "search_catalog") || !strings.Contains(string(get.Result), "github") || !strings.Contains(string(get.Result), "approvalToken") {
-		t.Fatalf("marketplace prompt does not guide catalog search: %s", get.Result)
-	}
-}
-
-func TestBridge_NonQwenHostsDoNotAdvertiseQwenSlashPrompt(t *testing.T) {
-	ctx := context.Background()
-	shim := NewShim("codex", nil, nil, nil)
-	id := json.RawMessage(`1`)
-	resp := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "initialize"})
-	var initialized struct {
-		Capabilities map[string]json.RawMessage `json:"capabilities"`
-	}
-	if err := json.Unmarshal(resp.Result, &initialized); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := initialized.Capabilities["prompts"]; ok {
-		t.Fatal("non-Qwen host should keep the existing tools-only bridge contract")
+			get := shim.HandleRequest(ctx, &ipc.Request{
+				JSONRPC: "2.0", ID: &id, Method: "prompts/get",
+				Params: json.RawMessage(`{"name":"marketplace","arguments":{"query":"github"}}`),
+			})
+			if get == nil || get.Error != nil {
+				t.Fatalf("prompts/get failed: %+v", get)
+			}
+			if !strings.Contains(string(get.Result), "search_catalog") || !strings.Contains(string(get.Result), "github") || !strings.Contains(string(get.Result), "approvalToken") {
+				t.Fatalf("marketplace prompt does not guide catalog search: %s", get.Result)
+			}
+		})
 	}
 }
 
@@ -364,9 +362,9 @@ func TestBridge_ServeCodec(t *testing.T) {
 }
 
 // A standalone shim (nil daemon client) must fail closed for every one of the
-// 12 canonical tools: an explicit tool error that names the missing daemon
+// canonical tools: an explicit tool error that names the missing daemon
 // connection, never fabricated data, statuses, or inventory.
-func TestBridge_All12ToolsDispatch(t *testing.T) {
+func TestBridge_AllToolsDispatch(t *testing.T) {
 	ctx := context.Background()
 	shim := NewShim("test-host", nil, nil, nil)
 	idRaw := json.RawMessage(`1`)
@@ -380,6 +378,7 @@ func TestBridge_All12ToolsDispatch(t *testing.T) {
 		{"prepare_install", map[string]any{"id": "mcp:github:modelcontextprotocol:servers:postgres"}},
 		{"request_install", map[string]any{"planId": "plan_123"}},
 		{"list_installed", map[string]any{}},
+		{"adopt_capability", map[string]any{"name": "github", "hostId": "codex"}},
 		{"search_capabilities", map[string]any{"query": "sql"}},
 		{"describe_capability", map[string]any{"capabilityId": "inst-1/db/query"}},
 		{"load_skill", map[string]any{"skillId": "skill:builtin:git-release"}},

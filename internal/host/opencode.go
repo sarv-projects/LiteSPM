@@ -31,7 +31,7 @@ func (a *OpenCodeAdapter) Descriptor() HostDescriptor {
 		ConfigFormat:           "json",
 		SupportsFormElicit:     false,
 		RequiresBootstrapSkill: false,
-		SlashCommandTrigger:    "/marketplace",
+		SlashCommandTrigger:    "/litespm:marketplace",
 	}
 }
 

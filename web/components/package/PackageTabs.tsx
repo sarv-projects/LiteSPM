@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import type { Listing } from "../../lib/telemetry";
 import type { AgentChoice } from "../../lib/landing";
@@ -254,14 +254,15 @@ function CompatibilityPanel({
       .map((name) => resolveHostId(name))
       .filter((id): id is string => id !== null)
   );
-  /* The select used to preselect whichever host sorted first in the registry
-     and change nothing else — a control whose state nothing read, and an
-     invitation to read that first host as "the" host for this entry. It now
-     starts empty and answers with the one per-host fact this page can state:
-     what LiteSPM writes for that host, and where. `selected` may go stale when
-     `item` changes; `chosen` re-derives it, so there is no effect and no
-     hook-order hazard. */
-  const [selected, setSelected] = useState<string>("");
+  const preferredHost = Array.from(wanted).find((id) => hosts.some((host) => host.value === id)) ?? "";
+  /* The select follows the visitor's saved target when that target is listed
+     for this entry. Otherwise it stays empty instead of picking whichever
+     host sorts first. Its answer is the per-host fact this page can state:
+     what LiteSPM writes for that host, and where. */
+  const [selected, setSelected] = useState<string>(preferredHost);
+  useEffect(() => {
+    setSelected(preferredHost);
+  }, [preferredHost, item.id]);
   const chosen = hosts.find((h) => h.value === selected) ?? null;
   const adapter = chosen?.adapter;
   const platformOs = usePlatformOs();

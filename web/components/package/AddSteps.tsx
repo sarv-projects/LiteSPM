@@ -507,7 +507,7 @@ export function AddSteps({ item, agent, onChooseAgent }: AddStepsProps) {
 
       {liteSPMInstallable && marked && <ManageInstall item={item} onClear={clearMark} />}
 
-      <ManualSetup />
+      <ManualSetup item={item} agent={agent} />
     </section>
   );
 }

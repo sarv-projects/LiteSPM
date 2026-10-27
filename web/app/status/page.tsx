@@ -25,13 +25,14 @@ export default function StatusPage() {
   return (
     <InfoPage
       title="Catalog availability"
-      lede="Check that the package catalog is available and see when its information was last refreshed."
+      lede="Check whether the live catalog endpoint responds now, and when the catalog data was last refreshed."
+      sourcePath="web/app/status/page.tsx"
     >
-      <InfoSection title="Live availability">
+      <InfoSection title="Live endpoint check">
         <div className="rounded-panel border border-rule bg-sunken px-4 py-4">
           <HealthProbe />
         </div>
-        <p>Browse the catalog to find packages and review setup paths for your agent.</p>
+        <p>The live result is a point-in-time endpoint check. The refresh date below describes the catalog data, not site uptime.</p>
       </InfoSection>
 
       <InfoSection title="Package information">

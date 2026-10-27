@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Listing } from "../../lib/telemetry";
-import { displayListingName, kindLabel, listingHref, publisherDisplayName, rowSignal } from "../../lib/catalog";
+import { displayListingName, kindLabel, listingSummary, listingHref, publisherDisplayName, rowSignal } from "../../lib/catalog";
 import type { AgentChoice } from "../../lib/landing";
 import { rowWorksWithAgent } from "../../lib/landing";
 import { PublisherTile } from "./PublisherMark";
@@ -48,13 +48,14 @@ export interface ShelfCardProps {
 }
 
 export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
+  const summary = listingSummary(item);
   const signal = rowSignal(item);
   const worksWith = rowWorksWithAgent(item, agent ?? null);
   const detail = [
     kindLabel(item.kind),
     item.publisher?.name ? `by ${publisherDisplayName(item.publisher.name)}` : "community listing",
     signal.note,
-    item.summary,
+    summary,
   ]
     .filter((part): part is string => Boolean(part))
     .map((part) => part.replace(/\.+$/, ""))
@@ -101,8 +102,8 @@ export function ShelfCard({ item, agent, entranceIndex = 0 }: ShelfCardProps) {
 
         {/* Fixed to two line-heights whether the summary is one line or two, so
             the card footer sits at the same y in every card of the shelf. */}
-        <p className="mt-2.5 line-clamp-2 min-h-[42px] text-[13px] leading-relaxed text-ink-2">
-          {item.summary || "Browse setup options and details for this package."}
+        <p aria-hidden={!summary} className="mt-2.5 line-clamp-2 min-h-[42px] text-[13px] leading-relaxed text-ink-2">
+          {summary}
         </p>
 
         <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-3">

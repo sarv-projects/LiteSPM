@@ -176,7 +176,9 @@ type BridgeTarget struct {
 	ID   string
 	Name string
 
-	// SlashCommandTrigger is the in-agent command this host is told to use.
+	// SlashCommandTrigger is the documented command that invokes LiteSPM's MCP
+	// marketplace prompt in this host. Empty means no exact command is confirmed;
+	// the client may still expose MCP prompts through a picker or only tools.
 	SlashCommandTrigger string
 
 	// UserPath resolves the user-scope config file. Required.

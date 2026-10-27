@@ -6,7 +6,6 @@ import { SetupGuide, type GuideAgent } from "../../components/onboarding/SetupGu
 import { HOSTS, hostPath } from "../../lib/hosts";
 import { vendorName } from "../../lib/vendorNames";
 import { REPO_URL } from "../../lib/site";
-import { DeveloperZone } from "../../components/home/DeveloperZone";
 
 /**
  * `/get-started`.
@@ -58,7 +57,7 @@ export default function GetStartedPage() {
     <div className="flex min-h-screen flex-col">
       <Header />
 
-      <main id="main" tabIndex={-1} className="shell flex-1 pb-16 pt-8">
+      <main id="main" tabIndex={-1} className="shell mx-auto w-full max-w-[72ch] flex-1 pb-16 pt-8">
         <div className="max-w-[72ch]">
           <p className="kicker">Get started</p>
           <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-ink">Get started</h1>
@@ -123,12 +122,6 @@ export default function GetStartedPage() {
           and tell us which step did not work.
         </p>
       </main>
-
-      {/* The command list lives with the setup it belongs to. It was a block
-          on the home page, under a "developer zone" heading. */}
-      <div className="bg-sunken">
-        <DeveloperZone />
-      </div>
 
       <SiteFooter />
     </div>

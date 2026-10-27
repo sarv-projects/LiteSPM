@@ -13,7 +13,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { CornerDownLeft, Search, X } from "lucide-react";
 import { useCatalogSearch } from "../../lib/useCatalogSearch";
-import { demoteValidationFixtures, kindLabel, listingHref, sortByCompatibility } from "../../lib/catalog";
+import { demoteValidationFixtures, kindLabel, listingHref, listingSummary, sortByCompatibility } from "../../lib/catalog";
 import { clamp, formatCount } from "../../lib/format";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 import {
@@ -186,7 +186,7 @@ export function CommandPalette({ open, onOpenChange, returnFocusRef }: CommandPa
       const capabilityRows: PaletteRow[] = ranked.slice(0, MAX_CAPABILITIES).map((item) => ({
         key: `capability:${item.linkKey ?? item.id}`,
         label: item.name,
-        detail: clamp(item.summary, 96),
+        detail: clamp(listingSummary(item), 96),
         meta: kindLabel(item.kind),
         metaClassName: `text-${item.kind}`,
         href: listingHref(item),

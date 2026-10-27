@@ -12,6 +12,7 @@ import {
   DEFAULT_SORT,
 } from "../../lib/catalog";
 import { taxonomyFacets } from "../../lib/taxonomy";
+import { availabilityCounts } from "../../lib/availability";
 import type { ExploreViewProps } from "./ExploreView";
 import type { Metadata } from "next";
 import ExploreRoute from "./ExploreRoute";
@@ -36,9 +37,18 @@ export const metadata: Metadata = {
  */
 export default function ExplorePage() {
   const items = withLinkKeys(catalogData as unknown as Listing[]);
+  const uniqueItems = uniqueListings(items) as Listing[];
+  const readiness = availabilityCounts(uniqueItems);
+  const evidenceCounts = {
+    metadataChecked: uniqueItems.filter((item) => item.installability === "metadata_verified").length,
+    runtimeVerified: uniqueItems.filter((item) => item.installability === "runtime_verified").length,
+    litespmTested: uniqueItems.filter((item) => item.installability === "litespm_tested").length,
+  };
 
   const props: ExploreViewProps = {
     total: uniqueListings(items).length,
+    installableCount: readiness.remote + readiness.source + readiness.plugin,
+    evidenceCounts,
     rowCount: items.length,
     duplicateGroups: duplicateIndexGroups(items),
     kindCounts: deriveKindCounts(uniqueListings(items) as Listing[]),

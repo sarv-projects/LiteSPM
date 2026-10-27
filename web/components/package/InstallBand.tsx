@@ -7,11 +7,7 @@ import type { AgentChoice } from "../../lib/landing";
 import { availabilityOf } from "../../lib/availability";
 import { feasibilityFor } from "../../lib/installFeasibility";
 import { isRemoteTransport } from "../../lib/hosts";
-import {
-  WEBSITE_CATALOG_SYNC_COMMAND,
-  WEBSITE_SETUP_COMMAND,
-  websiteInstallCommandFor,
-} from "../../lib/installCommand";
+import { websiteInstallCommandFor } from "../../lib/installCommand";
 import { CopyButton } from "./CopyButton";
 
 /**
@@ -116,34 +112,8 @@ export function InstallBand({
         {installDescription}{" "}
         Copy the command into your terminal to install this package with LiteSPM.
       </p>
-      {/* Prerequisites come BEFORE the command: a reader who runs the install
-          line on a fresh machine hits "no agent configured" first, and the fix
-          then looks like a separate product. The published CLI still needs
-          these two steps; the panel says so where the reader is about to act,
-          not in a footnote after the copy button. */}
-      <details open className="mt-3 rounded-lg border border-rule px-3 py-2.5">
-        <summary className="cursor-pointer text-[12.5px] font-medium text-ink">
-          Before your first install
-        </summary>
-        <ol className="mt-3 space-y-3 text-[12px] text-ink-2">
-          <li>
-            <p className="mb-1">1. Start the interactive wizard and connect your agent.</p>
-            <div className="flex items-center gap-2">
-              <code className="t-mono min-w-0 flex-1 break-all text-ink">{WEBSITE_SETUP_COMMAND}</code>
-              <CopyButton text={WEBSITE_SETUP_COMMAND} label="Copy setup command" message="Setup command copied" />
-            </div>
-          </li>
-          <li>
-            <p className="mb-1">2. Download and verify the public catalog.</p>
-            <div className="flex items-center gap-2">
-              <code className="t-mono min-w-0 flex-1 break-all text-ink">{WEBSITE_CATALOG_SYNC_COMMAND}</code>
-              <CopyButton text={WEBSITE_CATALOG_SYNC_COMMAND} label="Copy catalog sync command" message="Catalog command copied" />
-            </div>
-          </li>
-        </ol>
-      </details>
       <div className="mt-3 flex items-start gap-2 rounded-lg border border-rule bg-surface px-3 py-3">
-        <code className="t-mono min-w-0 flex-1 break-all text-[12.5px] leading-relaxed text-ink select-all">
+        <code className="t-mono min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[12.5px] leading-relaxed text-ink select-all">
           {command.command}
         </code>
         <CopyButton text={command.command} label="Copy install command" message="Install command copied" />
@@ -172,9 +142,12 @@ export function InstallBand({
         </div>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px]">
-        <button type="button" onClick={onSeeSteps} className="font-medium text-ink hover:underline">
-          Full installation guide ↓
-        </button>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-ink-3">First install? The guide covers agent setup and catalog sync.</p>
+          <button type="button" onClick={onSeeSteps} className="font-medium text-ink hover:underline">
+            Full installation guide ↓
+          </button>
+        </div>
         <Link href="/get-started/" className="text-ink-2 hover:text-ink hover:underline">
           Setup help →
         </Link>

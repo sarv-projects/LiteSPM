@@ -56,7 +56,7 @@ Write this change? [Y/n]:
   • File written: /home/you/.claude.json
 
 Next:
-  • Start Claude Code and type /marketplace to browse and install capabilities.
+  • Start Claude Code and type /mcp__litespm__marketplace to browse and install capabilities.
   • Or stay here: this wizard can update the catalog, install and remove things too.
 ```
 
@@ -64,8 +64,9 @@ Setup prints **no capability count** and no advisory list: the wizard derives
 the host list from the compiled-in adapter registry (`cmd/litespm/wizard.go:154-162`)
 and the setup flow makes no network request. The one step that touches the
 network is the wizard's *Update the capability catalog* action — an explicit,
-confirmed `catalog sync` that names the origin first. `/marketplace` becomes
-available in the agent after the bridge entry lands.
+confirmed `catalog sync` that names the origin first. The marketplace prompt
+becomes available after the bridge entry lands; the command depends on the
+agent. See the [agent-by-agent entry-point audit](../docs/audits/2026-10-25/marketplace-agent-entrypoints.md).
 
 Stop hand-editing `~/.claude.json`, `config.toml`, and a dozen other files.
 Connect an agent **once**, then manage all of its capabilities from one local
@@ -156,11 +157,10 @@ litespm doctor             # run local health checks
 litespm self-update        # update the binary
 ```
 
-Inside a configured agent, just type:
-
-```text
-/marketplace
-```
+In a configured agent with a documented MCP prompt shortcut, use its host-specific
+command. For example, Qwen Code and Gemini CLI use `/marketplace`, Claude Code
+uses `/mcp__litespm__marketplace`, and OpenCode uses `/litespm:marketplace`.
+Other agents can use LiteSPM's connected MCP tools from a normal request.
 
 ## Why litespm
 

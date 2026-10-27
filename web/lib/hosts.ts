@@ -163,22 +163,81 @@ export function hostPath(host: HostAdapter, os: PlatformOS): string {
  * write a SKILL.md into, which is a smaller and differently-shaped set than
  * "hosts whose MCP config we can edit".
  *
- * `hasGlobal` ships in the generated file and was declared nowhere: an agent
- * with no user-level skills directory (`internal/skills/agents.go` leaves
- * `GlobalDir` empty) can only take project-scope skills. Two of the 81 rows are
- * that shape, and `/compare` states it.
+ * User/project paths and their home/XDG/environment bases ship from the same
+ * registry, so the package and agent pages can show a destination without a
+ * separate hand-maintained map. `hasGlobal` distinguishes the two project-only
+ * targets, whose `GlobalDir` is empty.
  */
-export const SKILL_TARGETS: Array<{
+export interface SkillTarget {
   id: string;
   displayName: string;
   universal?: boolean;
   hasGlobal: boolean;
-}> = generatedSkillTargets as Array<{
-  id: string;
-  displayName: string;
-  universal?: boolean;
-  hasGlobal: boolean;
-}>;
+  projectDir: string;
+  globalDir?: string;
+  base: "home" | "xdg" | "env";
+  envVar?: string;
+  defaultBase?: string;
+}
+
+export const SKILL_TARGETS: SkillTarget[] = generatedSkillTargets as SkillTarget[];
+
+/** Skill destinations from the same registry the CLI writes to. */
+export interface SkillTargetPaths {
+  userPath?: string;
+  userPathOverride?: string;
+  projectPath: string;
+  note?: string;
+}
+
+export function skillTargetPaths(target: SkillTarget, os: PlatformOS = "linux"): SkillTargetPaths {
+  const globalDir = target.globalDir?.replace(/^\/+|\/+$/g, "");
+  const projectPath = target.projectDir.replace(/^\/+|\/+$/g, "");
+  const home = os === "win" ? "%USERPROFILE%" : "~";
+  const formatPath = (path: string) => os === "win" ? path.replace(/\//g, "\\") : path;
+  const formatEnv = (name: string) => os === "win" ? `%${name}%` : `$${name}`;
+  if (!target.hasGlobal || !globalDir) return { projectPath: formatPath(projectPath) };
+
+  // OpenClaw has renamed its home folder. The CLI chooses the first of these
+  // directories that exists, so show the current default and disclose the
+  // runtime selection rather than implying one fixed path.
+  if (target.id === "openclaw") {
+    return {
+      userPath: formatPath(`${home}/.openclaw/skills`),
+      projectPath,
+      note: `LiteSPM also detects the previous ${formatPath(`${home}/.clawdbot`)} and ${formatPath(`${home}/.moltbot`)} folders.`,
+    };
+  }
+
+  // A leading dot marks an already home-relative directory in the Go
+  // registry, even on targets whose base is otherwise an environment path.
+  if (globalDir.startsWith(".")) {
+    return { userPath: formatPath(`${home}/${globalDir}`), projectPath: formatPath(projectPath) };
+  }
+
+  if (target.base === "xdg") {
+    const xdgHome = formatEnv("XDG_CONFIG_HOME");
+    return {
+      userPath: formatPath(`${home}/.config/${globalDir}`),
+      userPathOverride: formatPath(`${xdgHome}/${globalDir}`),
+      projectPath: formatPath(projectPath),
+      note: `XDG_CONFIG_HOME replaces ${formatPath(`${home}/.config`)} when it is set.`,
+    };
+  }
+
+  if (target.base === "env" && target.envVar) {
+    const defaultBase = target.defaultBase?.replace(/^\/+|\/+$/g, "");
+    const envPath = formatEnv(target.envVar);
+    return {
+      userPath: formatPath(`${home}/${[defaultBase, globalDir].filter(Boolean).join("/")}`),
+      userPathOverride: formatPath(`${envPath}/${globalDir}`),
+      projectPath: formatPath(projectPath),
+      note: `${target.envVar} overrides the default user directory when set.`,
+    };
+  }
+
+  return { userPath: formatPath(`${home}/${globalDir}`), projectPath: formatPath(projectPath) };
+}
 
 /**
  * Which agent hosts a capability can be installed into.
@@ -290,8 +349,9 @@ export function hostsFor(item: {
  * every registered host is resolvable without a hand-kept list.
  *
  * Exported because `lib/hostIdentity.ts` uses this same table as the join
- * between the two registries: the skills registry's "Pi"/"Grok" rows are the
- * reference installer's spellings of the adapters these aliases already name.
+ * between the two registries. Product IDs such as `pi`, `pi-agent`, `grok`,
+ * and `grok-build` remain independent; only spelling variants of one host
+ * resolve to the same id.
  */
 export const HOST_ALIASES: Record<string, string> = (() => {
   const map: Record<string, string> = {};
@@ -318,14 +378,6 @@ export const HOST_ALIASES: Record<string, string> = (() => {
     "roo code": "roo",
     "github copilot": "github-copilot",
     "gemini cli": "gemini-cli",
-    // The compiled-in registry itself accepts these two as ids of the
-    // canonical rows (`internal/host/registry.go` maps "pi" → PiAgentAdapter
-    // and "grok" → GrokBuildAdapter), and `internal/skills/agents.go` records
-    // them as the reference installer's spellings of the same directories.
-    // The catalog carries them as skill-target strings ("Pi", "Grok"), so
-    // without this they read as hosts no adapter manages — which is not true.
-    pi: "pi-agent",
-    grok: "grok-build",
   });
   return map;
 })();
@@ -367,16 +419,15 @@ export function bridgeEntry(host: HostAdapter, binary = "litespm"): unknown {
   }
 }
 
-/** Correct, host-accurate configuration for the single litespm bridge entry. */
-export function bridgeSnippet(host: HostAdapter, binary = "litespm", os: PlatformOS = "linux"): string {
-  const path = hostPath(host, os);
+/** Pure, host-accurate configuration payload for the single litespm bridge entry. */
+export function bridgeSnippet(host: HostAdapter, binary = "litespm", _os: PlatformOS = "linux"): string {
   const keyPath = host.keyPath || "mcpServers";
 
   if (host.kind === "toml") {
     const table = keyPath === "mcp_servers" ? "mcp_servers.litespm" : `${keyPath}.litespm`;
-    return `# ${path}\n[${table}]\ncommand = "${binary}"\nargs = ["bridge", "stdio", "--host", "${host.id}"]\n`;
+    return `[${table}]\ncommand = "${binary}"\nargs = ["bridge", "stdio", "--host", "${host.id}"]\n`;
   }
 
   const body = nest(keyPath, { litespm: bridgeEntry(host, binary) });
-  return `# ${path}\n${JSON.stringify(body, null, 2)}`;
+  return JSON.stringify(body, null, 2);
 }

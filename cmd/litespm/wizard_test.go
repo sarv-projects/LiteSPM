@@ -369,6 +369,27 @@ func TestWizard_ManualPathIsThePathWritten(t *testing.T) {
 // user-supplied path.
 type unplannableAdapter struct{ host.HostAdapter }
 
+func TestWizard_NextStepUsesOnlyVerifiedMarketplaceCommand(t *testing.T) {
+	_, out := newTestWizard(t, "", tempWizardPaths(t))
+	w := &Wizard{out: out}
+	w.printNextStep(&host.CodexAdapter{})
+	if got := out.String(); strings.Contains(got, "/marketplace") {
+		t.Fatalf("Codex next step claims an unverified slash command:\n%s", got)
+	} else if !strings.Contains(got, "connected MCP tools") {
+		t.Fatalf("Codex next step should explain the MCP tools fallback:\n%s", got)
+	}
+
+	out.Reset()
+	qwen, ok := host.LookupBridgeTarget("qwen-code")
+	if !ok {
+		t.Fatal("Qwen Code target missing")
+	}
+	w.printNextStep(host.NewGenericAdapter(qwen))
+	if got := out.String(); !strings.Contains(got, "/marketplace") {
+		t.Fatalf("Qwen next step omitted its verified marketplace command:\n%s", got)
+	}
+}
+
 // TestWizard_RefusesUnplannablePathWithoutWriting pins the second half of the
 // invariant: when the adapter cannot write the chosen path, nothing is written
 // and the refusal names the file the adapter would use instead.

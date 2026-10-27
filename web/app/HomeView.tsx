@@ -7,11 +7,9 @@ import { Header } from "../components/navigation/Header";
 import { SiteFooter } from "../components/layout/SiteFooter";
 import { LandingHero } from "../components/home/LandingHero";
 import { Shelves } from "../components/home/Shelves";
-import { CapabilityTypes } from "../components/home/CapabilityTypes";
 import { TopicTiles } from "../components/home/TopicTiles";
 import { HowItWorks } from "../components/home/HowItWorks";
 import { SearchResults } from "../components/home/SearchResults";
-import { WhyLiteSPM } from "../components/marketing/WhyLiteSPM";
 import type { Listing } from "../lib/telemetry";
 import { useCatalogSearch } from "../lib/useCatalogSearch";
 import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice } from "../lib/landing";
@@ -43,12 +41,7 @@ import type { CuratedGroup, TopicStat } from "../lib/landing";
  *   1. hero — the promise, the search and a truthful map of the catalog
  *   2. what do you want your AI to do? — eight goal tiles
  *   3. start here — one curated, installable set, and one secondary group
- *   4. tools, skills and plugins — the three kinds, in plain language
- *   5. how it works — three steps, with the commands
- *   6. choose your agent — the preference, and what each agent gets
- *   7. why LiteSPM — the four reasons to use it over a config file
- *   8. FAQ — the questions, in the order they are asked
- *   9. get started — the commands
+ *   4. how it works — one short review → install → manage journey
  *
  * The `BenefitComparison` section was removed in the 2026-10-20 repositioning:
  * it and `WhyLiteSPM` each explained why LiteSPM beats editing config by hand,
@@ -150,19 +143,16 @@ export default function Home(props: HomeViewProps) {
             {/* One curated, installable set — the shelf the reader can act on
                 without learning anything first. */}
             <Shelves groups={props.shelves} agent={agent} />
-            <CapabilityTypes />
           </>
         )}
 
-        {/* Three steps, with the commands in the open. Everything that used to
+        {/* Three concise steps. Everything that used to
             explain the product in prose — the kinds, the bridge, the agent
             matrix, the FAQ, the command list — moved to the page that is about
-            it: /how-it-works, /agents and /support each carry one of those now,
-            and this page carries the search and the install. */}
+            it: /how-it-works, /agents and /support each carry one of those now.
+            This page carries search, examples, and the path to setup. */}
         <HowItWorks />
 
-        {/* The four reasons, and the security policy they point at. */}
-        <WhyLiteSPM />
       </main>
 
       <SiteFooter />

@@ -73,6 +73,10 @@ type emittedHost struct {
 
 func main() {
 	os.Setenv("HOME", fakeHome)
+	// Codex resolves its config through CODEX_HOME before HOME; pin that
+	// override too so generated site data never captures the generator host's
+	// private home directory.
+	os.Setenv("CODEX_HOME", filepath.Join(fakeHome, ".codex"))
 	os.Setenv("XDG_CONFIG_HOME", filepath.Join(fakeHome, ".config"))
 	// APPDATA is meaningless on Unix and windowsAppData() ignores it there, so
 	// setting it would change nothing. Left unset deliberately.
@@ -155,14 +159,31 @@ func main() {
 		DisplayName string `json:"displayName"`
 		Universal   bool   `json:"universal,omitempty"`
 		HasGlobal   bool   `json:"hasGlobal"`
+		ProjectDir  string `json:"projectDir"`
+		GlobalDir   string `json:"globalDir,omitempty"`
+		Base        string `json:"base"`
+		EnvVar      string `json:"envVar,omitempty"`
+		DefaultBase string `json:"defaultBase,omitempty"`
 	}
 	var skillTargets []emittedSkillTarget
 	for _, t := range skills.AgentTargets() {
+		base := "home"
+		switch t.Base {
+		case skills.BaseXDG:
+			base = "xdg"
+		case skills.BaseEnv:
+			base = "env"
+		}
 		skillTargets = append(skillTargets, emittedSkillTarget{
 			ID:          t.ID,
 			DisplayName: t.DisplayName,
 			Universal:   t.Universal,
 			HasGlobal:   t.GlobalDir != "",
+			ProjectDir:  t.ProjectDir,
+			GlobalDir:   t.GlobalDir,
+			Base:        base,
+			EnvVar:      t.EnvVar,
+			DefaultBase: t.DefaultBase,
 		})
 	}
 	sort.Slice(skillTargets, func(i, j int) bool { return skillTargets[i].ID < skillTargets[j].ID })

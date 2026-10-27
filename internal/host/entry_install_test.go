@@ -18,6 +18,9 @@ func entryHome(t *testing.T) string {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	// The Codex adapter honors CODEX_HOME ahead of HOME. Pin it as well so a
+	// developer's exported value cannot make these tests touch their real profile.
+	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
 	// LOCALAPPDATA must be pinned too. Windows hosts that document it (Crush:
 	// %LOCALAPPDATA%\crush\crush.json) otherwise resolved to the machine's real
 	// profile — a path OUTSIDE the sandbox, so the test both inspected a file

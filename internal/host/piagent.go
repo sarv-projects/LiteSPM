@@ -12,12 +12,33 @@ import (
 )
 
 // PiAgentAdapter manages integration with Pi Agent (pi-coding-agent).
-type PiAgentAdapter struct{}
+type PiAgentAdapter struct {
+	// hostID is set only for the distinct `pi` adapter, which shares Pi's
+	// documented MCP file format but must keep its own registry and bridge ID.
+	hostID string
+}
+
+// PiAdapter is the separately-addressable Pi host profile. It intentionally
+// shares Pi's documented MCP file layout with Pi Agent while retaining an
+// independent host identity and bridge target.
+type PiAdapter struct{ PiAgentAdapter }
+
+func (a *PiAgentAdapter) id() string {
+	if a.hostID != "" {
+		return a.hostID
+	}
+	return "pi-agent"
+}
 
 func (a *PiAgentAdapter) Descriptor() HostDescriptor {
+	id := a.id()
+	displayName := "Pi Agent (Terminal Agent)"
+	if id == "pi" {
+		displayName = "Pi (Terminal Agent)"
+	}
 	return HostDescriptor{
-		HostID:                 "pi-agent",
-		DisplayName:            "Pi Agent (Terminal Agent)",
+		HostID:                 id,
+		DisplayName:            displayName,
 		SupportedVersions:      []string{">=0.5.0"},
 		DefaultConfigFileName:  "mcp.json",
 		ConfigFormat:           "json",
@@ -72,8 +93,9 @@ func (a *PiAgentAdapter) PlanSetup(ctx context.Context, binaryPath string, backu
 // PlanSetupAt implements PathPlanner: the merge is planned against the
 // caller's explicit path, so the file written is the file chosen.
 func (a *PiAgentAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backupDir string, configPath string) (*HostChangePlan, error) {
+	id := a.id()
 	if strings.TrimSpace(configPath) == "" {
-		return nil, fmt.Errorf("pi-agent: no configuration path was given, refusing to plan a write")
+		return nil, fmt.Errorf("%s: no configuration path was given, refusing to plan a write", id)
 	}
 
 	origContent := "{}"
@@ -81,7 +103,7 @@ func (a *PiAgentAdapter) PlanSetupAt(ctx context.Context, binaryPath string, bac
 		origContent = string(data)
 	}
 
-	backupPath, err := CreateAtomicBackup(configPath, backupDir, "pi-agent")
+	backupPath, err := CreateAtomicBackup(configPath, backupDir, id)
 	if err != nil {
 		return nil, err
 	}
@@ -93,13 +115,13 @@ func (a *PiAgentAdapter) PlanSetupAt(ctx context.Context, binaryPath string, bac
 	// document is reported before anything is written.
 	if strings.TrimSpace(origContent) != "" && strings.TrimSpace(origContent) != "{}" {
 		if _, perr := parseHostJSON([]byte(origContent)); perr != nil {
-			return nil, fmt.Errorf("failed to parse existing pi-agent config %s: %w", configPath, perr)
+			return nil, fmt.Errorf("failed to parse existing %s config %s: %w", id, configPath, perr)
 		}
 	}
 
 	bridgeEntry := map[string]any{
 		"command": filepath.ToSlash(binaryPath),
-		"args":    []string{"bridge", "stdio", "--host", "pi-agent"},
+		"args":    []string{"bridge", "stdio", "--host", id},
 	}
 
 	// `mcpServers` is the only container Pi reads ("The format matches other MCP
@@ -109,13 +131,13 @@ func (a *PiAgentAdapter) PlanSetupAt(ctx context.Context, binaryPath string, bac
 	// looks while verify reported ready.
 	// A pre-rename `litepsm` entry is adopted (deleted) from that container, so
 	// only one bridge server remains.
-	proposed, err := renderBridgeEntryJSON("pi-agent", origContent, []string{"mcpServers"}, bridgeEntry)
+	proposed, err := renderBridgeEntryJSON(id, origContent, []string{"mcpServers"}, bridgeEntry)
 	if err != nil {
 		return nil, err
 	}
 
 	return &HostChangePlan{
-		HostID:          "pi-agent",
+		HostID:          id,
 		ConfigPath:      configPath,
 		OriginalContent: origContent,
 		ProposedContent: proposed,
@@ -165,6 +187,7 @@ func (a *PiAgentAdapter) PlanSetupAt(ctx context.Context, binaryPath string, bac
 var piExtensionCode string
 
 func (a *PiAgentAdapter) ApplySetup(ctx context.Context, plan *HostChangePlan) (*HostApplyResult, error) {
+	id := a.id()
 	if err := ApplyPlanWrite(plan); err != nil {
 		return nil, err
 	}
@@ -174,7 +197,8 @@ func (a *PiAgentAdapter) ApplySetup(ctx context.Context, plan *HostChangePlan) (
 	extDir := filepath.Dir(extPath)
 	if err := os.MkdirAll(extDir, 0700); err == nil {
 		if _, err := os.Stat(extPath); os.IsNotExist(err) {
-			_ = os.WriteFile(extPath, []byte(piExtensionCode), 0600)
+			extension := strings.ReplaceAll(piExtensionCode, `"pi-agent"`, `"`+id+`"`)
+			_ = os.WriteFile(extPath, []byte(extension), 0600)
 		}
 	}
 
@@ -187,19 +211,20 @@ func (a *PiAgentAdapter) ApplySetup(ctx context.Context, plan *HostChangePlan) (
 }
 
 func (a *PiAgentAdapter) VerifySetup(ctx context.Context) (*HostVerification, error) {
+	id := a.id()
 	configPath, err := a.DetectConfig(ctx, domain.ScopeUser)
 	if err != nil {
-		return &HostVerification{HostID: "pi-agent", Status: "missing"}, nil
+		return &HostVerification{HostID: id, Status: "missing"}, nil
 	}
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return &HostVerification{HostID: "pi-agent", ConfigPath: configPath, Status: "missing"}, nil
+		return &HostVerification{HostID: id, ConfigPath: configPath, Status: "missing"}, nil
 	}
 
 	rootMap, err := parseHostJSON(data)
 	if err != nil {
-		return &HostVerification{HostID: "pi-agent", ConfigPath: configPath, Status: "corrupted"}, nil
+		return &HostVerification{HostID: id, ConfigPath: configPath, Status: "corrupted"}, nil
 	}
 
 	// `mcpServers` is the only container Pi reads (see PlanSetup), so verify
@@ -217,7 +242,7 @@ func (a *PiAgentAdapter) VerifySetup(ctx context.Context) (*HostVerification, er
 	}
 
 	return &HostVerification{
-		HostID:     "pi-agent",
+		HostID:     id,
 		ConfigPath: configPath,
 		Registered: registered,
 		Status:     status,
@@ -283,8 +308,8 @@ func (a *PiAgentAdapter) RenderManualSetup(binaryPath string) string {
 "mcpServers": {
   "litespm": {
     "command": %q,
-    "args": ["bridge", "stdio", "--host", "pi-agent"]
+    "args": ["bridge", "stdio", "--host", "%s"]
   }
 }
-`, cleanBin)
+`, cleanBin, a.id())
 }

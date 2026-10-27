@@ -4,11 +4,11 @@
 // The registry (`data/hosts.json`) is generated from the config adapters, and a
 // row there exists to describe plumbing — which file to write, under which key.
 // That makes it a poor place to get a product's name from, and research over all
-// fifty hosts found six rows whose string is not what the vendor writes:
+// current hosts found rows whose registry string is not what the vendor writes:
 //
 //   registry                          vendor's own documentation
 //   "Grok Build (xAI Dev Tool)"   →   Grok Build
-//   "Pi Agent (Terminal Agent)"   →   Pi
+//   "Pi (Terminal Agent)"         →   Pi
 //   "GitHub Copilot CLI"          →   GitHub Copilot
 //   "Augment"                     →   Auggie CLI
 //   "Kimchi"                      →   Kimchi Coding
@@ -26,8 +26,10 @@
 // still link and count with the registry string.
 
 export const VENDOR_NAMES: Record<string, string> = {
+  grok: "Grok CLI",
   "grok-build": "Grok Build",
-  "pi-agent": "Pi",
+  pi: "Pi",
+  "pi-agent": "Pi Agent",
   "github-copilot": "GitHub Copilot",
   augment: "Auggie CLI",
   kimchi: "Kimchi Coding",

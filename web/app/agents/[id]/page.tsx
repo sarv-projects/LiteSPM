@@ -1,7 +1,7 @@
 import catalogData from "../../../data/catalog.json";
 import type { Listing } from "../../../lib/telemetry";
 import { hostEntryCount, hostIdentity, HOST_IDENTITIES } from "../../../lib/hostIdentity";
-import { HOSTS, bridgeSnippet, hostPath } from "../../../lib/hosts";
+import { HOSTS, bridgeSnippet, hostPath, skillTargetPaths } from "../../../lib/hosts";
 import { hostNote } from "../../../lib/hostNotes";
 import { vendorName } from "../../../lib/vendorNames";
 import { discontinuedNotice } from "../../../lib/lifecycle";
@@ -125,7 +125,7 @@ function reformatEntry(text: string): string {
       const entries = Object.entries(value as Record<string, unknown>);
       if (entries.length === 0) return "{}";
       const body = entries
-        .map(([k, v]) => `${inner}${k}: ${scalar(v, depth + 1)}`)
+        .map(([k, v]) => `${inner}${JSON.stringify(k)}: ${scalar(v, depth + 1)}`)
         .join(",\n");
       return `{\n${body}\n${pad}}`;
     }
@@ -163,18 +163,12 @@ export default async function AgentDetailPage({
   // hosts have none: they take skills and have no MCP configuration file, so
   // there is no bridge entry to show them.
   const adapter = identity.adapter ? HOSTS.find((h) => h.id === identity.adapter?.id) : undefined;
+  const skillPaths = identity.skill ? skillTargetPaths(identity.skill) : undefined;
 
-  // `bridgeSnippet` leads with the target path as a comment line. The file
-  // card already shows that path as its heading, so the card body is the
-  // entry alone — which also keeps the JSON copy valid JSON.
-  //
-  // The default printer puts every argument on its own line, so a four-word
-  // command grew the card to ~280px of mostly whitespace. Arrays of plain
-  // values are printed on one line instead. Anything that is not JSON (a
-  // TOML host) skips the re-print entirely and renders as sent.
-  const rawSnippet = adapter
-    ? bridgeSnippet(adapter, "litespm", "linux").replace(/^# .*\n/, "")
-    : "";
+  // The file path is shown separately from the copyable payload. JSON stays
+  // valid JSON when copied, and TOML contains only the host's config table.
+  // Arrays of plain values stay on one line so the bridge entry remains compact.
+  const rawSnippet = adapter ? bridgeSnippet(adapter, "litespm", "linux") : "";
   const snippet = rawSnippet ? reformatEntry(rawSnippet) : "";
 
   const props: AgentDetailViewProps = {
@@ -197,6 +191,10 @@ export default async function AgentDetailPage({
     // scope support, so its presence is what the fact list keys on.
     repoConfigPath: adapter?.projectPath,
     skillsSupported,
+    skillUserPath: skillPaths?.userPath,
+    skillUserPathOverride: skillPaths?.userPathOverride,
+    skillProjectPath: skillPaths?.projectPath,
+    skillPathNote: skillPaths?.note,
     /**
      * True when the host takes skills and has no MCP configuration adapter.
      * The page then says what LiteSPM does for it — install skills — instead

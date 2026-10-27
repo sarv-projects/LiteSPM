@@ -14,7 +14,7 @@ LiteSPM provides both an interactive terminal interface for humans and a structu
 │                        User / Terminal Client                          │
 │                                                                        │
 │   $ litespm (Setup + Management Wizard)                                │
-│     ├── Agent Selector (all 50 adapters, detected first)               │
+│     ├── Agent Selector (all 52 adapters, detected first)               │
 │     ├── Automated Host Configuration Path Detection                    │
 │     ├── Manual Path · Change Preview · Confirmed Merge                 │
 │     └── "What next": catalog update / install / remove / list          │
@@ -85,7 +85,7 @@ Enter a number, an agent name, or 'a' [q]:
 
 > The rows are derived from the adapter registry (`host.ListAdapters()`,
 > `cmd/litespm/wizard.go:agentMenuRows`), so all 50 bridge targets are reachable from the wizard
-> (6 bespoke + 44 generic, ARCH/30) — detected agents first, `[a]` for the full list. There is
+> (seven dedicated profiles + 45 data-driven targets, ARCH/30) — detected agents first, `[a]` for the full list. There is
 > **no** "Generic MCP Configuration (Export JSON)" entry, and no row names a config file the
 > adapter itself did not resolve.
 

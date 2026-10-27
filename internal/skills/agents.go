@@ -117,7 +117,7 @@ var agentTargets = []AgentTarget{
 	{ID: "ona", DisplayName: "Ona", ProjectDir: ".ona/skills", GlobalDir: ".ona/skills", DetectPaths: []string{".ona"}},
 	{ID: "opencode", DisplayName: "OpenCode", ProjectDir: ".agents/skills", GlobalDir: "opencode/skills", Base: BaseXDG, DetectPaths: []string{".config/opencode"}, Universal: true},
 	{ID: "openhands", DisplayName: "OpenHands", ProjectDir: ".openhands/skills", GlobalDir: ".openhands/skills", DetectPaths: []string{".openhands"}},
-	{ID: "pi-agent", DisplayName: "Pi Agent", ProjectDir: ".agents/skills", GlobalDir: ".agents/skills", DetectPaths: []string{".pi"}, Universal: true},
+	{ID: "pi-agent", DisplayName: "Pi Agent", ProjectDir: ".pi/skills", GlobalDir: ".pi/agent/skills", DetectPaths: []string{".pi"}},
 	{ID: "pochi", DisplayName: "Pochi", ProjectDir: ".pochi/skills", GlobalDir: ".pochi/skills", DetectPaths: []string{".pochi"}},
 	{ID: "posit-assistant", DisplayName: "Posit Assistant", ProjectDir: ".posit/assistant/skills", GlobalDir: ".posit/assistant/skills", DetectPaths: []string{".posit/assistant", ".positai"}},
 	{ID: "promptscript", DisplayName: "PromptScript", ProjectDir: ".agents/skills", GlobalDir: "", DetectCwdPaths: []string{".promptscript", "promptscript.yaml"}, Universal: true},
@@ -140,14 +140,12 @@ var agentTargets = []AgentTarget{
 	{ID: "zencoder", DisplayName: "Zencoder", ProjectDir: ".zencoder/skills", GlobalDir: ".zencoder/skills", DetectPaths: []string{".zencoder"}},
 	{ID: "zenflow", DisplayName: "Zenflow", ProjectDir: ".zencoder/skills", GlobalDir: ".zencoder/skills", DetectPaths: []string{".zencoder"}},
 
-	// Reference-installer id parity (appended, never renumbered): the
-	// competitor spells our `pi-agent`/`grok-build` rows `pi`/`grok` and ships
-	// `universal`/`warp` targets we lacked. Aliases resolve to the same
-	// directories as their canonical rows; PlanInstall collapses two ids that
-	// resolve to one directory into a single write, so selecting both never
-	// copies twice. Source: vercel-labs/skills `src/agents.ts` (MIT), read
-	// 2026-10-14.
-	{ID: "grok", DisplayName: "Grok", ProjectDir: ".grok/skills", GlobalDir: "skills", Base: BaseEnv, EnvVar: "GROK_HOME", DefaultBase: ".grok", DetectPaths: []string{".grok"}},
+	// Reference-installer id parity (appended, never renumbered): grok and pi
+	// are independent products from grok-build and pi-agent. Grok CLI and Pi
+	// read the shared Agent Skills directory; Grok Build and Pi Agent each use
+	// their own native locations. universal and warp were also added from
+	// vercel-labs/skills src/agents.ts (MIT), read 2026-10-14.
+	{ID: "grok", DisplayName: "Grok CLI", ProjectDir: ".agents/skills", GlobalDir: ".agents/skills", DetectPaths: []string{".grok"}, Universal: true},
 	{ID: "pi", DisplayName: "Pi", ProjectDir: ".agents/skills", GlobalDir: ".agents/skills", DetectPaths: []string{".pi"}, Universal: true},
 	{ID: "universal", DisplayName: "Universal", ProjectDir: ".agents/skills", GlobalDir: "agents/skills", Base: BaseXDG, DetectPaths: []string{".config/agents"}, Universal: true},
 	{ID: "warp", DisplayName: "Warp", ProjectDir: ".agents/skills", GlobalDir: ".agents/skills", DetectPaths: []string{".warp"}, Universal: true},

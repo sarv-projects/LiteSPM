@@ -1,4 +1,5 @@
 import { normalizeListing } from "../web/lib/discovery.mjs";
+import { listingSummary } from "../web/lib/listingSummary.mjs";
 // The edge half of `/package/`: every entry's identity in the served HTML.
 //
 // Why this exists
@@ -212,7 +213,7 @@ function clampMeta(text, max = 155) {
 
 /** The description every surface uses for one entry (`entryMetaDescription`). */
 function metaDescription(item) {
-  const summary = item.summary?.trim();
+  const summary = listingSummary(item);
   if (summary) return clampMeta(summary);
   return clampMeta(
     `${displayListingName(item)} — one entry from the LiteSPM catalog: what it is, who publishes it, and how to add it.`
@@ -225,7 +226,7 @@ function entryJsonLd(item, url, categoryText) {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: displayListingName(item),
-    ...(item.summary?.trim() ? { description: item.summary.trim() } : {}),
+    ...(listingSummary(item) ? { description: listingSummary(item) } : {}),
     url,
     applicationCategory: categoryText,
     applicationSubCategory: kindLabel(item.kind),
@@ -285,10 +286,11 @@ function jsonLdScript(doc) {
  */
 function noScriptBlock(item, key, categoryText) {
   const publisher = item.publisher?.name ? ` · ${esc(publisherDisplayName(item.publisher.name))}` : "";
+  const summary = listingSummary(item);
   return (
     `<div class="border-b border-rule bg-sunken px-4 py-2.5 text-center text-[12.5px] leading-relaxed text-ink-2">` +
     `<p><strong>${esc(displayListingName(item))}</strong>${publisher}</p>` +
-    (item.summary ? `<p>${esc(item.summary)}</p>` : "") +
+    (summary ? `<p>${esc(summary)}</p>` : "") +
     `<p>${esc(kindLabel(item.kind))} · ${esc(categoryText)} · <a class="link" href="/package/${encodeURIComponent(key)}/">Open this entry</a></p>` +
     `</div>`
   );
@@ -360,7 +362,7 @@ function rewrite(response, { item, key, origin }) {
 
   return new HTMLRewriter()
     .on("[data-entry-name]", { element: el => el.setInnerContent(displayListingName(item)) })
-    .on("[data-entry-summary]", { element: el => el.setInnerContent((item.summary || "") + " Choose an agent to see its installation steps.") })
+    .on("[data-entry-summary]", { element: el => el.setInnerContent([listingSummary(item), "Choose an agent to see its installation steps."].filter(Boolean).join(" ")) })
     .on("head", { element: el => el.append("<style>[data-package-index] [data-index-browse]{display:none}</style>", { html: true }) })
     .on("title", { element: (el) => el.setInnerContent(title) })
     .on('meta[name="description"]', { element: (el) => el.setAttribute("content", description) })

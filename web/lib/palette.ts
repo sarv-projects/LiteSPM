@@ -18,10 +18,7 @@ import { vendorName } from "./vendorNames";
 import { loadCatalogCategories } from "./catalogData";
 import { tokenizeText } from "./searchFormat.mjs";
 import { AGENT_STORAGE_KEY, findAgentChoice } from "./landing";
-import {
-  ARCHITECTURE_URL,
-  DOCS_URL,
-} from "./site";
+import { ARCHITECTURE_URL } from "./site";
 import type { AgentChoice } from "./landing";
 import type { CategoryCount } from "./catalogData";
 
@@ -43,12 +40,9 @@ export interface PaletteDestination {
 /**
  * The site's own pages, in the order a developer looks for them.
  *
- * Every href here is a route that exists (or a section anchor the home page
- * really carries — `#install` is `DeveloperZone`'s own id). Nothing links
- * `/docs`, `/tour` or `/compare`: those are `DESIGNED` rows, not pages, and a
- * palette that offers a 404 is worse than one with a short docs list. The two
- * repository documents are named as what they are — external links, the same
- * ones the footer and the landing page's developer zone already use.
+ * Every href here resolves to a real route. Nothing links to a stale homepage
+ * section anchor: a palette that offers a dead destination is worse than one
+ * with a short docs list. The architecture index is named as an external link.
  */
 export const PALETTE_PAGES: PaletteDestination[] = [
   {
@@ -78,8 +72,8 @@ export const PALETTE_PAGES: PaletteDestination[] = [
   {
     key: "page:install",
     label: "Install LiteSPM",
-    detail: "npm install -g litespm · manual setup per agent",
-    href: "/#install",
+    detail: "Install the CLI and follow the guided setup",
+    href: "/get-started/",
   },
   {
     key: "page:home",
@@ -88,10 +82,10 @@ export const PALETTE_PAGES: PaletteDestination[] = [
     href: "/",
   },
   {
-    key: "doc:readme",
+    key: "page:docs",
     label: "Developer docs",
-    detail: "Setup, commands and integrations",
-    href: DOCS_URL,
+    detail: "Install, configure, manage and publish with LiteSPM",
+    href: "/docs/",
   },
   {
     key: "doc:architecture",

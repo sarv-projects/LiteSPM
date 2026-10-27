@@ -5,9 +5,8 @@ import (
 	"testing"
 )
 
-// TestAgentIDParityRows pins the reference installer's ids for the agents we
-// historically spelled differently (pi vs pi-agent, grok vs grok-build) and the
-// two targets we lacked (universal, warp), including their documented paths.
+// TestAgentIDParityRows pins distinct product ids and the two targets the
+// reference installer added (universal, warp), including their documented paths.
 func TestAgentIDParityRows(t *testing.T) {
 	for _, id := range []string{"universal", "warp", "pi", "grok"} {
 		if _, ok := LookupAgent(id); !ok {
@@ -18,15 +17,20 @@ func TestAgentIDParityRows(t *testing.T) {
 	home := useTempHome(t)
 	project := t.TempDir()
 
-	// Aliases resolve to the same directories as their canonical rows.
-	for _, pair := range [][2]string{{"pi", "pi-agent"}, {"grok", "grok-build"}} {
-		for _, scope := range []string{"project", "global"} {
-			aliasDir, aliasOK := AgentSkillDir(pair[0], scope, project, home)
-			canonicalDir, canonicalOK := AgentSkillDir(pair[1], scope, project, home)
-			if aliasOK != canonicalOK || aliasDir != canonicalDir {
-				t.Errorf("%s/%s resolves to %q,%v but %s/%s resolves to %q,%v",
-					pair[0], scope, aliasDir, aliasOK, pair[1], scope, canonicalDir, canonicalOK)
-			}
+	// These are separate products, even where their config formats overlap.
+	for _, c := range []struct{ agent, scope, want string }{
+		{"pi", "project", filepath.Join(project, ".agents", "skills")},
+		{"pi-agent", "project", filepath.Join(project, ".pi", "skills")},
+		{"pi", "global", filepath.Join(home, ".agents", "skills")},
+		{"pi-agent", "global", filepath.Join(home, ".pi", "agent", "skills")},
+		{"grok", "project", filepath.Join(project, ".agents", "skills")},
+		{"grok-build", "project", filepath.Join(project, ".grok", "skills")},
+		{"grok", "global", filepath.Join(home, ".agents", "skills")},
+		{"grok-build", "global", filepath.Join(home, ".grok", "skills")},
+	} {
+		got, ok := AgentSkillDir(c.agent, c.scope, project, home)
+		if !ok || got != c.want {
+			t.Errorf("%s/%s resolves to %q,%v, want %q", c.agent, c.scope, got, ok, c.want)
 		}
 	}
 

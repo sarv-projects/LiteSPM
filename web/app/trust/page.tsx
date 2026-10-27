@@ -1,10 +1,44 @@
 import type { Metadata } from "next";
 import { InfoPage, InfoSection } from "../../components/layout/InfoPage";
-export const metadata: Metadata = { title: "Your tools. Your machine. Your control.", description: "Understand what LiteSPM changes and how to stay in control.", alternates: { canonical: "/trust/" } };
-export default function Page() { return <InfoPage title={"Your tools. Your machine. Your control."} lede={"Understand what LiteSPM changes and how to stay in control."}>
-<InfoSection title={"Data and privacy"}><p>The CLI keeps its inventory and configuration changes locally. Read the <a className="link" href="/privacy/">Privacy Policy</a> for the website and CLI data-handling details.</p></InfoSection>
-<InfoSection title={"Preview and recovery"}><p>Installation shows the target agent, scope and planned changes before approval. Configuration writes are backed up. Use litespm list to find an install, litespm install remove to remove managed entries, and litespm restore to restore a configuration backup. Review the commands before applying them to a shared configuration.</p></InfoSection>
-<InfoSection title={"Package sources"}><p>Each package links to its source. A marketplace listing identifies where it was discovered; source ownership and security review are separate facts. Review third-party packages and the access they request before installing.</p></InfoSection>
-<InfoSection title={"Security and disclosure"}><p>Read the <a className="link" href="/security/">Security Policy</a> for installation protections and the vulnerability disclosure process.</p></InfoSection>
-<InfoSection title={"License and terms"}><p>LiteSPM is open source under <a className="link" href="https://github.com/sarv-projects/LiteSPM/blob/main/LICENSE">Apache-2.0</a>. See the <a className="link" href="/terms/">Terms of Use</a>.</p></InfoSection>
-</InfoPage>; }
+
+export const metadata: Metadata = {
+  title: "LiteSPM Trust Center",
+  description: "Check what LiteSPM changes, where catalog entries come from, and how to review its boundaries.",
+  alternates: { canonical: "/trust/" },
+};
+
+export default function TrustPage() {
+  return (
+    <InfoPage
+      title="Trust Center"
+      lede="Use these pages to verify what runs locally, how an install is reviewed, and what a catalog listing does and does not prove."
+      sourcePath="web/app/trust/page.tsx"
+    >
+      <InfoSection title="Changes stay reviewable">
+        <p>
+          LiteSPM runs on your machine. It shows the target and proposed change, asks before writing,
+          and backs up host configuration first. Managed installs can be listed, removed or restored
+          through the CLI. <a className="link" href="/how-it-works/">See the workflow</a> and the
+          <a className="link" href="/security/"> security policy</a> for implementation details.
+        </p>
+      </InfoSection>
+
+      <InfoSection title="Sources and compatibility are separate evidence">
+        <p>
+          Each catalog page identifies where its listing was found and links to the publisher source
+          when available. Compatibility means the listing has a setup path for an agent; it is not a
+          code review, security audit or sandbox. Review the publisher&rsquo;s instructions and the
+          permissions it requests before installing.
+        </p>
+      </InfoSection>
+
+      <InfoSection title="Data, availability and legal terms">
+        <ul className="list-disc space-y-2 pl-5">
+          <li><a className="link" href="/privacy/">Privacy</a> explains what the site stores in this browser and what the CLI sends.</li>
+          <li><a className="link" href="/status/">Catalog availability</a> reports a live endpoint check separately from the data refresh date.</li>
+          <li><a className="link" href="/terms/">Terms of use</a> and the <a className="link" href="https://github.com/sarv-projects/LiteSPM/blob/main/LICENSE">Apache-2.0 license</a> set out legal terms.</li>
+        </ul>
+      </InfoSection>
+    </InfoPage>
+  );
+}

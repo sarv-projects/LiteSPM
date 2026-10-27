@@ -32,11 +32,13 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sarv-projects/litespm/internal/catalog"
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/deployment"
 	"github.com/sarv-projects/litespm/internal/domain"
 	"github.com/sarv-projects/litespm/internal/host"
+	"github.com/sarv-projects/litespm/internal/skills"
 	"github.com/sarv-projects/litespm/internal/state"
 )
 
@@ -158,19 +160,41 @@ func (w *Wizard) readLine() (string, error) {
 	}
 }
 
+func (w *Wizard) confirmPrompt(title, description, fallbackPrompt, affirmative, negative string, defaultValue bool) (bool, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		return runTerminalConfirm(w.in, w.out, title, description, affirmative, negative, defaultValue)
+	}
+	fmt.Fprint(w.out, fallbackPrompt)
+	answer, err := w.readLine()
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(answer) == "" {
+		return defaultValue, nil
+	}
+	return isAffirmative(answer), nil
+}
+
+func (w *Wizard) inputPrompt(title, description, placeholder, fallbackPrompt string) (string, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		return runTerminalInput(w.in, w.out, title, description, placeholder)
+	}
+	fmt.Fprint(w.out, fallbackPrompt)
+	return w.readLine()
+}
+
 func (w *Wizard) printBanner() {
 	fmt.Fprintln(w.out, "")
 	if terminalUIAvailable(w.in, w.out) {
 		fmt.Fprintln(w.out, renderLiteSPMWordmark())
 		fmt.Fprintln(w.out, "Discover and manage MCP servers, skills, and plugins across your agents.")
-		fmt.Fprintln(w.out, "────────────────────────────────────────────────────────────────────────")
+		fmt.Fprintln(w.out, lipgloss.NewStyle().Foreground(lipgloss.Color("#45475a")).Render(strings.Repeat("─", min(terminalContentWidth(w.out, 68)-8, 68))))
 		fmt.Fprintln(w.out, "")
 		return
 	}
-	fmt.Fprintln(w.out, "┌────────────────────────────────────────────────────────────────────────┐")
-	fmt.Fprintln(w.out, "│                LiteSPM — setup and capability manager                  │")
-	fmt.Fprintln(w.out, "│                     for your AI coding agent                           │")
-	fmt.Fprintln(w.out, "└────────────────────────────────────────────────────────────────────────┘")
+	fmt.Fprintln(w.out, "LiteSPM  ·  Agent capability manager")
+	fmt.Fprintln(w.out, "MCP servers  ·  Agent skills  ·  Plugins")
+	fmt.Fprintln(w.out, strings.Repeat("─", 52))
 	fmt.Fprintln(w.out, "")
 }
 
@@ -179,8 +203,8 @@ func (w *Wizard) printBanner() {
 // this machine has been inspected yet.
 func (w *Wizard) printRuntimeSummary() {
 	adapters := host.ListAdapters()
-	fmt.Fprintf(w.out, "LiteSPM can connect to %d different agent hosts.\n", len(adapters))
-	fmt.Fprintln(w.out, "This run has not changed anything yet.")
+	fmt.Fprintf(w.out, "Connect and manage capabilities across %d supported agent hosts.\n", len(adapters))
+	fmt.Fprintln(w.out, "No files have been changed in this session.")
 	fmt.Fprintln(w.out, "")
 }
 
@@ -370,7 +394,7 @@ func (w *Wizard) promptAgentSelection(ctx context.Context) (host.HostAdapter, er
 func (w *Wizard) promptAgentSelectionTUI(rows, detected []agentMenuRow) (host.HostAdapter, error) {
 	options := make([]huh.Option[string], 0, len(detected)+3)
 	for _, row := range detected {
-		label := row.descriptor.DisplayName + "  ·  detected  ·  " + truncate(row.configPath, 48)
+		label := row.descriptor.DisplayName + "  ·  detected  ·  " + truncate(row.configPath, 36)
 		options = append(options, huh.NewOption(label, row.descriptor.HostID))
 	}
 	if len(detected) == 0 {
@@ -388,7 +412,10 @@ func (w *Wizard) promptAgentSelectionTUI(rows, detected []agentMenuRow) (host.Ho
 		Description("Detected configurations appear first. LiteSPM previews and backs up the exact file before writing.").
 		Options(options...).
 		Value(&choice).
-		WithHeight(12)
+		WithHeight(terminalSelectHeight(terminalContentWidth(w.out, 80)-8,
+			"Connect an AI coding agent",
+			"Detected configurations appear first. LiteSPM previews and backs up the exact file before writing.",
+			len(options), 10))
 	if err := runTerminalForm(w.in, w.out, field); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
 			return nil, nil
@@ -405,7 +432,7 @@ func (w *Wizard) promptAgentSelectionTUI(rows, detected []agentMenuRow) (host.Ho
 		for _, row := range rows {
 			label := row.descriptor.DisplayName
 			if row.exists {
-				label += "  ·  detected  ·  " + truncate(row.configPath, 48)
+				label += "  ·  detected  ·  " + truncate(row.configPath, 36)
 			}
 			all = append(all, huh.NewOption(label, row.descriptor.HostID))
 		}
@@ -415,7 +442,8 @@ func (w *Wizard) promptAgentSelectionTUI(rows, detected []agentMenuRow) (host.Ho
 			Description("Type / to filter the list; press Enter to continue.").
 			Options(all...).
 			Value(&selected).
-			WithHeight(16)
+			WithHeight(terminalSelectHeight(terminalContentWidth(w.out, 80)-8,
+				"Choose an agent", "Type / to filter the list; press Enter to continue.", len(all), 12))
 		if err := runTerminalForm(w.in, w.out, picker); err != nil {
 			if errors.Is(err, huh.ErrUserAborted) {
 				return nil, nil
@@ -466,13 +494,16 @@ func (w *Wizard) resolveAgentConfig(ctx context.Context, adapter host.HostAdapte
 	candidate, detectErr := adapter.DetectConfig(ctx, domain.ScopeUser)
 	if detectErr == nil && candidate != "" {
 		fmt.Fprintln(w.out, describeConfigTarget(name, candidate))
-		fmt.Fprint(w.out, "Use this file? [Y/n]: ")
-		line, err := w.readLine()
+		useFile, err := w.confirmPrompt(
+			"Use detected configuration file?",
+			fmt.Sprintf("LiteSPM will add one connection for %s at %s.", name, candidate),
+			"Use this file? [Y/n]: ",
+			"Use file", "Choose another", true,
+		)
 		if err != nil {
 			return "", false, err
 		}
-		switch strings.ToLower(line) {
-		case "", "y", "yes":
+		if useFile {
 			return candidate, true, nil
 		}
 	} else {
@@ -480,22 +511,48 @@ func (w *Wizard) resolveAgentConfig(ctx context.Context, adapter host.HostAdapte
 	}
 
 	for {
-		fmt.Fprintln(w.out, "")
-		fmt.Fprintln(w.out, "What would you like to do?")
-		fmt.Fprintln(w.out, "  [1] Type the full path of the configuration file")
-		fmt.Fprintln(w.out, "  [2] Print a snippet to paste into the file yourself")
-		fmt.Fprintln(w.out, "  [3] Look for the file again")
-		fmt.Fprintln(w.out, "  [q] Cancel setup")
-		fmt.Fprint(w.out, "Enter choice [1-3, q]: ")
-		choice, err := w.readLine()
-		if err != nil {
-			return "", false, err
+		var choice string
+		if terminalUIAvailable(w.in, w.out) {
+			var err error
+			choice, err = runTerminalSelect(w.in, w.out,
+				"Choose a configuration path",
+				"Select how LiteSPM should find the file used by "+name+".",
+				[]terminalOption{
+					{label: "Enter a file path", value: "1"},
+					{label: "Show the manual setup snippet", value: "2"},
+					{label: "Search again", value: "3"},
+					{label: "Cancel setup", value: "q"},
+				}, 6,
+			)
+			if err != nil {
+				return "", false, err
+			}
+			if choice == "" {
+				return "", false, nil
+			}
+		} else {
+			fmt.Fprintln(w.out, "")
+			fmt.Fprintln(w.out, "What would you like to do?")
+			fmt.Fprintln(w.out, "  [1] Type the full path of the configuration file")
+			fmt.Fprintln(w.out, "  [2] Print a snippet to paste into the file yourself")
+			fmt.Fprintln(w.out, "  [3] Look for the file again")
+			fmt.Fprintln(w.out, "  [q] Cancel setup")
+			fmt.Fprint(w.out, "Enter choice [1-3, q]: ")
+			var err error
+			choice, err = w.readLine()
+			if err != nil {
+				return "", false, err
+			}
 		}
 
 		switch choice {
 		case "1":
-			fmt.Fprint(w.out, "Full path: ")
-			custom, err := w.readLine()
+			custom, err := w.inputPrompt(
+				"Configuration file path",
+				"LiteSPM will use exactly this path and will not redirect it to another agent config.",
+				"/path/to/agent/settings.json",
+				"Full path: ",
+			)
 			if err != nil {
 				return "", false, err
 			}
@@ -518,13 +575,16 @@ func (w *Wizard) resolveAgentConfig(ctx context.Context, adapter host.HostAdapte
 				continue
 			}
 			fmt.Fprintln(w.out, describeConfigTarget(name, retry))
-			fmt.Fprint(w.out, "Use this file? [Y/n]: ")
-			line, err := w.readLine()
+			useFile, err := w.confirmPrompt(
+				"Use detected configuration file?",
+				fmt.Sprintf("LiteSPM will add one connection for %s at %s.", name, retry),
+				"Use this file? [Y/n]: ",
+				"Use file", "Choose another", true,
+			)
 			if err != nil {
 				return "", false, err
 			}
-			switch strings.ToLower(line) {
-			case "", "y", "yes":
+			if useFile {
 				return retry, true, nil
 			}
 
@@ -564,14 +624,16 @@ func (w *Wizard) applyAgentIntegration(ctx context.Context, adapter host.HostAda
 		fmt.Fprintf(w.out, "  … and %d more changed line(s)\n", hidden)
 	}
 	fmt.Fprintln(w.out, "\nEverything else in the file is left as it is.")
-	fmt.Fprint(w.out, "Write this change? [Y/n]: ")
-	line, err := w.readLine()
+	approved, err := w.confirmPrompt(
+		"Apply this agent connection?",
+		fmt.Sprintf("Write one LiteSPM entry to %s. A backup is saved before the change.", plan.ConfigPath),
+		"Write this change? [Y/n]: ",
+		"Write change", "Keep file unchanged", true,
+	)
 	if err != nil {
 		return err
 	}
-	switch strings.ToLower(line) {
-	case "", "y", "yes":
-	default:
+	if !approved {
 		fmt.Fprintln(w.out, "Nothing was written.")
 		return nil
 	}
@@ -645,12 +707,13 @@ func changePreview(original, proposed string, maxLines int) ([]string, int) {
 func (w *Wizard) printNextStep(adapter host.HostAdapter) {
 	d := adapter.Descriptor()
 	trigger := d.SlashCommandTrigger
-	if trigger == "" {
-		trigger = "/marketplace"
-	}
 	fmt.Fprintln(w.out, "")
 	fmt.Fprintln(w.out, "Next:")
-	fmt.Fprintf(w.out, "  • Start %s and type %s to browse and install capabilities.\n", d.DisplayName, trigger)
+	if trigger != "" {
+		fmt.Fprintf(w.out, "  • Start %s and type %s to browse and install capabilities.\n", d.DisplayName, trigger)
+	} else {
+		fmt.Fprintf(w.out, "  • In %s, ask it to browse the LiteSPM marketplace using its connected MCP tools.\n", d.DisplayName)
+	}
 	fmt.Fprintln(w.out, "  • Or stay here: this wizard can update the catalog, install and remove things too.")
 }
 
@@ -705,7 +768,8 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 					huh.NewOption("Finish", "q"),
 				).
 				Value(&choice).
-				WithHeight(10)
+				WithHeight(terminalSelectHeight(terminalContentWidth(w.out, 80)-8,
+					"LiteSPM Manager", "Choose an action. Use ↑/↓ to move, Enter to select, or / to filter.", 7, 7))
 			if err := runTerminalForm(w.in, w.out, field); err != nil {
 				if errors.Is(err, huh.ErrUserAborted) {
 					return nil
@@ -868,14 +932,16 @@ func (w *Wizard) actionSyncCatalog(ctx context.Context) error {
 	} else {
 		fmt.Fprintf(w.out, "The local copy currently holds %d capabilities; this replaces it with the latest published list.\n", catClient.Count())
 	}
-	fmt.Fprint(w.out, "Download it now? [Y/n]: ")
-	line, err := w.readLine()
+	download, err := w.confirmPrompt(
+		"Update the capability catalog?",
+		fmt.Sprintf("Download the published capability list from %s. This installs nothing and changes no agent configuration.", regURL),
+		"Download it now? [Y/n]: ",
+		"Update catalog", "Keep current catalog", true,
+	)
 	if err != nil {
 		return err
 	}
-	switch strings.ToLower(line) {
-	case "", "y", "yes":
-	default:
+	if !download {
 		fmt.Fprintln(w.out, "Not downloaded.")
 		return nil
 	}
@@ -911,6 +977,197 @@ func (w *Wizard) actionSyncCatalog(ctx context.Context) error {
 // installs the chosen one through the SAME gate the CLI uses:
 // authorizeHumanInstall (plan + human approval + policy) and then
 // installSkillFromListing / installMCPFromListing.
+type wizardCatalogCandidate struct {
+	listing *domain.Listing
+	reason  string
+}
+
+func (w *Wizard) promptCatalogSearch() (string, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		query := ""
+		field := huh.NewInput().
+			Title("Find a capability").
+			Description("Search MCP servers, agent skills, and plugins.").
+			Placeholder("github, postgres, context7").
+			Value(&query)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return "", nil
+			}
+			return "", err
+		}
+		return strings.TrimSpace(query), nil
+	}
+	fmt.Fprint(w.out, "\nSearch capabilities (e.g. github, postgres, context7): ")
+	query, err := w.readLine()
+	return strings.TrimSpace(query), err
+}
+
+func (w *Wizard) selectCatalogResult(query string, candidates []wizardCatalogCandidate) (int, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		options := make([]huh.Option[string], 0, len(candidates))
+		for i, candidate := range candidates {
+			l := candidate.listing
+			label := fmt.Sprintf("%-21s · %-8s · %s", truncate(l.Name, 21), truncate(kindLabel(l.Kind), 8), truncate(l.Summary, 28))
+			options = append(options, huh.NewOption(label, strconv.Itoa(i)))
+		}
+		selected := ""
+		field := huh.NewSelect[string]().
+			Title(fmt.Sprintf("Choose a capability · %d available", len(candidates))).
+			Description(fmt.Sprintf("Matches for %q. Use / to filter, Enter to review, Esc to go back.", query)).
+			Options(options...).
+			Value(&selected).
+			WithHeight(terminalSelectHeight(terminalContentWidth(w.out, 80)-8,
+				fmt.Sprintf("Choose a capability · %d available", len(candidates)),
+				fmt.Sprintf("Matches for %q. Use / to filter, Enter to review, Esc to go back.", query),
+				len(options), 12))
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return -1, nil
+			}
+			return -1, err
+		}
+		index, err := strconv.Atoi(selected)
+		if err != nil {
+			return -1, nil
+		}
+		return index, nil
+	}
+	fmt.Fprint(w.out, "\nChoose a result to review (or press Enter to go back): ")
+	line, err := w.readLine()
+	if err != nil {
+		return -1, err
+	}
+	if strings.TrimSpace(line) == "" {
+		return -1, nil
+	}
+	index, err := strconv.Atoi(line)
+	if err != nil || index < 1 || index > len(candidates) {
+		fmt.Fprintf(w.out, "Choose a number from 1 to %d.\n", len(candidates))
+		return -1, nil
+	}
+	return index - 1, nil
+}
+
+func (w *Wizard) promptInstallScope() (string, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		scope := "user"
+		field := huh.NewSelect[string]().
+			Title("Installation scope").
+			Description("Choose where LiteSPM should make this capability available.").
+			Options(
+				huh.NewOption("All your agents  ·  available across projects", "user").Selected(true),
+				huh.NewOption("This project  ·  available from this repository", "project"),
+			).
+			Value(&scope)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return "", nil
+			}
+			return "", err
+		}
+		return scope, nil
+	}
+	fmt.Fprint(w.out, "\nInstall for all your agents on this machine [1], or only for this project [2]? [1]: ")
+	answer, err := w.readLine()
+	if err != nil {
+		return "", err
+	}
+	if answer == "2" {
+		return "project", nil
+	}
+	return "user", nil
+}
+
+func (w *Wizard) confirmCatalogInstall(listing *domain.Listing, scope domain.InstallScope) (bool, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		approved := false
+		field := huh.NewConfirm().
+			Title("Review installation").
+			Description(fmt.Sprintf("Install %s (%s) for %s? LiteSPM will show the plan and ask for approval before writing.", listing.Name, kindLabel(listing.Kind), installScopeLabel(scope))).
+			Affirmative("Continue").
+			Negative("Cancel").
+			Value(&approved)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return false, nil
+			}
+			return false, err
+		}
+		return approved, nil
+	}
+	fmt.Fprintf(w.out, "Install %s (%s) for %s? [Y/n]: ", listing.Name, kindLabel(listing.Kind), installScopeLabel(scope))
+	answer, err := w.readLine()
+	if err != nil {
+		return false, err
+	}
+	switch strings.ToLower(answer) {
+	case "", "y", "yes":
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
+// wizardInstallabilityReason identifies failures before showing an install
+// choice. Search can still find these entries, but the picker must not make an
+// impossible install look ready and ask for consent before reporting why.
+func wizardInstallabilityReason(catClient *catalog.Client, listing *domain.Listing) string {
+	if listing == nil {
+		return "This catalog entry is incomplete."
+	}
+	if refusal := installKindRefusal(listing); refusal != nil {
+		return wizardInstallErrorMessage(listing, refusal)
+	}
+	if !listing.IsInstallable() {
+		return "No verified install source is published for this listing."
+	}
+	switch listing.Kind {
+	case domain.KindSkill:
+		sourceURL := strings.TrimSpace(listing.Source.URL)
+		if sourceURL == "" {
+			return "The publisher has not provided a skill source URL."
+		}
+		source, err := skills.ParseSkillSource(sourceURL)
+		if err != nil || (!source.Git && source.Kind != "local") {
+			return "The published skill source cannot be fetched by this LiteSPM build."
+		}
+	case domain.KindMCP:
+		if _, err := catClient.RuntimeForListing(listing.ID, "latest"); err != nil {
+			return "The catalog has no usable runtime definition for this server."
+		}
+	case domain.KindPlugin:
+		record, err := catClient.VersionRecordFor(listing.ID, catalogRecordVersion(""))
+		if err != nil {
+			return "No published plugin version is available to install."
+		}
+		if _, err := pluginArtifactFor(listing, record); err != nil {
+			return wizardInstallErrorMessage(listing, err)
+		}
+	}
+	return ""
+}
+
+func wizardInstallErrorMessage(listing *domain.Listing, err error) string {
+	if listing != nil && listing.Kind == domain.KindPlugin {
+		var lpsmErr *domain.LPSMError
+		if errors.As(err, &lpsmErr) {
+			if detail, ok := lpsmErr.Details["detail"].(string); ok {
+				switch {
+				case strings.Contains(detail, "local-dir"):
+					return "The published source is local-only; plugin installs need a pinned Git repository."
+				case strings.Contains(detail, "not pinned"):
+					return "The published Git source is not pinned to an immutable commit."
+				case strings.Contains(detail, "no artifact"):
+					return "The publisher has not attached an installable artifact."
+				}
+			}
+		}
+		return "No fetchable, commit-pinned Git source is published for this plugin."
+	}
+	return "This listing does not have a usable install source."
+}
+
 func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 	catClient := w.catalog()
 	if catClient.Count() == 0 {
@@ -919,13 +1176,12 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		return nil
 	}
 
-	fmt.Fprint(w.out, "\nWhat are you looking for? (for example: github, postgres, pdf) ")
-	query, err := w.readLine()
+	query, err := w.promptCatalogSearch()
 	if err != nil {
 		return err
 	}
 	if query == "" {
-		fmt.Fprintln(w.out, "No search text was entered.")
+		fmt.Fprintln(w.out, "Search cancelled.")
 		return nil
 	}
 
@@ -934,48 +1190,73 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		fmt.Fprintf(w.out, "Nothing in the catalog matches %q.\n", query)
 		return nil
 	}
-	fmt.Fprintf(w.out, "\nFound %d capabilities matching %q:\n\n", len(results), query)
-	for i, res := range results {
-		l := res.Listing
-		fmt.Fprintf(w.out, "  [%d] %-30s %-11s %s\n", i+1, truncate(l.Name, 30), kindLabel(l.Kind), truncate(l.Summary, 60))
-		fmt.Fprintf(w.out, "      id: %s\n", l.ID)
+	available := make([]wizardCatalogCandidate, 0, len(results))
+	var unavailable []wizardCatalogCandidate
+	for _, result := range results {
+		c := wizardCatalogCandidate{listing: result.Listing}
+		c.reason = wizardInstallabilityReason(catClient, c.listing)
+		if c.reason == "" {
+			available = append(available, c)
+		} else {
+			unavailable = append(unavailable, c)
+		}
 	}
-	fmt.Fprint(w.out, "\nEnter the number to install (or press Enter to go back): ")
-	line, err := w.readLine()
+	fmt.Fprintf(w.out, "\n%d matches for %q · %d ready to install", len(results), query, len(available))
+	if len(unavailable) > 0 {
+		fmt.Fprintf(w.out, " · %d unavailable", len(unavailable))
+	}
+	fmt.Fprintln(w.out)
+	if terminalUIAvailable(w.in, w.out) {
+		fmt.Fprintln(w.out, "")
+		fmt.Fprintln(w.out, "Unavailable results are excluded from the picker.")
+	} else {
+		fmt.Fprintln(w.out, "")
+		for i, item := range available {
+			l := item.listing
+			fmt.Fprintf(w.out, "  [%d] %-30s %-11s %s\n", i+1, truncate(l.Name, 30), kindLabel(l.Kind), truncate(l.Summary, 60))
+			fmt.Fprintf(w.out, "      %s\n", l.ID)
+		}
+	}
+	if len(unavailable) > 0 {
+		fmt.Fprintln(w.out, "\nNot available for installation:")
+		for i, item := range unavailable {
+			if i == 5 {
+				fmt.Fprintf(w.out, "  and %d more\n", len(unavailable)-i)
+				break
+			}
+			fmt.Fprintf(w.out, "  • %s (%s): %s\n", item.listing.Name, kindLabel(item.listing.Kind), item.reason)
+		}
+	}
+	if len(available) == 0 {
+		fmt.Fprintln(w.out, "\nNone of these matches has a usable install source yet.")
+		return nil
+	}
+	selected, err := w.selectCatalogResult(query, available)
 	if err != nil {
 		return err
 	}
-	if line == "" {
+	if selected < 0 || selected >= len(available) {
 		return nil
 	}
-	n, nerr := strconv.Atoi(line)
-	if nerr != nil || n < 1 || n > len(results) {
-		fmt.Fprintln(w.out, "That is not one of the numbers shown.")
-		return nil
-	}
-	listing := results[n-1].Listing
-	// Kind gate first: a plugin is refused before the scope and consent
-	// questions, because the install cannot be performed whatever the answers
-	// would be — asking first and refusing after is a question that was never
-	// the user's to answer.
-	if refusal := installKindRefusal(listing); refusal != nil {
-		fmt.Fprintf(w.out, "\nLiteSPM cannot install %s yet: %v\n", listing.Name, refusal)
-		fmt.Fprintln(w.out, "Nothing was changed.")
-		return nil
-	}
-	if !listing.IsInstallable() {
-		fmt.Fprintf(w.out, "\n%s is catalog metadata only: it has no verified source, so LiteSPM cannot install it.\n", listing.Name)
-		return nil
+	listing := available[selected].listing
+	if terminalUIAvailable(w.in, w.out) {
+		fmt.Fprintln(w.out, "")
+		fmt.Fprintln(w.out, renderCapabilityCard(terminalContentWidth(w.out, 80), listing.Name, kindLabel(listing.Kind), listing.ID, listing.Summary))
+	} else {
+		fmt.Fprintf(w.out, "\nSelected: %s · %s\n%s\n", listing.Name, kindLabel(listing.Kind), listing.Summary)
 	}
 
-	fmt.Fprint(w.out, "\nInstall for all your agents on this machine [1], or only for this project [2]? [1]: ")
-	scopeChoice, err := w.readLine()
+	scopeChoice, err := w.promptInstallScope()
 	if err != nil {
 		return err
+	}
+	if scopeChoice == "" {
+		fmt.Fprintln(w.out, "Installation cancelled.")
+		return nil
 	}
 	scope := domain.ScopeUser
 	projectRoot := ""
-	if scopeChoice == "2" {
+	if scopeChoice == "project" {
 		cwd, cerr := os.Getwd()
 		if cerr != nil {
 			fmt.Fprintf(w.out, "Could not find the current directory: %v\n", cerr)
@@ -990,15 +1271,38 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		projectRoot = abs
 	}
 
-	fmt.Fprintf(w.out, "Install %s (%s) for %s? [Y/n]: ", listing.Name, kindLabel(listing.Kind), installScopeLabel(scope))
-	confirm, err := w.readLine()
+	// Resolve all known prerequisites before consent. A person should not be
+	// asked to approve an install LiteSPM already knows it cannot perform.
+	var mcpBinding *mcpInstallBinding
+	if listing.Kind == domain.KindMCP || listing.Kind == domain.KindPlugin {
+		targetHosts := host.RegisteredBridgeHosts(ctx, scope)
+		if len(targetHosts) == 0 {
+			if listing.Kind == domain.KindPlugin {
+				fmt.Fprintln(w.out, "Cannot install this plugin yet: no agent has the LiteSPM bridge set up for this scope.")
+			} else {
+				fmt.Fprintln(w.out, "Cannot install this server yet: no agent has the LiteSPM bridge set up for this scope.")
+			}
+			fmt.Fprintln(w.out, "Choose the agent setup action first, then return to this result.")
+			return nil
+		}
+		mcpBinding = &mcpInstallBinding{Hosts: uniqueHostIDs(targetHosts)}
+	}
+	if listing.Kind == domain.KindMCP {
+		runtime, rerr := catClient.RuntimeForListing(listing.ID, "latest")
+		if rerr != nil {
+			fmt.Fprintf(w.out, "This server has no usable runtime definition: %s\n", wizardInstallErrorMessage(listing, rerr))
+			fmt.Fprintln(w.out, "Nothing was changed.")
+			return nil
+		}
+		mcpBinding.Runtime = runtime
+	}
+
+	confirmed, err := w.confirmCatalogInstall(listing, scope)
 	if err != nil {
 		return err
 	}
-	switch strings.ToLower(confirm) {
-	case "", "y", "yes":
-	default:
-		fmt.Fprintln(w.out, "Not installed.")
+	if !confirmed {
+		fmt.Fprintln(w.out, "Installation cancelled.")
 		return nil
 	}
 
@@ -1015,37 +1319,6 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 	// An MCP server is registered in every agent that has the LiteSPM bridge.
 	// The target set is captured here, before the plan is sealed, exactly as
 	// `litespm install` captures it.
-	var mcpBinding *mcpInstallBinding
-	if listing.Kind == domain.KindMCP {
-		runtime, rerr := catClient.RuntimeForListing(listing.ID, "latest")
-		if rerr != nil {
-			fmt.Fprintf(w.out, "Cannot install %s: %v\n", listing.Name, domain.ErrArtifactUnavailable(listing.ID, rerr.Error()))
-			return nil
-		}
-		targetHosts := host.RegisteredBridgeHosts(ctx, scope)
-		if len(targetHosts) == 0 {
-			fmt.Fprintln(w.out, "Cannot install an MCP server yet: no agent has the LiteSPM bridge set up for this scope.")
-			fmt.Fprintln(w.out, "Choose [5] to set up an agent, or run: litespm host setup <host-id>")
-			return nil
-		}
-		mcpBinding = &mcpInstallBinding{Hosts: uniqueHostIDs(targetHosts), Runtime: runtime}
-	}
-
-	// A plugin is installed like an MCP server: the pinned tree is fetched,
-	// its manifest is read, the servers it declares are registered in the
-	// target hosts' configs and its skills are copied into their skills trees.
-	// It needs the same target set, and it has no runtime of its own — the
-	// launch lines come out of the manifest inside the pinned tree.
-	if listing.Kind == domain.KindPlugin {
-		targetHosts := host.RegisteredBridgeHosts(ctx, scope)
-		if len(targetHosts) == 0 {
-			fmt.Fprintln(w.out, "Cannot install a plugin yet: no agent has the LiteSPM bridge set up for this scope.")
-			fmt.Fprintln(w.out, "Choose [5] to set up an agent, or run: litespm host setup <host-id>")
-			return nil
-		}
-		mcpBinding = &mcpInstallBinding{Hosts: uniqueHostIDs(targetHosts)}
-	}
-
 	// The wizard resolves a skill's targets exactly as the CLI does — the
 	// detected set — and the plan seals them, so the writes below are the ones
 	// the reader was shown before answering yes. A future agent on this machine
@@ -1074,8 +1347,10 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			fmt.Fprintln(w.out, "Nothing was changed.")
 			return nil
 		}
-		outcome, ierr := installSkillFromListing(grantCtx, db, w.paths.DataRoot, projectRoot, home,
-			listing, versionOrLatest(""), scope, agents, grant.Plan)
+		outcome, ierr := runWithSpinner(grantCtx, w.in, w.out, "Installing skill "+listing.Name, func() (*skillInstallOutcome, error) {
+			return installSkillFromListing(grantCtx, db, w.paths.DataRoot, projectRoot, home,
+				listing, versionOrLatest(""), scope, agents, grant.Plan)
+		})
 		if ierr != nil {
 			grant.refund(grantCtx, db)
 			fmt.Fprintf(w.out, "Install failed: %v\n", ierr)
@@ -1105,17 +1380,23 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 			return nil
 		}
-		outcome, ierr := installPluginFromListing(grantCtx, db, w.paths.DataRoot, listing, grant.Version, scope, projectRoot, pluginBinding)
+		outcome, ierr := runWithSpinner(grantCtx, w.in, w.out, "Installing plugin "+listing.Name, func() (*pluginInstallOutcome, error) {
+			return installPluginFromListing(grantCtx, db, w.paths.DataRoot, listing, grant.Version, scope, projectRoot, pluginBinding)
+		})
 		if ierr != nil {
 			if domain.ErrorCode(ierr) == "LPSM-INSTALL-PARTIAL" {
 				grant.refund(grantCtx, db)
 				fmt.Fprintf(w.out, "\n%s\n", ierr)
-				fmt.Fprint(w.out, "Install the parts LiteSPM can install, and leave the rest out? [y/N]: ")
-				answer, aerr := w.readLine()
+				allowPartial, aerr := w.confirmPrompt(
+					"Install supported parts only?",
+					"This plugin includes components LiteSPM cannot install. Continue with only the supported components?",
+					"Install the parts LiteSPM can install, and leave the rest out? [y/N]: ",
+					"Install supported parts", "Cancel", false,
+				)
 				if aerr != nil {
 					return aerr
 				}
-				if !isAffirmative(answer) {
+				if !allowPartial {
 					fmt.Fprintln(w.out, "Not installed. Nothing was changed.")
 					return nil
 				}
@@ -1138,7 +1419,9 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 					fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 					return nil
 				}
-				outcome, ierr = installPluginFromListing(partialCtx, db, w.paths.DataRoot, listing, partialGrant.Version, scope, projectRoot, partialPlan)
+				outcome, ierr = runWithSpinner(partialCtx, w.in, w.out, "Installing supported plugin components", func() (*pluginInstallOutcome, error) {
+					return installPluginFromListing(partialCtx, db, w.paths.DataRoot, listing, partialGrant.Version, scope, projectRoot, partialPlan)
+				})
 				if ierr != nil {
 					partialGrant.refund(partialCtx, db)
 					fmt.Fprintf(w.out, "Install failed: %v\n", ierr)
@@ -1277,40 +1560,71 @@ func (w *Wizard) actionRemove(ctx context.Context, db *state.DB) error {
 		return nil
 	}
 
-	fmt.Fprintln(w.out, "\nLiteSPM installed these. Choose one to remove:")
-	fmt.Fprintln(w.out, "")
-	for i, it := range items {
-		fmt.Fprintf(w.out, "  [%d] %s\n", i+1, it.label)
-		for _, dest := range it.dests {
-			fmt.Fprintf(w.out, "      %s\n", dest)
+	var item removableItem
+	if terminalUIAvailable(w.in, w.out) {
+		options := make([]terminalOption, 0, len(items))
+		for i, it := range items {
+			options = append(options, terminalOption{
+				label: fmt.Sprintf("%s  ·  %d destination(s)", it.label, len(it.dests)),
+				value: strconv.Itoa(i),
+			})
 		}
+		selected, err := runTerminalSelect(w.in, w.out,
+			"Choose an installation to remove",
+			"LiteSPM will show the exact files before asking you to confirm.",
+			options, 12,
+		)
+		if err != nil {
+			return err
+		}
+		if selected == "" {
+			return nil
+		}
+		index, err := strconv.Atoi(selected)
+		if err != nil || index < 0 || index >= len(items) {
+			return nil
+		}
+		item = items[index]
+	} else {
+		fmt.Fprintln(w.out, "\nLiteSPM installed these. Choose one to remove:")
+		fmt.Fprintln(w.out, "")
+		for i, it := range items {
+			fmt.Fprintf(w.out, "  [%d] %s\n", i+1, it.label)
+			for _, dest := range it.dests {
+				fmt.Fprintf(w.out, "      %s\n", dest)
+			}
+		}
+		fmt.Fprint(w.out, "\nEnter the number to remove (or press Enter to go back): ")
+		line, err := w.readLine()
+		if err != nil {
+			return err
+		}
+		if line == "" {
+			return nil
+		}
+		n, nerr := strconv.Atoi(line)
+		if nerr != nil || n < 1 || n > len(items) {
+			fmt.Fprintln(w.out, "That is not one of the numbers shown.")
+			return nil
+		}
+		item = items[n-1]
 	}
-	fmt.Fprint(w.out, "\nEnter the number to remove (or press Enter to go back): ")
-	line, err := w.readLine()
-	if err != nil {
-		return err
-	}
-	if line == "" {
-		return nil
-	}
-	n, nerr := strconv.Atoi(line)
-	if nerr != nil || n < 1 || n > len(items) {
-		fmt.Fprintln(w.out, "That is not one of the numbers shown.")
-		return nil
-	}
-	item := items[n-1]
 
 	fmt.Fprintln(w.out, "\nThis will delete:")
 	for _, dest := range item.dests {
 		fmt.Fprintf(w.out, "  • %s\n", dest)
 	}
 	fmt.Fprintln(w.out, "Only the parts LiteSPM wrote are removed; anything you edited or added is kept.")
-	fmt.Fprint(w.out, "Remove it? [y/N]: ")
-	confirm, err := w.readLine()
+	confirm, err := w.confirmPrompt(
+		"Remove this installation?",
+		"Only LiteSPM-managed files shown above will be removed. User edits are kept.",
+		"Remove it? [y/N]: ",
+		"Remove installation", "Keep installation", false,
+	)
 	if err != nil {
 		return err
 	}
-	if !strings.EqualFold(confirm, "y") && !strings.EqualFold(confirm, "yes") {
+	if !confirm {
 		fmt.Fprintln(w.out, "Nothing was removed.")
 		return nil
 	}

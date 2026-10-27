@@ -2558,6 +2558,9 @@
 .home-addition-card strong { color: var(--ink); font-size: 12px; }
 .home-addition-card small { color: var(--ink-2); font-size: 12px; }
 .home-addition-kind { border-radius: 5px; background: #e9edff; color: #3157f6; padding: 4px 6px; font: 12px var(--font-mono); }
+.home-hero-destination { display: grid; gap: 5px; margin: 10px 0 0 38px; border-left: 2px solid var(--accent-text); background: var(--sunken); padding: 9px 11px; }
+.home-hero-destination > span { color: var(--ink-3); font: 10px var(--font-mono); letter-spacing: .06em; }
+.home-hero-destination code { color: var(--ink); font: 11px var(--font-mono); overflow-wrap: anywhere; }
 .home-hero-flow { padding: 13px 4px 1px; color: var(--ink-2); font-size: 12px; }
 .home-hero-flow i { padding: 0 5px; color: #8fa297; font-style: normal; }
 .home-hero-note { position: relative; display: flex; align-items: center; gap: 11px; width: 88%; margin: -8px 0 0 auto; border-radius: 10px; background: #3157f6; box-shadow: 0 12px 22px rgba(49,87,246,.18); color: var(--surface); padding: 15px 17px; }
@@ -2653,7 +2656,9 @@
 .home-addition-card:hover { background: var(--hover); }
 .cli-story { background: var(--sunken); }
 .agent-directory-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,280px),1fr)); gap: 16px; }
-.agent-directory-grid .agent-atlas-card { min-width: 0; }
+.agent-directory-grid { overflow: visible; scroll-snap-type: none; }
+.agent-directory-grid .agent-atlas-card { min-width: 0; min-height: 0; flex: initial; }
+.agent-directory-heading { padding-top: clamp(24px, 4vw, 42px); }
 .query-pending [data-explore-results] > * { visibility: hidden; }
 .query-pending [data-explore-results]::before { content: "Applying your search and filters…"; display:block; color:var(--ink-2); padding:24px 0; }
 
@@ -3038,6 +3043,10 @@
   margin-top: 16px !important;
   font-size: clamp(1rem, 1.35vw, 1.16rem) !important;
   line-height: 1.75 !important;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 @media (max-width: 1023px) {
   .market-site-header-inner { border-radius: 16px; padding-inline: 14px; }

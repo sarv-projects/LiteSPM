@@ -67,6 +67,17 @@ export const HOST_NOTES: Record<string, HostNote> = {
       "Works with any LLM provider you configure API keys for",
     ],
   },
+  grok: {
+    summary: "Grok CLI is an open source terminal coding agent. Start it in a project and ask it to inspect, edit and run code; it connects to xAI's Grok models with an API key.",
+    interface: "Terminal CLI",
+    website: "https://github.com/superagent-ai/grok-cli",
+    source: "https://github.com/superagent-ai/grok-cli#readme",
+    capabilities: [
+      "Reads and edits files in the current project",
+      "Runs project commands from the terminal",
+      "Connects MCP servers from project settings",
+    ],
+  },
   "grok-build": {
     summary: "Grok Build is xAI's coding agent that runs in your terminal. Give it a task in a project folder and it works through your code in an interactive TUI, or run it headlessly from a script.",
     interface: "Terminal CLI (interactive TUI, headless, or ACP)",
@@ -80,10 +91,10 @@ export const HOST_NOTES: Record<string, HostNote> = {
   },
 
   "pi-agent": {
-    summary: "Pi is an extensible AI agent that works from your terminal. Give it a goal and a working folder, and it inspects files, runs commands, edits content, and works through multi-step tasks. Use it as is, prompt it to adapt itself to your workflow, or build on it with the SDK.",
+    summary: "Pi Agent is an extensible coding agent that runs from your terminal. Start it in a project to inspect files, run commands, edit content and work through multi-step tasks, or build on its SDK.",
     interface: "Terminal CLI",
-    website: "https://pi.dev",
-    source: "https://pi.dev/docs/latest",
+    website: "https://github.com/pipiha/pi-agent",
+    source: "https://github.com/pipiha/pi-agent#readme",
     capabilities: [
       "Inspects files, runs commands and edits content through multi-step tasks",
       "Resume or branch a saved session without losing history",

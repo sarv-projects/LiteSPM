@@ -112,6 +112,7 @@ const mf = new Miniflare(
     modules: [
       { type: "ESModule", path: fileURLToPath(new URL(config.main, repoRoot)) },
       { type: "ESModule", path: fileURLToPath(new URL("web/lib/discovery.mjs", repoRoot)) },
+      { type: "ESModule", path: fileURLToPath(new URL("web/lib/listingSummary.mjs", repoRoot)) },
     ],
     compatibilityDate: config.compatibility_date,
     assets: {

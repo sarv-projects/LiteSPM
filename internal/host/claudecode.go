@@ -22,7 +22,7 @@ func (a *ClaudeCodeAdapter) Descriptor() HostDescriptor {
 		ConfigFormat:           "json",
 		SupportsFormElicit:     false,
 		RequiresBootstrapSkill: true,
-		SlashCommandTrigger:    "/marketplace",
+		SlashCommandTrigger:    "/mcp__litespm__marketplace",
 	}
 }
 

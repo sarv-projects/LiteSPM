@@ -10,9 +10,8 @@ import React from "react";
  * prints, because the same file lives in a different place on each platform —
  * and the name of the terminal to open. It changes nothing about the reader's
  * machine: there is no detection, no system call and nothing sent anywhere.
- * "Not sure" is a first-class answer, and the guide then prints the documented
- * path and says that it does not guess a Windows location for the hosts that
- * do not publish one.
+ * "Not sure" is a first-class answer: the guide does not assume a platform
+ * path until the reader chooses one.
  *
  * A native radio group, not a row of toggle buttons: four mutually exclusive
  * answers are a radio group, and the arrow-key behaviour and the announced
@@ -25,7 +24,7 @@ export const OS_CHOICES: Array<{ id: GuideOS; label: string; hint: string }> = [
   { id: "windows", label: "Windows", hint: "PowerShell or Command Prompt" },
   { id: "macos", label: "macOS", hint: "Terminal" },
   { id: "linux", label: "Linux", hint: "any shell" },
-  { id: "unsure", label: "Not sure", hint: "the guide will say which path it shows" },
+  { id: "unsure", label: "Not sure", hint: "no platform path is assumed" },
 ];
 
 /** The terminal to open, per platform. "Not sure" gets the generic name. */

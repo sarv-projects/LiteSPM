@@ -1,5 +1,6 @@
 import featured from "../data/featured.json";
 import { normalizeListing, listingIdentity, uniqueListings } from "./discovery.mjs";
+import { listingSummary } from "./listingSummary.mjs";
 // Catalog derivation helpers shared by Explore, Coverage, Agents and Categories.
 // Everything is computed from a row set that is handed in — no module state, no
 // JSON import, no `"use client"`. That is deliberate:
@@ -115,6 +116,8 @@ export function displayListingName(
 ): string {
   const name = item.name.trim();
   const labels: Record<string, string> = {
+    "42crunch": "42Crunch",
+    ai: "AI",
     api: "API",
     cli: "CLI",
     css: "CSS",
@@ -126,6 +129,9 @@ export function displayListingName(
     pdf: "PDF",
     pptx: "Presentations",
     sql: "SQL",
+    sdk: "SDK",
+    ui: "UI",
+    ux: "UX",
     xlsx: "Spreadsheets",
   };
   const directLabel = labels[name.toLowerCase()];
@@ -133,7 +139,7 @@ export function displayListingName(
 
   const parts = name.split(/[/.]+/).filter(Boolean);
   const leaf = parts.at(-1) ?? name;
-  const machineLike = !/\s/u.test(name) && (name.includes("/") || /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/iu.test(name));
+  const machineLike = !/\s/u.test(name) && (name.includes("/") || /[-_]/u.test(name) || /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/iu.test(name));
   const publisher = publisherDisplayName(item.publisher?.name);
 
   if (item.kind === "mcp" && machineLike && /(?:^|-)mcp(?:-server)?$/iu.test(leaf)) {
@@ -148,8 +154,18 @@ export function displayListingName(
     return labels[leaf.toLowerCase()] ?? leaf.replace(/[-_.]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
 
-  return name;
+  if (machineLike && /[-_]/u.test(name)) {
+    return name
+      .split(/[-_.]+/u)
+      .filter(Boolean)
+      .map((word) => labels[word.toLowerCase()] ?? `${word[0].toUpperCase()}${word.slice(1)}`)
+      .join(" ");
+  }
+
+  return name.replace(/\b(api|ai|cli|css|docx|github|html|mcp|openai|pdf|pptx|sdk|sql|ui|ux|xlsx)\b/giu, (word) => labels[word.toLowerCase()] ?? word);
 }
+
+export { listingSummary };
 
 /**
  * Sort modes are limited to axes the data actually carries.

@@ -1,8 +1,42 @@
 import type { Metadata } from "next";
 import { InfoPage, InfoSection } from "../../components/layout/InfoPage";
-export const metadata: Metadata = { title: "Built for people who use AI agents", description: "LiteSPM brings discovery, installation and management into one place.", alternates: { canonical: "/about/" } };
-export default function Page() { return <InfoPage title={"Built for people who use AI agents"} lede={"LiteSPM brings discovery, installation and management into one place."}>
-<InfoSection title={"Why LiteSPM"}><p>Agent tools are spread across registries, repositories and incompatible configuration formats. LiteSPM helps you find a useful addition, choose your agent and review the change before installing.</p></InfoSection>
-<InfoSection title={"Maintainer"}><p>LiteSPM is maintained by <a className="link" href="https://github.com/sarv-projects">Sarvesh Bhattacharyya</a>, with contributions from the open-source community.</p></InfoSection>
-<InfoSection title={"Open development"}><p>Read the <a className="link" href="/roadmap/">roadmap</a>, follow the <a className="link" href="/changelog/">changelog</a>, or <a className="link" href="https://github.com/sarv-projects/LiteSPM">contribute on GitHub</a>.</p></InfoSection>
-</InfoPage>; }
+
+export const metadata: Metadata = {
+  title: "About LiteSPM",
+  description: "Why LiteSPM exists, who maintains it, and how to follow its open development.",
+  alternates: { canonical: "/about/" },
+};
+
+export default function AboutPage() {
+  return (
+    <InfoPage
+      title="About LiteSPM"
+      lede="An open-source package manager for finding, installing and managing capabilities across AI agents."
+      sourcePath="web/app/about/page.tsx"
+    >
+      <InfoSection title="Why it exists">
+        <p>
+          MCP servers, agent skills and plugins are spread across registries and repositories, while
+          each agent has its own setup format. LiteSPM gives those capabilities a shared catalog and
+          a local install path that shows the target and planned change before writing.
+        </p>
+      </InfoSection>
+
+      <InfoSection title="Maintainer and contributors">
+        <p>
+          LiteSPM is maintained by <a className="link" href="https://github.com/sarv-projects">Sarvesh Bhattacharyya</a>,
+          with contributions from the open-source community. Development happens in the public{" "}
+          <a className="link" href="https://github.com/sarv-projects/LiteSPM">GitHub repository</a>.
+        </p>
+      </InfoSection>
+
+      <InfoSection title="Follow the project">
+        <p>
+          Browse the <a className="link" href="/roadmap/">roadmap</a>, see shipped changes in the{" "}
+          <a className="link" href="/changelog/">release notes</a>, or suggest a catalog listing
+          through the <a className="link" href="/submit/">listing guide</a>.
+        </p>
+      </InfoSection>
+    </InfoPage>
+  );
+}

@@ -14,6 +14,7 @@ import { hostsNamedBy } from "../../lib/hostIdentity";
 import { VerifiedMark } from "../../components/catalog/PublisherMark";
 import { readInlineEntry, useProductRow } from "../../lib/catalogData";
 import { SITE_URL } from "../../lib/site";
+import { listingSummary } from "../../lib/listingSummary.mjs";
 import { AGENT_CHOICES, AGENT_STORAGE_KEY, findAgentChoice } from "../../lib/landing";
 import type { AgentChoice } from "../../lib/landing";
 import { AddSteps, scrollToSection } from "../../components/package/AddSteps";
@@ -419,7 +420,7 @@ function PackageContent({
    * different contents, in one head.
    */
   const docTitle = item?.name ?? null;
-  const docSummary = item?.summary ?? null;
+  const docSummary = item ? listingSummary(item) : null;
   const canonicalKey = item ? (item.linkKey ?? item.id) : null;
   const canonicalHref = canonicalKey
     ? `${SITE_URL}/package/${encodeURIComponent(canonicalKey)}/`
@@ -776,7 +777,11 @@ function PackageContent({
               </span>
             </p>
 
-            <p className="market-product-summary mt-2.5 max-w-prose text-[14px] leading-relaxed text-ink-2">{item.summary}</p>
+            {listingSummary(item) && (
+              <p className="market-product-summary mt-2.5 max-w-prose text-[14px] leading-relaxed text-ink-2">
+                {listingSummary(item)}
+              </p>
+            )}
 
             {/* ---- 1c. The action, on the first screen ------------------- */}
             {/*
@@ -806,6 +811,7 @@ function PackageContent({
           <PlainSummary
             item={item}
             hostTotal={hostTotal}
+            agent={agent}
             onOpenTab={(nextTab) => {
               setTab(nextTab);
               scrollToSection("pkg-details");

@@ -516,8 +516,12 @@ func TestRegistry(t *testing.T) {
 	}
 
 	pi, err := GetAdapter("pi")
-	if err != nil || pi.Descriptor().HostID != "pi-agent" {
+	if err != nil || pi.Descriptor().HostID != "pi" {
 		t.Errorf("failed to get pi adapter: %v", err)
+	}
+	piAgent, err := GetAdapter("pi-agent")
+	if err != nil || piAgent.Descriptor().HostID != "pi-agent" {
+		t.Errorf("failed to get pi-agent adapter: %v", err)
 	}
 
 	grok, err := GetAdapter("grok-build")
@@ -525,11 +529,10 @@ func TestRegistry(t *testing.T) {
 		t.Errorf("failed to get grok adapter: %v", err)
 	}
 
-	// The legacy "grok" registry alias must continue to resolve to the same
-	// canonical grok-build adapter.
-	grokAlias, err := GetAdapter("grok")
-	if err != nil || grokAlias.Descriptor().HostID != "grok-build" {
-		t.Errorf("failed to get grok alias adapter: %v", err)
+	// The community Grok CLI and xAI's Grok Build are independent hosts.
+	grokCLI, err := GetAdapter("grok")
+	if err != nil || grokCLI.Descriptor().HostID != "grok" {
+		t.Errorf("failed to get Grok CLI adapter: %v", err)
 	}
 
 	_, err = GetAdapter("nonexistent")

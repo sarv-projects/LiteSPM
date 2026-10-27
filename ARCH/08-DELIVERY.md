@@ -61,7 +61,7 @@ Highest honest state per phase, with the subsystem rows that back it in [STATUS.
 | D — Extraction, Resolver & Skills | `WIRED` (resolver, skills, plugin, MCP); `IMPLEMENTED` (archive install engine); `TESTED` (artifact) | skills, MCP servers and pinned-source plugins install end to end through `/marketplace`; the archive engine still has no production caller, because a skill is files, a server is a config entry and a plugin is a fetched tree (STATUS §3) |
 | E — Supervision, Bridge & Hosts | `WIRED` for hosts; `IMPLEMENTED` for provider runtime | provider rows are written at install time (`m4` closed 2026-10-13, `state.SaveProviderExec` inside the install transaction); `autostart` stays `0`, so nothing starts a provider at boot (STATUS §4) |
 | F — MCP profiles, Secrets & OAuth | `WIRED` (secrets, mcpclient, auth) | `mcpclient`'s first production importer is `internal/discover`; `auth`'s is `litespm auth login/status/logout` (STATUS §1, §4) |
-| G — Marketplace, `/marketplace`, wizard | `WIRED` for read tools and the web marketplace | `request_install` completes for skills, MCP servers and pinned-source plugins; all twelve bridge tools answer, `get_invocation`/`cancel_invocation` from the invocation registry (STATUS §3, §4) |
+| G — Marketplace, wizard | `WIRED` for read tools and the web marketplace | `request_install` completes for skills, MCP servers and pinned-source plugins; all 13 bridge tools answer, `get_invocation`/`cancel_invocation` from the invocation registry (STATUS §3, §4) |
 | H — Build, Conformance & Packaging | `IMPLEMENTED` | the npm installer is fail-closed on every path: it verifies the release's Sigstore bundle against a signer identity pinned in code (signature, Fulcio chain, CT-log SCT, Rekor inclusion promise via sigstore-js) **and** cross-checks the published SHA-256 listing, discarding the download on a missing bundle, an unparseable bundle, a wrong signer, a wrong issuer, a mismatch, a truncated transfer or an unexpected redirect. `npm test` pins each refusal and asserts the packed tarball is exactly the `files` allowlist with the shipped installer byte-identical to the reviewed source; `LICENSE`/`NOTICE` are listed and staged by `release.yml` before publish (STATUS §1) |
 | I — Fixtures, Self-Update & Migrations | `WIRED` (self-update) / `TESTED` (state) | self-update verifies SHA-256 fail-closed and then the release's keyless Sigstore bundle when one is published; `v0.4.0` (2026-10-11) is the first tag to publish one for every asset; earlier tags are checksum-only with a stated note (STATUS §1) |
 
@@ -141,7 +141,7 @@ that is not met is **not** met, regardless of how much of the deliverable exists
     *   `internal/provider`: process supervisor — Windows Job Object (kill-on-close only), Unix process group + `PR_SET_PDEATHSIG` / watchdog pipe. No cgroups and no resource caps ([ARCH/05 §1](05-SECURITY.md#1-core-security-invariant)).
     *   `internal/policy`: 17-action effect taxonomy and approval engine with effect provenance.
     *   `internal/bridge`: stdio MCP shim exposing the 12 core Bridge tools.
-    *   `internal/host`: adapter framework with automated config discovery — 6 bespoke + 44 generic `BridgeTarget`s (50 total) plus 81 skill targets, **MCP-entry merge only** (STATUS §1).
+    *   `internal/host`: adapter framework with automated config discovery — 52 host IDs (seven dedicated profiles + 45 generic `BridgeTarget`s) plus 81 skill targets, **MCP-entry merge only** (STATUS §1; audited 2026-10-27).
 *   **Gate:** terminating the daemon terminates all child provider processes; host adapters merge Bridge entries into golden fixtures without altering unrelated keys.
 *   **Current state:** host merge is `WIRED` and backup/inverse (`host remove`) exist; provider
     lifecycle is `IMPLEMENTED` — provider rows are now written at install time (`m4` closed
@@ -167,9 +167,9 @@ that is not met is **not** met, regardless of how much of the deliverable exists
         `cmd/litespm/main.go:53-61`; `litespm setup --agent <host-id>` is the non-interactive form,
         `:537-578`; the wizard itself is `cmd/litespm/wizard.go`). The *first-class* TUI is
         a separate, `DESIGNED` deliverable ([ARCH/37](37-TUI-AND-COMPLETION.md)).
-    *   In-agent `/marketplace` workflow over the 12-tool Bridge surface.
+    *   In-agent marketplace workflow over the MCP prompt and 13-tool Bridge surface; prompt commands depend on the host (see the [entry-point audit](../docs/audits/2026-10-25/marketplace-agent-entrypoints.md)).
     *   `internal/doctor`: 10 checks, `--repair`, category exit codes — `WIRED` (STATUS §1).
-*   **Gate:** `litespm` allows agent selection and configuration; agents can invoke `/marketplace` to search and propose installations.
+*   **Gate:** `litespm` allows agent selection and configuration; agents can invoke the marketplace prompt where supported, or call the bridge tools directly to search and propose installations.
 *   **Current state:** search/plan/skill-read tools resolve and propose; the install action
     completes for skill and MCP-server listings (skills ledger / host-config registration) and for
     plugins with a pinned source (fetched tree, portable components installed). A plugin with no

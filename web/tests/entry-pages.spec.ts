@@ -17,6 +17,7 @@
 import { expect, test } from "./support/site";
 import { flagshipEntry, htmlContains, nonPreRenderedEntry, preRenderedEntry } from "./support/catalog";
 import { displayListingName } from "../lib/catalog";
+import { listingSummary } from "../lib/listingSummary.mjs";
 
 const preRendered = preRenderedEntry();
 const nonPreRendered = nonPreRenderedEntry();
@@ -91,11 +92,15 @@ test("non-pre-rendered entry: the Worker's no-JS block names it for a reader wit
 }) => {
   const response = await request.get(nonPreRendered.href);
   const html = await response.text();
-  const summary = nonPreRendered.row.summary!.trim();
+  const summary = listingSummary(nonPreRendered.row);
   expect(html).toMatch(/<noscript>/);
   // The block sits inside the layout's noscript element: name, summary and a
   // link to the entry, readable with scripting off.
-  expect(htmlContains(html, summary)).toBe(true);
+  if (summary) {
+    expect(htmlContains(html, summary)).toBe(true);
+  } else {
+    expect(htmlContains(html, nonPreRendered.row.summary!.trim())).toBe(false);
+  }
   expect(html).toContain("Open this entry");
 });
 

@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -156,6 +157,9 @@ func TestPeerAuthenticationAcceptsSameUIDOverUnixSocket(t *testing.T) {
 	// The production listener: 0700 directory, 0600 socket.
 	listener, err := ListenIPC(endpoint)
 	if err != nil {
+		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) {
+			t.Skipf("container does not permit Unix-domain sockets: %v", err)
+		}
 		t.Fatalf("ListenIPC: %v", err)
 	}
 	serveDone := make(chan error, 1)

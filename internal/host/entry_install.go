@@ -291,7 +291,7 @@ func entrySpecForScope(adapter HostAdapter, scope domain.InstallScope) (entrySpe
 	return base, true
 }
 
-// bespokeEntrySpecs covers the six hand-written adapters, which do not expose a
+// bespokeEntrySpecs covers the hand-written adapters, which do not expose a
 // BridgeTarget. The key paths mirror what each adapter writes for the bridge,
 // and the shapes mirror that host's documented entry requirements (see
 // ARCH/30 §8.1 for where each was confirmed against the vendor).
@@ -300,7 +300,7 @@ func entrySpecForScope(adapter HostAdapter, scope domain.InstallScope) (entrySpe
 // live from the URL in that vendor's evidence row (see the B1 acceptance
 // matrix, PART 1 §1.3, for the exact document per host). They are constructors
 // rather than shared pointers so no caller can mutate one host's spec through
-// another's alias.
+// another host's profile.
 var bespokeEntrySpecs = map[string]entrySpec{
 	"claude-code": {Format: FormatJSON, KeyPath: []string{"mcpServers"}, Shape: ShapeObject, Remote: claudeRemoteSpec()},
 	"cline":       {Format: FormatJSON, KeyPath: []string{"mcpServers"}, Shape: ShapeObject, Remote: clineRemoteSpec()},
@@ -313,7 +313,6 @@ var bespokeEntrySpecs = map[string]entrySpec{
 	// the nested container and the read/removal paths keep both in play.
 	"opencode":   {Format: FormatJSON, KeyPath: []string{"mcp", "servers"}, Shape: ShapeLocalArray, Remote: opencodeRemoteSpec()},
 	"codex":      {Format: FormatTOML, KeyPath: []string{"mcp_servers"}, Shape: ShapeObject, Remote: bareURLRemoteSpec(TransportStreamableHTTP)},
-	"grok":       {Format: FormatTOML, KeyPath: []string{"mcp_servers"}, Shape: ShapeObject, Remote: bareURLRemoteSpec(TransportStreamableHTTP)},
 	"grok-build": {Format: FormatTOML, KeyPath: []string{"mcp_servers"}, Shape: ShapeObject, Remote: bareURLRemoteSpec(TransportStreamableHTTP)},
 }
 

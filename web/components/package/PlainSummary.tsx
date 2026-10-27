@@ -4,14 +4,16 @@ import { publisherDisplayName } from "../../lib/catalog";
 import { availabilityOf } from "../../lib/availability";
 import { feasibilityFor } from "../../lib/installFeasibility";
 import { hostsNamedBy } from "../../lib/hostIdentity";
+import { SKILL_TARGETS, hostPath, resolveHost, skillTargetPaths } from "../../lib/hosts";
+import type { AgentChoice } from "../../lib/landing";
 import { categoryLabel } from "../../app/categories/categoryLabel";
 import type { PackageTabId } from "./PackageTabs";
 
 /**
- * The plain layer of the package page: the five questions a non-developer
+ * The plain layer of the package page: four questions a non-developer
  * arrives with, answered in ordinary words before any technical field is
- * shown — what it is, what it does, who publishes it, whether LiteSPM can
- * install it, and the agent targets the catalog can support — plus the version, which a
+ * shown — what it is, who publishes it, whether LiteSPM can install it, and
+ * which agent targets the catalog can support — plus the version, which a
  * non-developer also reads. The existing header keeps its own copy of the
  * entry's facts; nothing here removes or replaces it.
  *
@@ -38,6 +40,8 @@ export interface PlainSummaryProps {
   item: Listing;
   /** The catalog's host universe — the coverage denominator, for context. */
   hostTotal: number;
+  /** The agent selected on the rest of the package page, if any. */
+  agent?: AgentChoice | null;
   /** Opens a technical tab. Without it the link still jumps to Details. */
   onOpenTab?: (tab: PackageTabId) => void;
 }
@@ -71,13 +75,47 @@ function Fact({
   );
 }
 
-export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) {
+export function PlainSummary({ item, hostTotal, agent = null, onOpenTab }: PlainSummaryProps) {
   const avail = availabilityOf(item);
   const feasibility = feasibilityFor(item);
   // One entry per host identity (`lib/hostIdentity`): the two catalog strings
   // that name the Pi host are one compatible host, and `hostTotal` counts the
   // same identities, so "N of M" is one rule on both sides of the fraction.
   const hosts = hostsNamedBy(item);
+  const selectedFeasibility = agent && agent.id !== "other"
+    ? feasibilityFor(item, agent.id)
+    : null;
+  const selectedTargetListed = agent
+    ? hosts.some((host) => host.value === agent.id || host.value === agent.label)
+    : false;
+  const adapter = agent && agent.id !== "other" ? resolveHost(agent.id) : undefined;
+  const skillTarget = agent
+    ? SKILL_TARGETS.find((target) => target.id === agent.id)
+    : undefined;
+  const skillPaths = skillTarget ? skillTargetPaths(skillTarget) : undefined;
+  const selectedDestination = item.kind === "skill"
+    ? skillPaths?.userPath
+      ? `Default Unix user skills folder: ${skillPaths.userPath}. Project folder: ${skillPaths.projectPath}.`
+      : skillPaths
+        ? `Project-scope folder: ${skillPaths.projectPath}.`
+        : null
+    : adapter
+      ? `Config file: ${hostPath(adapter, "linux")}.`
+      : null;
+
+  const installSetup = !avail.installable
+    ? avail.plain
+    : selectedFeasibility?.state === "supported"
+      ? `Install path available for ${agent?.label}.`
+      : selectedFeasibility?.state === "requires-setup"
+        ? `Project setup is required for ${agent?.label}.`
+        : selectedFeasibility?.state === "discovery-only"
+          ? `LiteSPM needs more setup details before it can install this for ${agent?.label}.`
+          : selectedFeasibility?.state === "unsupported"
+            ? `No LiteSPM install path is available for ${agent?.label}.`
+            : selectedFeasibility?.state === "unknown"
+              ? `LiteSPM does not have a confirmed setup path for ${agent?.label}.`
+              : "Install path available — choose an agent to target the command.";
 
   const detailLink = (tab: PackageTabId, text: string) => (
     <a
@@ -113,10 +151,6 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
           </span>
         </Fact>
 
-        <Fact term="What it does" detail={detailLink("overview", "details: Overview →")}>
-          {item.summary?.trim() || KIND_PLAIN[item.kind]}
-        </Fact>
-
         <Fact term="Publisher" detail={detailLink("source", "details: Source →")}>
           {publisher ? (
             <>
@@ -132,7 +166,6 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
               ) : (
                 publisher
               )}
-              
             </>
           ) : (
             <>Publisher not listed</>
@@ -140,9 +173,7 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
         </Fact>
 
         <Fact term="Install setup" detail={detailLink("security", "setup details →")}>
-          {avail.installable
-            ? "Ready — choose your agent to get the install command."
-            : avail.plain}
+          {installSetup}
         </Fact>
 
         <Fact
@@ -151,16 +182,34 @@ export function PlainSummary({ item, hostTotal, onOpenTab }: PlainSummaryProps) 
         >
           {item.kind === "plugin" ? hosts.length > 0 ? (
             <>
-              {hosts.length} agent host{hosts.length === 1 ? "" : "s"} listed for this plugin. Choose
-              yours to see the setup details.
+              {selectedTargetListed
+                ? `The publisher lists ${agent?.label} for this plugin.`
+                : agent
+                  ? `${agent.label} is not in the publisher's host list.`
+                  : `${hosts.length} agent host${hosts.length === 1 ? "" : "s"} listed for this plugin. Choose yours to see the setup details.`}
             </>
           ) : (
             <>Choose an agent below to see whether setup details are available.</>
           ) : (
             <>
-              {feasibility.supportedHostIds.length > 0
-                ? <>Setup is available for {feasibility.supportedHostIds.length} of {hostTotal} agent hosts. Select yours to view its configuration path.</>
-                : <>Choose an agent to check whether setup is available.</>}
+              {selectedFeasibility ? (
+                <>
+                  {selectedFeasibility.state === "supported"
+                    ? `Setup is available for ${agent?.label}.`
+                    : selectedFeasibility.state === "requires-setup"
+                      ? `Project setup is required for ${agent?.label}.`
+                      : selectedFeasibility.state === "discovery-only"
+                        ? `More listing details are needed for ${agent?.label}.`
+                        : selectedFeasibility.state === "unsupported"
+                          ? `This listing cannot be installed for ${agent?.label}.`
+                          : `Setup details are unknown for ${agent?.label}.`}
+                  {selectedDestination ? ` ${selectedDestination}` : ""}
+                </>
+              ) : feasibility.supportedHostIds.length > 0 ? (
+                <>Setup is available for {feasibility.supportedHostIds.length} of {hostTotal} agent hosts. Select yours to view its destination.</>
+              ) : (
+                <>Choose an agent to check whether setup is available.</>
+              )}
             </>
           )}
         </Fact>

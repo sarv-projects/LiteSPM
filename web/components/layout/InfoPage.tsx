@@ -1,10 +1,11 @@
 import React from "react";
 import { Header } from "../navigation/Header";
 import { SiteFooter } from "./SiteFooter";
+import { REPO_URL } from "../../lib/site";
 
 /**
- * Shell for the site's static information routes (`/privacy`, `/contact`,
- * `/terms`). They are prose rather than catalog surfaces, so they carry the
+ * Shell for the site's static information routes. They are prose rather than
+ * catalog surfaces, so they carry the
  * same furniture as every other route and nothing else: the header, one
  * heading, a measure that stays readable, and the footer.
  *
@@ -18,6 +19,7 @@ import { SiteFooter } from "./SiteFooter";
 export function InfoPage({
   title,
   lede,
+  sourcePath,
   children,
 }: {
   title: string;
@@ -31,11 +33,25 @@ export function InfoPage({
       <Header />
 
       <main id="main" tabIndex={-1} className="shell flex-1 pb-16 pt-8">
-        <h1 className="text-[24px] font-semibold tracking-tight text-ink">{title}</h1>
-        <p className="mt-2 max-w-prose text-[14px] leading-relaxed text-ink-2">{lede}</p>
+        <div className="mx-auto w-full max-w-[88ch]">
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">{title}</h1>
+          <p className="mt-2 max-w-prose text-[14px] leading-relaxed text-ink-2">{lede}</p>
 
-        <div className="mt-9 max-w-[72ch] space-y-9">{children}</div>
+          <div className="mt-9 space-y-9">{children}</div>
 
+          {sourcePath && (
+            <p className="mt-10 border-t border-rule pt-4 text-[12px] text-ink-3">
+              <a
+                href={`${REPO_URL}/blob/main/${sourcePath}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="link"
+              >
+                Page source
+              </a>
+            </p>
+          )}
+        </div>
       </main>
 
       <SiteFooter />

@@ -38,7 +38,7 @@ The v1 target taxonomy is a closed enum of eight members — `mcp | skill | plug
 
 **(d) Repository status — Working (metadata + bridge); Partial end-to-end.**
 *   `internal/source/mcp_registry.go` — `MCPRegistryAdapter.Ingest` parses `server.json` as an array or a single object, maps `registryType` to `domain.ArtifactType` (`npm→ArtifactNPM`, `pypi→ArtifactPyPI`, `cargo→ArtifactCargo`, `oci→ArtifactOCI`, `mcpb→ArtifactMCPB`), emits `KindMCP` listings with `ComponentMCPProvider` components and a `RuntimeDescriptor`; remotes become `remote-server` components with an endpoint. Tested by `TestMCPRegistryAdapterIngest` in `internal/source/source_test.go`.
-*   `internal/bridge/shim.go` — the stdio shim exposes the 12 canonical tools over JSON-RPC (`initialize` advertises `protocolVersion: "2026-07-28"`).
+*   `internal/bridge/shim.go` — the stdio shim exposes 13 canonical tools and the marketplace prompt over JSON-RPC (`initialize` advertises `protocolVersion: "2026-07-28"`).
 *   `internal/host/*.go` — each adapter injects a single `litespm` bridge entry into the host's MCP config (`claudecode.go`, `cline.go`, `codex.go`, `grokbuild.go`, `opencode.go`, `piagent.go`).
 *   `internal/mcpclient`, `internal/provider` provide the client and supervisor layers.
 
@@ -130,7 +130,7 @@ The v1 target taxonomy is a closed enum of eight members — `mcp | skill | plug
 
 **(d) Repository status — Partial (runtime) / Not implemented (as a listing type).**
 *   `internal/domain/models.go` defines `KindTool` / `ComponentTool`, and `CapabilityRecord` carries `InputSchemaJSON` + `SchemaFingerprint` (SHA-256 of canonicalized schema; see [ARCH/10 §3.2](10-DOMAIN-MODEL.md)).
-*   `internal/bridge/shim.go` exposes `search_capabilities`, `describe_capability`, and `invoke_capability`; `internal/mcpclient` discovers tools; `internal/policy` gates invocation; the shim exposes 12 tools total.
+*   `internal/bridge/shim.go` exposes `search_capabilities`, `describe_capability`, and `invoke_capability`; `internal/mcpclient` discovers tools; `internal/policy` gates invocation; the shim exposes 13 tools total.
 *   `internal/agent/acp.go` names a `"binary"` strategy but that is unrelated to the `tool` type.
 
 **Honest gaps.** There is **no source adapter for `tool` as a catalog listing** and no catalog rows. Non-MCP tool registration (OpenCode/Copilot/VS Code tool contributions) is not ingested. Schema fingerprinting exists in the domain model but is not surfaced by any `source` adapter.

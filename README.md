@@ -26,8 +26,17 @@ folder to the interactive skills installer. The installer discovers skills,
 lets you choose skills and agent targets, previews destinations, and asks
 before it writes. In a terminal, menus support keyboard navigation and
 search; catalog updates show a live progress indicator. For Qwen Code, restart
-the CLI after setup, then use `/marketplace` to browse through the connected
-LiteSPM MCP server.
+the CLI after setup, then invoke the marketplace using that agent's MCP prompt
+interface or ask it to browse the catalog with LiteSPM's connected tools.
+
+LiteSPM also publishes a `marketplace` prompt through its MCP bridge for all
+50 supported MCP hosts. Each agent decides how to expose it: Qwen Code and
+Gemini CLI use `/marketplace`, Claude Code uses `/mcp__litespm__marketplace`,
+and OpenCode uses `/litespm:marketplace`. Some hosts show MCP prompts in a
+picker; others expose only the connected tools. The setup wizard prints a
+slash command only when that host documents one. For other hosts, ask the agent
+to browse LiteSPM's catalog using the connected MCP tools. See the
+[agent-by-agent entry-point audit](docs/audits/2026-10-25/marketplace-agent-entrypoints.md).
 
 ## Quick start
 
@@ -73,6 +82,12 @@ the other **forty-four** come from one data-driven registry generated from each
 agent's documented configuration format. A new host is therefore a registry
 entry rather than a new code path, and it gets the same plan, backup and
 ledger as the six.
+
+The in-agent marketplace prompt follows each host's MCP prompt UI. LiteSPM
+doesn't tell every agent to use `/marketplace`: that literal command is only
+available on hosts that expose the prompt under that name. Other clients can
+use the bridge tools from a regular request. The [agent-by-agent audit](docs/audits/2026-10-25/marketplace-agent-entrypoints.md)
+lists the confirmed invocation for every host and the skill-only targets.
 
 ```bash
 litespm host list      # every supported host and the file it writes
@@ -131,9 +146,12 @@ and keeps anything you edited.
 
 ## Inside your agent
 
-With a host configured, `/marketplace` in your agent reaches the same catalog
-and the same install path through the LiteSPM bridge. An agent can search,
-prepare a plan, and ask you to approve it; it cannot approve for you.
+With a host configured, the LiteSPM bridge exposes its catalog tools and the
+`marketplace` MCP prompt. Use the prompt command shown by your agent when it
+supports MCP prompts; otherwise ask the agent to browse through the connected
+LiteSPM tools. It can search and prepare a plan, then ask you to approve it; it
+cannot approve for you. The [agent-by-agent audit](docs/audits/2026-10-25/marketplace-agent-entrypoints.md)
+lists the verified command for each host.
 
 ```bash
 litespm bridge stdio --host codex

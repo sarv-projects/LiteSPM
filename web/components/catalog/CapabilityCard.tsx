@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowUpRight, Check, ChevronDown } from "lucide-react";
 import { Listing } from "../../lib/telemetry";
-import { displayListingName, kindLabel, listingHref, publisherDisplayName } from "../../lib/catalog";
+import { displayListingName, kindLabel, listingSummary, listingHref, publisherDisplayName } from "../../lib/catalog";
 import { hostsNamedBy } from "../../lib/hostIdentity";
 import { isRemoteTransport } from "../../lib/hosts";
 import type { AgentChoice } from "../../lib/landing";
@@ -66,6 +66,7 @@ function TechRow({ label, value }: { label: string; value?: string | null }) {
 }
 
 export function CapabilityCard({ item, agent, className = "" }: CapabilityCardProps) {
+  const summary = listingSummary(item);
   const worksWith = rowWorksWithAgent(item, agent ?? null);
   // One entry per host identity (`lib/hostIdentity`): a skill row's two
   // spellings of the Pi host are one host, and the count beside them is what
@@ -78,7 +79,7 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
     kindLabel(item.kind),
     item.publisher?.name ? `by ${publisherDisplayName(item.publisher.name)}` : "publisher not listed",
     avail.plain,
-    item.summary,
+    summary,
   ]
     // `avail.plain` and summaries may carry their own trailing period; the
     // join supplies one, so strip the part's first.
@@ -127,8 +128,8 @@ export function CapabilityCard({ item, agent, className = "" }: CapabilityCardPr
             />
           </h3>
 
-          {item.summary && (
-            <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-ink-2">{item.summary}</p>
+          {summary && (
+            <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-ink-2">{summary}</p>
           )}
         </div>
       </div>

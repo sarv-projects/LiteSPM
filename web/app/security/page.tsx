@@ -111,6 +111,25 @@ export default function SecurityPage() {
         </Facts>
       </InfoSection>
 
+      <InfoSection title="Implementation and release evidence">
+        <p>These repository files let you check the behavior described above:</p>
+        <Facts>
+          <Fact label="Agent configuration writes">
+            <a className="link" href={`${REPO_URL}/blob/main/internal/host/entry_install.go`}>Entry install and merge</a>,{" "}
+            <a className="link" href={`${REPO_URL}/blob/main/internal/host/backup.go`}>backup handling</a>, and{" "}
+            <a className="link" href={`${REPO_URL}/blob/main/internal/host/apply_guard.go`}>write guards</a>.
+          </Fact>
+          <Fact label="Package install behavior">
+            <a className="link" href={`${REPO_URL}/blob/main/internal/install/engine.go`}>Install engine</a> and its plan checks.
+          </Fact>
+          <Fact label="Binary and npm verification">
+            <a className="link" href={`${REPO_URL}/blob/main/internal/update/updater.go`}>Self-update verifier</a>,{" "}
+            <a className="link" href={`${REPO_URL}/blob/main/npm/scripts/install-binary.js`}>npm binary installer</a>, and the{" "}
+            <a className="link" href={`${REPO_URL}/blob/main/.github/workflows/release.yml`}>release workflow</a>.
+          </Fact>
+        </Facts>
+      </InfoSection>
+
       <InfoSection title="The boundaries that matter to you">
         <Facts>
           <Fact label="Publisher sources are identified">
