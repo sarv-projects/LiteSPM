@@ -324,7 +324,7 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
             ))}
           </FacetGroup>
 
-          <FacetGroup title="Installability" hint="The provenance the publisher established">
+          <FacetGroup title="Installability" hint="Readiness for single-command setup">
             {(facets?.installability ?? []).map(([name, count]) => (
               <FilterPill
                 key={name}

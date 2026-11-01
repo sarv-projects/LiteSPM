@@ -31,7 +31,7 @@ const SCENARIOS: Record<
       { kind: "dim", text: "  48,418 MCP servers · 20,320 skills · 638 plugins", delay: 240 },
       {
         kind: "cmd",
-        text: "litespm install mcp:builtin:mcp-registry:com.neon-mcp --agent claude-code",
+        text: "litespm install neon --agent claude-code",
         delay: 500,
       },
       { kind: "dim", text: "  plan    claude-code  ~/.claude.json  mcpServers[neon]", delay: 260 },

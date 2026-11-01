@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Bookmark,
   Cable,
+  CheckCircle2,
   ChevronRight,
   Clock,
   Eye,
@@ -17,6 +18,7 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  Terminal,
   Trophy,
   Undo2,
 } from "lucide-react";
@@ -246,6 +248,70 @@ export function HomeView() {
               A real session: search, install into Claude Code with backup, and the ledger.
             </p>
           </motion.div>
+        </div>
+      </section>
+
+      {/* ----------------------------- why litespm ----------------------------- */}
+      <section className="border-b border-border/60 bg-card/20 py-16 sm:py-20" aria-labelledby="why-title">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="max-w-[70ch]">
+            <p className="flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.16em] text-brand">
+              <Sparkles className="h-4 w-4" /> Why LiteSPM?
+            </p>
+            <h2 id="why-title" className="mt-2 text-[clamp(1.9rem,3.8vw,2.7rem)] font-semibold leading-tight tracking-[-0.035em]">
+              Never manually configure an AI agent again. <br className="hidden sm:inline" />
+              <span className="text-brand">Install once, and forget.</span>
+            </h2>
+            <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+              Tired of hunting down endpoints, writing JSON configs by hand, and copy-pasting the same settings into Claude Code, Cursor, Cline, and Codex? LiteSPM gives your agents a unified app store.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Card 1: /marketplace inside chat */}
+            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand font-mono text-[13px] font-bold">
+                /m
+              </div>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">/marketplace in Chat</h3>
+              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                Just type <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">/marketplace</code> right inside your AI agent&apos;s chatbar. Search, browse, and 1-click install or remove tools without ever leaving your conversation.
+              </p>
+            </div>
+
+            {/* Card 2: Install Once & Forget */}
+            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">One-Time Install</h3>
+              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                Set it up once with <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">npm i -g litespm</code>. From then on, all your AI agents share the same clean tool discovery and automatic host wiring.
+              </p>
+            </div>
+
+            {/* Card 3: What Managing Means */}
+            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Clean Management & Backups</h3>
+              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                What does &ldquo;managing&rdquo; mean? LiteSPM always saves a backup before modifying any config. When you remove a tool, it cleans up completely without breaking your agent.
+              </p>
+            </div>
+
+            {/* Card 4: Built for Everyone */}
+            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
+                <Terminal className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Interactive UI or CLI Flags</h3>
+              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                Prefer a friendly menu? Just run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm</code> for the interactive wizard. Power user? Use direct flags like <code className="font-mono text-[11.5px]">--agent</code> and <code className="font-mono text-[11.5px]">--global</code>.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 

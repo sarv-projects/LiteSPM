@@ -36,8 +36,8 @@ const STANDARDS = [
   },
   {
     icon: Sparkles,
-    title: "Provenance is preserved",
-    body: "Your publisher name, source and verification status travel with the listing everywhere it appears. Corrections flow through the same generated dataset.",
+    title: "Publisher identity is preserved",
+    body: "Your publisher name, repository link, and release tags travel with the listing everywhere it appears. Corrections flow through the same generated dataset.",
   },
 ];
 
@@ -213,7 +213,7 @@ export function PublishView() {
                   id="feedback-listing"
                   value={listing}
                   onChange={(e) => setListing(e.target.value)}
-                  placeholder="mcp:builtin:mcp-registry:com.example-mcp, or a repo URL"
+                  placeholder="Package name, e.g. neon-mcp, or a GitHub repo URL"
                   className="mt-1.5 h-10 rounded-lg font-mono text-[12px]"
                 />
                 {errors.listing && (

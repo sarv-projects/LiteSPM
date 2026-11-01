@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Activity, BarChart3, CheckCircle2, Database, GitBranch, Layers, Loader2, PackageSearch, Users } from "lucide-react";
+import { Activity, BarChart3, CheckCircle2, Database, GitBranch, Layers, Loader2, PackageSearch, ShieldCheck, Users } from "lucide-react";
 
 import { useApp } from "@/lib/litespm/router";
 import { formatFull, formatDate } from "@/lib/litespm/format";
@@ -130,7 +130,7 @@ export function InsightsView() {
         <ChartCard
           icon={CheckCircle2}
           title="By installability"
-          note="The provenance the publisher established — the gate litespm install asks first."
+          note="Packages verified ready for single-command setup vs discovery."
         >
           {data.byInstallability.map((bar) => (
             <InsightBarRow
@@ -212,16 +212,18 @@ export function InsightsView() {
           ))}
         </ChartCard>
 
-        {/* Sources */}
-        <ChartCard icon={Database} title="Catalog sources" note="Where listings were aggregated from.">
-          {data.bySource.map((bar) => (
-            <InsightBarRow
-              key={bar.label}
-              label={bar.label}
-              value={bar.value}
-              max={Math.max(...data.bySource.map((b) => b.value))}
-            />
-          ))}
+        {/* Verification */}
+        <ChartCard icon={ShieldCheck} title="Publisher verification" note="Official publisher status across catalog rows.">
+          <InsightBarRow
+            label="Verified Publishers"
+            value={data.totals.verifiedPublisherRows}
+            max={data.totals.unique}
+          />
+          <InsightBarRow
+            label="Community Authors"
+            value={Math.max(0, data.totals.unique - data.totals.verifiedPublisherRows)}
+            max={data.totals.unique}
+          />
         </ChartCard>
       </div>
 

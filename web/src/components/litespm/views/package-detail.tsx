@@ -211,9 +211,6 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                 <span className="font-medium text-foreground/90">{data.publisher.name}</span>
               )}
             </span>
-            {data.publisher.provenance && (
-              <span className="text-muted-foreground/60">· {data.publisher.provenance}</span>
-            )}
             {data.distributor && (
               <span className="text-muted-foreground/60">
                 · distributed by {data.distributor.name}
@@ -807,7 +804,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
         <aside className="space-y-5">
           <section className="rounded-2xl border border-border/70 bg-card p-5">
             <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-              Record Provenance
+              Package Overview
             </h2>
             <dl className="mt-2">
               <FactRow label="Kind">{kindLabel(data.kind)}</FactRow>
@@ -817,7 +814,6 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                 <span className="font-mono font-semibold text-brand">{data.rankScore}/100</span>
               </FactRow>
               <FactRow label="Installability">{installabilityLabel(data.installability)}</FactRow>
-              {data.source && <FactRow label="Registry source">{data.source}</FactRow>}
             </dl>
           </section>
 

@@ -60,7 +60,7 @@ export function PackageCard({
           <KindBadge kind={hit.kind} />
           {hit.publisher.verified && (
             <span
-              title={`Verified publisher (${hit.publisher.provenance ?? "verified"})`}
+              title="Verified publisher"
               className="inline-flex items-center gap-1 text-[10.5px] font-medium text-muted-foreground"
             >
               <ShieldCheck className="h-3.5 w-3.5 text-brand" />

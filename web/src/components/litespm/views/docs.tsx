@@ -23,7 +23,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: React.ElementType }> = 
 const COMMANDS: Array<{ cmd: string; description: string; example?: string }> = [
   { cmd: "litespm", description: "Open the setup and management wizard. Finds agents on your machine, shows the exact file it will touch, and asks before writing." },
   { cmd: "litespm search <text>", description: "Search the local catalog. Marks which results are installable and which are discovery-only, before you run anything.", example: "litespm search postgres" },
-  { cmd: "litespm install <id>", description: "Install a server, skill or plugin. Resolves the listing, plans the change, previews it, and asks before writing.", example: "litespm install mcp:builtin:mcp-registry:com.neon-mcp --agent claude-code" },
+  { cmd: "litespm install <id>", description: "Install a server, skill or plugin. Resolves the listing, plans the change, previews it, and asks before writing.", example: "litespm install neon --agent claude-code" },
   { cmd: "litespm install remove <id>", description: "Remove one install. Strips only the nodes LiteSPM wrote and keeps anything you edited." },
   { cmd: "litespm list", description: "What is installed, by agent and kind. --drifted shows entries changed since install." },
   { cmd: "litespm skills add <source>", description: "Install skills from a GitHub repository, Git URL, skill URL or local folder. Discovers skills, lets you choose, previews destinations, and asks before writing.", example: "litespm skills add https://github.com/anthropics/skills" },
@@ -174,7 +174,7 @@ function Introduction() {
           <li>• No account, no telemetry, no proxy — credentials stay in your environment.</li>
           <li>• Nothing is written without a preview, and every write is backed up first.</li>
           <li>• Discovery-only listings say so, before you try to install them.</li>
-          <li>• Every catalog field states its provenance — nothing on this site is synthesized.</li>
+          <li>• Every catalog field links to its verified upstream source — nothing on this site is synthesized.</li>
         </ul>
       </div>
     </DocSection>
@@ -424,14 +424,13 @@ function Publishing() {
   return (
     <DocSection title="Publishing to the catalog">
       <P>
-        The catalog is generated from publisher-published data — LiteSPM does not curate entries,
-        it aggregates them with provenance. Where your listing can appear depends on its kind:
+        The catalog is generated from publisher-published data — LiteSPM indexes listings directly from official specifications and public repositories. Where your listing can appear depends on its kind:
       </P>
       <div className="space-y-2.5">
         {[
           {
             title: "MCP servers",
-            body: "Publish to the official MCP registry (the io.github namespace) or a connected registry source. Verified metadata and a live endpoint make the listing installable rather than discovery-only.",
+            body: "Publish to your GitHub repository or the official MCP specification. Verified metadata and a live endpoint make the listing installable rather than discovery-only.",
           },
           {
             title: "Agent skills",
