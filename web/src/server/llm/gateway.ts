@@ -82,7 +82,7 @@ const FIXED_PROVIDERS: Array<{
     name: "groq",
     envPrefix: "GROQ_API_KEY",
     baseUrl: "https://api.groq.com/openai/v1",
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "openai/gpt-oss-120b",
     style: "openai",
     priority: 20,
   },
@@ -198,16 +198,38 @@ function buildPool(): LlmCredential[] {
   const pool: LlmCredential[] = [];
 
   for (const fixed of FIXED_PROVIDERS) {
-    for (const [i, apiKey] of collectKeys(fixed.envPrefix).entries()) {
-      pool.push({
-        provider: fixed.name,
-        keyIndex: i + 1,
-        style: fixed.style,
-        baseUrl: fixed.baseUrl,
-        apiKey,
-        model: modelOverride(fixed.name) ?? fixed.defaultModel,
-        priority: fixed.priority,
-      });
+    const keys = collectKeys(fixed.envPrefix);
+    if (fixed.name === "groq") {
+      const modelsEnv = process.env.GROQ_MODELS?.trim();
+      const models = modelsEnv
+        ? modelsEnv.split(",").map((s) => s.trim()).filter(Boolean)
+        : [modelOverride("groq") ?? "openai/gpt-oss-120b", "qwen/qwen3.8-27b"];
+
+      for (const [mIdx, modelName] of models.entries()) {
+        for (const [i, apiKey] of keys.entries()) {
+          pool.push({
+            provider: fixed.name,
+            keyIndex: i + 1,
+            style: fixed.style,
+            baseUrl: fixed.baseUrl,
+            apiKey,
+            model: modelName,
+            priority: fixed.priority + mIdx,
+          });
+        }
+      }
+    } else {
+      for (const [i, apiKey] of keys.entries()) {
+        pool.push({
+          provider: fixed.name,
+          keyIndex: i + 1,
+          style: fixed.style,
+          baseUrl: fixed.baseUrl,
+          apiKey,
+          model: modelOverride(fixed.name) ?? fixed.defaultModel,
+          priority: fixed.priority,
+        });
+      }
     }
   }
 

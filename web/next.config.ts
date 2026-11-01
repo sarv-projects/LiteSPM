@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  outputFileTracingIncludes: {
+    "/api/**/*": ["./data/**/*"],
+    "/*": ["./data/**/*"],
+  },
 };
 
 export default nextConfig;
