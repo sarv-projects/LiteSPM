@@ -7,26 +7,27 @@
  * can honestly claim: recognition and trustworthiness of the tool itself.
  *
  * Components (max 100):
- *   Editorial recognition ......... 0–42  the tool matches a known flagship of
+ *   Editorial recognition ......... 0–35  the tool matches a known flagship of
  *                                         the agent ecosystem (official MCP
  *                                         references, top-vendor servers,
  *                                         Anthropic's official skills), or a
- *                                         notable second tier (0–26), or
+ *                                         notable second tier (0–22), or
  *                                         carries a first-party namespace
- *                                         (0–14)
- *   Vendor authority .............. 0–20  first-party publisher (18/12),
- *                                         verified publisher (+8, capped)
+ *                                         (0–12)
+ *   Vendor authority .............. 0–18  first-party publisher (14/8),
+ *                                         verified publisher (+4, capped at 18)
  *   Proven installability ......... 0–15  tested 15 · runtime-verified 12 ·
  *                                         metadata-verified 7 · claimed 2
  *   Record quality ................ 0–12  endpoint, tools, readme, command,
  *                                         version
- *   Description substance ......... 0–6
- *   GitHub stars (when present) ... 0–20  log scale — future-proof: blends in
- *                                         automatically the day a source
- *                                         ships counts
+ *   Description substance ......... 0–5   >=120 chars: 5, >=60: 4, >=25: 2, >=10: 1
+ *   GitHub stars (when present) ... 0–15  log scale — future-proof: blends in
+ *                                         automatically when counts are present
  *   Junk penalty .................. −45   symbol-initial names, HTTP-header
  *                                         fragments, non-scope "@" names —
  *                                         the SEO/parse-artifact band
+ *
+ * Exact sum of rubric maximums: 35 + 18 + 15 + 12 + 5 + 15 = 100 points.
  *
  * No popularity data (stars, installs) exists in this dataset, so within an
  * identical editorial standing results tie — the rank sort breaks ties with a
@@ -37,12 +38,12 @@ import type { Listing } from "./types";
 
 /** Lowercase and keep only [a-z0-9]. Merges "@playwright/mcp" and
  *  "Playwright MCP" into one key. Guard: empty for non-Latin-only names. */
-function norm(value: string | undefined): string {
+export function norm(value: string | undefined): string {
   return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 /** Registry rows spell names "io.github.org/tool" — the tool is the tail. */
-function stripNamespace(name: string): string {
+export function stripNamespace(name: string): string {
   return name.replace(/^io\.github\.[^/]+\//i, "");
 }
 
@@ -190,8 +191,8 @@ function namespaceOrg(name: string): string | null {
 
 function vendorPoints(org: string | null | undefined): number {
   if (!org) return 0;
-  if (VENDOR_TIER1.has(org)) return 18;
-  if (VENDOR_TIER2.has(org)) return 12;
+  if (VENDOR_TIER1.has(org)) return 14;
+  if (VENDOR_TIER2.has(org)) return 8;
   return 0;
 }
 
@@ -202,7 +203,7 @@ const INSTALLABILITY_POINTS: Record<string, number> = {
   litespm_tested: 15,
 };
 
-/** Editorial recognition: how well-known is this specific tool? (0–42) */
+/** Editorial recognition: how well-known is this specific tool? (0–35) */
 function recognitionPoints(name: string, publisherOrg: string): number {
   const exact = norm(stripNamespace(name));
   if (!exact) return 0;
@@ -211,74 +212,116 @@ function recognitionPoints(name: string, publisherOrg: string): number {
 
   // Publisher-gated flagship: the reference tool from its first-party org.
   const official = OFFICIAL_NAMES.get(exact);
-  if (official && official.has(publisherOrg)) return 42;
+  if (official && official.has(publisherOrg)) return 35;
 
   // Distinctive flagship name, wherever it appears (official repo, feed
   // mirror, or vendor registry namespace).
-  if (FLAGSHIP_KEYS.has(exact)) return 42;
+  if (FLAGSHIP_KEYS.has(exact)) return 35;
 
   // Name embeds a flagship key: a first-party publisher or namespace makes
   // it the vendor's own build; anyone else is a fork, wrapper or proxy —
   // notable tier.
   const contained = FLAGSHIP_CONTAINS.some((key) => exact.includes(key));
-  if (contained && (isT1(publisherOrg) || isT1(namespaceOrg(name)))) return 42;
+  if (contained && (isT1(publisherOrg) || isT1(namespaceOrg(name)))) return 35;
 
   // Same generic name, different publisher — a re-publication or wrapper.
-  if (official) return 26;
-  if (contained) return 26;
-  if (NOTABLE_KEYS.has(exact)) return 26;
+  if (official) return 22;
+  if (contained) return 22;
+  if (NOTABLE_KEYS.has(exact)) return 22;
 
   // Unlisted tool but a first-party namespace: "@microsoft/…" or
   // "io.github.supabase/…" — recognizable provenance.
   const nsOrg = namespaceOrg(name);
-  if (nsOrg && (VENDOR_TIER1.has(nsOrg) || VENDOR_TIER2.has(nsOrg))) return 14;
+  if (nsOrg && (VENDOR_TIER1.has(nsOrg) || VENDOR_TIER2.has(nsOrg))) return 12;
 
   return 0;
 }
 
-/** The composite score. Deterministic from the row's own fields. */
-export function rankScore(row: Listing): number {
+export interface RankScoreBreakdown {
+  total: number;
+  recognition: { points: number; max: 35; reason: string };
+  vendorAuthority: { points: number; max: 18; reason: string };
+  installability: { points: number; max: 15; reason: string };
+  recordQuality: { points: number; max: 12; reason: string };
+  description: { points: number; max: 5; reason: string };
+  stars: { points: number; max: 15; reason: string };
+  penalty: { points: number; reason: string };
+}
+
+export function rankScoreBreakdown(row: Listing): RankScoreBreakdown {
   const publisherOrg = norm(row.publisher?.name);
-  let score = 0;
 
   let recognition = recognitionPoints(row.name, publisherOrg);
-  // An explicit fork marker can never earn flagship recognition.
-  if (recognition > 26 && norm(stripNamespace(row.name)).includes("fork")) {
-    recognition = 26;
+  let recReason = "Community listing";
+  if (recognition >= 35) {
+    recReason = "Flagship reference tool in ecosystem";
+  } else if (recognition >= 22) {
+    recReason = "Recognized notable implementation";
+  } else if (recognition >= 12) {
+    recReason = "Verified first-party namespace";
   }
-  score += recognition;
+  if (recognition > 22 && norm(stripNamespace(row.name)).includes("fork")) {
+    recognition = 22;
+    recReason = "Fork of notable repository";
+  }
 
-  // Vendor authority: first-party publisher or namespace (18/12), and a
-  // verified publisher adds 8 on top — capped at 20 together.
-  const vendor = Math.max(
+  const baseVendor = Math.max(
     vendorPoints(publisherOrg),
     vendorPoints(namespaceOrg(row.name)),
   );
-  score += Math.min(20, vendor + (row.publisher?.verified ? 8 : 0));
+  const isVerified = Boolean(row.publisher?.verified);
+  const vendorPointsEarned = Math.min(18, baseVendor + (isVerified ? 4 : 0));
+  let vendorReason = "Independent publisher";
+  if (baseVendor >= 14) vendorReason = "Tier-1 ecosystem founding vendor";
+  else if (baseVendor >= 8) vendorReason = "Tier-2 recognized ecosystem vendor";
+  if (isVerified) vendorReason += " (Verified publisher badge)";
 
-  score += INSTALLABILITY_POINTS[row.installability ?? "discovery_only"] ?? 2;
+  const installPoints = INSTALLABILITY_POINTS[row.installability ?? "discovery_only"] ?? 2;
+  let installReason = "Discovery listing";
+  if (installPoints === 15) installReason = "LiteSPM tested in CI/sandbox";
+  else if (installPoints === 12) installReason = "Runtime verified against host daemon";
+  else if (installPoints === 7) installReason = "Metadata & manifest verified";
 
-  // Record quality — a publisher who filled out the operational fields.
-  if (row.url || row.hasUrl) score += 3;
-  if (row.tools?.length) score += 3;
-  if (row.readme) score += 2;
-  if (row.command) score += 2;
-  if (row.version) score += 2;
+  let recordPoints = 0;
+  const qualityItems: string[] = [];
+  if (row.url || row.hasUrl) { recordPoints += 3; qualityItems.push("Endpoint URL"); }
+  if (row.tools?.length) { recordPoints += 3; qualityItems.push(`${row.tools.length} tool schemas`); }
+  if (row.readme) { recordPoints += 2; qualityItems.push("README/docs"); }
+  if (row.command) { recordPoints += 2; qualityItems.push("Executable command"); }
+  if (row.version) { recordPoints += 2; qualityItems.push(`Version ${row.version}`); }
 
   const summary = (row.summary ?? "").trim();
-  if (summary.length >= 120) score += 6;
-  else if (summary.length >= 60) score += 5;
-  else if (summary.length >= 25) score += 3;
-  else if (summary.length >= 10) score += 1;
+  let descPoints = 0;
+  if (summary.length >= 120) descPoints = 5;
+  else if (summary.length >= 60) descPoints = 4;
+  else if (summary.length >= 25) descPoints = 2;
+  else if (summary.length >= 10) descPoints = 1;
 
-  // GitHub stars blend in the day a source ships them (log scale, cap 20).
+  let starPoints = 0;
   if (typeof row.stars === "number" && row.stars > 0) {
-    score += Math.min(20, Math.log10(row.stars + 1) * 8);
+    starPoints = Math.min(15, Math.round(Math.log10(row.stars + 1) * 6));
   }
 
-  score -= junkPenalty(row.name);
+  const penalty = junkPenalty(row.name);
 
-  return Math.max(0, Math.min(100, Math.round(score)));
+  const raw = recognition + vendorPointsEarned + installPoints + recordPoints + descPoints + starPoints - penalty;
+  const total = Math.max(0, Math.min(100, Math.round(raw)));
+
+  return {
+    total,
+    recognition: { points: recognition, max: 35, reason: recReason },
+    vendorAuthority: { points: vendorPointsEarned, max: 18, reason: vendorReason },
+    installability: { points: installPoints, max: 15, reason: installReason },
+    recordQuality: { points: recordPoints, max: 12, reason: qualityItems.join(", ") || "Basic record" },
+    description: { points: descPoints, max: 5, reason: `${summary.length} character overview` },
+    stars: { points: starPoints, max: 15, reason: row.stars ? `${row.stars} GitHub stars` : "No public stars tracked" },
+    penalty: { points: penalty, reason: penalty > 0 ? "Junk or SEO-fragment naming penalty" : "No penalties" },
+  };
+}
+
+/** The composite score. Deterministic from the row's own fields. */
+export function rankScore(row: Listing): number {
+  return rankScoreBreakdown(row).total;
 }
 
 /**

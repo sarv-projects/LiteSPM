@@ -10,9 +10,10 @@ import { availabilityOf } from "./availability";
 import { hostsNamedBy, resolveHostId, hostIdentity } from "./identity";
 import { tryPrompts } from "./try-prompts";
 import { relatedListings } from "./discovery";
-import { dedupeKey } from "./ranking";
+import { dedupeKey, rankScoreBreakdown } from "./ranking";
 import { classifyListing, GOAL_LABELS } from "./taxonomy";
 import { hostsFor } from "./hosts";
+import { buildMcpSpec, buildSkillSpec, buildPluginSpec } from "./type-specs";
 import type { Listing } from "./types";
 
 export interface PackageDetailResponse {
@@ -91,6 +92,11 @@ export interface PackageDetailData {
   }>;
   tools: Array<{ name: string; description: string }>;
   effects: Array<{ effect: string; declaredBy: string }>;
+  readme?: string;
+  rankBreakdown?: ReturnType<typeof rankScoreBreakdown>;
+  mcpSpec?: ReturnType<typeof buildMcpSpec>;
+  skillSpec?: ReturnType<typeof buildSkillSpec>;
+  pluginSpec?: ReturnType<typeof buildPluginSpec>;
 }
 
 export async function getPackageDetail(key: string): Promise<PackageDetailResponse> {
@@ -226,6 +232,11 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
         effect: e.effect,
         declaredBy: e.declaredBy,
       })),
+      readme: row.readme,
+      rankBreakdown: rankScoreBreakdown(row),
+      mcpSpec: row.kind === "mcp" ? buildMcpSpec(row) : undefined,
+      skillSpec: row.kind === "skill" ? buildSkillSpec(row) : undefined,
+      pluginSpec: row.kind === "plugin" ? buildPluginSpec(row) : undefined,
     },
   };
 }

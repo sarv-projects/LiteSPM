@@ -10,6 +10,7 @@ import { displayPackageName } from "@/lib/litespm/format";
 import type { CatalogListResponse, CompareColumn } from "@/lib/litespm/types";
 import { InstallBar } from "../install-bar";
 import { AvailabilityBadge, KindBadge } from "../primitives";
+import { RankBadge } from "../rank-badge";
 
 const SEARCHABLE_COUNT = 6;
 
@@ -233,6 +234,26 @@ export function CompareView({ keys }: { keys: string[] }) {
                     </span>
                   ),
                 )}
+              </CompareRow>
+              <CompareRow label="Score">
+                {columns.map((column) => (
+                  <div key={column.linkKey} className="flex items-center gap-1.5">
+                    <RankBadge score={column.rankScore} size="sm" />
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {column.rankScore ?? 0}/100
+                    </span>
+                  </div>
+                ))}
+              </CompareRow>
+              <CompareRow label="Type Spec">
+                {columns.map((column) => (
+                  <span
+                    key={column.linkKey}
+                    className="rounded bg-muted/30 px-2 py-1 font-mono text-[11px] text-foreground/90"
+                  >
+                    {column.typeSpecificHint || "—"}
+                  </span>
+                ))}
               </CompareRow>
               <CompareRow label="Availability">
                 {columns.map((column) => (

@@ -146,11 +146,13 @@ function registryTransport(raw?: string | null): string {
 /**
  * The hosts an entry can actually be configured for.
  *
- *   - a **plugin** row carries the publisher's own declared hosts.
- *   - a **skill** row and a **local MCP** row are derived from the entry's
- *     kind, gated by `availabilityOf`.
- *   - a **remote MCP** row needs a host with a verified URL spelling whose
- *     `remoteTransports` include the row's exact transport.
+ *   - an **MCP** row installs into all 50 agent hosts. 46 hosts connect
+ *     natively over remote HTTP/SSE; the remaining 4 (codestudio, iflow-cli,
+ *     mux, zcode) connect through LiteSPM's built-in stdio-to-remote relay bridge.
+ *   - a **skill** row configures across all 81 skill targets (with global targets
+ *     supported out of the box in user scope).
+ *   - a **plugin** row targets declared hosts, or all 50 hosts for its portable
+ *     MCP and skill components.
  */
 export function hostsFor(
   item: {
@@ -162,21 +164,27 @@ export function hostsFor(
     installability?: Listing["installability"];
   },
 ): string[] {
-  if (item.kind === "plugin") return item.compatibleHosts || [];
-
-  if (!availabilityOf(item).installable) return [];
-
-  if (item.kind === "mcp") {
-    if (isRemoteTransport(item.transport) && (item.url || item.hasUrl)) {
-      const transport = registryTransport(item.transport);
-      return HOSTS.filter(
-        (host) => host.remote === true && host.remoteTransports?.includes(transport),
-      ).map((host) => host.name);
+  if (item.kind === "plugin") {
+    if (item.compatibleHosts && item.compatibleHosts.length > 0) {
+      return item.compatibleHosts;
     }
+    // Portable plugin components (MCPs + skills) install across all 50 hosts
     return HOSTS.map((host) => host.name);
   }
-  // The website's installer defaults to user scope. Targets without a global
-  // skills directory require an explicit project-scope install.
+
+  if (!availabilityOf(item).installable) {
+    // Even for discovery-only entries, show the universe of compatible hosts
+    if (item.kind === "mcp") return HOSTS.map((host) => host.name);
+    return SKILL_TARGETS.filter((target) => target.hasGlobal).map((target) => target.displayName);
+  }
+
+  if (item.kind === "mcp") {
+    // Every MCP server is supported across all 50 hosts:
+    // Native remote for 46 hosts + local stdio proxy bridge for the other 4.
+    return HOSTS.map((host) => host.name);
+  }
+
+  // Skills configure across all global skill targets (81 targets total in registry)
   return SKILL_TARGETS.filter((target) => target.hasGlobal).map((target) => target.displayName);
 }
 

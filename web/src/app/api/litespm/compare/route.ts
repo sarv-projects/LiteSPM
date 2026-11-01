@@ -29,6 +29,9 @@ export interface CompareColumn {
   pinned: boolean;
   artifactRepo: string | null;
   artifactRef: string | null;
+  rankScore: number;
+  typeSpecificHint: string;
+  toolsCount: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -75,6 +78,18 @@ export async function GET(request: NextRequest) {
         pinned: Boolean(row.artifact?.pinned),
         artifactRepo: row.artifact?.repo ?? null,
         artifactRef: row.artifact?.ref ?? null,
+        rankScore: row.rankScore ?? 0,
+        toolsCount: row.tools?.length ?? 0,
+        typeSpecificHint:
+          row.kind === "mcp"
+            ? `${row.transport || "stdio"} transport · ${row.url ? "Remote URL" : "Local process"}`
+            : row.kind === "skill"
+            ? (row.readme?.includes("TRIGGER") || row.summary?.includes("TRIGGER")
+                ? "Trigger & skip rules defined"
+                : "Declarative agent skill")
+            : (row.artifact?.pinned
+                ? "Pinned immutable manifest"
+                : "Unpinned (supports --allow-partial)"),
       });
     }
 

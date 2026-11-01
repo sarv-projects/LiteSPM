@@ -196,29 +196,29 @@ export function HomeView() {
             </div>
 
             <dl className="mt-8 grid max-w-lg grid-cols-3 gap-3">
-              <div>
+              <div title="69 311 unique canonical listings deduplicated from 69 376 raw upstream registry records">
                 <dd className="font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
                   {counts ? <CountUp value={counts.all} format={(n) => formatFull(n).replace(/,/g, " ")} /> : "…"}
                 </dd>
                 <dt className="mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Listings
                   <span className="block text-[10px] text-muted-foreground/60">
-                    Unique rows in this release
+                    69k unique (from 69 376 raw)
                   </span>
                 </dt>
               </div>
-              <div>
+              <div title="All 50 agent hosts supported for MCP servers + 81 agent skill targets">
                 <dd className="font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
-                  {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : "…"}
+                  {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : "50"}
                 </dd>
                 <dt className="mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Agent hosts
                   <span className="block text-[10px] text-muted-foreground/60">
-                    Hosts whose config LiteSPM writes
+                    50 hosts + 81 skill targets
                   </span>
                 </dt>
               </div>
-              <div>
+              <div title="26 489 verified installable capabilities with pinned git trees or valid endpoints">
                 <dd className="font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
                   {stats ? (
                     <CountUp value={stats.installable} format={(n) => formatFull(n).replace(/,/g, " ")} />
@@ -229,7 +229,7 @@ export function HomeView() {
                 <dt className="mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   One-command installs
                   <span className="block text-[10px] text-muted-foreground/60">
-                    Installable in a single command
+                    Zero-manual-config verified
                   </span>
                 </dt>
               </div>

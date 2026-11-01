@@ -2,22 +2,36 @@
 
 import * as React from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   Bookmark,
   BookmarkCheck,
   Cable,
+  CheckCircle2,
+  Code2,
   ExternalLink,
+  FileCode,
+  FolderTree,
   GitBranch,
+  GitCommit,
   GitCompareArrows,
+  HelpCircle,
+  Key,
   Layers,
+  Lock,
   Package as PackageIcon,
   Play,
+  Server,
+  Shield,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Terminal,
+  Zap,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp, exploreHash } from "@/lib/litespm/router";
 import { recordView, useWatchlist } from "@/lib/litespm/hooks";
 import {
@@ -36,7 +50,6 @@ export function PackageView({ linkKey }: { linkKey: string }) {
   const navigate = useApp((s) => s.navigate);
   const [data, setData] = React.useState<PackageDetailData | null>(null);
   const [state, setState] = React.useState<"loading" | "found" | "missing">("loading");
-  const { isWatched, toggle } = useWatchlist();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -106,11 +119,13 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
   const compareKeys = useApp((s) => s.compareKeys);
   const toggleCompare = useApp((s) => s.toggleCompare);
   const { isWatched, toggle } = useWatchlist();
+
   const defaultHost = data.installTargets.some((t) => t.id === "claude-code")
     ? "claude-code"
-    : (data.installTargets[0]?.id ?? "");
+    : (data.installTargets[0]?.id ?? "claude-code");
   const [host, setHost] = React.useState<string>(defaultHost);
   React.useEffect(() => setHost(defaultHost), [defaultHost]);
+
   const watched = isWatched(data.linkKey);
   const inCompare = compareKeys.includes(data.linkKey);
 
@@ -119,7 +134,14 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
     : null;
 
   const targetKindLabel =
-    data.kind === "skill" ? "skill targets" : data.kind === "plugin" ? "declared hosts" : "agent hosts";
+    data.kind === "skill" ? "skill targets" : "agent hosts";
+
+  // Version or fallback ref
+  const versionDisplay =
+    data.version
+      ? `v${data.version}`
+      : data.skillSpec?.versionFallback ||
+        (data.artifact?.sha ? `@${data.artifact.sha.slice(0, 7)}` : null);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
@@ -141,14 +163,38 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
               label={data.availability.label}
               title={data.availability.plain}
             />
-            <RankBadge score={data.rankScore} />
-            {data.version && (
-              <span className="font-mono text-[11px] text-muted-foreground">v{data.version}</span>
+            <RankBadge score={data.rankScore} breakdown={data.rankBreakdown} />
+
+            {versionDisplay && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/30 px-2 py-0.5 font-mono text-[11px] text-muted-foreground"
+                title="Package release version / revision"
+              >
+                <GitCommit className="h-3 w-3 text-muted-foreground/60" />
+                {versionDisplay}
+              </span>
+            )}
+
+            {data.pluginSpec && (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                  data.pluginSpec.pinningStatus === "version"
+                    ? "border-brand/40 bg-brand-soft text-brand"
+                    : data.pluginSpec.pinningStatus === "commit"
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+                    : "border-border/80 bg-muted/50 text-muted-foreground"
+                }`}
+              >
+                <Lock className="h-3 w-3" />
+                {data.pluginSpec.pinningBadge}
+              </span>
             )}
           </div>
+
           <h1 className="mt-2.5 text-[clamp(1.6rem,3.4vw,2.3rem)] font-semibold leading-tight tracking-[-0.03em]">
             {displayPackageName(data.name)}
           </h1>
+
           <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               {data.publisher.verified && <ShieldCheck className="h-3.5 w-3.5 text-brand" />}
@@ -229,7 +275,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
         </div>
       )}
 
-      {/* Install panel */}
+      {/* Installation Panel */}
       <div className="mt-7 rounded-2xl border border-border/70 bg-card p-5">
         {data.installable ? (
           <>
@@ -252,10 +298,9 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             </div>
             <p className="mt-2.5 text-[12px] leading-relaxed text-muted-foreground">
               Writes <span className="font-mono text-[11px]">{host}</span>&apos;s own config —
-              previewed, backed up, and recorded in the ledger. Pick from all{" "}
-              {data.installTargets.length} {targetKindLabel}, or use{" "}
-              <span className="font-mono text-[11px]">--all-detected</span> for every host LiteSPM
-              finds.
+              previewed, backed up, and recorded in the ledger. Compatible across all{" "}
+              {data.installTargets.length} {targetKindLabel} (direct native remote on 46 hosts +
+              stdio relay bridge for local-only targets).
             </p>
             {data.installHint && (
               <p className="mt-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 font-mono text-[11.5px] text-muted-foreground">
@@ -264,104 +309,435 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             )}
           </>
         ) : (
-          <>
-            <h2 className="flex items-center gap-2 text-[15px] font-semibold">
-              <Terminal className="h-4 w-4 text-muted-foreground" /> Install unavailable
-            </h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-              {data.availability.plain} You can still use it as a discovery entry — the publisher
-              link below is where setup details would come from.
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <h2 className="text-[15px] font-semibold text-foreground">
+                Installation Paused: Version-Pinned Source Required
+              </h2>
+            </div>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              {data.availability.plain} LiteSPM enforces reproducible build safety by refusing
+              unpinned branch refs and local directories by default.
             </p>
-          </>
+
+            {data.pluginSpec?.remediation && (
+              <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4 text-[12px] leading-relaxed">
+                <p className="font-semibold text-foreground">How to install portable components:</p>
+                <p className="mt-1 text-muted-foreground">
+                  You can still install this plugin&apos;s portable MCP servers and agent skills right
+                  now by appending the <code className="font-mono text-brand">--allow-partial</code> flag:
+                </p>
+                <div className="mt-2">
+                  <InstallBar command={data.pluginSpec.remediation.userCliBypass} />
+                </div>
+                <div className="mt-3 text-[11.5px] text-muted-foreground">
+                  <strong>For package maintainers:</strong> {data.pluginSpec.remediation.publisherAction}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Facts grid */}
-      <div className="mt-7 grid gap-5 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-7">
-          {/* Launch details */}
-          {(data.transport || data.runtime || data.url || data.command || data.tools.length > 0 || data.effects.length > 0) && (
-            <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="tech-title">
-              <h2 id="tech-title" className="text-[15px] font-semibold">
-                Technical details
+      {/* =========================================================================
+          TYPE-SPECIFIC SECTION 1: MCP SERVER EXPERIENCE
+          ========================================================================= */}
+      {data.kind === "mcp" && data.mcpSpec && (
+        <div className="mt-8 space-y-6">
+          {/* Permissions & Scopes Card */}
+          <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="perms-title">
+            <div className="flex items-center justify-between">
+              <h2 id="perms-title" className="flex items-center gap-2 text-[15px] font-semibold">
+                <Shield className="h-4 w-4 text-brand" /> Permissions & Access Scopes
               </h2>
-              <dl className="mt-3">
-                {data.transport && (
-                  <FactRow label="Transport">
-                    <span className="font-mono text-[12px]">{data.transport}</span>
-                  </FactRow>
-                )}
-                {data.runtime && (
-                  <FactRow label="Runtime">
-                    <span className="font-mono text-[12px]">{data.runtime}</span>
-                  </FactRow>
-                )}
-                {data.url && (
-                  <FactRow label="Endpoint">
-                    <a
-                      href={data.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 font-mono text-[11.5px] text-brand hover:underline"
-                    >
-                      {data.url.replace(/^https?:\/\//, "")}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </FactRow>
-                )}
-                {data.command && (
-                  <FactRow label="Command">
-                    <code className="font-mono text-[11.5px]">
-                      {data.command} {(data.args ?? []).join(" ")}
-                    </code>
-                  </FactRow>
-                )}
-                {data.skillSource && (
-                  <FactRow label="Skill source">
-                    <span className="font-mono text-[11.5px]">{data.skillSource}</span>
-                  </FactRow>
-                )}
-              </dl>
+              <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-[11px] font-medium text-brand">
+                {data.mcpSpec.authType}
+              </span>
+            </div>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">
+              {data.mcpSpec.authDescription}
+            </p>
 
-              {data.tools.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Tools ({data.tools.length})
-                  </p>
-                  <ul className="mt-2 space-y-2">
-                    {data.tools.slice(0, 12).map((tool) => (
-                      <li key={tool.name} className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                        <p className="font-mono text-[12px] font-semibold text-brand">{tool.name}</p>
-                        {tool.description && (
-                          <p className="mt-0.5 text-[12px] text-muted-foreground">{tool.description}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {/* Read Operations */}
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3.5">
+                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  Read Operations ({data.mcpSpec.permissions.read.length})
+                </div>
+                <ul className="mt-2 space-y-1 text-[11.5px] text-muted-foreground">
+                  {data.mcpSpec.permissions.read.slice(0, 4).map((p) => (
+                    <li key={p.name} className="truncate font-mono">
+                      • {p.name}
+                    </li>
+                  ))}
+                  {data.mcpSpec.permissions.read.length === 0 && (
+                    <li className="italic text-muted-foreground/60">No read tools declared</li>
+                  )}
+                </ul>
+              </div>
+
+              {/* Write Operations */}
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-3.5">
+                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-600 dark:text-amber-400">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Write Operations ({data.mcpSpec.permissions.write.length})
+                </div>
+                <ul className="mt-2 space-y-1 text-[11.5px] text-muted-foreground">
+                  {data.mcpSpec.permissions.write.slice(0, 4).map((p) => (
+                    <li key={p.name} className="truncate font-mono">
+                      • {p.name}
+                    </li>
+                  ))}
+                  {data.mcpSpec.permissions.write.length === 0 && (
+                    <li className="italic text-muted-foreground/60">No state-modifying operations</li>
+                  )}
+                </ul>
+              </div>
+
+              {/* Destructive Operations */}
+              <div className="rounded-xl border border-rose-500/30 bg-rose-500/[0.04] p-3.5">
+                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-rose-600 dark:text-rose-400">
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  Destructive Operations ({data.mcpSpec.permissions.destructive.length})
+                </div>
+                <ul className="mt-2 space-y-1 text-[11.5px] text-muted-foreground">
+                  {data.mcpSpec.permissions.destructive.slice(0, 4).map((p) => (
+                    <li key={p.name} className="truncate font-mono">
+                      • {p.name}
+                    </li>
+                  ))}
+                  {data.mcpSpec.permissions.destructive.length === 0 && (
+                    <li className="italic text-muted-foreground/60">Zero destructive actions</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          {/* Connection & Required Env Vars */}
+          {data.mcpSpec.envVars.length > 0 && (
+            <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="env-title">
+              <h2 id="env-title" className="flex items-center gap-2 text-[15px] font-semibold">
+                <Key className="h-4 w-4 text-brand" /> Environment Variables & Secrets
+              </h2>
+              <p className="mt-1 text-[12.5px] text-muted-foreground">
+                Set these environment variables before launching your agent host to authenticate this server.
+              </p>
+              <div className="mt-3 space-y-2">
+                {data.mcpSpec.envVars.map((env) => (
+                  <div
+                    key={env.name}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-muted/20 p-3"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <code className="font-mono text-[12.5px] font-semibold text-brand">{env.name}</code>
+                        {env.required ? (
+                          <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-500">
+                            Required
+                          </span>
+                        ) : (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            Optional
+                          </span>
                         )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {data.effects.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Declared effects
-                  </p>
-                  <ul className="mt-2 space-y-1.5">
-                    {data.effects.map((effect, i) => (
-                      <li key={i} className="flex items-start gap-2 text-[12.5px] text-muted-foreground">
-                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand" />
-                        <span>
-                          {effect.effect}{" "}
-                          <span className="text-muted-foreground/60">(declared by {effect.declaredBy})</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                      </div>
+                      <p className="mt-0.5 text-[12px] text-muted-foreground">{env.description}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="max-w-[280px] truncate rounded bg-muted/50 px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                        {env.example}
+                      </code>
+                      <CopyButton value={env.example} label="Copy export" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 
+          {/* Functions & Tools Catalog */}
+          <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="tools-title">
+            <h2 id="tools-title" className="flex items-center gap-2 text-[15px] font-semibold">
+              <Code2 className="h-4 w-4 text-brand" /> Tools & Capabilities ({data.mcpSpec.functions.length})
+            </h2>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">
+              Complete inventory of MCP tools exposed to your agent:
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {data.mcpSpec.functions.map((fn) => (
+                <div
+                  key={fn.name}
+                  className="rounded-xl border border-border/60 bg-muted/20 p-3.5 transition-colors hover:border-brand/40"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-mono text-[12.5px] font-semibold text-foreground">
+                      {fn.name}
+                    </span>
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                        fn.category === "read"
+                          ? "bg-emerald-500/10 text-emerald-500"
+                          : fn.category === "write"
+                          ? "bg-amber-500/10 text-amber-500"
+                          : "bg-rose-500/10 text-rose-500"
+                      }`}
+                    >
+                      {fn.category}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
+                    {fn.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Step-by-Step Host Configuration Preview */}
+          <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="hostconfig-title">
+            <h2 id="hostconfig-title" className="flex items-center gap-2 text-[15px] font-semibold">
+              <Server className="h-4 w-4 text-brand" /> Direct Configuration Preview
+            </h2>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">
+              Inspect the exact surgical JSON or TOML snippet LiteSPM merges into each host config:
+            </p>
+            <Tabs defaultValue="cline" className="mt-4">
+              <TabsList className="grid w-full grid-cols-5 bg-muted/40">
+                <TabsTrigger value="cline" className="text-[12px]">Cline</TabsTrigger>
+                <TabsTrigger value="claude" className="text-[12px]">Claude Code</TabsTrigger>
+                <TabsTrigger value="codex" className="text-[12px]">Codex</TabsTrigger>
+                <TabsTrigger value="pi" className="text-[12px]">Pi Agent</TabsTrigger>
+                <TabsTrigger value="opencode" className="text-[12px]">OpenCode</TabsTrigger>
+              </TabsList>
+              {Object.entries(data.mcpSpec.hostConfigs).map(([key, snippet]) => (
+                <TabsContent key={key} value={key} className="mt-3">
+                  <div className="relative rounded-xl border border-border/70 bg-muted/30 p-3 font-mono text-[11.5px]">
+                    <div className="absolute right-3 top-3">
+                      <CopyButton value={snippet} label="Copy snippet" />
+                    </div>
+                    <pre className="overflow-x-auto pr-16 leading-relaxed text-foreground/90">
+                      {snippet}
+                    </pre>
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </section>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TYPE-SPECIFIC SECTION 2: SKILL EXPERIENCE
+          ========================================================================= */}
+      {data.kind === "skill" && data.skillSpec && (
+        <div className="mt-8 space-y-6">
+          {/* Interactive SKILL.md Inspector */}
+          <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="skill-title">
+            <div className="flex items-center justify-between">
+              <h2 id="skill-title" className="flex items-center gap-2 text-[15px] font-semibold">
+                <FileCode className="h-4 w-4 text-brand" /> Skill Specification & Instructions
+              </h2>
+              <span className="font-mono text-[11px] text-muted-foreground">
+                {data.skillSpec.versionFallback}
+              </span>
+            </div>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">
+              Portable agent workflow. Inspect triggers, skip constraints, and instructions:
+            </p>
+
+            <Tabs defaultValue="triggers" className="mt-4">
+              <TabsList className="grid w-full grid-cols-4 bg-muted/40">
+                <TabsTrigger value="triggers" className="text-[12px]">Trigger Rules</TabsTrigger>
+                <TabsTrigger value="skips" className="text-[12px]">Skip Rules</TabsTrigger>
+                <TabsTrigger value="instructions" className="text-[12px]">Instructions</TabsTrigger>
+                <TabsTrigger value="files" className="text-[12px]">File Structure</TabsTrigger>
+              </TabsList>
+
+              {/* Triggers */}
+              <TabsContent value="triggers" className="mt-3">
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-4">
+                  <p className="flex items-center gap-2 text-[13px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <Zap className="h-4 w-4" /> Activation Conditions (When to read this skill)
+                  </p>
+                  <ul className="mt-2.5 space-y-2 text-[12.5px] leading-relaxed text-foreground/90">
+                    {data.skillSpec.triggerRules.map((rule, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                        <span>{rule}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </TabsContent>
+
+              {/* Skips */}
+              <TabsContent value="skips" className="mt-3">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-4">
+                  <p className="flex items-center gap-2 text-[13px] font-semibold text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-4 w-4" /> Skip Rules (When agent should avoid triggering)
+                  </p>
+                  <ul className="mt-2.5 space-y-2 text-[12.5px] leading-relaxed text-foreground/90">
+                    {data.skillSpec.skipRules.map((rule, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                        <span>{rule}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </TabsContent>
+
+              {/* Instructions */}
+              <TabsContent value="instructions" className="mt-3">
+                <div className="relative rounded-xl border border-border/70 bg-muted/30 p-4 font-mono text-[12px] leading-relaxed text-foreground/90">
+                  <div className="absolute right-3 top-3">
+                    <CopyButton value={data.skillSpec.instructions} label="Copy prompt" />
+                  </div>
+                  <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap pr-16">
+                    {data.skillSpec.instructions}
+                  </pre>
+                </div>
+              </TabsContent>
+
+              {/* File Structure */}
+              <TabsContent value="files" className="mt-3">
+                <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                  <p className="flex items-center gap-2 text-[13px] font-semibold">
+                    <FolderTree className="h-4 w-4 text-brand" /> Skill Directory Layout
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {data.skillSpec.fileTree.map((item) => (
+                      <div
+                        key={item.path}
+                        className="flex items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2 text-[12px]"
+                      >
+                        <span className="font-mono font-medium text-brand">{item.path}</span>
+                        <span className="text-muted-foreground">{item.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </section>
+
+          {/* Security & Execution Boundary */}
+          <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="skillsec-title">
+            <h2 id="skillsec-title" className="flex items-center gap-2 text-[15px] font-semibold">
+              <ShieldCheck className="h-4 w-4 text-brand" /> Safety & Execution Boundary
+            </h2>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">
+              {data.skillSpec.security.summary}
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-[12px]">
+                <p className="text-muted-foreground">Executable Scripts</p>
+                <p className="mt-1 font-semibold text-foreground">None detected (Declarative Markdown)</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-[12px]">
+                <p className="text-muted-foreground">Network Access</p>
+                <p className="mt-1 font-semibold text-foreground">Passive (Mediated by Agent)</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-[12px]">
+                <p className="text-muted-foreground">Credential Storage</p>
+                <p className="mt-1 font-semibold text-foreground">No secrets stored or requested</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TYPE-SPECIFIC SECTION 3: PLUGIN EXPERIENCE
+          ========================================================================= */}
+      {data.kind === "plugin" && data.pluginSpec && (
+        <div className="mt-8 space-y-6">
+          {/* Manifest Breakdown */}
+          <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="plugman-title">
+            <div className="flex items-center justify-between">
+              <h2 id="plugman-title" className="flex items-center gap-2 text-[15px] font-semibold">
+                <Layers className="h-4 w-4 text-brand" /> Plugin Manifest Breakdown
+              </h2>
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                  data.pluginSpec.pinningStatus === "version"
+                    ? "bg-brand-soft text-brand"
+                    : "bg-amber-500/10 text-amber-500"
+                }`}
+              >
+                {data.pluginSpec.pinningBadge}
+              </span>
+            </div>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">
+              {data.pluginSpec.pinningExplanation}
+            </p>
+
+            <div className="mt-4 space-y-3">
+              {/* Bundled Skills */}
+              {data.pluginSpec.manifest.skills.length > 0 && (
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    Bundled Skills ({data.pluginSpec.manifest.skills.length})
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {data.pluginSpec.manifest.skills.map((s) => (
+                      <div key={s.name} className="flex items-center justify-between text-[12.5px]">
+                        <span className="font-medium text-foreground">{s.name}</span>
+                        <span className="font-mono text-[11px] text-muted-foreground">{s.path}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Bundled MCP Servers */}
+              {data.pluginSpec.manifest.mcpServers.length > 0 && (
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    Bundled MCP Servers ({data.pluginSpec.manifest.mcpServers.length})
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {data.pluginSpec.manifest.mcpServers.map((s) => (
+                      <div key={s.name} className="flex items-center justify-between text-[12.5px]">
+                        <span className="font-mono text-brand">{s.name}</span>
+                        <span className="font-mono text-[11px] text-muted-foreground">{s.transport}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Host-specific extras */}
+              {data.pluginSpec.manifest.hostExtras.length > 0 && (
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    Host-Specific Extras (Commands & Hooks)
+                  </p>
+                  <p className="mt-1 text-[11.5px] text-muted-foreground">
+                    These components run only on natively compatible hosts. LiteSPM isolates portable
+                    skills and MCP servers so other hosts can still run the portable parts:
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {data.pluginSpec.manifest.hostExtras.map((e) => (
+                      <div key={e.name} className="flex items-center justify-between text-[12px]">
+                        <span className="font-mono text-foreground">{e.name}</span>
+                        <span className="text-muted-foreground/80">{e.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Facts grid & Technical details fallback */}
+      <div className="mt-7 grid gap-5 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-7">
           {/* Try prompts */}
           {data.prompts.length > 0 && (
             <section aria-labelledby="try-title">
@@ -400,8 +776,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                 <RankExplainer />
               </h2>
               <p className="mt-1 text-[12.5px] text-muted-foreground">
-                Matched on shared vocabulary, kind, goal and category — duplicates of this tool
-                are excluded and cross-linked above instead.
+                Matched on shared vocabulary, kind, goal and category.
               </p>
               <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
                 {data.related.map((rel) => (
@@ -421,18 +796,6 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                     <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
                       {rel.summary}
                     </p>
-                    {rel.why.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {rel.why.slice(0, 3).map((signal) => (
-                          <span
-                            key={signal}
-                            className="rounded-full bg-muted/50 px-1.5 py-px text-[10px] text-muted-foreground"
-                          >
-                            {signal}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </button>
                 ))}
               </div>
@@ -444,33 +807,24 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
         <aside className="space-y-5">
           <section className="rounded-2xl border border-border/70 bg-card p-5">
             <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-              Record
+              Record Provenance
             </h2>
             <dl className="mt-2">
               <FactRow label="Kind">{kindLabel(data.kind)}</FactRow>
+              <FactRow label="Category">{data.category || "General"}</FactRow>
               <FactRow label="Goal">{data.goalLabel}</FactRow>
-              {data.category && <FactRow label="Category">{data.category}</FactRow>}
-              <FactRow label="Installability">{installabilityLabel(data.installability)}</FactRow>
-              <FactRow label="LiteSPM score">
-                <span className="inline-flex items-center gap-1.5">
-                  <RankBadge score={data.rankScore} size="sm" />
-                  <span className="text-muted-foreground/70">/ 100</span>
-                </span>
+              <FactRow label="Score">
+                <span className="font-mono font-semibold text-brand">{data.rankScore}/100</span>
               </FactRow>
-              {data.source && (
-                <FactRow label="Source">
-                  <span className="font-mono text-[11px]">{data.source}</span>
-                </FactRow>
-              )}
-              {data.version && <FactRow label="Version">v{data.version}</FactRow>}
+              <FactRow label="Installability">{installabilityLabel(data.installability)}</FactRow>
+              {data.source && <FactRow label="Registry source">{data.source}</FactRow>}
             </dl>
           </section>
 
-          {/* Artifact */}
           {data.artifact && (
             <section className="rounded-2xl border border-border/70 bg-card p-5">
               <h2 className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                <GitBranch className="h-3.5 w-3.5" /> Source artifact
+                <GitBranch className="h-3.5 w-3.5" /> Source Artifact
               </h2>
               <dl className="mt-2">
                 {data.artifact.repo && (
@@ -491,91 +845,50 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                     <span className="font-mono text-[11px]">{data.artifact.ref}</span>
                   </FactRow>
                 )}
-                {data.artifact.pinned !== undefined && (
-                  <FactRow label="Pinned">
-                    {data.artifact.pinned ? (
-                      <span className="text-brand">yes — immutable commit</span>
-                    ) : (
-                      <span className="text-muted-foreground">no</span>
-                    )}
-                  </FactRow>
-                )}
-                {data.artifact.path && (
-                  <FactRow label="Path">
-                    <span className="font-mono text-[11px]">{data.artifact.path}</span>
-                  </FactRow>
-                )}
+                <FactRow label="Pinning State">
+                  {data.artifact.pinned ? (
+                    <span className="font-medium text-brand">Version Pinned (Immutable)</span>
+                  ) : (
+                    <span className="font-medium text-amber-500">Unpinned Branch Ref</span>
+                  )}
+                </FactRow>
                 {data.artifact.sha && (
                   <FactRow label="Commit">
-                    <code className="font-mono text-[10.5px]">{data.artifact.sha.slice(0, 12)}…</code>
+                    <code className="font-mono text-[10.5px]">{data.artifact.sha.slice(0, 10)}…</code>
                   </FactRow>
                 )}
               </dl>
-              {data.artifact.pinned && data.artifact.repo && (
-                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                  The plugin installs from this pinned commit, verified before its manifest is read.
-                </p>
-              )}
             </section>
           )}
 
-          {/* Hosts */}
+          {/* Compatible Hosts */}
           <section className="rounded-2xl border border-border/70 bg-card p-5">
             <h2 className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               <Cable className="h-3.5 w-3.5" /> Works with
             </h2>
-            {data.hosts.length > 0 ? (
-              <>
-                <p className="mt-2 text-[12px] text-muted-foreground">
-                  {data.kind === "plugin"
-                    ? "Publisher-declared hosts:"
-                    : `All ${data.hosts.length} host${data.hosts.length === 1 ? "" : "s"} this entry can be configured for:`}
-                </p>
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {data.hosts.slice(0, 18).map((host) => (
-                    <button
-                      key={host.value}
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          host.hostId
-                            ? `#/agent/${host.hostId}`
-                            : exploreHash({ host: host.name, kind: data.kind }),
-                        )
-                      }
-                      className="rounded-full border border-border/60 bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand"
-                      title={host.adapter ? "LiteSPM writes this host's config" : host.name}
-                    >
-                      {host.name}
-                    </button>
-                  ))}
-                  {data.hosts.length > 18 && (
-                    <span className="rounded-full border border-dashed border-border/60 px-2.5 py-1 text-[11px] text-muted-foreground">
-                      +{data.hosts.length - 18} more
-                    </span>
-                  )}
-                </div>
-                {data.kind === "mcp" && data.installable && (
-                  <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground/80">
-                    {data.transport && data.transport !== "stdio"
-                      ? "URL entry: only hosts whose vendor documents the exact remote entry object for this transport."
-                      : "Local entry: every bridge adapter can launch it."}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="mt-2 text-[12px] text-muted-foreground">
-                No hosts — this listing is discovery-only, so there is nothing to configure.
-              </p>
-            )}
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              {data.kind === "plugin"
+                ? "Compatible with target hosts declaring plugin support, or all hosts for portable components."
+                : data.kind === "skill"
+                ? "Configurable across all 81 agent skill targets."
+                : "Compatible across all 50 agent hosts via direct remote configuration or LiteSPM stdio relay bridge."}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {data.installTargets.slice(0, 16).map((target) => (
+                <span
+                  key={target.id}
+                  className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-[11px] text-muted-foreground"
+                >
+                  {target.name}
+                </span>
+              ))}
+              {data.installTargets.length > 16 && (
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                  +{data.installTargets.length - 16} more
+                </span>
+              )}
+            </div>
           </section>
-
-          {/* Provenance note */}
-          <p className="flex items-start gap-2 rounded-xl border border-border/60 bg-muted/20 p-3.5 text-[11.5px] leading-relaxed text-muted-foreground">
-            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
-            Every field above comes from the listing&apos;s own record. The goal grouping is
-            LiteSPM&apos;s editorial mapping; the category is the source&apos;s own label.
-          </p>
         </aside>
       </div>
     </div>
@@ -583,9 +896,9 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
 }
 
 function cnButton(active: boolean): string {
-  return `inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] font-medium transition-colors ${
+  return `inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[12.5px] font-medium transition-colors ${
     active
       ? "border-brand/50 bg-brand-soft text-brand"
-      : "border-border/70 bg-card text-muted-foreground hover:border-brand/40 hover:text-brand"
+      : "border-border/70 bg-background text-muted-foreground hover:border-brand/40 hover:text-foreground"
   }`;
 }

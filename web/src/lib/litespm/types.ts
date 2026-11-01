@@ -129,6 +129,70 @@ export interface PackageDetailData {
   }>;
   tools: Array<{ name: string; description: string }>;
   effects: Array<{ effect: string; declaredBy: string }>;
+  readme?: string;
+  rankBreakdown?: {
+    total: number;
+    recognition: { points: number; max: number; reason: string };
+    vendorAuthority: { points: number; max: number; reason: string };
+    installability: { points: number; max: number; reason: string };
+    recordQuality: { points: number; max: number; reason: string };
+    description: { points: number; max: number; reason: string };
+    stars: { points: number; max: number; reason: string };
+    penalty: { points: number; reason: string };
+  };
+  mcpSpec?: {
+    permissions: {
+      read: Array<{ category: "read"; name: string; description: string }>;
+      write: Array<{ category: "write"; name: string; description: string }>;
+      destructive: Array<{ category: "destructive"; name: string; description: string }>;
+    };
+    authType: string;
+    authDescription: string;
+    envVars: Array<{ name: string; required: boolean; description: string; example: string }>;
+    functions: Array<{
+      name: string;
+      category: "read" | "write" | "destructive";
+      description: string;
+      parameters?: string[];
+    }>;
+    hostConfigs: {
+      cline: string;
+      claude: string;
+      codex: string;
+      pi: string;
+      opencode: string;
+    };
+  };
+  skillSpec?: {
+    versionFallback: string;
+    commitHash?: string;
+    instructions: string;
+    triggerRules: string[];
+    skipRules: string[];
+    fileTree: Array<{ path: string; type: "file" | "dir"; description: string }>;
+    security: {
+      scripts: "none" | "present";
+      network: "passive" | "active";
+      credentials: "none" | "required";
+      summary: string;
+    };
+  };
+  pluginSpec?: {
+    pinningStatus: "version" | "commit" | "unpinned";
+    pinningBadge: string;
+    pinningExplanation: string;
+    manifest: {
+      mcpServers: Array<{ name: string; endpoint?: string; transport: string }>;
+      skills: Array<{ name: string; path: string; summary: string }>;
+      hostExtras: Array<{ type: "hook" | "command" | "subagent" | "lsp"; name: string; description: string }>;
+    };
+    remediation: {
+      isBlocked: boolean;
+      reason: string;
+      publisherAction: string;
+      userCliBypass: string;
+    };
+  };
 }
 
 export interface PackageDetailResponse {
@@ -346,6 +410,9 @@ export interface CompareColumn {
   pinned: boolean;
   artifactRepo: string | null;
   artifactRef: string | null;
+  rankScore?: number;
+  toolsCount?: number;
+  typeSpecificHint?: string;
 }
 
 export interface TrendingItem {

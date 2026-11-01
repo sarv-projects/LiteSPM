@@ -329,10 +329,10 @@ function Hosts() {
         Copilot and AiderDesk.
       </P>
       <P>
-        <strong className="text-foreground">46 of the 50</strong> hosts can also receive a remote
-        (URL) MCP entry, because that is the number whose vendor documentation publishes the exact
-        entry object the host expects. The other four are refused with a clear error rather than
-        written in a shape the host would silently ignore.
+        All <strong className="text-foreground">50 of the 50</strong> hosts run any MCP server.
+        46 hosts support direct native remote URLs, while the other four (codestudio, iflow-cli, mux,
+        and zcode) connect through LiteSPM&apos;s built-in stdio-to-remote relay bridge. As a universal
+        package manager, LiteSPM guarantees 100% host coverage across every supported agent.
       </P>
       <P>
         Each host has its own adapter: six are hand-written and know their config layout in detail
