@@ -33,7 +33,12 @@ export const metadata: Metadata = {
   authors: [{ name: "LiteSPM" }],
   applicationName: "LiteSPM",
   icons: {
-    icon: "/brand/icon.svg",
+    icon: [
+      { url: "/brand/icon.svg", type: "image/svg+xml" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/brand/icon.svg",
   },
   openGraph: {
     title: "LiteSPM — The package manager for AI agents",
