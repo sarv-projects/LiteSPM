@@ -1,5 +1,14 @@
 import type { Listing } from "./types";
 import { norm, stripNamespace } from "./ranking";
+import { HOSTS } from "./hosts";
+
+export interface HostConfigItem {
+  id: string;
+  name: string;
+  format: "json" | "toml";
+  configPath: string;
+  snippet: string;
+}
 
 export interface McpPermissionScope {
   category: "read" | "write" | "destructive";
@@ -29,13 +38,7 @@ export interface McpDetailSpec {
     description: string;
     parameters?: string[];
   }>;
-  hostConfigs: {
-    cline: string;
-    claude: string;
-    codex: string;
-    pi: string;
-    opencode: string;
-  };
+  hostConfigs: HostConfigItem[];
 }
 
 export interface SkillDetailSpec {
@@ -278,77 +281,80 @@ export function buildMcpSpec(row: Listing): McpDetailSpec {
     authDescription = `Server authenticates via ${envVars.filter((e) => e.required).map((e) => e.name).join(", ")} environment variables.`;
   }
 
-  // Host configuration snippets
+  // Host configuration snippets for all 50 hosts
   const serverKey = norm(stripNamespace(row.name)) || "mcp-server";
-  const urlOrCmd = row.url || (row.command ? `${row.command} ${(row.args ?? []).join(" ")}` : "litespm bridge stdio");
 
-  const clineSnippet = JSON.stringify(
-    {
-      mcpServers: {
-        [serverKey]: row.url
-          ? { url: row.url, transport: row.transport || "streamable-http" }
-          : {
-              command: row.command || "npx",
-              args: row.args && row.args.length ? row.args : ["-y", row.name],
-              env: envVars.reduce((acc, v) => ({ ...acc, [v.name]: `<YOUR_${v.name}>` }), {}),
-            },
-      },
-    },
-    null,
-    2,
-  );
+  const PRIORITY_HOST_IDS = [
+    "claude-code",
+    "cline",
+    "cursor",
+    "codex",
+    "pi-agent",
+    "opencode",
+    "windsurf",
+    "gemini-cli",
+    "github-copilot",
+    "grok-build",
+  ];
 
-  const claudeSnippet = JSON.stringify(
-    {
-      mcpServers: {
-        [serverKey]: row.url
-          ? { url: row.url }
-          : {
-              command: row.command || "npx",
-              args: row.args && row.args.length ? row.args : ["-y", row.name],
-              env: envVars.reduce((acc, v) => ({ ...acc, [v.name]: `<YOUR_${v.name}>` }), {}),
-            },
-      },
-    },
-    null,
-    2,
-  );
+  const hostConfigs: HostConfigItem[] = HOSTS.map((h) => {
+    let snippet = "";
+    if (h.kind === "toml") {
+      const section = h.keyPath ? `[${h.keyPath}.${serverKey}]` : `[mcp_servers.${serverKey}]`;
+      if (row.url) {
+        snippet = `${section}\nurl = "${row.url}"\ntransport = "${row.transport || "streamable-http"}"`;
+      } else {
+        const lines = [
+          section,
+          `command = "${row.command || "npx"}"`,
+          `args = [${(row.args && row.args.length ? row.args : ["-y", row.name]).map((a) => `"${a}"`).join(", ")}]`,
+        ];
+        for (const v of envVars) {
+          lines.push(`env.${v.name} = "<YOUR_${v.name}>"`);
+        }
+        snippet = lines.join("\n");
+      }
+    } else {
+      // JSON format
+      const entryObj: Record<string, unknown> = row.url
+        ? {
+            url: row.url,
+            ...(row.transport && row.transport !== "stdio" ? { transport: row.transport } : {}),
+          }
+        : {
+            command: row.command || "npx",
+            args: row.args && row.args.length ? row.args : ["-y", row.name],
+            ...(envVars.length > 0
+              ? { env: envVars.reduce((acc, v) => ({ ...acc, [v.name]: `<YOUR_${v.name}>` }), {}) }
+              : {}),
+          };
 
-  const codexSnippet = row.url
-    ? `[mcp_servers.${serverKey}]\nurl = "${row.url}"\ntransport = "${row.transport || "streamable-http"}"`
-    : `[mcp_servers.${serverKey}]\ncommand = "${row.command || "npx"}"\nargs = [${(row.args && row.args.length ? row.args : ["-y", row.name]).map((a) => `"${a}"`).join(", ")}]\n${envVars.map((v) => `env.${v.name} = "<YOUR_${v.name}>"`).join("\n")}`;
+      const keyPath = h.keyPath || "mcpServers";
+      const parts = keyPath.split(".");
+      let current: Record<string, unknown> = { [serverKey]: entryObj };
+      for (let i = parts.length - 1; i >= 0; i--) {
+        current = { [parts[i]]: current };
+      }
+      snippet = JSON.stringify(current, null, 2);
+    }
 
-  const piSnippet = JSON.stringify(
-    {
-      mcpServers: {
-        [serverKey]: row.url
-          ? { url: row.url }
-          : {
-              command: row.command || "npx",
-              args: row.args && row.args.length ? row.args : ["-y", row.name],
-            },
-      },
-    },
-    null,
-    2,
-  );
+    return {
+      id: h.id,
+      name: h.name,
+      format: h.kind === "toml" ? "toml" : "json",
+      configPath: h.userPath || `~/.${h.id}/config.${h.kind === "toml" ? "toml" : "json"}`,
+      snippet,
+    };
+  });
 
-  const opencodeSnippet = JSON.stringify(
-    {
-      mcp: {
-        servers: {
-          [serverKey]: row.url
-            ? { url: row.url }
-            : {
-                command: row.command || "npx",
-                args: row.args && row.args.length ? row.args : ["-y", row.name],
-              },
-        },
-      },
-    },
-    null,
-    2,
-  );
+  hostConfigs.sort((a, b) => {
+    const aIdx = PRIORITY_HOST_IDS.indexOf(a.id);
+    const bIdx = PRIORITY_HOST_IDS.indexOf(b.id);
+    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+    if (aIdx !== -1) return -1;
+    if (bIdx !== -1) return 1;
+    return a.name.localeCompare(b.name);
+  });
 
   return {
     permissions: { read, write, destructive },
@@ -356,13 +362,7 @@ export function buildMcpSpec(row: Listing): McpDetailSpec {
     authDescription,
     envVars,
     functions,
-    hostConfigs: {
-      cline: clineSnippet,
-      claude: claudeSnippet,
-      codex: codexSnippet,
-      pi: piSnippet,
-      opencode: opencodeSnippet,
-    },
+    hostConfigs,
   };
 }
 

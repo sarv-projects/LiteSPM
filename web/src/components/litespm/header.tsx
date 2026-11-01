@@ -206,6 +206,17 @@ export function Header() {
                 {item.label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                setAssistant(true);
+              }}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] font-medium text-brand hover:bg-brand-soft"
+            >
+              <Sparkles className="h-4 w-4" />
+              Ask AI
+            </button>
             <a
               href="https://github.com/sarv-projects/LiteSPM"
               target="_blank"

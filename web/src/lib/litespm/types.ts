@@ -155,13 +155,13 @@ export interface PackageDetailData {
       description: string;
       parameters?: string[];
     }>;
-    hostConfigs: {
-      cline: string;
-      claude: string;
-      codex: string;
-      pi: string;
-      opencode: string;
-    };
+    hostConfigs: Array<{
+      id: string;
+      name: string;
+      format: "json" | "toml";
+      configPath: string;
+      snippet: string;
+    }>;
   };
   skillSpec?: {
     versionFallback: string;

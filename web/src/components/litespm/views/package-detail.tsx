@@ -8,6 +8,7 @@ import {
   BookmarkCheck,
   Cable,
   CheckCircle2,
+  ChevronDown,
   Code2,
   ExternalLink,
   FileCode,
@@ -124,6 +125,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
     ? "claude-code"
     : (data.installTargets[0]?.id ?? "claude-code");
   const [host, setHost] = React.useState<string>(defaultHost);
+  const [selectedHostId, setSelectedHostId] = React.useState<string>("claude-code");
   React.useEffect(() => setHost(defaultHost), [defaultHost]);
 
   const watched = isWatched(data.linkKey);
@@ -494,34 +496,99 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
           </section>
 
           {/* Step-by-Step Host Configuration Preview */}
-          <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="hostconfig-title">
-            <h2 id="hostconfig-title" className="flex items-center gap-2 text-[15px] font-semibold">
-              <Server className="h-4 w-4 text-brand" /> Direct Configuration Preview
-            </h2>
-            <p className="mt-1 text-[12.5px] text-muted-foreground">
-              Inspect the exact surgical JSON or TOML snippet LiteSPM merges into each host config:
-            </p>
-            <Tabs defaultValue="cline" className="mt-4">
-              <TabsList className="grid w-full grid-cols-5 bg-muted/40">
-                <TabsTrigger value="cline" className="text-[12px]">Cline</TabsTrigger>
-                <TabsTrigger value="claude" className="text-[12px]">Claude Code</TabsTrigger>
-                <TabsTrigger value="codex" className="text-[12px]">Codex</TabsTrigger>
-                <TabsTrigger value="pi" className="text-[12px]">Pi Agent</TabsTrigger>
-                <TabsTrigger value="opencode" className="text-[12px]">OpenCode</TabsTrigger>
-              </TabsList>
-              {Object.entries(data.mcpSpec.hostConfigs).map(([key, snippet]) => (
-                <TabsContent key={key} value={key} className="mt-3">
-                  <div className="relative rounded-xl border border-border/70 bg-muted/30 p-3 font-mono text-[11.5px]">
-                    <div className="absolute right-3 top-3">
-                      <CopyButton value={snippet} label="Copy snippet" />
+          <section className="rounded-2xl border border-border/80 bg-card p-5" aria-labelledby="hostconfig-title">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 id="hostconfig-title" className="flex items-center gap-2 text-[15px] font-semibold">
+                  <Server className="h-4 w-4 text-brand" /> Direct Configuration Preview
+                </h2>
+                <p className="mt-1 text-[12.5px] text-muted-foreground">
+                  Inspect the exact surgical JSON or TOML snippet LiteSPM merges into each host config:
+                </p>
+              </div>
+
+              {/* Dropdown with all 50 hosts */}
+              <div className="relative shrink-0">
+                <select
+                  id="host-config-selector"
+                  aria-label="Target agent host configuration"
+                  value={selectedHostId}
+                  onChange={(e) => setSelectedHostId(e.target.value)}
+                  className="h-9 w-full sm:w-[260px] appearance-none rounded-lg border border-border/80 bg-card px-3 pr-8 text-[12px] font-medium text-foreground outline-none transition-colors hover:border-brand/50 focus:border-brand cursor-pointer"
+                >
+                  <optgroup label="Popular Hosts">
+                    {data.mcpSpec.hostConfigs.slice(0, 6).map((h) => (
+                      <option key={`pop-${h.id}`} value={h.id}>
+                        {h.name} ({h.format.toUpperCase()})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="All Supported Hosts (50)">
+                    {data.mcpSpec.hostConfigs.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name} — {h.configPath}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              </div>
+            </div>
+
+            {/* Quick-select pills */}
+            <div className="mt-4 flex flex-wrap items-center gap-1.5 border-b border-border/60 pb-3">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-1">
+                Quick select:
+              </span>
+              {data.mcpSpec.hostConfigs.slice(0, 6).map((h) => {
+                const isActive = (selectedHostId || data.mcpSpec.hostConfigs[0]?.id) === h.id;
+                return (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => setSelectedHostId(h.id)}
+                    className={`rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+                      isActive
+                        ? "bg-brand-soft text-brand border border-brand/40"
+                        : "bg-muted/40 text-muted-foreground hover:bg-muted/80 hover:text-foreground border border-border/50"
+                    }`}
+                  >
+                    {h.name.replace(/ \(.*\)/, "").replace(/ CLI$/, "")}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Snippet box */}
+            {(() => {
+              const active =
+                data.mcpSpec.hostConfigs.find((h) => h.id === selectedHostId) ??
+                data.mcpSpec.hostConfigs[0];
+              if (!active) return null;
+              return (
+                <div className="mt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-b-0 border-border/80 bg-muted/50 px-3.5 py-2 text-[12px]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-foreground/90">{active.name}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <code className="rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                        {active.configPath}
+                      </code>
+                      <span className="rounded bg-brand-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-brand">
+                        {active.format}
+                      </span>
                     </div>
-                    <pre className="overflow-x-auto pr-16 leading-relaxed text-foreground/90">
-                      {snippet}
+                    <CopyButton value={active.snippet} label="Copy snippet" />
+                  </div>
+
+                  <div className="relative rounded-b-xl border border-border/80 bg-muted/30 p-4 font-mono text-[11.5px]">
+                    <pre className="overflow-x-auto leading-relaxed text-foreground/90">
+                      {active.snippet}
                     </pre>
                   </div>
-                </TabsContent>
-              ))}
-            </Tabs>
+                </div>
+              );
+            })()}
           </section>
         </div>
       )}
@@ -546,7 +613,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             </p>
 
             <Tabs defaultValue="triggers" className="mt-4">
-              <TabsList className="grid w-full grid-cols-4 bg-muted/40">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1 bg-muted/40">
                 <TabsTrigger value="triggers" className="text-[12px]">Trigger Rules</TabsTrigger>
                 <TabsTrigger value="skips" className="text-[12px]">Skip Rules</TabsTrigger>
                 <TabsTrigger value="instructions" className="text-[12px]">Instructions</TabsTrigger>

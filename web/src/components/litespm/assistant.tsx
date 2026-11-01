@@ -312,18 +312,18 @@ export function Assistant() {
   const panel = (
     <div
       className={cn(
-        "fixed bottom-4 right-4 z-50 flex w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-border/70 bg-popover shadow-2xl transition-all",
-        open ? "pointer-events-auto h-[min(600px,calc(100vh-7rem))]" : "pointer-events-none h-0 border-0",
+        "fixed bottom-2 sm:bottom-4 right-2 sm:right-4 z-50 flex w-[min(420px,calc(100vw-1rem))] sm:w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-border bg-popover shadow-2xl transition-all",
+        open ? "pointer-events-auto h-[min(600px,calc(100dvh-4.5rem))] sm:h-[min(600px,calc(100vh-7rem))]" : "pointer-events-none h-0 border-0",
       )}
       role="dialog"
-      aria-label="Ask LiteSPM assistant"
+      aria-label="Ask AI assistant"
       aria-hidden={!open}
     >
       <div className="flex items-center justify-between border-b border-border/60 bg-brand-soft/60 px-4 py-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-brand" aria-hidden="true" />
           <div>
-            <p className="text-[13.5px] font-semibold leading-tight">Ask LiteSPM</p>
+            <p className="text-[13.5px] font-semibold leading-tight">Ask AI</p>
             <p className="text-[11px] leading-tight text-muted-foreground">
               Grounded in the live catalog
             </p>
@@ -502,14 +502,14 @@ export function Assistant() {
       <button
         type="button"
         onClick={() => setAssistant(!open)}
-        aria-label={open ? "Close the LiteSPM assistant" : "Open the LiteSPM assistant"}
+        aria-label={open ? "Close the Ask AI assistant" : "Open the Ask AI assistant"}
         className={cn(
-          "fixed bottom-4 right-4 z-40 inline-flex h-12 items-center gap-2 rounded-full border border-brand/40 bg-brand px-4 text-[13px] font-semibold text-brand-foreground shadow-lg shadow-brand/20 transition-all hover:opacity-95",
+          "fixed bottom-3 sm:bottom-4 right-3 sm:right-4 z-40 inline-flex h-12 items-center gap-2 rounded-full border border-brand/40 bg-brand px-4 text-[13px] font-semibold text-brand-foreground shadow-lg shadow-brand/20 transition-all hover:opacity-95",
           open && "pointer-events-none translate-y-4 opacity-0",
         )}
       >
         <Sparkles className="h-4 w-4" aria-hidden="true" />
-        Ask LiteSPM
+        Ask AI
         {messages.length === 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-foreground opacity-60" />
