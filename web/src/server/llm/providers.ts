@@ -349,6 +349,10 @@ async function consumeSse(
         } catch {
           continue; // partial frame — the next chunk completes it
         }
+        // If choices/delta is present (including reasoning frames), acknowledge stream activity
+        if ((json as { choices?: Array<{ delta?: unknown }> })?.choices?.[0]?.delta) {
+          sawFirstToken = true;
+        }
         const text = extractText(json);
         if (text) {
           sawFirstToken = true;

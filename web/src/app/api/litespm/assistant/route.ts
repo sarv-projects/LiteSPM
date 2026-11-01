@@ -209,7 +209,7 @@ ${resultBlock(hits)}
         { role: "user" as const, content: groundedQuestion },
       ],
       temperature: 0.3,
-      maxTokens: 600,
+      maxTokens: 1200,
     };
 
     /* ---------------------------- streamed path ---------------------------- */
