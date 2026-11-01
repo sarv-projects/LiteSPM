@@ -157,7 +157,6 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
       publisher: {
         name: row.publisher?.name ?? "",
         verified: Boolean(row.publisher?.verified),
-        provenance: row.publisher?.provenance,
         url: row.publisher?.url,
       },
       distributor: row.distributor
@@ -167,7 +166,6 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
             url: row.distributor.url,
           }
         : null,
-      source: row.source,
       installability: row.installability,
       installable: availability.installable,
       availability: {

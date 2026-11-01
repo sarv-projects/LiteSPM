@@ -311,7 +311,7 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
             ))}
           </FacetGroup>
 
-          <FacetGroup title="Category" hint="The source's own label">
+          <FacetGroup title="Category" hint="Publisher-assigned category">
             {(facets?.categories ?? []).slice(0, 12).map(([name, count]) => (
               <FilterPill
                 key={name}

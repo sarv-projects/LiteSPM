@@ -99,7 +99,7 @@ export function InsightsView() {
 
       {/* Totals */}
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat value={formatFull(t.unique)} label="Unique listings" hint="After cross-source dedupe" />
+        <Stat value={formatFull(t.unique)} label="Unique listings" hint="Deduplicated canonical packages" />
         <Stat value={formatFull(t.installable)} label="Installable" hint={`${(installShare * 100).toFixed(1)}% of the catalog`} />
         <Stat value={formatFull(t.publishers)} label="Publishers" />
         <Stat value={formatFull(t.duplicatesRemoved)} label="Duplicates merged" hint={`${formatFull(t.raw)} raw rows in`} />
@@ -167,13 +167,12 @@ export function InsightsView() {
             <strong className="text-foreground">
               {data.taxonomyCoverage.largest.label} ({(data.taxonomyCoverage.largest.share * 100).toFixed(1)}%)
             </strong>
-            . The sources&apos; own labels would put 65.4% in one bucket — &ldquo;Developer
-            Tools&rdquo;.
+            . Broad categories would otherwise group 65.4% into a single bucket — &ldquo;Developer Tools&rdquo;.
           </p>
         </ChartCard>
 
         {/* Top categories */}
-        <ChartCard icon={BarChart3} title="Top source categories" note="The upstream labels, as published.">
+        <ChartCard icon={BarChart3} title="Top categories" note="Publisher-defined categories.">
           {data.topCategories.map((bar) => (
             <InsightBarRow
               key={bar.label}

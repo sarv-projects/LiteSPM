@@ -191,7 +191,7 @@ async function computeInsights(): Promise<InsightsResponse> {
       publishers: publishers.size,
       verifiedPublisherRows,
       categories: categories.size,
-      sources: sources.size,
+      sources: 0,
     },
     byKind: [
       {
@@ -224,7 +224,7 @@ async function computeInsights(): Promise<InsightsResponse> {
     byTransport: bars(transports).slice(0, 10),
     topCategories: bars(categories).slice(0, 15),
     topPublishers: bars(publisherCounts(rows)).slice(0, 15),
-    bySource: bars(sources),
+    bySource: [],
     hostLeaderboard,
     taxonomyCoverage: {
       mapped,

@@ -429,7 +429,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
       categories: countBy(categoryPool, (r) => r.category?.trim() || null).sort(
         (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
       ),
-      sources: countBy(sourcePool, (r) => r.source ?? null).sort((a, b) => b[1] - a[1]),
+      sources: [],
       publishers: countBy(publisherPool, (r) => r.publisher?.name ?? null)
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .slice(0, 40),
@@ -478,7 +478,7 @@ export async function catalogStats() {
     withEndpoint,
     publishers: publishers.size,
     categories: byCategory.size,
-    sources: [...bySource.entries()].sort((a, b) => b[1] - a[1]),
+    sources: [],
     transports: [...byTransport.entries()].sort((a, b) => b[1] - a[1]),
     topCategories: [...byCategory.entries()].sort((a, b) => b[1] - a[1]).slice(0, 24),
     goalCounts: [...byGoal.entries()].sort((a, b) => b[1] - a[1]),

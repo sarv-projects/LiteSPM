@@ -303,8 +303,8 @@ export function PublishView() {
               Also known as
             </h2>
             <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
-              The catalog dedupes across sources: the same capability published under two names
-              keeps one listing with both identities. If yours is split or merged wrong, submit a
+              The catalog automatically dedupes: the same capability published under two different
+              aliases keeps one canonical listing with both identities. If yours is split or merged wrong, submit a
               correction with both references.
             </p>
           </section>
