@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Loader2, MessageCircle, Send, Sparkles, Square, X } from "lucide-react";
+import { ArrowUpRight, Check, Copy, ExternalLink, Loader2, MessageCircle, Package, Send, Sparkles, Square, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/litespm/router";
@@ -31,29 +31,105 @@ const SUGGESTIONS = [
   "How do I set up LiteSPM with Claude Code?",
 ];
 
-/** Render the assistant's markdown-lite answer: bold, code, links, lists. */
-function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: string) => void }) {
-  const blocks = text.split(/\n{2,}/);
+function CodeBlockSnippet({ code, lang }: { code: string; lang?: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   return (
-    <div className="space-y-2.5">
+    <div className="relative my-2.5 rounded-xl border border-border/80 bg-muted/40 p-3 font-mono text-[11.5px]">
+      <div className="absolute right-2.5 top-2.5">
+        <button
+          type="button"
+          onClick={copy}
+          className="rounded-md border border-border/60 bg-background/90 p-1 text-muted-foreground hover:text-foreground transition-colors"
+          title="Copy code"
+        >
+          {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+        </button>
+      </div>
+      {lang && (
+        <span className="mb-1.5 block font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          {lang}
+        </span>
+      )}
+      <pre className="overflow-x-auto pr-8 leading-relaxed text-foreground/90">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
+/** Render the assistant's rich markdown answer: tables, code, bold, links, lists. */
+function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: string) => void }) {
+  const blocks = parseMarkdownBlocks(text);
+
+  return (
+    <div className="space-y-3">
       {blocks.map((block, i) => {
-        const lines = block.split("\n");
-        const isList = lines.every((l) => /^\s*([-*•]|\d+\.)\s+/.test(l));
-        if (isList) {
+        if (block.type === "code") {
+          return <CodeBlockSnippet key={i} code={block.content} lang={block.lang} />;
+        }
+
+        if (block.type === "table") {
           return (
-            <ul key={i} className="ml-1 space-y-1.5">
-              {lines.map((line, j) => (
-                <li key={j} className="flex gap-2 text-[13px] leading-relaxed">
-                  <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-brand" aria-hidden="true" />
-                  <span>{renderInline(line.replace(/^\s*([-*•]|\d+\.)\s+/, ""), onOpenLink)}</span>
-                </li>
-              ))}
-            </ul>
+            <div key={i} className="my-2.5 overflow-x-auto rounded-xl border border-border/80 bg-card/60 shadow-xs">
+              <table className="w-full border-collapse text-left text-[12px]">
+                <thead>
+                  <tr className="border-b border-border/80 bg-muted/60">
+                    {block.headers.map((h, idx) => (
+                      <th key={idx} className="px-3 py-2 font-semibold text-foreground">
+                        {renderInline(h.trim(), onOpenLink)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {block.rows.map((row, rIdx) => (
+                    <tr key={rIdx} className="transition-colors hover:bg-muted/30">
+                      {row.map((cell, cIdx) => (
+                        <td key={cIdx} className="px-3 py-2 align-top leading-relaxed text-foreground/90">
+                          {renderInline(cell.trim(), onOpenLink)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           );
         }
+
+        if (block.type === "header") {
+          return (
+            <h4 key={i} className="pt-1 text-[13.5px] font-semibold text-foreground">
+              {renderInline(block.text, onOpenLink)}
+            </h4>
+          );
+        }
+
+        if (block.type === "list") {
+          const Tag = block.ordered ? "ol" : "ul";
+          return (
+            <Tag key={i} className={cn("ml-1 space-y-1.5", block.ordered && "list-decimal list-inside")}>
+              {block.items.map((item, j) => (
+                <li key={j} className="flex items-start gap-2 text-[13px] leading-relaxed">
+                  {!block.ordered && (
+                    <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden="true" />
+                  )}
+                  <span className="flex-1">{renderInline(item, onOpenLink)}</span>
+                </li>
+              ))}
+            </Tag>
+          );
+        }
+
+        // Paragraph
         return (
           <p key={i} className="text-[13px] leading-relaxed">
-            {lines.map((line, j) => (
+            {block.text.split("\n").map((line, j) => (
               <React.Fragment key={j}>
                 {j > 0 && <br />}
                 {renderInline(line, onOpenLink)}
@@ -66,9 +142,102 @@ function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: str
   );
 }
 
+function parseMarkdownBlocks(text: string) {
+  const rawLines = text.replace(/\r\n/g, "\n").split("\n");
+  const blocks: Array<
+    | { type: "code"; lang: string; content: string }
+    | { type: "table"; headers: string[]; rows: string[][] }
+    | { type: "list"; items: string[]; ordered: boolean }
+    | { type: "header"; level: number; text: string }
+    | { type: "p"; text: string }
+  > = [];
+
+  let i = 0;
+  while (i < rawLines.length) {
+    const line = rawLines[i];
+
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+
+    // Fenced Code Block
+    if (line.trim().startsWith("```")) {
+      const lang = line.trim().slice(3).trim();
+      const codeLines: string[] = [];
+      i++;
+      while (i < rawLines.length && !rawLines[i].trim().startsWith("```")) {
+        codeLines.push(rawLines[i]);
+        i++;
+      }
+      if (i < rawLines.length) i++;
+      blocks.push({ type: "code", lang, content: codeLines.join("\n") });
+      continue;
+    }
+
+    // Markdown Table: requires row with '|' and next line with '---'
+    if (line.includes("|") && i + 1 < rawLines.length && /^\s*\|?\s*:?-+:?\s*\|/.test(rawLines[i + 1])) {
+      const parseCells = (row: string) => {
+        let trimmed = row.trim();
+        if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+        if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
+        return trimmed.split("|").map((c) => c.trim());
+      };
+
+      const headers = parseCells(line);
+      i += 2; // skip header and separator
+      const rows: string[][] = [];
+      while (i < rawLines.length && rawLines[i].includes("|") && rawLines[i].trim()) {
+        rows.push(parseCells(rawLines[i]));
+        i++;
+      }
+      blocks.push({ type: "table", headers, rows });
+      continue;
+    }
+
+    // Heading: #, ##, ###
+    const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+    if (headingMatch) {
+      blocks.push({ type: "header", level: headingMatch[1].length, text: headingMatch[2] });
+      i++;
+      continue;
+    }
+
+    // List: - or * or 1.
+    if (/^\s*([-*•]|\d+\.)\s+/.test(line)) {
+      const items: string[] = [];
+      const ordered = /^\s*\d+\.\s+/.test(line);
+      while (i < rawLines.length && /^\s*([-*•]|\d+\.)\s+/.test(rawLines[i])) {
+        items.push(rawLines[i].replace(/^\s*([-*•]|\d+\.)\s+/, ""));
+        i++;
+      }
+      blocks.push({ type: "list", items, ordered });
+      continue;
+    }
+
+    // Regular paragraph
+    const pLines: string[] = [line];
+    i++;
+    while (
+      i < rawLines.length &&
+      rawLines[i].trim() &&
+      !rawLines[i].trim().startsWith("```") &&
+      !/^(#{1,4})\s+/.test(rawLines[i]) &&
+      !/^\s*([-*•]|\d+\.)\s+/.test(rawLines[i]) &&
+      !(rawLines[i].includes("|") && i + 1 < rawLines.length && /^\s*\|?\s*:?-+:?\s*\|/.test(rawLines[i + 1]))
+    ) {
+      pLines.push(rawLines[i]);
+      i++;
+    }
+    blocks.push({ type: "p", text: pLines.join("\n") });
+  }
+
+  return blocks;
+}
+
 function renderInline(text: string, onOpenLink: (href: string) => void): React.ReactNode[] {
-  // Pattern: [label](href) or `code` or **bold**
-  const pattern = /\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*/g;
+  // Pattern: [label](href) or `code` or **bold** or *italic*
+  const pattern = /\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
   const parts: React.ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -76,18 +245,23 @@ function renderInline(text: string, onOpenLink: (href: string) => void): React.R
 
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > last) parts.push(text.slice(last, match.index));
+
+    // [label](href)
     if (match[1] !== undefined && match[2] !== undefined) {
+      const label = match[1];
       const href = match[2];
       const isInternal = href.startsWith("#/");
+
       parts.push(
         isInternal ? (
           <button
             key={key++}
             type="button"
             onClick={() => onOpenLink(href)}
-            className="font-medium text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand"
+            className="inline-flex items-center gap-1 mx-0.5 rounded-md border border-brand/40 bg-brand-soft/70 px-1.5 py-0.5 font-medium text-brand hover:bg-brand-soft transition-colors text-[12px] align-baseline"
           >
-            {match[1]}
+            <span>{label}</span>
+            <ArrowUpRight className="h-3 w-3 shrink-0 opacity-80" />
           </button>
         ) : (
           <a
@@ -95,26 +269,36 @@ function renderInline(text: string, onOpenLink: (href: string) => void): React.R
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-brand underline decoration-brand/40 underline-offset-2"
+            className="inline-flex items-center gap-1 mx-0.5 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 font-medium text-brand hover:bg-muted/80 transition-colors text-[12px] align-baseline"
           >
-            {match[1]}
+            <span>{label}</span>
+            <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
           </a>
         ),
       );
     } else if (match[3] !== undefined) {
+      // `code`
       parts.push(
         <code
           key={key++}
-          className="rounded bg-muted/70 px-1 py-0.5 font-mono text-[11.5px] text-foreground"
+          className="rounded border border-border/60 bg-muted/70 px-1.5 py-0.5 font-mono text-[11.5px] text-foreground"
         >
           {match[3]}
         </code>,
       );
     } else if (match[4] !== undefined) {
+      // **bold**
       parts.push(
-        <strong key={key++} className="font-semibold">
+        <strong key={key++} className="font-semibold text-foreground">
           {match[4]}
         </strong>,
+      );
+    } else if (match[5] !== undefined) {
+      // *italic*
+      parts.push(
+        <em key={key++} className="italic text-foreground/90">
+          {match[5]}
+        </em>,
       );
     }
     last = pattern.lastIndex;
@@ -406,37 +590,28 @@ export function Assistant() {
                 </>
               )}
               {message.citations && message.citations.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border/50 pt-2.5">
-                  {message.citations.slice(0, 6).map((c) => (
-                    <button
-                      key={c.linkKey}
-                      type="button"
-                      onClick={() => {
-                        navigate(`#/package/${encodeURIComponent(c.linkKey)}`);
-                        setAssistant(false);
-                      }}
-                      title={`${c.publisher}${c.installable ? " — installable" : " — discovery only"}`}
-                      className="max-w-[170px] truncate rounded-full border border-border/60 bg-background px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand"
-                    >
-                      {c.name}
-                    </button>
-                  ))}
+                <div className="mt-3 border-t border-border/60 pt-2.5">
+                  <p className="mb-2 flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                    <Package className="h-3 w-3 text-brand" /> Referenced packages:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {message.citations.slice(0, 8).map((c) => (
+                      <button
+                        key={c.linkKey}
+                        type="button"
+                        onClick={() => {
+                          navigate(`#/package/${encodeURIComponent(c.linkKey)}`);
+                          setAssistant(false);
+                        }}
+                        title={`${c.publisher}${c.installable ? " — installable" : " — discovery only"}`}
+                        className="inline-flex max-w-[200px] items-center gap-1 truncate rounded-lg border border-brand/30 bg-brand-soft/70 px-2.5 py-1 text-[11px] font-medium text-brand transition-all hover:border-brand/60 hover:bg-brand-soft shadow-xs"
+                      >
+                        <span className="truncate">{c.name}</span>
+                        <ArrowUpRight className="h-3 w-3 shrink-0 opacity-70" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              )}
-              {message.meta && (
-                <p className="mt-2 text-[10px] leading-none text-muted-foreground/60">
-                  {message.meta.cached
-                    ? "cached answer · instant"
-                    : [
-                        `via ${message.meta.provider}${message.meta.keyIndex ? ` · key #${message.meta.keyIndex}` : ""}`,
-                        `${(message.meta.tookMs / 1000).toFixed(1)}s`,
-                        message.meta.attempts.length > 1
-                          ? `${message.meta.attempts.length - 1} failover${message.meta.attempts.length > 2 ? "s" : ""}`
-                          : null,
-                      ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                </p>
               )}
             </div>
           </div>
