@@ -1,30 +1,14 @@
-# LiteSPM
-#
-# The origin below is the deployed one; keep it in step when a custom domain
-# replaces it.
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
 
 User-agent: *
 Allow: /
-
-# /package/ is not disallowed, and every shape is answerable:
-#
-#   * /package/<key>/ serves the entry — the pre-rendered page when the entry
-#     has one (listed at /package/entries/sitemap.xml), and the edge-served
-#     shell carrying the entry's own title, description, canonical, Open Graph
-#     tags and JSON-LD otherwise. An unknown key is a real 404 here.
-#   * /package/<key> and the query form serve the same shell; a known entry
-#     declares /package/<key>/ as its canonical, and an unknown one is marked
-#     noindex in the served HTML.
-#
-# A blanket ban would hide the real pages, and blocking only the query form
-# would leave the thousands of entry links that use it "indexed, though
-# blocked" — so the page's own canonical and noindex rules do the work
-# instead.
-
-# Machine-readable release data and catalog shards, not pages.
-Disallow: /data/
-Disallow: /v1/
-
-Sitemap: https://litespm.sarveshbh-2022.workers.dev/sitemap.xml
-# The bounded set of pre-rendered entry pages, and nothing else.
-Sitemap: https://litespm.sarveshbh-2022.workers.dev/package/entries/sitemap.xml

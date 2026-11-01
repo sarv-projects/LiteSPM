@@ -1,0 +1,38 @@
+// LiteSPM marketplace — local interaction data.
+//
+// The catalog itself is the upstream generated dataset under
+// `data/litespm/` and is read-only; these models record what this
+// deployment's visitors actually do, which is the only data this site
+// owns.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// One row per catalog listing that has been opened. `linkKey` is the
+/// slug-or-id key the package route uses, so the counter and the detail
+/// page always reference the same row.
+model PackageView {
+  linkKey     String   @id
+  kind        String
+  name        String
+  views       Int      @default(0)
+  firstViewedAt DateTime @default(now())
+  lastViewedAt DateTime @default(now())
+}
+
+/// Publisher-interest and feedback submissions from the Publish view.
+model FeedbackEntry {
+  id        String   @id @default(cuid())
+  kind      String // "publisher" | "listing-correction" | "general"
+  name      String
+  email     String
+  listing   String? // catalog id or link key the note is about
+  message   String
+  createdAt DateTime @default(now())
+}

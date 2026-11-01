@@ -1,4 +1,26 @@
-# Sharded catalog emitted from data/catalog.json by scripts/emit-catalog-shards.mjs
-# (prebuild). Regenerated on every build; the committed artifact is the source
-# dataset in data/catalog.json, not its published form.
+# Next.js build and runtime artifacts
+.next/
+out/
+build/
+*.log
+
+# Dependencies
+node_modules/
+
+# Local databases and journals
+db/*.db
+db/*.db-journal
+db/*.db-wal
+db/*.db-shm
+
+# Local environment secrets and keys
+.env
+.env.local
+.env.*.local
+
+# TypeScript build info
+*.tsbuildinfo
+next-env.d.ts
+
+# Legacy sharded catalog
 public/data/
