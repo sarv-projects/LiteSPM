@@ -122,6 +122,73 @@ export function hostPath(host: HostAdapter, os: PlatformOS): string {
 
 export const SKILL_TARGETS = generatedSkillTargets;
 
+/**
+ * Developer popularity and user adoption order for AI agent hosts.
+ * Used to break ties in compatible counts so leaderboards reflect real-world usage
+ * rather than arbitrary alphabetical sorting.
+ */
+export const HOST_POPULARITY_RANK: readonly string[] = [
+  "claude-code",
+  "cursor",
+  "cline",
+  "github-copilot",
+  "codex",
+  "grok-build",
+  "zed",
+  "gemini-cli",
+  "roo",
+  "pi-agent",
+  "opencode",
+  "openhands",
+  "devin",
+  "antigravity",
+  "antigravity-cli",
+  "qwen-code",
+  "kimi-code-cli",
+  "tabnine-cli",
+  "augment",
+  "cortex",
+  "rovodev",
+  "posit-assistant",
+  "codearts-agent",
+  "bob",
+  "aider-desk",
+  "codebuddy",
+  "qoder",
+  "qoder-cn",
+  "amp",
+  "command-code",
+  "deepagents",
+  "droid",
+  "firebender",
+  "forgecode",
+  "astrbot",
+  "crush",
+  "fx",
+  "iflow-cli",
+  "jazz",
+  "junie",
+  "kilo",
+  "kimchi",
+  "kiro-cli",
+  "kode",
+  "mux",
+  "neovate",
+  "ona",
+  "pochi",
+  "zcode",
+  "codestudio",
+];
+
+export function compareHostsByAdoption(aId: string, bId: string, aName: string, bName: string): number {
+  const aIdx = HOST_POPULARITY_RANK.indexOf(aId);
+  const bIdx = HOST_POPULARITY_RANK.indexOf(bId);
+  if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+  if (aIdx !== -1) return -1;
+  if (bIdx !== -1) return 1;
+  return aName.localeCompare(bName);
+}
+
 /** Hosts whose adapter has a verified remote (URL) MCP entry spelling. */
 export const REMOTE_HOSTS = HOSTS.filter((h) => h.remote === true);
 

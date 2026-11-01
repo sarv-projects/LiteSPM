@@ -12,7 +12,7 @@ import { availabilityOf } from "./availability";
 import { classifyListing, GOALS, OTHER_GOAL, type GoalOrOther } from "./taxonomy";
 import { rowMetaMap } from "./search";
 import { buildAgentRows } from "./agents";
-import { HOSTS, SKILL_TARGETS, hostPath } from "./hosts";
+import { HOSTS, SKILL_TARGETS, hostPath, compareHostsByAdoption } from "./hosts";
 import type { Listing } from "./types";
 
 export interface InsightBar {
@@ -164,7 +164,10 @@ async function computeInsights(): Promise<InsightsResponse> {
         format: adapter?.kind ?? "",
       };
     })
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+      return compareHostsByAdoption(a.id, b.id, a.name, b.name);
+    });
 
   const mapped = [...byGoal.entries()]
     .filter(([id]) => id !== "other")

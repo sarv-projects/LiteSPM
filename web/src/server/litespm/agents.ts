@@ -8,7 +8,7 @@
 import { vendorName } from "./vendor-names";
 import { hostNote } from "./host-notes";
 import { HOST_IDENTITIES, resolveHostId, tallyHosts, hostIdsFor } from "./identity";
-import { HOSTS, SKILL_TARGETS, bridgeSnippet, hostPath } from "./hosts";
+import { HOSTS, SKILL_TARGETS, bridgeSnippet, hostPath, compareHostsByAdoption } from "./hosts";
 import { availabilityOf } from "./availability";
 import { listingIdentity } from "./discovery";
 import { getDataset } from "./dataset";
@@ -172,7 +172,10 @@ async function computeAgentRows(): Promise<AgentRow[]> {
     });
   }
 
-  rows.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  rows.sort((a, b) => {
+    if (b.total !== a.total) return b.total - a.total;
+    return compareHostsByAdoption(a.hostId ?? a.slug, b.hostId ?? b.slug, a.name, b.name);
+  });
   return rows;
 }
 
