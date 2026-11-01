@@ -211,20 +211,18 @@ var verifiedBridgeTargets = []BridgeTarget{
 			Transports: []string{TransportStreamableHTTP, TransportSSE},
 		},
 		UserPath: func(home string) string {
-			// AstrBot resolves its root as ASTRBOT_ROOT, else the process working
-			// directory (else ~/.astrbot in the packaged desktop runtime). Falling
-			// back to $HOME, as this row did, targeted ~/data/mcp_server.json,
-			// which AstrBot never opens in a source or container deployment.
-			root := os.Getenv("ASTRBOT_ROOT")
-			if root == "" {
-				if cwd, err := os.Getwd(); err == nil {
-					root = cwd
-				} else {
-					root = home
-				}
+			// AstrBot resolves its root as ASTRBOT_ROOT, else ~/.astrbot in the
+			// packaged desktop runtime. For project-scoped deployments, ProjectPath
+			// targets <root>/data/mcp_server.json.
+			if root := os.Getenv("ASTRBOT_ROOT"); root != "" {
+				return filepath.Join(root, "data", "mcp_server.json")
 			}
+			return filepath.Join(home, ".astrbot", "data", "mcp_server.json")
+		},
+		ProjectPath: func(root string) string {
 			return filepath.Join(root, "data", "mcp_server.json")
 		},
+		ProjectKey:  []string{"mcpServers"},
 		DetectPaths: []string{".astrbot"},
 		DocsURL:     "https://github.com/AstrBotDevs/AstrBot/wiki/en-use-mcp",
 		Note:        "A chat-bot framework, not a coding agent. Path verified in vendor source: <root>/data/mcp_server.json where root is ASTRBOT_ROOT else cwd (packaged desktop runtime: ~/.astrbot). Remote: a url member with a \"transport\" discriminator (streamable_http / sse).",

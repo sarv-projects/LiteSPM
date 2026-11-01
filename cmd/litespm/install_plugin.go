@@ -490,6 +490,9 @@ func pluginHostCapabilityReason(ctx context.Context, hostID string, scope domain
 	if scope == domain.ScopeProject && !host.SupportsProjectScope(adapter) {
 		return fmt.Sprintf("has no documented project-scope config path, so it cannot take a project install")
 	}
+	if scope == domain.ScopeUser && !host.SupportsUserScope(adapter) {
+		return fmt.Sprintf("documents only a project-scope config path, so it cannot take a user install")
+	}
 	return ""
 }
 

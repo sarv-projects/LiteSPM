@@ -152,11 +152,28 @@ type entrySpec struct {
 // across the flat-`mcp` vs nested-`mcp.servers` corrections (see opencode.go).
 // The registry is the single source of truth either way.
 func EntryLayoutForScope(adapter HostAdapter, scope domain.InstallScope) (keyPath string, shape string, ok bool) {
+	if scope == domain.ScopeUser && !SupportsUserScope(adapter) {
+		return "", "", false
+	}
+	if scope == domain.ScopeProject && !SupportsProjectScope(adapter) {
+		return "", "", false
+	}
 	spec, ok := entrySpecForScope(adapter, scope)
 	if !ok || len(spec.KeyPath) == 0 {
 		return "", "", false
 	}
 	return strings.Join(spec.KeyPath, "."), string(spec.Shape), true
+}
+
+// SupportsUserScope reports whether an adapter can be WRITTEN at user scope,
+// i.e. whether it documents a user-scope config path. Bespoke adapters all
+// support user scope. Data-driven targets require Target.UserPath != nil.
+func SupportsUserScope(adapter HostAdapter) bool {
+	g, ok := adapter.(*GenericAdapter)
+	if !ok {
+		return true
+	}
+	return g.Target.UserPath != nil
 }
 
 // ProjectConfigPather is the OPTIONAL capability a bespoke adapter implements
@@ -220,6 +237,10 @@ func ProjectConfigPathFor(adapter HostAdapter, root string) (string, bool) {
 // substituting the user config.
 func detectEntryConfig(ctx context.Context, adapter HostAdapter, scope domain.InstallScope, projectRoot string) (string, error) {
 	if scope != domain.ScopeProject {
+		if !SupportsUserScope(adapter) {
+			return "", fmt.Errorf("host %s documents only a project-scope config path, so a user-scope entry cannot be written for it; install it with --scope project",
+				adapter.Descriptor().DisplayName)
+		}
 		return adapter.DetectConfig(ctx, scope)
 	}
 	root := strings.TrimSpace(projectRoot)

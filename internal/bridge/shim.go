@@ -244,12 +244,9 @@ func negotiatedProtocolVersion(params json.RawMessage) string {
 func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Response {
 	switch req.Method {
 	case "initialize":
-		capabilities := map[string]any{"tools": map[string]any{}}
-		if s.hostID == "qwen-code" {
-			// Qwen Code turns MCP prompts into slash commands. Advertising only
-			// tools leaves the registered bridge usable through tool calls but
-			// makes the adapter's documented /marketplace command nonexistent.
-			capabilities["prompts"] = map[string]any{}
+		capabilities := map[string]any{
+			"tools":   map[string]any{},
+			"prompts": map[string]any{},
 		}
 		result, _ := json.Marshal(map[string]any{
 			"protocolVersion": negotiatedProtocolVersion(req.Params),
@@ -289,14 +286,11 @@ func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Respons
 		}
 
 	case "prompts/list":
-		if s.hostID != "qwen-code" {
-			return methodNotFound(req, "prompts/list")
-		}
 		result, _ := json.Marshal(map[string]any{
 			"prompts": []map[string]any{{
 				"name":        "marketplace",
 				"title":       "LiteSPM Marketplace",
-				"description": "Search, inspect, and request installation of MCP servers, skills, and plugins from LiteSPM.",
+				"description": "Search, inspect, connect, and install/uninstall MCP servers, skills, and plugins from LiteSPM.",
 				"arguments": []map[string]any{{
 					"name":        "query",
 					"description": "Optional search terms, such as github, postgres, or code review.",
@@ -307,9 +301,6 @@ func (s *Shim) HandleRequest(ctx context.Context, req *ipc.Request) *ipc.Respons
 		return &ipc.Response{JSONRPC: "2.0", ID: req.ID, Result: result}
 
 	case "prompts/get":
-		if s.hostID != "qwen-code" {
-			return methodNotFound(req, "prompts/get")
-		}
 		var params struct {
 			Name      string            `json:"name"`
 			Arguments map[string]string `json:"arguments"`
@@ -397,13 +388,17 @@ func methodNotFound(req *ipc.Request, method string) *ipc.Response {
 
 func marketplacePromptText(query string) string {
 	var b strings.Builder
-	b.WriteString("You are browsing the LiteSPM marketplace through the connected LiteSPM MCP server. Use search_catalog to find listings and get_extension to inspect them; do not invent listings, compatibility, or installation results.\n\n")
+	b.WriteString("You are browsing the LiteSPM marketplace through the connected LiteSPM MCP server. First, call list_installed to see what capabilities and tools are already installed on this machine.\n\n")
 	if query != "" {
 		fmt.Fprintf(&b, "Search for: %s\n\n", query)
 	} else {
 		b.WriteString("Ask what the user wants to find, or show a few useful catalog categories.\n\n")
 	}
-	b.WriteString("For each result, show its name, kind (MCP server, skill, or plugin), a concise description, and the available host/source details. Use get_extension before describing a selected item in detail. If the user wants it installed, call prepare_install and show the plan, destinations, effects, and any warnings. Ask the user to approve that exact plan; only after approval call request_install with the planId and approvalToken returned by prepare_install. Never claim success until the tool confirms it. If the bridge reports that a capability cannot be installed, explain the reason and leave the machine unchanged.")
+	b.WriteString("Use search_catalog to find listings in the LiteSPM catalog, and use get_extension to inspect details. If a requested capability is not in the local catalog, you can also search the web for its public repository or MCP server endpoint.\n\n")
+	b.WriteString("For each result:\n")
+	b.WriteString("- If it is ALREADY installed: clearly mark it as installed and offer an [Uninstall] action (calling `litespm install remove <id>` or `litespm skills remove <name>`).\n")
+	b.WriteString("- If it is NOT installed: show its name, kind (MCP server, skill, or plugin), a concise description, and offer to [Install / Connect] it.\n\n")
+	b.WriteString("To install, call prepare_install and show the plan, destinations, effects, and any warnings. Ask the user to approve that exact plan; only after approval call request_install with the planId and approvalToken returned by prepare_install. Never claim success until the tool confirms it. If the bridge reports that a capability cannot be installed, explain the reason and leave the machine unchanged.")
 	return b.String()
 }
 
@@ -797,14 +792,17 @@ func FormatInstalledPanel(items []CapabilityItem) string {
 			statusDot = "— Unknown"
 		}
 
-		note := "Managed"
+		note := "Managed [Uninstall: litespm install remove " + it.ID + "]"
+		if it.Kind == "skill" {
+			note = "Managed [Uninstall: litespm skills remove " + it.Name + "]"
+		}
 		if it.IsExternal {
 			// The label names the way to take ownership of the entry, and
 			// there IS one now: the adopt_capability tool records the
 			// ownership without writing a byte to the host's configuration.
 			note = "[External / Detected] (adopt with adopt_capability)"
 		} else if it.Verified {
-			note = "Verified ✓"
+			note = "Verified ✓ [Uninstall: litespm install remove " + it.ID + "]"
 		}
 
 		sb.WriteString(fmt.Sprintf("| %s | %s | **%s** | %s |\n", statusDot, strings.ToUpper(it.Kind), it.Name, note))

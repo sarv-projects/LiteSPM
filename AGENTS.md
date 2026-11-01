@@ -139,6 +139,9 @@ action it offers delegates to the same shared implementation the CLI uses.
         ledger-only skills (`skills add`).
     *   `[4] See what is installed` — renders the same `litespm list` inventory (`runListTo`).
     *   `[5] Set up or repair an agent connection` — re-enters the setup sequence above.
+    *   `[6] Install skills from GitHub, a URL, or a folder` — launches the interactive skills
+        installer (`runInteractiveSkillsAdd`), which discovers skills, previews destinations, and
+        asks for approval before copying into the target agent's skills tree.
 7.  **Input that ends stops the wizard.** Every prompt checks its read error: EOF / Ctrl-D / a closed
     pipe prints one guidance line (`No more input could be read … Re-run litespm in a terminal to
     continue.`) and exits cleanly with nothing further changed — never the old "Invalid option."
@@ -154,7 +157,7 @@ Once configured, simply launch your agent and type:
 ```
 
 ### UX Architecture: Portable Contract vs. Rich Host UI
-*   **Portable Text / MCP Contract:** For terminal CLI agents (`claude`, `codex`, `grok`, `opencode`), `/marketplace` exposes 13 Bridge tools. Those that resolve against the daemon today: `search_catalog`, `get_extension`, `prepare_install`, `list_installed`, `load_skill`, `read_skill_resource`, `search_capabilities`, `describe_capability`, `invoke_capability`, `adopt_capability`. `request_install` reaches `install.execute`, which — behind the plan + human-approval gate in `cmd/litespm/install_authz.go` — **completes for skill listings** (real skill files through the skills ledger), **for MCP-server listings** (the server is registered in each target host's config) and **for plugin listings whose publisher ships a pinned git tree** (the tree is fetched at that commit, its manifest read, its declared servers registered and its skills copied into each target host's skills tree); a plugin with no fetchable source fails closed with the reason it cannot be installed. `get_invocation` and `cancel_invocation` answer from the invocation registry (`ARCH/34`): an id that was never issued is a typed `LPSM-INVOCATION-NOT-FOUND`, not a `-32601` stub.
+*   **Portable Text / MCP Contract:** For terminal CLI agents (`claude`, `codex`, `grok`, `opencode`), `/marketplace` exposes 13 Bridge tools. Those that resolve against the daemon today: `search_catalog`, `get_extension`, `prepare_install`, `list_installed`, `load_skill`, `read_skill_resource`, `search_capabilities`, `describe_capability`, `invoke_capability`, `adopt_capability`. `request_install` reaches `install.execute`, which — behind the plan + human-approval gate in `cmd/litespm/install_authz.go` — **completes for skill listings** (real skill files through the skills ledger), **for MCP-server listings** (the server is registered in each target host's config) and **for plugin listings whose publisher ships a pinned git tree** (the tree is fetched at that commit, its manifest read, its declared servers registered and its skills copied into each target host's skills tree); a plugin with no fetchable source fails closed with the reason it cannot be installed. `get_invocation` and `cancel_invocation` answer from the invocation registry (`ARCH/34`): an id that was never issued is a typed `LPSM-INVOCATION-NOT-FOUND`, not a `-32601` stub. For **Qwen Code** (`qwen-code`), the bridge additionally advertises MCP prompt capabilities (`prompts/list` and `prompts/get`), which Qwen Code maps directly into the native `/marketplace` command in the CLI.
 *   **Rich Host Renderer:** In hosts supporting rich extension panels or terminal TUIs (e.g. Cline in VS Code or Pi Agent TUI), `/marketplace` opens the **LiteSPM Capability Panel** with 4 dedicated tabs:
 
 ```text
@@ -253,3 +256,10 @@ own config file. It does **not** assert runtime health:
 ### 4.6 Claude Code
 *   **How it works:** User-scope servers live under the top-level `mcpServers` object in `~/.claude.json` (Windows `%USERPROFILE%\.claude.json`). Project scope is `.mcp.json` in the project root; local scope is a per-project entry inside `~/.claude.json`. When set, `CLAUDE_CONFIG_DIR` relocates `.claude.json` and LiteSPM follows it (`internal/host/claudecode.go`).
 *   **Accessing in Claude Code:** Type `/marketplace` in the terminal to invoke the bootstrap skill.
+
+### 4.7 Qwen Code (`qwen-code`)
+*   **How it works:** Host id is `qwen-code`. LiteSPM injects the stdio bridge under `mcpServers.litespm` in `~/.qwen/settings.json` (Windows `%USERPROFILE%\.qwen\settings.json`). When `QWEN_HOME` is set, LiteSPM follows it (`$QWEN_HOME/settings.json`). Project scope is `.qwen/settings.json` in the project root (`internal/host/targets_data.go`).
+*   **Accessing in Qwen Code:**
+    1.  After running `litespm setup` or `litespm host setup qwen-code`, restart the Qwen CLI.
+    2.  Type `/marketplace` (or `/marketplace <query>`) in the prompt. Qwen Code converts the bridge's MCP prompt into a native slash command, allowing interactive catalog search, inspection, and guided installation.
+

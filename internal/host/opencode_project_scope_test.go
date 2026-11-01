@@ -240,6 +240,40 @@ func TestOpenCodeProjectScopeInstallRoundTrip(t *testing.T) {
 	}
 }
 
+// TestOpenCodeProjectScopeFreshProjectCreatesFile pins that an empty project with
+// no pre-existing opencode.json creates `<root>/opencode.json` rather than failing
+// or returning an empty path.
+func TestOpenCodeProjectScopeFreshProjectCreatesFile(t *testing.T) {
+	home := entryHome(t)
+	ctx := context.Background()
+	project := t.TempDir()
+
+	res, err := InstallServerEntry(ctx, "opencode", ServerEntry{
+		Name: "demo", Command: "npx", Args: []string{"-y", "demo-mcp"},
+	}, EntryInstallOptions{
+		BackupDir:   filepath.Join(home, "backups"),
+		Scope:       domain.ScopeProject,
+		ProjectRoot: project,
+	})
+	if err != nil {
+		t.Fatalf("fresh project install failed: %v", err)
+	}
+	want := filepath.Join(project, "opencode.json")
+	if res.ConfigPath != want {
+		t.Errorf("ConfigPath = %s, want %s", res.ConfigPath, want)
+	}
+	if !res.Created {
+		t.Errorf("expected Created to be true on fresh project")
+	}
+	data, err := os.ReadFile(want)
+	if err != nil {
+		t.Fatalf("could not read created project file: %v", err)
+	}
+	if !strings.Contains(string(data), "demo") {
+		t.Errorf("created config missing demo entry: %s", string(data))
+	}
+}
+
 // TestOpenCodeListAndCollisionSpanBothShapes pins the read seam that copy,
 // install and the ledger share: listing returns entries from either container
 // (a legacy flat entry keeps its env and launch line, not a degraded

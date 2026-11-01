@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/sarv-projects/litespm/internal/domain"
 )
@@ -451,12 +452,13 @@ func stripJSONComments(s string) string {
 	return b.String()
 }
 
-// parseConfigJSON parses a host config, tolerating comments when the target
-// declares that the format allows them.
+// parseConfigJSON parses a host config, tolerating comments and trailing commas
+// when the target declares that the format allows them (JSONC).
 func parseConfigJSON(t BridgeTarget, raw []byte) (map[string]any, error) {
 	text := string(raw)
 	if t.TolerateComments {
 		text = stripJSONComments(text)
+		text = stripTrailingCommas(text)
 	}
 	if strings.TrimSpace(text) == "" {
 		return map[string]any{}, nil
@@ -469,4 +471,47 @@ func parseConfigJSON(t BridgeTarget, raw []byte) (map[string]any, error) {
 		root = map[string]any{}
 	}
 	return root, nil
+}
+
+// stripTrailingCommas turns trailing commas before closing braces/brackets into spaces,
+// allowing JSONC configurations to parse with standard encoding/json.
+func stripTrailingCommas(s string) string {
+	b := []byte(s)
+	inString := false
+	escaped := false
+	lastCommaIdx := -1
+	for i := 0; i < len(b); i++ {
+		c := b[i]
+		if inString {
+			switch {
+			case escaped:
+				escaped = false
+			case c == '\\':
+				escaped = true
+			case c == '"':
+				inString = false
+			}
+			continue
+		}
+		if c == '"' {
+			inString = true
+			lastCommaIdx = -1
+			continue
+		}
+		if c == ',' {
+			lastCommaIdx = i
+			continue
+		}
+		if c == '}' || c == ']' {
+			if lastCommaIdx != -1 {
+				b[lastCommaIdx] = ' '
+				lastCommaIdx = -1
+			}
+			continue
+		}
+		if !unicode.IsSpace(rune(c)) {
+			lastCommaIdx = -1
+		}
+	}
+	return string(b)
 }

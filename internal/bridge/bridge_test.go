@@ -193,19 +193,26 @@ func TestBridge_QwenMarketplacePromptIsPublishedAsSlashCommand(t *testing.T) {
 	}
 }
 
-func TestBridge_NonQwenHostsDoNotAdvertiseQwenSlashPrompt(t *testing.T) {
+func TestBridge_AllHostsAdvertiseMarketplaceSlashPrompt(t *testing.T) {
 	ctx := context.Background()
-	shim := NewShim("codex", nil, nil, nil)
-	id := json.RawMessage(`1`)
-	resp := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "initialize"})
-	var initialized struct {
-		Capabilities map[string]json.RawMessage `json:"capabilities"`
-	}
-	if err := json.Unmarshal(resp.Result, &initialized); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := initialized.Capabilities["prompts"]; ok {
-		t.Fatal("non-Qwen host should keep the existing tools-only bridge contract")
+	for _, hostID := range []string{"codex", "claude-code", "opencode", "cline", "cursor", "zed"} {
+		shim := NewShim(hostID, nil, nil, nil)
+		id := json.RawMessage(`1`)
+		resp := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "initialize"})
+		var initialized struct {
+			Capabilities map[string]json.RawMessage `json:"capabilities"`
+		}
+		if err := json.Unmarshal(resp.Result, &initialized); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := initialized.Capabilities["prompts"]; !ok {
+			t.Fatalf("host %s must advertise MCP prompts so /marketplace is discoverable", hostID)
+		}
+
+		list := shim.HandleRequest(ctx, &ipc.Request{JSONRPC: "2.0", ID: &id, Method: "prompts/list"})
+		if list == nil || list.Error != nil {
+			t.Fatalf("host %s prompts/list failed: %+v", hostID, list)
+		}
 	}
 }
 

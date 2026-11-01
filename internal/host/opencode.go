@@ -93,10 +93,13 @@ func (a *OpenCodeAdapter) ProjectConfigPath(root string) string {
 	if dot != "" {
 		return dot
 	}
-	return firstExistingPath(
+	if direct := firstExistingPath(
 		filepath.Join(root, "opencode.jsonc"),
 		filepath.Join(root, "opencode.json"),
-	)
+	); direct != "" {
+		return direct
+	}
+	return filepath.Join(root, "opencode.json")
 }
 
 // firstExistingPath returns the first path that exists, or "" when none does.

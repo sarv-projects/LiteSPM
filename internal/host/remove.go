@@ -301,15 +301,14 @@ func stripJSONEntryNamed(content string, keyPath []string, serverName string) (s
 	// Drop such comments (bounded) until the document parses again. Files
 	// without this shape are untouched: the first parse check passes.
 	for attempt := 0; attempt < 6; attempt++ {
-		if _, perr := parseConfigJSON(BridgeTarget{TolerateComments: true}, []byte(merged)); perr == nil {
-			break
-		}
 		// Syntactic repairs first: they are position-independent. A comma left
 		// before a closing brace is the common residue of removing a member, and
 		// clearing it usually restores validity on its own.
 		if repaired, fixed := dropDanglingCommaBeforeBrace(merged); fixed {
 			merged = repaired
-			continue
+		}
+		if _, perr := parseConfigJSON(BridgeTarget{TolerateComments: true}, []byte(merged)); perr == nil {
+			break
 		}
 		if next, moved, ok := dropPrecedingCommentLine(merged, cutPos); ok {
 			merged, cutPos = next, moved

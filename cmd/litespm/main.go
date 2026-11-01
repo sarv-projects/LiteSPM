@@ -2683,6 +2683,12 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 		if len(kinds) > 0 {
 			searchLimit = 1 << 30
 		}
+		// If the local catalog index is empty, attempt an on-demand sync
+		// to access the live catalog.
+		if catClient.Count() == 0 {
+			_, _ = catClient.Sync(ctx)
+		}
+
 		results := catClient.Search(req.Query, catalog.SearchOptions{
 			Category: req.Category,
 			Limit:    searchLimit,
@@ -3969,6 +3975,17 @@ func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, versio
 				if !host.SupportsProjectScope(adapter) {
 					return nil, nil, &ipc.RPCError{Code: ipc.CodeInvalidParams,
 						Message: fmt.Sprintf("host %s has no documented project-scope config path, so %s cannot be installed for a single project; install it with --scope user, or choose a host that documents a project file", adapter.Descriptor().DisplayName, id)}
+				}
+			}
+		} else {
+			for _, hostID := range targetHosts {
+				adapter, adapterErr := host.GetAdapter(hostID)
+				if adapterErr != nil {
+					return nil, nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: adapterErr.Error()}
+				}
+				if !host.SupportsUserScope(adapter) {
+					return nil, nil, &ipc.RPCError{Code: ipc.CodeInvalidParams,
+						Message: fmt.Sprintf("host %s documents only a project-scope config path, so %s cannot be installed across all projects; install it with --scope project (and --workspace <dir>)", adapter.Descriptor().DisplayName, id)}
 				}
 			}
 		}
