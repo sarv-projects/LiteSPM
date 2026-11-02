@@ -7,6 +7,7 @@ import {
   Bookmark,
   Cable,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Clock,
   Eye,
@@ -750,6 +751,77 @@ export function HomeView() {
             </button>
           </p>
         )}
+      </section>
+
+      {/* ------------------------------ FAQ ------------------------------ */}
+      <section className="border-t border-border/60 bg-card/25 py-16 sm:py-20" aria-labelledby="faq-title">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <div className="text-center">
+            <p className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-brand">
+              Frequently Asked Questions
+            </p>
+            <h2 id="faq-title" className="mt-2 text-[clamp(1.8rem,3.4vw,2.5rem)] font-semibold leading-tight tracking-[-0.03em]">
+              Common questions, clear answers.
+            </h2>
+            <p className="mx-auto mt-3 max-w-[54ch] text-[14px] leading-relaxed text-muted-foreground">
+              Everything you need to know about package installability, config backups, and multi-agent support.
+            </p>
+          </div>
+
+          <div className="mt-10 space-y-3">
+            {[
+              {
+                q: "Why are some packages marked 'Installable' while others are 'Discovery-Only'?",
+                a: "LiteSPM operates on a zero-guesswork safety standard. To automatically inject an MCP server into your agent's config, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). For community packages that only publish a GitHub link or README without structured launch parameters, LiteSPM refuses to guess commands (such as guessing between npx, python, or uvx) that could break your agent. We index all ~69k community capabilities so you can find them and view their source code, but one-click automated setup is reserved for packages with verified launch details.",
+              },
+              {
+                q: "What does 'Publisher setup details needed' mean?",
+                a: "The tool author has published open-source code, but has not yet defined structured machine-readable launch instructions in their package metadata. The package detail page links directly to the author's official GitHub repository, where you can follow manual setup instructions from their README.",
+              },
+              {
+                q: "How does LiteSPM install capabilities into my AI agent?",
+                a: "LiteSPM writes surgical configuration changes directly into your agent's documented configuration file (such as ~/.claude.json for Claude Code or cline_mcp_settings.json for Cline). Before writing any file, LiteSPM previews the exact diff, backs up your existing file, and logs the change to an undo ledger.",
+              },
+              {
+                q: "Can LiteSPM break or overwrite my existing agent settings?",
+                a: "No. LiteSPM's JSONC and TOML parsers preserve all your existing entries, comments, and structure. It only injects the required capability entry. When you uninstall a package, only the nodes LiteSPM created are removed—all personal edits you made before or after install remain intact.",
+              },
+              {
+                q: "How do plugins with host-specific extras work?",
+                a: "Plugins can bundle both portable components (universal MCP servers and agent skills) and host-specific extras (such as IDE commands, editor hooks, or subagents). LiteSPM installs all portable servers and skills into any supported agent. If a plugin contains editor extras that cannot run universally, you can install its portable components with: litespm install <id> --allow-partial.",
+              },
+              {
+                q: "Which AI coding agents are supported?",
+                a: "LiteSPM supports 50 agent hosts for MCP servers (including Cursor, Claude Code, Cline, OpenAI Codex, OpenCode, Grok Build, Gemini CLI, and GitHub Copilot) and 81 targets for skills, covering terminal, IDE, and desktop environments.",
+              },
+            ].map((item) => (
+              <details
+                key={item.q}
+                className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35 hover:shadow-sm"
+              >
+                <summary className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] text-foreground [&::-webkit-details-marker]:hidden">
+                  <span>{item.q}</span>
+                  <span className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180">
+                    <ChevronDown className="h-4 w-4" />
+                  </span>
+                </summary>
+                <p className="mt-3 text-[13.5px] leading-relaxed text-muted-foreground">
+                  {item.a}
+                </p>
+              </details>
+            ))}
+          </div>
+
+          <div className="mt-8 text-center">
+            <button
+              type="button"
+              onClick={() => navigate("#/docs/troubleshooting")}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand hover:underline"
+            >
+              Browse all documentation & troubleshooting guides <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </section>
 
       {/* ------------------------------ bottom CTA ------------------------------ */}

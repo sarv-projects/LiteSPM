@@ -26,6 +26,7 @@ const COLUMNS: Array<{
       { label: "Command reference", hash: "#/docs/commands" },
       { label: "How an install works", hash: "#/docs/install-flow" },
       { label: "Security model", hash: "#/docs/security" },
+      { label: "Troubleshooting & FAQ", hash: "#/docs/troubleshooting" },
     ],
   },
   {

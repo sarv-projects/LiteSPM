@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, BookOpen, Cable, CheckCircle2, CircleDot, Lock, Package, RotateCcw, Search, ShieldCheck, Terminal, Undo2, Wrench } from "lucide-react";
+import { ArrowRight, BookOpen, Cable, CheckCircle2, CircleDot, HelpCircle, Lock, Package, RotateCcw, Search, ShieldCheck, Terminal, Undo2, Wrench } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/litespm/router";
@@ -17,7 +17,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: React.ElementType }> = 
   { id: "inside-agent", label: "Inside your agent", icon: CircleDot },
   { id: "security", label: "Security model", icon: ShieldCheck },
   { id: "publishing", label: "Publishing to the catalog", icon: Package },
-  { id: "troubleshooting", label: "Troubleshooting", icon: RotateCcw },
+  { id: "troubleshooting", label: "Troubleshooting & FAQ", icon: HelpCircle },
 ];
 
 const COMMANDS: Array<{ cmd: string; description: string; example?: string }> = [
@@ -48,7 +48,11 @@ const INSTALL_FLAGS = [
 
 export function DocsView({ section }: { section: string }) {
   const navigate = useApp((s) => s.navigate);
-  const active = SECTIONS.some((s) => s.id === section) ? section : "introduction";
+  const active = SECTIONS.some((s) => s.id === section)
+    ? section
+    : section === "faq"
+    ? "troubleshooting"
+    : "introduction";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
@@ -456,36 +460,51 @@ function Publishing() {
 
 function Troubleshooting() {
   return (
-    <DocSection title="Troubleshooting">
-      <P>The usual first stop is the doctor:</P>
-      <CodeBlock title="diagnostics" code={`litespm doctor        # check the install and repair it
-litespm list --drifted  # entries changed since install
-litespm catalog sync  # refresh a stale catalog`} />
-      <div className="space-y-2.5">
+    <DocSection title="Troubleshooting & FAQ">
+      <P>The usual first stop for diagnostics and environment repair is the doctor:</P>
+      <CodeBlock
+        title="diagnostics"
+        code={`litespm doctor        # inspect host configs and repair connections
+litespm list --drifted  # inspect entries changed outside LiteSPM
+litespm catalog sync    # refresh local catalog index`}
+      />
+      <div className="mt-8 space-y-3">
         {[
           {
+            q: "Why are some packages marked 'Installable' while others are 'Discovery-Only'?",
+            a: "LiteSPM operates on a strict zero-guesswork safety standard. To automatically install an MCP server, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). When community packages only provide a repository link or documentation without standardized launch parameters, LiteSPM refuses to guess (such as guessing between npx, python, or uvx). These tools remain in the catalog so you can discover them and visit their source code, but one-click automated installation is paused until verified launch details exist.",
+          },
+          {
+            q: "What does 'Publisher setup details needed' mean on a listing?",
+            a: "The package author has created an open-source tool, but has not yet defined structured machine-readable launch instructions in their package metadata. The package detail page links directly to the author's official GitHub repository, where you can follow manual setup instructions from their README.",
+          },
+          {
+            q: "Why do some plugins require the --allow-partial flag?",
+            a: "Plugins can bundle both portable components (universal MCP servers and agent skills) and host-specific extras (such as IDE-specific extension commands, editor hooks, or subagents). LiteSPM installs all portable servers and skills into any supported agent, but pauses on unprojected extras by default so you aren't surprised by missing features. Adding --allow-partial confirms that you want LiteSPM to install all portable components while skipping non-portable host extras.",
+          },
+          {
+            q: "Why do plugins require a version-pinned source?",
+            a: "To ensure reproducible builds, cryptographic security, and byte-exact rollbacks, LiteSPM requires plugins to pin to a specific git commit hash. Floating branches (such as main or latest) can change at any time without notice. If a plugin points to a floating ref, LiteSPM alerts you to install with a pinned commit.",
+          },
+          {
+            q: "A host refuses a remote (URL) install",
+            a: "While 46 of the 50 supported agent hosts natively support remote URL server configurations, four hosts (Code Studio, iFlow CLI, Mux, and ZCode) currently only support local stdio processes in their config files. LiteSPM connects these hosts via its built-in stdio-to-remote relay bridge rather than writing unsupported URL shapes into their configuration.",
+          },
+          {
+            q: "What does it mean when entries show as 'drifted'?",
+            a: "A drifted entry means the configuration file was modified outside of LiteSPM after the initial install (such as by manual editing or by another tool). Running 'litespm list --drifted' shows exactly what changed. LiteSPM respects your manual changes: if you later run 'litespm install remove', LiteSPM only cleans up the specific lines it originally added and leaves your custom edits untouched.",
+          },
+          {
             q: "litespm install says unknown flag",
-            a: "Your binary is older than the flag. npm update -g litespm gets the current release; the flags this site documents are the flags the published binary accepts.",
-          },
-          {
-            q: "A host refuses a remote install",
-            a: "That host publishes no URL entry object, so LiteSPM refuses fail-closed rather than writing a shape the host would silently ignore. Use a stdio-capable listing, or a host whose docs publish the remote entry.",
-          },
-          {
-            q: "A listing is discovery-only",
-            a: "The publisher has not provided a source or connection command. Nothing can be prepared until they do — the entry page links the publisher for exactly this.",
-          },
-          {
-            q: "Entries show as drifted",
-            a: "The config changed outside LiteSPM since install. list --drifted shows which; your edits are kept and never stripped by remove.",
+            a: "Your installed CLI version is older than the flag being used. Run 'npm update -g litespm' to update to the latest release; all documentation on this site reflects the current published CLI version.",
           },
         ].map((item) => (
-          <details key={item.q} className="group rounded-xl border border-border/70 bg-card">
-            <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-[13.5px] font-semibold">
+          <details key={item.q} className="group rounded-xl border border-border/70 bg-card transition-colors hover:border-border">
+            <summary className="flex cursor-pointer items-center gap-2.5 px-4 py-3.5 text-[13.5px] font-semibold text-foreground">
               <Search className="h-3.5 w-3.5 text-brand" />
               {item.q}
             </summary>
-            <p className="px-4 pb-4 text-[13px] leading-relaxed text-muted-foreground">{item.a}</p>
+            <p className="px-4 pb-4 pt-1 text-[13px] leading-relaxed text-muted-foreground">{item.a}</p>
           </details>
         ))}
       </div>
