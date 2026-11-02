@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://lite-spm-nine.vercel.app"),
   title: "LiteSPM — The package manager for AI agents",
   description:
     "Find MCP servers, skills and plugins once, and install them into every coding agent you use. Browse 69k+ listings across 50 agent hosts — with publisher, source and installability stated up front.",
@@ -34,8 +35,9 @@ export const metadata: Metadata = {
   applicationName: "LiteSPM",
   icons: {
     icon: [
-      { url: "/brand/icon.svg", type: "image/svg+xml" },
       { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/brand/icon.svg", type: "image/svg+xml" },
     ],
     shortcut: "/icon.svg",
     apple: "/brand/icon.svg",
@@ -46,6 +48,21 @@ export const metadata: Metadata = {
       "Search 69k+ MCP servers, skills and plugins, and install them into 50 supported agent hosts with preview, backup and undo.",
     siteName: "LiteSPM",
     type: "website",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "LiteSPM — The package manager for AI agents",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "LiteSPM — The package manager for AI agents",
+    description:
+      "Search 69k+ MCP servers, skills and plugins, and install them into 50 supported agent hosts with preview, backup and undo.",
+    images: ["/og.png"],
   },
   robots: { index: true, follow: true },
 };

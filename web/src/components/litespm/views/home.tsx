@@ -123,8 +123,8 @@ export function HomeView() {
     },
     {
       icon: Undo2,
-      title: "Undo is a command",
-      body: "Every write is previewed, backed up and recorded in a ledger. restore puts a config back to its exact previous bytes.",
+      title: "Undo is a single command",
+      body: "Every write is previewed, backed up and recorded in a ledger. Run litespm restore <name> and your config rolls back byte-for-byte.",
     },
   ];
 
@@ -154,8 +154,8 @@ export function HomeView() {
               transition={{ delay: 0.05 }}
               className="mt-5 text-[clamp(2.5rem,5.6vw,4.3rem)] font-semibold leading-[1.02] tracking-[-0.045em]"
             >
-              Every capability your agents need.{" "}
-              <span className="text-brand">One command away.</span>
+              The package manager for AI agents.{" "}
+              <span className="text-brand">Install once, use everywhere.</span>
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 12 }}
@@ -163,9 +163,9 @@ export function HomeView() {
               transition={{ delay: 0.1 }}
               className="mt-5 max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]"
             >
-              LiteSPM is the package manager for AI agents. Find MCP servers, skills and plugins
-              once, and install them into every coding agent you use — each agent&apos;s own config,
-              backed up first, with a ledger of every change so you can take it back out.
+              Find MCP servers, skills and plugins once, and install them into Cursor, GitHub Copilot,
+              Cline, Claude Code, and 46 more agents — each agent&apos;s own config, backed up first,
+              with a ledger of every change so you can rollback anytime.
             </motion.p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -182,12 +182,12 @@ export function HomeView() {
                 className="h-11 rounded-xl px-5 text-[14.5px]"
                 onClick={() => navigate(exploreHash({}))}
               >
-                Explore the catalog
+                Explore catalog
               </Button>
               <button
                 type="button"
                 onClick={() => setAssistant(true)}
-                className="inline-flex h-11 items-center gap-2 rounded-xl px-3 text-[14px] font-medium text-brand transition-colors hover:bg-brand-soft"
+                className="hidden h-11 items-center gap-2 rounded-xl px-3 text-[14px] font-medium text-brand transition-colors hover:bg-brand-soft sm:inline-flex"
               >
                 <Sparkles className="h-4 w-4" /> Ask AI
               </button>
@@ -198,42 +198,42 @@ export function HomeView() {
             </div>
 
             <dl className="mt-8 grid max-w-lg grid-cols-3 gap-3">
-              <div title="69 311 unique canonical listings deduplicated from 69 376 raw upstream registry records">
-                <dd className="font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
-                  {counts ? <CountUp value={counts.all} format={(n) => formatFull(n).replace(/,/g, " ")} /> : "…"}
-                </dd>
-                <dt className="mt-0.5 text-[11.5px] font-medium text-muted-foreground">
+              <div className="flex flex-col" title={counts ? `${formatFull(counts.all)} unique listings` : "Listings"}>
+                <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Listings
                   <span className="block text-[10px] text-muted-foreground/60">
-                    69k unique (from 69 376 raw)
+                    {counts ? `${formatFull(counts.all)} unique` : "Unique records"}
                   </span>
                 </dt>
-              </div>
-              <div title="All 50 agent hosts supported for MCP servers + 81 agent skill targets">
-                <dd className="font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
-                  {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : "50"}
+                <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
+                  {counts ? <CountUp value={counts.all} format={(n) => formatFull(n).replace(/,/g, " ")} /> : "…"}
                 </dd>
-                <dt className="mt-0.5 text-[11.5px] font-medium text-muted-foreground">
+              </div>
+              <div className="flex flex-col" title="Agent hosts supported for MCP servers + skills">
+                <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Agent hosts
                   <span className="block text-[10px] text-muted-foreground/60">
-                    50 hosts + 81 skill targets
+                    {stats ? `${stats.hosts} hosts supported` : "50 hosts supported"}
                   </span>
                 </dt>
+                <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
+                  {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : "50"}
+                </dd>
               </div>
-              <div title="26 489 verified installable capabilities with pinned git trees or valid endpoints">
-                <dd className="font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
+              <div className="flex flex-col" title="Verified installable capabilities with pinned git trees or valid endpoints">
+                <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
+                  One-command
+                  <span className="block text-[10px] text-muted-foreground/60">
+                    Verified installable
+                  </span>
+                </dt>
+                <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
                   {stats ? (
                     <CountUp value={stats.installable} format={(n) => formatFull(n).replace(/,/g, " ")} />
                   ) : (
                     "…"
                   )}
                 </dd>
-                <dt className="mt-0.5 text-[11.5px] font-medium text-muted-foreground">
-                  One-command installs
-                  <span className="block text-[10px] text-muted-foreground/60">
-                    Zero-manual-config verified
-                  </span>
-                </dt>
               </div>
             </dl>
           </div>
@@ -243,11 +243,37 @@ export function HomeView() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15, duration: 0.5, ease: [0.21, 0.6, 0.35, 1] }}
           >
-            <TerminalHero />
+            <TerminalHero hostsCount={stats?.hosts ?? 50} />
             <p className="mt-3 text-center text-[11px] text-muted-foreground/80">
               A real session: search, install into Claude Code with backup, and the ledger.
             </p>
           </motion.div>
+        </div>
+      </section>
+
+      {/* ----------------------------- social proof / ecosystem bar ----------------------------- */}
+      <section className="border-b border-border/60 bg-card/40 py-5" aria-label="Supported Agents Ecosystem">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 sm:px-6">
+          <p className="text-[12px] font-medium text-muted-foreground shrink-0">
+            Works out of the box with your favorite agent:
+          </p>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-[12px] font-medium text-foreground/80">
+            {["Cursor", "GitHub Copilot", "Cline", "Claude Code", "OpenAI Codex", "Gemini CLI", "Zed", "Devin", "OpenHands"].map((name) => (
+              <span
+                key={name}
+                className="inline-flex items-center rounded-lg border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground/90 transition-colors hover:border-brand/40"
+              >
+                {name}
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={() => navigate("#/agents")}
+              className="text-[12px] font-semibold text-brand hover:underline"
+            >
+              +41 more →
+            </button>
+          </div>
         </div>
       </section>
 
@@ -290,14 +316,14 @@ export function HomeView() {
               </p>
             </div>
 
-            {/* Card 3: What Managing Means */}
+            {/* Card 3: Auto-Backup & Undo */}
             <div className="rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Clean Management & Backups</h3>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Auto-Backup & 1-Command Undo</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                What does &ldquo;managing&rdquo; mean? LiteSPM always saves a backup before modifying any config. When you remove a tool, it cleans up completely without breaking your agent.
+                LiteSPM always backs up your agent&apos;s configuration before writing any change. If you ever want to rollback, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore</code> puts your file back to its exact previous bytes without touching manual edits.
               </p>
             </div>
 
@@ -429,7 +455,7 @@ export function HomeView() {
           <SectionHeading
             eyebrow="Curated shelves"
             title={<span id="featured-title">Start with these</span>}
-            description="Every shelf entry is checked against the catalog at request time — the id is the catalog's own, and the use-case line is editorial prose."
+            description="Hand-picked collections of the most useful MCP servers, skills and toolkits to get you started."
             action={
               <Button variant="outline" className="rounded-xl" onClick={() => navigate(exploreHash({ installable: "1" }))}>
                 Browse installable <ArrowRight className="h-4 w-4" />
@@ -509,7 +535,11 @@ export function HomeView() {
             title={<span id="activity-title">What people are opening</span>}
             description="View counts are recorded by this deployment as packages are opened — not imported, not estimated."
           />
-          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <div
+            className={`mt-8 grid gap-6 ${
+              trending.length > 0 && recent.length > 0 ? "lg:grid-cols-2" : "grid-cols-1"
+            }`}
+          >
             {trending.length > 0 && (
               <div>
                 <h3 className="flex items-center gap-2 text-[14px] font-semibold">
@@ -583,14 +613,14 @@ export function HomeView() {
           />
           <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
+              { name: "Cursor", detail: "AI IDE · MCP", id: "cursor" },
+              { name: "GitHub Copilot", detail: "CLI + IDE · MCP", id: "github-copilot" },
+              { name: "Cline", detail: "VS Code agent · MCP + skills", id: "cline" },
               { name: "Claude Code", detail: "Terminal CLI · MCP + skills", id: "claude-code" },
               { name: "OpenAI Codex", detail: "Terminal CLI · MCP + skills", id: "codex" },
-              { name: "Cursor", detail: "IDE · MCP", id: "cursor" },
               { name: "Gemini CLI", detail: "Terminal CLI · MCP + skills", id: "gemini-cli" },
-              { name: "OpenCode", detail: "Open source · MCP + skills", id: "opencode" },
-              { name: "Cline", detail: "VS Code agent · MCP + skills", id: "cline" },
-              { name: "GitHub Copilot", detail: "CLI + IDE · MCP", id: "github-copilot" },
               { name: "Zed", detail: "Editor · MCP", id: "zed" },
+              { name: "OpenCode", detail: "Open source · MCP + skills", id: "opencode" },
             ].map((agent) => (
               <button
                 key={agent.id}
@@ -639,18 +669,18 @@ export function HomeView() {
             },
             {
               icon: RotateCcw,
-              title: "Restore is exact",
-              body: "restore rolls a config back to its previous bytes — not a re-merge, the actual bytes.",
+              title: "Restore is byte-exact",
+              body: "litespm restore rolls a config back to its previous bytes — not a re-merge, the exact file bytes.",
             },
             {
               icon: Bookmark,
               title: "Ledger ownership",
-              body: "install remove strips only the nodes LiteSPM wrote. Your own edits are left alone.",
+              body: "litespm remove strips only the nodes LiteSPM wrote. Your own manual edits are left untouched.",
             },
             {
               icon: Star,
-              title: "A real catalog",
-              body: `${counts ? formatFull(counts.all) : "69k"} listings, each with publisher, source and installability stated up front.`,
+              title: "Verified capabilities",
+              body: "Every installable package is pre-verified with pinned git trees or valid streamable endpoints.",
             },
           ].map((item) => (
             <div key={item.title} className="rounded-2xl border border-border/70 bg-card p-5">

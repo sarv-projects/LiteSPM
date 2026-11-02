@@ -115,8 +115,7 @@ export function Footer() {
 
         <div className="mt-10 flex flex-col gap-3 border-t border-border/50 pt-6 text-[12px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>
-            Apache-2.0 · The catalog index is generated from verified upstream packages; every listing
-            links directly to its official source repository.
+            © 2026 LiteSPM · Open source package manager for AI agents · Apache-2.0
           </p>
           <p className="flex items-center gap-1.5">
             {entries.length > 0 && (

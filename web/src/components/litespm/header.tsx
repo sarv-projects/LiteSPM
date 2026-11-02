@@ -45,7 +45,7 @@ export function AnnouncementBar() {
             onClick={() => useApp.getState().navigate("#/insights")}
             className="font-medium underline decoration-brand/50 underline-offset-2 hover:text-brand"
           >
-            See what changed
+            See catalog stats →
           </button>
         </p>
         <button
@@ -149,7 +149,7 @@ export function Header() {
           <Button
             size="sm"
             variant="outline"
-            className="hidden h-9 gap-1.5 rounded-lg px-3 text-[12.5px]"
+            className="hidden h-9 gap-1.5 rounded-lg px-3 text-[12.5px] sm:inline-flex"
             onClick={() => setAssistant(true)}
           >
             <Sparkles className="h-3.5 w-3.5 text-brand" />

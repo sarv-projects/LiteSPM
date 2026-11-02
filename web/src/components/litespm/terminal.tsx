@@ -64,8 +64,8 @@ const SCENARIOS: Record<
     title: "Safe Rollback",
     description: "Byte-exact rollback to pre-install state with single undo command",
     lines: [
-      { kind: "cmd", text: "litespm restore inst-8f3a9", delay: 350 },
-      { kind: "dim", text: "  Reading ledger record for install inst-8f3a9...", delay: 260 },
+      { kind: "cmd", text: "litespm restore neon --agent claude-code", delay: 350 },
+      { kind: "dim", text: "  Reading ledger record for neon on claude-code...", delay: 260 },
       { kind: "dim", text: "  plan    revert ~/.claude.json to pre-install image", delay: 240 },
       { kind: "dim", text: "  verify  sha256 digest matches recorded pre-image (8f3a921c...)", delay: 260 },
       { kind: "ok", text: "  ✓ Restored ~/.claude.json byte-identical to pre-write backup", delay: 340 },
@@ -84,7 +84,13 @@ const LINE_STYLES: Record<ScriptLine["kind"], string> = {
   dim: "text-[oklch(0.60_0.02_163)]",
 };
 
-export function TerminalHero({ className }: { className?: string }) {
+export function TerminalHero({
+  className,
+  hostsCount = 50,
+}: {
+  className?: string;
+  hostsCount?: number;
+}) {
   const [scenario, setScenario] = React.useState<ScenarioId>("mcp");
   const [visible, setVisible] = React.useState(0);
   const [typed, setTyped] = React.useState("");
@@ -246,7 +252,7 @@ export function TerminalHero({ className }: { className?: string }) {
         <span>{activeScenario.description}</span>
         <span className="flex items-center gap-1.5 text-emerald-400/80">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-          50 hosts ready
+          {hostsCount} hosts ready
         </span>
       </div>
     </div>

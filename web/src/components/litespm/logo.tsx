@@ -38,7 +38,7 @@ export function Logo({ className }: { className?: string }) {
       <span className="text-[15.5px] font-semibold tracking-tight">
         LiteSPM
         <span className="ml-1.5 hidden font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground sm:inline">
-          marketplace
+          package manager
         </span>
       </span>
     </span>
