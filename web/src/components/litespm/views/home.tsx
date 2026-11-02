@@ -132,9 +132,18 @@ export function HomeView() {
       {/* ------------------------------- hero ------------------------------- */}
       <section className="relative overflow-hidden border-b border-border/60">
         <div aria-hidden="true" className="hero-grid pointer-events-none absolute inset-0" />
-        <div
+        <motion.div
           aria-hidden="true"
-          className="pointer-events-none absolute -top-40 left-1/2 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-brand/[0.07] blur-3xl"
+          animate={{
+            scale: [1, 1.08, 1],
+            opacity: [0.07, 0.13, 0.07],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          className="pointer-events-none absolute -top-40 left-1/2 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-brand blur-3xl"
         />
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-24">
           <div>
@@ -167,10 +176,15 @@ export function HomeView() {
               with a ledger of every change so you can rollback anytime.
             </motion.p>
 
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="mt-7 flex flex-wrap items-center gap-3"
+            >
               <Button
                 size="lg"
-                className="h-11 rounded-xl bg-brand px-5 text-[14.5px] font-semibold text-brand-foreground hover:bg-brand/90"
+                className="h-11 rounded-xl bg-brand px-5 text-[14.5px] font-semibold text-brand-foreground hover:bg-brand/90 transition-transform active:scale-[0.98]"
                 onClick={() => navigate("#/docs/getting-started")}
               >
                 Get started <ArrowRight className="h-4 w-4" />
@@ -178,7 +192,7 @@ export function HomeView() {
               <Button
                 size="lg"
                 variant="outline"
-                className="h-11 rounded-xl px-5 text-[14.5px]"
+                className="h-11 rounded-xl px-5 text-[14.5px] transition-transform active:scale-[0.98]"
                 onClick={() => navigate(exploreHash({}))}
               >
                 Explore catalog
@@ -190,13 +204,23 @@ export function HomeView() {
               >
                 <Sparkles className="h-4 w-4" /> Ask AI
               </button>
-            </div>
+            </motion.div>
 
-            <div className="mt-8">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mt-8"
+            >
               <InstallBar command="npm install -g litespm" label="npm" />
-            </div>
+            </motion.div>
 
-            <dl className="mt-8 grid max-w-lg grid-cols-3 gap-3">
+            <motion.dl
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="mt-8 grid max-w-lg grid-cols-3 gap-3"
+            >
               <div className="flex flex-col" title={counts ? `${formatFull(counts.all)} unique listings` : "Listings"}>
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Listings
@@ -234,7 +258,7 @@ export function HomeView() {
                   )}
                 </dd>
               </div>
-            </dl>
+            </motion.dl>
           </div>
 
           <motion.div
@@ -260,8 +284,9 @@ export function HomeView() {
             {["Cursor", "GitHub Copilot", "Cline", "Claude Code", "OpenAI Codex", "Gemini CLI", "Zed", "Devin", "OpenHands"].map((name) => (
               <span
                 key={name}
-                className="inline-flex items-center rounded-lg border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground/90 transition-colors hover:border-brand/40"
+                className="inline-flex items-center rounded-lg border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground/90 transition-all hover:border-brand/50 hover:bg-brand-soft/30 hover:scale-[1.03]"
               >
+                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500/80" />
                 {name}
               </span>
             ))}
@@ -294,7 +319,13 @@ export function HomeView() {
 
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {/* Card 1: /marketplace inside chat */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-30px" }}
+              transition={{ delay: 0.05, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]"
+            >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand font-mono text-[13px] font-bold">
                 /m
               </div>
@@ -302,10 +333,16 @@ export function HomeView() {
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 Just type <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">/marketplace</code> right inside your AI agent&apos;s chatbar. Search, browse, and 1-click install or remove tools without ever leaving your conversation.
               </p>
-            </div>
+            </motion.div>
 
             {/* Card 2: Install Once & Forget */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-30px" }}
+              transition={{ delay: 0.12, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]"
+            >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
@@ -313,10 +350,16 @@ export function HomeView() {
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 Set it up once with <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">npm i -g litespm</code>. From then on, all your AI agents share the same clean tool discovery and automatic host wiring.
               </p>
-            </div>
+            </motion.div>
 
             {/* Card 3: Auto-Backup & Undo */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-30px" }}
+              transition={{ delay: 0.19, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]"
+            >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <ShieldCheck className="h-5 w-5" />
               </div>
@@ -324,10 +367,16 @@ export function HomeView() {
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 LiteSPM always backs up your agent&apos;s configuration before writing any change. If you ever want to rollback, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore</code> puts your file back to its exact previous bytes without touching manual edits.
               </p>
-            </div>
+            </motion.div>
 
             {/* Card 4: Built for Everyone */}
-            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-30px" }}
+              transition={{ delay: 0.26, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]"
+            >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <Terminal className="h-5 w-5" />
               </div>
@@ -335,7 +384,7 @@ export function HomeView() {
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 Prefer a friendly menu? Just run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm</code> for the interactive wizard. Power user? Use direct flags like <code className="font-mono text-[11.5px]">--agent</code> and <code className="font-mono text-[11.5px]">--global</code>.
               </p>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>

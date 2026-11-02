@@ -200,8 +200,8 @@ function flagsIn(command) {
 }
 
 async function main() {
-  const module = await loadModule();
-  if (typeof module.installCommandFor !== "function") {
+  const mod = await loadModule();
+  if (typeof mod.installCommandFor !== "function") {
     fail("lib/installCommand.ts did not export installCommandFor");
   }
 

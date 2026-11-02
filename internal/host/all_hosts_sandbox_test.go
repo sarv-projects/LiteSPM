@@ -481,4 +481,3 @@ func TestAll50HostsBridgeSetupAndTeardownInSandbox(t *testing.T) {
 		})
 	}
 }
-

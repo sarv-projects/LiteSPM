@@ -588,7 +588,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                 Quick select:
               </span>
               {data.mcpSpec.hostConfigs.slice(0, 6).map((h) => {
-                const isActive = (selectedHostId || data.mcpSpec.hostConfigs[0]?.id) === h.id;
+                const isActive = (selectedHostId || data.mcpSpec?.hostConfigs[0]?.id) === h.id;
                 return (
                   <button
                     key={h.id}

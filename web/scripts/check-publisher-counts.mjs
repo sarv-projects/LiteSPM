@@ -61,11 +61,11 @@ async function loadRule() {
     fileName: modulePath,
   }).outputText;
   const url = `data:text/javascript;base64,${Buffer.from(transpiled).toString("base64")}`;
-  const module = await import(url);
-  if (typeof module.publisherMatches !== "function") {
+  const mod = await import(url);
+  if (typeof mod.publisherMatches !== "function") {
     fail("lib/publisherFilter.ts did not export publisherMatches");
   }
-  return module.publisherMatches;
+  return mod.publisherMatches;
 }
 
 function main() {

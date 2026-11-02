@@ -96,9 +96,27 @@ export function TerminalHero({
   const [typed, setTyped] = React.useState("");
   const [copied, setCopied] = React.useState(false);
   const [runKey, setRunKey] = React.useState(0);
+  const [isHovered, setIsHovered] = React.useState(false);
+  const [userInteracted, setUserInteracted] = React.useState(false);
 
   const activeScenario = SCENARIOS[scenario];
   const lines = activeScenario.lines;
+
+  // Auto-cycle through scenarios after completion (pauses when hovered or user-selected)
+  React.useEffect(() => {
+    if (visible < lines.length || isHovered || userInteracted) return;
+
+    const timer = setTimeout(() => {
+      setScenario((prev) => {
+        if (prev === "mcp") return "skills";
+        if (prev === "skills") return "restore";
+        return "mcp";
+      });
+      setRunKey((k) => k + 1);
+    }, 4500);
+
+    return () => clearTimeout(timer);
+  }, [visible, lines.length, isHovered, userInteracted]);
 
   // Restart typing animation when scenario changes or replay is clicked
   React.useEffect(() => {
@@ -163,6 +181,8 @@ export function TerminalHero({
 
   return (
     <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={`relative overflow-hidden rounded-2xl border border-border/80 bg-[#0d1312] shadow-[0_24px_70px_-24px_rgba(16,185,129,0.2)] ${
         className ?? ""
       }`}
@@ -188,6 +208,7 @@ export function TerminalHero({
               key={id}
               type="button"
               onClick={() => {
+                setUserInteracted(true);
                 setScenario(id);
                 setRunKey((k) => k + 1);
               }}

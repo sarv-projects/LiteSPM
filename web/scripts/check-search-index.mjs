@@ -155,11 +155,11 @@ async function loadMatcher() {
     `from ${JSON.stringify(pathToFileURL(formatPath).href)}`
   );
   const url = `data:text/javascript;base64,${Buffer.from(rewritten).toString("base64")}`;
-  const module = await import(url);
-  if (typeof module.matchesQuery !== "function") {
+  const mod = await import(url);
+  if (typeof mod.matchesQuery !== "function") {
     fail("lib/query.ts did not export matchesQuery");
   }
-  return module.matchesQuery;
+  return mod.matchesQuery;
 }
 
 /** One full build of both artifacts, exactly as the emitter performs it. */
