@@ -335,11 +335,7 @@ function Hosts() {
         package manager, LiteSPM guarantees 100% host coverage across every supported agent.
       </P>
       <P>
-        Each host has its own adapter: six are hand-written and know their config layout in detail
-        (JSONC merging, TOML round-tripping, per-platform path discovery), and the other forty-four
-        come from one data-driven registry generated from each agent&apos;s documented configuration
-        format. A new host is a registry entry rather than a new code path — and it gets the same
-        plan, backup and ledger.
+        Each host has its own verified adapter. Configuration rules (surgical JSONC merging, TOML round-tripping, and platform path discovery) are derived directly from each agent vendor&apos;s official documentation. Every host gets the exact same plan preview, pre-write backup, and byte-exact ledger.
       </P>
 
       <CodeBlock

@@ -652,7 +652,7 @@ export function HomeView() {
           <SectionHeading
             eyebrow="Works with your agent"
             title={<span id="agents-title">{stats ? `${stats.hosts} hosts` : "50 hosts"}. One command.</span>}
-            description="Six hand-written adapters (Claude Code, Codex, OpenCode, Cline, Pi, Grok Build) and forty-four data-driven ones — every host gets the same plan, backup and ledger."
+            description="Whether you build in Cursor, Claude Code, Cline, or Copilot — every agent host gets automatic configuration, pre-write backups, and a rollback ledger."
             action={
               <Button variant="outline" className="rounded-xl" onClick={() => navigate("#/agents")}>
                 Browse agents <ArrowRight className="h-4 w-4" />
