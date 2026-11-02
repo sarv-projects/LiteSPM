@@ -739,10 +739,15 @@ export function HomeView() {
           ))}
         </div>
         {stats?.release && (
-          <p className="mt-6 font-mono text-[10.5px] leading-relaxed text-muted-foreground/70">
-            release {stats.release.releaseId} · sequence {stats.release.sequence} ·{" "}
-            {formatDate(stats.release.createdAt)} · manifest {stats.release.manifestDigest.slice(0, 22)}
-            … · dataset {stats.release.datasetDigest.slice(0, 22)}…
+          <p className="mt-6 text-[11.5px] text-muted-foreground/75">
+            Catalog release v{stats.release.releaseId} · Updated {formatDate(stats.release.createdAt)} ·{" "}
+            <button
+              type="button"
+              onClick={() => navigate("#/insights")}
+              className="text-brand hover:underline"
+            >
+              Verified catalog index & audits →
+            </button>
           </p>
         )}
       </section>

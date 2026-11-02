@@ -231,7 +231,7 @@ export function InsightsView() {
         <SectionHeading
           eyebrow="Hosts"
           title={<span id="hosts-title">The host leaderboard</span>}
-          description="Agent hosts ranked by global developer popularity and real-world user adoption, with compatible package counts and configuration paths for each compiled-in adapter."
+          description="Agent hosts ranked by global developer popularity and real-world user adoption, with compatible package counts and configuration paths for each supported agent."
         />
         <div className="mt-6 overflow-x-auto rounded-2xl border border-border/70 bg-card">
           <table className="w-full min-w-[760px] text-left text-[12.5px]">
@@ -288,7 +288,7 @@ export function InsightsView() {
           </table>
         </div>
         <p className="mt-2.5 text-[12px] text-muted-foreground">
-          Showing the top 20 of {data.hostLeaderboard.length} hosts with compiled-in adapters.{" "}
+          Showing the top 20 of {data.hostLeaderboard.length} supported agent hosts.{" "}
           <button
             type="button"
             onClick={() => navigate("#/agents")}

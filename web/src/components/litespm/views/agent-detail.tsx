@@ -94,16 +94,15 @@ export function AgentDetailView({ id }: { id: string }) {
           <BrandMark id={row.hostId ?? row.slug} name={row.name} size="lg" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              {setup.hostId && (
+              {setup.hostId ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-brand/35 bg-brand-soft px-2 py-0.5 text-[10.5px] font-semibold text-brand">
-                  <ShieldCheck className="h-3 w-3" /> Compiled-in adapter
+                  <ShieldCheck className="h-3 w-3" /> Verified host integration
                 </span>
-              )}
-              {setup.generic === false && setup.hostId && (
-                <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
-                  Hand-written
+              ) : row.skill ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-brand/35 bg-brand-soft px-2 py-0.5 text-[10.5px] font-semibold text-brand">
+                  <CheckCircle2 className="h-3 w-3" /> Skills supported
                 </span>
-              )}
+              ) : null}
             </div>
             <h1 className="mt-1.5 text-[clamp(1.6rem,3.2vw,2.2rem)] font-semibold leading-tight tracking-[-0.03em]">
               {row.name}
@@ -358,8 +357,8 @@ export function AgentDetailView({ id }: { id: string }) {
               </dl>
             ) : (
               <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
-                No MCP adapter — LiteSPM holds no config-write path for this host.{" "}
-                {row.skill ? "Skills still install through its documented skills directory." : ""}
+                Manual configuration required — vendor has not published an automated config format for MCP servers.{" "}
+                {row.skill ? "Skills install directly into the agent's documented skills directory." : ""}
               </p>
             )}
           </section>
@@ -373,8 +372,7 @@ export function AgentDetailView({ id }: { id: string }) {
               {setup.remote ? (
                 <>
                   <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
-                    The vendor documents the exact URL entry object, so remote servers install
-                    fail-open:
+                    This agent supports remote URL server endpoints directly in its configuration:
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {(setup.remoteTransports ?? []).map((transport) => (
@@ -389,8 +387,7 @@ export function AgentDetailView({ id }: { id: string }) {
                 </>
               ) : (
                 <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">
-                  Refused fail-closed: the vendor publishes no URL entry object, so LiteSPM errors
-                  rather than writing a shape the host would silently ignore.
+                  Local stdio only — this agent does not support remote URL endpoints in its configuration file. LiteSPM protects your config from unsupported formats.
                 </p>
               )}
             </section>
