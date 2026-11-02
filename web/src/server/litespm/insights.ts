@@ -164,10 +164,7 @@ async function computeInsights(): Promise<InsightsResponse> {
         format: adapter?.kind ?? "",
       };
     })
-    .sort((a, b) => {
-      if (b.total !== a.total) return b.total - a.total;
-      return compareHostsByAdoption(a.id, b.id, a.name, b.name);
-    });
+    .sort((a, b) => compareHostsByAdoption(a.id, b.id, a.name, b.name));
 
   const mapped = [...byGoal.entries()]
     .filter(([id]) => id !== "other")

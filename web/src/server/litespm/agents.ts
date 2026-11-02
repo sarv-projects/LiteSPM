@@ -172,10 +172,7 @@ async function computeAgentRows(): Promise<AgentRow[]> {
     });
   }
 
-  rows.sort((a, b) => {
-    if (b.total !== a.total) return b.total - a.total;
-    return compareHostsByAdoption(a.hostId ?? a.slug, b.hostId ?? b.slug, a.name, b.name);
-  });
+  rows.sort((a, b) => compareHostsByAdoption(a.hostId ?? a.slug, b.hostId ?? b.slug, a.name, b.name));
   return rows;
 }
 
