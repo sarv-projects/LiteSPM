@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Bookmark, BookmarkCheck, GitCompareArrows, ShieldCheck, Star } from "lucide-react";
+import { Bookmark, BookmarkCheck, GitCompareArrows, Github, ShieldCheck, Star } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/litespm/router";
@@ -81,6 +81,18 @@ export function PackageCard({
             >
               <Star className="h-3 w-3 text-brand/80" /> {formatCompact(hit.stars)}
             </span>
+          )}
+          {hit.repoUrl && (
+            <a
+              href={hit.repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`View source on GitHub: ${hit.repoUrl}`}
+              className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:text-brand"
+            >
+              <Github className="h-3.5 w-3.5" />
+            </a>
           )}
           <RankBadge score={hit.rankScore} size="sm" />
           <button

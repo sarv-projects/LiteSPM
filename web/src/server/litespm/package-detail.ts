@@ -14,6 +14,7 @@ import { dedupeKey, rankScoreBreakdown } from "./ranking";
 import { classifyListing, GOAL_LABELS } from "./taxonomy";
 import { hostsFor } from "./hosts";
 import { buildMcpSpec, buildSkillSpec, buildPluginSpec } from "./type-specs";
+import { resolveOriginalSource } from "./source-resolver";
 import type { Listing } from "./types";
 
 export interface PackageDetailResponse {
@@ -56,6 +57,8 @@ export interface PackageDetailData {
   args?: string[] | null;
   installHint?: string;
   skillSource?: string;
+  repoUrl?: string | null;
+  sourceType?: "github" | "gitlab" | "bitbucket" | "git" | "endpoint" | "website" | null;
   artifact?: {
     type?: string;
     repo?: string;
@@ -113,6 +116,7 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
 
   const availability = availabilityOf(row);
   const goal = classifyListing(row);
+  const src = resolveOriginalSource(row);
   const related = relatedListings(row, dataset.rows, {
     goalOf: (r) => classifyListing(r),
     limit: 6,
@@ -157,7 +161,7 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
       publisher: {
         name: row.publisher?.name ?? "",
         verified: Boolean(row.publisher?.verified),
-        url: row.publisher?.url,
+        url: src.cleanPublisherUrl || undefined,
       },
       distributor: row.distributor
         ? {
@@ -183,15 +187,23 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
       args: row.args ?? null,
       installHint: row.installHint,
       skillSource: row.skillSource,
+      repoUrl: src.repoUrl,
+      sourceType: src.sourceType,
       artifact: row.artifact
         ? {
             type: row.artifact.type,
-            repo: row.artifact.repo,
+            repo: src.repoUrl ?? row.artifact.repo,
             path: row.artifact.path,
             ref: row.artifact.ref,
             sha: row.artifact.sha,
             pinned: row.artifact.pinned,
             declaredAs: row.artifact.declaredAs,
+          }
+        : src.repoUrl
+        ? {
+            type: src.sourceType === "github" ? "git-tree" : src.sourceType,
+            repo: src.repoUrl,
+            pinned: Boolean(row.version),
           }
         : null,
       compatibleHosts: row.compatibleHosts,

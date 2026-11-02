@@ -14,6 +14,7 @@ import { resolveHostId, hostIdsFor } from "./identity";
 import { classifyListing } from "./taxonomy";
 import { getDataset } from "./dataset";
 import { dedupeKey, nameTiebreakBucket } from "./ranking";
+import { resolveOriginalSource } from "./source-resolver";
 import type { Listing } from "./types";
 
 export type SortKey = "relevance" | "rank" | "name" | "kind" | "publisher";
@@ -57,6 +58,8 @@ export interface CatalogHit {
   command?: string | null;
   args?: string[] | null;
   installHint?: string;
+  repoUrl?: string | null;
+  sourceType?: string | null;
 }
 
 export interface CatalogFacets {
@@ -385,6 +388,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
 
   function toHit(row: Listing): CatalogHit {
     const m = meta.get(row.id);
+    const src = resolveOriginalSource(row);
     return {
       id: row.id,
       linkKey: row.linkKey ?? row.slug,
@@ -398,7 +402,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
         name: row.publisher?.name ?? "",
         verified: Boolean(row.publisher?.verified),
         provenance: row.publisher?.provenance,
-        url: row.publisher?.url,
+        url: src.cleanPublisherUrl || undefined,
       },
       source: row.source,
       transport: row.transport ?? null,
@@ -412,6 +416,8 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
       command: row.command ?? null,
       args: row.args ?? null,
       installHint: row.installHint,
+      repoUrl: src.repoUrl,
+      sourceType: src.sourceType,
     };
   }
 

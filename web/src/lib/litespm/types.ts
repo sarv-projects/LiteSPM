@@ -35,6 +35,8 @@ export interface CatalogHit {
   command?: string | null;
   args?: string[] | null;
   installHint?: string;
+  repoUrl?: string | null;
+  sourceType?: "github" | "gitlab" | "bitbucket" | "git" | "endpoint" | "website" | null;
 }
 
 export interface CatalogFacets {
@@ -96,6 +98,8 @@ export interface PackageDetailData {
   args?: string[] | null;
   installHint?: string;
   skillSource?: string;
+  repoUrl?: string | null;
+  sourceType?: "github" | "gitlab" | "bitbucket" | "git" | "endpoint" | "website" | null;
   artifact?: {
     type?: string;
     repo?: string;

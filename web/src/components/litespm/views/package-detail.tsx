@@ -16,6 +16,8 @@ import {
   GitBranch,
   GitCommit,
   GitCompareArrows,
+  Github,
+  Globe,
   HelpCircle,
   Key,
   Layers,
@@ -213,6 +215,26 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                 <span className="font-medium text-foreground/90">{data.publisher.name}</span>
               )}
             </span>
+            {data.repoUrl && (
+              <span className="inline-flex items-center gap-1 text-muted-foreground/70">
+                ·
+                <a
+                  href={data.repoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[12px] font-mono text-muted-foreground hover:text-brand"
+                >
+                  <Github className="h-3 w-3" />
+                  <span>
+                    {data.repoUrl
+                      .replace(/^https:\/\/(www\.)?github\.com\//, "")
+                      .replace(/^https:\/\/(www\.)?gitlab\.com\//, "gitlab/")
+                      .replace(/\.git$/, "")}
+                  </span>
+                  <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                </a>
+              </span>
+            )}
             {data.distributor && (
               <span className="text-muted-foreground/60">
                 · distributed by {data.distributor.name}
@@ -221,7 +243,32 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {data.repoUrl ? (
+            <a
+              href={data.repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand/40 bg-brand-soft px-3 text-[12.5px] font-semibold text-brand transition-colors hover:bg-brand/20"
+              title={`View repository on GitHub: ${data.repoUrl}`}
+            >
+              <Github className="h-4 w-4" />
+              <span>GitHub</span>
+              <ExternalLink className="h-3 w-3 opacity-70" />
+            </a>
+          ) : data.url ? (
+            <a
+              href={data.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border/80 bg-card px-3 text-[12.5px] font-medium text-foreground/90 transition-colors hover:border-brand/50 hover:text-brand"
+              title={`Official endpoint / site: ${data.url}`}
+            >
+              <Globe className="h-4 w-4 text-brand" />
+              <span>Official Site</span>
+              <ExternalLink className="h-3 w-3 opacity-70" />
+            </a>
+          ) : null}
           <button
             type="button"
             onClick={() => toggleCompare(data.linkKey)}
@@ -884,40 +931,86 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             </dl>
           </section>
 
-          {data.artifact && (
+          {/* Genuine Upstream Source & Repository */}
+          {(data.repoUrl || data.artifact?.repo || data.url || data.publisher.url) && (
             <section className="rounded-2xl border border-border/70 bg-card p-5">
               <h2 className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                <GitBranch className="h-3.5 w-3.5" /> Source Artifact
+                <GitBranch className="h-3.5 w-3.5 text-brand" /> Original Source
               </h2>
               <dl className="mt-2">
-                {data.artifact.repo && (
+                {(data.repoUrl || data.artifact?.repo) && (
                   <FactRow label="Repository">
                     <a
-                      href={data.artifact.repo}
+                      href={data.repoUrl || data.artifact?.repo}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex max-w-[180px] items-center gap-1 truncate font-mono text-[11px] text-brand hover:underline"
+                      className="inline-flex max-w-[190px] items-center gap-1 truncate font-mono text-[11px] font-medium text-brand hover:underline"
                     >
-                      {data.artifact.repo.replace(/^https:\/\/github\.com\//, "")}
-                      <ExternalLink className="h-3 w-3 shrink-0" />
+                      <Github className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        {(data.repoUrl || data.artifact?.repo || "")
+                          .replace(/^https:\/\/(www\.)?github\.com\//, "")
+                          .replace(/^https:\/\/(www\.)?gitlab\.com\//, "gitlab/")
+                          .replace(/\.git$/, "")}
+                      </span>
+                      <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
                     </a>
                   </FactRow>
                 )}
-                {data.artifact.ref && (
-                  <FactRow label="Ref">
+                <FactRow label="Source Type">
+                  <span className="font-medium text-foreground">
+                    {data.sourceType === "github" || (data.repoUrl && data.repoUrl.includes("github.com"))
+                      ? "GitHub Repository"
+                      : data.sourceType === "gitlab"
+                      ? "GitLab Repository"
+                      : data.sourceType === "endpoint" || (!data.repoUrl && data.url)
+                      ? "Remote MCP Service"
+                      : "Official Upstream"}
+                  </span>
+                </FactRow>
+                {data.artifact?.ref && (
+                  <FactRow label="Branch / Ref">
                     <span className="font-mono text-[11px]">{data.artifact.ref}</span>
                   </FactRow>
                 )}
-                <FactRow label="Pinning State">
-                  {data.artifact.pinned ? (
-                    <span className="font-medium text-brand">Version Pinned (Immutable)</span>
-                  ) : (
-                    <span className="font-medium text-amber-500">Unpinned Branch Ref</span>
-                  )}
-                </FactRow>
-                {data.artifact.sha && (
+                {data.artifact?.pinned !== undefined && (
+                  <FactRow label="Pinning State">
+                    {data.artifact.pinned ? (
+                      <span className="font-medium text-brand">Version Pinned (Immutable)</span>
+                    ) : (
+                      <span className="font-medium text-amber-500">Unpinned Branch Ref</span>
+                    )}
+                  </FactRow>
+                )}
+                {data.artifact?.sha && (
                   <FactRow label="Commit">
                     <code className="font-mono text-[10.5px]">{data.artifact.sha.slice(0, 10)}…</code>
+                  </FactRow>
+                )}
+                {data.url && (
+                  <FactRow label="Endpoint">
+                    <a
+                      href={data.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex max-w-[190px] items-center gap-1 truncate font-mono text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      <span className="truncate">{data.url.replace(/^https?:\/\//, "")}</span>
+                      <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                    </a>
+                  </FactRow>
+                )}
+                {data.publisher.url && !data.publisher.url.includes("github.com") && (
+                  <FactRow label="Publisher Site">
+                    <a
+                      href={data.publisher.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex max-w-[190px] items-center gap-1 truncate font-mono text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      <span className="truncate">{data.publisher.url.replace(/^https?:\/\//, "")}</span>
+                      <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
+                    </a>
                   </FactRow>
                 )}
               </dl>
