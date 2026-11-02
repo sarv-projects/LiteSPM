@@ -108,7 +108,6 @@ export function HomeView() {
 
   const counts = stats?.telemetry.counts;
   const cliVersion = stats?.cli?.[0]?.version;
-  const listingCount = counts ? formatFull(counts.all).replace(/,/g, " ") : "…";
 
   const steps = [
     {
@@ -119,7 +118,7 @@ export function HomeView() {
     {
       icon: Cable,
       title: "Install everywhere",
-      body: "One command writes the entry into every agent you target: Claude Code, Codex, Cursor, OpenCode, Cline and 45 more.",
+      body: `One command writes the entry into every agent you target: Cursor, GitHub Copilot, Cline, Claude Code, Codex and ${stats ? stats.hosts - 5 : 45} more.`,
     },
     {
       icon: Undo2,
@@ -202,7 +201,7 @@ export function HomeView() {
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Listings
                   <span className="block text-[10px] text-muted-foreground/60">
-                    {counts ? `${formatFull(counts.all)} unique` : "Unique records"}
+                    MCPs, skills & plugins
                   </span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
@@ -213,7 +212,7 @@ export function HomeView() {
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Agent hosts
                   <span className="block text-[10px] text-muted-foreground/60">
-                    {stats ? `${stats.hosts} hosts supported` : "50 hosts supported"}
+                    CLI, IDE & terminal
                   </span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
@@ -271,7 +270,7 @@ export function HomeView() {
               onClick={() => navigate("#/agents")}
               className="text-[12px] font-semibold text-brand hover:underline"
             >
-              +41 more →
+              +{stats ? Math.max(stats.hosts - 9, 0) : 41} more →
             </button>
           </div>
         </div>
@@ -289,7 +288,7 @@ export function HomeView() {
               <span className="text-brand">Install once, and forget.</span>
             </h2>
             <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-              Tired of hunting down endpoints, writing JSON configs by hand, and copy-pasting the same settings into Claude Code, Cursor, Cline, and Codex? LiteSPM gives your agents a unified app store.
+              Tired of hunting down endpoints, writing JSON configs by hand, and copy-pasting the same settings into Cursor, GitHub Copilot, Cline, Claude Code, and Codex? LiteSPM gives your agents a unified app store.
             </p>
           </div>
 
@@ -716,13 +715,22 @@ export function HomeView() {
           </div>
           <div className="flex flex-col gap-3">
             <InstallBar command="npm install -g litespm" label="npm" className="w-[320px]" />
-            <Button
-              variant="outline"
-              className="h-10 rounded-xl px-4"
-              onClick={() => navigate("#/docs/getting-started")}
-            >
-              <Package className="h-4 w-4" /> Read the quickstart
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="h-10 flex-1 rounded-xl px-4"
+                onClick={() => navigate("#/docs/getting-started")}
+              >
+                <Package className="h-4 w-4" /> Quickstart
+              </Button>
+              <Button
+                variant="outline"
+                className="h-10 rounded-xl px-4 text-brand border-brand/30 hover:bg-brand-soft"
+                onClick={() => setAssistant(true)}
+              >
+                <Sparkles className="h-4 w-4" /> Ask AI
+              </Button>
+            </div>
           </div>
         </div>
       </section>

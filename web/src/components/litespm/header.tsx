@@ -20,8 +20,17 @@ const NAV: Array<{ label: string; hash: string; match: Route["view"][] }> = [
 ];
 
 export function AnnouncementBar() {
-  const [dismissed, setDismissed] = React.useState(false);
+  const [dismissed, setDismissed] = React.useState(true);
   const [stats, setStats] = React.useState<CatalogStatsResponse | null>(null);
+
+  React.useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage.getItem("litespm-announcement-dismissed") === "true") {
+        return;
+      }
+    } catch {}
+    setDismissed(false);
+  }, []);
 
   React.useEffect(() => {
     fetch("/api/litespm/stats")
@@ -29,6 +38,15 @@ export function AnnouncementBar() {
       .then((data: CatalogStatsResponse) => setStats(data))
       .catch(() => {});
   }, []);
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("litespm-announcement-dismissed", "true");
+      }
+    } catch {}
+  };
 
   if (dismissed || !stats) return null;
   const release = stats.release;
@@ -51,7 +69,7 @@ export function AnnouncementBar() {
         <button
           type="button"
           aria-label="Dismiss announcement"
-          onClick={() => setDismissed(true)}
+          onClick={handleDismiss}
           className="ml-1 shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
