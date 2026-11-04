@@ -668,6 +668,7 @@ export function Assistant() {
   const open = useApp((s) => s.assistantOpen);
   const setAssistant = useApp((s) => s.setAssistant);
   const navigate = useApp((s) => s.navigate);
+  const compareActive = useApp((s) => s.compareKeys.length > 0 && s.route.view !== "compare");
   const [mounted, setMounted] = React.useState(false);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [input, setInput] = React.useState("");
@@ -730,12 +731,24 @@ export function Assistant() {
       const controller = new AbortController();
       abortRef.current = controller;
 
+      let hasReceivedFirstToken = false;
+      // 8-second timeout guard: aborts stalled remote LLM stream and triggers instant catalog search fallback
+      const timeoutId = setTimeout(() => {
+        if (!hasReceivedFirstToken) {
+          controller.abort("TIMEOUT");
+        }
+      }, 8000);
+
       const appendStreamBubble = () => {
+        hasReceivedFirstToken = true;
+        clearTimeout(timeoutId);
         setWaitingFirstToken(false);
         setMessages((prev) => [...prev, { role: "assistant" as const, content: "", streaming: true }]);
       };
 
       const handleEvent = (event: StreamEvent) => {
+        hasReceivedFirstToken = true;
+        clearTimeout(timeoutId);
         if (event.type === "delta") {
           patchLast((m) => ({ content: m.content + event.text }));
         } else if (event.type === "done") {
@@ -833,13 +846,41 @@ export function Assistant() {
         }
         patchLast({ streaming: false });
       } catch {
+        clearTimeout(timeoutId);
         if (controller.signal.aborted) {
-          // The visitor pressed stop — keep whatever streamed in.
-          patchLast({ streaming: false });
+          // If aborted before receiving any tokens, fall back instantly to catalog search
+          if (!hasReceivedFirstToken) {
+            try {
+              const fallbackRes = await fetch(`/api/litespm/list?q=${encodeURIComponent(question)}&pageSize=4`);
+              if (fallbackRes.ok) {
+                const searchData = (await fallbackRes.json()) as { items?: Array<{ linkKey: string; name: string }> };
+                const items = searchData.items ?? [];
+                if (items.length > 0) {
+                  const fallbackContent = `Here are the matching capabilities found in the live catalog for **${question}**:\n\n\`\`\`json\n{\n  "type": "package_cards",\n  "keys": ${JSON.stringify(items.slice(0, 4).map((x) => x.linkKey))}\n}\n\`\`\``;
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      role: "assistant",
+                      content: fallbackContent,
+                      streaming: false,
+                    },
+                  ]);
+                  return;
+                }
+              }
+            } catch {
+              /* fallback network error */
+            }
+            setError("Request timed out — please try again or search the catalog directly.");
+          } else {
+            // The visitor pressed stop or partial stream ended — keep whatever streamed in
+            patchLast({ streaming: false });
+          }
         } else {
           setError("Network error — please try again.");
         }
       } finally {
+        clearTimeout(timeoutId);
         setBusy(false);
         setWaitingFirstToken(false);
         abortRef.current = null;
@@ -1036,7 +1077,8 @@ export function Assistant() {
         onClick={() => setAssistant(!open)}
         aria-label={open ? "Close the Ask AI assistant" : "Open the Ask AI assistant"}
         className={cn(
-          "fixed bottom-3 sm:bottom-4 right-3 sm:right-4 z-40 inline-flex h-12 items-center gap-2 rounded-full border border-brand/40 bg-brand px-4 text-[13px] font-semibold text-brand-foreground shadow-lg shadow-brand/20 transition-all hover:opacity-95",
+          "fixed right-3 sm:right-4 z-40 inline-flex h-12 items-center gap-2 rounded-full border border-brand/40 bg-brand px-4 text-[13px] font-semibold text-brand-foreground shadow-lg shadow-brand/20 transition-all hover:opacity-95",
+          compareActive ? "bottom-20 sm:bottom-4" : "bottom-3 sm:bottom-4",
           open && "pointer-events-none translate-y-4 opacity-0",
         )}
       >
@@ -1050,7 +1092,13 @@ export function Assistant() {
         )}
       </button>
       {!open && messages.length > 0 && (
-        <span className="fixed bottom-[4.3rem] right-[3.4rem] z-40 flex h-2.5 w-2.5" aria-hidden="true">
+        <span
+          className={cn(
+            "fixed right-[3.4rem] z-40 flex h-2.5 w-2.5",
+            compareActive ? "bottom-[5.8rem] sm:bottom-[4.3rem]" : "bottom-[4.3rem]"
+          )}
+          aria-hidden="true"
+        >
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand" />
         </span>

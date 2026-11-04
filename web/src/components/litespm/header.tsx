@@ -239,6 +239,7 @@ export function Header() {
               href="https://github.com/sarv-projects/LiteSPM"
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="GitHub repository (opens in new tab)"
               className="rounded-lg px-3 py-2 text-left text-[14px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
             >
               GitHub repository ↗

@@ -73,6 +73,7 @@ export function Footer() {
                 href="https://www.npmjs.com/package/litespm"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="LiteSPM on npm (opens in new tab)"
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 px-2.5 text-[12px] font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand"
               >
                 npm
