@@ -172,11 +172,10 @@ export function HomeView() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="mt-5 max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]"
+              className="mt-5 max-w-[52ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]"
             >
-              Discover, install and manage MCP servers, skills and plugins without manually wrestling
-              with configuration files. One workflow across Cursor, Claude Code, GitHub Copilot, Cline,
-              and {stats ? stats.hosts - 4 : 46} more agent hosts — with preview, automatic backups, and rollback.
+              Stop manually configuring your AI agents. Discover, install, and manage MCP servers,
+              skills, and plugins across {stats ? stats.hosts : 50} agent hosts — with previews, auto-backups, and 1-click rollback.
             </motion.p>
 
             <motion.div
