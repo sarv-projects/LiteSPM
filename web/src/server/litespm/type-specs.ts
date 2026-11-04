@@ -165,6 +165,14 @@ export function buildMcpSpec(row: Listing): McpDetailSpec {
   // Host configuration snippets for all 50 hosts
   const serverKey = norm(stripNamespace(row.name)) || "mcp-server";
 
+  // Sanitize CLI arguments: ensure fallback package identifiers never contain unescaped spaces
+  const safeBinary =
+    row.slug ||
+    (row.name && !row.name.includes(" ")
+      ? stripNamespace(row.name)
+      : (norm(stripNamespace(row.name)).replace(/\s+/g, "-") || "mcp-server"));
+  const defaultArgs = row.args && row.args.length ? row.args : ["-y", safeBinary];
+
   const PRIORITY_HOST_IDS = [
     "claude-code",
     "cline",
@@ -188,7 +196,7 @@ export function buildMcpSpec(row: Listing): McpDetailSpec {
         const lines = [
           section,
           `command = "${row.command || "npx"}"`,
-          `args = [${(row.args && row.args.length ? row.args : ["-y", row.name]).map((a) => `"${a}"`).join(", ")}]`,
+          `args = [${defaultArgs.map((a) => `"${a}"`).join(", ")}]`,
         ];
         for (const v of envVars) {
           lines.push(`env.${v.name} = "<YOUR_${v.name}>"`);
@@ -204,7 +212,7 @@ export function buildMcpSpec(row: Listing): McpDetailSpec {
           }
         : {
             command: row.command || "npx",
-            args: row.args && row.args.length ? row.args : ["-y", row.name],
+            args: defaultArgs,
             ...(envVars.length > 0
               ? { env: envVars.reduce((acc, v) => ({ ...acc, [v.name]: `<YOUR_${v.name}>` }), {}) }
               : {}),

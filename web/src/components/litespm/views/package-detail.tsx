@@ -137,6 +137,16 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
     ? `litespm install ${data.id}${host ? ` --agent ${host}` : ""}`
     : null;
 
+  const cursorInstallUri = React.useMemo(() => {
+    if (!data.installable || data.kind !== "mcp") return null;
+    if (data.url) {
+      return `cursor://anysphere.cursor-mcp/install?name=${encodeURIComponent(data.slug)}&url=${encodeURIComponent(data.url)}`;
+    }
+    const safePkg = data.slug || "mcp-server";
+    const args = data.args && data.args.length ? data.args : ["-y", safePkg];
+    return `cursor://anysphere.cursor-mcp/install?name=${encodeURIComponent(data.slug)}&command=${encodeURIComponent(data.command || "npx")}&args=${encodeURIComponent(JSON.stringify(args))}`;
+  }, [data]);
+
   const targetKindLabel =
     data.kind === "skill" ? "skill targets" : "agent hosts";
 
@@ -329,15 +339,27 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
               <h2 className="flex items-center gap-2 text-[15px] font-semibold">
                 <Terminal className="h-4 w-4 text-brand" /> Install
               </h2>
-              <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                Target agent
-                <TargetAgentPicker
-                  targets={data.installTargets}
-                  value={host}
-                  onChange={setHost}
-                  kindLabel={targetKindLabel}
-                />
-              </label>
+              <div className="flex flex-wrap items-center gap-2.5">
+                {cursorInstallUri && (
+                  <a
+                    href={cursorInstallUri}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand/40 bg-brand-soft px-3 text-[12px] font-semibold text-brand transition-colors hover:bg-brand/20 shadow-xs"
+                    title="Install directly into Cursor with 1-click URI protocol handler"
+                  >
+                    <Zap className="h-3.5 w-3.5 fill-current" />
+                    <span>Install in Cursor</span>
+                  </a>
+                )}
+                <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                  Target agent
+                  <TargetAgentPicker
+                    targets={data.installTargets}
+                    value={host}
+                    onChange={setHost}
+                    kindLabel={targetKindLabel}
+                  />
+                </label>
+              </div>
             </div>
             <div className="mt-3.5">
               <InstallBar command={installCommand!} />
