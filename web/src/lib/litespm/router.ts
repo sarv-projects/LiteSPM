@@ -45,18 +45,29 @@ export function exploreHash(query: ExploreQuery): string {
   if (query.sort && SORT_KEYS.includes(query.sort)) params.set("sort", query.sort);
   if (query.page && query.page > 1) params.set("page", String(query.page));
   const qs = params.toString();
-  return `#/explore${qs ? `?${qs}` : ""}`;
+  return `/explore${qs ? `?${qs}` : ""}`;
 }
 
 export function compareHash(keys: string[]): string {
-  return keys.length === 0 ? "#/compare" : `#/compare?keys=${keys.map(encodeURIComponent).join(",")}`;
+  return keys.length === 0 ? "/compare" : `/compare?keys=${keys.map(encodeURIComponent).join(",")}`;
 }
 
-export function parseHash(hash: string): Route {
-  const raw = hash.replace(/^#\/?/, "");
-  const [path, search] = raw.split("?");
-  const parts = path.split("/").filter(Boolean);
-  const params = new URLSearchParams(search ?? "");
+export function toPath(target: string): string {
+  if (!target) return "/";
+  if (target.startsWith("#/")) return target.slice(1);
+  if (target.startsWith("#")) return target.length > 1 ? `/${target.slice(1)}` : "/";
+  return target.startsWith("/") ? target : `/${target}`;
+}
+
+export function parsePath(fullPath: string, searchStr: string = ""): Route {
+  const cleanPath = fullPath.replace(/^#\/?/, "").replace(/^\/+/, "");
+  const [pathPart, inlineSearch] = cleanPath.split("?");
+  const parts = pathPart ? pathPart.split("/").filter(Boolean) : [];
+  const params = new URLSearchParams(searchStr || inlineSearch || "");
+
+  if (parts.length === 0 || parts[0] === "") {
+    return { view: "home" };
+  }
 
   if (parts[0] === "explore") {
     const q: ExploreQuery = {};
@@ -80,26 +91,32 @@ export function parseHash(hash: string): Route {
     if (page > 1) q.page = page;
     return { view: "explore", query: q };
   }
-  if (parts[0] === "package" && parts[1]) {
-    // Link keys may contain slashes: #/package/mcp-registry-io-github-github-mcp-server
-    const rest = path.replace(/^package\//, "");
+
+  if (parts[0] === "package" && parts.length > 1) {
+    const rest = parts.slice(1).join("/");
     return { view: "package", key: decodeURIComponent(rest) };
   }
+
   if (parts[0] === "agents") {
     return { view: "agents" };
   }
-  if (parts[0] === "agent" && parts[1]) {
-    return { view: "agent", id: decodeURIComponent(parts[1]) };
+
+  if (parts[0] === "agent" && parts.length > 1) {
+    return { view: "agent", id: decodeURIComponent(parts.slice(1).join("/")) };
   }
+
   if (parts[0] === "docs") {
-    return { view: "docs", section: parts[1] ?? "introduction" };
+    return { view: "docs", section: parts[1] ?? "getting-started" };
   }
+
   if (parts[0] === "publish") {
     return { view: "publish" };
   }
+
   if (parts[0] === "insights") {
     return { view: "insights" };
   }
+
   if (parts[0] === "compare") {
     const keys = (params.get("keys") ?? "")
       .split(",")
@@ -108,8 +125,30 @@ export function parseHash(hash: string): Route {
       .map(decodeURIComponent);
     return { view: "compare", keys };
   }
+
   return { view: "home" };
 }
+
+export function parseLocation(): Route {
+  if (typeof window === "undefined") return { view: "home" };
+
+  // Check for backward-compatible hash routing: #/package/... or #/explore?...
+  const hash = window.location.hash;
+  if (hash && (hash.startsWith("#/") || hash.startsWith("#"))) {
+    const hashRoute = parsePath(hash.replace(/^#/, ""), "");
+    // Upgrade URL in place to clean path without reloading
+    const cleanPath = toPath(hash);
+    try {
+      window.history.replaceState(null, "", cleanPath);
+    } catch {}
+    return hashRoute;
+  }
+
+  return parsePath(window.location.pathname, window.location.search);
+}
+
+// Backward-compatible alias for existing imports
+export const parseHash = parsePath;
 
 interface AppState {
   route: Route;
@@ -121,7 +160,7 @@ interface AppState {
   setAssistant: (open: boolean) => void;
   toggleCompare: (linkKey: string) => void;
   clearCompare: () => void;
-  navigate: (hash: string) => void;
+  navigate: (target: string) => void;
   syncFromHash: () => void;
 }
 
@@ -143,18 +182,18 @@ export const useApp = create<AppState>((set, get) => ({
     });
   },
   clearCompare: () => set({ compareKeys: [] }),
-  navigate: (hash) => {
-    const target = hash.startsWith("#") ? hash : `#${hash.startsWith("/") ? hash : `/${hash}`}`;
+  navigate: (target) => {
+    const cleanPath = toPath(target);
     if (typeof window !== "undefined") {
-      if (window.location.hash === target) {
-        set({ route: parseHash(target) });
-      } else {
-        window.location.hash = target;
+      const current = window.location.pathname + window.location.search;
+      if (current !== cleanPath) {
+        window.history.pushState(null, "", cleanPath);
       }
+      set({ route: parsePath(cleanPath) });
     }
   },
   syncFromHash: () => {
     if (typeof window === "undefined") return;
-    set({ route: parseHash(window.location.hash) });
+    set({ route: parseLocation() });
   },
 }));

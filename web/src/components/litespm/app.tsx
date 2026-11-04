@@ -113,9 +113,13 @@ export function LiteSPMApp() {
 
   React.useEffect(() => {
     syncFromHash();
-    const onHash = () => syncFromHash();
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    const onLocationChange = () => syncFromHash();
+    window.addEventListener("popstate", onLocationChange);
+    window.addEventListener("hashchange", onLocationChange);
+    return () => {
+      window.removeEventListener("popstate", onLocationChange);
+      window.removeEventListener("hashchange", onLocationChange);
+    };
   }, [syncFromHash]);
 
   React.useEffect(() => {

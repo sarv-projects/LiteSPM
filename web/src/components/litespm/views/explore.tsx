@@ -179,6 +179,19 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {activeCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchText("");
+                navigate(exploreHash({}));
+              }}
+              className="h-9 gap-1 text-[12px] font-medium text-brand hover:text-brand hover:bg-brand-soft lg:hidden"
+            >
+              <X className="h-3.5 w-3.5" /> Clear all ({activeCount})
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -263,6 +276,22 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
             {kind.label}
           </FilterPill>
         ))}
+        {activeCount > 0 && (
+          <>
+            <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
+            <button
+              type="button"
+              onClick={() => {
+                setSearchText("");
+                navigate(exploreHash({}));
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-muted/60 px-2.5 py-1 text-[12px] font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <X className="h-3.5 w-3.5 text-muted-foreground" />
+              Clear all ({activeCount})
+            </button>
+          </>
+        )}
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[260px_1fr]">

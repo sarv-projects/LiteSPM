@@ -26,14 +26,56 @@ import { KindBadge } from "./primitives";
 const TEXT_FIELD_TAGS = ["INPUT", "TEXTAREA", "SELECT"];
 
 const PAGES = [
-  { label: "Home", hash: "#/", icon: Home, hint: "Landing page" },
-  { label: "Explore the catalog", hash: "#/explore", icon: LayoutGrid, hint: "Search 69k listings" },
-  { label: "Agents directory", hash: "#/agents", icon: Users, hint: "50 agent hosts" },
-  { label: "Insights dashboard", hash: "#/insights", icon: BarChart3, hint: "Catalog analytics" },
-  { label: "Compare packages", hash: "#/compare", icon: GitCompareArrows, hint: "Side by side" },
-  { label: "Docs — getting started", hash: "#/docs/getting-started", icon: BookOpen, hint: "Quickstart" },
-  { label: "Publish a listing", hash: "#/publish", icon: FilePlus2, hint: "Get listed" },
+  { label: "Home", hash: "/", icon: Home, hint: "Landing page" },
+  { label: "Explore the catalog", hash: "/explore", icon: LayoutGrid, hint: "Search 69k listings" },
+  { label: "Agents directory", hash: "/agents", icon: Users, hint: "50 agent hosts" },
+  { label: "Insights dashboard", hash: "/insights", icon: BarChart3, hint: "Catalog analytics" },
+  { label: "Compare packages", hash: "/compare", icon: GitCompareArrows, hint: "Side by side" },
+  { label: "Docs — getting started", hash: "/docs/getting-started", icon: BookOpen, hint: "Quickstart" },
+  { label: "Publish a listing", hash: "/publish", icon: FilePlus2, hint: "Get listed" },
 ];
+
+function fuzzyScore(query: string, text: string): number {
+  const q = query.trim().toLowerCase();
+  const t = text.toLowerCase();
+  if (!q) return 100;
+  if (t === q) return 100;
+  if (t.startsWith(q)) return 80;
+  if (t.includes(q)) return 60;
+
+  // Subsequence match: query chars in sequence
+  let qIdx = 0;
+  for (let tIdx = 0; tIdx < t.length && qIdx < q.length; tIdx++) {
+    if (t[tIdx] === q[qIdx]) qIdx++;
+  }
+  if (qIdx === q.length) return 40;
+
+  // Word-level prefix or 1-typo tolerance
+  if (q.length >= 3) {
+    const words = t.split(/[\s—-]+/);
+    for (const w of words) {
+      if (w.startsWith(q.slice(0, 3))) return 30;
+      if (Math.abs(w.length - q.length) <= 1) {
+        let diff = 0;
+        for (let i = 0, j = 0; i < q.length && j < w.length; ) {
+          if (q[i] !== w[j]) {
+            diff++;
+            if (diff > 1) break;
+            if (q.length > w.length) i++;
+            else if (w.length > q.length) j++;
+            else { i++; j++; }
+          } else {
+            i++;
+            j++;
+          }
+        }
+        if (diff <= 1) return 25;
+      }
+    }
+  }
+
+  return 0;
+}
 
 export function CommandPalette() {
   const open = useApp((s) => s.paletteOpen);
@@ -112,11 +154,17 @@ export function CommandPalette() {
   }, [debounced]);
 
   const options = React.useMemo(() => {
-    const pages = PAGES.filter(
-      (p) => !query.trim() || p.label.toLowerCase().includes(query.trim().toLowerCase()),
-    );
+    const scoredPages = PAGES.map((p) => {
+      const labelScore = fuzzyScore(query, p.label);
+      const hintScore = fuzzyScore(query, p.hint);
+      return { page: p, score: Math.max(labelScore, hintScore) };
+    })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.page);
+
     const items = results?.items ?? [];
-    return { pages, items };
+    return { pages: scoredPages, items };
   }, [results, query]);
 
   const total = options.pages.length + options.items.length;
@@ -127,7 +175,7 @@ export function CommandPalette() {
         navigate(options.pages[index].hash);
       } else {
         const hit = options.items[index - options.pages.length];
-        if (hit) navigate(`#/package/${encodeURIComponent(hit.linkKey)}`);
+        if (hit) navigate(`/package/${encodeURIComponent(hit.linkKey)}`);
       }
       setPalette(false);
     },

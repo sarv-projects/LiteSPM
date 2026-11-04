@@ -12,11 +12,11 @@ import { formatFull } from "@/lib/litespm/format";
 import { Logo } from "./logo";
 
 const NAV: Array<{ label: string; hash: string; match: Route["view"][] }> = [
-  { label: "Explore", hash: "#/explore", match: ["explore", "package"] },
-  { label: "Agents", hash: "#/agents", match: ["agents", "agent"] },
-  { label: "Insights", hash: "#/insights", match: ["insights"] },
-  { label: "Docs", hash: "#/docs", match: ["docs"] },
-  { label: "Publish", hash: "#/publish", match: ["publish"] },
+  { label: "Explore", hash: "/explore", match: ["explore", "package"] },
+  { label: "Agents", hash: "/agents", match: ["agents", "agent"] },
+  { label: "Insights", hash: "/insights", match: ["insights"] },
+  { label: "Docs", hash: "/docs", match: ["docs"] },
+  { label: "Publish", hash: "/publish", match: ["publish"] },
 ];
 
 export function AnnouncementBar() {
@@ -25,8 +25,14 @@ export function AnnouncementBar() {
 
   React.useEffect(() => {
     try {
-      if (typeof window !== "undefined" && window.localStorage.getItem("litespm-announcement-dismissed") === "true") {
-        return;
+      if (typeof window !== "undefined") {
+        if (window.localStorage.getItem("litespm-announcement-dismissed") === "true") {
+          return;
+        }
+        const cached = window.sessionStorage.getItem("litespm-stats-cache");
+        if (cached) {
+          setStats(JSON.parse(cached));
+        }
       }
     } catch {}
     setDismissed(false);
@@ -35,7 +41,14 @@ export function AnnouncementBar() {
   React.useEffect(() => {
     fetch("/api/litespm/stats")
       .then((r) => r.json())
-      .then((data: CatalogStatsResponse) => setStats(data))
+      .then((data: CatalogStatsResponse) => {
+        setStats(data);
+        try {
+          if (typeof window !== "undefined") {
+            window.sessionStorage.setItem("litespm-stats-cache", JSON.stringify(data));
+          }
+        } catch {}
+      })
       .catch(() => {});
   }, []);
 
@@ -48,33 +61,41 @@ export function AnnouncementBar() {
     } catch {}
   };
 
-  if (dismissed || !stats) return null;
-  const release = stats.release;
+  const isVisible = !dismissed && Boolean(stats);
+
   return (
-    <div className="border-b border-brand/15 bg-brand-soft">
-      <div className="mx-auto flex max-w-6xl items-center justify-center gap-2 px-4 py-1.5 text-center text-[12px] text-foreground/90">
-        <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
-        <p className="min-w-0 truncate">
-          Catalog release{" "}
-          <span className="font-mono font-semibold text-brand">{release.releaseId}</span> —{" "}
-          {formatFull(release.itemCount)} listings, {stats.hosts} agent hosts. {" "}
+    <div
+      className={cn(
+        "overflow-hidden transition-all duration-300 ease-in-out border-b border-brand/15 bg-brand-soft",
+        isVisible ? "max-h-16 opacity-100" : "max-h-0 opacity-0 border-b-0 pointer-events-none"
+      )}
+      aria-hidden={!isVisible}
+    >
+      {stats && (
+        <div className="mx-auto flex max-w-6xl items-center justify-center gap-2 px-4 py-1.5 text-center text-[12px] text-foreground/90">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
+          <p className="min-w-0 truncate">
+            Catalog release{" "}
+            <span className="font-mono font-semibold text-brand">{stats.release.releaseId}</span> —{" "}
+            {formatFull(stats.release.itemCount)} listings, {stats.hosts} agent hosts.{" "}
+            <button
+              type="button"
+              onClick={() => useApp.getState().navigate("#/insights")}
+              className="font-medium underline decoration-brand/50 underline-offset-2 hover:text-brand"
+            >
+              See catalog stats →
+            </button>
+          </p>
           <button
             type="button"
-            onClick={() => useApp.getState().navigate("#/insights")}
-            className="font-medium underline decoration-brand/50 underline-offset-2 hover:text-brand"
+            aria-label="Dismiss announcement"
+            onClick={handleDismiss}
+            className="ml-1 shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
           >
-            See catalog stats →
+            <X className="h-3.5 w-3.5" />
           </button>
-        </p>
-        <button
-          type="button"
-          aria-label="Dismiss announcement"
-          onClick={handleDismiss}
-          className="ml-1 shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -114,7 +135,7 @@ export function Header() {
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
         <button
           type="button"
-          onClick={() => navigate("#/")}
+          onClick={() => navigate("/")}
           className="shrink-0 rounded-md focus-visible:outline-2 focus-visible:outline-brand"
           aria-label="LiteSPM home"
         >

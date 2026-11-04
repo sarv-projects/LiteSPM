@@ -13,20 +13,20 @@ const COLUMNS: Array<{
   {
     title: "Catalog",
     links: [
-      { label: "Explore packages", hash: "#/explore" },
-      { label: "Browse agents", hash: "#/agents" },
-      { label: "Insights dashboard", hash: "#/insights" },
-      { label: "Compare packages", hash: "#/compare" },
+      { label: "Explore packages", hash: "/explore" },
+      { label: "Browse agents", hash: "/agents" },
+      { label: "Insights dashboard", hash: "/insights" },
+      { label: "Compare packages", hash: "/compare" },
     ],
   },
   {
     title: "Documentation",
     links: [
-      { label: "Getting started", hash: "#/docs/getting-started" },
-      { label: "Command reference", hash: "#/docs/commands" },
-      { label: "How an install works", hash: "#/docs/install-flow" },
-      { label: "Security model", hash: "#/docs/security" },
-      { label: "Troubleshooting & FAQ", hash: "#/docs/troubleshooting" },
+      { label: "Getting started", hash: "/docs/getting-started" },
+      { label: "Command reference", hash: "/docs/commands" },
+      { label: "How an install works", hash: "/docs/install-flow" },
+      { label: "Security model", hash: "/docs/security" },
+      { label: "Troubleshooting & FAQ", hash: "/docs/troubleshooting" },
     ],
   },
   {
@@ -34,7 +34,7 @@ const COLUMNS: Array<{
     links: [
       { label: "GitHub repository", href: "https://github.com/sarv-projects/LiteSPM" },
       { label: "npm package", href: "https://www.npmjs.com/package/litespm" },
-      { label: "Publish a listing", hash: "#/publish" },
+      { label: "Publish a listing", hash: "/publish" },
       { label: "Architecture", href: "https://github.com/sarv-projects/LiteSPM/tree/main/ARCH" },
     ],
   },

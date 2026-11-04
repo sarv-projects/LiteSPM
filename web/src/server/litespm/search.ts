@@ -149,6 +149,40 @@ function relevance(row: Listing, tokens: string[]): number {
   return total;
 }
 
+function relaxedTokenScore(row: Listing, token: string): number {
+  const exact = tokenScore(row, token);
+  if (exact > 0) return exact;
+
+  if (token.length >= 4) {
+    const name = row.name.toLowerCase();
+    const slug = row.slug.toLowerCase();
+    // Prefix fallback of length token.length - 1 (handles trailing typo)
+    const prefix = token.slice(0, token.length - 1);
+    if (name.includes(prefix) || slug.includes(prefix)) {
+      return 30;
+    }
+    // 4-char start prefix
+    const start4 = token.slice(0, 4);
+    if (name.startsWith(start4) || slug.startsWith(start4)) {
+      return 22;
+    }
+  }
+  return 0;
+}
+
+function relevanceRelaxed(row: Listing, tokens: string[]): number {
+  let total = 0;
+  for (const token of tokens) {
+    const s = relaxedTokenScore(row, token);
+    if (s === 0) return 0;
+    total += s;
+  }
+  if (tokens.length > 1) total = Math.round(total * 1.15);
+  if (row.installability && row.installability !== "discovery_only") total += 6;
+  if (row.transport) total += 2;
+  return total;
+}
+
 function isInstallable(row: Listing): boolean {
   if (row.kind === "plugin") {
     return Boolean(row.artifact && row.artifact.type === "git-tree" && row.artifact.pinned);
@@ -241,14 +275,51 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
     return true;
   };
 
-  const pool = rows.filter(matches);
+  let pool = rows.filter(matches);
+  let isFuzzyFallback = false;
+
+  // Fallback: If query tokens produced 0 results, retry with relaxed/typo-tolerant matching
+  if (pool.length === 0 && tokens.length > 0) {
+    const relaxedMatches = (row: Listing): boolean => {
+      if (relevanceRelaxed(row, tokens) === 0) return false;
+      if (kindFilter && row.kind !== kindFilter) return false;
+      if (categoryFilter && row.category !== categoryFilter) return false;
+      if (sourceFilter && row.source !== sourceFilter) return false;
+      if (publisherFilter && row.publisher?.name?.toLowerCase() !== publisherFilter) return false;
+      if (installabilityFilter && (row.installability ?? "discovery_only") !== installabilityFilter)
+        return false;
+      if (transportFilter && (row.transport ?? "") !== transportFilter) return false;
+      if (installableFilter && !(meta.get(row.id)?.installable ?? false)) return false;
+      if (goalFilter) {
+        const goal = meta.get(row.id)?.goal ?? "other";
+        if (goal !== goalFilter) return false;
+      }
+      if (hostId) {
+        const hosts = meta.get(row.id)?.hostIds ?? [];
+        if (!hosts.includes(hostId)) return false;
+      } else if (hostRaw) {
+        const declared = row.compatibleHosts ?? [];
+        if (!declared.some((h) => h.trim().toLowerCase() === hostRaw)) return false;
+      }
+      return true;
+    };
+    const relaxedPool = rows.filter(relaxedMatches);
+    if (relaxedPool.length > 0) {
+      pool = relaxedPool;
+      isFuzzyFallback = true;
+    }
+  }
+
   const total = pool.length;
 
   // Facet pool: everything matching every dimension except the one being
   // counted, so counts stay meaningful while a dimension is active.
   const facetBase = (except: string): Listing[] =>
     rows.filter((row) => {
-      if (tokens.length > 0 && relevance(row, tokens) === 0) return false;
+      if (tokens.length > 0) {
+        const rel = isFuzzyFallback ? relevanceRelaxed(row, tokens) : relevance(row, tokens);
+        if (rel === 0) return false;
+      }
       if (except !== "kind" && kindFilter && row.kind !== kindFilter) return false;
       if (except !== "category" && categoryFilter && row.category !== categoryFilter) return false;
       if (except !== "source" && sourceFilter && row.source !== sourceFilter) return false;
@@ -343,7 +414,10 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   switch (sort) {
     case "relevance":
       sorted.sort(
-        (a, b) => relevance(b, tokens) - relevance(a, tokens) || a.name.localeCompare(b.name),
+        (a, b) =>
+          (isFuzzyFallback
+            ? relevanceRelaxed(b, tokens) - relevanceRelaxed(a, tokens)
+            : relevance(b, tokens) - relevance(a, tokens)) || a.name.localeCompare(b.name),
       );
       break;
     case "rank":
