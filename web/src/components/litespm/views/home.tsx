@@ -222,11 +222,15 @@ export function HomeView() {
               transition={{ delay: 0.25 }}
               className="mt-8 grid max-w-lg grid-cols-3 gap-3"
             >
-              <div className="flex flex-col" title={counts ? `${formatFull(counts.all)} unique listings` : "Listings"}>
+              <div
+                className="flex cursor-pointer flex-col transition-opacity hover:opacity-85"
+                title={counts ? `${formatFull(counts.all)} total catalog listings (${stats ? formatFull(stats.installable) : "26k"} installable + ${counts ? formatFull(counts.all - (stats?.installable ?? 0)) : "42k"} discovery-only)` : "Listings"}
+                onClick={() => navigate(exploreHash({}))}
+              >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
-                  Listings
+                  Total listings
                   <span className="block text-[10px] text-muted-foreground/60">
-                    MCPs, skills & plugins
+                    MCP, skills & plugins
                   </span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
@@ -244,11 +248,15 @@ export function HomeView() {
                   {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : "50"}
                 </dd>
               </div>
-              <div className="flex flex-col" title="Verified installable capabilities with pinned git trees or valid endpoints">
-                <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
-                  One-command
+              <div
+                className="flex cursor-pointer flex-col transition-opacity hover:opacity-85"
+                title={`${stats ? formatFull(stats.installable) : "26k+"} verified installable capabilities (click to view)`}
+                onClick={() => navigate(exploreHash({ installable: "1" }))}
+              >
+                <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-brand">
+                  Installable →
                   <span className="block text-[10px] text-muted-foreground/60">
-                    Verified installable
+                    Ready to install
                   </span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">

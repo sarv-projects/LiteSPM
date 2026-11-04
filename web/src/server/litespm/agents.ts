@@ -85,8 +85,7 @@ async function computeAgentRows(): Promise<AgentRow[]> {
   for (const item of items) {
     const ids = hostIdsFor(item);
     if (ids.length === 0) continue;
-    const itemInstallable =
-      item.kind !== "plugin" ? true : availabilityOf(item).installable;
+    const itemInstallable = availabilityOf(item).installable;
     const category = item.category?.trim();
     if (!itemInstallable && !category) continue;
     const identityKey = listingIdentity(item);

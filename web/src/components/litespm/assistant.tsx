@@ -2,11 +2,33 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ArrowUpRight, Check, Copy, ExternalLink, Loader2, MessageCircle, Package, Send, Sparkles, Square, X } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Bookmark,
+  BookmarkCheck,
+  Check,
+  Copy,
+  ExternalLink,
+  GitCompareArrows,
+  Loader2,
+  MessageCircle,
+  Package,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Square,
+  Terminal,
+  X,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useApp } from "@/lib/litespm/router";
-import type { AssistantCitation, AssistantMeta } from "@/lib/litespm/types";
+import { useApp, exploreHash } from "@/lib/litespm/router";
+import { useWatchlist } from "@/lib/litespm/hooks";
+import { displayPackageName } from "@/lib/litespm/format";
+import type { AssistantCitation, AssistantMeta, CompareColumn, PackageDetailData } from "@/lib/litespm/types";
+import { AvailabilityBadge, KindBadge } from "./primitives";
+import { InstallBar } from "./install-bar";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -62,6 +84,312 @@ function CodeBlockSnippet({ code, lang }: { code: string; lang?: string }) {
   );
 }
 
+/** Interactive Mini Package Card embedded directly in chat */
+function InteractivePackageItem({ linkKey, onOpenLink }: { linkKey: string; onOpenLink: (href: string) => void }) {
+  const [data, setData] = React.useState<PackageDetailData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const { isWatched, toggle } = useWatchlist();
+  const watched = isWatched(linkKey);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/litespm/package/${encodeURIComponent(linkKey)}`)
+      .then((r) => r.json())
+      .then((res: { found: boolean; detail?: PackageDetailData }) => {
+        if (!cancelled && res.found && res.detail) {
+          setData(res.detail);
+        }
+      })
+      .catch(() => {})
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [linkKey]);
+
+  if (loading) {
+    return (
+      <div className="flex h-20 items-center justify-center rounded-xl border border-border/60 bg-muted/20">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/60" />
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const installCommand =
+    data.installCommand ||
+    (data.id ? `litespm install ${data.id}` : `litespm install ${data.slug}`);
+
+  return (
+    <div className="group relative my-2 overflow-hidden rounded-xl border border-border/75 bg-card/90 p-3.5 shadow-xs transition-all hover:border-brand/40 hover:shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <KindBadge kind={data.kind} />
+            <AvailabilityBadge
+              installable={data.installable}
+              label={data.availability?.label ?? (data.installable ? "Installable" : "Discovery-only")}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenLink(`#/package/${encodeURIComponent(data.linkKey)}`)}
+            className="mt-1.5 block truncate text-left text-[14px] font-semibold text-foreground transition-colors hover:text-brand"
+          >
+            {displayPackageName(data.name)}
+          </button>
+          <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-muted-foreground">
+            {data.summary}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => toggle({ linkKey: data.linkKey, name: data.name, kind: data.kind })}
+          className={cn(
+            "rounded-lg border p-1.5 transition-colors",
+            watched
+              ? "border-brand/40 bg-brand/10 text-brand"
+              : "border-border/60 bg-background text-muted-foreground hover:border-brand/40 hover:text-brand",
+          )}
+          title={watched ? "Remove from watchlist" : "Save to watchlist"}
+          aria-label={watched ? "Remove from watchlist" : "Save to watchlist"}
+        >
+          {watched ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+
+      {data.installable && (
+        <div className="mt-3">
+          <InstallBar command={installCommand} compact />
+        </div>
+      )}
+
+      <div className="mt-2.5 flex items-center justify-between border-t border-border/50 pt-2 text-[11px] text-muted-foreground">
+        <span>By {data.publisher.name} {data.publisher.verified && "✓"}</span>
+        <button
+          type="button"
+          onClick={() => onOpenLink(`#/package/${encodeURIComponent(data.linkKey)}`)}
+          className="inline-flex items-center gap-1 font-medium text-brand hover:underline"
+        >
+          View package <ArrowRight className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Interactive Comparison Matrix embedded directly in chat */
+function InteractiveCompareMatrix({
+  keys,
+  features,
+  onOpenLink,
+}: {
+  keys: string[];
+  features?: Array<{ attribute: string; values: Record<string, string> }>;
+  onOpenLink: (href: string) => void;
+}) {
+  const [columns, setColumns] = React.useState<CompareColumn[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/litespm/compare?keys=${keys.map(encodeURIComponent).join(",")}`)
+      .then((r) => r.json())
+      .then((res: { columns?: CompareColumn[] }) => {
+        if (!cancelled && res.columns) setColumns(res.columns);
+      })
+      .catch(() => {})
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [keys.join(",")]);
+
+  if (loading) {
+    return (
+      <div className="my-3 flex h-24 items-center justify-center rounded-xl border border-border/60 bg-muted/20">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/60" />
+      </div>
+    );
+  }
+
+  if (columns.length === 0) return null;
+
+  return (
+    <div className="my-3 overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs">
+      <div className="flex items-center justify-between border-b border-border/70 bg-muted/40 px-3.5 py-2.5">
+        <div className="flex items-center gap-1.5 text-[12px] font-semibold text-foreground">
+          <GitCompareArrows className="h-3.5 w-3.5 text-brand" />
+          Package Comparison Matrix
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenLink(`#/compare?keys=${columns.map((c) => encodeURIComponent(c.linkKey)).join(",")}`)}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"
+        >
+          Full comparison view <ExternalLink className="h-3 w-3" />
+        </button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-[11.5px]">
+          <thead>
+            <tr className="border-b border-border/70 bg-muted/20">
+              <th className="px-3 py-2 font-medium text-muted-foreground w-28">Capability</th>
+              {columns.map((col) => (
+                <th key={col.linkKey} className="px-3 py-2 font-semibold text-foreground">
+                  <button
+                    type="button"
+                    onClick={() => onOpenLink(`#/package/${encodeURIComponent(col.linkKey)}`)}
+                    className="hover:text-brand transition-colors text-left font-semibold"
+                  >
+                    {col.name}
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60">
+            <tr>
+              <td className="px-3 py-2 font-medium text-muted-foreground">Type</td>
+              {columns.map((col) => (
+                <td key={col.linkKey} className="px-3 py-2">
+                  <KindBadge kind={col.kind} />
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <td className="px-3 py-2 font-medium text-muted-foreground">Installable</td>
+              {columns.map((col) => (
+                <td key={col.linkKey} className="px-3 py-2 font-mono">
+                  {col.installable ? (
+                    <span className="text-brand font-semibold">Yes (Native)</span>
+                  ) : (
+                    <span className="text-muted-foreground">Discovery-only</span>
+                  )}
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <td className="px-3 py-2 font-medium text-muted-foreground">Transport</td>
+              {columns.map((col) => (
+                <td key={col.linkKey} className="px-3 py-2 font-mono text-[11px]">
+                  {col.transport || "Local stdio"}
+                </td>
+              ))}
+            </tr>
+            <tr>
+              <td className="px-3 py-2 font-medium text-muted-foreground">Publisher</td>
+              {columns.map((col) => (
+                <td key={col.linkKey} className="px-3 py-2 text-foreground/90">
+                  {col.publisher} {col.publisherVerified && "✓"}
+                </td>
+              ))}
+            </tr>
+            {features && features.map((feat, fIdx) => (
+              <tr key={fIdx}>
+                <td className="px-3 py-2 font-medium text-muted-foreground">{feat.attribute}</td>
+                {columns.map((col) => (
+                  <td key={col.linkKey} className="px-3 py-2 text-foreground/90">
+                    {feat.values[col.linkKey] ?? feat.values[col.name] ?? "—"}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/** Explore Deep-Link Button embedded directly in chat */
+function InteractiveExploreLink({
+  label,
+  query,
+  onOpenLink,
+}: {
+  label: string;
+  query: Record<string, string>;
+  onOpenLink: (href: string) => void;
+}) {
+  const hash = exploreHash(query);
+  return (
+    <div className="my-2.5">
+      <button
+        type="button"
+        onClick={() => onOpenLink(hash)}
+        className="inline-flex items-center gap-2 rounded-xl border border-brand/40 bg-brand/10 px-3.5 py-2 text-[12.5px] font-semibold text-brand transition-all hover:bg-brand/15 hover:border-brand/60"
+      >
+        <Package className="h-3.5 w-3.5" />
+        {label}
+        <ArrowRight className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function tryParseWidgetJson(content: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(content.trim());
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // not valid JSON
+  }
+  return null;
+}
+
+/** Render Dynamic UI Widgets or fall back to standard code block */
+function DynamicWidgetOrCode({
+  content,
+  lang,
+  onOpenLink,
+}: {
+  content: string;
+  lang?: string;
+  onOpenLink: (href: string) => void;
+}) {
+  if (lang === "json" || !lang) {
+    const parsed = tryParseWidgetJson(content);
+    if (parsed) {
+      if (parsed.type === "package_cards" && Array.isArray(parsed.keys)) {
+        return (
+          <div className="my-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {(parsed.keys as string[]).slice(0, 4).map((k: string) => (
+              <InteractivePackageItem key={k} linkKey={k} onOpenLink={onOpenLink} />
+            ))}
+          </div>
+        );
+      }
+      if (parsed.type === "comparison_matrix" && Array.isArray(parsed.keys)) {
+        return (
+          <InteractiveCompareMatrix
+            keys={(parsed.keys as string[]).slice(0, 4)}
+            features={parsed.features as Array<{ attribute: string; [key: string]: string }>}
+            onOpenLink={onOpenLink}
+          />
+        );
+      }
+      if (parsed.type === "explore_link" && typeof parsed.label === "string" && parsed.query) {
+        return (
+          <InteractiveExploreLink
+            label={parsed.label}
+            query={parsed.query as Record<string, string | undefined>}
+            onOpenLink={onOpenLink}
+          />
+        );
+      }
+    }
+  }
+
+  return <CodeBlockSnippet code={content} lang={lang} />;
+}
+
 /** Render the assistant's rich markdown answer: tables, code, bold, links, lists. */
 function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: string) => void }) {
   const blocks = parseMarkdownBlocks(text);
@@ -70,7 +398,14 @@ function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: str
     <div className="space-y-3">
       {blocks.map((block, i) => {
         if (block.type === "code") {
-          return <CodeBlockSnippet key={i} code={block.content} lang={block.lang} />;
+          return (
+            <DynamicWidgetOrCode
+              key={i}
+              content={block.content}
+              lang={block.lang}
+              onOpenLink={onOpenLink}
+            />
+          );
         }
 
         if (block.type === "table") {

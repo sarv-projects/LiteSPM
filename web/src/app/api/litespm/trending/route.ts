@@ -46,7 +46,7 @@ export async function GET() {
 
     return NextResponse.json({ items });
   } catch (error) {
-    console.error("litespm trending failed", error);
-    return NextResponse.json({ error: "Failed to load trending packages" }, { status: 500 });
+    console.warn("litespm trending database query failed, falling back to empty list:", error);
+    return NextResponse.json({ items: [] });
   }
 }

@@ -203,7 +203,7 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
         ? {
             type: src.sourceType === "github" ? "git-tree" : src.sourceType,
             repo: src.repoUrl,
-            pinned: Boolean(row.version),
+            pinned: false,
           }
         : null,
       compatibleHosts: row.compatibleHosts,

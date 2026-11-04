@@ -209,7 +209,8 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   const installabilityFilter = query.installability || null;
   const transportFilter = query.transport || null;
   const goalFilter = query.goal || null;
-  const installableFilter = query.installable === "1" ? true : null;
+  const installableFilter =
+    query.installable === "1" || query.installable === "true" ? true : null;
 
   // Host filter: identity id when resolvable, else the raw spelling.
   const rawHost = query.host?.trim();
