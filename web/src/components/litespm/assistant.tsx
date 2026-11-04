@@ -119,8 +119,7 @@ function InteractivePackageItem({ linkKey, onOpenLink }: { linkKey: string; onOp
   if (!data) return null;
 
   const installCommand =
-    data.installCommand ||
-    (data.id ? `litespm install ${data.id}` : `litespm install ${data.slug}`);
+    (data.id ? `litespm install ${data.id}` : `litespm install ${data.slug || data.linkKey}`);
 
   return (
     <div className="group relative my-2 overflow-hidden rounded-xl border border-border/75 bg-card/90 p-3.5 shadow-xs transition-all hover:border-brand/40 hover:shadow-sm">
@@ -367,19 +366,42 @@ function DynamicWidgetOrCode({
         );
       }
       if (parsed.type === "comparison_matrix" && Array.isArray(parsed.keys)) {
+        const rawFeatures = Array.isArray(parsed.features) ? parsed.features : [];
+        const normalizedFeatures: Array<{ attribute: string; values: Record<string, string> }> = rawFeatures.map(
+          (f: Record<string, unknown>) => {
+            const attribute = typeof f.attribute === "string" ? f.attribute : "Feature";
+            const values: Record<string, string> = {};
+            if (f.values && typeof f.values === "object") {
+              for (const [k, v] of Object.entries(f.values as Record<string, unknown>)) {
+                if (typeof v === "string") values[k] = v;
+              }
+            } else {
+              for (const [k, v] of Object.entries(f)) {
+                if (k !== "attribute" && typeof v === "string") values[k] = v;
+              }
+            }
+            return { attribute, values };
+          },
+        );
+
         return (
           <InteractiveCompareMatrix
             keys={(parsed.keys as string[]).slice(0, 4)}
-            features={parsed.features as Array<{ attribute: string; [key: string]: string }>}
+            features={normalizedFeatures}
             onOpenLink={onOpenLink}
           />
         );
       }
-      if (parsed.type === "explore_link" && typeof parsed.label === "string" && parsed.query) {
+      if (parsed.type === "explore_link" && typeof parsed.label === "string" && parsed.query && typeof parsed.query === "object") {
+        const sanitizedQuery: Record<string, string> = {};
+        for (const [k, v] of Object.entries(parsed.query as Record<string, unknown>)) {
+          if (typeof v === "string") sanitizedQuery[k] = v;
+        }
+
         return (
           <InteractiveExploreLink
             label={parsed.label}
-            query={parsed.query as Record<string, string | undefined>}
+            query={sanitizedQuery}
             onOpenLink={onOpenLink}
           />
         );

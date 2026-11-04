@@ -5,6 +5,7 @@ import { ArrowRight, BookOpen, Cable, CheckCircle2, CircleDot, HelpCircle, Lock,
 
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/litespm/router";
+import { formatFull } from "@/lib/litespm/format";
 import { CodeBlock } from "../code-block";
 import { InstallBar } from "../install-bar";
 
@@ -116,6 +117,25 @@ function P({ children }: { children: React.ReactNode }) {
 
 function Introduction() {
   const navigate = useApp((s) => s.navigate);
+  const [stats, setStats] = React.useState<{ all?: number; installable?: number; hosts?: number } | null>(null);
+
+  React.useEffect(() => {
+    fetch("/api/litespm/stats")
+      .then((r) => r.json())
+      .then((data: { telemetry?: { counts?: { all?: number } }; installable?: number; hosts?: number }) => {
+        setStats({
+          all: data.telemetry?.counts?.all,
+          installable: data.installable,
+          hosts: data.hosts,
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  const totalListings = stats?.all ? formatFull(stats.all) : "69k+";
+  const installableCount = stats?.installable ? formatFull(stats.installable) : "26k+";
+  const hostsCount = stats?.hosts ? String(stats.hosts) : "50";
+
   return (
     <DocSection title="Introduction">
       <P>
@@ -127,9 +147,9 @@ function Introduction() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { value: "69,376", label: "listings in the catalog" },
-          { value: "50", label: "agent hosts for MCP" },
-          { value: "26,554", label: "one-command installs" },
+          { value: totalListings, label: "listings in the catalog" },
+          { value: hostsCount, label: "agent hosts for MCP" },
+          { value: installableCount, label: "one-command installs" },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border border-border/60 bg-card px-4 py-3.5 text-center">
             <div className="text-[22px] font-semibold tabular-nums text-brand">{stat.value}</div>
@@ -142,11 +162,11 @@ function Introduction() {
 
       <P>
         Three kinds of capability can be installed: <strong className="text-foreground">MCP
-        servers</strong> (48,418 listings — a service your agent calls tools on),{" "}
-        <strong className="text-foreground">agent skills</strong> (20,320 listings — a{" "}
-        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">SKILL.md</code> folder of
-        instructions), and <strong className="text-foreground">plugins</strong> (638 listings — a
-        publisher&apos;s bundle of skills and servers).
+        servers</strong> (services your agent calls tools on),{" "}
+        <strong className="text-foreground">agent skills</strong> (portable{" "}
+        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">SKILL.md</code> folders of
+        instructions), and <strong className="text-foreground">plugins</strong> (curated bundles
+        of skills and servers).
       </P>
 
       <P>
@@ -175,7 +195,7 @@ function Introduction() {
           <Lock className="h-4 w-4 text-brand" /> The honesty rules
         </p>
         <ul className="mt-2 space-y-1.5 text-[13px] text-muted-foreground">
-          <li>• No account, no telemetry, no proxy — credentials stay in your environment.</li>
+          <li>• No account required, no credential proxying — credentials stay in your environment or OS vault.</li>
           <li>• Nothing is written without a preview, and every write is backed up first.</li>
           <li>• Discovery-only listings say so, before you try to install them.</li>
           <li>• Every catalog field links to its verified upstream source — nothing on this site is synthesized.</li>
@@ -389,7 +409,7 @@ function Security() {
     <DocSection title="Security model">
       <div className="space-y-3">
         {[
-          { title: "Your machine, your keys", body: "No account, no telemetry, no proxy. Credentials stay in the environment or the OS vault. LiteSPM never sees them." },
+          { title: "Your machine, your keys", body: "No account required, no credential proxying. Credentials stay in the environment or the OS vault. LiteSPM never sees them." },
           { title: "Nothing is written without a preview", body: "You see the change first, and the file is backed up before it is touched." },
           { title: "Fail-closed remote installs", body: "A host with no vendor-documented URL entry object is refused with a clear error, never written in a guessed shape." },
           { title: "Pinned plugin sources", body: "A plugin installs from the pinned commit its publisher ships. LiteSPM fetches that commit, verifies it, and installs what the plugin's own manifest declares. A plugin with no fetchable pinned source is refused with the reason." },

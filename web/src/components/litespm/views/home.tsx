@@ -108,7 +108,9 @@ export function HomeView() {
   }, []);
 
   const counts = stats?.telemetry.counts;
-  const cliVersion = stats?.cli?.[0]?.version;
+  const cliVersion = Array.isArray(stats?.cli)
+    ? stats.cli[0]?.version
+    : ((stats?.cli as unknown as { version?: string })?.version ?? null);
 
   const steps = [
     {
@@ -163,7 +165,7 @@ export function HomeView() {
               transition={{ delay: 0.05 }}
               className="mt-5 text-[clamp(2.5rem,5.6vw,4.3rem)] font-semibold leading-[1.02] tracking-[-0.045em]"
             >
-              The package manager for AI agents.{" "}
+              The package manager for AI agent capabilities.{" "}
               <span className="text-brand">Install once, use everywhere.</span>
             </motion.h1>
             <motion.p
@@ -172,9 +174,9 @@ export function HomeView() {
               transition={{ delay: 0.1 }}
               className="mt-5 max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]"
             >
-              Find MCP servers, skills and plugins once, and install them into Cursor, GitHub Copilot,
-              Cline, Claude Code, and 46 more agents — each agent&apos;s own config, backed up first,
-              with a ledger of every change so you can rollback anytime.
+              Discover, install and manage MCP servers, skills and plugins without manually wrestling
+              with configuration files. One workflow across Cursor, Claude Code, GitHub Copilot, Cline,
+              and {stats ? stats.hosts - 4 : 46} more agent hosts — with preview, automatic backups, and rollback.
             </motion.p>
 
             <motion.div
@@ -277,7 +279,7 @@ export function HomeView() {
           >
             <TerminalHero hostsCount={stats?.hosts ?? 50} />
             <p className="mt-3 text-center text-[11px] text-muted-foreground/80">
-              A real session: search, install into Claude Code with backup, and the ledger.
+              Interactive CLI walkthrough: search, preview, install with backup, and ledger tracking.
             </p>
           </motion.div>
         </div>
@@ -721,8 +723,8 @@ export function HomeView() {
           {[
             {
               icon: ShieldCheck,
-              title: "No account, no telemetry",
-              body: "No sign-up, no tracking, no proxy. Credentials stay in your environment or OS vault.",
+              title: "Private by design",
+              body: "No user account, no credentials proxy. Keys and configs stay entirely on your local machine.",
             },
             {
               icon: RotateCcw,
@@ -737,7 +739,7 @@ export function HomeView() {
             {
               icon: Star,
               title: "Verified capabilities",
-              body: "Every installable package is pre-verified with pinned git trees or valid streamable endpoints.",
+              body: "Installable packages include verified repository sources or active transport endpoints.",
             },
           ].map((item) => (
             <div key={item.title} className="rounded-2xl border border-border/70 bg-card p-5">
