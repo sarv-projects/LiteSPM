@@ -160,6 +160,13 @@ function editDistanceAtMost1(s1: string, s2: string): boolean {
 
   while (i < m && j < n) {
     if (s1[i] !== s2[j]) {
+      // Check adjacent transposition: e.g. dokcer vs docker
+      if (i + 1 < m && j + 1 < n && s1[i] === s2[j + 1] && s1[i + 1] === s2[j]) {
+        diff++;
+        i += 2;
+        j += 2;
+        continue;
+      }
       diff++;
       if (diff > 1) return false;
       if (m > n) i++;
