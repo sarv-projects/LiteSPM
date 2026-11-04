@@ -149,6 +149,34 @@ function relevance(row: Listing, tokens: string[]): number {
   return total;
 }
 
+function editDistanceAtMost1(s1: string, s2: string): boolean {
+  const m = s1.length;
+  const n = s2.length;
+  if (Math.abs(m - n) > 1) return false;
+
+  let diff = 0;
+  let i = 0;
+  let j = 0;
+
+  while (i < m && j < n) {
+    if (s1[i] !== s2[j]) {
+      diff++;
+      if (diff > 1) return false;
+      if (m > n) i++;
+      else if (n > m) j++;
+      else {
+        i++;
+        j++;
+      }
+    } else {
+      i++;
+      j++;
+    }
+  }
+  if (i < m || j < n) diff++;
+  return diff <= 1;
+}
+
 function relaxedTokenScore(row: Listing, token: string): number {
   const exact = tokenScore(row, token);
   if (exact > 0) return exact;
@@ -161,10 +189,21 @@ function relaxedTokenScore(row: Listing, token: string): number {
     if (name.includes(prefix) || slug.includes(prefix)) {
       return 30;
     }
-    // 4-char start prefix
-    const start4 = token.slice(0, 4);
-    if (name.startsWith(start4) || slug.startsWith(start4)) {
-      return 22;
+
+    // Word-level 1-edit distance against name words
+    const nameWords = name.split(/[\s:.-]+/);
+    for (const w of nameWords) {
+      if (w.length >= 3 && editDistanceAtMost1(token, w)) {
+        return 35;
+      }
+    }
+
+    // Word-level 1-edit distance against slug words
+    const slugWords = slug.split(/[\s:.-]+/);
+    for (const w of slugWords) {
+      if (w.length >= 3 && editDistanceAtMost1(token, w)) {
+        return 28;
+      }
     }
   }
   return 0;
