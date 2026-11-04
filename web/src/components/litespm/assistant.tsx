@@ -416,6 +416,12 @@ function DynamicWidgetOrCode({
 function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: string) => void }) {
   const blocks = parseMarkdownBlocks(text);
 
+  // If the response already contains package_cards widgets, suppress any
+  // markdown tables — they duplicate information and clip badly in the narrow drawer.
+  const hasPackageCards = blocks.some(
+    (b) => b.type === "code" && (() => { try { const p = JSON.parse(b.content); return p?.type === "package_cards"; } catch { return false; } })()
+  );
+
   return (
     <div className="space-y-3">
       {blocks.map((block, i) => {
@@ -431,6 +437,8 @@ function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: str
         }
 
         if (block.type === "table") {
+          // Suppress markdown tables when package_cards are present in the same response
+          if (hasPackageCards) return null;
           return (
             <div key={i} className="my-2.5 max-w-full overflow-x-auto rounded-xl border border-border/80 bg-card/60 shadow-xs">
               <table className="min-w-full border-collapse text-left text-[11.5px]">
