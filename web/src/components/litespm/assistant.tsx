@@ -358,7 +358,7 @@ function DynamicWidgetOrCode({
     if (parsed) {
       if (parsed.type === "package_cards" && Array.isArray(parsed.keys)) {
         return (
-          <div className="my-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <div className="my-2.5 flex flex-col gap-2.5">
             {(parsed.keys as string[]).slice(0, 4).map((k: string) => (
               <InteractivePackageItem key={k} linkKey={k} onOpenLink={onOpenLink} />
             ))}
@@ -432,12 +432,12 @@ function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: str
 
         if (block.type === "table") {
           return (
-            <div key={i} className="my-2.5 overflow-x-auto rounded-xl border border-border/80 bg-card/60 shadow-xs">
-              <table className="w-full border-collapse text-left text-[12px]">
+            <div key={i} className="my-2.5 max-w-full overflow-x-auto rounded-xl border border-border/80 bg-card/60 shadow-xs">
+              <table className="min-w-full border-collapse text-left text-[11.5px]">
                 <thead>
                   <tr className="border-b border-border/80 bg-muted/60">
                     {block.headers.map((h, idx) => (
-                      <th key={idx} className="px-3 py-2 font-semibold text-foreground">
+                      <th key={idx} className="whitespace-nowrap px-2.5 py-1.5 font-semibold text-foreground">
                         {renderInline(h.trim(), onOpenLink)}
                       </th>
                     ))}
@@ -447,7 +447,7 @@ function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: str
                   {block.rows.map((row, rIdx) => (
                     <tr key={rIdx} className="transition-colors hover:bg-muted/30">
                       {row.map((cell, cIdx) => (
-                        <td key={cIdx} className="px-3 py-2 align-top leading-relaxed text-foreground/90">
+                        <td key={cIdx} className="px-2.5 py-1.5 align-top leading-relaxed text-foreground/90">
                           {renderInline(cell.trim(), onOpenLink)}
                         </td>
                       ))}
@@ -853,8 +853,8 @@ export function Assistant() {
   const panel = (
     <div
       className={cn(
-        "fixed bottom-2 sm:bottom-4 right-2 sm:right-4 z-50 flex w-[min(420px,calc(100vw-1rem))] sm:w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-border bg-popover shadow-2xl transition-all",
-        open ? "pointer-events-auto h-[min(600px,calc(100dvh-4.5rem))] sm:h-[min(600px,calc(100vh-7rem))]" : "pointer-events-none h-0 border-0",
+        "fixed bottom-2 sm:bottom-4 right-2 sm:right-4 z-50 flex w-[min(460px,calc(100vw-1rem))] sm:w-[480px] flex-col overflow-hidden rounded-2xl border border-border bg-popover shadow-2xl transition-all",
+        open ? "pointer-events-auto h-[min(620px,calc(100dvh-4.5rem))] sm:h-[min(640px,calc(100vh-6rem))]" : "pointer-events-none h-0 border-0",
       )}
       role="dialog"
       aria-label="Ask AI assistant"
@@ -946,7 +946,7 @@ export function Assistant() {
                   )}
                 </>
               )}
-              {message.citations && message.citations.length > 0 && (
+              {message.citations && message.citations.length > 0 && !message.content.includes('"type": "package_cards"') && (
                 <div className="mt-3 border-t border-border/60 pt-2.5">
                   <p className="mb-2 flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                     <Package className="h-3 w-3 text-brand" /> Referenced packages:

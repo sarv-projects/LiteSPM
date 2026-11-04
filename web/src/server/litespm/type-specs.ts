@@ -24,6 +24,7 @@ export interface McpEnvVar {
 }
 
 export interface McpDetailSpec {
+  hasDeclaredTools: boolean;
   permissions: {
     read: McpPermissionScope[];
     write: McpPermissionScope[];
@@ -106,77 +107,21 @@ export function classifyToolAction(name: string): "read" | "write" | "destructiv
 
 export function buildMcpSpec(row: Listing): McpDetailSpec {
   const nameNorm = norm(stripNamespace(row.name));
-  const isGithub = nameNorm.includes("github");
-  const isPostgres = nameNorm.includes("postgres") || nameNorm.includes("sql");
-  const isBrave = nameNorm.includes("brave");
-  const isNotion = nameNorm.includes("notion");
-  const isLinear = nameNorm.includes("linear");
-  const isSlack = nameNorm.includes("slack");
-  const isSentry = nameNorm.includes("sentry");
-  const isStripe = nameNorm.includes("stripe");
-
-  // Build functions list
+  // Build functions list directly from genuine row tools
   const functions: McpDetailSpec["functions"] = [];
   if (row.tools && row.tools.length > 0) {
     for (const tool of row.tools) {
       functions.push({
         name: tool.name,
         category: classifyToolAction(tool.name),
-        description: tool.description || `Tool provided by ${row.name}`,
+        description: tool.description || `Tool declared by ${row.name}`,
       });
     }
-  } else if (isGithub) {
-    functions.push(
-      { name: "search_repositories", category: "read", description: "Search for GitHub repositories via query and qualifiers" },
-      { name: "get_file_contents", category: "read", description: "Fetch raw content of a file from any branch or commit" },
-      { name: "list_issues", category: "read", description: "List issues with state, label, and milestone filters" },
-      { name: "list_pull_requests", category: "read", description: "List PRs and inspect reviews, diffs, and checks" },
-      { name: "create_issue", category: "write", description: "Create a new issue with title, body, labels, and assignees" },
-      { name: "create_pull_request", category: "write", description: "Open a pull request from head to base branch" },
-      { name: "add_issue_comment", category: "write", description: "Post a markdown comment on an issue or PR" },
-      { name: "update_issue", category: "write", description: "Update issue metadata, assignees, and state" },
-      { name: "delete_branch", category: "destructive", description: "Delete a Git branch reference in the target repository" },
-      { name: "merge_pull_request", category: "destructive", description: "Merge an approved pull request into the base branch" },
-    );
-  } else if (isBrave) {
-    functions.push(
-      { name: "brave_web_search", category: "read", description: "Execute real-time web search across global index" },
-      { name: "brave_local_search", category: "read", description: "Search for local businesses, places, and coordinates" },
-    );
-  } else if (isNotion) {
-    functions.push(
-      { name: "search_notion", category: "read", description: "Search workspace pages and databases" },
-      { name: "get_page_content", category: "read", description: "Retrieve block tree and content for a Notion page" },
-      { name: "create_page", category: "write", description: "Create a new page in a database or parent page" },
-      { name: "append_block_children", category: "write", description: "Append new blocks to a page or callout" },
-      { name: "archive_page", category: "destructive", description: "Archive or trash a Notion page" },
-    );
-  } else if (isLinear) {
-    functions.push(
-      { name: "list_issues", category: "read", description: "Query Linear issues with team, project, and cycle filters" },
-      { name: "get_issue", category: "read", description: "Retrieve full details, comments, and links for an issue" },
-      { name: "create_issue", category: "write", description: "Create an issue with title, description, team, and priority" },
-      { name: "update_issue_status", category: "write", description: "Transition issue between workflow states" },
-      { name: "delete_issue", category: "destructive", description: "Permanently delete an issue from Linear workspace" },
-    );
-  } else if (isPostgres) {
-    functions.push(
-      { name: "read_query", category: "read", description: "Execute SELECT queries against the database" },
-      { name: "list_tables", category: "read", description: "List all tables and views in current schema" },
-      { name: "describe_table", category: "read", description: "Show columns, types, and constraints for a table" },
-      { name: "write_query", category: "write", description: "Execute INSERT, UPDATE, or ALTER statements" },
-      { name: "drop_table", category: "destructive", description: "Drop table or destructive schema modification" },
-    );
-  } else {
-    // Standard default functions
-    functions.push(
-      { name: "search_resources", category: "read", description: `Query indexed resources for ${row.name}` },
-      { name: "read_resource", category: "read", description: "Inspect data payloads and schemas" },
-      { name: "execute_action", category: "write", description: "Perform operations declared by server manifest" },
-    );
   }
 
-  // Permissions summary
+  const hasDeclaredTools = functions.length > 0;
+
+  // Permissions summary from declared tools (empty if tools are discovered at runtime)
   const read = functions
     .filter((f) => f.category === "read")
     .map((f) => ({ category: "read" as const, name: f.name, description: f.description }));
@@ -187,98 +132,34 @@ export function buildMcpSpec(row: Listing): McpDetailSpec {
     .filter((f) => f.category === "destructive")
     .map((f) => ({ category: "destructive" as const, name: f.name, description: f.description }));
 
-  // Environment variables
+  // Environment variables: inspect row properties honestly
   const envVars: McpEnvVar[] = [];
-  if (isGithub) {
-    envVars.push(
-      {
-        name: "GITHUB_TOKEN",
-        required: true,
-        description: "Personal Access Token (classic or fine-grained) with repo permissions",
-        example: 'export GITHUB_TOKEN="ghp_yourPersonalAccessToken123"',
-      },
-      {
-        name: "GITHUB_API_URL",
-        required: false,
-        description: "API endpoint for GitHub Enterprise Server instances",
-        example: 'export GITHUB_API_URL="https://github.corp.example.com/api/v3"',
-      },
-    );
-  } else if (isBrave) {
-    envVars.push({
-      name: "BRAVE_API_KEY",
-      required: true,
-      description: "Brave Search API subscription key",
-      example: 'export BRAVE_API_KEY="BSA..."',
-    });
-  } else if (isNotion) {
-    envVars.push({
-      name: "NOTION_API_KEY",
-      required: true,
-      description: "Internal Notion integration token (`secret_...`)",
-      example: 'export NOTION_API_KEY="secret_abc123..."',
-    });
-  } else if (isLinear) {
-    envVars.push({
-      name: "LINEAR_API_KEY",
-      required: true,
-      description: "Linear Personal API Key (`lin_api_...`)",
-      example: 'export LINEAR_API_KEY="lin_api_xyz789..."',
-    });
-  } else if (isSlack) {
-    envVars.push(
-      {
-        name: "SLACK_BOT_TOKEN",
-        required: true,
-        description: "Slack Bot User OAuth Token (`xoxb-...`)",
-        example: 'export SLACK_BOT_TOKEN="xoxb-1234..."',
-      },
-      {
-        name: "SLACK_TEAM_ID",
-        required: false,
-        description: "Target workspace team ID",
-        example: 'export SLACK_TEAM_ID="T0123456"',
-      },
-    );
-  } else if (isSentry) {
-    envVars.push({
-      name: "SENTRY_AUTH_TOKEN",
-      required: true,
-      description: "Sentry User Auth Token with project read/write scope",
-      example: 'export SENTRY_AUTH_TOKEN="sntrys_..."',
-    });
-  } else if (isStripe) {
-    envVars.push({
-      name: "STRIPE_SECRET_KEY",
-      required: true,
-      description: "Stripe Secret API key (`sk_live_...` or `sk_test_...`)",
-      example: 'export STRIPE_SECRET_KEY="sk_test_..."',
-    });
-  } else if (isPostgres) {
-    envVars.push({
-      name: "DATABASE_URL",
-      required: true,
-      description: "Connection URI with username, password, host and database",
-      example: 'export DATABASE_URL="postgresql://user:password@localhost:5432/mydb"',
-    });
-  } else if (row.url) {
-    envVars.push({
-      name: "AUTH_TOKEN",
-      required: false,
-      description: "Optional Bearer authorization token if endpoint requires auth",
-      example: 'export AUTH_TOKEN="bearer_token_here"',
-    });
+  if (row.args && Array.isArray(row.args)) {
+    for (const arg of row.args) {
+      const match = typeof arg === "string" ? arg.match(/\$\{?([A-Z0-9_]{3,})\}?/) : null;
+      if (match && match[1] && !envVars.some((e) => e.name === match[1])) {
+        envVars.push({
+          name: match[1],
+          required: true,
+          description: `Environment variable referenced in server arguments: ${match[1]}`,
+          example: `export ${match[1]}="<your_${match[1].toLowerCase()}>"`,
+        });
+      }
+    }
   }
 
-  // Auth type
-  let authType = "No Authentication Required (Local Sandbox)";
-  let authDescription = "Server runs as a local subprocess communicating strictly over standard input/output.";
+  // Auth type derived strictly from real transport and endpoints
+  let authType = "Local Process Execution (stdio)";
+  let authDescription =
+    `Server executes as a local process via ${row.command || "npx"} communicating over standard input/output.`;
   if (row.url) {
-    authType = "Bearer Token / Header Authentication";
-    authDescription = "Endpoint accepts HTTP Bearer token or provider-specific headers over secure TLS.";
+    authType = "Remote Transport (TLS)";
+    authDescription =
+      `Endpoint communicates over ${row.transport || "streamable-http"} to ${row.url}. Any required authorization headers or tokens can be configured in your agent host settings.`;
   } else if (envVars.some((e) => e.required)) {
     authType = "Environment Credential Token";
-    authDescription = `Server authenticates via ${envVars.filter((e) => e.required).map((e) => e.name).join(", ")} environment variables.`;
+    authDescription =
+      `Server requires ${envVars.filter((e) => e.required).map((e) => e.name).join(", ")} environment variables.`;
   }
 
   // Host configuration snippets for all 50 hosts
@@ -357,6 +238,7 @@ export function buildMcpSpec(row: Listing): McpDetailSpec {
   });
 
   return {
+    hasDeclaredTools,
     permissions: { read, write, destructive },
     authType,
     authDescription,
@@ -498,18 +380,15 @@ export function buildPluginSpec(row: Listing): PluginDetailSpec {
     summary: row.summary || "Agent workflow bundled within plugin manifest",
   });
 
-  hostExtras.push(
-    {
-      type: "hook",
-      name: "pre-commit-review",
-      description: "Host event hook triggered during agent session milestones",
-    },
-    {
-      type: "command",
-      name: `/${row.slug}`,
-      description: "Custom slash-command registered into host command registry",
-    },
-  );
+  if (row.effects && Array.isArray(row.effects)) {
+    for (const ef of row.effects) {
+      hostExtras.push({
+        type: "hook",
+        name: ef.effect,
+        description: ef.declaredBy ? `Declared by ${ef.declaredBy}` : "Host event hook",
+      });
+    }
+  }
 
   const isBlocked = pinningStatus === "unpinned";
   const remediation: PluginDetailSpec["remediation"] = {

@@ -145,6 +145,7 @@ export interface PackageDetailData {
     penalty: { points: number; reason: string };
   };
   mcpSpec?: {
+    hasDeclaredTools?: boolean;
     permissions: {
       read: Array<{ category: "read"; name: string; description: string }>;
       write: Array<{ category: "write"; name: string; description: string }>;

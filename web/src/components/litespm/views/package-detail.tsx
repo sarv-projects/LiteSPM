@@ -405,61 +405,79 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
               {data.mcpSpec.authDescription}
             </p>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {/* Read Operations */}
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3.5">
-                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Read Operations ({data.mcpSpec.permissions.read.length})
+            {data.mcpSpec.hasDeclaredTools ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {/* Read Operations */}
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3.5">
+                  <div className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    Read Operations ({data.mcpSpec.permissions.read.length})
+                  </div>
+                  <ul className="mt-2 space-y-1 text-[11.5px] text-muted-foreground">
+                    {data.mcpSpec.permissions.read.slice(0, 4).map((p) => (
+                      <li key={p.name} className="truncate font-mono">
+                        • {p.name}
+                      </li>
+                    ))}
+                    {data.mcpSpec.permissions.read.length === 0 && (
+                      <li className="italic text-muted-foreground/60">No read tools declared</li>
+                    )}
+                  </ul>
                 </div>
-                <ul className="mt-2 space-y-1 text-[11.5px] text-muted-foreground">
-                  {data.mcpSpec.permissions.read.slice(0, 4).map((p) => (
-                    <li key={p.name} className="truncate font-mono">
-                      • {p.name}
-                    </li>
-                  ))}
-                  {data.mcpSpec.permissions.read.length === 0 && (
-                    <li className="italic text-muted-foreground/60">No read tools declared</li>
-                  )}
-                </ul>
-              </div>
 
-              {/* Write Operations */}
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-3.5">
-                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-600 dark:text-amber-400">
-                  <span className="h-2 w-2 rounded-full bg-amber-500" />
-                  Write Operations ({data.mcpSpec.permissions.write.length})
+                {/* Write Operations */}
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-3.5">
+                  <div className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-600 dark:text-amber-400">
+                    <span className="h-2 w-2 rounded-full bg-amber-500" />
+                    Write Operations ({data.mcpSpec.permissions.write.length})
+                  </div>
+                  <ul className="mt-2 space-y-1 text-[11.5px] text-muted-foreground">
+                    {data.mcpSpec.permissions.write.slice(0, 4).map((p) => (
+                      <li key={p.name} className="truncate font-mono">
+                        • {p.name}
+                      </li>
+                    ))}
+                    {data.mcpSpec.permissions.write.length === 0 && (
+                      <li className="italic text-muted-foreground/60">No state-modifying operations</li>
+                    )}
+                  </ul>
                 </div>
-                <ul className="mt-2 space-y-1 text-[11.5px] text-muted-foreground">
-                  {data.mcpSpec.permissions.write.slice(0, 4).map((p) => (
-                    <li key={p.name} className="truncate font-mono">
-                      • {p.name}
-                    </li>
-                  ))}
-                  {data.mcpSpec.permissions.write.length === 0 && (
-                    <li className="italic text-muted-foreground/60">No state-modifying operations</li>
-                  )}
-                </ul>
-              </div>
 
-              {/* Destructive Operations */}
-              <div className="rounded-xl border border-rose-500/30 bg-rose-500/[0.04] p-3.5">
-                <div className="flex items-center gap-1.5 text-[12px] font-semibold text-rose-600 dark:text-rose-400">
-                  <span className="h-2 w-2 rounded-full bg-rose-500" />
-                  Destructive Operations ({data.mcpSpec.permissions.destructive.length})
+                {/* Destructive Operations */}
+                <div className="rounded-xl border border-rose-500/30 bg-rose-500/[0.04] p-3.5">
+                  <div className="flex items-center gap-1.5 text-[12px] font-semibold text-rose-600 dark:text-rose-400">
+                    <span className="h-2 w-2 rounded-full bg-rose-500" />
+                    Destructive Operations ({data.mcpSpec.permissions.destructive.length})
+                  </div>
+                  <ul className="mt-2 space-y-1 text-[11.5px] text-muted-foreground">
+                    {data.mcpSpec.permissions.destructive.slice(0, 4).map((p) => (
+                      <li key={p.name} className="truncate font-mono">
+                        • {p.name}
+                      </li>
+                    ))}
+                    {data.mcpSpec.permissions.destructive.length === 0 && (
+                      <li className="italic text-muted-foreground/60">Zero destructive actions</li>
+                    )}
+                  </ul>
                 </div>
-                <ul className="mt-2 space-y-1 text-[11.5px] text-muted-foreground">
-                  {data.mcpSpec.permissions.destructive.slice(0, 4).map((p) => (
-                    <li key={p.name} className="truncate font-mono">
-                      • {p.name}
-                    </li>
-                  ))}
-                  {data.mcpSpec.permissions.destructive.length === 0 && (
-                    <li className="italic text-muted-foreground/60">Zero destructive actions</li>
-                  )}
-                </ul>
               </div>
-            </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand">
+                    <Shield className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-[13px] font-semibold text-foreground">
+                      Dynamic Runtime Permission Model
+                    </h3>
+                    <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                      This MCP server advertises capabilities dynamically during the MCP protocol handshake. Permission scopes and tool executions are inspected and approved by your agent host (e.g. Cursor, Claude Code, Cline) at runtime when individual actions are requested.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Connection & Required Env Vars */}
@@ -507,39 +525,69 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
           {/* Functions & Tools Catalog */}
           <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="tools-title">
             <h2 id="tools-title" className="flex items-center gap-2 text-[15px] font-semibold">
-              <Code2 className="h-4 w-4 text-brand" /> Tools & Capabilities ({data.mcpSpec.functions.length})
+              <Code2 className="h-4 w-4 text-brand" /> Tools & Capabilities {data.mcpSpec.hasDeclaredTools ? `(${data.mcpSpec.functions.length})` : ""}
             </h2>
-            <p className="mt-1 text-[12.5px] text-muted-foreground">
-              Complete inventory of MCP tools exposed to your agent:
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {data.mcpSpec.functions.map((fn) => (
-                <div
-                  key={fn.name}
-                  className="rounded-xl border border-border/60 bg-muted/20 p-3.5 transition-colors hover:border-brand/40"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-mono text-[12.5px] font-semibold text-foreground">
-                      {fn.name}
-                    </span>
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
-                        fn.category === "read"
-                          ? "bg-emerald-500/10 text-emerald-500"
-                          : fn.category === "write"
-                          ? "bg-amber-500/10 text-amber-500"
-                          : "bg-rose-500/10 text-rose-500"
-                      }`}
+            {data.mcpSpec.hasDeclaredTools && data.mcpSpec.functions.length > 0 ? (
+              <>
+                <p className="mt-1 text-[12.5px] text-muted-foreground">
+                  Declared inventory of MCP tools exposed to your agent:
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {data.mcpSpec.functions.map((fn) => (
+                    <div
+                      key={fn.name}
+                      className="rounded-xl border border-border/60 bg-muted/20 p-3.5 transition-colors hover:border-brand/40"
                     >
-                      {fn.category}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
-                    {fn.description}
-                  </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-mono text-[12.5px] font-semibold text-foreground">
+                          {fn.name}
+                        </span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                            fn.category === "read"
+                              ? "bg-emerald-500/10 text-emerald-500"
+                              : fn.category === "write"
+                              ? "bg-amber-500/10 text-amber-500"
+                              : "bg-rose-500/10 text-rose-500"
+                          }`}
+                        >
+                          {fn.category}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
+                        {fn.description}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            ) : (
+              <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand">
+                    <Terminal className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-[13px] font-semibold text-foreground">
+                      Runtime Tool Discovery (MCP Protocol)
+                    </h3>
+                    <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                      This server exposes its tools dynamically via the Model Context Protocol (<code className="font-mono text-brand">tools/list</code>). Tool schemas, parameter definitions, and descriptions are inspected automatically when your agent connects.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px] text-muted-foreground">
+                      <span className="font-mono text-[11px] rounded bg-muted/80 px-2 py-0.5 text-foreground/80">
+                        Transport: {data.transport || "stdio"}
+                      </span>
+                      {data.url && (
+                        <span className="font-mono text-[11px] rounded bg-muted/80 px-2 py-0.5 text-foreground/80 truncate max-w-[340px]">
+                          Endpoint: {data.url}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Step-by-Step Host Configuration Preview */}
