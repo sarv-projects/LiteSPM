@@ -9,14 +9,13 @@ package main
 //     metadata with no proven artifact, and every gate refuses it with
 //     LPSM-NOT-INSTALLABLE and the per-kind wording it always used. This is
 //     domain.Listing.IsInstallable's provenance half.
-//  2. Can this build perform the install at all? Only skills (files through
-//     the skills ledger) and MCP servers (a host-config entry) have a wired
-//     install path (domain.ListingKind.InstallWired). A plugin has one now —
-//     a pinned git tree is fetched and verified, and the MCP servers its
-//     manifest declares are registered in each target host's config — but it
-//     is only reachable once the command layer dispatches kind=plugin, and
-//     the gate and the dispatch are one change (see
-//     pluginInstallDispatched below).
+//  2. Can this build perform the install at all? Skills (files through the
+//     skills ledger), MCP servers (a host-config entry) and plugins (a pinned
+//     git tree fetched and verified, then its portable components installed)
+//     all have a wired install path (domain.ListingKind.InstallWired). The
+//     plugin dispatch landed on 2026-10-19; artifact-level refusals (no
+//     artifact, an unpinned one, an unknown type) are raised by the plugin
+//     installer itself, with their own reasons.
 //
 // installKindRefusal answers question 2, and every gate asks it FIRST: a
 // plugin row is metadata_verified (its vendor manifest published it, and the

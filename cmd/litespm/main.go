@@ -32,6 +32,7 @@ import (
 	"github.com/sarv-projects/litespm/internal/install"
 	"github.com/sarv-projects/litespm/internal/invocation"
 	"github.com/sarv-projects/litespm/internal/ipc"
+	"github.com/sarv-projects/litespm/internal/lifecycle"
 	"github.com/sarv-projects/litespm/internal/policy"
 	"github.com/sarv-projects/litespm/internal/provider"
 	"github.com/sarv-projects/litespm/internal/receipts"
@@ -96,6 +97,9 @@ func main() {
 		if code := runAudit(os.Args[2:]); code != 0 {
 			os.Exit(code)
 		}
+
+	case "marketplace", "market":
+		runMarketplace(os.Args[2:])
 
 	case "search":
 		opts, queryErr := searchQueryArgs(os.Args[2:])
@@ -549,7 +553,7 @@ func setupUsage(w io.Writer) {
 		renderHelp(w, page)
 		return
 	}
-	fmt.Fprintln(w, "Usage: litespm setup [--agent <host-id>] [--help]")
+	fmt.Fprintln(w, "Usage: litespm setup [--agent <host-id> | --all] [--help]")
 }
 
 // setupUsageError reports a bad `litespm setup` invocation: the reason on
@@ -576,11 +580,14 @@ func setupUsageError(format string, a ...any) {
 // applyHostSetup), so the spellings cannot drift apart.
 func runSetup(args []string) {
 	agentID := ""
+	allDetected := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--help", "-h":
 			setupUsage(os.Stdout)
 			return
+		case "--all", "-a":
+			allDetected = true
 		case "--agent":
 			if i+1 >= len(args) {
 				setupUsageError("--agent requires a host id")
@@ -596,6 +603,16 @@ func runSetup(args []string) {
 		default:
 			setupUsageError("unexpected argument %q", args[i])
 		}
+	}
+
+	if allDetected {
+		if agentID != "" {
+			setupUsageError("cannot combine --all with --agent")
+		}
+		if code := applyAllDetectedSetup(context.Background()); code != 0 {
+			os.Exit(code)
+		}
+		return
 	}
 
 	if agentID != "" {
@@ -649,6 +666,68 @@ func applyHostSetup(ctx context.Context, hostID string) int {
 	fmt.Printf("  • Config File: %s\n", result.ConfigPath)
 	if result.BackupPath != "" {
 		fmt.Printf("  • Backup:      %s\n", result.BackupPath)
+	}
+	return 0
+}
+
+// applyAllDetectedSetup scans this machine for all detected agent configuration
+// files and registers the LiteSPM bridge with each of them in one operation.
+func applyAllDetectedSetup(ctx context.Context) int {
+	adapters := host.ListAdapters()
+	configured := 0
+	failed := 0
+	skipped := 0
+
+	paths, err := config.ResolvePlatformPaths()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error resolving paths: %v\n", err)
+		return 1
+	}
+	execPath, err := os.Executable()
+	if err != nil {
+		execPath = "litespm"
+	}
+
+	fmt.Println("Scanning for installed AI agents on this machine...")
+	for _, adapter := range adapters {
+		desc := adapter.Descriptor()
+		cfgPath, detErr := adapter.DetectConfig(ctx, domain.ScopeUser)
+		if detErr != nil || cfgPath == "" {
+			continue
+		}
+		if _, statErr := os.Stat(cfgPath); statErr != nil {
+			continue
+		}
+
+		verification, vErr := adapter.VerifySetup(ctx)
+		if vErr == nil && verification != nil && verification.Registered {
+			skipped++
+			fmt.Printf("○ %s is already configured (%s)\n", desc.DisplayName, cfgPath)
+			continue
+		}
+
+		plan, pErr := adapter.PlanSetup(ctx, execPath, paths.BackupsPath())
+		if pErr != nil {
+			failed++
+			fmt.Printf("✗ Failed to plan %s: %v\n", desc.DisplayName, pErr)
+			continue
+		}
+
+		result, aErr := adapter.ApplySetup(ctx, plan)
+		if aErr != nil {
+			failed++
+			fmt.Printf("✗ Failed to apply %s: %v\n", desc.DisplayName, aErr)
+			continue
+		}
+
+		configured++
+		fmt.Printf("✓ Configured %s (%s)\n", desc.DisplayName, result.ConfigPath)
+	}
+
+	fmt.Printf("\nBatch setup summary: %d configured · %d already set up · %d failed\n",
+		configured, skipped, failed)
+	if failed > 0 {
+		return 1
 	}
 	return 0
 }
@@ -752,14 +831,18 @@ func runHostCommand(args []string) {
 			fmt.Fprintf(os.Stderr, "Detection error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("%-14s %-10s %-12s %s\n", "HOST ID", "STATUS", "REGISTERED", "CONFIG PATH")
-		fmt.Println(strings.Repeat("-", 75))
+		fmt.Printf("%-14s %-12s %-12s %s\n", "HOST ID", "CONFIG FILE", "BRIDGE", "CONFIG PATH")
+		fmt.Println(strings.Repeat("-", 80))
 		for _, v := range verifs {
-			regStr := "no"
-			if v.Registered {
-				regStr = "yes"
+			fileStatus := "missing"
+			if v.Configured {
+				fileStatus = "found"
 			}
-			fmt.Printf("%-14s %-10s %-12s %s\n", v.HostID, v.Status, regStr, v.ConfigPath)
+			bridgeStatus := "not linked"
+			if v.Registered {
+				bridgeStatus = "connected"
+			}
+			fmt.Printf("%-14s %-12s %-12s %s\n", v.HostID, fileStatus, bridgeStatus, v.ConfigPath)
 		}
 
 	case "setup":
@@ -1174,13 +1257,9 @@ func runAgentCommand(args []string) {
 }
 
 func truncate(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	if max <= 1 {
-		return s[:max]
-	}
-	return s[:max-1] + "…"
+	// Width-aware, not byte-aware: a wide glyph or a multi-byte rune must not
+	// be split, and a terminal cell budget is not a byte budget.
+	return skills.TruncateToWidth(s, max)
 }
 
 // searchOptions is the parsed command line for `litespm search`.
@@ -2253,7 +2332,7 @@ func runDoctor(args []string) int {
 	repairMode := false
 	yesMode := false
 	for _, a := range args {
-		if a == "--repair" || a == "-r" {
+		if a == "--repair" || a == "-r" || a == "--fix" {
 			repairMode = true
 		}
 		if a == "--yes" || a == "-y" {
@@ -2387,7 +2466,7 @@ func runDoctor(args []string) int {
 		fmt.Println("Repair cycle completed.")
 		return code
 	} else if report.FailCount > 0 || report.WarnCount > 0 {
-		fmt.Println("\nTip: Run 'litespm doctor --repair' to preview and apply automated corrective actions.")
+		fmt.Println("\nTip: Run 'litespm doctor --repair' (or 'litespm doctor --fix') to preview and apply automated corrective actions.")
 	}
 	return doctorExitCode(report)
 }
@@ -2437,7 +2516,7 @@ func runDaemonServe() {
 	// install is resolved (committed or rolled back) before any client can ask
 	// the daemon about state it has not yet reconciled. A journal failure here
 	// halts startup instead of serving unreconciled state.
-	if _, err := runStartupRecovery(context.Background(), db, paths.StagingPath(), func(digest string) string {
+	if _, err := runStartupRecovery(context.Background(), db, paths.StagingPath(), paths.DataRoot, func(digest string) string {
 		p, pathErr := installEngine.TreePath(digest)
 		if pathErr != nil {
 			return ""
@@ -2619,6 +2698,13 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 
 		var items []bridge.CapabilityItem
 		for _, inst := range installs {
+			// Skills are emitted from skillSourcesForBridge below, which
+			// resolves the ledger path as well as the CAS/install path. Emitting
+			// the raw install row here would duplicate the item and hide a
+			// ledger-only skill behind an unreadable tree_digest.
+			if installIsSkill(inst) {
+				continue
+			}
 			item := bridge.CapabilityItem{
 				ID:      inst.ListingID,
 				Name:    inst.ListingID,
@@ -2629,6 +2715,21 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 				item.Kind = string(lid.Kind())
 			}
 			items = append(items, item)
+		}
+
+		skillSources, err := skillSourcesForBridge(ctx, db, installEngine, paths.DataRoot, req.ProjectRoot)
+		if err != nil {
+			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
+		}
+		for _, src := range skillSources {
+			items = append(items, bridge.CapabilityItem{
+				ID:       src.ID,
+				Name:     src.Name,
+				Kind:     "skill",
+				Summary:  fmt.Sprintf("Skill installed in %s", src.Dir),
+				Scope:    string(src.Scope),
+				Triggers: src.Pkg.Triggers,
+			})
 		}
 
 		// Detect external tools
@@ -2866,9 +2967,11 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			scope = domain.ScopeUser
 		}
 		if listing, lerr := catClient.GetListing(listingID); lerr == nil {
-			// Kind gate first: see installKindRefusal. A plugin is refused
-			// here, before authorization, with LPSM-ARTIFACT-UNAVAILABLE — not
-			// mislabelled as discovery-only metadata.
+			// Kind gate first: see installKindRefusal. A kind with no wired
+			// install path is refused here, before authorization, with
+			// LPSM-ARTIFACT-UNAVAILABLE - not mislabelled as discovery-only
+			// metadata. Plugins are dispatched below; the plugin installer
+			// raises its own artifact/pinning refusals.
 			if refusal := installKindRefusal(listing); refusal != nil {
 				// Every attempt is audited, including this one: an audit trail
 				// that records only successes cannot answer "was this asked
@@ -3108,51 +3211,38 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			}
 		}
 
-		installs, err := installsForProjectRoot(ctx, db, req.ProjectRoot)
+		sources, err := skillSourcesForBridge(ctx, db, installEngine, paths.DataRoot, req.ProjectRoot)
 		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
 		}
 
-		type loadedSkill struct {
-			id    string
-			scope domain.InstallScope
-			pkg   *skills.SkillPackage
-		}
-		var loaded []loadedSkill
-		for _, inst := range installs {
-			treePath, err := installEngine.TreePath(inst.TreeDigest)
-			if err != nil {
-				continue
-			}
-			if sp, err := skills.LoadSkillFromDirectory(treePath); err == nil {
-				loaded = append(loaded, loadedSkill{id: inst.ListingID, scope: inst.Scope, pkg: sp})
-			}
-		}
-
-		pkgs := make([]*skills.SkillPackage, 0, len(loaded))
-		summaries := make([]map[string]any, 0, len(loaded))
-		for _, l := range loaded {
-			pkgs = append(pkgs, l.pkg)
+		pkgs := make([]*skills.SkillPackage, 0, len(sources))
+		summaries := make([]map[string]any, 0, len(sources))
+		for _, src := range sources {
+			pkgs = append(pkgs, src.Pkg)
 			summary := map[string]any{
-				"id":          l.id,
-				"name":        l.pkg.Name,
-				"description": l.pkg.Description,
-				"scope":       string(l.scope),
+				"id":          src.ID,
+				"name":        src.Pkg.Name,
+				"description": src.Pkg.Description,
+				"scope":       string(src.Scope),
 			}
-			if l.pkg.License != "" {
-				summary["license"] = l.pkg.License
+			if src.AgentID != "" {
+				summary["agentId"] = src.AgentID
 			}
-			if l.pkg.Version != "" {
-				summary["version"] = l.pkg.Version
+			if src.Pkg.License != "" {
+				summary["license"] = src.Pkg.License
 			}
-			if l.pkg.Author != "" {
-				summary["author"] = l.pkg.Author
+			if src.Pkg.Version != "" {
+				summary["version"] = src.Pkg.Version
 			}
-			if len(l.pkg.Triggers) > 0 {
-				summary["triggers"] = l.pkg.Triggers
+			if src.Pkg.Author != "" {
+				summary["author"] = src.Pkg.Author
 			}
-			if len(l.pkg.ToolsRequired) > 0 {
-				summary["toolsRequired"] = l.pkg.ToolsRequired
+			if len(src.Pkg.Triggers) > 0 {
+				summary["triggers"] = src.Pkg.Triggers
+			}
+			if len(src.Pkg.ToolsRequired) > 0 {
+				summary["toolsRequired"] = src.Pkg.ToolsRequired
 			}
 			summaries = append(summaries, summary)
 		}
@@ -3163,11 +3253,12 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 		}, nil
 	})
 
-	// 8. skills.load_body loads progressive instructions from CAS tree.
-	// The union of user- and (named) project-scope installs is searched in
-	// order, user first, so a user-scope skill wins a name collision with a
-	// project one. An absent or unusable projectRoot narrows the search to user
-	// scope without erroring.
+	// 8. skills.load_body loads progressive instructions from the resolved
+	// skill source (CAS tree, recorded install path, deployment-ledger skill
+	// directory, or the skills ledger for `skills add`). The union of user- and
+	// (named) project-scope installs is searched in order, user first, so a
+	// user-scope skill wins a name collision with a project one. An absent or
+	// unusable projectRoot narrows the search to user scope without erroring.
 	server.RegisterHandler("skills.load_body", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
 		var req struct {
 			SkillID     string `json:"skillId"`
@@ -3181,32 +3272,14 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params: skillId is required"}
 		}
 
-		installs, err := installsForProjectRoot(ctx, db, req.ProjectRoot)
+		sources, err := skillSourcesForBridge(ctx, db, installEngine, paths.DataRoot, req.ProjectRoot)
 		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
 		}
-
-		for _, inst := range installs {
-			if inst.ListingID != req.SkillID {
-				continue
-			}
-			treePath, err := installEngine.TreePath(inst.TreeDigest)
-			if err != nil {
-				return nil, &ipc.RPCError{
-					Code:    ipc.CodeInternalError,
-					Message: fmt.Sprintf("skill %s has an invalid CAS tree reference: %v", req.SkillID, err),
-				}
-			}
-			sp, err := skills.LoadSkillFromDirectory(treePath)
-			if err != nil {
-				return nil, &ipc.RPCError{
-					Code:    ipc.CodeInternalError,
-					Message: fmt.Sprintf("skill %s is installed but its SKILL.md could not be read: %v", req.SkillID, err),
-				}
-			}
+		if src := findBridgeSkillSource(sources, req.SkillID); src != nil {
 			return map[string]any{
 				"skillId":      req.SkillID,
-				"instructions": sp.Instructions,
+				"instructions": src.Pkg.Instructions,
 			}, nil
 		}
 
@@ -3216,10 +3289,12 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 		}
 	})
 
-	// 9. skills.read_resource reads a supporting file from skill CAS directory.
-	// Fail-closed like skills.load_body: every failure path returns a real RPC
-	// error (not-installed -> -32602, unreadable CAS/file -> -32603) instead of
-	// fabricating a resource body. The path-traversal guards are unchanged.
+	// 9. skills.read_resource reads a supporting file from the resolved skill
+	// directory (CAS, install path, deployment-ledger skill directory, or the
+	// skills ledger). Fail-closed like skills.load_body: every failure path
+	// returns a real RPC error (not-installed -> -32602, unreadable/file ->
+	// -32603) instead of fabricating a resource body. Path traversal, symlinked
+	// files/ancestors and resources over 8 MiB are refused.
 	// Scope handling matches skills.load_body: the user/project union, user
 	// first, with an unusable projectRoot narrowing to user scope only.
 	server.RegisterHandler("skills.read_resource", func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
@@ -3235,52 +3310,32 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: "invalid params: skillId is required"}
 		}
 
-		installs, err := installsForProjectRoot(ctx, db, req.ProjectRoot)
+		sources, err := skillSourcesForBridge(ctx, db, installEngine, paths.DataRoot, req.ProjectRoot)
 		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
 		}
-
-		for _, inst := range installs {
-			if inst.ListingID != req.SkillID {
-				continue
+		src := findBridgeSkillSource(sources, req.SkillID)
+		if src == nil {
+			return nil, &ipc.RPCError{
+				Code:    ipc.CodeInvalidParams,
+				Message: fmt.Sprintf("skill %s not found: not installed", req.SkillID),
 			}
-			treePath, err := installEngine.TreePath(inst.TreeDigest)
-			if err != nil {
-				return nil, &ipc.RPCError{
-					Code:    ipc.CodeInternalError,
-					Message: fmt.Sprintf("skill %s has an invalid CAS tree reference: %v", req.SkillID, err),
-				}
-			}
-			cleanRel := filepath.Clean(req.Path)
-			// IsLocal, not IsAbs: on Windows a path is only "absolute" when it
-			// carries a volume (`C:\…`), so `/etc/passwd` is rooted but NOT
-			// absolute and walked straight past an IsAbs check on Windows
-			// (it landed in the join below and failed as a missing file rather
-			// than being denied). IsLocal states the real contract — the path
-			// stays inside the tree — and covers rooted paths, ".." escapes,
-			// the empty path and Windows reserved names on every platform.
-			if !filepath.IsLocal(cleanRel) {
-				return nil, &ipc.RPCError{Code: -32602, Message: "path traversal denied"}
-			}
-			filePath := filepath.Join(treePath, cleanRel)
-			rel, err := filepath.Rel(treePath, filePath)
-			if err != nil || !filepath.IsLocal(rel) {
-				return nil, &ipc.RPCError{Code: -32602, Message: "path traversal denied"}
-			}
-			data, err := os.ReadFile(filePath)
-			if err != nil {
-				return nil, &ipc.RPCError{
-					Code:    ipc.CodeInternalError,
-					Message: fmt.Sprintf("skill %s resource %q could not be read: %v", req.SkillID, cleanRel, err),
-				}
-			}
-			return map[string]any{"content": string(data)}, nil
 		}
 
-		return nil, &ipc.RPCError{
-			Code:    ipc.CodeInvalidParams,
-			Message: fmt.Sprintf("skill %s not found: not installed", req.SkillID),
+		data, err := readSkillResource(src.Dir, req.Path)
+		if err != nil {
+			if errors.Is(err, errSkillPathTraversal) {
+				return nil, &ipc.RPCError{Code: -32602, Message: "path traversal denied"}
+			}
+			if errors.Is(err, errSkillResourceLarge) {
+				return nil, &ipc.RPCError{Code: -32602, Message: err.Error()}
+			}
+			return nil, &ipc.RPCError{
+				Code:    ipc.CodeInternalError,
+				Message: fmt.Sprintf("skill %s resource %q could not be read: %v", req.SkillID, req.Path, err),
+			}
 		}
+		return map[string]any{"content": string(data)}, nil
 	})
 
 	// 10. capabilities.search: not wired yet (canned results were removed).
@@ -3656,12 +3711,18 @@ func recordAudit(ctx context.Context, db *state.DB, actor, action, targetRef, de
 // the journal — including a per-operation recovery failure — is returned so
 // startup halts instead of proceeding on unreconciled state. The summary is
 // always printed first for observability.
-func runStartupRecovery(ctx context.Context, db *state.DB, stagingRoot string, treePath func(string) string) (state.RecoverySummary, error) {
+func runStartupRecovery(ctx context.Context, db *state.DB, stagingRoot, dataRoot string, treePath func(string) string) (state.RecoverySummary, error) {
 	summary, err := db.RecoverIncompleteOperations(ctx, stagingRoot, treePath)
 	fmt.Printf("[daemon] startup recovery: examined=%d rolledBack=%d committed=%d failed=%d\n",
 		summary.Examined, summary.RolledBack, summary.Committed, summary.Failed)
 	if err != nil {
 		return summary, fmt.Errorf("journal recovery could not complete: %w", err)
+	}
+	writeSummary, writeErr := lifecycle.RecoverOpenWrites(ctx, db, dataRoot)
+	fmt.Printf("[daemon] write journal recovery: examined=%d rolledBack=%d committed=%d failed=%d\n",
+		writeSummary.Examined, writeSummary.RolledBack, writeSummary.Committed, writeSummary.Failed)
+	if writeErr != nil {
+		return summary, fmt.Errorf("host/skill write journal recovery could not complete: %w", writeErr)
 	}
 	return summary, nil
 }

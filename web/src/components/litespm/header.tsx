@@ -12,6 +12,7 @@ import { formatFull } from "@/lib/litespm/format";
 import { Logo } from "./logo";
 
 const NAV: Array<{ label: string; hash: string; match: Route["view"][] }> = [
+  { label: "Marketplace", hash: "/marketplace", match: ["marketplace"] },
   { label: "Explore", hash: "/explore", match: ["explore", "package"] },
   { label: "Agents", hash: "/agents", match: ["agents", "agent"] },
   { label: "Insights", hash: "/insights", match: ["insights"] },

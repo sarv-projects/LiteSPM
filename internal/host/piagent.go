@@ -219,6 +219,7 @@ func (a *PiAgentAdapter) VerifySetup(ctx context.Context) (*HostVerification, er
 	return &HostVerification{
 		HostID:     "pi-agent",
 		ConfigPath: configPath,
+		Configured: configPath != "" && fileExists(configPath),
 		Registered: registered,
 		Status:     status,
 	}, nil

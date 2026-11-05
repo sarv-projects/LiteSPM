@@ -176,6 +176,7 @@ func (a *CodexAdapter) VerifySetup(ctx context.Context) (*HostVerification, erro
 	return &HostVerification{
 		HostID:     "codex",
 		ConfigPath: configPath,
+		Configured: configPath != "" && fileExists(configPath),
 		Registered: registered,
 		Status:     status,
 	}, nil

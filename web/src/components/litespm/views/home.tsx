@@ -126,7 +126,7 @@ export function HomeView() {
     {
       icon: Undo2,
       title: "Undo is a single command",
-      body: "Every write is previewed, backed up and recorded in a ledger. Run litespm restore <name> and your config rolls back byte-for-byte.",
+      body: "Every write is previewed, backed up and recorded in a ledger. Run litespm restore <installId> and your config rolls back byte-for-byte.",
     },
   ];
 
@@ -375,7 +375,7 @@ export function HomeView() {
               </div>
               <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Auto-Backup & 1-Command Undo</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                LiteSPM always backs up your agent&apos;s configuration before writing any change. If you ever want to rollback, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore</code> puts your file back to its exact previous bytes without touching manual edits.
+                LiteSPM always backs up your agent&apos;s configuration before writing any change. If you ever want to rollback, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore &lt;installId&gt;</code> puts your file back to its exact previous bytes without touching manual edits.
               </p>
             </motion.div>
 
@@ -784,8 +784,8 @@ export function HomeView() {
                 a: "LiteSPM operates on a zero-guesswork safety standard. To automatically inject an MCP server into your agent's config, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). For community packages that only publish a GitHub link or README without structured launch parameters, LiteSPM refuses to guess commands (such as guessing between npx, python, or uvx) that could break your agent. We index all ~69k community capabilities so you can find them and view their source code, but one-click automated setup is reserved for packages with verified launch details.",
               },
               {
-                q: "What does 'Publisher setup details needed' mean?",
-                a: "The tool author has published open-source code, but has not yet defined structured machine-readable launch instructions in their package metadata. The package detail page links directly to the author's official GitHub repository, where you can follow manual setup instructions from their README.",
+                q: "What does 'Discovery only' mean?",
+                a: "The catalog has the listing's metadata but no verified source or launch line LiteSPM can use. The detail page links only to the source the catalog recorded; it does not guess a repository.",
               },
               {
                 q: "How does LiteSPM install capabilities into my AI agent?",
@@ -797,11 +797,11 @@ export function HomeView() {
               },
               {
                 q: "How do plugins with host-specific extras work?",
-                a: "Plugins can bundle both portable components (universal MCP servers and agent skills) and host-specific extras (such as IDE commands, editor hooks, or subagents). LiteSPM installs all portable servers and skills into any supported agent. If a plugin contains editor extras that cannot run universally, you can install its portable components with: litespm install <id> --allow-partial.",
+                a: "Plugins can bundle both portable components (universal MCP servers and agent skills) and host-specific extras (such as IDE commands, editor hooks, or subagents). LiteSPM installs all portable servers and skills into any supported agent. If a plugin contains editor extras that cannot run universally, you can install its portable components with: litespm install <id> --allow-partial. The source must still be commit-pinned; the flag does not bypass pinning.",
               },
               {
                 q: "Which AI coding agents are supported?",
-                a: "LiteSPM supports 50 agent hosts for MCP servers (including Cursor, Claude Code, Cline, OpenAI Codex, OpenCode, Grok Build, Gemini CLI, and GitHub Copilot) and 81 targets for skills, covering terminal, IDE, and desktop environments.",
+                a: "LiteSPM supports 50 agent hosts for local stdio MCP servers (including Cursor, Claude Code, Cline, OpenAI Codex, OpenCode, Grok Build, Gemini CLI, and GitHub Copilot) and 81 targets for skills, covering terminal, IDE, and desktop environments. 46 hosts also document a native remote (URL) entry; four support local stdio only and refuse a remote install.",
               },
             ].map((item) => (
               <details

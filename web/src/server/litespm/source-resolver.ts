@@ -33,8 +33,26 @@ export function resolveOriginalSource(row: Listing): ResolvedSource {
   let owner: string | null = null;
   let repoName: string | null = null;
 
+  // 0. A repository the catalogue actually recorded. The MCP Registry
+  // publishes repository.url in server.json; using it is evidence, whereas
+  // reconstructing owner/repo from a canonicalized listing id is a guess.
+  if (
+    row.repository &&
+    (row.repository.includes("github.com") ||
+      row.repository.includes("gitlab.com") ||
+      row.repository.includes("bitbucket.org"))
+  ) {
+    repoUrl = row.repository.replace(/\.git$/, "");
+    const m = repoUrl.match(/(?:github|gitlab|bitbucket)\.(?:com|org)\/([^\/]+)(?:\/([^\/#?]+))?/);
+    if (m) {
+      owner = m[1];
+      repoName = m[2];
+    }
+  }
+
   // 1. Direct artifact repo
   if (
+    !repoUrl &&
     row.artifact?.repo &&
     (row.artifact.repo.includes("github.com") ||
       row.artifact.repo.includes("gitlab.com") ||
@@ -108,30 +126,53 @@ export function resolveOriginalSource(row: Listing): ResolvedSource {
   }
 
   // 6. io.github.<owner>-<repo> in id
-  const ioGithubMatch = (row.id || "").match(/io\.github\.([a-zA-Z0-9_\-]+?)-([a-zA-Z0-9_\-]+)/);
-  if (ioGithubMatch) {
-    if (!owner) owner = ioGithubMatch[1];
-    if (!repoUrl) {
-      repoUrl = `https://github.com/${ioGithubMatch[1]}/${ioGithubMatch[2]}`;
+  //
+  // The listing id canonicalizes the registry name
+  // (`io.github.<owner>/<repo>`) by replacing `/` with `-`, so the boundary
+  // between owner and repo is gone. Splitting at the first hyphen misreads
+  // every owner that contains one: `BoxLab-Ltd/yandex-webmaster-mcp` becomes
+  // `BoxLab/Ltd-yandex-webmaster-mcp`, a repository that does not exist.
+  // The publisher name is the owner, so split there when it prefixes the
+  // suffix; otherwise keep the first-hyphen fallback.
+  const ioGithubId = (row.id || "").match(/io\.github\.(.+)$/);
+  if (ioGithubId) {
+    const suffix = ioGithubId[1];
+    const publisherName = row.publisher?.name ?? "";
+    let repoOwner: string | null = null;
+    let repoName: string | null = null;
+    if (publisherName && suffix.startsWith(`${publisherName}-`)) {
+      repoOwner = publisherName;
+      repoName = suffix.slice(publisherName.length + 1);
+    } else {
+      const split = suffix.match(/^([a-zA-Z0-9_\-]+?)-([a-zA-Z0-9_\-]+)$/);
+      if (split) {
+        repoOwner = split[1];
+        repoName = split[2];
+      }
     }
-    if (!cleanPublisherUrl || isAggregator(cleanPublisherUrl)) {
-      cleanPublisherUrl = `https://github.com/${ioGithubMatch[1]}`;
+    if (repoOwner && repoName) {
+      if (!owner) owner = repoOwner;
+      if (!repoUrl) repoUrl = `https://github.com/${repoOwner}/${repoName}`;
+      if (!cleanPublisherUrl || isAggregator(cleanPublisherUrl)) {
+        cleanPublisherUrl = `https://github.com/${repoOwner}`;
+      }
     }
   }
 
-  // 7. Check if publisher.url or url is a github repo
+  // 7. Check if publisher.url or url is a github repo. A profile URL
+  // (`github.com/<owner>`) is not a repository: it has one path segment and
+  // must not become a "View source" link.
   if (!repoUrl) {
-    if (row.publisher?.url && row.publisher.url.includes("github.com")) {
-      repoUrl = row.publisher.url;
-    } else if (row.url && row.url.includes("github.com")) {
-      repoUrl = row.url;
+    const candidate = row.publisher?.url || row.url;
+    if (candidate && /github\.com\/[^/]+\/[^/#?]+/.test(candidate)) {
+      repoUrl = candidate;
     }
   }
 
-  // 8. General gitlab / bitbucket check
+  // 8. General gitlab / bitbucket check, with the same owner/repo shape.
   if (!repoUrl) {
     for (const f of [row.artifact?.repo, row.skillSource, row.publisher?.url, row.url]) {
-      if (f && (f.includes("gitlab.com") || f.includes("bitbucket.org"))) {
+      if (f && /(?:gitlab\.com|bitbucket\.org)\/[^/]+\/[^/#?]+/.test(f)) {
         repoUrl = f;
         break;
       }

@@ -225,8 +225,12 @@ func (w *Wizard) printConfiguredSummary(configured []host.HostVerification) {
 // cancelled reports that the user chose to stop. A failed plan or write is
 // reported and returns cancelled=false: the action menu that follows is where
 // the user can retry or print the manual snippet.
+//
+// The TUI path is a multi-select: a person who uses several agents can connect
+// them in one pass, and every selected host still gets its own preview and
+// approval. Nothing is written until each host's file is confirmed.
 func (w *Wizard) runSetup(ctx context.Context) (bool, error) {
-	adapter, err := w.promptAgentSelection(ctx)
+	adapters, err := w.promptAgentSelectionMany(ctx)
 	if err != nil {
 		if errors.Is(err, errSetupSkipped) {
 			fmt.Fprintln(w.out, "Agent connection skipped. You can set it up later from the manager menu.")
@@ -234,25 +238,37 @@ func (w *Wizard) runSetup(ctx context.Context) (bool, error) {
 		}
 		return false, err
 	}
-	if adapter == nil {
+	if len(adapters) == 0 {
 		return true, nil
 	}
 
-	configPath, ok, err := w.resolveAgentConfig(ctx, adapter)
-	if err != nil {
-		return false, err
-	}
-	if !ok {
-		return true, nil
-	}
-
-	if err := w.applyAgentIntegration(ctx, adapter, configPath); err != nil {
-		if errors.Is(err, errInputEnded) {
+	configured := 0
+	attempted := 0
+	for _, adapter := range adapters {
+		configPath, ok, err := w.resolveAgentConfig(ctx, adapter)
+		if err != nil {
 			return false, err
 		}
-		fmt.Fprintf(w.out, "\nSetup did not finish: %v\n", err)
-		fmt.Fprintln(w.out, "Nothing was written to a file you did not name.")
-		return false, nil
+		if !ok {
+			continue
+		}
+		attempted++
+		if err := w.applyAgentIntegration(ctx, adapter, configPath); err != nil {
+			if errors.Is(err, errInputEnded) {
+				return false, err
+			}
+			fmt.Fprintf(w.out, "\nSetup did not finish for %s: %v\n", adapter.Descriptor().DisplayName, err)
+			fmt.Fprintln(w.out, "Nothing was written to a file you did not name.")
+			continue
+		}
+		configured++
+	}
+
+	if configured > 0 {
+		fmt.Fprintf(w.out, "\nConnected %d of %d selected agent(s).\n", configured, len(adapters))
+	}
+	if configured == 0 && attempted == 0 {
+		return true, nil
 	}
 	return false, nil
 }
@@ -296,6 +312,27 @@ func (w *Wizard) agentMenuRows(ctx context.Context) []agentMenuRow {
 	return rows
 }
 
+// promptAgentSelectionMany is the setup path: the TUI can select several
+// agents in one pass, while a plain line-based terminal keeps the original
+// one-at-a-time flow. It returns an empty slice when the person chose to stop.
+func (w *Wizard) promptAgentSelectionMany(ctx context.Context) ([]host.HostAdapter, error) {
+	rows := w.agentMenuRows(ctx)
+	var detected []agentMenuRow
+	for _, r := range rows {
+		if r.exists {
+			detected = append(detected, r)
+		}
+	}
+	if terminalUIAvailable(w.in, w.out) {
+		return w.promptAgentMultiSelectTUI(rows, detected)
+	}
+	adapter, err := w.promptAgentSelectionText(rows, detected)
+	if err != nil || adapter == nil {
+		return nil, err
+	}
+	return []host.HostAdapter{adapter}, nil
+}
+
 // promptAgentSelection shows the agents detected on this machine first, with
 // an explicit way to see every supported agent. No row names a config file the
 // adapter itself did not resolve.
@@ -308,9 +345,16 @@ func (w *Wizard) promptAgentSelection(ctx context.Context) (host.HostAdapter, er
 		}
 	}
 	if terminalUIAvailable(w.in, w.out) {
-		return w.promptAgentSelectionTUI(rows, detected)
+		adapters, err := w.promptAgentMultiSelectTUI(rows, detected)
+		if err != nil || len(adapters) == 0 {
+			return nil, err
+		}
+		return adapters[0], nil
 	}
+	return w.promptAgentSelectionText(rows, detected)
+}
 
+func (w *Wizard) promptAgentSelectionText(rows, detected []agentMenuRow) (host.HostAdapter, error) {
 	fmt.Fprintln(w.out, "Which AI coding agent do you use?")
 	fmt.Fprintln(w.out, "")
 	if len(detected) > 0 {
@@ -367,64 +411,49 @@ func (w *Wizard) promptAgentSelection(ctx context.Context) (host.HostAdapter, er
 	}
 }
 
-func (w *Wizard) promptAgentSelectionTUI(rows, detected []agentMenuRow) (host.HostAdapter, error) {
-	options := make([]huh.Option[string], 0, len(detected)+3)
-	for _, row := range detected {
-		label := row.descriptor.DisplayName + "  ·  detected  ·  " + truncate(row.configPath, 48)
+func (w *Wizard) promptAgentMultiSelectTUI(rows, detected []agentMenuRow) ([]host.HostAdapter, error) {
+	options := make([]huh.Option[string], 0, len(rows))
+	selected := make([]string, 0, len(detected))
+	for _, row := range rows {
+		label := row.descriptor.DisplayName
+		if row.exists {
+			label += "  " + renderStatusPill("detected") + "  " + truncate(row.configPath, 48)
+			selected = append(selected, row.descriptor.HostID)
+		} else if row.configPath != "" {
+			label += "  " + renderStatusPill("not configured") + "  " + truncate(row.configPath, 48)
+		} else {
+			label += "  " + renderStatusPill("no config path")
+		}
 		options = append(options, huh.NewOption(label, row.descriptor.HostID))
 	}
-	if len(detected) == 0 {
-		options = append(options, huh.NewOption(fmt.Sprintf("Choose from %d supported agents…", len(rows)), "__all__"))
-	} else if len(rows) > len(detected) {
-		options = append(options, huh.NewOption(fmt.Sprintf("Browse all %d supported agents…", len(rows)), "__all__"))
-	}
-	options = append(options,
-		huh.NewOption("Continue without connecting an agent", "__skip__"),
-		huh.NewOption("Quit setup", "__quit__"),
-	)
-	choice := ""
-	field := huh.NewSelect[string]().
-		Title("Connect an AI coding agent").
-		Description("Detected configurations appear first. LiteSPM previews and backs up the exact file before writing.").
+
+	field := huh.NewMultiSelect[string]().
+		Title("Connect AI coding agents").
+		Description("Space toggles, / filters, Enter applies. Detected configurations are preselected; each host is previewed and backed up separately.").
 		Options(options...).
-		Value(&choice).
-		WithHeight(12)
+		Value(&selected).
+		Filterable(true).
+		Limit(len(rows)).
+		WithHeight(16)
 	if err := runTerminalForm(w.in, w.out, field); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	switch choice {
-	case "__skip__":
-		return nil, errSetupSkipped
-	case "__quit__", "":
+	if len(selected) == 0 {
 		return nil, nil
-	case "__all__":
-		all := make([]huh.Option[string], 0, len(rows))
-		for _, row := range rows {
-			label := row.descriptor.DisplayName
-			if row.exists {
-				label += "  ·  detected  ·  " + truncate(row.configPath, 48)
-			}
-			all = append(all, huh.NewOption(label, row.descriptor.HostID))
-		}
-		selected := ""
-		picker := huh.NewSelect[string]().
-			Title("Choose an agent").
-			Description("Type / to filter the list; press Enter to continue.").
-			Options(all...).
-			Value(&selected).
-			WithHeight(16)
-		if err := runTerminalForm(w.in, w.out, picker); err != nil {
-			if errors.Is(err, huh.ErrUserAborted) {
-				return nil, nil
-			}
-			return nil, err
-		}
-		choice = selected
 	}
-	return host.GetAdapter(choice)
+
+	adapters := make([]host.HostAdapter, 0, len(selected))
+	for _, id := range selected {
+		adapter, err := host.GetAdapter(id)
+		if err != nil {
+			return nil, fmt.Errorf("selected agent %q is not a registered host: %w", id, err)
+		}
+		adapters = append(adapters, adapter)
+	}
+	return adapters, nil
 }
 
 func (w *Wizard) printAgentRows(rows []agentMenuRow) {
@@ -557,11 +586,15 @@ func (w *Wizard) applyAgentIntegration(ctx context.Context, adapter host.HostAda
 
 	fmt.Fprintf(w.out, "\nAbout to make one change to %s:\n\n", plan.ConfigPath)
 	preview, hidden := changePreview(plan.OriginalContent, plan.ProposedContent, 40)
-	for _, l := range preview {
-		fmt.Fprintln(w.out, "  "+l)
-	}
-	if hidden > 0 {
-		fmt.Fprintf(w.out, "  … and %d more changed line(s)\n", hidden)
+	if terminalUIAvailable(w.in, w.out) {
+		fmt.Fprintln(w.out, renderDiffPreview(preview, hidden))
+	} else {
+		for _, l := range preview {
+			fmt.Fprintln(w.out, "  "+l)
+		}
+		if hidden > 0 {
+			fmt.Fprintf(w.out, "  … and %d more changed line(s)\n", hidden)
+		}
 	}
 	fmt.Fprintln(w.out, "\nEverything else in the file is left as it is.")
 	fmt.Fprint(w.out, "Write this change? [Y/n]: ")
@@ -702,6 +735,7 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 					huh.NewOption("View installed capabilities", "4"),
 					huh.NewOption("Connect or repair an agent", "5"),
 					huh.NewOption("Install a skill  ·  GitHub, URL, or local folder", "6"),
+					huh.NewOption("Open the browser marketplace  ·  Skills, Plugins, MCP, Installed", "7"),
 					huh.NewOption("Finish", "q"),
 				).
 				Value(&choice).
@@ -725,8 +759,9 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 			fmt.Fprintln(w.out, "  [4] See what is installed")
 			fmt.Fprintln(w.out, "  [5] Set up or repair an agent connection")
 			fmt.Fprintln(w.out, "  [6] Install skills from GitHub, a URL, or a folder")
+			fmt.Fprintln(w.out, "  [7] Open the browser marketplace (Skills, Plugins, MCP, Installed)")
 			fmt.Fprintln(w.out, "  [q] Finish")
-			fmt.Fprint(w.out, "Enter choice [1-6, q]: ")
+			fmt.Fprint(w.out, "Enter choice [1-7, q]: ")
 			var err error
 			choice, err = w.readLine()
 			if err != nil {
@@ -752,15 +787,31 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 			_, actionErr = w.runSetup(ctx)
 		case "6":
 			actionErr = w.actionInstallSkillFromSource(ctx)
+		case "7":
+			actionErr = w.actionOpenMarketplace()
 		case "q", "Q":
 			return nil
 		default:
-			fmt.Fprintln(w.out, "Please enter 1, 2, 3, 4, 5, 6 or q.")
+			fmt.Fprintln(w.out, "Please enter 1, 2, 3, 4, 5, 6, 7 or q.")
 		}
 		if actionErr != nil {
 			return actionErr
 		}
 	}
+}
+
+// actionOpenMarketplace is the wizard's door to the browser surface. It opens
+// the same four-tab page `litespm marketplace` does and never blocks the menu:
+// a machine with no browser still gets the URL printed.
+func (w *Wizard) actionOpenMarketplace() error {
+	target := marketplaceURL()
+	fmt.Fprintf(w.out, "\nOpening the LiteSPM marketplace:\n  %s\n", target)
+	if err := openBrowser(target); err != nil {
+		fmt.Fprintf(w.out, "Could not open a browser automatically: %v\nOpen the URL above in your browser.\n", err)
+		return nil
+	}
+	fmt.Fprintln(w.out, "Opened in your default browser. The Installed tab reads this machine's ledger when the page is served locally.")
+	return nil
 }
 
 // actionInstallSkillFromSource opens the same interactive source installer
@@ -907,6 +958,95 @@ func (w *Wizard) actionSyncCatalog(ctx context.Context) error {
 	return nil
 }
 
+// pickCatalogResult is the shared result picker for the wizard. On a terminal
+// it is a filterable list (type "/" and the label text narrows the rows, as the
+// reference `skills` CLI does) with a detail block after selection. On a pipe
+// or a dumb terminal it keeps the numbered prompt, so scripted tests and
+// accessibility tools see the same catalog without needing a TTY.
+func (w *Wizard) pickCatalogResult(results []*catalog.SearchResult, query string) (*domain.Listing, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		options := make([]huh.Option[string], 0, len(results)+1)
+		options = append(options, huh.NewOption("← Back to the menu", ""))
+		for _, res := range results {
+			l := res.Listing
+			if l == nil {
+				continue
+			}
+			label := fmt.Sprintf("%-10s  %-34s  %s", kindLabel(l.Kind), truncate(l.Name, 34), truncate(l.Summary, 62))
+			if !l.IsInstallable() {
+				label += "  (discovery only)"
+			}
+			options = append(options, huh.NewOption(label, l.ID))
+		}
+
+		chosen := ""
+		field := huh.NewSelect[string]().
+			Title(fmt.Sprintf("%d capabilities match %q", len(results), query)).
+			Description("Type / to filter by name, kind or publisher · Enter selects · Esc goes back.").
+			Options(options...).
+			Value(&chosen).
+			Height(16)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		if chosen == "" {
+			return nil, nil
+		}
+		for _, res := range results {
+			if res.Listing != nil && res.Listing.ID == chosen {
+				w.printListingDetail(res.Listing)
+				return res.Listing, nil
+			}
+		}
+		return nil, fmt.Errorf("the selected listing %q is no longer in the result set", chosen)
+	}
+
+	fmt.Fprintf(w.out, "\nFound %d capabilities matching %q:\n\n", len(results), query)
+	for i, res := range results {
+		l := res.Listing
+		if l == nil {
+			continue
+		}
+		fmt.Fprintf(w.out, "  [%d] %-30s %-11s %s\n", i+1, truncate(l.Name, 30), kindLabel(l.Kind), truncate(l.Summary, 60))
+		fmt.Fprintf(w.out, "      id: %s\n", l.ID)
+	}
+	fmt.Fprint(w.out, "\nEnter the number to install (or press Enter to go back): ")
+	line, err := w.readLine()
+	if err != nil {
+		return nil, err
+	}
+	if line == "" {
+		return nil, nil
+	}
+	n, nerr := strconv.Atoi(line)
+	if nerr != nil || n < 1 || n > len(results) || results[n-1].Listing == nil {
+		fmt.Fprintln(w.out, "That is not one of the numbers shown.")
+		return nil, nil
+	}
+	return results[n-1].Listing, nil
+}
+
+// printListingDetail is the preview shown before any install question. It
+// prints recorded fields only; a transport or launch line the catalog does not
+// carry is not guessed here.
+func (w *Wizard) printListingDetail(l *domain.Listing) {
+	fmt.Fprintf(w.out, "\n%s  %s\n", renderStatusPill(kindLabel(l.Kind)), l.Name)
+	fmt.Fprintf(w.out, "  id:         %s\n", l.ID)
+	if l.PublisherClaim.Name != "" {
+		fmt.Fprintf(w.out, "  publisher:  %s\n", l.PublisherClaim.Name)
+	}
+	fmt.Fprintf(w.out, "  provenance: %s\n", l.Installability.Effective())
+	if l.Summary != "" {
+		fmt.Fprintf(w.out, "  summary:    %s\n", l.Summary)
+	}
+	if !l.IsInstallable() {
+		fmt.Fprintln(w.out, "  note:       catalog metadata only — this row has no verified source or launch line.")
+	}
+}
+
 // actionFindAndInstall searches the local catalog, shows the matches, and
 // installs the chosen one through the SAME gate the CLI uses:
 // authorizeHumanInstall (plan + human approval + policy) and then
@@ -934,26 +1074,13 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		fmt.Fprintf(w.out, "Nothing in the catalog matches %q.\n", query)
 		return nil
 	}
-	fmt.Fprintf(w.out, "\nFound %d capabilities matching %q:\n\n", len(results), query)
-	for i, res := range results {
-		l := res.Listing
-		fmt.Fprintf(w.out, "  [%d] %-30s %-11s %s\n", i+1, truncate(l.Name, 30), kindLabel(l.Kind), truncate(l.Summary, 60))
-		fmt.Fprintf(w.out, "      id: %s\n", l.ID)
-	}
-	fmt.Fprint(w.out, "\nEnter the number to install (or press Enter to go back): ")
-	line, err := w.readLine()
+	listing, err := w.pickCatalogResult(results, query)
 	if err != nil {
 		return err
 	}
-	if line == "" {
+	if listing == nil {
 		return nil
 	}
-	n, nerr := strconv.Atoi(line)
-	if nerr != nil || n < 1 || n > len(results) {
-		fmt.Fprintln(w.out, "That is not one of the numbers shown.")
-		return nil
-	}
-	listing := results[n-1].Listing
 	// Kind gate first: a plugin is refused before the scope and consent
 	// questions, because the install cannot be performed whatever the answers
 	// would be — asking first and refusing after is a question that was never

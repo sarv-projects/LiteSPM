@@ -114,9 +114,10 @@ export function AgentsView() {
               Choose your <span className="text-brand">agent.</span>
             </h1>
             <p className="mt-5 max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]">
-              LiteSPM writes each agent&apos;s own config — 50 hosts for MCP servers, 81 targets for
-              skills. Choose the agent you use, then browse packages with clear setup details. Each
-              profile includes sourced product facts and the exact config file it touches.
+              LiteSPM writes each agent&apos;s own config — 50 hosts for local stdio MCP servers
+              (46 of them also accept a remote URL), 81 targets for skills. Choose the agent you use,
+              then browse packages with clear setup details. Each profile includes sourced product
+              facts and the exact config file it touches.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Button

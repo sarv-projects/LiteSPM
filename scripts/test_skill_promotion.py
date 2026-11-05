@@ -24,8 +24,9 @@ Six groups of checks:
                            tables in internal/skills/source_test.go and
                            source_tree_test.go, including their rejections;
   (v)    A3             -- a single-skill marketplace bundle emits BOTH the
-                           plugin row and its skill row under distinct slugs,
-                           and skills.sh content never promotes a row;
+                           plugin row and its skill row under distinct slugs;
+                           skills.sh content without a resolved git tree never
+                           promotes a row;
   (vi)   evidence kept  -- a skills.sh id another feed already published
                            enriches that row instead of being dropped, a
                            200-verified probe replays from its recording on a
@@ -976,6 +977,28 @@ def main():
            "snapshot replay emitted duplicate skills.sh rows")
         ok(SKILLSH_NEW_URL not in requested2,
            "snapshot replay re-fetched the already recorded skill")
+
+    # A skills.sh page is only promoted when the resolver index names the
+    # same repository the page's install command advertises.
+    page = (b'<code>npx skills add https://github.com/acme/skills '
+            b'--skill tree-ok</code>')
+    ok(producer.skills_sh_install_command(page)
+       == ("https://github.com/acme/skills", "tree-ok"),
+       "skills.sh install command was not parsed")
+    ok(producer.skills_sh_resolved_source("skill:acme:tree-ok", page, {}) is None,
+       "a page with no resolved index entry was promoted")
+    source = "https://github.com/acme/skills/tree/HEAD/skills/tree-ok"
+    index = {"skill:acme:tree-ok": {
+        "repo": "https://github.com/acme/skills",
+        "skill": "tree-ok",
+        "source": source,
+    }}
+    ok(producer.skills_sh_resolved_source("skill:acme:tree-ok", page, index)
+       == source, "a matching resolved index entry was not applied")
+    moved = {"skill:acme:tree-ok": dict(index["skill:acme:tree-ok"],
+                                       repo="https://github.com/other/skills")}
+    ok(producer.skills_sh_resolved_source("skill:acme:tree-ok", page, moved)
+       is None, "a page that moved repositories inherited the old tree")
 
     print(f"SKILL PROMOTION TEST OK ({checks} checks)")
     return 0

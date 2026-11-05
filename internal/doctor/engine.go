@@ -341,11 +341,34 @@ func (e *Engine) checkOperationJournal(ctx context.Context) CheckResult {
 		}
 	}
 
+	var openWrites int
+	if err := e.db.Raw().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM write_journal WHERE state = 'open';`).Scan(&openWrites); err != nil {
+		return CheckResult{
+			ID:             "check_journal",
+			Name:           "Incomplete Operation Journal",
+			Status:         StatusFail,
+			Message:        fmt.Sprintf("failed to query the host/skill write journal: %v", err),
+			Recommendation: "Run litespm doctor --repair or inspect state.db manually.",
+		}
+	}
+	if openWrites > 0 {
+		return CheckResult{
+			ID:      "check_journal",
+			Name:    "Incomplete Operation Journal",
+			Status:  StatusWarn,
+			Message: fmt.Sprintf("%d host/skill write journal(s) are still open", openWrites),
+			Details: map[string]any{"openWriteJournals": openWrites},
+			Recommendation: "Start the daemon so startup recovery can restore them, or inspect the " +
+				"write_journal and write_journal_steps tables before retrying.",
+		}
+	}
+
 	return CheckResult{
 		ID:      "check_journal",
 		Name:    "Incomplete Operation Journal",
 		Status:  StatusPass,
-		Message: "no non-terminal operations in the journal",
+		Message: "no non-terminal operations or open host/skill write journals",
 	}
 }
 

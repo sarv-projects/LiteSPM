@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/sarv-projects/litespm/internal/domain"
@@ -52,8 +53,17 @@ type HostApplyResult struct {
 type HostVerification struct {
 	HostID     string `json:"hostId"`
 	ConfigPath string `json:"configPath"`
-	Registered bool   `json:"registered"`
-	Status     string `json:"status"` // ready | missing | corrupted
+	Configured bool   `json:"configured"` // true if the agent config file actually exists on disk
+	Registered bool   `json:"registered"` // true if LiteSPM bridge is wired into that config
+	Status     string `json:"status"`     // ready | missing | corrupted
+}
+
+func fileExists(p string) bool {
+	if p == "" {
+		return false
+	}
+	info, err := os.Stat(p)
+	return err == nil && !info.IsDir()
 }
 
 // HostAdapter defines the contract for interacting with an agent host environment.

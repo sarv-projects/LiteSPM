@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sarv-projects/litespm/internal/domain"
 	"github.com/sarv-projects/litespm/internal/state"
@@ -507,14 +508,19 @@ func (e *Engine) checkCapabilityGrant(ctx context.Context, input PolicyInput) (P
 		return PolicyDecision{}, false
 	}
 
-	// Query active capability grants for this capability ID
+	// Query active capability grants for this capability ID. The expiry
+	// comparison is parameterized with the same fixed-width UTC layout the
+	// state package writes; CURRENT_TIMESTAMP has only second precision, so a
+	// grant could otherwise stay active for up to a second past its expiry.
+	const grantTimeLayout = "2006-01-02 15:04:05.000000000"
 	query := `
 	SELECT grant_id, schema_fingerprint, cas_tree_digest, endpoint_origin, server_version_digest, status
 	FROM capability_grants
 	WHERE capability_id = ? AND status = 'active'
-	  AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP);`
+	  AND (expires_at IS NULL OR expires_at > ?);`
 
-	rows, err := e.db.Raw().QueryContext(ctx, query, input.CapabilityID)
+	rows, err := e.db.Raw().QueryContext(ctx, query, input.CapabilityID,
+		time.Now().UTC().Format(grantTimeLayout))
 	if err != nil || rows == nil {
 		// The grant tier could not be evaluated. Skipping it silently fails
 		// OPEN: a database that cannot answer its own grant table would turn

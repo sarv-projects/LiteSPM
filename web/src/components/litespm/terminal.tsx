@@ -64,7 +64,7 @@ const SCENARIOS: Record<
     title: "Safe Rollback",
     description: "Byte-exact rollback to pre-install state with single undo command",
     lines: [
-      { kind: "cmd", text: "litespm restore neon --agent claude-code", delay: 350 },
+      { kind: "cmd", text: "litespm restore inst_user_mcp:neon:neon", delay: 350 },
       { kind: "dim", text: "  Reading ledger record for neon on claude-code...", delay: 260 },
       { kind: "dim", text: "  plan    revert ~/.claude.json to pre-install image", delay: 240 },
       { kind: "dim", text: "  verify  sha256 digest matches recorded pre-image (8f3a921c...)", delay: 260 },

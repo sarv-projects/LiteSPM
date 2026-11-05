@@ -238,6 +238,7 @@ func (a *OpenCodeAdapter) VerifySetup(ctx context.Context) (*HostVerification, e
 	return &HostVerification{
 		HostID:     "opencode",
 		ConfigPath: configPath,
+		Configured: configPath != "" && fileExists(configPath),
 		Registered: registered,
 		Status:     status,
 	}, nil

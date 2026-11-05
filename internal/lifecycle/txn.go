@@ -38,6 +38,11 @@ type InstallTxn struct {
 	// undos run in reverse registration order (LIFO), so each compensation
 	// restores the machine to the state immediately before its write.
 	undos []func(context.Context) error
+	// journal is the durable write-ahead record for filesystem writes. When a
+	// handled failure rolls every compensation back successfully, the journal
+	// is marked rolled_back so startup recovery does not try to restore the
+	// same files a second time. A kill leaves it open, which is the point.
+	journal *Journal
 	// committed is set once the state rows are durable; after that, rollback
 	// must not run (it would undo a committed install).
 	committed bool
@@ -57,6 +62,16 @@ func BeginInstall(ctx context.Context) *InstallTxn {
 // Ctx is the context the transaction was bound to, for compensations that
 // need one.
 func (t *InstallTxn) Ctx() context.Context { return t.ctx }
+
+// AttachJournal binds the durable write journal to this transaction. A
+// successful in-memory rollback marks the journal rolled_back; a crash leaves
+// it open for startup recovery.
+func (t *InstallTxn) AttachJournal(j *Journal) {
+	if t == nil || t.finished {
+		return
+	}
+	t.journal = j
+}
 
 // Undo registers a compensation for a write that has already happened. It
 // must be called immediately after the write succeeds, before the next write
@@ -104,6 +119,12 @@ func (t *InstallTxn) Rollback() error {
 		}
 	}
 	t.undos = nil
+	if len(errs) == 0 && t.journal != nil {
+		// Every compensation succeeded, so the files are back at their
+		// pre-write state. Mark the journal so startup does not attempt a
+		// second restore and report a false failure.
+		_ = t.journal.Abort(t.ctx)
+	}
 	return errors.Join(errs...)
 }
 

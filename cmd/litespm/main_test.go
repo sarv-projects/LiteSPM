@@ -105,6 +105,13 @@ func newHarnessWithCatalog(t *testing.T, extra []*domain.Listing, extraRecords [
 func newHarnessFull(t *testing.T, extra []*domain.Listing, extraRecords []*domain.VersionRecord, beforeRegister func(paths *config.PlatformPaths)) *harness {
 	t.Helper()
 	tempDir := t.TempDir()
+	// Host detection reads the platform environment. Crush resolves its
+	// Windows user-global file through %LOCALAPPDATA%, not %HOME%; isolate that
+	// one variable so a real bridge in the developer's profile cannot appear
+	// as a registered host in a hermetic handler test. The other variables are
+	// left alone because the skill-target tests intentionally use the machine's
+	// detected agent directories.
+	t.Setenv("LOCALAPPDATA", filepath.Join(tempDir, "AppData", "Local"))
 	paths := &config.PlatformPaths{
 		ConfigRoot:  filepath.Join(tempDir, "config"),
 		DataRoot:    filepath.Join(tempDir, "data"),
@@ -439,6 +446,16 @@ func TestInstallExecute_ErrorMapping(t *testing.T) {
 	})
 
 	t.Run("MCP plan without configured hosts fails closed", func(t *testing.T) {
+		// This case is about the absence of a registered bridge host. Isolate
+		// host detection from the developer's real profile, which may carry a
+		// bridge for OpenCode, Crush, or another agent.
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("USERPROFILE", home)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+		t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+		t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+
 		var plan domain.InstallPlan
 		if err := h.client.Call(ctx, "resolver.prepare_plan", map[string]any{"id": testListingID, "version": "1.0.0"}, &plan); err != nil {
 			t.Fatalf("prepare_plan failed: %v", err)
@@ -927,7 +944,7 @@ func TestRunStartupRecovery_ReportsTruthfully(t *testing.T) {
 		t.Fatalf("SaveInstall failed: %v", err)
 	}
 
-	summary, err := runStartupRecovery(ctx, db, paths.StagingPath(), func(string) string { return "" })
+	summary, err := runStartupRecovery(ctx, db, paths.StagingPath(), paths.DataRoot, func(string) string { return "" })
 	if err != nil {
 		t.Fatalf("runStartupRecovery failed: %v", err)
 	}
@@ -942,7 +959,7 @@ func TestRunStartupRecovery_ReportsTruthfully(t *testing.T) {
 	}
 
 	// A second sweep has nothing left to do.
-	summary, err = runStartupRecovery(ctx, db, paths.StagingPath(), nil)
+	summary, err = runStartupRecovery(ctx, db, paths.StagingPath(), paths.DataRoot, nil)
 	if err != nil {
 		t.Fatalf("second recovery failed: %v", err)
 	}
@@ -1152,7 +1169,7 @@ func TestStartupRecoveryHaltsOnFailedOperation(t *testing.T) {
 		t.Fatalf("failed to create staging blocker file: %v", err)
 	}
 
-	summary, err := runStartupRecovery(ctx, db, notADir, nil)
+	summary, err := runStartupRecovery(ctx, db, notADir, paths.DataRoot, nil)
 	if err == nil {
 		t.Fatalf("startup recovery swallowed a failed operation (summary %+v)", summary)
 	}

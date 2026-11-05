@@ -201,6 +201,13 @@ func installSkillFromListing(
 	txn := lifecycle.BeginInstall(ctx)
 	defer txn.RollbackUnlessCommitted()
 
+	journal, journalErr := lifecycle.BeginJournal(ctx, db,
+		fmt.Sprintf("pending:%s:%s", listing.ID, safeInstallIDPart(version)))
+	if journalErr != nil {
+		return nil, journalErr
+	}
+	txn.AttachJournal(journal)
+
 	outcome := &skillInstallOutcome{
 		ListingID: listing.ID,
 		Version:   version,
@@ -222,6 +229,10 @@ func installSkillFromListing(
 		outcome.Destinations = append(outcome.Destinations, entry.DestDir)
 		written := entry
 		txn.Undo(func(ctx context.Context) error { return undoSkillInstall(ledger, written) })
+		if err := journal.RecordSkillWrite(ctx, entry.DestDir, entry.PreImageBackup,
+			entry.PreImageDigest != "" || entry.PreImageBackup != "", entry.ContentDigest); err != nil {
+			return nil, errors.Join(err, txn.Rollback())
+		}
 	}
 	if len(outcome.LedgerEntries) > 0 {
 		last := outcome.LedgerEntries[len(outcome.LedgerEntries)-1]
@@ -232,6 +243,9 @@ func installSkillFromListing(
 
 	now := time.Now().UTC()
 	outcome.InstallID = fmt.Sprintf("inst_%s_%s_%s", scope, safeInstallIDPart(listing.ID), shortDigest(outcome.ContentDigest))
+	if err := journal.SetInstallID(ctx, outcome.InstallID); err != nil {
+		return nil, errors.Join(err, txn.Rollback())
+	}
 	installPath := ""
 	if len(outcome.Destinations) > 0 {
 		installPath = outcome.Destinations[0]
@@ -285,6 +299,9 @@ func installSkillFromListing(
 			if err := deployment.SaveMutationExec(ctx, tx, m); err != nil {
 				return fmt.Errorf("record the deployment mutation for %s: %w", dest, err)
 			}
+		}
+		if err := journal.CommitExec(ctx, tx); err != nil {
+			return err
 		}
 		return nil
 	}); err != nil {

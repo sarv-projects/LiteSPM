@@ -600,6 +600,18 @@ function parseMarkdownBlocks(text: string) {
   return blocks;
 }
 
+function safeExternalHref(href: string): string | null {
+  // Model output is untrusted: a catalog summary can steer the model toward a
+  // javascript:, data:, or lookalike link. Only absolute HTTPS links leave the
+  // app; internal #/ routes are handled separately.
+  try {
+    const url = new URL(href);
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function renderInline(text: string, onOpenLink: (href: string) => void): React.ReactNode[] {
   // Pattern: [label](href) or `code` or **bold** or *italic*
   const pattern = /\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
@@ -616,31 +628,38 @@ function renderInline(text: string, onOpenLink: (href: string) => void): React.R
       const label = match[1];
       const href = match[2];
       const isInternal = href.startsWith("#/");
+      const external = isInternal ? null : safeExternalHref(href);
 
-      parts.push(
-        isInternal ? (
-          <button
-            key={key++}
-            type="button"
-            onClick={() => onOpenLink(href)}
-            className="inline-flex items-center gap-1 mx-0.5 rounded-md border border-brand/40 bg-brand-soft/70 px-1.5 py-0.5 font-medium text-brand hover:bg-brand-soft transition-colors text-[12px] align-baseline"
-          >
-            <span>{label}</span>
-            <ArrowUpRight className="h-3 w-3 shrink-0 opacity-80" />
-          </button>
-        ) : (
-          <a
-            key={key++}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 mx-0.5 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 font-medium text-brand hover:bg-muted/80 transition-colors text-[12px] align-baseline"
-          >
-            <span>{label}</span>
-            <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
-          </a>
-        ),
-      );
+      if (!isInternal && !external) {
+        // Do not render an anchor for a scheme we do not allow. The label is
+        // still readable, but it cannot become a javascript:/data: link.
+        parts.push(<span key={key++}>{label}</span>);
+      } else {
+        parts.push(
+          isInternal ? (
+            <button
+              key={key++}
+              type="button"
+              onClick={() => onOpenLink(href)}
+              className="inline-flex items-center gap-1 mx-0.5 rounded-md border border-brand/40 bg-brand-soft/70 px-1.5 py-0.5 font-medium text-brand hover:bg-brand-soft transition-colors text-[12px] align-baseline"
+            >
+              <span>{label}</span>
+              <ArrowUpRight className="h-3 w-3 shrink-0 opacity-80" />
+            </button>
+          ) : (
+            <a
+              key={key++}
+              href={external!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 mx-0.5 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 font-medium text-brand hover:bg-muted/80 transition-colors text-[12px] align-baseline"
+            >
+              <span>{label}</span>
+              <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+            </a>
+          ),
+        );
+      }
     } else if (match[3] !== undefined) {
       // `code`
       parts.push(

@@ -711,6 +711,17 @@ func installPluginFromListing(
 	txn := lifecycle.BeginInstall(ctx)
 	defer txn.RollbackUnlessCommitted()
 
+	// The install id is content-bound: the same plugin installed from the
+	// same pinned tree is the same install, and a different tree is a
+	// different one. Compute it before the first write so the journal can bind
+	// to it.
+	outcome.InstallID = fmt.Sprintf("inst_%s_%s_%s", scope, safeInstallIDPart(listing.ID), shortDigest(treeDigest))
+	journal, journalErr := lifecycle.BeginJournal(ctx, db, outcome.InstallID)
+	if journalErr != nil {
+		return nil, journalErr
+	}
+	txn.AttachJournal(journal)
+
 	backupDir := filepath.Join(dataRoot, "backups")
 	for _, hostID := range binding.Hosts {
 		for _, entry := range entries {
@@ -733,6 +744,9 @@ func installPluginFromListing(
 			outcome.Hosts = append(outcome.Hosts, result)
 			written := result
 			txn.Undo(func(ctx context.Context) error { return undoHostConfigWrite(written) })
+			if err := journal.RecordHostWrite(ctx, result); err != nil {
+				return nil, errors.Join(err, txn.Rollback())
+			}
 		}
 	}
 	outcome.Servers = entries
@@ -740,16 +754,12 @@ func installPluginFromListing(
 	// The portable skills, copied into the sealed roots. Each copy goes
 	// through the skills installer: same policy gate, same provenance ledger,
 	// same compensation. A failure here rolls the host writes back too.
-	skillResults, skillEntries, err := installPluginSkillComponents(ctx, txn, db, dataRoot, listing, binding, skillComponents, scope)
+	skillResults, skillEntries, err := installPluginSkillComponents(ctx, txn, journal, db, dataRoot, listing, binding, skillComponents, scope)
 	if err != nil {
 		return nil, errors.Join(err, txn.Rollback())
 	}
 	outcome.Skills = skillResults
 
-	// The install id is content-bound: the same plugin installed from the
-	// same pinned tree is the same install, and a different tree is a
-	// different one.
-	outcome.InstallID = fmt.Sprintf("inst_%s_%s_%s", scope, safeInstallIDPart(listing.ID), shortDigest(treeDigest))
 	installPath := ""
 	if len(outcome.Hosts) > 0 {
 		installPath = outcome.Hosts[0].ConfigPath
@@ -863,6 +873,9 @@ func installPluginFromListing(
 			})); err != nil {
 				return fmt.Errorf("record the provider: %w", err)
 			}
+		}
+		if err := journal.CommitExec(ctx, tx); err != nil {
+			return err
 		}
 		return nil
 	}); err != nil {

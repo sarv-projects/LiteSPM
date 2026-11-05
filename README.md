@@ -90,9 +90,12 @@ The same command targets any of them: `--agent <host-id>`.
 | **Agent skills** | A `SKILL.md` folder of instructions | 20,320 listings |
 | **Plugins** | A publisher's bundle of skills and servers | 638 listings |
 
-26,554 listings install with one command: 25,400 remote MCP servers, 764
-skills and 390 plugins. The rest are discovery-only, and `litespm search` marks
-which is which before you run anything.
+55,491 unique capabilities install with one command: 25,938 remote MCP servers, 13,746
+local package-launch MCP servers, 15,482 skills and 325 pinned plugins. The
+rest are discovery-only, and `litespm search` marks which is which before you
+run anything. 1,928 directory rows gained a launch line only after an exact
+publisher-login + repository match to an MCP Registry manifest; the evidence is
+recorded under `resolvedFrom` in the dataset.
 
 A plugin installs from the pinned commit its publisher ships. LiteSPM fetches
 that commit, verifies it, and installs the skills and MCP servers the plugin's
@@ -117,6 +120,7 @@ and keeps anything you edited.
 | Command | What it does |
 |---|---|
 | `litespm` | Setup and management wizard |
+| `litespm marketplace` | Open the 4-tab browser marketplace |
 | `litespm search <text>` | Search the local catalog |
 | `litespm install <id>` | Install a server, skill or plugin |
 | `litespm install remove <id>` | Remove one install |
@@ -133,10 +137,15 @@ and keeps anything you edited.
 
 With a host configured, `/marketplace` in your agent reaches the same catalog
 and the same install path through the LiteSPM bridge. An agent can search,
-prepare a plan, and ask you to approve it; it cannot approve for you.
+prepare a plan, and ask you to approve it; it cannot approve for you. The
+in-agent `/marketplace` is text: MCP has no portable window, so LiteSPM cannot
+make a host pop up a panel. For the windowed experience, run
+`litespm marketplace` (or pick `[7]` in the wizard) and use the page's Skills,
+Plugins, MCP Servers and Installed tabs.
 
 ```bash
 litespm bridge stdio --host codex
+litespm marketplace
 ```
 
 ## Troubleshooting

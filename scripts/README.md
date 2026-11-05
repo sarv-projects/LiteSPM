@@ -1,6 +1,6 @@
 # `scripts/` — repository scripts
 
-Twenty-four scripts live in this directory. `.github/workflows/ci.yml` syntax-checks the shell and
+The scripts in this directory are checked by `.github/workflows/ci.yml` where noted. `.github/workflows/ci.yml` syntax-checks the shell and
 Python scripts, executes every `scripts/test_*.py` suite, runs the `gen_hosts_ts.go` regeneration
 gate, packages and leak-audits the web bundle, and runs the npm wrapper tests. The release workflow
 builds the cross-platform binaries with `build-release.sh`. The remaining research and maintenance
@@ -14,7 +14,8 @@ history is in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md).
 | Script | Kind | Who runs it | Fails on bad input? |
 |---|---|---|---|
 | `build-release.sh` | bash | **Release** (`.github/workflows/release.yml`, on `v*` tags) | Yes — `set -euo pipefail`, `go build` aborts |
-| `deploy-pages.sh` | bash | **CI** (`.github/workflows/ci.yml`, `build-web` job, every push/PR) and **manual** (site packaging) | Yes — `set -euo pipefail` + explicit leak audit `exit 1` |
+| `deploy-pages.sh` | bash | **Manual** (catalog origin packaging before `wrangler deploy`) | Yes — `set -euo pipefail` + explicit leak audit `exit 1` |
+| `sandbox-all-agents.ps1` / `.sh` | PowerShell / bash | **Manual** — all 50 host adapters plus the real `litespm setup --all` path and bridge skill visibility | Yes — any failing Go test aborts |
 | `check_ci_local.sh` | bash | **Manual** — mirrors `ci.yml` stage-for-stage (`--web`, `--quick` flags) | Yes — `set -euo pipefail`, every stage names itself on failure |
 | `build_full_catalog.py` | Python | **Manual** (catalog dataset producer) | **No content assertions** — aborts if a fetch raises or a recorded snapshot fails verification (digest mismatch is refused); row/schema validation is fail-closed at release build time in Go |
 | `snapshot_store.py` | Python | **Manual** (`python3 scripts/snapshot_store.py` runs its own self-test); imported by `build_full_catalog.py` | Yes — refuses tampered/malformed snapshots, http URLs, and fabricated entries (exit 1 on self-test failure) |
@@ -26,7 +27,7 @@ history is in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md).
 | `parse_catalogs.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
 | `parse_skills.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
 | `sample_voltagent.py` | Python | **Manual** (upstream research) | No — prints, never asserts |
-| `audit-pages-dist.sh` | bash | **CI** — called by `deploy-pages.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — `set -euo pipefail` + explicit leak/digest `exit 1`; usage error exits 2. Also runs `check_pages_limits.py` on the bundle |
+| `audit-pages-dist.sh` | bash | **Manual** — called by `deploy-pages.sh` | Yes — `set -euo pipefail` + explicit leak/digest `exit 1`; usage error exits 2. Also runs `check_pages_limits.py` on the bundle |
 | `check_catalog_coherence.py` | Python | **CI** (`ci.yml`, `build-web` job, before the build) and **manual** | Yes — exit 1 naming every disagreement (row count / per-kind counts across `catalog.json`, `release.json` and the pointer), including any `installHint` that names another tool's installer or is not a `litespm …`/host-plugin command; exit 2 on a bad `--root` |
 | `check_pages_limits.py` | Python | **CI** — called by `audit-pages-dist.sh` (so it runs in the `build-web` job each push/PR) and **manual** | Yes — exit 1 on a files/asset-size limit breach *or* when a limit is within `--headroom` (default 0.90) of being spent, exit 2 on a bad directory or a headroom outside `(0, 1]`. Prints the budget spent as well as the verdict. `--headroom 1.0` restores over-the-line-only |
 | `migrate_dataset_transport.py` | Python | **Manual** — one-time historical migration (its header warns against re-running) | Yes, but it is historical: see the header before running it |
@@ -36,14 +37,17 @@ history is in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md).
 | `test_mcpmarket_source.py` | Python (test) | **CI** (`for suite in scripts/test_*.py`) and manual | Yes — exits non-zero on a failed check |
 | `test_skill_promotion.py` | Python (test) | **CI** (`for suite in scripts/test_*.py`) and manual | Yes — exits non-zero on a failed check |
 | `test_builder_parity.py` | Python (test) | **CI** (`for suite in scripts/test_*.py`) and manual | Yes — compares dataset rows with the materialized Go release and fails on undeclared differences |
-| `test_pages_limits.py` | Python (test) | **CI** (`for suite in scripts/test_*.py`) and manual | Yes — 22 checks over the Pages budget gate: over-limit, within-headroom, `--headroom 1.0`, bad thresholds, missing directory |
+| `test_pages_limits.py` | Python (test) | **CI** (`for suite in scripts/test_*.py`) and manual | Yes - 22 checks over the Pages budget gate: over-limit, within-headroom, `--headroom 1.0`, bad thresholds, missing directory |
+| `test_resolve_directory_mcp_launches.py` | Python (test) | **CI** (`for suite in scripts/test_*.py`) and manual | Yes - pins exact owner+repository promotion, remote/stdio copying, and refusal on a different owner/repository, a missing version or an already-installable row |
+| `resolve_directory_mcp_launches.py` | Python | **Manual**, called by `build_full_catalog.py` on a full run | Yes - promotes a directory row only when its publisher login + repository slug exactly equal a launch-bearing MCP Registry row's GitHub owner + repository; records `resolvedFrom`, is idempotent, and never rewrites an installable row |
 
 `scripts/__pycache__/` is a build artifact of `python3 -m py_compile` and is gitignored — it is not
 a script.
 
-The seven `scripts/test_*.py` suites (`test_snapshot_lifecycle.py`,
+The eight `scripts/test_*.py` suites (`test_snapshot_lifecycle.py`,
 `test_catalog_ingestion_safety.py`, `test_remote_endpoints.py`, `test_mcpmarket_source.py`,
-`test_skill_promotion.py`, `test_builder_parity.py`, `test_pages_limits.py`) run in CI.
+`test_skill_promotion.py`, `test_builder_parity.py`, `test_pages_limits.py`,
+`test_resolve_directory_mcp_launches.py`) run in CI.
 `snapshot_store.py`'s own self-test remains manual. The CI test loop is offline: fixtures replace
 network responses, so producer safety checks do not depend on upstream availability.
 
@@ -70,26 +74,23 @@ network responses, so producer safety checks do not depend on upstream availabil
 
 ## `deploy-pages.sh` — Cloudflare Pages packaging + leak audit
 
-- **Purpose.** Build the Next.js static export, stage a `pages-dist/` directory, **materialize the
-  released catalog `/v1` tree with the Go builder**, write the `_headers` CDN cache policy
-  (`ARCH/18` §4), and audit the staged tree for source/secret leaks (`ARCH/18` §5 strict allowlist).
-- **Invocation.** `./scripts/deploy-pages.sh` from the repo root; optionally
-  `NEXT_PUBLIC_SITE_URL=https://<origin> ./scripts/deploy-pages.sh`.
-- **Inputs.** `web/` (runs a strict `npm ci`, then `npm run build`), and the released pointer
-  `web/public/v1/current.json` (must exist — it is the release the bundle reproduces).
-- **Outputs.** `pages-dist/` = copy of `web/out/` **with its exported `v1/` replaced** by
-  `go run ./cmd/litespm catalog build --materialize --out pages-dist`, which reproduces the
-  released pointer's id/sequence/createdAt and manifest **byte for byte** (release ids are
-  immutable in the CDN cache, so the deployed bytes must be exactly the bytes the pointer digests;
-  the command fails closed if the pointer is missing or not a Go-built pointer) +
+- **Purpose.** Materialize the released catalog `/v1` tree into a `pages-dist/` directory, write the
+  `_headers` CDN cache policy (`ARCH/18` §4), and audit the staged tree for source/secret leaks
+  (`ARCH/18` §5 strict allowlist). The website itself is a Next.js standalone app deployed on Vercel;
+  this script no longer builds or copies a static Next export.
+- **Invocation.** `./scripts/deploy-pages.sh` from the repo root.
+- **Inputs.** The released pointer `web/public/v1/current.json` (must exist — it is the release the
+  bundle reproduces).
+- **Outputs.** `pages-dist/` = `go run ./cmd/litespm catalog build --materialize --out pages-dist`,
+  which reproduces the released pointer's id/sequence/createdAt and manifest **byte for byte**
+  (release ids are immutable in the CDN cache, so the deployed bytes must be exactly the bytes the
+  pointer digests; the command fails closed if the pointer is missing or not a Go-built pointer) +
   `_headers` (immutable `/v1/releases/*`, no-cache `/v1/current.json`, CORS, `nosniff`).
   `pages-dist/` is gitignored.
-- **Who runs it.** `.github/workflows/ci.yml` runs it in the `build-web` job (`Package and Audit
-  the Deploy Bundle` step) on every push/PR, and maintainers run it by hand. It only packages —
-  the `wrangler.toml` (`name = "litespm"`, `[assets] directory = "./pages-dist"`) upload is a
-  separate step. The origin was published and verified 2026-10-05 (release `rel-2026-10-05-01`);
-  whether subsequent uploads are triggered by an external Cloudflare build or by hand is outside
-  this repository's control.
+- **Who runs it.** Maintainers run it by hand before `wrangler deploy`; CI no longer calls it because
+  the website build is a standalone Next app. The `wrangler.toml` (`name = "litespm"`,
+  `[assets] directory = "./pages-dist"`) upload is a separate step. The Worker serves `/v1/*` from the
+  asset binding and redirects every other path to `WEB_ORIGIN` (the Vercel app).
 - **Truthfulness gaps.** It packages, it does not deploy. It reproduces the released pointer but
   never cuts a new release: refreshing the catalog is `python3 scripts/build_full_catalog.py`
   (dataset) then `go run ./cmd/litespm catalog build --out web/public` (pointer + tree), and only

@@ -7,13 +7,14 @@ import type { Listing } from "./types";
  *   1. **plugin** → only when it publishes a FETCHABLE, PINNED source: a
  *      `git-tree` with a commit id (390 of 638 plugin rows do).
  *   2. **installability is `discovery_only`** → never.
- *   3. **MCP** additionally needs a transport/launch line.
+ *   3. **MCP** needs a launch line: a remote endpoint (`url`) or a
+ *      publisher-declared local command. A `transport` alone is not enough.
  *   4. **skill** → installs through the content-addressed skills ledger from
  *      the source it was published in.
  *
- * Measured against this release (69,376 rows): 26,554 install (38%).
+ * The live split is computed from the rows, not hardcoded here.
  */
-export type AvailabilityId = "remote" | "source" | "plugin" | "discovery" | "unsupported";
+export type AvailabilityId = "remote" | "local" | "source" | "plugin" | "discovery" | "unsupported";
 
 export interface Availability {
   id: AvailabilityId;
@@ -32,6 +33,14 @@ const REMOTE: Availability = {
   installable: true,
 };
 
+const LOCAL: Availability = {
+  id: "local",
+  label: "Runs as a local process",
+  plain:
+    "Launches the publisher's declared package command on your machine over stdio. No hosted endpoint is involved.",
+  installable: true,
+};
+
 const SOURCE: Availability = {
   id: "source",
   label: "Installs from source",
@@ -41,9 +50,9 @@ const SOURCE: Availability = {
 
 const DISCOVERY: Availability = {
   id: "discovery",
-  label: "Publisher setup details needed",
+  label: "Discovery only",
   plain:
-    "The publisher needs to provide a source or connection command before LiteSPM can prepare installation steps.",
+    "The catalog has discovery metadata for this row but no verified source or launch line, so LiteSPM cannot prepare installation steps yet.",
   installable: false,
 };
 
@@ -67,6 +76,8 @@ export function availabilityOf(
   item: Pick<Listing, "kind"> &
     Partial<Pick<Listing, "skillSource" | "installability" | "artifact">> & {
       transport?: string | null;
+      command?: string | null;
+      url?: string | null;
     },
 ): Availability {
   if (item.kind === "plugin") {
@@ -83,7 +94,18 @@ export function availabilityOf(
     item.installability === "litespm_tested";
   if (!installabilityEstablished) return DISCOVERY;
 
-  if (item.kind === "mcp" && !item.transport) return DISCOVERY;
+  if (item.kind === "mcp") {
+    const transport = (item.transport ?? "").toLowerCase();
+    const command = item.command?.trim();
+    if (transport === "stdio" || transport === "local") {
+      return command ? LOCAL : DISCOVERY;
+    }
+    if (transport) {
+      return item.url ? REMOTE : DISCOVERY;
+    }
+    if (item.url) return REMOTE;
+    return command ? LOCAL : DISCOVERY;
+  }
 
   return item.kind === "skill" ? SOURCE : REMOTE;
 }
@@ -92,6 +114,7 @@ export function availabilityOf(
 export function availabilityCounts(items: Listing[]): Record<AvailabilityId, number> {
   const counts: Record<AvailabilityId, number> = {
     remote: 0,
+    local: 0,
     source: 0,
     plugin: 0,
     discovery: 0,

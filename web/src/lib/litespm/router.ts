@@ -20,6 +20,7 @@ export interface ExploreQuery {
 
 export type Route =
   | { view: "home" }
+  | { view: "marketplace"; tab: string; q?: string }
   | { view: "explore"; query: ExploreQuery }
   | { view: "package"; key: string }
   | { view: "agents" }
@@ -48,6 +49,14 @@ export function exploreHash(query: ExploreQuery): string {
   return `/explore${qs ? `?${qs}` : ""}`;
 }
 
+export function marketplaceHash(tab: string = "skills", q?: string): string {
+  const params = new URLSearchParams();
+  if (tab && tab !== "skills") params.set("tab", tab);
+  if (q) params.set("q", q);
+  const qs = params.toString();
+  return `/marketplace${qs ? `?${qs}` : ""}`;
+}
+
 export function compareHash(keys: string[]): string {
   return keys.length === 0 ? "/compare" : `/compare?keys=${keys.map(encodeURIComponent).join(",")}`;
 }
@@ -67,6 +76,12 @@ export function parsePath(fullPath: string, searchStr: string = ""): Route {
 
   if (parts.length === 0 || parts[0] === "") {
     return { view: "home" };
+  }
+
+  if (parts[0] === "marketplace") {
+    const tab = params.get("tab") ?? "skills";
+    const q = params.get("q") ?? undefined;
+    return { view: "marketplace", tab, q };
   }
 
   if (parts[0] === "explore") {

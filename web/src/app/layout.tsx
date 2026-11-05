@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://lite-spm-nine.vercel.app"),
   title: "LiteSPM — The package manager for AI agents",
   description:
-    "Find MCP servers, skills and plugins once, and install them into every coding agent you use. Browse 69k+ listings across 50 agent hosts — with publisher, source and installability stated up front.",
+    "Find MCP servers, skills and plugins once, and install them into the coding agents you use. Browse 69k+ listings across 50 agent hosts (46 remote-capable) — with publisher, source and installability stated up front.",
   keywords: [
     "MCP",
     "Model Context Protocol",

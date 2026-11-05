@@ -11,6 +11,7 @@ import { Footer } from "./footer";
 import { CommandPalette } from "./command-palette";
 import { Assistant } from "./assistant";
 import { HomeView } from "./views/home";
+import { MarketplaceView } from "./views/marketplace";
 import { ExploreView } from "./views/explore";
 import { PackageView } from "./views/package-detail";
 import { AgentsView } from "./views/agents";
@@ -22,6 +23,8 @@ import { CompareView } from "./views/compare";
 
 function routeKey(route: ReturnType<typeof useApp.getState>["route"]): string {
   switch (route.view) {
+    case "marketplace":
+      return `marketplace-${route.tab}-${route.q ?? ""}`;
     case "explore":
       return `explore-${JSON.stringify(route.query)}`;
     case "package":
@@ -41,6 +44,8 @@ const BASE_TITLE = "LiteSPM — The package manager for AI agents";
 
 function titleFor(route: ReturnType<typeof useApp.getState>["route"]): string {
   switch (route.view) {
+    case "marketplace":
+      return "Marketplace · LiteSPM";
     case "explore":
       return "Explore the catalog · LiteSPM";
     case "package":
@@ -124,7 +129,9 @@ export function LiteSPMApp() {
 
   React.useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
-    document.title = titleFor(route);
+    // PackageView owns its title once the row loads; a generic overwrite here
+    // would erase the server-rendered package metadata on first paint.
+    if (route.view !== "package") document.title = titleFor(route);
   }, [route]);
 
   return (
@@ -147,6 +154,9 @@ export function LiteSPMApp() {
           className="flex-1"
         >
           {route.view === "home" && <HomeView />}
+          {route.view === "marketplace" && (
+            <MarketplaceView initialTab={route.tab} initialQuery={route.q ?? ""} />
+          )}
           {route.view === "explore" && <ExploreView query={route.query} />}
           {route.view === "package" && <PackageView linkKey={route.key} />}
           {route.view === "agents" && <AgentsView />}

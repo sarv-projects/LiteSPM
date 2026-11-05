@@ -9,6 +9,7 @@
  * it labels would produce.
  */
 
+import { availabilityOf } from "./availability";
 import { HOSTS, SKILL_TARGETS, HOST_ALIASES } from "./hosts";
 import { resolveHostId, hostIdsFor } from "./identity";
 import { classifyListing } from "./taxonomy";
@@ -33,6 +34,8 @@ export interface CatalogQuery {
   sort?: SortKey;
   page?: number;
   pageSize?: number;
+  /** Facets are eight extra full-catalog scans; a compact panel can skip them. */
+  facets?: boolean;
 }
 
 export interface CatalogHit {
@@ -230,16 +233,10 @@ function relevanceRelaxed(row: Listing, tokens: string[]): number {
 }
 
 function isInstallable(row: Listing): boolean {
-  if (row.kind === "plugin") {
-    return Boolean(row.artifact && row.artifact.type === "git-tree" && row.artifact.pinned);
-  }
-  const established =
-    row.installability === "metadata_verified" ||
-    row.installability === "runtime_verified" ||
-    row.installability === "litespm_tested";
-  if (!established) return false;
-  if (row.kind === "mcp" && !row.transport) return false;
-  return true;
+  // One rule for search, facets, cards and the detail page: an MCP row needs
+  // a remote endpoint or a publisher-declared local command, not merely a
+  // transport string.
+  return availabilityOf(row).installable;
 }
 
 function kindRank(kind: Listing["kind"]): number {
@@ -258,8 +255,11 @@ const globalForMeta = globalThis as unknown as {
 };
 
 // Dev/HMR: drop the per-row meta cache when this module (re)loads, so a stale
-// map built against an older dataset shape is never reused.
-if (globalForMeta.__litespmRowMeta) globalForMeta.__litespmRowMeta = undefined;
+// map built against an older dataset shape is never reused. Production keeps
+// the map: it is derived from the same immutable dataset for the process life.
+if (process.env.NODE_ENV !== "production" && globalForMeta.__litespmRowMeta) {
+  globalForMeta.__litespmRowMeta = undefined;
+}
 
 export function rowMetaMap(rows: Listing[]): Map<string, RowMeta> {
   const cached = globalForMeta.__litespmRowMeta;
@@ -297,8 +297,23 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   const hostId = rawHost ? resolveHostId(rawHost) : null;
   const hostRaw = rawHost && !hostId ? rawHost.trim().toLowerCase() : null;
 
+  // Relevance is the most expensive per-row operation in this function, and
+  // facets + sort used to recompute it for the same row many times. Cache it
+  // for the duration of one request, keyed by the fallback mode so a switch
+  // from exact to relaxed scoring cannot reuse the wrong value.
+  let isFuzzyFallback = false;
+  const relCache = new Map<string, number>();
+  const relFor = (row: Listing): number => {
+    const key = `${isFuzzyFallback ? "relaxed" : "exact"}:${row.id}`;
+    const cached = relCache.get(key);
+    if (cached !== undefined) return cached;
+    const value = isFuzzyFallback ? relevanceRelaxed(row, tokens) : relevance(row, tokens);
+    relCache.set(key, value);
+    return value;
+  };
+
   const matches = (row: Listing): boolean => {
-    if (tokens.length > 0 && relevance(row, tokens) === 0) return false;
+    if (tokens.length > 0 && relFor(row) === 0) return false;
     if (kindFilter && row.kind !== kindFilter) return false;
     if (categoryFilter && row.category !== categoryFilter) return false;
     if (sourceFilter && row.source !== sourceFilter) return false;
@@ -322,12 +337,11 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   };
 
   let pool = rows.filter(matches);
-  let isFuzzyFallback = false;
 
   // Fallback: If query tokens produced 0 results, retry with relaxed/typo-tolerant matching
   if (pool.length === 0 && tokens.length > 0) {
     const relaxedMatches = (row: Listing): boolean => {
-      if (relevanceRelaxed(row, tokens) === 0) return false;
+      if (relFor(row) === 0) return false;
       if (kindFilter && row.kind !== kindFilter) return false;
       if (categoryFilter && row.category !== categoryFilter) return false;
       if (sourceFilter && row.source !== sourceFilter) return false;
@@ -349,23 +363,22 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
       }
       return true;
     };
+    isFuzzyFallback = true;
     const relaxedPool = rows.filter(relaxedMatches);
     if (relaxedPool.length > 0) {
       pool = relaxedPool;
-      isFuzzyFallback = true;
+    } else {
+      isFuzzyFallback = false;
     }
   }
 
-  const total = pool.length;
+  let total = pool.length;
 
   // Facet pool: everything matching every dimension except the one being
   // counted, so counts stay meaningful while a dimension is active.
   const facetBase = (except: string): Listing[] =>
     rows.filter((row) => {
-      if (tokens.length > 0) {
-        const rel = isFuzzyFallback ? relevanceRelaxed(row, tokens) : relevance(row, tokens);
-        if (rel === 0) return false;
-      }
+      if (tokens.length > 0 && relFor(row) === 0) return false;
       if (except !== "kind" && kindFilter && row.kind !== kindFilter) return false;
       if (except !== "category" && categoryFilter && row.category !== categoryFilter) return false;
       if (except !== "source" && sourceFilter && row.source !== sourceFilter) return false;
@@ -412,14 +425,15 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
     return [...map.entries()];
   };
 
-  const kindPool = facetBase("kind");
-  const categoryPool = facetBase("category");
-  const sourcePool = facetBase("source");
-  const publisherPool = facetBase("publisher");
-  const transportPool = facetBase("transport");
-  const goalPool = facetBase("goal");
-  const hostPool = facetBase("host");
-  const installabilityPool = facetBase("installability");
+  const wantFacets = query.facets !== false;
+  const kindPool = wantFacets ? facetBase("kind") : [];
+  const categoryPool = wantFacets ? facetBase("category") : [];
+  const sourcePool = wantFacets ? facetBase("source") : [];
+  const publisherPool = wantFacets ? facetBase("publisher") : [];
+  const transportPool = wantFacets ? facetBase("transport") : [];
+  const goalPool = wantFacets ? facetBase("goal") : [];
+  const hostPool = wantFacets ? facetBase("host") : [];
+  const installabilityPool = wantFacets ? facetBase("installability") : [];
 
   const GOAL_LABELS: Record<string, string> = {
     coding: "Coding & Development",
@@ -460,10 +474,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   switch (sort) {
     case "relevance":
       sorted.sort(
-        (a, b) =>
-          (isFuzzyFallback
-            ? relevanceRelaxed(b, tokens) - relevanceRelaxed(a, tokens)
-            : relevance(b, tokens) - relevance(a, tokens)) || a.name.localeCompare(b.name),
+        (a, b) => relFor(b) - relFor(a) || a.name.localeCompare(b.name),
       );
       break;
     case "rank":
@@ -489,23 +500,23 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   }
 
   const pageSize = Math.min(60, Math.max(6, query.pageSize ?? 24));
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const page = Math.min(pageCount, Math.max(1, query.page ?? 1));
 
-  // Within-page duplicate collapse: when the same tool reaches the catalog as
-  // both an MCP server and a skill (or under two publishers), keep only the
-  // best-ranked row on the page. Every listing keeps its own entry page, and
-  // the package page cross-links the twins.
-  const pageRows: Listing[] = [];
+  // Duplicate collapse: when the same tool reaches the catalog as both an MCP
+  // server and a skill (or under two publishers), keep only the best-ranked
+  // row. Collapse before counting pages; the old code counted the un-deduped
+  // pool and could advertise a final page that was empty after dedupe.
+  const deduped: Listing[] = [];
   const seenNames = new Set<string>();
   for (const row of sorted) {
-    if (pageRows.length >= page * pageSize) break;
     const nameKey = dedupeKey(row);
     if (seenNames.has(nameKey)) continue;
     seenNames.add(nameKey);
-    pageRows.push(row);
+    deduped.push(row);
   }
-  const items = pageRows.slice((page - 1) * pageSize, page * pageSize).map(toHit);
+  total = deduped.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(pageCount, Math.max(1, query.page ?? 1));
+  const items = deduped.slice((page - 1) * pageSize, page * pageSize).map(toHit);
 
   function toHit(row: Listing): CatalogHit {
     const m = meta.get(row.id);
@@ -556,10 +567,24 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
       categories: countBy(categoryPool, (r) => r.category?.trim() || null).sort(
         (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
       ),
-      sources: [],
-      publishers: countBy(publisherPool, (r) => r.publisher?.name ?? null)
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .slice(0, 40),
+      sources: countBy(sourcePool, (r) => r.source ?? null).sort(
+        (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+      ),
+      publishers: (() => {
+        const grouped = new Map<string, { label: string; count: number }>();
+        for (const row of publisherPool) {
+          const name = row.publisher?.name?.trim();
+          if (!name) continue;
+          const key = name.toLowerCase();
+          const current = grouped.get(key);
+          if (current) current.count += 1;
+          else grouped.set(key, { label: name, count: 1 });
+        }
+        return [...grouped.values()]
+          .map(({ label, count }) => [label, count] as [string, number])
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .slice(0, 40);
+      })(),
       installability: countBy(installabilityPool, (r) => r.installability ?? "discovery_only"),
       transports: countBy(transportPool, (r) => r.transport ?? null).sort((a, b) => b[1] - a[1]),
       hosts: hostFacets,
@@ -591,7 +616,7 @@ export async function catalogStats() {
     if (category) byCategory.set(category, (byCategory.get(category) ?? 0) + 1);
     if (row.source) bySource.set(row.source, (bySource.get(row.source) ?? 0) + 1);
     if (row.transport) byTransport.set(row.transport, (byTransport.get(row.transport) ?? 0) + 1);
-    if (row.publisher?.name) publishers.add(row.publisher.name);
+    if (row.publisher?.name) publishers.add(row.publisher.name.trim().toLowerCase());
   }
 
   return {
@@ -605,7 +630,7 @@ export async function catalogStats() {
     withEndpoint,
     publishers: publishers.size,
     categories: byCategory.size,
-    sources: [],
+    sources: [...bySource.entries()].sort((a, b) => b[1] - a[1]),
     transports: [...byTransport.entries()].sort((a, b) => b[1] - a[1]),
     topCategories: [...byCategory.entries()].sort((a, b) => b[1] - a[1]).slice(0, 24),
     goalCounts: [...byGoal.entries()].sort((a, b) => b[1] - a[1]),

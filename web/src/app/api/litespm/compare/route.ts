@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
                 : "Declarative agent skill")
             : (row.artifact?.pinned
                 ? "Pinned immutable manifest"
-                : "Unpinned (supports --allow-partial)"),
+                : "Unpinned — not installable"),
       });
     }
 

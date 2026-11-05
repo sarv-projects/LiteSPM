@@ -176,9 +176,9 @@ export interface PackageDetailData {
     skipRules: string[];
     fileTree: Array<{ path: string; type: "file" | "dir"; description: string }>;
     security: {
-      scripts: "none" | "present";
-      network: "passive" | "active";
-      credentials: "none" | "required";
+      scripts: "none" | "present" | "unknown";
+      network: "passive" | "active" | "unknown";
+      credentials: "none" | "required" | "unknown";
       summary: string;
     };
   };

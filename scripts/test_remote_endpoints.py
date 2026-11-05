@@ -477,16 +477,63 @@ def main():
        "an untyped endpoint must not earn metadata_verified")
     ok(refused is True, "an untyped endpoint must be counted as refused")
 
-    # --- No invented launch line, ever ----------------------------------
+    # --- No invented launch line ----------------------------------------
+    # These fixtures publish remotes or nothing; none publishes packages[].
+    # A command is only allowed when the publisher's own package entry
+    # declares a stdio transport (see test_registry_package_launch).
     for srv in (one, three, no_remotes, loopback,
                 fixture_server([{"type": "streamable-http", "url": "http://bad.example/mcp"}])):
         row, _, _ = build_row(srv)
-        ok(row["command"] is None, "registry rows must never publish a command")
-        ok(row["args"] is None, "registry rows must never publish args")
-        ok(row["runtime"] is None, "registry rows must never publish a runtime hint")
+        ok(row["command"] is None,
+           "a registry row with no publisher package must not publish a command")
+        ok(row["args"] is None, "registry rows must not publish args without a package")
+        ok(row["runtime"] is None,
+           "registry rows must not publish a runtime hint without a package")
         ok(row["stars"] is None, "registry rows must never publish a star figure")
         ok(row["source"] == producer.REGISTRY_SOURCE,
            "registry row lost its source id")
+
+    # --- Publisher package launch ---------------------------------------
+    npm = fixture_server()
+    npm["packages"] = [{
+        "registryType": "npm",
+        "identifier": "@acme/mcp-server",
+        "version": "1.2.3",
+        "transport": {"type": "stdio"},
+    }]
+    row, _, _ = build_row(npm)
+    ok(row["command"] == "npx",
+       "an npm package must launch through npx")
+    ok(row["args"] == ["-y", "@acme/mcp-server@1.2.3"],
+       f"an npm package must pin its published version: {row['args']!r}")
+    ok(row["transport"] == "stdio" and row["url"] is None,
+       "a package row must publish stdio, not an endpoint")
+    ok(row["installability"] == producer.METADATA_VERIFIED,
+       "a publisher-declared package launch must be metadata_verified")
+
+    pypi = fixture_server()
+    pypi["packages"] = [{
+        "registryType": "pypi",
+        "identifier": "acme-mcp",
+        "version": "0.4.0",
+        "transport": {"type": "stdio"},
+    }]
+    row, _, _ = build_row(pypi)
+    ok(row["command"] == "uvx"
+       and row["args"] == ["--from", "acme-mcp==0.4.0", "acme-mcp"],
+       f"a PyPI package must launch through uvx: {row['command']} {row['args']!r}")
+
+    hinted = fixture_server()
+    hinted["packages"] = [{
+        "registryType": "npm",
+        "identifier": "@acme/mcp-server",
+        "version": "1.2.3",
+        "transport": {"type": "stdio"},
+        "packageArguments": [{"type": "positional", "valueHint": "directory"}],
+    }]
+    row, _, _ = build_row(hinted)
+    ok(row["command"] is None and row["installability"] == producer.DISCOVERY_ONLY,
+       "a package needing a user-supplied argument must stay discovery_only")
 
     # --- Dropped-count logging -----------------------------------------
     fixtures = [one, three, all_sse, no_remotes, loopback, no_type,
@@ -501,7 +548,8 @@ def main():
     ok(extra_rows == 2, f"expected 2 rows with dropped extra endpoints, got {extra_rows}")
     ok(refused_rows == 2, f"expected 2 rows with a refused endpoint, got {refused_rows}")
 
-    line = producer.registry_summary(7, 7, 1, 0, 0, 0, 0, 0, extra_rows, refused_rows)
+    line = producer.registry_summary(
+        7, 7, 1, 0, 0, 0, 0, 0, extra_rows, refused_rows, 0)
     ok(f"{extra_rows} row(s) dropped extra remote endpoints" in line,
        f"dropped-endpoint count missing from the log line: {line}")
     ok(f"{refused_rows} row(s) declared an endpoint that was not publishable" in line,

@@ -124,11 +124,21 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
 
   // Install targets: every host (or skill target) this entry can land in.
   // MCP local rows → all 50 hosts; remote MCP → the remote-capable subset;
-  // skills → the 81 skill targets with a global directory; plugins → declared.
-  const targetNames = hostsFor(row);
+  // skills → the skill targets with a global directory; plugins → declared.
+  // A discovery-only row has no launch line, so it claims no target; a
+  // plugin still shows its publisher-declared compatibility.
+  const targetNames =
+    row.kind === "plugin" || availability.installable ? hostsFor(row) : [];
   const installTargets: Array<{ id: string; name: string }> = [];
   if (row.kind === "plugin") {
-    for (const name of targetNames) installTargets.push({ id: name, name });
+    // compatibleHosts is publisher prose ("Claude Code"), but the install
+    // command and the CLI resolve registry ids ("claude-code"). Resolve the
+    // id here; an unknown spelling keeps its display name so the page can
+    // still show what the publisher declared, but the command builder will
+    // quote it rather than silently producing two shell arguments.
+    for (const name of targetNames) {
+      installTargets.push({ id: resolveHostId(name) ?? name, name });
+    }
   } else if (row.kind === "skill") {
     for (const target of dataset.skillTargets) {
       if (targetNames.includes(target.displayName)) {

@@ -24,6 +24,9 @@ var restoreBackupPathSQL string
 //go:embed migrations/004_query_indexes.sql
 var queryIndexesSQL string
 
+//go:embed migrations/005_write_journal.sql
+var writeJournalSQL string
+
 // DB wraps a SQLite 3 connection pool configured for WAL mode and strong durability.
 type DB struct {
 	raw    *sql.DB

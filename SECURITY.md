@@ -35,6 +35,19 @@ stated plainly.
 | **Self-update** | Replace its own binary | Fails closed on a missing checksum, and verifies the release's keyless signature bundle when the release publishes one (see below) |
 | **Connector executor** (design only) | Not implemented: `internal/connector` was deleted under decision D1 for having zero production importers, and no connector executor ships | The credential-custody design — the agent supplies a connection handle rather than a secret, the target host is pinned by the connector manifest, private/loopback/link-local addresses are refused after DNS resolution, and caller-supplied `Authorization`, `Cookie` and `Proxy-Authorization` headers are stripped — is recorded in [29 — Connector System Design](ARCH/29-CONNECTOR-SYSTEM-DESIGN.md) and carries no shipped guarantee |
 
+### The approval gate is consent, not a sandbox
+
+`litespm approve <plan-id>` requires a TTY and records a human-cli approval
+bound to the plan hash. `install.execute` consumes that approval atomically and
+refuses an agent-channel or expired/used token. This stops accidental installs
+and produces an audit trail.
+
+It is **not** a security boundary against a hostile process running as the same
+OS user. The approval token is stored in the same-user SQLite database, the IPC
+peer check is same-uid, and such a process can also edit an agent's config
+directly. If that threat is in scope, run the agent as a different OS user (or
+in a container/VM) and keep the LiteSPM state directory out of its reach.
+
 ## Supply chain
 
 **Releases are integrity-checked and signature-verified.** Each release

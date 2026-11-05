@@ -1048,6 +1048,102 @@ def publishable_endpoint(url):
     return _is_public_ip(host)
 
 
+def _package_arguments(argv):
+    """Plain argv strings from a registry package's argument descriptors.
+
+    A descriptor with a ``valueHint`` (or no literal ``value``) names an
+    input the installer would have to ask for. A catalog launch line cannot
+    bake that in, so such a package is refused rather than published with a
+    command that cannot run. ``None`` means "cannot express"; ``[]`` means
+    "no arguments".
+    """
+    if argv is None:
+        return []
+    if not isinstance(argv, list):
+        return None
+    out = []
+    for arg in argv:
+        if not isinstance(arg, dict):
+            return None
+        value = arg.get("value")
+        if not isinstance(value, str):
+            return None
+        kind = arg.get("type")
+        if kind == "named":
+            name = arg.get("name")
+            if not isinstance(name, str) or not name:
+                return None
+            out.append(f"{name}={value}" if value else name)
+        elif kind == "positional":
+            out.append(value)
+        else:
+            return None
+    return out
+
+
+def package_launch(packages, server_version):
+    """(command, args, transport, runtime) from a publisher's ``packages[]``.
+
+    The MCP registry's package entry is the publisher's own declaration:
+    ``registryType`` + ``identifier`` + a specific ``version`` + a
+    ``stdio`` transport. That is a launch locator, not a guessed command:
+    npm publishes how it is run (``npx <pkg>@<version>``), PyPI through
+    ``uvx --from <pkg>==<version> <pkg>``, and OCI through
+    ``docker run -i --rm <image>:<version>``. No repository name is turned
+    into a command (the old T1 failure mode), and a package with
+    ``runtimeArguments`` or user-supplied ``packageArguments`` is refused
+    because the build cannot order or resolve them.
+
+    Returns ``None`` when no package is expressible. The caller keeps the
+    row discovery_only in that case.
+    """
+    if not isinstance(packages, list):
+        return None
+    for pkg in packages:
+        if not isinstance(pkg, dict):
+            continue
+        transport = pkg.get("transport")
+        if not isinstance(transport, dict) or \
+                str(transport.get("type") or "").strip() != "stdio":
+            continue
+        registry_type = str(pkg.get("registryType") or "").strip().lower()
+        identifier = str(pkg.get("identifier") or "").strip()
+        version = str(pkg.get("version") or server_version or "").strip()
+        if not identifier or not version:
+            continue
+        # runtimeArguments change the runtime's own flags; the registry
+        # vocabulary does not promise an order this build can reproduce.
+        if pkg.get("runtimeArguments"):
+            continue
+        package_args = _package_arguments(pkg.get("packageArguments"))
+        if package_args is None:
+            continue
+
+        if registry_type == "npm":
+            if "@" in identifier.rsplit("/", 1)[-1]:
+                spec = identifier          # already pinned by the publisher
+            else:
+                spec = f"{identifier}@{version}"
+            return "npx", ["-y", spec, *package_args], "stdio", "node"
+        if registry_type == "pypi":
+            if "==" in identifier:
+                spec = identifier
+            else:
+                spec = f"{identifier}=={version}"
+            # --from names the distribution; the trailing identifier is the
+            # console script uvx runs (the registry publishes no separate
+            # executable name, and this is the convention its entries use).
+            return ("uvx", ["--from", spec, identifier, *package_args],
+                    "stdio", "python")
+        if registry_type == "oci":
+            image = identifier
+            if ":" not in image.rsplit("/", 1)[-1]:
+                image = f"{image}:{version}"
+            return ("docker", ["run", "-i", "--rm", image, *package_args],
+                    "stdio", "docker")
+    return None
+
+
 def registry_row(item_id, display, slug, category, summary, pub_name, pub_url, srv):
     """Build the dataset row for one active, described registry server.
 
@@ -1060,16 +1156,13 @@ def registry_row(item_id, display, slug, category, summary, pub_name, pub_url, s
                  none was publishable (sanitization or a missing transport
                  type); also counted into the summary, never silent.
 
-    Launch line: ``command``/``args`` stay null because the registry
-    publishes package coordinates and never the command that starts them,
-    and this build never derives one (T1). What a remote server.json
-    publishes is the endpoint itself -- publisher-declared launch data -- so
-    a selected endpoint that passes publishable_endpoint() is emitted as
-    ``url`` + ``transport`` and the row classifies metadata_verified on the
-    strength of the publisher's own manifest (B1 Decision 7). With no
-    publishable endpoint both stay null and the row remains discovery_only.
-    ``version`` is the document's top-level server.json version: kept only
-    when upstream itself published one.
+    Launch line: a publishable ``remotes[]`` endpoint is emitted as
+    ``url`` + ``transport``; when there is none, a publisher-declared
+    ``packages[]`` entry with a ``stdio`` transport is emitted as
+    ``command`` + ``args`` (see package_launch). Both are publisher data,
+    so either classifies metadata_verified. A document with neither stays
+    discovery_only. ``version`` is the document's top-level server.json
+    version: kept only when upstream itself published one.
     """
     version = srv.get("version")
     if not isinstance(version, str) or not version.strip():
@@ -1090,6 +1183,19 @@ def registry_row(item_id, display, slug, category, summary, pub_name, pub_url, s
         else:
             refused = True
 
+    command = args = runtime = None
+    if url is None:
+        launch = package_launch(srv.get("packages"), version)
+        if launch is not None:
+            command, args, transport, runtime = launch
+
+    repo_url = None
+    repository = srv.get("repository")
+    if isinstance(repository, dict):
+        candidate = repository.get("url")
+        if isinstance(candidate, str) and candidate.startswith("https://"):
+            repo_url = candidate
+
     row = {
         "id": item_id,
         "name": display,
@@ -1101,41 +1207,44 @@ def registry_row(item_id, display, slug, category, summary, pub_name, pub_url, s
         # vendor-manifest class as a marketplace manifest (see the
         # provenance note at the top of this file).
         "publisher": publisher_obj(pub_name, pub_url, PROV_VENDOR),
-        # Launch line is never derived (T1): command/args/runtime stay
-        # null. The only launch data the registry can publish for a remote
-        # server is its endpoint, and only after publishable_endpoint()
-        # accepted it -- otherwise url/transport are null too and the row
-        # stays discovery_only rather than advertising an endpoint the
-        # egress guard would refuse at connect time.
+        # The two launch shapes are both publisher-declared: a remote
+        # endpoint that passed the egress policy, or a package the
+        # publisher says starts over stdio. Neither is derived from a
+        # repository name.
         "url": url,
         "transport": transport,
-        "runtime": None,
+        "runtime": runtime,
+        "repository": repo_url,
         "stars": None,
         "version": version,
-        "command": None,
-        "args": None,
-        "installability": METADATA_VERIFIED if url else DISCOVERY_ONLY,
+        "command": command,
+        "args": args,
+        "installability": METADATA_VERIFIED if (url or command) else DISCOVERY_ONLY,
         "source": REGISTRY_SOURCE,
     }
     return row, extras, refused
 
 
 def registry_summary(added, servers, pages, inactive, nodesc, status_missing,
-                     invalid, dup, extra_endpoint_rows, refused_endpoint_rows):
+                     invalid, dup, extra_endpoint_rows, refused_endpoint_rows,
+                     package_rows):
     """The registry block's one progress line.
 
     The two endpoint counts keep endpoint handling visible: multi-endpoint
     documents (extra_endpoint_rows) had all but the selected entry dropped,
     and refused_endpoint_rows declared an endpoint that was not publishable
     (non-https/non-loopback, credentials, fragment, non-default port, or a
-    missing transport type) and therefore published none.
+    missing transport type) and therefore published none. package_rows is
+    the number of endpoint-less rows the publisher's ``packages[]`` entry
+    made installable as a stdio launch.
     """
     return (f"  registry: +{added} rows from {servers} servers "
             f"over {pages} page(s) ({inactive} not active, "
             f"{nodesc} without description, {status_missing} missing status, "
             f"{invalid} malformed records, {dup} duplicate ids, "
             f"{extra_endpoint_rows} row(s) dropped extra remote endpoints, "
-            f"{refused_endpoint_rows} row(s) declared an endpoint that was not publishable)")
+            f"{refused_endpoint_rows} row(s) declared an endpoint that was not publishable, "
+            f"{package_rows} row(s) launch from a publisher package)")
 
 def _http_get(url, timeout, etag=None, source_id=None):
     """GET `url`; return (status, headers, body).
@@ -1582,6 +1691,78 @@ def skills_sh_page_description(payload):
         if normalized:
             return normalized
     return None
+
+
+_SKILLS_SH_INSTALL_RE = re.compile(
+    r"npx skills add\s+(https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
+    r"(?:\s+--skill\s+([A-Za-z0-9_.:-]+))?"
+)
+
+
+def skills_sh_install_command(payload):
+    """(repo URL, skill name) from a public skills.sh page's install block.
+
+    The page publishes the exact command it expects users to run. The repo
+    is a locator, not proof: the companion resolver reads the repository and
+    records the tree whose SKILL.md it actually opened. ``None`` when the
+    page carries no usable command.
+    """
+    if isinstance(payload, (bytes, bytearray)):
+        text = bytes(payload).decode("utf-8", errors="replace")
+    elif isinstance(payload, str):
+        text = payload
+    else:
+        return None
+    match = _SKILLS_SH_INSTALL_RE.search(text)
+    if not match:
+        return None
+    repo = match.group(1).rstrip("/").replace(".git", "")
+    name = (match.group(2) or "").strip()
+    if not name:
+        return None
+    return repo, name
+
+
+SKILLS_SH_SOURCE_INDEX = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "web", "data", "skills-sh-sources.json")
+
+
+def load_skills_sh_sources():
+    """The committed resolver output, keyed by listing id; {} when absent."""
+    try:
+        with open(SKILLS_SH_SOURCE_INDEX, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    sources = data.get("sources") if isinstance(data, dict) else None
+    return sources if isinstance(sources, dict) else {}
+
+
+def skills_sh_resolved_source(item_id, payload, sources):
+    """The verified tree URL for a row, or None when the index does not match.
+
+    The index is only trusted when its repository equals the repository the
+    page currently advertises: a page that moved to another repo must not
+    inherit the old tree.
+    """
+    entry = sources.get(item_id)
+    if not isinstance(entry, dict):
+        return None
+    command = skills_sh_install_command(payload)
+    if command is None:
+        return None
+    repo, name = command
+    if entry.get("repo") != repo:
+        return None
+    if sanitize_skill_name(entry.get("skill") or "") != sanitize_skill_name(name):
+        return None
+    source = entry.get("source")
+    if not isinstance(source, str) or not source.startswith("https://github.com/"):
+        return None
+    if not skill_source_parses_git(source):
+        return None
+    return source
 
 
 def skills_sh_listing_parts(url):
@@ -2515,6 +2696,7 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
         registry_added = registry_inactive = registry_nodesc = registry_dup = 0
         registry_status_missing = 0
         registry_remote_extra_rows = registry_remote_refused_rows = 0
+        registry_package_rows = 0
         registry_rows_by_page = {}
         for name in sorted(registry_latest):
             element, page_url = registry_latest[name]
@@ -2559,6 +2741,8 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                 registry_remote_extra_rows += 1
             if remote_refused:
                 registry_remote_refused_rows += 1
+            if row.get("command"):
+                registry_package_rows += 1
             items.append(row)
             registry_added += 1
             registry_rows_by_page[page_url] = registry_rows_by_page.get(page_url, 0) + 1
@@ -2568,7 +2752,8 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
             registry_added, len(registry_latest), registry_pages,
             registry_inactive, registry_nodesc, registry_status_missing,
             registry_invalid, registry_dup,
-            registry_remote_extra_rows, registry_remote_refused_rows))
+            registry_remote_extra_rows, registry_remote_refused_rows,
+            registry_package_rows))
     else:
         print("  skipped (scoped out of this run)")
 
@@ -3072,10 +3257,13 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                         continue
                     queued_skill_ids.add(item_id)
                     skill_urls.append((loc, owner, repo, sslug, item_id))
+            skillsh_sources = load_skills_sh_sources()
+            skillsh_promoted = 0
             total = len(skill_urls)
             print(f"  skills.sh: {total} skills not yet in the catalog "
                   f"({skillsh_seen} already present, "
-                  f"{len(enrich_urls)} to enrich from public pages)")
+                  f"{len(enrich_urls)} to enrich from public pages, "
+                  f"{len(skillsh_sources)} resolved source(s) available)")
             for n, (loc, owner, repo, sslug, item_id) in enumerate(skill_urls, 1):
                 payload = _obtain_bulk(loc, skillsh_source, 25, refresh,
                                        "skills.sh skill page")
@@ -3090,6 +3278,16 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                         skillsh_nodesc += 1
                     else:
                         seen_ids.add(item_id)
+                        # The page's install command names the repository;
+                        # the resolver's index names the tree whose SKILL.md
+                        # it actually opened. Apply that evidence only when
+                        # the page still points at the same repository.
+                        resolved = skills_sh_resolved_source(
+                            item_id, payload, skillsh_sources)
+                        skill_source = resolved or loc
+                        installability = METADATA_VERIFIED if resolved else DISCOVERY_ONLY
+                        if resolved:
+                            skillsh_promoted += 1
                         items.append({
                             "id": item_id,
                             "name": sslug.replace("-", " ").title(),
@@ -3097,11 +3295,12 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                             "kind": "skill",
                             "summary": desc,
                             "category": "Agent Skills",
-                            "publisher": publisher_obj(owner, loc, PROV_LIST),
+                            "publisher": publisher_obj(
+                                owner, skill_source, PROV_LIST),
                             "stars": None,
                             "version": None,
-                            "skillSource": loc,
-                            "installability": DISCOVERY_ONLY,
+                            "skillSource": skill_source,
+                            "installability": installability,
                             "source": skillsh_source,
                         })
                         skillsh_added += 1
@@ -3132,7 +3331,8 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
                   f"sitemap ids skipped, {skillsh_enriched} summaries "
                   f"refreshed from public pages, {skillsh_nodesc} without a "
                   f"page description, {skillsh_failed + skillsh_enrich_fail} "
-                  f"fetch failures, {skillsh_refused} refused by crawl policy)")
+                  f"fetch failures, {skillsh_refused} refused by crawl policy, "
+                  f"{skillsh_promoted} promoted to a verified git tree)")
         except snapshot_store.SnapshotIntegrityError:
             raise
         except Exception as e:
@@ -3522,6 +3722,26 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
     if duplicate_ids:
         sample = ", ".join(sorted(duplicate_ids)[:10])
         raise ValueError(f"catalog contains {len(duplicate_ids)} duplicate listing id(s): {sample}")
+
+    # Directory feeds carry a repository link but no launch line. A directory
+    # row is promoted only when its publisher login and repository slug match a
+    # registry row exactly, and that row publishes both a version and a launch
+    # line; the copied values are recorded under `resolvedFrom`. Rows with no
+    # exact evidence stay discovery_only. This runs before the sort so a
+    # promoted row is ordered by its new installability like any other.
+    try:
+        from resolve_directory_mcp_launches import resolve_directory_launches
+    except ImportError:
+        resolve_directory_launches = None
+    if resolve_directory_launches is not None:
+        resolution = resolve_directory_launches(items)
+        if resolution["resolved"]:
+            launches = ", ".join(f"{k}={v}" for k, v in sorted(resolution["byLaunch"].items()))
+            print(f"Directory MCP launches resolved from the registry: {resolution['resolved']} "
+                  f"({launches}); {resolution['considered']} considered")
+        else:
+            print(f"Directory MCP launches resolved from the registry: 0 "
+                  f"({resolution['considered']} considered)")
 
     # Sort catalog deterministically.
     #

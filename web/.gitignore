@@ -24,3 +24,5 @@ next-env.d.ts
 
 # Legacy sharded catalog
 public/data/
+
+.vercel

@@ -347,16 +347,17 @@ function Hosts() {
   return (
     <DocSection title="Agent hosts">
       <P>
-        LiteSPM supports <strong className="text-foreground">50 agent hosts</strong> for MCP servers
-        and <strong className="text-foreground">81 targets</strong> for skills. The MCP set includes
-        Claude Code, OpenAI Codex, OpenCode, Cline, Pi, Grok Build, Cursor, Zed, Gemini CLI, GitHub
-        Copilot and AiderDesk.
+        LiteSPM supports <strong className="text-foreground">50 agent hosts</strong> for local stdio
+        MCP servers and <strong className="text-foreground">81 targets</strong> for skills. The MCP
+        set includes Claude Code, OpenAI Codex, OpenCode, Cline, Pi, Grok Build, Cursor, Zed, Gemini
+        CLI, GitHub Copilot and AiderDesk.
       </P>
       <P>
-        All <strong className="text-foreground">50 of the 50</strong> hosts run any MCP server.
-        46 hosts support direct native remote URLs, while the other four (codestudio, iflow-cli, mux,
-        and zcode) connect through LiteSPM&apos;s built-in stdio-to-remote relay bridge. As a universal
-        package manager, LiteSPM guarantees 100% host coverage across every supported agent.
+        <strong className="text-foreground">46 of the 50</strong> hosts document a native remote (URL)
+        entry. The other four — codestudio, iflow-cli, mux and zcode — support local stdio only and
+        refuse a remote install with <code className="font-mono text-brand">LPSM-HOST-REMOTE-UNSUPPORTED</code>.
+        There is no relay: LiteSPM does not write a URL shape a host cannot read, and it does not run
+        a hidden proxy process on the host&apos;s behalf.
       </P>
       <P>
         Each host has its own verified integration. Configuration rules (surgical JSONC merging, TOML round-tripping, and platform path discovery) are derived directly from each agent vendor&apos;s official documentation. Every host gets the exact same plan preview, pre-write backup, and byte-exact ledger.
@@ -495,20 +496,20 @@ litespm catalog sync    # refresh local catalog index`}
             a: "LiteSPM operates on a strict zero-guesswork safety standard. To automatically install an MCP server, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). When community packages only provide a repository link or documentation without standardized launch parameters, LiteSPM refuses to guess (such as guessing between npx, python, or uvx). These tools remain in the catalog so you can discover them and visit their source code, but one-click automated installation is paused until verified launch details exist.",
           },
           {
-            q: "What does 'Publisher setup details needed' mean on a listing?",
-            a: "The package author has created an open-source tool, but has not yet defined structured machine-readable launch instructions in their package metadata. The package detail page links directly to the author's official GitHub repository, where you can follow manual setup instructions from their README.",
+            q: "What does 'Discovery only' mean on a listing?",
+            a: "The catalog has this row's metadata but no verified source or launch line LiteSPM can use. For a server, that means no publishable remote endpoint and no publisher-declared package the installer can start; for a skill, it means no GitHub source whose SKILL.md the build actually read. The detail page links only to the source the catalog recorded; it does not guess a repository.",
           },
           {
             q: "Why do some plugins require the --allow-partial flag?",
-            a: "Plugins can bundle both portable components (universal MCP servers and agent skills) and host-specific extras (such as IDE-specific extension commands, editor hooks, or subagents). LiteSPM installs all portable servers and skills into any supported agent, but pauses on unprojected extras by default so you aren't surprised by missing features. Adding --allow-partial confirms that you want LiteSPM to install all portable components while skipping non-portable host extras.",
+            a: "Plugins can bundle both portable components (universal MCP servers and agent skills) and host-specific extras (such as IDE-specific extension commands, editor hooks, or subagents). LiteSPM installs all portable servers and skills into any supported agent, but pauses on unsupported extras by default so you aren't surprised by missing features. Adding --allow-partial confirms that you want LiteSPM to install all portable components while skipping non-portable host extras. The source must still be commit-pinned; --allow-partial does not bypass pinning.",
           },
           {
             q: "Why do plugins require a version-pinned source?",
-            a: "To ensure reproducible builds, cryptographic security, and byte-exact rollbacks, LiteSPM requires plugins to pin to a specific git commit hash. Floating branches (such as main or latest) can change at any time without notice. If a plugin points to a floating ref, LiteSPM alerts you to install with a pinned commit.",
+            a: "To ensure reproducible builds, cryptographic security, and byte-exact rollbacks, LiteSPM requires plugins to pin to a specific git commit hash. Floating branches (such as main or latest) can change at any time without notice. If a plugin points to a floating ref or a local directory, LiteSPM refuses it and tells you the publisher must publish an immutable tag or commit SHA. There is no CLI flag that bypasses this check.",
           },
           {
             q: "A host refuses a remote (URL) install",
-            a: "While 46 of the 50 supported agent hosts natively support remote URL server configurations, four hosts (Code Studio, iFlow CLI, Mux, and ZCode) currently only support local stdio processes in their config files. LiteSPM connects these hosts via its built-in stdio-to-remote relay bridge rather than writing unsupported URL shapes into their configuration.",
+            a: "46 of the 50 supported agent hosts document a native remote URL entry. Four hosts (Code Studio, iFlow CLI, Mux, and ZCode) support local stdio processes only; they refuse a remote install with LPSM-HOST-REMOTE-UNSUPPORTED. LiteSPM does not write an unsupported URL shape and does not run a hidden proxy on the host's behalf.",
           },
           {
             q: "What does it mean when entries show as 'drifted'?",

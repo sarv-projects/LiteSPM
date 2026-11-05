@@ -86,9 +86,9 @@ else
 fi
 
 if [ "$WEB" -eq 1 ]; then
-  stage "web: npm ci / type-check / lint / static export"
+  stage "web: npm ci / type-check / lint / standalone build"
   (cd web && npm ci && npm run type-check && npm run lint && npm run build) || fail "web build"
-  test -f web/out/index.html || fail "web/out/index.html missing"
+  test -f web/.next/standalone/server.js || fail "web/.next/standalone/server.js missing"
 fi
 
 printf '\nAll local CI stages passed.\n'

@@ -108,7 +108,7 @@ async function computeInsights(): Promise<InsightsResponse> {
     if (isInstallable) installable += 1;
     if (row.url) withEndpoint += 1;
     if (row.publisher?.verified) verifiedPublisherRows += 1;
-    if (row.publisher?.name) publishers.add(row.publisher.name);
+    if (row.publisher?.name) publishers.add(row.publisher.name.trim().toLowerCase());
 
     byKind[row.kind].total += 1;
     if (isInstallable) byKind[row.kind].installable += 1;
@@ -191,7 +191,7 @@ async function computeInsights(): Promise<InsightsResponse> {
       publishers: publishers.size,
       verifiedPublisherRows,
       categories: categories.size,
-      sources: 0,
+      sources: sources.size,
     },
     byKind: [
       {
@@ -224,7 +224,7 @@ async function computeInsights(): Promise<InsightsResponse> {
     byTransport: bars(transports).slice(0, 10),
     topCategories: bars(categories).slice(0, 15),
     topPublishers: bars(publisherCounts(rows)).slice(0, 15),
-    bySource: [],
+    bySource: bars(sources).slice(0, 12),
     hostLeaderboard,
     taxonomyCoverage: {
       mapped,
@@ -241,10 +241,17 @@ async function computeInsights(): Promise<InsightsResponse> {
 }
 
 function publisherCounts(rows: Listing[]): Map<string, number> {
-  const map = new Map<string, number>();
+  // Publisher names are user-entered. Count them case-insensitively so
+  // "Acme" and "acme" are one publisher, and keep the first spelling as the
+  // display label rather than inventing a canonical name.
+  const map = new Map<string, { label: string; count: number }>();
   for (const row of rows) {
-    const name = row.publisher?.name;
-    if (name) map.set(name, (map.get(name) ?? 0) + 1);
+    const name = row.publisher?.name?.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    const current = map.get(key);
+    if (current) current.count += 1;
+    else map.set(key, { label: name, count: 1 });
   }
-  return map;
+  return new Map([...map.values()].map(({ label, count }) => [label, count]));
 }

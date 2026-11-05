@@ -134,6 +134,7 @@ func (a *ClaudeCodeAdapter) VerifySetup(ctx context.Context) (*HostVerification,
 	return &HostVerification{
 		HostID:     "claude-code",
 		ConfigPath: configPath,
+		Configured: configPath != "" && fileExists(configPath),
 		Registered: registered,
 		Status:     status,
 	}, nil

@@ -150,7 +150,11 @@ const globalForDataset = globalThis as unknown as {
 
 // Dev/HMR: a stale promise from a previous module instance would keep serving
 // a dataset built by older loader code. Drop it whenever this module (re)loads.
-if (globalForDataset.__litespmDataset) globalForDataset.__litespmDataset = undefined;
+// In production every request would otherwise throw away a warm 69k-row
+// dataset and re-parse a 52 MB document, which is seconds, not milliseconds.
+if (process.env.NODE_ENV !== "production" && globalForDataset.__litespmDataset) {
+  globalForDataset.__litespmDataset = undefined;
+}
 
 /** The shared dataset promise; resolves once per process. */
 export function getDataset(): Promise<Dataset> {

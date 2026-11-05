@@ -1,6 +1,6 @@
 // Canonical agent-host integration model, generated from the registries the
-// LiteSPM CLI itself compiles in (`data/litespm/hosts.json` and
-// `data/litespm/skill-targets.json`).
+// LiteSPM CLI itself compiles in (`web/data/hosts.json` and
+// `web/data/skill-targets.json`).
 //
 // LiteSPM registers ONE `litespm` bridge entry per host. Individual
 // capabilities are resolved by the daemon at runtime, so per-listing snippets
@@ -213,11 +213,14 @@ function registryTransport(raw?: string | null): string {
 /**
  * The hosts an entry can actually be configured for.
  *
- *   - an **MCP** row installs into all 50 agent hosts. 46 hosts connect
- *     natively over remote HTTP/SSE; the remaining 4 (codestudio, iflow-cli,
- *     mux, zcode) connect through LiteSPM's built-in stdio-to-remote relay bridge.
- *   - a **skill** row configures across all 81 skill targets (with global targets
- *     supported out of the box in user scope).
+ *   - an **MCP** row installs into all 50 hosts when it is a local stdio
+ *     process. A remote (URL) row installs only into the 46 hosts whose
+ *     registry row documents a remote entry spelling; the other four
+ *     (codestudio, iflow-cli, mux, zcode) refuse a URL entry with
+ *     LPSM-HOST-REMOTE-UNSUPPORTED. There is no relay: a host that cannot
+ *     express a URL cannot receive one.
+ *   - a **skill** row configures across all 81 skill targets (with global
+ *     targets supported out of the box in user scope).
  *   - a **plugin** row targets declared hosts, or all 50 hosts for its portable
  *     MCP and skill components.
  */
@@ -235,24 +238,47 @@ export function hostsFor(
     if (item.compatibleHosts && item.compatibleHosts.length > 0) {
       return item.compatibleHosts;
     }
-    // Portable plugin components (MCPs + skills) install across all 50 hosts
+    // Portable plugin components (MCPs + skills) install across all 50 hosts.
+    return HOSTS.map((host) => host.name);
+  }
+
+  if (item.kind === "mcp") {
+    const transport = (item.transport ?? "").toLowerCase();
+    const remoteEntry =
+      Boolean(item.url || item.hasUrl) ||
+      (transport !== "" && transport !== "stdio" && transport !== "local");
+    if (remoteEntry) {
+      return remoteHostsFor(item.transport).map((host) => host.name);
+    }
+    // Local stdio: every host can take a command entry.
     return HOSTS.map((host) => host.name);
   }
 
   if (!availabilityOf(item).installable) {
-    // Even for discovery-only entries, show the universe of compatible hosts
-    if (item.kind === "mcp") return HOSTS.map((host) => host.name);
     return SKILL_TARGETS.filter((target) => target.hasGlobal).map((target) => target.displayName);
-  }
-
-  if (item.kind === "mcp") {
-    // Every MCP server is supported across all 50 hosts:
-    // Native remote for 46 hosts + local stdio proxy bridge for the other 4.
-    return HOSTS.map((host) => host.name);
   }
 
   // Skills configure across all global skill targets (81 targets total in registry)
   return SKILL_TARGETS.filter((target) => target.hasGlobal).map((target) => target.displayName);
+}
+
+/**
+ * The hosts whose registry row documents a URL entry for this transport.
+ * A host with `remote: true` but no recorded transports accepts the
+ * registry's default HTTP spelling; a host with a recorded list accepts only
+ * those values.
+ */
+function remoteHostsFor(transport?: string | null): HostAdapter[] {
+  const wanted = (transport ?? "").toLowerCase();
+  return HOSTS.filter((host) => {
+    if (!host.remote) return false;
+    if (!wanted || wanted === "streamable-http" || wanted === "http") {
+      const transports = (host.remoteTransports ?? []).map((value) => value.toLowerCase());
+      return transports.length === 0 || transports.includes("streamable-http") || transports.includes("http");
+    }
+    const transports = (host.remoteTransports ?? []).map((value) => value.toLowerCase());
+    return transports.length === 0 || transports.includes(wanted);
+  });
 }
 
 /**

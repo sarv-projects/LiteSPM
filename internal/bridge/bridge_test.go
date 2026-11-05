@@ -371,7 +371,7 @@ func TestBridge_ServeCodec(t *testing.T) {
 }
 
 // A standalone shim (nil daemon client) must fail closed for every one of the
-// 12 canonical tools: an explicit tool error that names the missing daemon
+// 13 canonical tools: an explicit tool error that names the missing daemon
 // connection, never fabricated data, statuses, or inventory.
 func TestBridge_All12ToolsDispatch(t *testing.T) {
 	ctx := context.Background()

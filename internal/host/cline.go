@@ -243,6 +243,7 @@ func (a *ClineAdapter) VerifySetup(ctx context.Context) (*HostVerification, erro
 	return &HostVerification{
 		HostID:     "cline",
 		ConfigPath: configPath,
+		Configured: configPath != "" && fileExists(configPath),
 		Registered: registered,
 		Status:     status,
 	}, nil

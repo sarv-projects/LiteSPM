@@ -51,6 +51,8 @@ export interface Listing {
   version: string | null;
   /** The launch endpoint an MCP row's own record names, when published. */
   url?: string | null;
+  /** Publisher-declared source repository (MCP Registry repository.url). */
+  repository?: string | null;
   /** True in the browser display projection when the original row has a URL. */
   hasUrl?: boolean;
   /** Publisher-declared host list. Only plugins carry one. */

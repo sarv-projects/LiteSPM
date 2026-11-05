@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
       sort: sortParam && SORTS.includes(sortParam as SortKey) ? (sortParam as SortKey) : undefined,
       page: Number(params.get("page") ?? "1") || 1,
       pageSize: Number(params.get("pageSize") ?? "24") || 24,
+      facets: params.get("facets") !== "0",
     });
     return NextResponse.json(response);
   } catch (error) {

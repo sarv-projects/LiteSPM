@@ -72,3 +72,5 @@ tmp-agent-sandbox-*/
 
 # Engram AI agent memory
 .engram/
+
+/web-local.log

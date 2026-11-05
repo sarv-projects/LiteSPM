@@ -299,6 +299,7 @@ func (a *GenericAdapter) verification(path string, registered bool) *HostVerific
 	return &HostVerification{
 		HostID:     a.Target.ID,
 		ConfigPath: path,
+		Configured: path != "" && fileExists(path),
 		Registered: registered,
 		Status:     status,
 	}

@@ -49,6 +49,12 @@ import { AvailabilityBadge, FactRow, KindBadge } from "../primitives";
 import { RankBadge, RankExplainer } from "../rank-badge";
 import { TargetAgentPicker } from "../target-agent-picker";
 
+/** Quote one shell argument only when it needs it. Host ids never do. */
+function shellArg(value: string): string {
+  if (/^[A-Za-z0-9._:@/+-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 export function PackageView({ linkKey }: { linkKey: string }) {
   const navigate = useApp((s) => s.navigate);
   const [data, setData] = React.useState<PackageDetailData | null>(null);
@@ -64,6 +70,7 @@ export function PackageView({ linkKey }: { linkKey: string }) {
         if (response?.found && response.detail) {
           setData(response.detail);
           setState("found");
+          document.title = `${displayPackageName(response.detail.name)} — LiteSPM`;
           recordView({
             linkKey: response.detail.linkKey,
             name: response.detail.name,
@@ -134,7 +141,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
   const inCompare = compareKeys.includes(data.linkKey);
 
   const installCommand = data.installable
-    ? `litespm install ${data.id}${host ? ` --agent ${host}` : ""}`
+    ? `litespm install ${shellArg(data.id)}${host ? ` --agent ${shellArg(host)}` : ""}`
     : null;
 
   const cursorInstallUri = React.useMemo(() => {
@@ -142,9 +149,11 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
     if (data.url) {
       return `cursor://anysphere.cursor-mcp/install?name=${encodeURIComponent(data.slug)}&url=${encodeURIComponent(data.url)}`;
     }
-    const safePkg = data.slug || "mcp-server";
-    const args = data.args && data.args.length ? data.args : ["-y", safePkg];
-    return `cursor://anysphere.cursor-mcp/install?name=${encodeURIComponent(data.slug)}&command=${encodeURIComponent(data.command || "npx")}&args=${encodeURIComponent(JSON.stringify(args))}`;
+    // Only a publisher-declared launch line is offered. The old fallback
+    // invented `npx -y <slug>` for rows that never published a command.
+    if (!data.command) return null;
+    const args = data.args ?? [];
+    return `cursor://anysphere.cursor-mcp/install?name=${encodeURIComponent(data.slug)}&command=${encodeURIComponent(data.command)}&args=${encodeURIComponent(JSON.stringify(args))}`;
   }, [data]);
 
   const targetKindLabel =
@@ -367,9 +376,16 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             <p className="mt-2.5 text-[12px] leading-relaxed text-muted-foreground">
               Writes <span className="font-mono text-[11px]">{host}</span>&apos;s own config —
               previewed, backed up, and recorded in the ledger. Compatible across all{" "}
-              {data.installTargets.length} {targetKindLabel} (direct native remote on 46 hosts +
-              stdio relay bridge for local-only targets).
+              {data.installTargets.length} {targetKindLabel}
+              {data.kind === "mcp" && data.availability.id === "remote"
+                ? ` (remote entries are accepted by ${data.installTargets.length} hosts)`
+                : ""}
             </p>
+            {data.kind === "mcp" && data.availability.id === "local" && data.command && (
+              <p className="mt-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 font-mono text-[11.5px] text-muted-foreground">
+                Local launch: {[data.command, ...(data.args ?? [])].join(" ")}
+              </p>
+            )}
             {data.installHint && (
               <p className="mt-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 font-mono text-[11.5px] text-muted-foreground">
                 Publisher hint: {data.installHint}
@@ -381,24 +397,31 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               <h2 className="text-[15px] font-semibold text-foreground">
-                Installation Paused: Version-Pinned Source Required
+                {data.kind === "plugin" && data.pluginSpec?.pinningStatus === "unpinned"
+                  ? "Installation Paused: Version-Pinned Source Required"
+                  : "Installation Not Available"}
               </h2>
             </div>
             <p className="text-[13px] leading-relaxed text-muted-foreground">
-              {data.availability.plain} LiteSPM enforces reproducible build safety by refusing
-              unpinned branch refs and local directories by default.
+              {data.availability.plain}
+              {data.kind === "plugin" && data.pluginSpec?.pinningStatus === "unpinned"
+                ? " LiteSPM refuses an unpinned branch ref or local directory rather than installing content that can change under the approval."
+                : ""}
             </p>
 
-            {data.pluginSpec?.remediation && (
+            {data.pluginSpec?.remediation?.isBlocked && (
               <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4 text-[12px] leading-relaxed">
-                <p className="font-semibold text-foreground">How to install portable components:</p>
-                <p className="mt-1 text-muted-foreground">
-                  You can still install this plugin&apos;s portable MCP servers and agent skills right
-                  now by appending the <code className="font-mono text-brand">--allow-partial</code> flag:
+                <p className="font-semibold text-foreground">
+                  {data.pluginSpec.remediation.isBlocked
+                    ? "This plugin cannot be installed yet"
+                    : "How to install this plugin"}
                 </p>
-                <div className="mt-2">
-                  <InstallBar command={data.pluginSpec.remediation.userCliBypass} />
-                </div>
+                <p className="mt-1 text-muted-foreground">{data.pluginSpec.remediation.reason}</p>
+                {data.pluginSpec.remediation.userCliBypass && (
+                  <div className="mt-2">
+                    <InstallBar command={data.pluginSpec.remediation.userCliBypass} />
+                  </div>
+                )}
                 <div className="mt-3 text-[11.5px] text-muted-foreground">
                   <strong>For package maintainers:</strong> {data.pluginSpec.remediation.publisherAction}
                 </div>
@@ -426,6 +449,12 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             <p className="mt-1 text-[12.5px] text-muted-foreground">
               {data.mcpSpec.authDescription}
             </p>
+            {data.mcpSpec.hasDeclaredTools && (
+              <p className="mt-1.5 text-[11px] text-muted-foreground/80">
+                Categories are inferred from the declared tool names. They are a reading aid, not a
+                publisher-declared permission or a security audit.
+              </p>
+            )}
 
             {data.mcpSpec.hasDeclaredTools ? (
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -598,7 +627,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px] text-muted-foreground">
                       <span className="font-mono text-[11px] rounded bg-muted/80 px-2 py-0.5 text-foreground/80">
-                        Transport: {data.transport || "stdio"}
+                        Transport: {data.transport || (data.command ? "stdio" : "unknown")}
                       </span>
                       {data.url && (
                         <span className="font-mono text-[11px] rounded bg-muted/80 px-2 py-0.5 text-foreground/80 truncate max-w-[340px]">
@@ -612,19 +641,21 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             )}
           </section>
 
-          {/* Step-by-Step Host Configuration Preview */}
+          {/* Host Configuration Preview */}
+          {data.mcpSpec.hostConfigs.length > 0 && (
           <section className="rounded-2xl border border-border/80 bg-card p-5" aria-labelledby="hostconfig-title">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 id="hostconfig-title" className="flex items-center gap-2 text-[15px] font-semibold">
-                  <Server className="h-4 w-4 text-brand" /> Direct Configuration Preview
+                  <Server className="h-4 w-4 text-brand" /> Host Configuration Preview
                 </h2>
                 <p className="mt-1 text-[12.5px] text-muted-foreground">
-                  Inspect the exact surgical JSON or TOML snippet LiteSPM merges into each host config:
+                  Local entries are shown in the host&apos;s own shape. Remote entries are generated by
+                  the host adapter at install time; this page does not guess the URL spelling.
                 </p>
               </div>
 
-              {/* Dropdown with all 50 hosts */}
+              {/* Dropdown with the hosts this row can target */}
               <div className="relative shrink-0">
                 <select
                   id="host-config-selector"
@@ -640,7 +671,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                       </option>
                     ))}
                   </optgroup>
-                  <optgroup label="All Supported Hosts (50)">
+                  <optgroup label={`Compatible Hosts (${data.mcpSpec.hostConfigs.length})`}>
                     {data.mcpSpec.hostConfigs.map((h) => (
                       <option key={h.id} value={h.id}>
                         {h.name} — {h.configPath}
@@ -707,6 +738,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
               );
             })()}
           </section>
+          )}
         </div>
       )}
 
@@ -744,12 +776,19 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                     <Zap className="h-4 w-4" /> Activation Conditions (When to read this skill)
                   </p>
                   <ul className="mt-2.5 space-y-2 text-[12.5px] leading-relaxed text-foreground/90">
-                    {data.skillSpec.triggerRules.map((rule, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                        <span>{rule}</span>
+                    {data.skillSpec.triggerRules.length === 0 ? (
+                      <li className="text-muted-foreground">
+                        The publisher did not publish trigger rules for this skill. LiteSPM will not
+                        invent activation conditions; read the skill body before relying on it.
                       </li>
-                    ))}
+                    ) : (
+                      data.skillSpec.triggerRules.map((rule, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                          <span>{rule}</span>
+                        </li>
+                      ))
+                    )}
                   </ul>
                 </div>
               </TabsContent>
@@ -761,12 +800,19 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                     <AlertTriangle className="h-4 w-4" /> Skip Rules (When agent should avoid triggering)
                   </p>
                   <ul className="mt-2.5 space-y-2 text-[12.5px] leading-relaxed text-foreground/90">
-                    {data.skillSpec.skipRules.map((rule, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                        <span>{rule}</span>
+                    {data.skillSpec.skipRules.length === 0 ? (
+                      <li className="text-muted-foreground">
+                        The publisher did not publish skip rules for this skill. LiteSPM will not
+                        invent them.
                       </li>
-                    ))}
+                    ) : (
+                      data.skillSpec.skipRules.map((rule, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                          <span>{rule}</span>
+                        </li>
+                      ))
+                    )}
                   </ul>
                 </div>
               </TabsContent>
@@ -778,7 +824,8 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                     <CopyButton value={data.skillSpec.instructions} label="Copy prompt" />
                   </div>
                   <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap pr-16">
-                    {data.skillSpec.instructions}
+                    {data.skillSpec.instructions ||
+                      "The catalog does not publish this skill's instruction body. Install it with `litespm skills add` and read SKILL.md before use."}
                   </pre>
                 </div>
               </TabsContent>
@@ -790,15 +837,22 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                     <FolderTree className="h-4 w-4 text-brand" /> Skill Directory Layout
                   </p>
                   <div className="mt-3 space-y-2">
-                    {data.skillSpec.fileTree.map((item) => (
-                      <div
-                        key={item.path}
-                        className="flex items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2 text-[12px]"
-                      >
-                        <span className="font-mono font-medium text-brand">{item.path}</span>
-                        <span className="text-muted-foreground">{item.description}</span>
-                      </div>
-                    ))}
+                    {data.skillSpec.fileTree.length === 0 ? (
+                      <p className="text-[12px] text-muted-foreground">
+                        The catalog does not publish a file inventory for this skill. The installed
+                        tree is whatever its source repository contains.
+                      </p>
+                    ) : (
+                      data.skillSpec.fileTree.map((item) => (
+                        <div
+                          key={item.path}
+                          className="flex items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2 text-[12px]"
+                        >
+                          <span className="font-mono font-medium text-brand">{item.path}</span>
+                          <span className="text-muted-foreground">{item.description}</span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </TabsContent>
@@ -816,15 +870,33 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-[12px]">
                 <p className="text-muted-foreground">Executable Scripts</p>
-                <p className="mt-1 font-semibold text-foreground">None detected (Declarative Markdown)</p>
+                <p className="mt-1 font-semibold text-foreground">
+                  {data.skillSpec.security.scripts === "present"
+                    ? "Present in the source (not inspected)"
+                    : data.skillSpec.security.scripts === "none"
+                      ? "None published"
+                      : "Not inspected"}
+                </p>
               </div>
               <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-[12px]">
                 <p className="text-muted-foreground">Network Access</p>
-                <p className="mt-1 font-semibold text-foreground">Passive (Mediated by Agent)</p>
+                <p className="mt-1 font-semibold text-foreground">
+                  {data.skillSpec.security.network === "active"
+                    ? "Active (not inspected)"
+                    : data.skillSpec.security.network === "passive"
+                      ? "Passive (not inspected)"
+                      : "Not inspected"}
+                </p>
               </div>
               <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-[12px]">
                 <p className="text-muted-foreground">Credential Storage</p>
-                <p className="mt-1 font-semibold text-foreground">No secrets stored or requested</p>
+                <p className="mt-1 font-semibold text-foreground">
+                  {data.skillSpec.security.credentials === "required"
+                    ? "May require credentials (not inspected)"
+                    : data.skillSpec.security.credentials === "none"
+                      ? "None published"
+                      : "Not inspected"}
+                </p>
               </div>
             </div>
           </section>
@@ -840,11 +912,11 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
           <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="plugman-title">
             <div className="flex items-center justify-between">
               <h2 id="plugman-title" className="flex items-center gap-2 text-[15px] font-semibold">
-                <Layers className="h-4 w-4 text-brand" /> Plugin Manifest Breakdown
+                <Layers className="h-4 w-4 text-brand" /> Plugin Source &amp; Components
               </h2>
               <span
                 className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
-                  data.pluginSpec.pinningStatus === "version"
+                  data.pluginSpec.pinningStatus !== "unpinned"
                     ? "bg-brand-soft text-brand"
                     : "bg-amber-500/10 text-amber-500"
                 }`}
@@ -911,6 +983,16 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                   </div>
                 </div>
               )}
+
+              {data.pluginSpec.manifest.skills.length === 0 &&
+                data.pluginSpec.manifest.mcpServers.length === 0 &&
+                data.pluginSpec.manifest.hostExtras.length === 0 && (
+                  <p className="rounded-xl border border-border/60 bg-muted/20 p-3.5 text-[12px] leading-relaxed text-muted-foreground">
+                    The catalog publishes this plugin&apos;s artifact locator, not its manifest.
+                    LiteSPM reads and verifies the manifest from the pinned tree at install time;
+                    this page does not invent bundled servers, skills, or host extras.
+                  </p>
+                )}
             </div>
           </section>
         </div>
@@ -1094,10 +1176,16 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             </h2>
             <p className="mt-2 text-[12px] text-muted-foreground">
               {data.kind === "plugin"
-                ? "Compatible with target hosts declaring plugin support, or all hosts for portable components."
+                ? "Publisher-declared compatibility. LiteSPM installs the plugin's portable MCP servers and skills into each selected host; host-specific extras are skipped unless the install is acknowledged with --allow-partial."
                 : data.kind === "skill"
-                ? "Configurable across all 81 agent skill targets."
-                : "Compatible across all 50 agent hosts via direct remote configuration or LiteSPM stdio relay bridge."}
+                ? data.availability.installable
+                  ? `Configurable across ${data.installTargets.length} agent skill targets.`
+                  : "No verified git tree is recorded, so no skill target is claimed."
+                : data.availability.id === "remote"
+                ? `Remote (URL) entries are accepted by ${data.installTargets.length} hosts; the local-only hosts refuse them.`
+                : data.availability.id === "local"
+                ? `Local stdio entries are supported across ${data.installTargets.length} agent hosts.`
+                : "No verified launch line is recorded, so no host target is claimed."}
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {data.installTargets.slice(0, 16).map((target) => (

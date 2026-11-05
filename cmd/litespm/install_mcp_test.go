@@ -41,6 +41,7 @@ func homeWithBridge(t *testing.T) (home string, configPath string) {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
 	configPath = filepath.Join(home, ".claude.json")
 	content := `{"mcpServers":{"litespm":{"command":"/usr/local/bin/litespm","args":["bridge","stdio","--host","claude-code"]},"mine":{"command":"npx"}}}`
 	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {

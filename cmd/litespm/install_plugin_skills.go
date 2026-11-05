@@ -280,6 +280,7 @@ func pluginSkillRootFor(hostID string, scope domain.InstallScope, projectRoot, h
 func installPluginSkillComponents(
 	ctx context.Context,
 	txn *lifecycle.InstallTxn,
+	journal *lifecycle.Journal,
 	db *state.DB,
 	dataRoot string,
 	listing *domain.Listing,
@@ -354,6 +355,10 @@ func installPluginSkillComponents(
 			entries = append(entries, entry)
 			written := entry
 			txn.Undo(func(ctx context.Context) error { return undoSkillInstall(ledger, written) })
+			if err := journal.RecordSkillWrite(ctx, entry.DestDir, entry.PreImageBackup,
+				entry.PreImageDigest != "" || entry.PreImageBackup != "", entry.ContentDigest); err != nil {
+				return nil, nil, err
+			}
 		}
 		results = append(results, result)
 	}

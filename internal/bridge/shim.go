@@ -68,7 +68,7 @@ type CapabilityItem struct {
 	Triggers   []string        `json:"triggers,omitempty"`
 }
 
-// Shim serves the 12 canonical LiteSPM tools over standard input/output.
+// Shim serves the 13 canonical LiteSPM tools over standard input/output.
 type Shim struct {
 	client *ipc.Client
 	hostID string
@@ -389,6 +389,11 @@ func methodNotFound(req *ipc.Request, method string) *ipc.Response {
 func marketplacePromptText(query string) string {
 	var b strings.Builder
 	b.WriteString("You are browsing the LiteSPM marketplace through the connected LiteSPM MCP server. First, call list_installed to see what capabilities and tools are already installed on this machine.\n\n")
+	webURL := strings.TrimRight(os.Getenv("LITESPM_WEB_URL"), "/")
+	if webURL == "" {
+		webURL = "https://lite-spm-nine.vercel.app"
+	}
+	fmt.Fprintf(&b, "A browser marketplace is available at %s/marketplace. It has four tabs — Skills, Plugins, MCP Servers, and Installed — with a live search bar over the catalog. If this host can open links, open it for the user; the Installed tab is wired to the local ledger when the page is served by `litespm marketplace`.\n\n", webURL)
 	if query != "" {
 		fmt.Fprintf(&b, "Search for: %s\n\n", query)
 	} else {
@@ -811,7 +816,7 @@ func FormatInstalledPanel(items []CapabilityItem) string {
 	return sb.String()
 }
 
-// knownTool reports whether name is one of the 12 canonical tools this shim
+// knownTool reports whether name is one of the 13 canonical tools this shim
 // advertises in tools/list.
 func (s *Shim) knownTool(name string) bool {
 	for _, tool := range s.tools {

@@ -528,6 +528,13 @@ func installMCPFromListing(
 	txn := lifecycle.BeginInstall(ctx)
 	defer txn.RollbackUnlessCommitted()
 
+	outcome.InstallID = fmt.Sprintf("inst_%s_%s_%s", scope, safeInstallIDPart(listing.ID), safeInstallIDPart(version))
+	journal, journalErr := lifecycle.BeginJournal(ctx, db, outcome.InstallID)
+	if journalErr != nil {
+		return nil, journalErr
+	}
+	txn.AttachJournal(journal)
+
 	for _, hostID := range hosts {
 		result, err := host.InstallServerEntry(ctx, hostID, entry, host.EntryInstallOptions{
 			BackupDir: backupDir,
@@ -544,9 +551,11 @@ func installMCPFromListing(
 		outcome.Hosts = append(outcome.Hosts, result)
 		written := result
 		txn.Undo(func(ctx context.Context) error { return undoHostConfigWrite(written) })
+		if err := journal.RecordHostWrite(ctx, result); err != nil {
+			return nil, errors.Join(err, txn.Rollback())
+		}
 	}
 
-	outcome.InstallID = fmt.Sprintf("inst_%s_%s_%s", scope, safeInstallIDPart(listing.ID), safeInstallIDPart(version))
 	// S1/S2: the install row carries its real kind, a content-bound tree
 	// digest (no CAS tree exists for a registration install, so the digest
 	// covers the registered entry — endpoint first, so a stdio and a remote
@@ -631,6 +640,13 @@ func installMCPFromListing(
 		// a product decision that ARCH/34 owns, not an install-time side effect.
 		if err := db.SaveProviderExec(ctx, tx, providerRecordForInstall(outcome.InstallID, name, outcome.Entry)); err != nil {
 			return fmt.Errorf("record the provider: %w", err)
+		}
+		// Commit the write journal in the same transaction as the install
+		// rows. A crash before this point leaves the journal open and startup
+		// restores the configs; a crash after it sees the install row and
+		// leaves the committed files alone.
+		if err := journal.CommitExec(ctx, tx); err != nil {
+			return err
 		}
 		return nil
 	}); err != nil {

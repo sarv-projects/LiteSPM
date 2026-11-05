@@ -6,6 +6,32 @@
 > kept as a dated record, not as instructions. If you are picking the repo up, read this header and
 > the top section; ignore the rest until you need the history.
 
+## Session 2026-11-05 — the browser marketplace, the wizard picker, and 1,928 resolved directory launches
+
+**The answer to "why does `/marketplace` not open a window":** MCP has no portable
+window API. The bridge's `prompts/get` returns text, and `list_installed` returns
+the text layout in `internal/bridge/shim.go` (`FormatInstalledPanel`); no host
+popup is created by LiteSPM. The portable replacement is now a real page:
+
+| What | State |
+|---|---|
+| `/marketplace` | **new** — four tabs (Skills, Plugins, MCP Servers, Installed), live search, copyable `litespm install <id>`, and a local-only Installed tab fed by `/api/litespm/installed` → `litespm list --json` |
+| `litespm marketplace` / `market` | **new** — validates an http(s) URL, opens it (`rundll32`/`open`/`xdg-open`), `--url` and `--no-open`; help page and `DISCOVER` group entry |
+| Wizard `[7]` | **new** — opens the same page; the catalog result picker is now a filterable `huh` select with a detail block, not a numbered list |
+| Directory launches | **1,928 promoted** (1,923 punkpeye, 5 mcpmarket; 1,390 commands, 538 endpoints) by exact publisher-login + repository match to a launch-bearing MCP Registry row; `scripts/resolve_directory_mcp_launches.py` records `resolvedFrom` and never guesses |
+| Catalog totals | **55,491 installable of 69,311 unique (80.1%)**: 25,938 remote MCP, 13,746 local package-launch MCP, 15,482 skills, 325 pinned plugins; 13,572 discovery-only |
+| Release | **`rel-2026-11-05-03`, sequence 154**; `check_catalog_coherence.py` and `test_builder_parity.py` pass (69,376/69,376) |
+| Performance | dataset/meta caches are production-stable (they were reset per request); marketplace requests pass `facets=0`, warm list ~0.8–1.2 s, cold first load ~15 s |
+| The `npm ci` gap | **fixed** — `web/package-lock.json` was missing the `@libsql/client`/`@prisma/adapter-libsql` tree `web/package.json` already required; `npm ci` now succeeds |
+| Live deployment | **blocked here** — the live Vercel app is still `rel-2026-10-21-01` (26,489 installable) and `/marketplace` is the old catch-all; Vercel and Wrangler are logged out, and an anonymous `vercel deploy --temporary` built locally but failed in Vercel with a prebuilt-function `ENOENT`, so the new release/page is local-only until a logged-in deploy runs |
+
+Verified locally: `go test ./...`, `go vet ./...`, the Python catalog suites,
+`npm run type-check`, `npm run lint`, `npm run build`, `/marketplace` tabs and
+load-more in the in-app browser, Installed tab with 22 local records, and an
+end-to-end CLI dry run against the local release
+(`catalog sync` → `install mcp:gregario:3dprint-oracle --dry-run --host opencode`
+printed `npx -y 3dprint-oracle@0.1.0`).
+
 ## Session 2026-10-19 (later) — the site's first browser run, the audit command, and the CAS scratch fix
 
 **Read this first if you are picking the repo up.** The site's browser suite ran for the *first*
@@ -74,8 +100,7 @@ runner, so the brand marks are stubbed for that test — they are not what it as
 
 **Still open, in the order it should be picked up.**
 
-1. The lifecycle write-ahead journal: a crash between the host-config write and the SQLite commit
-   still loses the ledger row.
+1. ~~The lifecycle write-ahead journal: a crash between the host-config write and the SQLite commit still loses the ledger row.~~ Closed 2026-11-05: migration 005 adds a durable `write_journal`; the intent is written before the first write, each step records its exact pre-image backup and post-image digest, the journal commits with the install rows, and `lifecycle.RecoverOpenWrites` restores open journals at startup. The remaining window is a kill between a write and its journal-step append.
 2. The P1 security findings, after this session: the policy engine's fail-open database paths are
    closed, and the approval subject binding was audited and found bound on every production path
    (the plan-less engine path is the exception, and no production caller reaches it). What is left

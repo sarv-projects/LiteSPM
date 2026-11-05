@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "prisma generate && next build",
-    "postbuild": "node -e \"const fs=require('fs'); if(fs.existsSync('.next/standalone')){fs.cpSync('.next/static', '.next/standalone/.next/static', {recursive:true, force:true}); fs.cpSync('public', '.next/standalone/public', {recursive:true, force:true});}\"",
+    "postbuild": "node scripts/postbuild.mjs",
     "start": "node .next/standalone/server.js",
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/check-no-embedded-secrets.mjs && node scripts/check-web-truth.mjs",
     "type-check": "tsc --noEmit",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",

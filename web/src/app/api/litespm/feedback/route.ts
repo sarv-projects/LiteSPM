@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/lib/db";
+import { db, databaseConfigured } from "@/lib/db";
+import { clientIp, rateLimit } from "@/server/litespm/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,20 @@ const KINDS = new Set(["publisher", "listing-correction", "general"]);
 /** Publish-view submissions: publisher interest and feedback. */
 export async function POST(request: NextRequest) {
   try {
+    const limit = rateLimit(`feedback:${clientIp(request)}`, 5, 10 * 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { errors: { form: "Too many submissions. Please try again later." } },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+      );
+    }
+    if (!databaseConfigured()) {
+      return NextResponse.json(
+        { errors: { form: "Feedback storage is not configured on this deployment." } },
+        { status: 503 },
+      );
+    }
+
     const body = (await request.json()) as {
       kind?: string;
       name?: string;
@@ -18,10 +33,10 @@ export async function POST(request: NextRequest) {
     };
 
     const kind = KINDS.has(body.kind ?? "") ? body.kind! : "general";
-    const name = body.name?.trim() ?? "";
-    const email = body.email?.trim() ?? "";
-    const listing = body.listing?.trim() || null;
-    const message = body.message?.trim() ?? "";
+    const name = body.name?.trim().slice(0, 200) ?? "";
+    const email = body.email?.trim().slice(0, 320) ?? "";
+    const listing = body.listing?.trim().slice(0, 300) || null;
+    const message = body.message?.trim().slice(0, 4000) ?? "";
 
     const errors: Record<string, string> = {};
     if (name.length < 2) errors.name = "Tell us your name.";
@@ -41,15 +56,18 @@ export async function POST(request: NextRequest) {
       });
       if (entry?.id) entryId = entry.id;
     } catch (dbError) {
-      // Resilient fallback: log submission to telemetry/console so submissions are never dropped
-      console.warn("Feedback DB persistence fallback (recorded to runtime log):", {
+      // Never print the submission body: name, email and message are PII.
+      // Keep the error and the generated id so an operator can correlate it
+      // with the user's report without copying their contact details to logs.
+      console.warn("Feedback DB persistence failed", {
         kind,
-        name,
-        email,
-        listing,
-        messagePreview: message.slice(0, 100),
+        entryId,
         error: dbError instanceof Error ? dbError.message : String(dbError),
       });
+      return NextResponse.json(
+        { errors: { form: "Feedback could not be saved. Please try again shortly." } },
+        { status: 503 },
+      );
     }
 
     return NextResponse.json({ ok: true, id: entryId });

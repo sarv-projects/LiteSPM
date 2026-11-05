@@ -169,6 +169,7 @@ func (a *GrokBuildAdapter) VerifySetup(ctx context.Context) (*HostVerification, 
 	return &HostVerification{
 		HostID:     "grok-build",
 		ConfigPath: configPath,
+		Configured: configPath != "" && fileExists(configPath),
 		Registered: registered,
 		Status:     status,
 	}, nil

@@ -43,7 +43,7 @@ jobs:
           export VERSION="${GITHUB_REF_NAME#v}"
           ./scripts/build-release.sh
 
-      - name: Build Web Static Export
+      - name: Build Web (standalone)
         working-directory: ./web
         run: |
           npm ci
@@ -53,7 +53,17 @@ jobs:
         run: |
           mkdir -p release-assets
           cp dist/litespm-* dist/SHA256SUMS.txt release-assets/
-          tar -czf release-assets/litespm-web-static.tar.gz -C web/out .
+          # The web app is a Next.js standalone server (next.config.ts:
+          # output: "standalone"), not a static export. postbuild copies
+          # .next/static and public into .next/standalone; outputFileTracing
+          # includes web/data. Package exactly that tree.
+          test -f web/.next/standalone/server.js
+          test ! -e web/.next/standalone/.env
+          tar --exclude='./.env' --exclude='./.env.*' -czf release-assets/litespm-web-standalone.tar.gz -C web/.next/standalone .
+          if tar -tzf release-assets/litespm-web-standalone.tar.gz | grep -Eq '(^|/)\.env(\.|$)'; then
+            echo "refusing to publish a web archive containing .env" >&2
+            exit 1
+          fi
 
       # Keyless Sigstore signing: every published artifact — binaries, the
       # checksum listing, the web archive — gets a short-lived Fulcio

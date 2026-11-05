@@ -1,18 +1,18 @@
 {
   "agentSkillsCount": 20320,
-  "createdAt": "2026-10-21T14:31:30Z",
-  "datasetDigest": "sha256:084f117215406c54c8765ce25c30d2b100f97dc2b9d4001a8e79a8f918ce75c5",
+  "createdAt": "2026-11-05T09:09:20Z",
+  "datasetDigest": "sha256:7247fb2e034671d69d97b8779d9c8164938b5259173833ead5f97952e562c5c0",
   "hostCompatibility": {
     "mcp": "all-bridge-adapters",
     "plugin": "publisher-declared",
     "skill": "all-skill-targets"
   },
   "itemCount": 69376,
-  "manifestDigest": "sha256:0ee6b2bfb7433fecb8e6b8e62fcfbba33cf3ed72a4331cc1732b40b4a116539c",
+  "manifestDigest": "sha256:3dc36b69d9a5da11088419fe7bbf4d32b621d54a3c37508f166f5b580496f328",
   "mcpServersCount": 48418,
   "pluginsCount": 638,
-  "releaseId": "rel-2026-10-21-01",
-  "sequence": 151,
-  "statsUpdatedAt": "2026-10-17T06:19:24Z",
+  "releaseId": "rel-2026-11-05-03",
+  "sequence": 154,
+  "statsUpdatedAt": "2026-11-05T09:08:36Z",
   "totalCapabilities": 69376
 }

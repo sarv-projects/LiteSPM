@@ -46,7 +46,7 @@ type helpGroup struct {
 
 // helpGroups is the section layout of `litespm help` (ARCH/38 §3.1).
 var helpGroups = []helpGroup{
-	{"DISCOVER", []string{"search", "agent", "catalog"}},
+	{"DISCOVER", []string{"marketplace", "search", "agent", "catalog"}},
 	{"VIEW", []string{"list", "inventory"}},
 	{"MANAGE", []string{"install", "copy", "lock", "skills", "grant", "approve", "adopt"}},
 	{"RECOVER", []string{"restore", "doctor", "audit", "uninstall"}},
@@ -84,6 +84,30 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm catalog sync   # fill the index first if it is empty",
 			},
 			SeeAlso: []string{"install", "catalog", "list"},
+		},
+		{
+			Canonical: "marketplace",
+			Aliases:   []string{"market"},
+			Group:     "DISCOVER",
+			Purpose:   "Open the 4-tab browser marketplace for skills, plugins, MCP servers and installed capabilities.",
+			Synopsis: []string{
+				"litespm marketplace [--url <url>] [--no-open]",
+			},
+			Does: []string{
+				"Opens the marketplace page in the default browser: Skills, Plugins, MCP Servers and Installed tabs, with a live search bar over the catalog.",
+				"The Installed tab reads `litespm list --json` when the page is served from this machine; a remote deployment says so instead of showing an empty list.",
+				"`--url` points at a local or self-hosted marketplace; `--no-open` prints the URL without launching a browser.",
+			},
+			DoesNot: []string{
+				"Does not install anything by itself. The install buttons copy the exact `litespm install` command; the CLI still owns the plan, approval and rollback.",
+				"Does not render an in-agent popup. MCP prompts are text-only; a host without a rich panel cannot display one.",
+			},
+			Examples: []string{
+				"litespm marketplace",
+				"litespm marketplace --url http://localhost:3000/marketplace",
+				"litespm marketplace --no-open",
+			},
+			SeeAlso: []string{"search", "install", "list"},
 		},
 		{
 			Canonical: "agent",
@@ -484,20 +508,24 @@ func buildHelpCatalog() map[string]commandHelp {
 			Purpose:   "Connect LiteSPM to an agent.",
 			Synopsis: []string{
 				"litespm setup [--agent <host-id>]",
+				"litespm setup --all",
 				"litespm setup --help",
 			},
 			Does: []string{
-				"With no arguments it opens the wizard. On a machine with nothing connected it asks which agent to connect, finds that agent's config, and writes the bridge entry after a backup.",
+				"With no arguments it opens the wizard. On a machine with nothing connected it asks which agent(s) to connect; the terminal UI is a searchable multi-select with detected configs preselected. Each selected host is previewed and backed up separately before it is written.",
 				"On a configured machine it starts from what is connected and offers the other actions: update the catalog, find and install, remove, list, connect another agent.",
 				"`--agent <host-id>` skips the wizard and connects that agent through the same plan-and-apply path as `litespm host setup <host-id>`.",
+				"`--all` scans for every existing agent config that can take the bridge and applies each one without prompts, reporting what it wrote and what it skipped. It cannot be combined with `--agent`.",
 			},
 			DoesNot: []string{
-				"Without `--agent`, needs a terminal; with nobody to answer it refuses and points at `litespm host setup <host-id>`.",
+				"Without `--agent` or `--all`, needs a terminal; with nobody to answer it refuses and points at `litespm host setup <host-id>`.",
 				"Does not guess a config path. When detection fails, the wizard offers a path you type, a snippet to paste, or another look.",
+				"`--all` only touches config files that already exist and are detected; it never creates a config for an agent that is not installed.",
 				"`init` is no longer an alias of this command; `litespm init` scaffolds a SKILL.md.",
 			},
 			Examples: []string{
 				"litespm setup",
+				"litespm setup --all",
 				"litespm setup --agent codex",
 				"litespm host setup codex   # the same write path",
 			},
