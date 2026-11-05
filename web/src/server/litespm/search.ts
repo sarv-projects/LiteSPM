@@ -40,6 +40,8 @@ export interface CatalogQuery {
   facets?: boolean;
   /** Use the compact search projection (assistant cold-start path). */
   compact?: boolean;
+  /** "all" requires every query group; "any" requires half (or one). */
+  match?: "all" | "any";
 }
 
 export interface CatalogHit {
@@ -266,7 +268,9 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   const groups = queryGroups(query.q ?? "");
   const startedAt = Date.now();
   const index = getSearchIndex(rows, dataset.release.releaseId);
-  let candidates = candidateRowIds(index, groups);
+  const matchAny = query.match === "any";
+  const minGroups = matchAny ? Math.max(1, Math.ceil(groups.length / 2)) : groups.length;
+  let candidates = candidateRowIds(index, groups, matchAny);
 
   const kindFilter = query.kind || null;
   const categoryFilter = query.category || null;
@@ -302,7 +306,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
       const doc = index.docs.get(row.id);
       const m = metaFor(row);
       value = doc
-        ? scoreDoc(doc, groups, index, m.installable, Boolean(row.transport))
+        ? scoreDoc(doc, groups, index, m.installable, Boolean(row.transport), minGroups)
         : 0;
     }
     relCache.set(key, value);

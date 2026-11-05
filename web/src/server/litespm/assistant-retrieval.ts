@@ -17,6 +17,7 @@
 
 import { HOSTS, HOST_ALIASES } from "./hosts";
 import { resolveHostId } from "./identity";
+import { queryGroups } from "./bm25";
 import { searchCatalog, tokenize, type CatalogHit } from "./search";
 import type { ListingKind } from "./types";
 
@@ -29,6 +30,7 @@ export interface AssistantIntent {
 }
 
 const GOAL_HINTS: Array<[RegExp, string]> = [
+  [/\b(coding|code|programming|developer|development|software|autonomous)\b/i, "coding"],
   [/\b(database|postgres|postgresql|sql|analytics|warehouse|spreadsheet)\b/i, "data"],
   [/\b(browser|playwright|puppeteer|scrape|crawl|automation|testing)\b/i, "automation"],
   [/\b(pdf|document|docx|notes|calendar|task|productivity)\b/i, "productivity"],
@@ -102,7 +104,8 @@ const FILLER = new Set([
   "use", "using", "need", "want", "get", "make", "work", "working", "works",
   "compare", "comparison", "difference", "differences", "versus", "vs",
   "better", "today", "now", "current", "currently", "week", "month", "year",
-  "day", "time", "this", "right", "one",
+  "day", "time", "this", "right", "one", "help", "helps", "helpful",
+  "assist", "assists", "assistant",
 ]);
 
 function keywordTokens(question: string): string[] {
@@ -226,6 +229,23 @@ export async function retrieveAssistant(question: string): Promise<AssistantRetr
       });
       lists.push(fallback.items);
     }
+  }
+
+  // Long natural-language questions often have no row containing every term
+  // ("autonomous coding" finds no skill whose text says both). A partial-match
+  // pass recovers those without lowering precision for short, exact queries.
+  const totalSoFar = lists.reduce((sum, list) => sum + list.length, 0);
+  if (queryGroups(question).length > 1 && totalSoFar < 3) {
+    const relaxed = await searchCatalog({
+      q: queries[0] ?? question,
+      kind: intent.kind,
+      match: "any",
+      pageSize: 12,
+      sort: "relevance",
+      facets: false,
+      compact: true,
+    });
+    lists.push(relaxed.items);
   }
 
   const fused = new Map<string, { hit: CatalogHit; score: number }>();

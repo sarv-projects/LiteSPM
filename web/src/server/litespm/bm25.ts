@@ -285,9 +285,11 @@ export function scoreDoc(
   index: SearchIndex,
   installable = false,
   transport = false,
+  minGroups = groups.length,
 ): number {
   if (groups.length === 0) return 0;
   let total = 0;
+  let matched = 0;
 
   for (const group of groups) {
     let best = 0;
@@ -297,8 +299,17 @@ export function scoreDoc(
       const score = bm25(tf, index.df.get(term) ?? 0, index.n, doc.len, index.avgLen);
       if (score > best) best = score;
     }
-    if (best === 0) return 0;
-    total += best;
+    if (best > 0) {
+      total += best;
+      matched += 1;
+    }
+  }
+  if (matched < Math.max(1, minGroups)) return 0;
+  // A row matching more groups is a better answer than one matching the
+  // minimum; this keeps partial-match mode from ranking a single common word
+  // above a row that covers the whole question.
+  if (matched < groups.length) {
+    total *= 0.55 + 0.45 * (matched / groups.length);
   }
 
   // Exact/prefix name and slug evidence still matters more than a bag of
@@ -323,7 +334,11 @@ export function scoreDoc(
  * keeps a query from scanning all 69k documents: a specific term touches only
  * its posting list, and multi-term questions intersect those lists.
  */
-export function candidateRowIds(index: SearchIndex, groups: string[][]): Set<string> | null {
+export function candidateRowIds(
+  index: SearchIndex,
+  groups: string[][],
+  matchAny = false,
+): Set<string> | null {
   if (groups.length === 0) return null;
   let intersection: Set<number> | null = null;
 
@@ -332,9 +347,16 @@ export function candidateRowIds(index: SearchIndex, groups: string[][]): Set<str
     for (const term of group) {
       for (const rowIndex of index.postings.get(term) ?? []) groupRows.add(rowIndex);
     }
-    if (groupRows.size === 0) return new Set();
+    if (groupRows.size === 0) {
+      if (matchAny) continue;
+      return new Set();
+    }
     if (intersection === null) {
       intersection = groupRows;
+      continue;
+    }
+    if (matchAny) {
+      for (const rowIndex of groupRows) intersection.add(rowIndex);
       continue;
     }
     for (const rowIndex of intersection) {
