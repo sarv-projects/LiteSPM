@@ -34,11 +34,12 @@ channel and installs a newer binary in place, once. The check is silent when
 there is nothing to do, can be disabled with `LITESPM_NO_AUTO_UPDATE=1`, and
 never opens the state database, catalog, skills ledger or an agent config.
 
-For Qwen Code, restart the CLI after setup, then use `/marketplace` to browse
-through the connected LiteSPM MCP server. OpenCode namespaces MCP prompts by
-server, so its command is `/litespm:marketplace` (type it, press Enter to
-accept the completion, then Enter again); Claude Code, Codex and the other
-hosts surface the same prompt under their own command UI.
+OpenCode namespaces MCP prompts by server, so its command is
+`/litespm:marketplace` (type it, press Enter to accept the completion, then
+Enter again). Qwen Code 0.14.4 does not register MCP prompts as slash commands;
+after setup, `/mcp` shows the `litespm` server and its 13 tools, and the agent
+can use them conversationally. Claude Code, Codex and the other hosts surface
+the same prompt under their own MCP/command UI.
 
 ## Quick start
 
@@ -149,10 +150,12 @@ and keeps anything you edited.
 With a host configured, the `/marketplace` prompt in your agent reaches the
 same catalog and the same install path through the LiteSPM bridge. An agent can
 search, prepare a plan, and ask you to approve it; it cannot approve for you.
-The prompt is namespaced by the host: Qwen Code exposes it as `/marketplace`,
-OpenCode v2 as `/litespm:marketplace`, and other hosts list it in their own MCP
-prompt or command UI. The bridge starts the daemon on a cold machine, so the
-prompt works without a separately started service.
+The prompt is namespaced by the host: OpenCode v2 exposes it as
+`/litespm:marketplace`. Qwen Code 0.14.4 does not register MCP prompts as slash
+commands; `/mcp` confirms the server and the agent uses its tools
+conversationally. Other hosts list the same prompt in their own MCP/command UI.
+The bridge starts the daemon on a cold machine, so the tool path works without
+a separately started service.
 
 The in-agent `/marketplace` is text: MCP has no portable window, so LiteSPM
 cannot make a host pop up a panel. For the windowed experience, run
