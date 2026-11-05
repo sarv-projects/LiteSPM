@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"testing"
@@ -103,6 +104,72 @@ func TestIPCHandshakeAndEcho(t *testing.T) {
 	rpcErr, ok := err.(*RPCError)
 	if !ok || rpcErr.Code != CodeMethodNotFound {
 		t.Fatalf("expected RPCError with code %d, got %v", CodeMethodNotFound, err)
+	}
+}
+
+// A bridge keeps one daemon connection for the life of an agent. If the
+// daemon restarts, the next call used to fail with a broken pipe forever. The
+// client now replaces the dead connection and retries a handshake failure,
+// because the real method was never sent.
+func TestClientReconnectsAfterHandshakeTransportFailure(t *testing.T) {
+	// First connection: accepted, then closed before the handshake can write.
+	server1 := NewServer("0.1.0", "2026-07-28")
+	listener1 := newMockListener()
+	go func() { _ = server1.Serve(listener1) }()
+	serverConn1, clientConn1 := net.Pipe()
+	listener1.conns <- serverConn1
+	_ = server1.Stop()
+	_ = serverConn1.Close()
+	_ = clientConn1.Close()
+
+	// Replacement connection: a live server that answers handshake + echo.
+	server2 := NewServer("0.1.0", "2026-07-28")
+	server2.RegisterHandler("test.echo", func(_ context.Context, params json.RawMessage) (any, *RPCError) {
+		var req map[string]string
+		if err := json.Unmarshal(params, &req); err != nil {
+			return nil, &RPCError{Code: CodeInvalidParams, Message: err.Error()}
+		}
+		return map[string]string{"reply": req["message"]}, nil
+	})
+	listener2 := newMockListener()
+	go func() { _ = server2.Serve(listener2) }()
+	defer func() {
+		_ = server2.Stop()
+		_ = listener2.Close()
+	}()
+	serverConn2, clientConn2 := net.Pipe()
+	listener2.conns <- serverConn2
+
+	client := NewClientFromConn(clientConn1)
+	client.redial = func() (net.Conn, error) { return clientConn2, nil }
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var echo map[string]string
+	if err := client.Call(ctx, "test.echo", map[string]string{"message": "after restart"}, &echo); err != nil {
+		t.Fatalf("call after reconnect: %v", err)
+	}
+	if echo["reply"] != "after restart" {
+		t.Fatalf("reply = %q", echo["reply"])
+	}
+}
+
+func TestIsTransportError(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want bool
+	}{
+		{io.ErrClosedPipe, true},
+		{net.ErrClosed, true},
+		{fmt.Errorf("failed to write request: %w", io.ErrClosedPipe), true},
+		{fmt.Errorf("connection closed: EOF"), true},
+		{&RPCError{Code: CodeInvalidParams, Message: "bad params"}, false},
+		{nil, false},
+	} {
+		if got := isTransportError(tc.err); got != tc.want {
+			t.Errorf("isTransportError(%v) = %v, want %v", tc.err, got, tc.want)
+		}
 	}
 }
 

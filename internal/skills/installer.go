@@ -121,6 +121,21 @@ type InstallRequest struct {
 	// old bytes would be silent destruction — the opposite failure of the
 	// refusal this replaces.
 	BackupRoot string
+	// OnOverwrite, when set, receives the disclosure that an existing
+	// destination is about to be replaced (or refused). The CLI collects
+	// these and prints them before its install spinner; nil keeps the
+	// historical stderr line so library callers are unchanged.
+	OnOverwrite func(dst string)
+}
+
+// notifyOverwrite routes the pre-write disclosure to the request's collector
+// when one is set, or to the package-level stderr notice otherwise.
+func (req InstallRequest) notifyOverwrite(dst string) {
+	if req.OnOverwrite != nil {
+		req.OnOverwrite(dst)
+		return
+	}
+	overwriteNotice(dst)
 }
 
 // Install consults policy, copies one planned skill atomically, and records
@@ -163,7 +178,7 @@ func (in *Installer) Install(ctx context.Context, req InstallRequest) (LedgerEnt
 	var preImageDigest, preImageBackup string
 	var priorRow *LedgerEntry
 	if info, lerr := os.Lstat(op.ToDir); lerr == nil {
-		overwriteNotice(op.ToDir) // PRE-ALWAYS: name what is in the way
+		req.notifyOverwrite(op.ToDir) // PRE-ALWAYS: name what is in the way
 		switch {
 		case !req.Force:
 			return LedgerEntry{}, fmt.Errorf("destination already exists: %s (re-run with --force to overwrite it)", op.ToDir)

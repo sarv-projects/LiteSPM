@@ -132,7 +132,7 @@ func indentValue(value any, indent string) (string, error) {
 // leaving the rest of the literal byte-identical. objText may contain comments;
 // they are stripped for locating only, never rewritten.
 func upsertObjectMember(objText, name string, value any) (string, error) {
-	locatable := stripJSONComments(objText)
+	locatable := stripTrailingCommas(stripJSONComments(objText))
 	start, end, found, err := jsonValueSpan(locatable, []string{name})
 	if err != nil && strings.Contains(err.Error(), "expected object") {
 		return objText, nil // not an object literal; leave it for the caller
@@ -183,7 +183,14 @@ func insertRawMember(objText string, closeRel int, name, literal string) (string
 	if isEmptyJSONObject(body) {
 		return body + "\n" + memberIndent + member + "\n" + closeIndent + objText[closeRel:], nil
 	}
-	return body + ",\n" + memberIndent + member + "\n" + closeIndent + objText[closeRel:], nil
+	// JSONC permits a trailing comma after the last member. Adding another
+	// comma there would produce `},,` and break a file the host accepted
+	// before LiteSPM touched it.
+	separator := ",\n"
+	if strings.HasSuffix(strings.TrimRight(body, " \t\r\n"), ",") {
+		separator = "\n"
+	}
+	return body + separator + memberIndent + member + "\n" + closeIndent + objText[closeRel:], nil
 }
 
 // isEmptyJSONObject reports whether a `{...}` prefix contains no members.
@@ -223,7 +230,7 @@ func ensureKeyPath(raw string, keyPath []string) (string, int, int, error) {
 	}
 	cur := raw
 	for depth := range keyPath {
-		locatable := stripJSONComments(cur)
+		locatable := stripTrailingCommas(stripJSONComments(cur))
 		s, e, found, err := jsonValueSpan(locatable, keyPath[:depth+1])
 		if err != nil {
 			return "", 0, 0, err
@@ -261,7 +268,7 @@ func ensureKeyPath(raw string, keyPath []string) (string, int, int, error) {
 		}
 		cur = cur[:containerStart] + updated + cur[containerEnd:]
 	}
-	locatable := stripJSONComments(cur)
+	locatable := stripTrailingCommas(stripJSONComments(cur))
 	s, e, found, err := jsonValueSpan(locatable, keyPath)
 	if err != nil {
 		return "", 0, 0, err

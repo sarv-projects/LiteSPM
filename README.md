@@ -22,12 +22,23 @@ That opens the setup wizard. It finds the agents on your machine, shows the
 exact file it will touch, and asks before writing. You can skip agent
 connection and open the manager directly. From the menu, you can search
 LiteSPM's catalog or hand a GitHub repository, Git URL, skill URL, or local
-folder to the interactive skills installer. The installer discovers skills,
-lets you choose skills and agent targets, previews destinations, and asks
-before it writes. In a terminal, menus support keyboard navigation and
-search; catalog updates show a live progress indicator. For Qwen Code, restart
-the CLI after setup, then use `/marketplace` to browse through the connected
-LiteSPM MCP server.
+folder to the interactive skills installer. The installer discovers skills
+behind a live spinner, groups them by folder, gives every highlighted skill a
+detail pane, supports select-all and whole-group toggles, preselects detected
+agents, locks the shared `.agents/skills` destinations, previews every write,
+and asks before it copies anything. Existing destinations are offered a
+byte-exact backup rather than being overwritten silently.
+
+The first LiteSPM command in a terminal session checks the signed release
+channel and installs a newer binary in place, once. The check is silent when
+there is nothing to do, can be disabled with `LITESPM_NO_AUTO_UPDATE=1`, and
+never opens the state database, catalog, skills ledger or an agent config.
+
+For Qwen Code, restart the CLI after setup, then use `/marketplace` to browse
+through the connected LiteSPM MCP server. OpenCode namespaces MCP prompts by
+server, so its command is `/litespm:marketplace` (type it, press Enter to
+accept the completion, then Enter again); Claude Code, Codex and the other
+hosts surface the same prompt under their own command UI.
 
 ## Quick start
 
@@ -135,11 +146,16 @@ and keeps anything you edited.
 
 ## Inside your agent
 
-With a host configured, `/marketplace` in your agent reaches the same catalog
-and the same install path through the LiteSPM bridge. An agent can search,
-prepare a plan, and ask you to approve it; it cannot approve for you. The
-in-agent `/marketplace` is text: MCP has no portable window, so LiteSPM cannot
-make a host pop up a panel. For the windowed experience, run
+With a host configured, the `/marketplace` prompt in your agent reaches the
+same catalog and the same install path through the LiteSPM bridge. An agent can
+search, prepare a plan, and ask you to approve it; it cannot approve for you.
+The prompt is namespaced by the host: Qwen Code exposes it as `/marketplace`,
+OpenCode v2 as `/litespm:marketplace`, and other hosts list it in their own MCP
+prompt or command UI. The bridge starts the daemon on a cold machine, so the
+prompt works without a separately started service.
+
+The in-agent `/marketplace` is text: MCP has no portable window, so LiteSPM
+cannot make a host pop up a panel. For the windowed experience, run
 `litespm marketplace` (or pick `[7]` in the wizard) and use the page's Skills,
 Plugins, MCP Servers and Installed tabs.
 

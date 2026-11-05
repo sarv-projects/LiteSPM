@@ -606,6 +606,7 @@ func buildHelpCatalog() map[string]commandHelp {
 			Does: []string{
 				"Fetches the release manifest, downloads the release asset (never the release page) when a newer version exists, verifies its SHA-256, and replaces the executable atomically.",
 				"`--force` reinstalls or downgrades even when the manifest version is not newer.",
+				"The first LiteSPM command in a terminal session performs the same check automatically, once. Set LITESPM_NO_AUTO_UPDATE=1 to disable that check; automatic updates touch only the binary, never the state database, catalog, ledger or an agent config.",
 			},
 			DoesNot: []string{
 				"Does not update installed packages or skills; that is `litespm skills update`.",

@@ -110,6 +110,9 @@ check("binary name is platform-shaped", () => {
 });
 
 check("npm command shim is executable", () => {
+  // NTFS does not expose a POSIX executable bit to Node. The git checkout
+  // used to publish is Linux, where this assertion is meaningful.
+  if (process.platform === "win32") return;
   const mode = fs.statSync(path.join(__dirname, "bin", "litespm.js")).mode;
   assert(mode & 0o111, "bin/litespm.js must carry an executable bit in git");
 });
@@ -645,10 +648,17 @@ async function main() {
       const res = spawnSync("npm", ["pack", "--json", "--pack-destination", packDir], {
         cwd: __dirname,
         encoding: "utf8",
+        // Windows resolves npm through npm.cmd, which spawnSync cannot
+        // execute without a shell. The shell is fixed here (no user input),
+        // so this does not widen the command surface.
+        shell: process.platform === "win32",
         env: { ...process.env, npm_config_loglevel: "error" },
       });
+      if (res.error) {
+        throw new Error(`npm pack could not start: ${res.error.message}`);
+      }
       if (res.status !== 0) {
-        throw new Error(`npm pack failed: ${res.stderr || res.stdout}`);
+        throw new Error(`npm pack failed: ${res.stderr || res.stdout || `exit ${res.status}`}`);
       }
       const meta = JSON.parse(res.stdout)[0];
       const shipped = meta.files.map((f) => f.path).sort();
@@ -662,7 +672,13 @@ async function main() {
       ];
       assert.deepStrictEqual(shipped, expected, `unexpected tarball contents: ${shipped.join(", ")}`);
       const shim = meta.files.find((f) => f.path === "bin/litespm.js");
-      assert(shim && (shim.mode & 0o111), "packed bin/litespm.js must be executable");
+      // NTFS has no POSIX executable bit, so `npm pack` on Windows reports
+      // mode 0 for every file. The published tarball is built on Linux; the
+      // assertion is meaningful there and would fail for the wrong reason on
+      // a Windows checkout.
+      if (process.platform !== "win32") {
+        assert(shim && (shim.mode & 0o111), "packed bin/litespm.js must be executable");
+      }
       // The publish workflow writes npm/.npmrc with an auth token; it must
       // never be able to reach a consumer.
       assert(!shipped.some((f) => f.includes(".npmrc")), ".npmrc would be published");

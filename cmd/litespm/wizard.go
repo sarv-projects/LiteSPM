@@ -161,9 +161,11 @@ func (w *Wizard) readLine() (string, error) {
 func (w *Wizard) printBanner() {
 	fmt.Fprintln(w.out, "")
 	if terminalUIAvailable(w.in, w.out) {
-		fmt.Fprintln(w.out, renderLiteSPMWordmark())
-		fmt.Fprintln(w.out, "Discover and manage MCP servers, skills, and plugins across your agents.")
-		fmt.Fprintln(w.out, "────────────────────────────────────────────────────────────────────────")
+		fmt.Fprint(w.out, renderWordmarkBanner(
+			"agent capability manager",
+			"Discover and manage MCP servers, skills and plugins across your agents.",
+		))
+		fmt.Fprintln(w.out, "  "+uiDim.Render("──────────────────────────────────────────────────────────────────────"))
 		fmt.Fprintln(w.out, "")
 		return
 	}
@@ -412,41 +414,56 @@ func (w *Wizard) promptAgentSelectionText(rows, detected []agentMenuRow) (host.H
 }
 
 func (w *Wizard) promptAgentMultiSelectTUI(rows, detected []agentMenuRow) ([]host.HostAdapter, error) {
-	options := make([]huh.Option[string], 0, len(rows))
-	selected := make([]string, 0, len(detected))
+	detectedIDs := make([]string, 0, len(detected))
+	for _, row := range detected {
+		detectedIDs = append(detectedIDs, row.descriptor.HostID)
+	}
+	items := make([]promptItem, 0, len(rows))
 	for _, row := range rows {
-		label := row.descriptor.DisplayName
+		group := "Other agents"
 		if row.exists {
-			label += "  " + renderStatusPill("detected") + "  " + truncate(row.configPath, 48)
-			selected = append(selected, row.descriptor.HostID)
-		} else if row.configPath != "" {
-			label += "  " + renderStatusPill("not configured") + "  " + truncate(row.configPath, 48)
-		} else {
-			label += "  " + renderStatusPill("no config path")
+			group = "Detected on this machine"
 		}
-		options = append(options, huh.NewOption(label, row.descriptor.HostID))
+		detail := row.descriptor.DisplayName
+		if row.configPath != "" {
+			if row.exists {
+				detail += "\nConfig file: " + row.configPath + "\nLiteSPM adds one entry and keeps a backup."
+			} else {
+				detail += "\nNo config file yet; LiteSPM will create:\n" + row.configPath
+			}
+		} else {
+			detail += "\nNo configuration path is known for this host."
+		}
+		items = append(items, promptItem{
+			ID:     row.descriptor.HostID,
+			Label:  row.descriptor.DisplayName,
+			Hint:   truncate(row.configPath, 44),
+			Detail: detail,
+			Group:  group,
+		})
 	}
 
-	field := huh.NewMultiSelect[string]().
-		Title("Connect AI coding agents").
-		Description("Space toggles, / filters, Enter applies. Detected configurations are preselected; each host is previewed and backed up separately.").
-		Options(options...).
-		Value(&selected).
-		Filterable(true).
-		Limit(len(rows)).
-		WithHeight(16)
-	if err := runTerminalForm(w.in, w.out, field); err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return nil, nil
-		}
+	result, err := runSearchPrompt(w.in, w.out, searchPromptOptions{
+		Title:       fmt.Sprintf("Connect AI coding agents  ·  %d detected of %d supported", len(detected), len(rows)),
+		Description: "Detected configurations are preselected. Each host is previewed and backed up separately.",
+		Items:       items,
+		Preselected: detectedIDs,
+		Required:    true,
+		Searchable:  true,
+		SelectAll:   true,
+		ShowDetail:  true,
+		DetailLines: 3,
+		MaxVisible:  11,
+	})
+	if err != nil {
 		return nil, err
 	}
-	if len(selected) == 0 {
+	if result.Cancelled || len(result.Selected) == 0 {
 		return nil, nil
 	}
 
-	adapters := make([]host.HostAdapter, 0, len(selected))
-	for _, id := range selected {
+	adapters := make([]host.HostAdapter, 0, len(result.Selected))
+	for _, id := range result.Selected {
 		adapter, err := host.GetAdapter(id)
 		if err != nil {
 			return nil, fmt.Errorf("selected agent %q is not a registered host: %w", id, err)
@@ -965,36 +982,60 @@ func (w *Wizard) actionSyncCatalog(ctx context.Context) error {
 // accessibility tools see the same catalog without needing a TTY.
 func (w *Wizard) pickCatalogResult(results []*catalog.SearchResult, query string) (*domain.Listing, error) {
 	if terminalUIAvailable(w.in, w.out) {
-		options := make([]huh.Option[string], 0, len(results)+1)
-		options = append(options, huh.NewOption("← Back to the menu", ""))
+		items := make([]promptItem, 0, len(results)+1)
 		for _, res := range results {
 			l := res.Listing
 			if l == nil {
 				continue
 			}
-			label := fmt.Sprintf("%-10s  %-34s  %s", kindLabel(l.Kind), truncate(l.Name, 34), truncate(l.Summary, 62))
+			detail := l.Name
+			if l.PublisherClaim.Name != "" {
+				detail += "\nPublisher: " + l.PublisherClaim.Name
+			}
+			detail += "\nProvenance: " + string(l.Installability.Effective())
+			detail += "\nID: " + l.ID
+			if l.Summary != "" {
+				detail += "\n" + l.Summary
+			}
 			if !l.IsInstallable() {
-				label += "  (discovery only)"
+				detail += "\nCatalog metadata only: no verified source or launch line."
 			}
-			options = append(options, huh.NewOption(label, l.ID))
+			hint := l.PublisherClaim.Name
+			if hint == "" {
+				hint = string(l.Installability.Effective())
+			}
+			items = append(items, promptItem{
+				ID:     l.ID,
+				Label:  l.Name,
+				Hint:   hint,
+				Detail: detail,
+				Group:  kindLabel(l.Kind),
+			})
 		}
+		items = append(items, promptItem{
+			ID:     "",
+			Label:  "← Back to the menu",
+			Detail: "Return without installing anything.",
+			Group:  "Navigation",
+		})
 
-		chosen := ""
-		field := huh.NewSelect[string]().
-			Title(fmt.Sprintf("%d capabilities match %q", len(results), query)).
-			Description("Type / to filter by name, kind or publisher · Enter selects · Esc goes back.").
-			Options(options...).
-			Value(&chosen).
-			Height(16)
-		if err := runTerminalForm(w.in, w.out, field); err != nil {
-			if errors.Is(err, huh.ErrUserAborted) {
-				return nil, nil
-			}
+		picked, err := runSearchPrompt(w.in, w.out, searchPromptOptions{
+			Title:       fmt.Sprintf("%d capabilities match %q", len(results), query),
+			Description: "Type to filter by name, kind or publisher. The detail pane previews the highlighted row.",
+			Items:       items,
+			Single:      true,
+			Searchable:  true,
+			ShowDetail:  true,
+			DetailLines: 4,
+			MaxVisible:  12,
+		})
+		if err != nil {
 			return nil, err
 		}
-		if chosen == "" {
+		if picked.Cancelled || len(picked.Selected) == 0 || picked.Selected[0] == "" {
 			return nil, nil
 		}
+		chosen := picked.Selected[0]
 		for _, res := range results {
 			if res.Listing != nil && res.Listing.ID == chosen {
 				w.printListingDetail(res.Listing)
@@ -1038,7 +1079,7 @@ func (w *Wizard) printListingDetail(l *domain.Listing) {
 	if l.PublisherClaim.Name != "" {
 		fmt.Fprintf(w.out, "  publisher:  %s\n", l.PublisherClaim.Name)
 	}
-	fmt.Fprintf(w.out, "  provenance: %s\n", l.Installability.Effective())
+	fmt.Fprintf(w.out, "  provenance: %s\n", string(l.Installability.Effective()))
 	if l.Summary != "" {
 		fmt.Fprintf(w.out, "  summary:    %s\n", l.Summary)
 	}

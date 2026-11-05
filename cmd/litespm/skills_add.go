@@ -197,6 +197,14 @@ func runSkillsAdd(args []string) {
 		os.Exit(1)
 	}
 
+	out := bufio.NewWriter(os.Stdout)
+	defer out.Flush()
+
+	if !opts.jsonOut {
+		fmt.Fprint(out, renderInstallerBanner())
+		out.Flush()
+	}
+
 	// A source that is not a git repo at all — a bare SKILL.md over https, or a
 	// .zip/.tar/.tar.gz/.tgz, extension optional — has to be decided BEFORE
 	// ParseSkillSource: that parser will happily describe any https URL as a
@@ -205,38 +213,54 @@ func runSkillsAdd(args []string) {
 	// about what counts as a download.
 	isDownload := skills.IsDirectDownloadSource(opts.source)
 
-	var src skills.SkillSource
-	var workRoot string
-	var cleanup func()
-	if isDownload {
-		fetched, clean, fetchErr := skills.FetchSkillDownload(context.Background(), opts.source)
-		if fetchErr != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", fetchErr)
-			os.Exit(1)
-		}
-		workRoot, cleanup = fetched, clean
-		// There is no git tree, so there is no commit to record; the display
-		// label stays the URL the user gave.
-		src = skills.SkillSource{Kind: "download", Display: opts.source}
-	} else {
-		src, err = skills.ParseSkillSource(opts.source)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		if src.Kind == "local" {
-			workRoot = src.LocalDir
-			cleanup = func() {}
-		} else {
-			var fetchErr error
-			workRoot, cleanup, fetchErr = fetchSkillSourceTree(src)
+	type fetchedSource struct {
+		src     skills.SkillSource
+		root    string
+		cleanup func()
+	}
+	fetch := func() (fetchedSource, error) {
+		if isDownload {
+			root, clean, fetchErr := skills.FetchSkillDownload(context.Background(), opts.source)
 			if fetchErr != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", fetchErr)
-				os.Exit(1)
+				return fetchedSource{}, fetchErr
 			}
+			// There is no git tree, so there is no commit to record; the
+			// display label stays the URL the user gave.
+			return fetchedSource{
+				src:     skills.SkillSource{Kind: "download", Display: opts.source},
+				root:    root,
+				cleanup: clean,
+			}, nil
+		}
+		parsed, parseErr := skills.ParseSkillSource(opts.source)
+		if parseErr != nil {
+			return fetchedSource{}, parseErr
+		}
+		if parsed.Kind == "local" {
+			return fetchedSource{src: parsed, root: parsed.LocalDir, cleanup: func() {}}, nil
+		}
+		root, clean, fetchErr := fetchSkillSourceTree(parsed)
+		if fetchErr != nil {
+			return fetchedSource{}, fetchErr
+		}
+		return fetchedSource{src: parsed, root: root, cleanup: clean}, nil
+	}
+
+	fetched, fetchErr := runWithSpinner(context.Background(), os.Stdin, os.Stdout, "Fetching source", fetch)
+	if fetchErr != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", fetchErr)
+		os.Exit(1)
+	}
+	src, workRoot, cleanup := fetched.src, fetched.root, fetched.cleanup
+	defer cleanup()
+	if !opts.jsonOut {
+		installerStepDone(out, fmt.Sprintf("Source  %s", src.Display))
+		if src.Kind == "local" {
+			installerStepInfo(out, "Reading the local folder; nothing is copied in yet.")
+		} else {
+			installerStepInfo(out, "Source fetched and checked out.")
 		}
 	}
-	defer cleanup()
 
 	// Record the exact commit the checkout resolved to when the source is a git
 	// tree; an explicit pin in the source (owner/repo@ref) still wins inside
@@ -288,8 +312,6 @@ func runSkillsAdd(args []string) {
 	}
 
 	// --- Skill selection ---
-	out := bufio.NewWriter(os.Stdout)
-	defer out.Flush()
 	in := bufio.NewReader(os.Stdin)
 
 	askLine := func() string {
@@ -298,16 +320,11 @@ func runSkillsAdd(args []string) {
 	}
 
 	if !opts.jsonOut {
-		fmt.Fprintln(out, litespmBanner)
-		fmt.Fprintln(out, "\n┌   skills")
-		fmt.Fprintf(out, "│\n◇  Source: %s\n│\n", src.Display)
-		if src.Kind == "local" {
-			fmt.Fprintln(out, "◇  Local directory")
-		} else {
-			fmt.Fprintln(out, "◇  Repository cloned")
+		installerStepDone(out, fmt.Sprintf("Found %d skill%s", len(found), plural(len(found))))
+		if len(hidden) > 0 {
+			installerStepWarn(out, fmt.Sprintf("%d internal skill(s) hidden; set %s=1 to include them.", len(hidden), skills.InternalSkillsEnvVar))
 		}
-		fmt.Fprintln(out, "│")
-		fmt.Fprintf(out, "◇  Found %d skill%s\n", len(found), plural(len(found)))
+		installerStepInfo(out, "")
 	}
 
 	if len(opts.skills) == 0 && src.RequestedSkill != "" {
@@ -336,24 +353,38 @@ func runSkillsAdd(args []string) {
 	// --- Scope selection (global, or this repo only) ---
 	if interactive && !opts.scopeGiven && !opts.global {
 		if interactiveTUI {
-			scope := "project"
-			field := huh.NewSelect[string]().
-				Title("Installation scope").
-				Description("Choose where LiteSPM should copy the selected skills.").
-				Options(
-					huh.NewOption("This project  ·  committed with this repository", "project").Selected(true),
-					huh.NewOption("Global  ·  available to you across projects", "global"),
-				).
-				Value(&scope)
-			if err := runSkillsAddForm(out, field); err != nil {
-				if errors.Is(err, huh.ErrUserAborted) {
-					fmt.Fprintln(out, "Cancelled.")
-					return
-				}
-				fmt.Fprintf(os.Stderr, "Error selecting installation scope: %v\n", err)
+			out.Flush()
+			picked, promptErr := runSearchPrompt(os.Stdin, os.Stdout, searchPromptOptions{
+				Title:       "Installation scope",
+				Description: "Choose where LiteSPM should copy the selected skills.",
+				Single:      true,
+				ShowDetail:  true,
+				DetailLines: 2,
+				Preselected: []string{"project"},
+				Items: []promptItem{
+					{
+						ID:     "project",
+						Label:  "This project",
+						Hint:   "committed with this repository",
+						Detail: "Writes into this repository's agent skill folders. Teammates who check out the project get the skills with it.",
+					},
+					{
+						ID:     "global",
+						Label:  "Global",
+						Hint:   "available across all your projects",
+						Detail: "Writes into your user-level agent skill folders. Every project on this machine can use the skill.",
+					},
+				},
+			})
+			if promptErr != nil {
+				fmt.Fprintf(os.Stderr, "Error selecting installation scope: %v\n", promptErr)
 				os.Exit(1)
 			}
-			opts.scope = scope
+			if picked.Cancelled || len(picked.Selected) == 0 {
+				fmt.Fprintln(out, "Cancelled.")
+				return
+			}
+			opts.scope = picked.Selected[0]
 		} else {
 			fmt.Fprintln(out, "◇  Installation scope")
 			fmt.Fprintln(out, "│  1) This repo only")
@@ -369,8 +400,7 @@ func runSkillsAdd(args []string) {
 		}
 	}
 	if !opts.jsonOut {
-		fmt.Fprintln(out, "│")
-		fmt.Fprintf(out, "◇  Scope: %s\n", scopeLabel(opts.scope))
+		installerStepDone(out, fmt.Sprintf("Scope  %s", scopeLabel(opts.scope)))
 	}
 
 	// --- Agent selection ---
@@ -407,36 +437,31 @@ func runSkillsAdd(args []string) {
 	if len(selected) == 0 && interactive {
 		var picked []int
 		if interactiveTUI {
-			options := make([]huh.Option[string], 0, len(found))
-			for i, skill := range found {
-				label := fmt.Sprintf("%s  ·  %s", skill.Pkg.Name, truncateRunes(skill.Pkg.Description, 72))
-				options = append(options, huh.NewOption(label, strconv.Itoa(i)))
-			}
-			pickedValues := []string{}
-			field := huh.NewMultiSelect[string]().
-				Title("Choose skills to install").
-				Description("Space selects a skill. Enter confirms the selection.").
-				Options(options...).
-				Value(&pickedValues).
-				Filterable(true).
-				Validate(func(values []string) error {
-					if len(values) == 0 {
-						return errors.New("select at least one skill")
-					}
-					return nil
-				}).
-				WithHeight(12)
-			if err := runSkillsAddForm(out, field); err != nil {
-				if errors.Is(err, huh.ErrUserAborted) {
-					fmt.Fprintln(out, "Cancelled.")
-					return
-				}
-				fmt.Fprintf(os.Stderr, "Error selecting skills: %v\n", err)
+			out.Flush()
+			result, promptErr := runSearchPrompt(os.Stdin, os.Stdout, searchPromptOptions{
+				Title:       fmt.Sprintf("Choose skills to install  ·  %d available", len(found)),
+				Description: "Type to filter. Groups can be toggled as a whole; the detail pane previews the highlighted skill.",
+				Items:       skillPromptItems(found),
+				Required:    true,
+				Searchable:  true,
+				SelectAll:   true,
+				ShowDetail:  true,
+				DetailLines: 3,
+				MaxVisible:  11,
+			})
+			if promptErr != nil {
+				fmt.Fprintf(os.Stderr, "Error selecting skills: %v\n", promptErr)
 				os.Exit(1)
 			}
-			for _, value := range pickedValues {
-				index, _ := strconv.Atoi(value)
-				picked = append(picked, index)
+			if result.Cancelled || len(result.Selected) == 0 {
+				fmt.Fprintln(out, "Cancelled.")
+				return
+			}
+			for _, id := range result.Selected {
+				index, convErr := strconv.Atoi(id)
+				if convErr == nil && index >= 0 && index < len(found) {
+					picked = append(picked, index)
+				}
 			}
 		} else {
 			fmt.Fprintln(out, "◇  Select skills to install (numbers, comma-separated, or 'all')")
@@ -471,42 +496,56 @@ func runSkillsAdd(args []string) {
 			detectedIDs = append(detectedIDs, a.ID)
 		}
 		if interactiveTUI {
-			options := make([]huh.Option[string], 0, len(targets))
+			// Universal agents share one `.agents/skills` tree, so including
+			// a detected universal tree costs no extra copy and is the
+			// reference installer's "always included" model. Only detected
+			// universal agents are locked: an explicit non-universal choice
+			// must not silently create a universal tree nobody asked for.
+			var locked, detectedOther, other []promptItem
 			for _, agent := range detectedTargets {
-				label := agent.DisplayName + "  ·  detected"
+				item := agentPromptItem(agent, opts.scope, project, home, true)
 				if agent.Universal {
-					label += "  ·  shared skills folder"
+					locked = append(locked, item)
+				} else {
+					item.Group = "Detected on this machine"
+					detectedOther = append(detectedOther, item)
 				}
-				options = append(options, huh.NewOption(label, agent.ID).Selected(true))
 			}
 			for _, agent := range otherTargets {
-				label := agent.DisplayName
-				if agent.Universal {
-					label += "  ·  shared skills folder"
-				}
-				options = append(options, huh.NewOption(label, agent.ID))
+				item := agentPromptItem(agent, opts.scope, project, home, false)
+				item.Group = "Other agents"
+				other = append(other, item)
 			}
-			field := huh.NewMultiSelect[string]().
-				Title(fmt.Sprintf("Choose agents  ·  %d supported, %d detected", len(targets), len(detectedTargets))).
-				Description("Detected agents are preselected. Filter with /, move with ↑/↓, Space toggles, Enter confirms.").
-				Options(options...).
-				Value(&agents).
-				Filterable(true).
-				Validate(func(values []string) error {
-					if len(values) == 0 {
-						return errors.New("select at least one agent")
-					}
-					return nil
-				}).
-				WithHeight(16)
-			if err := runSkillsAddForm(out, field); err != nil {
-				if errors.Is(err, huh.ErrUserAborted) {
-					fmt.Fprintln(out, "Cancelled.")
-					return
-				}
-				fmt.Fprintf(os.Stderr, "Error selecting agents: %v\n", err)
+			items := make([]promptItem, 0, len(detectedOther)+len(other))
+			items = append(items, detectedOther...)
+			items = append(items, other...)
+			preselected := make([]string, 0, len(detectedOther))
+			for _, item := range detectedOther {
+				preselected = append(preselected, item.ID)
+			}
+			out.Flush()
+			result, promptErr := runSearchPrompt(os.Stdin, os.Stdout, searchPromptOptions{
+				Title:       fmt.Sprintf("Choose agents  ·  %d detected of %d supported", len(detectedTargets), len(targets)),
+				Description: "Detected agents are preselected. Shared `.agents/skills` destinations are always included; each write is backed up separately.",
+				Items:       items,
+				Locked:      locked,
+				Preselected: preselected,
+				Required:    true,
+				Searchable:  true,
+				SelectAll:   true,
+				ShowDetail:  true,
+				DetailLines: 2,
+				MaxVisible:  11,
+			})
+			if promptErr != nil {
+				fmt.Fprintf(os.Stderr, "Error selecting agents: %v\n", promptErr)
 				os.Exit(1)
 			}
+			if result.Cancelled || len(result.Selected) == 0 {
+				fmt.Fprintln(out, "Cancelled.")
+				return
+			}
+			agents = result.Selected
 		} else {
 			fmt.Fprintf(out, "◇  %d agents (%d detected)\n", len(targets), len(detectedTargets))
 			fmt.Fprintln(out, "◇  Which agents do you want to install to?")
@@ -573,15 +612,56 @@ func runSkillsAdd(args []string) {
 		os.Exit(1)
 	}
 
+	// Refuse an overwrite before the summary instead of failing halfway
+	// through the copy loop. The installer can replace a destination with a
+	// byte-exact backup, but only when the person asked for it.
+	overwrites := existingDestinations(ops)
+	if overwrites > 0 && !opts.force {
+		if !interactive {
+			fmt.Fprintf(os.Stderr, "Error: %d destination(s) already contain these skills. Re-run with --force to replace them (a backup is kept).\n", overwrites)
+			os.Exit(1)
+		}
+		replace := false
+		if interactiveTUI {
+			out.Flush()
+			field := huh.NewConfirm().
+				Title(fmt.Sprintf("%d destination(s) already exist", overwrites)).
+				Description("Replace them with the newly discovered copies? Each existing directory is backed up byte-for-byte first.").
+				Affirmative("Replace with backup").
+				Negative("Cancel").
+				Value(&replace)
+			if err := runSkillsAddForm(out, field); err != nil {
+				if errors.Is(err, huh.ErrUserAborted) {
+					fmt.Fprintln(out, "Cancelled.")
+					return
+				}
+				fmt.Fprintf(os.Stderr, "Error confirming overwrite: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			fmt.Fprintf(out, "◇  %d destination(s) already exist. Replace them with a backup? [y/N] > ", overwrites)
+			out.Flush()
+			answer := strings.ToLower(askLine())
+			replace = answer == "y" || answer == "yes"
+		}
+		if !replace {
+			fmt.Fprintln(out, "Cancelled. Nothing was changed.")
+			return
+		}
+		opts.force = true
+	}
+
 	proceed := opts.yes
 	if !opts.jsonOut {
 		printInstallSummary(out, src, selected, ops)
 		printRiskPanel(out, src, selected)
 		if interactive {
 			if interactiveTUI {
+				out.Flush()
 				field := huh.NewConfirm().
 					Title("Proceed with installation?").
-					Affirmative("Install selected skills").
+					Description(fmt.Sprintf("%d skill%s → %d destination%s · %s", len(selected), plural(len(selected)), len(ops), plural(len(ops)), scopeLabel(opts.scope))).
+					Affirmative("Install").
 					Negative("Cancel").
 					Value(&proceed)
 				if err := runSkillsAddForm(out, field); err != nil {
@@ -602,11 +682,9 @@ func runSkillsAdd(args []string) {
 			proceed = true
 		}
 		if !proceed {
-			fmt.Fprintln(out, "Cancelled.")
+			fmt.Fprintln(out, "Cancelled. Nothing was changed.")
 			return
 		}
-		fmt.Fprintln(out, "◇  Installation complete")
-		fmt.Fprintln(out, "│")
 	}
 
 	// --- Install ---
@@ -633,35 +711,50 @@ func runSkillsAdd(args []string) {
 		os.Exit(1)
 	}
 	defer closePolicy()
-	askNoted := false
-	checker := enginePolicyChecker(policyEngine, func(_ context.Context, _ skills.PolicyRequest, detail string) bool {
-		if !askNoted {
-			fmt.Fprintf(os.Stderr, "Policy: skill writes require approval (%s); authorized by this command's installation consent.\n", detail)
-			askNoted = true
-		}
+	checker := enginePolicyChecker(policyEngine, func(context.Context, skills.PolicyRequest, string) bool {
 		return true
 	})
 	installer := skills.NewInstaller(ledger, checker)
 
-	var done []installedSkill
-	for _, op := range ops {
-		if _, err := installer.Install(context.Background(), skills.InstallRequest{
-			Op:          op,
-			Source:      src,
-			Scope:       opts.scope,
-			ObservedRef: observedRef,
-			Force:       opts.force,
-			BackupRoot:  platformPaths.BackupsPath(),
-		}); err != nil {
-			var denied *skills.PolicyDeniedError
-			if errors.As(err, &denied) {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			} else {
-				fmt.Fprintf(os.Stderr, "Error installing %s to %s: %v\n", op.SkillName, op.ToDir, err)
+	if !opts.jsonOut {
+		installerStepInfo(out, "Policy: these writes were authorized by your install consent; deny rules still apply.")
+		out.Flush()
+	}
+	var replaced []string
+	done, installErr := runWithSpinner(context.Background(), os.Stdin, os.Stdout,
+		fmt.Sprintf("Installing %d skill%s into %d destination%s", len(selected), plural(len(selected)), len(ops), plural(len(ops))),
+		func() ([]installedSkill, error) {
+			var installed []installedSkill
+			for _, op := range ops {
+				if _, err := installer.Install(context.Background(), skills.InstallRequest{
+					Op:          op,
+					Source:      src,
+					Scope:       opts.scope,
+					ObservedRef: observedRef,
+					Force:       opts.force,
+					BackupRoot:  platformPaths.BackupsPath(),
+					OnOverwrite: func(dst string) { replaced = append(replaced, dst) },
+				}); err != nil {
+					var denied *skills.PolicyDeniedError
+					if errors.As(err, &denied) {
+						return installed, err
+					}
+					return installed, fmt.Errorf("installing %s to %s: %w", op.SkillName, op.ToDir, err)
+				}
+				installed = append(installed, installedSkill{Skill: op.SkillName, To: op.ToDir, Host: op.HostLabel})
 			}
-			os.Exit(1)
+			return installed, nil
+		})
+	if installErr != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", installErr)
+		os.Exit(1)
+	}
+	if !opts.jsonOut {
+		installerStepDone(out, fmt.Sprintf("Installed %d skill%s into %d destination%s", len(selected), plural(len(selected)), len(done), plural(len(done))))
+		if len(replaced) > 0 {
+			installerStepInfo(out, fmt.Sprintf("%d existing destination%s replaced · backups: %s",
+				len(replaced), plural(len(replaced)), shortHome(platformPaths.BackupsPath(), home)))
 		}
-		done = append(done, installedSkill{Skill: op.SkillName, To: op.ToDir, Host: op.HostLabel})
 	}
 
 	if opts.jsonOut {
@@ -675,6 +768,107 @@ func runSkillsAdd(args []string) {
 	}
 
 	printCompletion(out, src, selected, done, home)
+}
+
+// skillPromptItems shapes discovered skills for the searchable picker. The
+// group is the first path segment (the reference installer's plugin grouping),
+// so a repository with skills/<category>/<name>/SKILL.md can be folded and
+// toggled by category.
+func skillPromptItems(found []skills.DiscoveredSkill) []promptItem {
+	items := make([]promptItem, 0, len(found))
+	for i, skill := range found {
+		rel := filepath.ToSlash(skill.Rel)
+		group := "General"
+		if parts := strings.Split(rel, "/"); len(parts) > 1 && parts[0] != "" && parts[0] != "." {
+			group = titleCase(parts[0])
+		}
+		detail := strings.TrimSpace(skill.Pkg.Description)
+		if detail == "" {
+			detail = "No description was published for this skill."
+		}
+		detail += "\nPath: " + rel
+		if skill.Pkg.Version != "" {
+			detail += "  ·  v" + skill.Pkg.Version
+		}
+		if len(skill.Pkg.Triggers) > 0 {
+			detail += "\nTriggers: " + strings.Join(skill.Pkg.Triggers, ", ")
+		}
+		if len(skill.Pkg.ToolsRequired) > 0 {
+			detail += "\nTools: " + strings.Join(skill.Pkg.ToolsRequired, ", ")
+		}
+		hint := ""
+		if skill.Pkg.Version != "" {
+			hint = "v" + skill.Pkg.Version
+		}
+		items = append(items, promptItem{
+			ID:     strconv.Itoa(i),
+			Label:  skill.Pkg.Name,
+			Hint:   hint,
+			Detail: detail,
+			Group:  group,
+		})
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Group != items[j].Group {
+			return items[i].Group < items[j].Group
+		}
+		return strings.ToLower(items[i].Label) < strings.ToLower(items[j].Label)
+	})
+	return items
+}
+
+// agentPromptItem describes one agent destination. The detail names the exact
+// directory for the selected scope; no path is guessed when the agent has no
+// documented location.
+func agentPromptItem(agent skills.AgentTarget, scope, project, home string, detected bool) promptItem {
+	detail := agent.DisplayName + " reads skills from "
+	if dir, ok := skills.AgentSkillDir(agent.ID, scope, project, home); ok {
+		detail += shortHome(dir, home) + "."
+	} else {
+		detail += "no documented location for this scope, so selecting it has no effect."
+	}
+	if agent.Universal {
+		detail += "\nShared tree: this agent reads the same `.agents/skills` folder as other universal agents, so it is copied once."
+	}
+	if detected {
+		detail += "\nDetected on this machine."
+	}
+	hint := "shared .agents/skills"
+	if !agent.Universal {
+		hint = ""
+		if dir, ok := skills.AgentSkillDir(agent.ID, scope, project, home); ok {
+			hint = shortHome(dir, home)
+		}
+	}
+	return promptItem{ID: agent.ID, Label: agent.DisplayName, Hint: hint, Detail: detail}
+}
+
+func titleCase(s string) string {
+	parts := strings.FieldsFunc(s, func(r rune) bool { return r == '-' || r == '_' || r == ' ' })
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		r := []rune(strings.ToLower(part))
+		r[0] = []rune(strings.ToUpper(string(r[0])))[0]
+		parts[i] = string(r)
+	}
+	if len(parts) == 0 {
+		return s
+	}
+	return strings.Join(parts, " ")
+}
+
+// existingDestinations counts planned writes whose final skill directory is
+// already on disk. The caller asks before replacing anything.
+func existingDestinations(ops []skills.InstallOp) int {
+	n := 0
+	for _, op := range ops {
+		if _, err := os.Lstat(op.ToDir); err == nil {
+			n++
+		}
+	}
+	return n
 }
 
 // selectSkillsByName resolves --skill values against the discovered skills.
@@ -836,15 +1030,18 @@ func scopeLabel(scope string) string {
 }
 
 func printInstallSummary(out *bufio.Writer, src skills.SkillSource, selected []skills.DiscoveredSkill, ops []skills.InstallOp) {
-	fmt.Fprintln(out, "◇  Installation Summary ──────────────────────────────╮")
-	fmt.Fprintln(out, "│")
 	title := src.RepoPath
 	if title == "" {
 		title = src.Display
 	}
-	fmt.Fprintf(out, "│  %s\n│\n", truncateRunes(title, 55))
+	lines := []string{
+		uiDim.Render("source") + "  " + truncateRunes(title, 58),
+		uiDim.Render("skills") + "  " + fmt.Sprintf("%d selected", len(selected)),
+		uiDim.Render("writes") + "  " + fmt.Sprintf("%d destination%s", len(ops), plural(len(ops))),
+		"",
+	}
 
-	// One row per (skill, target dir), grouped by skill.
+	// One block per skill, with every destination it will be copied into.
 	type target struct{ dir, host string }
 	order := []string{}
 	bySkill := map[string][]target{}
@@ -855,33 +1052,44 @@ func printInstallSummary(out *bufio.Writer, src skills.SkillSource, selected []s
 		bySkill[op.SkillName] = append(bySkill[op.SkillName], target{dir: op.ToDir, host: op.HostLabel})
 	}
 	for _, name := range order {
-		fmt.Fprintf(out, "│  %s\n", name)
+		lines = append(lines, uiGreenS.Render("✓")+" "+uiBold.Render(name))
 		for _, t := range bySkill[name] {
-			fmt.Fprintf(out, "│    → %s\n", t.dir)
+			marker := ""
+			if _, err := os.Lstat(t.dir); err == nil {
+				marker = uiYellowS.Render("  (exists · backup first)")
+			}
+			lines = append(lines, "  "+uiDim.Render("→")+" "+shortHome(t.dir, homeDirForDisplay())+marker)
 		}
 	}
-	fmt.Fprintln(out, "│")
-	fmt.Fprintln(out, "├─────────────────────────────────────────────────────╯")
-	fmt.Fprintln(out, "│")
+	if len(order) == 0 {
+		lines = append(lines, uiDim.Render("Nothing selected."))
+	}
+	fmt.Fprintln(out, renderInstallSummaryBox("Installation Summary", lines))
+	fmt.Fprintln(out, "")
 }
 
 func printRiskPanel(out *bufio.Writer, src skills.SkillSource, selected []skills.DiscoveredSkill) {
-	fmt.Fprintln(out, "◇  Security Risk Assessment ──────────────────────────╮")
-	fmt.Fprintln(out, "│")
-	fmt.Fprintln(out, "│  skill                    verdict")
+	lines := []string{
+		uiDim.Render("skill") + strings.Repeat(" ", 20) + uiDim.Render("verdict"),
+	}
 	for _, f := range selected {
 		name, _ := skills.SanitizeSkillName(f.Pkg.Name)
-		fmt.Fprintf(out, "│  %-25s unverified\n", truncateRunes(name, 25))
+		lines = append(lines, fmt.Sprintf("%-25s %s", truncateRunes(name, 25), uiYellowS.Render("unverified")))
 	}
-	fmt.Fprintln(out, "│")
+	lines = append(lines, "")
 	if src.RepoPath != "" {
-		fmt.Fprintf(out, "│  Details: https://skills.sh/%s\n", src.RepoPath)
+		lines = append(lines, uiDim.Render("Details: ")+"https://skills.sh/"+src.RepoPath)
 	} else {
-		fmt.Fprintln(out, "│  Audit lookup supports public GitHub repos only.")
+		lines = append(lines, uiDim.Render("Audit lookup supports public GitHub repos only."))
 	}
-	fmt.Fprintln(out, "│  No audit data collected: review skills before use.")
-	fmt.Fprintln(out, "├─────────────────────────────────────────────────────╯")
-	fmt.Fprintln(out, "│")
+	lines = append(lines, uiDim.Render("No audit data was collected. Review skills before use."))
+	fmt.Fprintln(out, renderInstallSummaryBox("Security Risk Assessment", lines))
+	fmt.Fprintln(out, "")
+}
+
+func homeDirForDisplay() string {
+	home, _ := os.UserHomeDir()
+	return home
 }
 
 type installedSkill struct {
@@ -891,27 +1099,44 @@ type installedSkill struct {
 }
 
 func printCompletion(out *bufio.Writer, src skills.SkillSource, selected []skills.DiscoveredSkill, done []installedSkill, home string) {
-	fmt.Fprintf(out, "◇  Installed %d skill%s ────────────────────╮\n", len(selected), plural(len(selected)))
-	fmt.Fprintln(out, "│")
 	title := src.RepoPath
 	if title == "" {
 		title = src.Display
 	}
-	fmt.Fprintf(out, "│  %s\n", truncateRunes(title, 55))
-	seen := map[string]bool{}
+	bySkill := map[string][]string{}
+	order := []string{}
 	for _, d := range done {
-		if seen[d.Skill] {
-			continue
+		if _, ok := bySkill[d.Skill]; !ok {
+			order = append(order, d.Skill)
 		}
-		seen[d.Skill] = true
-		fmt.Fprintf(out, "│  ✓ %s (copied)\n", d.Skill)
-		fmt.Fprintf(out, "│    → %s\n", shortHome(d.To, home))
+		bySkill[d.Skill] = append(bySkill[d.Skill], d.To)
 	}
-	if extra := len(done) - len(seen); extra > 0 {
-		fmt.Fprintf(out, "│  (+%d more agent destination%s)\n", extra, plural(extra))
+	var lines []string
+	for _, name := range order {
+		lines = append(lines, uiGreenS.Render("✓")+" "+uiBold.Render(name))
+		seen := map[string]bool{}
+		shown := 0
+		for _, path := range bySkill[name] {
+			short := shortHome(path, home)
+			if seen[short] {
+				continue
+			}
+			seen[short] = true
+			if shown >= 3 {
+				continue
+			}
+			lines = append(lines, "  "+uiDim.Render("→")+" "+short)
+			shown++
+		}
+		if extra := len(seen) - shown; extra > 0 {
+			lines = append(lines, "  "+uiDim.Render(fmt.Sprintf("→ +%d more destination%s", extra, plural(extra))))
+		}
 	}
-	fmt.Fprintln(out, "│")
-	fmt.Fprintln(out, "├────────────────────────────────────────╯")
-	fmt.Fprintln(out, "│")
-	fmt.Fprintln(out, "└  Done!  Review skills before use; they run with full agent permissions.")
+	if len(lines) == 0 {
+		lines = append(lines, uiDim.Render("No files were written."))
+	}
+	headline := fmt.Sprintf("Installed %d skill%s into %d destination%s", len(order), plural(len(order)), len(done), plural(len(done)))
+	footer := "Done. Review skills before use; they run with full agent permissions.\nNext: litespm skills list · litespm skills update"
+	fmt.Fprintln(out, renderCompletionBox(headline, lines, footer))
+	fmt.Fprintln(out, "")
 }

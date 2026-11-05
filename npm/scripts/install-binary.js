@@ -375,7 +375,44 @@ function incompleteTransferReason(bytes, declaredBytes, maxBytes) {
   return null;
 }
 
-function downloadFile(url, targetPath, redirects = 0, policy = null) {  return new Promise((resolve, reject) => {
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return "?";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * A tiny TTY progress line. It is deliberately not a dependency and writes
+ * nothing when stdout is a pipe, so `npm install --silent` and CI logs stay
+ * clean. The final update is forced so the user always sees 100%.
+ */
+function makeDownloadProgress(label) {
+  let lastAt = 0;
+  return (bytes, total) => {
+    if (!process.stdout.isTTY) return;
+    const now = Date.now();
+    const complete = Number.isFinite(total) && total > 0 && bytes >= total;
+    if (!complete && now - lastAt < 100) return;
+    lastAt = now;
+    const width = 20;
+    let bar = "";
+    let pct = "";
+    if (Number.isFinite(total) && total > 0) {
+      const ratio = Math.max(0, Math.min(1, bytes / total));
+      const filled = Math.round(ratio * width);
+      bar = `${"█".repeat(filled)}${"░".repeat(width - filled)} `;
+      pct = `${Math.round(ratio * 100)}% `;
+    }
+    const size = Number.isFinite(total) && total > 0
+      ? `${formatBytes(bytes)} / ${formatBytes(total)}`
+      : formatBytes(bytes);
+    process.stdout.write(`\r[litespm] ${label} ${bar}${pct}${size}`);
+    if (complete) process.stdout.write("\n");
+  };
+}
+
+function downloadFile(url, targetPath, redirects = 0, policy = null, onProgress = null) {  return new Promise((resolve, reject) => {
     if (redirects > MAX_REDIRECTS) {
       reject(new Error("too many redirects"));
       return;
@@ -438,6 +475,13 @@ function downloadFile(url, targetPath, redirects = 0, policy = null) {  return n
       let bytes = 0;
       res.on("data", (chunk) => {
         bytes += chunk.length;
+        if (onProgress) {
+          try {
+            onProgress(bytes, expectedBytes);
+          } catch (e) {
+            /* progress is cosmetic; never fail the download for it */
+          }
+        }
         if (bytes > MAX_BINARY_BYTES) {
           done(new Error(`download exceeds the ${MAX_BINARY_BYTES} byte limit`));
           try {
@@ -874,8 +918,35 @@ async function verifyReleaseArtifact(binaryPath, binName, releaseBase, options =
   await verifyDownloadedBinary(binaryPath, binName, releaseBase, policy, getText);
 }
 
+/**
+ * Download with bounded retries for transient transport failures. A 4xx, an
+ * integrity refusal, or the final attempt is not retried: those are decisions,
+ * not flakiness. The caller still discards the file on every failure, so a
+ * retry can never leave partial bytes behind.
+ */
+async function downloadWithRetry(url, targetPath, policy, attempts = 3) {
+  const progress = makeDownloadProgress("Downloading");
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await downloadFile(url, targetPath, 0, policy, progress);
+      return;
+    } catch (err) {
+      const status = err && err.statusCode;
+      const transient =
+        !err || (!err.unverified && (!status || status >= 500) && attempt < attempts);
+      if (!transient) throw err;
+      const waitMs = 400 * attempt;
+      console.warn(
+        `[litespm] Download attempt ${attempt}/${attempts} failed (${err.message}); retrying in ${waitMs}ms.`
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+}
+
 async function installBinary() {
   const binName = getBinaryName();
+  console.log(`[litespm] Installing LiteSPM v${VERSION} for ${binName}`);
   const targetDir = path.join(os.homedir(), ".litespm", "bin", `v${VERSION}`);
   ensureDir(targetDir);
   const targetPath = path.join(targetDir, binName);
@@ -958,7 +1029,7 @@ async function installBinary() {
   console.log(`[litespm] Downloading native binary from the release: ${releaseUrl}...`);
   const tempTarget = `${targetPath}.tmp.${Date.now()}`;
   try {
-    await downloadFile(releaseUrl, tempTarget, 0, policy);
+    await downloadWithRetry(releaseUrl, tempTarget, policy);
 
     // Verification is FAIL-CLOSED. Bytes are on disk and this script's entire
     // job is to make them trustworthy, so an unverifiable download is discarded

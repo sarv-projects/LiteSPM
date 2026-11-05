@@ -13,7 +13,7 @@ import (
 func mustParse(t *testing.T, s string) map[string]any {
 	t.Helper()
 	var m map[string]any
-	if err := json.Unmarshal([]byte(stripJSONComments(s)), &m); err != nil {
+	if err := json.Unmarshal([]byte(stripTrailingCommas(stripJSONComments(s))), &m); err != nil {
 		t.Fatalf("not valid JSON: %v\ninput:\n%s", err, s)
 	}
 	return m
@@ -93,6 +93,80 @@ func TestMergeJSONEntrySurgicalPreservesForeignContent(t *testing.T) {
 	cs := parsed["context_servers"].(map[string]any)
 	if len(cs) != 2 {
 		t.Fatalf("expected 2 servers, got %d: %v", len(cs), cs)
+	}
+}
+
+// Zed's settings.json is JSONC and real user files carry trailing commas at
+// every level. The splicer locates members with encoding/json, so it must
+// remove those commas before parsing or the first setup is refused even
+// though the host reads the file happily.
+func TestMergeJSONEntrySurgicalToleratesTrailingCommas(t *testing.T) {
+	orig := `{
+  // Zed settings with the trailing commas Zed writes
+  "theme": {
+    "mode": "system",
+    "dark": "One Dark",
+  },
+  "context_servers": {
+    "my-server": {
+      "command": "uvx",
+      "args": ["thing"],
+    },
+  },
+}
+`
+	entry := map[string]any{"command": "/usr/bin/litespm", "args": []string{"bridge", "stdio", "--host", "zed"}}
+	out, err := mergeJSONEntrySurgical(orig, []string{"context_servers"}, entry)
+	if err != nil {
+		t.Fatalf("merge failed on trailing commas: %v", err)
+	}
+	if !strings.Contains(out, "// Zed settings with the trailing commas Zed writes") {
+		t.Fatalf("comment was lost:\n%s", out)
+	}
+	parsed := mustParse(t, out)
+	cs, ok := parsed["context_servers"].(map[string]any)
+	if !ok || len(cs) != 2 {
+		t.Fatalf("context_servers = %#v", parsed["context_servers"])
+	}
+	if _, ok := cs["litespm"]; !ok {
+		t.Fatalf("bridge entry missing: %#v", cs)
+	}
+}
+
+func TestStripJSONEntryNamedToleratesTrailingCommas(t *testing.T) {
+	orig := `{
+  // keep this note
+  "theme": {
+    "mode": "system",
+  },
+  "context_servers": {
+    "other": {
+      "command": "uvx",
+    },
+    "litespm": {
+      "command": "/usr/bin/litespm",
+      "args": ["bridge", "stdio", "--host", "zed"],
+    },
+  },
+}
+`
+	out, removed, err := stripJSONEntryNamed(orig, []string{"context_servers"}, "litespm")
+	if err != nil {
+		t.Fatalf("remove failed: %v", err)
+	}
+	if !removed {
+		t.Fatal("litespm entry was not removed")
+	}
+	if strings.Contains(out, "litespm") {
+		t.Fatalf("litespm survived removal:\n%s", out)
+	}
+	if !strings.Contains(out, "// keep this note") || !strings.Contains(out, `"other"`) {
+		t.Fatalf("foreign content was lost:\n%s", out)
+	}
+	parsed := mustParse(t, out)
+	cs := parsed["context_servers"].(map[string]any)
+	if len(cs) != 1 {
+		t.Fatalf("context_servers = %#v", cs)
 	}
 }
 

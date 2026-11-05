@@ -259,7 +259,7 @@ func stripJSONEntryNamed(content string, keyPath []string, serverName string) (s
 	if strings.TrimSpace(content) == "" {
 		return content, false, nil
 	}
-	locatable := stripJSONComments(content)
+	locatable := stripTrailingCommas(stripJSONComments(content))
 
 	objStart, objEnd, found, err := jsonValueSpan(locatable, keyPath)
 	if err != nil {
@@ -274,7 +274,7 @@ func stripJSONEntryNamed(content string, keyPath []string, serverName string) (s
 	}
 
 	objText := content[objStart:objEnd]
-	valueStart, valueEnd, present, err := jsonValueSpan(stripJSONComments(objText), []string{serverName})
+	valueStart, valueEnd, present, err := jsonValueSpan(stripTrailingCommas(stripJSONComments(objText)), []string{serverName})
 	if err != nil {
 		return "", false, fmt.Errorf("parsing config to remove %q: %w", serverName, err)
 	}

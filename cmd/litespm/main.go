@@ -58,6 +58,13 @@ const (
 )
 
 func main() {
+	// First command in this terminal session: check for a newer signed binary
+	// and install it before doing anything else. The check is silent when
+	// there is nothing to do and fails open, so it can never block the
+	// command the person asked for. It opens no state database, catalog,
+	// ledger or agent configuration.
+	maybeAutoUpdate(os.Args[1:])
+
 	if len(os.Args) < 2 {
 		// The bare invocation opens the same setup surface as `litespm setup`,
 		// so both get the same argument handling and the same refusal when
@@ -769,9 +776,12 @@ func runBridge(args []string) {
 		// silent path failure masquerade as a working bridge.
 		fmt.Fprintf(os.Stderr, "litespm bridge: platform path resolution failed: %v; running standalone with no capabilities\n", err)
 	} else {
-		c, dialErr := ipc.Dial(paths.IPCEndpoint())
+		c, dialErr := connectOrStartDaemon(context.Background(), paths)
 		if dialErr != nil {
-			fmt.Fprintf(os.Stderr, "litespm bridge: daemon dial failed: %v; running standalone with no capabilities (start the daemon with 'litespm daemon serve')\n", dialErr)
+			fmt.Fprintf(os.Stderr, "litespm bridge: daemon dial failed: %v; running standalone with no capabilities (start it with 'litespm daemon serve')\n", dialErr)
+			if tail := daemonLogTail(paths, 500); tail != "" {
+				fmt.Fprintf(os.Stderr, "litespm bridge: daemon log tail:\n%s\n", tail)
+			}
 		} else {
 			client = c
 			defer client.Close()
