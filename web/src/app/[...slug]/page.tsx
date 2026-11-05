@@ -46,6 +46,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
+  if (section === "marketplace") {
+    return {
+      title: "Marketplace - LiteSPM",
+      description:
+        "Search installable MCP servers, agent skills and plugins, and copy the exact litespm install command.",
+    };
+  }
+
   if (section === "explore") {
     return {
       title: "Explore MCP Servers, Skills & Plugins · LiteSPM",

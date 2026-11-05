@@ -45,7 +45,7 @@ const BASE_TITLE = "LiteSPM — The package manager for AI agents";
 function titleFor(route: ReturnType<typeof useApp.getState>["route"]): string {
   switch (route.view) {
     case "marketplace":
-      return "Marketplace · LiteSPM";
+      return "Marketplace - LiteSPM";
     case "explore":
       return "Explore the catalog · LiteSPM";
     case "package":
