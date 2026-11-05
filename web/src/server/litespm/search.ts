@@ -13,9 +13,11 @@ import { availabilityOf } from "./availability";
 import { HOSTS, SKILL_TARGETS, HOST_ALIASES } from "./hosts";
 import { resolveHostId, hostIdsFor } from "./identity";
 import { classifyListing } from "./taxonomy";
-import { getDataset } from "./dataset";
+import { getCompactDataset, getDataset } from "./dataset";
 import { dedupeKey, nameTiebreakBucket } from "./ranking";
 import { resolveOriginalSource } from "./source-resolver";
+import { candidateRowIds, getSearchIndex, queryGroups, scoreDoc } from "./bm25";
+import { tokenize } from "./text";
 import type { Listing } from "./types";
 
 export type SortKey = "relevance" | "rank" | "name" | "kind" | "publisher";
@@ -36,6 +38,8 @@ export interface CatalogQuery {
   pageSize?: number;
   /** Facets are eight extra full-catalog scans; a compact panel can skip them. */
   facets?: boolean;
+  /** Use the compact search projection (assistant cold-start path). */
+  compact?: boolean;
 }
 
 export interface CatalogHit {
@@ -85,31 +89,9 @@ export interface CatalogListResponse {
   facets: CatalogFacets;
 }
 
-const STOP_TOKENS = new Set([
-  "the", "a", "an", "for", "of", "to", "and", "with", "in", "on", "my", "me",
-  "server", "servers", "mcp", "agent", "agents", "tool", "tools", "skill",
-  "skills", "plugin", "plugins",
-  // question/prose words — they name no capability
-  "what", "which", "who", "whom", "whose", "when", "where", "why", "how",
-  "is", "are", "was", "were", "be", "been", "being", "am", "do", "does",
-  "did", "doing", "have", "has", "had", "will", "would", "shall", "should",
-  "can", "could", "may", "might", "must", "shall", "not", "no", "yes",
-  "i", "you", "he", "she", "it", "we", "they", "them", "his", "her", "its",
-  "our", "your", "their", "this", "that", "these", "those", "there", "here",
-  "best", "good", "better", "top", "some", "any", "all", "more", "most",
-  "need", "want", "get", "use", "using", "used", "help", "please", "find",
-  "install", "recommend", "recommendation", "suggestions", "give", "show",
-  "list", "tell", "make", "work", "working", "works", "like", "about",
-]);
-
-export function tokenize(q: string): string[] {
-  return q
-    .toLowerCase()
-    .split(/[\s,]+/)
-    .map((t) => t.replace(/^[@#:]+/, "").replace(/[?!.;:'"`()[\]]+$/g, "").trim())
-    .filter((t) => t.length > 1 && !STOP_TOKENS.has(t))
-    .slice(0, 8);
-}
+// tokenize() and STOP_TOKENS live in ./text so the BM25 index and search use
+// exactly the same normalization. Re-exported for callers that imported it here.
+export { tokenize } from "./text";
 
 function tokenScore(row: Listing, token: string): number {
   const name = row.name.toLowerCase();
@@ -136,20 +118,6 @@ function tokenScore(row: Listing, token: string): number {
     if (hay.includes(token)) score += 12;
   }
   return score;
-}
-
-function relevance(row: Listing, tokens: string[]): number {
-  let total = 0;
-  for (const token of tokens) {
-    const s = tokenScore(row, token);
-    if (s === 0) return 0;
-    total += s;
-  }
-  if (tokens.length > 1) total = Math.round(total * 1.15);
-  // Installable rows with a live endpoint answer the question faster.
-  if (row.installability && row.installability !== "discovery_only") total += 6;
-  if (row.transport) total += 2;
-  return total;
 }
 
 function editDistanceAtMost1(s1: string, s2: string): boolean {
@@ -277,10 +245,28 @@ export function rowMetaMap(rows: Listing[]): Map<string, RowMeta> {
 }
 
 export async function searchCatalog(query: CatalogQuery): Promise<CatalogListResponse> {
-  const dataset = await getDataset();
+  const dataset = query.compact ? await getCompactDataset() : await getDataset();
   const rows = dataset.rows;
-  const meta = rowMetaMap(rows);
+  // Build host/goal/installability metadata lazily. Computing it for all 69k
+  // rows on the first request was a multi-second cold-start tax; most rows are
+  // rejected by the cheap kind/host filters or never become candidates.
+  const metaCache = new Map<string, RowMeta>();
+  const metaFor = (row: Listing): RowMeta => {
+    const cached = metaCache.get(row.id);
+    if (cached) return cached;
+    const value: RowMeta = {
+      hostIds: hostIdsFor(row),
+      goal: classifyListing(row),
+      installable: isInstallable(row),
+    };
+    metaCache.set(row.id, value);
+    return value;
+  };
   const tokens = tokenize(query.q ?? "");
+  const groups = queryGroups(query.q ?? "");
+  const startedAt = Date.now();
+  const index = getSearchIndex(rows, dataset.release.releaseId);
+  let candidates = candidateRowIds(index, groups);
 
   const kindFilter = query.kind || null;
   const categoryFilter = query.category || null;
@@ -307,13 +293,25 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
     const key = `${isFuzzyFallback ? "relaxed" : "exact"}:${row.id}`;
     const cached = relCache.get(key);
     if (cached !== undefined) return cached;
-    const value = isFuzzyFallback ? relevanceRelaxed(row, tokens) : relevance(row, tokens);
+    let value: number;
+    if (isFuzzyFallback) {
+      value = relevanceRelaxed(row, tokens);
+    } else if (groups.length === 0) {
+      value = 0;
+    } else {
+      const doc = index.docs.get(row.id);
+      const m = metaFor(row);
+      value = doc
+        ? scoreDoc(doc, groups, index, m.installable, Boolean(row.transport))
+        : 0;
+    }
     relCache.set(key, value);
     return value;
   };
 
   const matches = (row: Listing): boolean => {
-    if (tokens.length > 0 && relFor(row) === 0) return false;
+    if (!isFuzzyFallback && candidates && !candidates.has(row.id)) return false;
+    if (groups.length > 0 && relFor(row) === 0) return false;
     if (kindFilter && row.kind !== kindFilter) return false;
     if (categoryFilter && row.category !== categoryFilter) return false;
     if (sourceFilter && row.source !== sourceFilter) return false;
@@ -321,13 +319,13 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
     if (installabilityFilter && (row.installability ?? "discovery_only") !== installabilityFilter)
       return false;
     if (transportFilter && (row.transport ?? "") !== transportFilter) return false;
-    if (installableFilter && !(meta.get(row.id)?.installable ?? false)) return false;
+    if (installableFilter && !metaFor(row).installable) return false;
     if (goalFilter) {
-      const goal = meta.get(row.id)?.goal ?? "other";
+      const goal = metaFor(row).goal;
       if (goal !== goalFilter) return false;
     }
     if (hostId) {
-      const hosts = meta.get(row.id)?.hostIds ?? [];
+      const hosts = metaFor(row).hostIds;
       if (!hosts.includes(hostId)) return false;
     } else if (hostRaw) {
       const declared = row.compatibleHosts ?? [];
@@ -339,7 +337,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   let pool = rows.filter(matches);
 
   // Fallback: If query tokens produced 0 results, retry with relaxed/typo-tolerant matching
-  if (pool.length === 0 && tokens.length > 0) {
+  if (pool.length === 0 && groups.length > 0) {
     const relaxedMatches = (row: Listing): boolean => {
       if (relFor(row) === 0) return false;
       if (kindFilter && row.kind !== kindFilter) return false;
@@ -349,13 +347,13 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
       if (installabilityFilter && (row.installability ?? "discovery_only") !== installabilityFilter)
         return false;
       if (transportFilter && (row.transport ?? "") !== transportFilter) return false;
-      if (installableFilter && !(meta.get(row.id)?.installable ?? false)) return false;
+      if (installableFilter && !metaFor(row).installable) return false;
       if (goalFilter) {
-        const goal = meta.get(row.id)?.goal ?? "other";
+        const goal = metaFor(row).goal;
         if (goal !== goalFilter) return false;
       }
       if (hostId) {
-        const hosts = meta.get(row.id)?.hostIds ?? [];
+        const hosts = metaFor(row).hostIds;
         if (!hosts.includes(hostId)) return false;
       } else if (hostRaw) {
         const declared = row.compatibleHosts ?? [];
@@ -364,6 +362,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
       return true;
     };
     isFuzzyFallback = true;
+    candidates = null;
     const relaxedPool = rows.filter(relaxedMatches);
     if (relaxedPool.length > 0) {
       pool = relaxedPool;
@@ -378,7 +377,8 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   // counted, so counts stay meaningful while a dimension is active.
   const facetBase = (except: string): Listing[] =>
     rows.filter((row) => {
-      if (tokens.length > 0 && relFor(row) === 0) return false;
+      if (!isFuzzyFallback && candidates && !candidates.has(row.id)) return false;
+      if (groups.length > 0 && relFor(row) === 0) return false;
       if (except !== "kind" && kindFilter && row.kind !== kindFilter) return false;
       if (except !== "category" && categoryFilter && row.category !== categoryFilter) return false;
       if (except !== "source" && sourceFilter && row.source !== sourceFilter) return false;
@@ -396,14 +396,14 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
         return false;
       if (except !== "transport" && transportFilter && (row.transport ?? "") !== transportFilter)
         return false;
-      if (except !== "installable" && installableFilter && !(meta.get(row.id)?.installable ?? false))
+      if (except !== "installable" && installableFilter && !metaFor(row).installable)
         return false;
       if (except !== "goal" && goalFilter) {
-        if ((meta.get(row.id)?.goal ?? "other") !== goalFilter) return false;
+        if (metaFor(row).goal !== goalFilter) return false;
       }
       if (except !== "host") {
         if (hostId) {
-          if (!(meta.get(row.id)?.hostIds ?? []).includes(hostId)) return false;
+          if (!metaFor(row).hostIds.includes(hostId)) return false;
         } else if (hostRaw) {
           const declared = row.compatibleHosts ?? [];
           if (!declared.some((h) => h.trim().toLowerCase() === hostRaw)) return false;
@@ -453,7 +453,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   // Host facet: count each row once per identity it names.
   const hostCounts = new Map<string, number>();
   for (const row of hostPool) {
-    const ids = meta.get(row.id)?.hostIds ?? [];
+    const ids = metaFor(row).hostIds;
     for (const id of ids) hostCounts.set(id, (hostCounts.get(id) ?? 0) + 1);
   }
   const hostFacets: Array<[string, number]> = [];
@@ -469,7 +469,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   }
   hostFacets.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
-  const sort = query.sort ?? (tokens.length > 0 ? "relevance" : "rank");
+  const sort = query.sort ?? (groups.length > 0 ? "relevance" : "rank");
   const sorted = [...pool];
   switch (sort) {
     case "relevance":
@@ -519,7 +519,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   const items = deduped.slice((page - 1) * pageSize, page * pageSize).map(toHit);
 
   function toHit(row: Listing): CatalogHit {
-    const m = meta.get(row.id);
+    const m = metaFor(row);
     const src = resolveOriginalSource(row);
     return {
       id: row.id,
@@ -561,7 +561,7 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
     items,
     facets: {
       kinds: countBy(kindPool, (r) => r.kind),
-      goals: countBy(goalPool, (r) => meta.get(r.id)?.goal ?? "other")
+      goals: countBy(goalPool, (r) => metaFor(r).goal)
         .map(([id, count]) => ({ id, label: GOAL_LABELS[id] ?? id, count }))
         .sort((a, b) => b.count - a.count),
       categories: countBy(categoryPool, (r) => r.category?.trim() || null).sort(

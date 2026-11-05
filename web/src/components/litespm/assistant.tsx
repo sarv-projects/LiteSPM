@@ -39,10 +39,14 @@ interface ChatMessage {
   streaming?: boolean;
   /** Set when the stream broke after a partial answer. */
   streamError?: string;
+  /** Retrieval cards rendered before the model's prose. */
+  preview?: boolean;
 }
 
 type StreamEvent =
   | { type: "delta"; text: string }
+  | { type: "status"; text: string }
+  | { type: "cards"; keys: string[]; citations?: AssistantCitation[] }
   | { type: "done"; answer: string; citations?: AssistantCitation[]; meta?: AssistantMeta }
   | { type: "error"; message: string };
 
@@ -734,6 +738,7 @@ export function Assistant() {
   const [input, setInput] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [waitingFirstToken, setWaitingFirstToken] = React.useState(false);
+  const [statusText, setStatusText] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
@@ -783,15 +788,22 @@ export function Assistant() {
       if (!question || busy) return;
       setError(null);
       setInput("");
-      const history = [...messages, { role: "user" as const, content: question }];
+      // Retrieval previews are UI-only; never send their JSON back as
+      // assistant conversation history.
+      const history = [
+        ...messages.filter((message) => !message.preview),
+        { role: "user" as const, content: question },
+      ];
       setMessages(history);
       setBusy(true);
       setWaitingFirstToken(true);
+      setStatusText(null);
 
       const controller = new AbortController();
       abortRef.current = controller;
 
       let hasReceivedFirstToken = false;
+      let proseStarted = false;
       // Abort a stalled remote LLM stream and fall back to the catalog. The
       // window is deliberately wider than the observed cold-start latency.
       const timeoutId = setTimeout(() => {
@@ -804,22 +816,88 @@ export function Assistant() {
         hasReceivedFirstToken = true;
         clearTimeout(timeoutId);
         setWaitingFirstToken(false);
+        setStatusText(null);
         setMessages((prev) => [...prev, { role: "assistant" as const, content: "", streaming: true }]);
       };
 
       const handleEvent = (event: StreamEvent) => {
-        hasReceivedFirstToken = true;
-        clearTimeout(timeoutId);
+        if (event.type === "status") {
+          setStatusText(event.text);
+          return;
+        }
+
+        if (event.type === "cards") {
+          if (event.keys.length === 0) return;
+          const content = `Here are the closest matches in the live catalog:\n\n\`\`\`json\n{\n  "type": "package_cards",\n  "keys": ${JSON.stringify(event.keys.slice(0, 4))}\n}\n\`\`\``;
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content,
+              citations: event.citations,
+              preview: true,
+              streaming: false,
+            },
+          ]);
+          setStatusText("Writing the answer…");
+          return;
+        }
+
         if (event.type === "delta") {
+          if (!proseStarted) {
+            proseStarted = true;
+            appendStreamBubble();
+          }
           patchLast((m) => ({ content: m.content + event.text }));
-        } else if (event.type === "done") {
-          patchLast({
-            content: event.answer,
-            citations: event.citations,
-            meta: event.meta,
-            streaming: false,
+          return;
+        }
+
+        if (event.type === "done") {
+          hasReceivedFirstToken = true;
+          clearTimeout(timeoutId);
+          setWaitingFirstToken(false);
+          setStatusText(null);
+          setMessages((prev) => {
+            // The model is told not to repeat package cards when the UI
+            // already showed retrieval cards. If it does anyway, drop the
+            // preview so the answer does not render the same cards twice.
+            const hasWidget =
+              event.answer.includes('"type": "package_cards"') ||
+              event.answer.includes('"type": "comparison_matrix"');
+            const withoutPreview = hasWidget
+              ? prev.filter((message) => !message.preview)
+              : prev;
+            const last = withoutPreview[withoutPreview.length - 1];
+            if (last?.role === "assistant" && last.streaming) {
+              return withoutPreview.map((message, index) =>
+                index === withoutPreview.length - 1
+                  ? {
+                      ...message,
+                      content: event.answer,
+                      citations: event.citations,
+                      meta: event.meta,
+                      streaming: false,
+                    }
+                  : message,
+              );
+            }
+            return [
+              ...withoutPreview,
+              {
+                role: "assistant",
+                content: event.answer,
+                citations: event.citations,
+                meta: event.meta,
+              },
+            ];
           });
-        } else if (event.type === "error") {
+          return;
+        }
+
+        if (event.type === "error") {
+          clearTimeout(timeoutId);
+          setWaitingFirstToken(false);
+          setStatusText(null);
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (last?.role === "assistant" && last.streaming && last.content.length > 0) {
@@ -876,7 +954,6 @@ export function Assistant() {
           return;
         }
 
-        appendStreamBubble();
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -957,6 +1034,7 @@ export function Assistant() {
         clearTimeout(timeoutId);
         setBusy(false);
         setWaitingFirstToken(false);
+        setStatusText(null);
         abortRef.current = null;
       }
     },
@@ -1092,7 +1170,7 @@ export function Assistant() {
         {busy && waitingFirstToken && (
           <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" />
-            Searching the catalog…
+            {statusText ?? "Searching the catalog…"}
           </div>
         )}
         {error && (
