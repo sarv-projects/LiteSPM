@@ -18,6 +18,15 @@ if (!existsSync(standalone)) {
   process.exit(0);
 }
 
+// Vercel can leave a partial `.next/standalone` directory behind while using
+// its own serverless output. Only a tree that actually contains server.js is
+// the self-hosted standalone artifact this script exists to sanitize; anything
+// else is a host build and must not be failed by a packaging check.
+if (!existsSync(path.join(standalone, "server.js"))) {
+  console.log("postbuild: .next/standalone/server.js is absent (host build); skipping standalone packaging");
+  process.exit(0);
+}
+
 for (const entry of readdirSync(standalone)) {
   if (entry === ".env" || entry.startsWith(".env.")) {
     rmSync(path.join(standalone, entry), { recursive: true, force: true });
