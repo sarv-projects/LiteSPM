@@ -53,6 +53,39 @@ const SUGGESTIONS = [
   "How do I set up LiteSPM with Claude Code?",
 ];
 
+// The streamed answer's first token has been measured at ~10s on a cold
+// provider. Eight seconds aborted the request before the server could send
+// anything, then the fallback searched for the whole question ("What can
+// LiteSPM install for working with Postgres?") and found nothing. Keep the
+// guard below the route's 60s budget but above the real first-token latency.
+const FIRST_TOKEN_TIMEOUT_MS = 25_000;
+
+const FALLBACK_STOP_WORDS = new Set([
+  "a", "an", "and", "are", "can", "could", "do", "does", "for", "from", "help",
+  "how", "i", "in", "install", "is", "it", "litespm", "me", "mcp", "my", "of",
+  "on", "or", "plugin", "plugins", "server", "servers", "should", "skill",
+  "skills", "that", "the", "this", "to", "want", "what", "which", "with",
+  "work", "working", "would", "you", "your",
+]);
+
+/**
+ * Turn a chat question into catalog queries, best first. The full question is
+ * useful for exact phrases; the stop-word-stripped terms and the longest term
+ * make suggested chips like "What can LiteSPM install for working with
+ * Postgres?" resolve to "postgres" when the LLM is slow.
+ */
+export function assistantFallbackQueries(question: string): string[] {
+  const words = question
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const keywords = words.filter((w) => w.length >= 2 && !FALLBACK_STOP_WORDS.has(w));
+  const joined = keywords.join(" ").trim();
+  const longest = [...keywords].sort((a, b) => b.length - a.length)[0] ?? "";
+  return [...new Set([question.trim(), joined, longest].filter(Boolean))];
+}
+
 function CodeBlockSnippet({ code, lang }: { code: string; lang?: string }) {
   const [copied, setCopied] = React.useState(false);
   const copy = () => {
@@ -759,12 +792,13 @@ export function Assistant() {
       abortRef.current = controller;
 
       let hasReceivedFirstToken = false;
-      // 8-second timeout guard: aborts stalled remote LLM stream and triggers instant catalog search fallback
+      // Abort a stalled remote LLM stream and fall back to the catalog. The
+      // window is deliberately wider than the observed cold-start latency.
       const timeoutId = setTimeout(() => {
         if (!hasReceivedFirstToken) {
           controller.abort("TIMEOUT");
         }
-      }, 8000);
+      }, FIRST_TOKEN_TIMEOUT_MS);
 
       const appendStreamBubble = () => {
         hasReceivedFirstToken = true;
@@ -875,30 +909,43 @@ export function Assistant() {
       } catch {
         clearTimeout(timeoutId);
         if (controller.signal.aborted) {
-          // If aborted before receiving any tokens, fall back instantly to catalog search
+          // If aborted before receiving any tokens, fall back to the catalog.
+          // Try the cleaned keyword queries, not just the raw sentence: the
+          // suggested chips are questions, and a catalog search for the whole
+          // sentence finds nothing.
           if (!hasReceivedFirstToken) {
             try {
-              const fallbackRes = await fetch(`/api/litespm/list?q=${encodeURIComponent(question)}&pageSize=4`);
-              if (fallbackRes.ok) {
+              const queries = assistantFallbackQueries(question);
+              let items: Array<{ linkKey: string; name: string }> = [];
+              let matchedQuery = "";
+              for (const q of queries) {
+                const fallbackRes = await fetch(`/api/litespm/list?q=${encodeURIComponent(q)}&pageSize=4`);
+                if (!fallbackRes.ok) continue;
                 const searchData = (await fallbackRes.json()) as { items?: Array<{ linkKey: string; name: string }> };
-                const items = searchData.items ?? [];
-                if (items.length > 0) {
-                  const fallbackContent = `Here are the matching capabilities found in the live catalog for **${question}**:\n\n\`\`\`json\n{\n  "type": "package_cards",\n  "keys": ${JSON.stringify(items.slice(0, 4).map((x) => x.linkKey))}\n}\n\`\`\``;
-                  setMessages((prev) => [
-                    ...prev,
-                    {
-                      role: "assistant",
-                      content: fallbackContent,
-                      streaming: false,
-                    },
-                  ]);
-                  return;
+                if (searchData.items && searchData.items.length > 0) {
+                  items = searchData.items.slice(0, 4);
+                  matchedQuery = q;
+                  break;
                 }
               }
+              if (items.length > 0) {
+                const fallbackContent = `Here are the matching capabilities found in the live catalog for **${matchedQuery}**:\n\n\`\`\`json\n{\n  "type": "package_cards",\n  "keys": ${JSON.stringify(items.map((x) => x.linkKey))}\n}\n\`\`\``;
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content: fallbackContent,
+                    streaming: false,
+                  },
+                ]);
+                return;
+              }
+              const hint = queries.find((q) => q !== question.trim()) ?? question;
+              setError(`The assistant timed out. Search the catalog for “${hint}”, or ask again.`);
             } catch {
               /* fallback network error */
+              setError("Request timed out — please try again or search the catalog directly.");
             }
-            setError("Request timed out — please try again or search the catalog directly.");
           } else {
             // The visitor pressed stop or partial stream ended — keep whatever streamed in
             patchLast({ streaming: false });
