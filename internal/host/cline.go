@@ -171,8 +171,10 @@ func (a *ClineAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 	}
 
 	origContent := "{}"
+	origExists := false
 	if data, err := os.ReadFile(configPath); err == nil {
 		origContent = string(data)
+		origExists = true
 	}
 
 	backupPath, err := CreateAtomicBackup(configPath, backupDir, "cline")
@@ -192,11 +194,13 @@ func (a *ClineAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 	}
 
 	return &HostChangePlan{
-		HostID:          "cline",
-		ConfigPath:      configPath,
-		OriginalContent: origContent,
-		ProposedContent: proposed,
-		BackupPath:      backupPath,
+		HostID:                 "cline",
+		ConfigPath:             configPath,
+		OriginalContent:        origContent,
+		ProposedContent:        proposed,
+		BackupPath:             backupPath,
+		OriginalExists:         origExists,
+		OriginalExistenceKnown: true,
 	}, nil
 }
 

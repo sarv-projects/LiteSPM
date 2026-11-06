@@ -51,22 +51,42 @@ func emptyContent(s string) bool {
 
 // checkCompareAndSwap fails when the config changed between PlanSetup and
 // ApplySetup. A stale plan applied blindly discards the intervening edit, so
-// the caller must re-plan instead.
+// the caller must re-plan instead. The comparison includes the existence bit:
+// a plan built when the file did not exist must not be applied over a file
+// that appeared since — including an empty one, which the original content
+// alone could not distinguish from a missing file.
 func checkCompareAndSwap(plan *HostChangePlan) error {
 	current := ""
+	exists := false
 	if data, err := os.ReadFile(plan.ConfigPath); err == nil {
 		current = string(data)
+		exists = true
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("re-reading %s for compare-and-swap: %w", plan.ConfigPath, err)
 	}
-	if emptyContent(plan.OriginalContent) {
-		// The plan was built against a missing (or empty) file. Any
-		// substantive content now on disk arrived after the plan and must not
-		// be overwritten.
-		if !emptyContent(current) {
-			return fmt.Errorf("config %s changed since the plan was built (a file appeared after planning), refusing to overwrite it", plan.ConfigPath)
+
+	originalExists := plan.OriginalExists
+	if !plan.OriginalExistenceKnown {
+		// A plan built before the existence bit existed (or by hand in a
+		// test): keep the historical reading, where empty content and "{}"
+		// both mean "there was no file".
+		if emptyContent(plan.OriginalContent) {
+			if exists {
+				return fmt.Errorf("config %s appeared after the plan was built (a file now exists), refusing to overwrite it", plan.ConfigPath)
+			}
+			return nil
+		}
+		originalExists = true
+	}
+
+	if !originalExists {
+		if exists {
+			return fmt.Errorf("config %s appeared after the plan was built (a file now exists), refusing to overwrite it", plan.ConfigPath)
 		}
 		return nil
+	}
+	if !exists {
+		return fmt.Errorf("config %s disappeared since the plan was built, refusing to write", plan.ConfigPath)
 	}
 	if current != plan.OriginalContent {
 		return fmt.Errorf("config %s changed since the plan was built, refusing to overwrite it", plan.ConfigPath)
@@ -90,8 +110,15 @@ func ApplyPlanWrite(plan *HostChangePlan) error {
 }
 
 // RestoreBackup copies a pre-edit backup back over the config. BackupPath must
-// be a file produced by CreateAtomicBackup for this config; a missing or empty
-// backup path is a no-op error, never a silent success.
+// be a file produced by CreateAtomicBackup for this config; an empty backup
+// path is an error, never a silent success.
+//
+// A non-empty BackupPath means CreateAtomicBackup found a file and wrote a
+// backup (it returns "" only when the source did not exist). So a backup file
+// that is GONE is a lost restore point, not "the config did not exist":
+// guessing the latter used to delete the user's current config, silently
+// discarding every edit made since the install. This refuses instead, and
+// names the missing backup.
 func RestoreBackup(configPath, backupPath string) error {
 	if configPath == "" {
 		return fmt.Errorf("restore needs a config path, refusing")
@@ -102,12 +129,7 @@ func RestoreBackup(configPath, backupPath string) error {
 	data, err := os.ReadFile(backupPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// No backup file means the config did not exist before setup, so
-			// rolling back means removing what setup created.
-			if rmErr := os.Remove(configPath); rmErr != nil && !os.IsNotExist(rmErr) {
-				return fmt.Errorf("restoring %s (no backup, removing new file): %w", configPath, rmErr)
-			}
-			return nil
+			return fmt.Errorf("the recorded pre-install backup %s no longer exists; refusing to guess what %s held before the install (restore the backup file, or use `litespm install remove` to strip only LiteSPM's entries)", backupPath, configPath)
 		}
 		return fmt.Errorf("reading backup %s: %w", backupPath, err)
 	}

@@ -721,12 +721,13 @@ func runSkillsAdd(args []string) {
 		out.Flush()
 	}
 	var replaced []string
+	preImageDigests := map[string]string{}
 	done, installErr := runWithSpinner(context.Background(), os.Stdin, os.Stdout,
 		fmt.Sprintf("Installing %d skill%s into %d destination%s", len(selected), plural(len(selected)), len(ops), plural(len(ops))),
 		func() ([]installedSkill, error) {
 			var installed []installedSkill
 			for _, op := range ops {
-				if _, err := installer.Install(context.Background(), skills.InstallRequest{
+				entry, err := installer.Install(context.Background(), skills.InstallRequest{
 					Op:          op,
 					Source:      src,
 					Scope:       opts.scope,
@@ -734,12 +735,16 @@ func runSkillsAdd(args []string) {
 					Force:       opts.force,
 					BackupRoot:  platformPaths.BackupsPath(),
 					OnOverwrite: func(dst string) { replaced = append(replaced, dst) },
-				}); err != nil {
+				})
+				if err != nil {
 					var denied *skills.PolicyDeniedError
 					if errors.As(err, &denied) {
 						return installed, err
 					}
 					return installed, fmt.Errorf("installing %s to %s: %w", op.SkillName, op.ToDir, err)
+				}
+				if entry.PreImageDigest != "" {
+					preImageDigests[entry.DestDir] = entry.PreImageDigest
 				}
 				installed = append(installed, installedSkill{Skill: op.SkillName, To: op.ToDir, Host: op.HostLabel})
 			}
@@ -750,6 +755,18 @@ func runSkillsAdd(args []string) {
 		os.Exit(1)
 	}
 	if !opts.jsonOut {
+		// The disclosure AGENTS.md promises for --force: every replaced
+		// destination, with the pre-image digest the ledger recorded for the
+		// bytes it replaced. That digest exists only once the install has
+		// captured it, so the lines print as soon as the install finishes —
+		// immediately after the spinner and before the completion summary.
+		for _, dst := range replaced {
+			line := fmt.Sprintf("overwrites: %s", shortHome(dst, home))
+			if dg := preImageDigests[dst]; dg != "" {
+				line += fmt.Sprintf(" · pre-image %s", shortDigest(dg))
+			}
+			installerStepInfo(out, line)
+		}
 		installerStepDone(out, fmt.Sprintf("Installed %d skill%s into %d destination%s", len(selected), plural(len(selected)), len(done), plural(len(done))))
 		if len(replaced) > 0 {
 			installerStepInfo(out, fmt.Sprintf("%d existing destination%s replaced · backups: %s",

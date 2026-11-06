@@ -291,15 +291,41 @@ func quoteCommandArg(s string) string {
 	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
 }
 
-// tomlEntryBlock returns the TOML block for one MCP server table.
-func (t BridgeTarget) tomlEntryBlock(binaryPath string) string {
-	bin := filepathSlash(binaryPath)
-	quoted := make([]string, len(bridgeArgs(t.ID)))
-	for i, a := range bridgeArgs(t.ID) {
-		quoted[i] = fmt.Sprintf("%q", a)
+// tomlEntryBlock returns the TOML block for one MCP server table. Every string
+// is quoted with tomlQuoteString, which emits only TOML escapes: %q produced
+// \v and \xNN, which no TOML parser accepts.
+func (t BridgeTarget) tomlEntryBlock(binaryPath string) (string, error) {
+	return renderBridgeTOMLEntryBlock(t.ID, binaryPath, tomlQuoteString)
+}
+
+// tomlEntryBlockLossy is tomlEntryBlock for RenderManualSetup, a pasteable
+// snippet with nowhere to report an error: invalid bytes are rendered as the
+// replacement character so the snippet is still valid TOML.
+func (t BridgeTarget) tomlEntryBlockLossy(binaryPath string) string {
+	block, err := renderBridgeTOMLEntryBlock(t.ID, binaryPath, func(s string) (string, error) {
+		return tomlQuoteStringLossy(s), nil
+	})
+	if err != nil {
+		return ""
 	}
-	return fmt.Sprintf("[mcp_servers.litespm]\ncommand = %q\nargs = [%s]\n",
-		bin, strings.Join(quoted, ", "))
+	return block
+}
+
+func renderBridgeTOMLEntryBlock(hostID, binaryPath string, quote func(string) (string, error)) (string, error) {
+	bin := filepathSlash(binaryPath)
+	quotedBin, err := quote(bin)
+	if err != nil {
+		return "", err
+	}
+	quoted := make([]string, 0, len(bridgeArgs(hostID)))
+	for _, a := range bridgeArgs(hostID) {
+		q, qerr := quote(a)
+		if qerr != nil {
+			return "", qerr
+		}
+		quoted = append(quoted, q)
+	}
+	return fmt.Sprintf("[mcp_servers.litespm]\ncommand = %s\nargs = [%s]\n", quotedBin, strings.Join(quoted, ", ")), nil
 }
 
 func filepathSlash(p string) string {

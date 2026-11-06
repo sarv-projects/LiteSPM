@@ -69,17 +69,17 @@ func entryStateAt(spec entrySpec, content, name string) (raw string, present boo
 		var block []string
 		in := false
 		for _, line := range strings.Split(content, "\n") {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == header {
+			live := stripTOMLComment(line)
+			if live == header {
 				in = true
-				block = append(block, trimmed)
+				block = append(block, live)
 				continue
 			}
 			if in {
-				if strings.HasPrefix(trimmed, "[") {
+				if tomlHeaderOf(line) != "" {
 					break
 				}
-				if trimmed != "" {
+				if trimmed := strings.TrimSpace(line); trimmed != "" {
 					block = append(block, trimmed)
 				}
 			}

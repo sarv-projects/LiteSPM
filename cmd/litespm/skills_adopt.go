@@ -278,7 +278,7 @@ func adoptSkillCandidates(opts skillsAdoptOptions, safeName, projectRoot, home s
 			}
 		}
 		if len(filtered) == 0 {
-			return nil, fmt.Errorf("no agent matches %s; run `litespm skills list --all` to see the known agents", strings.Join(opts.agents, ", "))
+			return nil, fmt.Errorf("no agent matches %s; run `litespm host list` to see the known agents", strings.Join(opts.agents, ", "))
 		}
 		targets = filtered
 	}

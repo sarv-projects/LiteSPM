@@ -865,6 +865,22 @@ func PlanInstall(skills []DiscoveredSkill, agents []string, scope, projectRoot, 
 // overwrite notice names it BEFORE the refusal, so the user is always told
 // what is in the way.
 func CopySkillDir(src, dst string) error {
+	return copySkillDir(src, dst, true, MaxSkillBytes)
+}
+
+// copyDirVerbatim preserves a tree that is about to be replaced, byte for
+// byte, INCLUDING its .git directory: the pre-image backup must be able to
+// restore exactly the bytes the replacement destroys. The refusals match
+// CopySkillDir (symlinks and non-regular files are never followed or
+// recreated); the 32 MiB install bound deliberately does not apply, because
+// the tree already exists and must be recoverable at whatever size it has.
+func copyDirVerbatim(src, dst string) error {
+	return copySkillDir(src, dst, false, 0)
+}
+
+// copySkillDir is the shared walk behind CopySkillDir and copyDirVerbatim.
+// skipVCS drops `.git`; maxBytes 0 means unbounded.
+func copySkillDir(src, dst string, skipVCS bool, maxBytes int64) error {
 	if _, err := os.Lstat(dst); err == nil {
 		overwriteNotice(dst) // pre-write disclosure, even though we then refuse
 		return fmt.Errorf("destination already exists: %s", dst)
@@ -878,7 +894,7 @@ func CopySkillDir(src, dst string) error {
 		if err != nil {
 			return err
 		}
-		if d.Name() == ".git" {
+		if skipVCS && d.Name() == ".git" {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -903,8 +919,8 @@ func CopySkillDir(src, dst string) error {
 			return fmt.Errorf("refusing to copy symlink %s", rel)
 		}
 		total += info.Size()
-		if total > MaxSkillBytes {
-			return fmt.Errorf("skill exceeds %d bytes", MaxSkillBytes)
+		if maxBytes > 0 && total > maxBytes {
+			return fmt.Errorf("skill exceeds %d bytes", maxBytes)
 		}
 		return copyFile(path, target, info.Mode(), info.Size())
 	})

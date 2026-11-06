@@ -60,6 +60,21 @@ func TestStripTerminalEscapes(t *testing.T) {
 			want: "abc",
 		},
 		{
+			name: "UTF-8 encoded C1 control (U+009B) is removed",
+			// \u009b is C2 9B: valid UTF-8, so the old needsStripping fast path
+			// (which only fired for INVALID raw C1 bytes) returned the string
+			// unchanged and the CSI byte reached the terminal.
+			in:   "ok\u009b31mRED",
+			want: "ok31mRED",
+		},
+		{
+			name: "a C2-prefixed non-control rune (NBSP) survives",
+			// U+00A0 is C2 A0: 0xA0 is outside the C1 continuation range, so the
+			// new fast-path test must not fire and rewrite it.
+			in:   "a\u00a0b",
+			want: "a\u00a0b",
+		},
+		{
 			name: "remaining C0 controls and DEL, tab and newline kept",
 			in:   "a\x00b\x08c\x7fd\te\nf",
 			want: "abcd\te\nf",

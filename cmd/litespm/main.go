@@ -58,6 +58,10 @@ const (
 	ProtocolVersion = "2026-07-28"
 )
 
+// skillsUsageLine is the single usage line for the skills dispatcher: the bare
+// command, an unknown subcommand, and --help/-h all print exactly this text.
+const skillsUsageLine = "Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | adopt <name> | --help]"
+
 func main() {
 	// Every interactive run: check for a newer signed binary and install it
 	// before doing anything else, with a short cooldown window so a burst of
@@ -200,7 +204,7 @@ func main() {
 
 	case "skills":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | adopt <name> | --help]")
+			fmt.Println(skillsUsageLine)
 			os.Exit(2)
 		}
 		switch os.Args[2] {
@@ -228,9 +232,14 @@ func main() {
 			if code := runSkillsAdopt(os.Args[3:]); code != 0 {
 				os.Exit(code)
 			}
+		// --help/-h is advertised by the usage line itself; answering it with
+		// "Unknown skills subcommand" and exit 2 was a dead end.
+		case "--help", "-h":
+			fmt.Println(skillsUsageLine)
+			os.Exit(0)
 		default:
 			fmt.Printf("Unknown skills subcommand: %s\n", os.Args[2])
-			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | adopt <name> | --help]")
+			fmt.Println(skillsUsageLine)
 			os.Exit(2)
 		}
 
