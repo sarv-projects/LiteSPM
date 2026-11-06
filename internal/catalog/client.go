@@ -682,23 +682,75 @@ func (c *Client) FetchListings(ctx context.Context, releaseID string, manifest *
 	return listings, err
 }
 
+// releaseShardName reports whether name is one of the two shapes a release may
+// publish for a base: the historical single file `<base>.json`, or a sharded
+// `<base>-NNNN.json` (four or more zero-padded digits).
+//
+// The manifest is untrusted input: its file names become a URL path segment
+// AND a cache file path (see Sync), so a name carrying a separator, a `..`
+// element, or any other shape must never be used. Without this check a hostile
+// origin escapes the cache directory — `listings-../../x` satisfies a bare
+// prefix test and filepath.Join resolves the traversal into a real path.
+func releaseShardName(base, name string) bool {
+	if name == base+".json" {
+		return true
+	}
+	suffix, ok := strings.CutPrefix(name, base+"-")
+	if !ok {
+		return false
+	}
+	index, ok := strings.CutSuffix(suffix, ".json")
+	if !ok || len(index) < 4 {
+		return false
+	}
+	for _, r := range index {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // releaseShardNames returns the manifest's entries for one base name in shard
 // order. A release that fits in one file keeps the historical `<base>.json`
 // name, so a client reads old and new releases through the same path; a sharded
 // release is `<base>-0000.json`, `<base>-0001.json`, … ordered by name because
 // the index is zero-padded.
+//
+// Every entry that claims the base's prefix must be a well-formed shard name: a
+// manifest naming anything else under this prefix is refused as a whole (fail
+// closed) rather than partially consumed, because the name would otherwise be
+// written to disk as a cache file (see Sync and writeAtomicFile).
 func releaseShardNames(manifest *catalogbuild.ReleaseManifest, base string) ([]string, error) {
 	names := []string{}
 	for name := range manifest.Files {
-		if name == base+".json" || strings.HasPrefix(name, base+"-") {
-			names = append(names, name)
+		if name != base+".json" && !strings.HasPrefix(name, base+"-") {
+			continue
 		}
+		if !releaseShardName(base, name) {
+			return nil, fmt.Errorf("manifest for %s names %q as a %s file, which is not a valid shard name (want %s.json or %s-NNNN.json)",
+				manifest.ReleaseID, name, base, base, base)
+		}
+		names = append(names, name)
 	}
 	if len(names) == 0 {
 		return nil, fmt.Errorf("manifest for %s has no %s entry", manifest.ReleaseID, base)
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// pathWithinDir reports whether path stays inside dir after lexical cleaning.
+// Sync writes cache files under names the release manifest supplied, so this is
+// a second, independent gate behind releaseShardName: it is deliberately
+// lexical (a name is refused, never resolved), which keeps the check
+// independent of whatever already exists on disk.
+func pathWithinDir(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil || filepath.IsAbs(rel) {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // servedFile is one release file exactly as the origin served it. The cache
@@ -975,6 +1027,9 @@ func (c *Client) Sync(ctx context.Context) (*SyncResult, error) {
 		// cache is a mirror of the origin, not a re-serialization of it.
 		for _, file := range append(append([]servedFile{}, listingsRaw...), versionsRaw...) {
 			path := filepath.Join(releaseDir, file.name)
+			if !pathWithinDir(releaseDir, path) {
+				return nil, fmt.Errorf("refusing to persist catalog cache file %q outside %s", file.name, releaseDir)
+			}
 			if err := writeAtomicFile(path, file.bytes, 0644); err != nil {
 				return nil, fmt.Errorf("persist catalog cache (%s): %w", path, err)
 			}

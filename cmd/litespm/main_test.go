@@ -1108,9 +1108,11 @@ func TestHostApplySetup_RealBehavior(t *testing.T) {
 			ConfigPath string `json:"configPath"`
 			Success    bool   `json:"success"`
 		}
+		// No binaryPath is sent: the handler writes the RUNNING binary, and a
+		// caller-named path is refused (see the sibling subtest). A path that is
+		// not this executable must never reach an agent host config.
 		if err := h.client.Call(ctx, "host.apply_setup", map[string]any{
-			"hostId":     "opencode",
-			"binaryPath": "/opt/litespm",
+			"hostId": "opencode",
 		}, &resp); err != nil {
 			t.Fatalf("host.apply_setup failed: %v", err)
 		}
@@ -1127,6 +1129,38 @@ func TestHostApplySetup_RealBehavior(t *testing.T) {
 		}
 		if !strings.Contains(string(data), `"litespm"`) {
 			t.Errorf("written config does not contain the litespm entry: %s", data)
+		}
+	})
+
+	t.Run("a foreign binaryPath is refused", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("USERPROFILE", home)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+		t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+		t.Setenv("OPENCODE_CONFIG_DIR", "")
+		t.Setenv("CLINE_MCP_SETTINGS_PATH", "")
+		t.Setenv("CLINE_DATA_DIR", "")
+
+		// A file that certainly exists and is certainly not this executable.
+		decoy := filepath.Join(t.TempDir(), "evil.sh")
+		if werr := os.WriteFile(decoy, []byte("#!/bin/sh\n"), 0o700); werr != nil {
+			t.Fatalf("write decoy: %v", werr)
+		}
+
+		var raw json.RawMessage
+		err := h.client.Call(ctx, "host.apply_setup", map[string]any{
+			"hostId":     "opencode",
+			"binaryPath": decoy,
+		}, &raw)
+		if code := rpcCode(t, err); code != ipc.CodeInvalidParams {
+			t.Errorf("code=%d, want %d (err=%v)", code, ipc.CodeInvalidParams, err)
+		}
+		if err == nil || !strings.Contains(err.Error(), "not the running litespm binary") {
+			t.Errorf("refusal must name the reason, got %v", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(home, ".config", "opencode", "opencode.json")); !os.IsNotExist(statErr) {
+			t.Errorf("a refused apply_setup must not write a host config (stat err=%v)", statErr)
 		}
 	})
 }
