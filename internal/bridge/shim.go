@@ -388,17 +388,18 @@ func methodNotFound(req *ipc.Request, method string) *ipc.Response {
 
 func marketplacePromptText(query string) string {
 	var b strings.Builder
-	b.WriteString("You are browsing the LiteSPM marketplace through the connected LiteSPM MCP server. First, call list_installed to see what capabilities and tools are already installed on this machine.\n\n")
+	b.WriteString("You are browsing the LiteSPM marketplace through the connected LiteSPM MCP server. Call list_installed ONCE to see what capabilities and tools are already installed on this machine: it returns the whole inventory in one call. Do not call it again per kind; pass {\"kind\":\"mcp\"}, {\"kind\":\"skill\"} or {\"kind\":\"plugin\"} only when the user asks for that slice, and {\"enabled\":false} only to list disabled installs.\n\n")
 	webURL := strings.TrimRight(os.Getenv("LITESPM_WEB_URL"), "/")
 	if webURL == "" {
 		webURL = "https://lite-spm-nine.vercel.app"
 	}
-	fmt.Fprintf(&b, "A browser marketplace is available at %s/marketplace. It has four tabs — Skills, Plugins, MCP Servers, and Installed — with a live search bar over the catalog. If this host can open links, open it for the user; the Installed tab is wired to the local ledger when the page is served by `litespm marketplace`.\n\n", webURL)
+	fmt.Fprintf(&b, "This in-agent marketplace is a TEXT workflow: MCP prompts cannot render a popup, a panel, or a live search bar inside the agent. Do not launch a browser, computer-use, or any other GUI from this prompt, and do not ask the user for permission to do so. If the user wants the visual marketplace, tell them to run `litespm marketplace` or open %s/marketplace themselves - that page has four tabs (Skills, Plugins, MCP Servers, Installed) with a live search bar over the catalog, and its Installed tab reads the local ledger when the page is served by `litespm marketplace`.\n\n", webURL)
 	if query != "" {
 		fmt.Fprintf(&b, "Search for: %s\n\n", query)
 	} else {
 		b.WriteString("Ask what the user wants to find, or show a few useful catalog categories.\n\n")
 	}
+	b.WriteString("Use only the LiteSPM tools this server lists - search_catalog, get_extension, list_installed, prepare_install, request_install, adopt_capability and the rest. Never use browser or computer-use tools for this workflow.\n\n")
 	b.WriteString("Use search_catalog to find listings in the LiteSPM catalog, and use get_extension to inspect details. If a requested capability is not in the local catalog, you can also search the web for its public repository or MCP server endpoint.\n\n")
 	b.WriteString("For each result:\n")
 	b.WriteString("- If it is ALREADY installed: clearly mark it as installed and offer an [Uninstall] action (calling `litespm install remove <id>` or `litespm skills remove <name>`).\n")
@@ -776,8 +777,125 @@ func (s *Shim) projectParams(params map[string]any) map[string]any {
 	return params
 }
 
+// installedRow is one UNIQUE capability in the installed panel, collapsed from
+// several deployments that carry it. The daemon emits one item per host
+// registration and one per host detection, so a machine with nine agents
+// reported the same external server nine times and the header count read as
+// nine capabilities. A row keeps the number of deployments instead, which is
+// the fact the duplicates were hiding.
+type installedRow struct {
+	item        CapabilityItem
+	deployments int      // how many reported items collapsed into this row
+	hosts       []string // host ids in first-seen order (external detections only)
+}
+
+// panelKey is the identity a row groups by: an external detection is one
+// capability per kind+name however many agents carry it; a skill is one
+// capability per scope+name (the ledger names one row per agent directory);
+// everything else is keyed by its install id.
+func panelKey(it CapabilityItem) string {
+	switch {
+	case it.IsExternal:
+		return "external\x00" + strings.ToLower(it.Kind) + "\x00" + strings.ToLower(it.Name)
+	case it.Kind == "skill":
+		return "skill\x00" + strings.ToLower(it.Scope) + "\x00" + strings.ToLower(it.Name)
+	default:
+		return "managed\x00" + it.ID
+	}
+}
+
+// externalHostOf recovers the host id from a detected entry's id, which the
+// daemon mints as "external:<host>:<name>". An id with any other shape reports
+// no host rather than a placeholder.
+func externalHostOf(it CapabilityItem) string {
+	if !it.IsExternal {
+		return ""
+	}
+	rest, ok := strings.CutPrefix(it.ID, "external:")
+	if !ok {
+		return ""
+	}
+	host, _, ok := strings.Cut(rest, ":")
+	if !ok || host == "" {
+		return ""
+	}
+	return host
+}
+
+// groupInstalledItems collapses duplicate deployments, keeping first-seen
+// order and the most useful observed status in each group: a capability that
+// is Ready in one agent stays Ready even when another agent's copy is stopped.
+func groupInstalledItems(items []CapabilityItem) []installedRow {
+	index := make(map[string]int, len(items))
+	rows := make([]installedRow, 0, len(items))
+	for _, it := range items {
+		key := panelKey(it)
+		if i, ok := index[key]; ok {
+			rows[i].deployments++
+			if host := externalHostOf(it); host != "" && !containsString(rows[i].hosts, host) {
+				rows[i].hosts = append(rows[i].hosts, host)
+			}
+			if statusRank(it.Status) > statusRank(rows[i].item.Status) {
+				rows[i].item.Status = it.Status
+			}
+			continue
+		}
+		index[key] = len(rows)
+		row := installedRow{item: it, deployments: 1}
+		if host := externalHostOf(it); host != "" {
+			row.hosts = append(row.hosts, host)
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func containsString(list []string, want string) bool {
+	for _, v := range list {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}
+
+// statusRank orders observed statuses so a group keeps its best one.
+func statusRank(s InstalledStatus) int {
+	switch s {
+	case StatusReady:
+		return 3
+	case StatusNeedsAuth:
+		return 2
+	case StatusDisabled:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// deploymentSummary prints both numbers when they differ: a bare "83" read as
+// 83 capabilities, and "11 unique" alone hides why the reader saw more rows.
+func deploymentSummary(deployments, unique int) string {
+	capabilities := "capabilities"
+	if unique == 1 {
+		capabilities = "capability"
+	}
+	if deployments == unique {
+		return fmt.Sprintf("%d unique %s", unique, capabilities)
+	}
+	return fmt.Sprintf("%d deployments · %d unique %s", deployments, unique, capabilities)
+}
+
+func agentWord(n int) string {
+	if n == 1 {
+		return "agent"
+	}
+	return "agents"
+}
+
 // FormatInstalledPanel renders the in-agent 4-tab capability layout for installed tools.
 func FormatInstalledPanel(items []CapabilityItem) string {
+	rows := groupInstalledItems(items)
 	var sb strings.Builder
 	sb.WriteString("┌────────────────────────────────────────────────────────────────────────┐\n")
 	sb.WriteString("│                          LiteSPM Capabilities                          │\n")
@@ -787,7 +905,7 @@ func FormatInstalledPanel(items []CapabilityItem) string {
 	// bytes: slicing the byte string at [:27] split the multi-byte `●`
 	// (U+25CF) mid-sequence and emitted invalid UTF-8 whenever the count
 	// grew the prefix past the cut point.
-	headerRunes := []rune(fmt.Sprintf("     [INSTALLED (%d)] ●   ", len(items)))
+	headerRunes := []rune(fmt.Sprintf("     [INSTALLED (%d)] ●   ", len(rows)))
 	if len(headerRunes) > 27 {
 		headerRunes = headerRunes[:27]
 	}
@@ -795,16 +913,19 @@ func FormatInstalledPanel(items []CapabilityItem) string {
 	sb.WriteString("│\n")
 	sb.WriteString("└──────────────┴──────────────┴──────────────┴───────────────────────────┘\n\n")
 
-	if len(items) == 0 {
+	if len(rows) == 0 {
 		sb.WriteString("No capabilities currently installed. Use `search_catalog` to discover tools.\n")
 		return sb.String()
 	}
 
+	sb.WriteString(deploymentSummary(len(items), len(rows)))
+	sb.WriteString("\n")
 	sb.WriteString("Status: ● Ready | 🟡 Needs Auth | ○ Stopped | — Unknown | [External / Detected] Read-Only\n\n")
 	sb.WriteString("| Status | Kind | Name / ID | Notes / Action |\n")
 	sb.WriteString("|---|---|---|---|\n")
 
-	for _, it := range items {
+	for _, row := range rows {
+		it := row.item
 		var statusDot string
 		switch it.Status {
 		case StatusReady:
@@ -829,9 +950,17 @@ func FormatInstalledPanel(items []CapabilityItem) string {
 			// The label names the way to take ownership of the entry, and
 			// there IS one now: the adopt_capability tool records the
 			// ownership without writing a byte to the host's configuration.
-			note = "[External / Detected] (adopt with adopt_capability)"
+			// The count is how many agents' configs carry this one server.
+			if len(row.hosts) > 0 {
+				note = fmt.Sprintf("[External / Detected] in %d %s (adopt with adopt_capability)", len(row.hosts), agentWord(len(row.hosts)))
+			} else {
+				note = "[External / Detected] (adopt with adopt_capability)"
+			}
 		} else if it.Verified {
 			note = "Verified ✓ [Uninstall: litespm install remove " + it.ID + "]"
+		}
+		if !it.IsExternal && row.deployments > 1 {
+			note += fmt.Sprintf(" · in %d %s", row.deployments, agentWord(row.deployments))
 		}
 
 		sb.WriteString(fmt.Sprintf("| %s | %s | **%s** | %s |\n", statusDot, strings.ToUpper(it.Kind), it.Name, note))
