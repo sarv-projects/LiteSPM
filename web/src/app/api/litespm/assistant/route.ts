@@ -7,10 +7,22 @@ import { claimedPackageIds } from "@/server/litespm/assistant-grounding";
 import { starterFor } from "@/server/litespm/assistant-starters";
 import { getDataset, getReleaseId } from "@/server/litespm/dataset";
 import { capSummary } from "@/server/litespm/cap";
-import { clientIp, rateLimit } from "@/server/litespm/rate-limit";
+import { clientIp, globalBudget, rateLimit } from "@/server/litespm/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+/** Per-IP questions per window (the existing bucket). */
+const ASSISTANT_PER_IP_MAX = 20;
+/**
+ * Per-instance ceiling for the route as a whole. The per-IP bucket is keyed on
+ * a proxy-supplied address, so a client that can rotate that address would get
+ * a fresh bucket per request; this budget is keyed on nothing the caller
+ * controls, so a header bypass cannot escalate LLM spend past it.
+ */
+const ASSISTANT_GLOBAL_MAX = 200;
+/** One window for both the per-IP bucket and the global budget. */
+const ASSISTANT_WINDOW_MS = 5 * 60_000;
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -225,11 +237,22 @@ Always ensure keys match the exact linkKey from RETRIEVED RESULTS. Only emit val
 
 export async function POST(request: NextRequest) {
   try {
-    const limit = rateLimit(`assistant:${clientIp(request)}`, 20, 5 * 60_000);
+    const limit = rateLimit(`assistant:${clientIp(request)}`, ASSISTANT_PER_IP_MAX, ASSISTANT_WINDOW_MS);
     if (!limit.allowed) {
       return NextResponse.json(
         { error: "Too many questions for now — try again in a few minutes." },
         { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+      );
+    }
+    // Spend ceiling for the instance, next to the per-IP limit above. Checked
+    // second on purpose: requests the per-IP bucket already refuses must not
+    // consume the shared budget. Requests that pass it do, whether or not they
+    // reach the model (a precomputed answer still counts as one request).
+    const budget = globalBudget("assistant", ASSISTANT_GLOBAL_MAX, ASSISTANT_WINDOW_MS);
+    if (!budget.allowed) {
+      return NextResponse.json(
+        { error: "The assistant is at capacity right now — try again in a few minutes." },
+        { status: 429, headers: { "Retry-After": String(budget.retryAfterSeconds) } },
       );
     }
     const contentLength = Number(request.headers.get("content-length") ?? "0");

@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp, exploreHash } from "@/lib/litespm/router";
 import { recordView, useWatchlist } from "@/lib/litespm/hooks";
+import { shellArg } from "@/lib/litespm/shell";
 import {
   displayPackageName,
   installabilityLabel,
@@ -48,12 +49,6 @@ import { InstallBar } from "../install-bar";
 import { AvailabilityBadge, FactRow, KindBadge } from "../primitives";
 import { RankBadge, RankExplainer } from "../rank-badge";
 import { TargetAgentPicker } from "../target-agent-picker";
-
-/** Quote one shell argument only when it needs it. Host ids never do. */
-function shellArg(value: string): string {
-  if (/^[A-Za-z0-9._:@/+-]+$/.test(value)) return value;
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
 
 export function PackageView({ linkKey }: { linkKey: string }) {
   const navigate = useApp((s) => s.navigate);

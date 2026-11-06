@@ -69,6 +69,12 @@ export interface Listing {
   source?: string;
   /** Derived resolution key — stamped by the dataset loader, never wire data. */
   linkKey?: string;
+  /**
+   * Derived, never wire data: the row's `command`/`args` failed the
+   * load-time token allowlist (dataset.ts), so the copy-paste host snippet is
+   * withheld. Browse, search and the install command keep working.
+   */
+  snippetWithheld?: boolean;
   /** Derived quality score (0–100) — stamped by the dataset loader from real record fields. */
   rankScore?: number;
   publisherGroup?: boolean;
