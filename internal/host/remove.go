@@ -519,6 +519,9 @@ func stripTOMLEntry(content string, keyPath []string) (string, bool, error) {
 }
 
 // stripTOMLEntryNamed removes one `[prefix.<serverName>]` table and its keys.
+// The header is matched comment-aware, so `[mcp_servers.litespm] # note` is
+// found and removed — the exact-line comparison used to report "not present"
+// while the live table stayed in the config.
 func stripTOMLEntryNamed(content string, keyPath []string, serverName string) (string, bool, error) {
 	table := "[" + strings.Join(append(append([]string{}, keyPath...), serverName), ".") + "]"
 	lines := strings.Split(content, "\n")
@@ -527,14 +530,13 @@ func stripTOMLEntryNamed(content string, keyPath []string, serverName string) (s
 	removed := false
 
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == table {
+		if tomlHeaderMatches(line, table) {
 			skipping = true
 			removed = true
 			continue
 		}
 		if skipping {
-			if strings.HasPrefix(trimmed, "[") {
+			if tomlHeaderOf(line) != "" {
 				skipping = false
 			} else {
 				continue // a key or blank line belonging to the removed table

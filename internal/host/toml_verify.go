@@ -50,6 +50,24 @@ func stripTOMLComment(line string) string {
 	return strings.TrimSpace(line)
 }
 
+// tomlHeaderOf returns the live table header a line declares (e.g.
+// "[mcp_servers.demo]"), or "" when the line declares none — a commented
+// header, a key line, a comment, or a blank. An inline comment is ignored, so
+// `[mcp_servers.demo] # managed by hand` declares the header.
+func tomlHeaderOf(line string) string {
+	trimmed := stripTOMLComment(line)
+	if !strings.HasPrefix(trimmed, "[") {
+		return ""
+	}
+	return trimmed
+}
+
+// tomlHeaderMatches reports whether line declares table as a live header,
+// ignoring any inline comment.
+func tomlHeaderMatches(line, table string) bool {
+	return stripTOMLComment(line) == table
+}
+
 // tomlSectionLines returns the live lines that belong to table (a header
 // written exactly as e.g. "[mcp_servers.litespm]") and reports whether such a
 // live header exists at all. Comment-only lines contribute nothing, and a

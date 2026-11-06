@@ -927,7 +927,7 @@ func lookupEntryAt(spec entrySpec, content, name string) (string, bool) {
 	if spec.Format == FormatTOML {
 		table := "[" + strings.Join(append(append([]string{}, spec.KeyPath...), name), ".") + "]"
 		for _, line := range strings.Split(content, "\n") {
-			if strings.TrimSpace(line) == table {
+			if tomlHeaderMatches(line, table) {
 				return table, true
 			}
 		}
@@ -1176,7 +1176,7 @@ func tomlServerEntries(spec entrySpec, content string) []HostServerEntry {
 		current = nil
 	}
 	for _, line := range strings.Split(content, "\n") {
-		trimmed := strings.TrimSpace(line)
+		trimmed := stripTOMLComment(line)
 		if strings.HasPrefix(trimmed, prefix) && strings.HasSuffix(trimmed, "]") {
 			flush()
 			name := strings.TrimSuffix(strings.TrimPrefix(trimmed, prefix), "]")
@@ -1302,7 +1302,7 @@ func ListServerEntries(ctx context.Context, hostID string, scope domain.InstallS
 		var names []string
 		prefix := "[" + strings.Join(spec.KeyPath, ".") + "."
 		for _, line := range strings.Split(string(data), "\n") {
-			trimmed := strings.TrimSpace(line)
+			trimmed := stripTOMLComment(line)
 			if strings.HasPrefix(trimmed, prefix) && strings.HasSuffix(trimmed, "]") {
 				names = append(names, strings.TrimSuffix(strings.TrimPrefix(trimmed, prefix), "]"))
 			}

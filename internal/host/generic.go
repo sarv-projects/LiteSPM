@@ -215,15 +215,16 @@ func (t BridgeTarget) tomlTable() string {
 }
 
 // mergeTOMLEntry replaces or appends a single TOML table block, leaving every
-// other section untouched (including comments).
+// other section untouched (including comments). A header with an inline
+// comment (`[mcp_servers.demo] # managed by hand`) is the same table as one
+// without: matching it as text alone appended a SECOND, invalid table.
 func mergeTOMLEntry(orig, table, block string) (string, error) {
 	lines := strings.Split(orig, "\n")
 	var out []string
 	skipping := false
 	replaced := false
 	for _, l := range lines {
-		trimmed := strings.TrimSpace(l)
-		if trimmed == table {
+		if tomlHeaderMatches(l, table) {
 			skipping = true
 			if !replaced {
 				out = append(out, strings.TrimRight(block, "\n"))
@@ -232,10 +233,11 @@ func mergeTOMLEntry(orig, table, block string) (string, error) {
 			continue
 		}
 		if skipping {
-			// A new table header (or EOF) ends our section.
-			if strings.HasPrefix(trimmed, "[") {
+			// A new live table header (or EOF) ends our section; a
+			// commented header does not.
+			if tomlHeaderOf(l) != "" {
 				skipping = false
-			} else if trimmed != "" {
+			} else if strings.TrimSpace(l) != "" {
 				continue // drop the old keys of our own table
 			}
 		}
@@ -339,14 +341,16 @@ func (a *GenericAdapter) DetectPreExistingComponents(ctx context.Context) ([]Pre
 }
 
 // parseTOMLComponents extracts `[mcp_servers.<name>]` headers read-only.
+// Header matching is comment-aware: `[mcp_servers.demo] # managed` names
+// demo, and a commented-out header names nothing.
 func parseTOMLComponents(content, path string) []PreExistingComponent {
 	var out []PreExistingComponent
 	for _, line := range strings.Split(content, "\n") {
-		t := strings.TrimSpace(line)
-		if !strings.HasPrefix(t, "[mcp_servers.") {
+		header := tomlHeaderOf(line)
+		if !strings.HasPrefix(header, "[mcp_servers.") || !strings.HasSuffix(header, "]") {
 			continue
 		}
-		name := strings.TrimSuffix(strings.TrimPrefix(t, "[mcp_servers."), "]")
+		name := strings.TrimSuffix(strings.TrimPrefix(header, "[mcp_servers."), "]")
 		if name == "" || name == litespmServerName || name == legacyServerName {
 			continue
 		}

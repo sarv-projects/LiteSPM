@@ -209,14 +209,11 @@ func parseTomlMcpComponents(content string, configPath string) []PreExistingComp
 	}
 
 	for _, l := range lines {
-		trimmed := strings.TrimSpace(l)
-		if strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		header := tomlHeaderOf(l)
+		if header != "" {
 			flush()
-			if strings.HasPrefix(trimmed, "[mcp_servers.") {
-				name := strings.TrimSuffix(strings.TrimPrefix(trimmed, "[mcp_servers."), "]")
+			if strings.HasPrefix(header, "[mcp_servers.") && strings.HasSuffix(header, "]") {
+				name := strings.TrimSuffix(strings.TrimPrefix(header, "[mcp_servers."), "]")
 				if name != litespmServerName && name != legacyServerName {
 					currentComp = &PreExistingComponent{
 						Name:       name,
@@ -228,8 +225,13 @@ func parseTomlMcpComponents(content string, configPath string) []PreExistingComp
 			}
 			continue
 		}
+		trimmed := strings.TrimSpace(l)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
 
 		if currentComp != nil {
+			trimmed = stripTOMLComment(l)
 			if strings.HasPrefix(trimmed, "command") && strings.Contains(trimmed, "=") {
 				parts := strings.SplitN(trimmed, "=", 2)
 				val := strings.TrimSpace(parts[1])
