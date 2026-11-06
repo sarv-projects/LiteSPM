@@ -152,6 +152,7 @@ A prioritized, actionable list of everything the November 2026 security/correctn
 | R2 | `[OPEN]` | **The claimed release `rel-2026-11-05-03` was never deployed**: the live origin still serves `rel-2026-10-21-01`. Either deploy or mark the pointer as undeployed in `STATUS.md`; the current text says the release "is cut from the dataset", which the materialize failure contradicts. |
 | R3 | `[OPEN]` | `STATUS.md`/`SECURITY.md` are otherwise unusually accurate — keep them that way: after fixing F2, the `SECURITY.md` line about published bundles becomes true; after F4 rotation, remove any claim that the demo ships fallback keys. |
 | R4 | `[OPEN]` | The daily `catalog-sync.yml` job has **never** succeeded (see F12). Treat a permanently-red scheduled workflow as an incident, not background noise: add an alert when a scheduled job fails N times in a row. |
+| R5 | `[OPEN]` | Repo hygiene: pushing warns that a single blob is 55.56 MB (the committed `web/data/catalog.json`, larger than GitHub's 50 MB recommendation). Consider sharding the committed catalog, Git LFS, or dropping the committed copy now that releases publish the tree — the cost is clone/push time, not secrecy (the site serves it publicly already). |
 
 ---
 
