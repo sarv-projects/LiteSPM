@@ -71,7 +71,7 @@ const COMMANDS: Array<{ cmd: string; description: string; example?: string; grou
 const INSTALL_FLAGS = [
   "--help, -h", "--version, -v", "--scope, -s", "--workspace, -w", "--host",
   "--agent, -a", "--all-detected", "--env", "--force, -f", "--frozen",
-  "--dry-run", "--allow-partial",
+  "--dry-run", "--allow-partial", "--yes, -y",
 ];
 
 export function DocsView({ section }: { section: string }) {

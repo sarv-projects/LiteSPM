@@ -1289,7 +1289,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		skillBinding = &skillInstallBinding{AllDetected: true}
 	}
 
-	grant, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, mcpBinding, skillBinding)
+	grant, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, mcpBinding, skillBinding, nil)
 	if gerr != nil {
 		fmt.Fprintf(w.out, "Install refused before anything was changed: %v\n", gerr)
 		return nil
@@ -1375,7 +1375,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 					Hosts:        uniqueHostIDs(host.RegisteredBridgeHosts(ctx, scope)),
 					AllowPartial: true,
 				}
-				partialGrant, _, perr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, partialBinding, nil)
+				partialGrant, _, perr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, partialBinding, nil, nil)
 				if perr != nil {
 					fmt.Fprintf(w.out, "Install refused before anything was changed: %v\n", perr)
 					return nil

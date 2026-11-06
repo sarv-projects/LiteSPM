@@ -294,7 +294,7 @@ func TestAuthorizeHumanInstall_RecordsHumanCLIApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	grant, _, err := authorizeHumanInstall(ctx, h.db, h.catClient, listing, "1.0.0", domain.ScopeUser, "", nil, nil)
+	grant, _, err := authorizeHumanInstall(ctx, h.db, h.catClient, listing, "1.0.0", domain.ScopeUser, "", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("authorizeHumanInstall: %v", err)
 	}

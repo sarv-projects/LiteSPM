@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -1471,6 +1472,9 @@ type installFlags struct {
 	// directories, sealed artifact — then exits without recording a plan,
 	// consuming an approval or writing anything.
 	dryRun bool
+	// yes is the scripted answer to the pre-write confirmation a terminal
+	// install shows. A non-interactive run never asks in the first place.
+	yes bool
 	// allowPartial acknowledges that a plugin install may deliver only the
 	// components this build projects, skipping the host-specific ones. Without
 	// it such an install is refused before any write (LPSM-INSTALL-PARTIAL).
@@ -1481,7 +1485,7 @@ type installFlags struct {
 
 const installUsage = "Usage: litespm install <listing-id> [--version <ver>] [--scope user|project]\n" +
 	"                     [--workspace <dir>] [--agent <id>]... [--all-detected]\n" +
-	"                     [--host <host-id>]... [--env <VAR>]... [--force] [--frozen] [--dry-run]\n" +
+	"                     [--host <host-id>]... [--env <VAR>]... [--force] [--frozen] [--dry-run] [--yes]\n" +
 	"                     [--allow-partial]\n\n" +
 	"  --scope  user installs for this machine; project installs for one project\n" +
 	"           directory (the current directory, or --workspace).\n" +
@@ -1514,6 +1518,10 @@ const installUsage = "Usage: litespm install <listing-id> [--version <ver>] [--s
 	"           print the plan the install would run — effects, every target file and\n" +
 	"           skills directory, the sealed artifact and version — then stop. No plan is\n" +
 	"           recorded, no approval is consumed, and nothing on this machine changes.\n" +
+	"  --yes    skip the confirmation an interactive install shows. In a terminal the\n" +
+	"           plan is printed and you are asked before anything is written; --yes\n" +
+	"           answers that in advance. A piped or CI run never asks at all, so\n" +
+	"           scripts are unaffected either way.\n" +
 	"  --allow-partial\n" +
 	"           acknowledge a plugin installing only part of itself. A plugin may declare\n" +
 	"           commands, hooks, subagents or LSP servers, which LiteSPM has no adapter to\n" +
@@ -1587,6 +1595,8 @@ func parseInstallFlags(args []string) (installFlags, error) {
 			flags.envNames = append(flags.envNames, args[i])
 		case "--force", "-f":
 			flags.force = true
+		case "--yes", "-y":
+			flags.yes = true
 		case "--frozen":
 			flags.frozen = true
 		case "--dry-run":
@@ -1848,10 +1858,27 @@ func runInstall(args []string) {
 		return
 	}
 
+	// In a terminal the plan is printed and confirmed before anything is
+	// written. --yes answers in advance and a non-interactive run never asks:
+	// there, typing the command is the approval, exactly as before.
+	var confirm installConfirmFunc
+	if installConfirmWanted(flags) {
+		confirm = func(plan *domain.InstallPlan) (bool, error) {
+			writeApprovalPrompt(os.Stdout, plan)
+			return confirmInstallPrompt(os.Stdin, os.Stdout)
+		}
+	}
 	var grant *installGrant
 	if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP || listing.Kind == domain.KindPlugin {
-		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, projectRoot, mcpBinding, skillBinding)
+		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, projectRoot, mcpBinding, skillBinding, confirm)
 		if gerr != nil {
+			if errors.Is(gerr, errInstallDeclined) {
+				// Declining is a normal outcome, not a failed install: record
+				// that the question was asked and answered, then stop cleanly.
+				auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", "declined at the confirmation prompt")
+				fmt.Println("Nothing was written: the plan was not confirmed.")
+				return
+			}
 			// The gate refused before any effect; it is still a refusal, and the
 			// agent path audits this same point. No approval was consumed.
 			auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", gerr.Error())
@@ -1951,6 +1978,36 @@ func runInstall(args []string) {
 	auditCLIInstall(ctx, db, flags.listingID, approvalID, "deny", "refused", unsupported.Error())
 	fmt.Fprintf(os.Stderr, "Install failed: %v\n", unsupported)
 	os.Exit(1)
+}
+
+// installConfirmWanted reports whether this run should print the plan and ask.
+// Only a real terminal asks, and only when the caller did not answer in
+// advance: --dry-run stops at the preview, --yes is the scripted answer, and a
+// piped run (CI, an agent harness) must never block on a question nobody can
+// see.
+func installConfirmWanted(flags installFlags) bool {
+	if flags.yes || flags.dryRun {
+		return false
+	}
+	return isTerminal(os.Stdin) && isTerminal(os.Stdout)
+}
+
+// confirmInstallPrompt asks the CLI install question in the wizard's [Y/n]
+// dialect: Enter means yes, anything else means no, and an input that ends
+// without an answer declines rather than guessing.
+func confirmInstallPrompt(in io.Reader, out io.Writer) (bool, error) {
+	fmt.Fprint(out, "\nInstall this plan? [Y/n]: ")
+	line, err := bufio.NewReader(in).ReadString('\n')
+	answer := strings.ToLower(strings.TrimSpace(line))
+	if err != nil && answer == "" {
+		return false, nil
+	}
+	switch answer {
+	case "", "y", "yes":
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 // versionOrLatest mirrors the install engine's default: an empty requested

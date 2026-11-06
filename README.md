@@ -129,6 +129,10 @@ the reason instead of being half-installed.
 Existing entries are left alone. Removal strips only the nodes LiteSPM wrote
 and keeps anything you edited.
 
+In a terminal, `litespm install <id>` prints that plan and asks before it
+writes; `--dry-run` stops at the preview and `--yes` skips the question. A
+piped or CI run never asks, so scripts behave exactly as before.
+
 ## Common commands
 
 | Command | What it does |
