@@ -230,6 +230,21 @@ Ledger integrity on corrupt/truncated files (hard error, never silent) and fsync
 
 Not determined: Windows-only behaviours (reserved device names pass `SanitizeSkillName`; unverifiable on Linux) and Unicode bidi/zero-width display spoofing (survives the sanitiser — its scope is terminal escapes).
 
+## 9. Third deep-dive — the web assistant (baseline `18de7b4`)
+
+Scope: the Ask AI path (`web/src/app/api/litespm/assistant/route.ts` and the `assistant-*` modules it wires). Method: read the whole path, then execute the two dependency-free modules straight out of their source with the repo's own `typescript` compiler; the user-visible failure was also reproduced against the live site.
+
+| ID | Sev | Where | What | Status |
+|----|-----|-------|------|--------|
+| W1 | **High** | `web/src/server/litespm/assistant-product.ts` | The product-knowledge branch shipped in `11eeccb` (100 lines, `productAnswer`) and **nothing imports it**: every question, meta included, ran BM25 + the LLM, and "what is litespm" retrieved three unrelated Anthropic skills. A feature-shaped dead end. | `[FIXED]` — `756e3f5` |
+| W2 | **High** | `web/src/app/api/litespm/assistant/route.ts` | `enforceGrounding` reads any token after `litespm install` that is absent from the retrieved hits as an invented package — including the placeholder form `litespm install <id>` that the system prompt itself teaches and the product answers document. A correct "what is LiteSPM" answer was discarded and replaced with "I can only recommend capabilities that are actually in the retrieved catalog. The closest matches are: Claude Api…" (reproduced live). | `[FIXED]` — `756e3f5` (`assistant-grounding.ts`: only id-shaped tokens are claims) |
+| W3 | Low | `web/src/app/api/litespm/assistant/route.ts` | No product fallback at all: a meta question that survived retrieval was answered from BM25 noise, and pronoun follow-ups ("how does it work?") had no handling. | `[FIXED]` — `756e3f5` (`productAnswerForConversation`: answers follow-ups only while the thread is about LiteSPM, and only when no catalog noun or search verb appears) |
+| W4 | Low | `web/scripts/` | No gate covered the assistant: dead wiring, product-vs-catalog routing and placeholder-vs-id claims were invisible to `tsc`, eslint and the truth checks. | `[FIXED]` — `756e3f5` (`scripts/check-assistant-product.mjs`, executed by `npm run lint`) |
+
+Verified as sound (§9): retrieval cards render before the model writes and `STREAM_CARDS_NOTE` prevents duplicate widgets; widget keys are filtered against the retrieved `linkKey` set; the stream envelope (`status`/`cards`/`delta`/`done`/`error`) matches what the client consumes; the answer cache only ever serves first-turn questions; the catalog questions named in the audit still return null from the product module and stay on retrieval.
+
+Not determined: whether the edge preserves client `XFF` (F13's open question, unchanged by this dive).
+
 ---
 
-*Prepared as part of the cloned-repo audit. All line numbers refer to the audit baseline (`318e421`) unless marked otherwise; §8 uses the `64bf56f` baseline. The F1-F4 fixes above shift lines in `internal/catalog/client.go`, `cmd/litespm/main.go`, `cmd/litespm/main_test.go`, `web/src/server/llm/gateway.ts` and `web/scripts/check-no-embedded-secrets.mjs`.*
+*Prepared as part of the cloned-repo audit. All line numbers refer to the audit baseline (`318e421`) unless marked otherwise; §8 uses the `64bf56f` baseline and §9 the `18de7b4` baseline. The F1-F4 fixes above shift lines in `internal/catalog/client.go`, `cmd/litespm/main.go`, `cmd/litespm/main_test.go`, `web/src/server/llm/gateway.ts` and `web/scripts/check-no-embedded-secrets.mjs`.*
