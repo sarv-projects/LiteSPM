@@ -1,4 +1,5 @@
 import type { Listing } from "./types";
+import { tomlLocalEntry, jsonSnippet, validateCommandLine } from "./config-snippet";
 import { norm, stripNamespace } from "./ranking";
 import { HOSTS } from "./hosts";
 
@@ -135,38 +136,47 @@ function mcpLocalSnippet(
   serverKey: string,
   envVars: McpEnvVar[],
 ): string | null {
-  const command = row.command?.trim();
+  const command = row.command?.trim() ?? "";
   if (!command) return null;
+  // Fail closed twice over: dataset.ts marks a row whose launch line exceeds
+  // the token allowlist, and the emitter re-validates here so no Listing from
+  // any other source can put an unescaped/unvetted value into a snippet a
+  // visitor pastes into an agent config. The row itself keeps working in
+  // browse and search; only the copy-paste block is withheld.
+  if (row.snippetWithheld) return null;
   const args = row.args?.length ? row.args : [];
+  const launch = validateCommandLine(command, args);
+  if (!launch) return null;
 
   if (host.kind === "toml") {
     const section = host.keyPath
       ? `[${host.keyPath}.${serverKey}]`
       : `[mcp_servers.${serverKey}]`;
-    const lines = [section, `command = "${command}"`, `args = [${args.map((arg) => `"${arg}"`).join(", ")}]`];
-    if (host.shape === "stdio-typed") lines.push(`type = "stdio"`);
-    if (envVars.length > 0) {
-      // TOML hosts spell environment values differently (inline table, child
-      // table, or a string reference). Do not guess a shape here; the
-      // Environment Variables section names what is required.
-      lines.push(`# required env: ${envVars.map((env) => env.name).join(", ")} (use this host's documented syntax)`);
-    }
-    return lines.join("\n");
+    // tomlLocalEntry escapes command and args as TOML basic strings (and
+    // refuses control characters outright), so a value can never close the
+    // string or start a new table header of its own.
+    return tomlLocalEntry({
+      section,
+      command: launch.command,
+      args: launch.args,
+      typedStdio: host.shape === "stdio-typed",
+      envVarNames: envVars.map((env) => env.name),
+    });
   }
 
   let entry: unknown;
   switch (host.shape) {
     case "local-array":
-      entry = { type: "local", command: [command, ...args] };
+      entry = { type: "local", command: [launch.command, ...launch.args] };
       break;
     case "stdio-typed":
-      entry = { type: "stdio", command, args };
+      entry = { type: "stdio", command: launch.command, args: launch.args };
       break;
     case "command-string":
-      entry = [command, ...args].join(" ");
+      entry = [launch.command, ...launch.args].join(" ");
       break;
     default:
-      entry = { command, args };
+      entry = { command: launch.command, args: launch.args };
       break;
   }
 
@@ -177,7 +187,9 @@ function mcpLocalSnippet(
     );
   }
 
-  return JSON.stringify(nestValue(host.keyPath || "mcpServers", { [serverKey]: entry }), null, 2);
+  // jsonSnippet is JSON.stringify: the entry is a value, so every quote,
+  // backslash and control character is escaped by the JSON grammar.
+  return jsonSnippet(nestValue(host.keyPath || "mcpServers", { [serverKey]: entry }));
 }
 
 export function buildMcpSpec(row: Listing): McpDetailSpec {

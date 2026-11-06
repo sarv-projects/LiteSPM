@@ -15,6 +15,7 @@ import {
 import { useApp } from "@/lib/litespm/router";
 import type { CatalogHit, CatalogListResponse } from "@/lib/litespm/types";
 import { displayPackageName, formatFull } from "@/lib/litespm/format";
+import { shellArg } from "@/lib/litespm/shell";
 import { KindBadge } from "../primitives";
 
 type TabId = "skills" | "plugins" | "mcp" | "installed";
@@ -101,7 +102,7 @@ function ResultCard({ hit }: { hit: CatalogHit }) {
         {hit.transport && <span className="font-mono">{hit.transport}</span>}
         {hit.installability === "discovery_only" && <span>discovery only</span>}
       </div>
-      <InstallCommand command={`litespm install ${hit.id}`} />
+      <InstallCommand command={`litespm install ${shellArg(hit.id)}`} />
       <div className="mt-auto flex items-center justify-between gap-2 pt-3">
         <button
           type="button"
