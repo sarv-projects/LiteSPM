@@ -29,6 +29,13 @@ func TestSkillsAddForcePrintsOverwritesAndPreImageDigest(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dest, "SKILL.md")); err != nil {
 		t.Fatalf("seed install wrote nothing: %v", err)
 	}
+	// macOS: t.TempDir() sits under /var, itself a symlink to /private/var,
+	// and the installer prints the destination as the filesystem resolves
+	// it. Compare against that canonical spelling, not the one t.TempDir
+	// handed us, or the assertion fails on the path macOS uses.
+	if resolved, err := filepath.EvalSymlinks(dest); err == nil {
+		dest = resolved
+	}
 	pre, err := skills.CapturePreImage(dest)
 	if err != nil {
 		t.Fatalf("fingerprint the tree that will be replaced: %v", err)
