@@ -1197,6 +1197,33 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			return nil
 		}
 		mcpBinding = &mcpInstallBinding{Hosts: uniqueHostIDs(targetHosts), Runtime: runtime}
+
+		// An entry name the user already has in some agents is a QUESTION, not an
+		// abort: the installer's collision preflight (LPSM-NAME-CONFLICT) refuses
+		// the whole install when ANY target already carries the name, which in the
+		// field killed an install for every agent because one of eleven already
+		// had the server. The answer adjusts the target set and the force flag
+		// BEFORE authorizeHumanInstall, because the plan hash seals both —
+		// filtering hosts after approval would invalidate the plan, and silently
+		// replacing an existing entry without consent would not be a choice at
+		// all.
+		entryName, nameErr := serverEntryNameFor(listing)
+		if nameErr != nil {
+			fmt.Fprintf(w.out, "Cannot install %s: %v\n", listing.Name, nameErr)
+			return nil
+		}
+		if conflicts := mcpConflictHosts(ctx, mcpBinding.Hosts, entryName, scope, projectRoot); len(conflicts) > 0 {
+			choice, ok, rerr := w.resolveMCPConflicts(entryName, mcpBinding.Hosts, conflicts)
+			if rerr != nil {
+				return rerr
+			}
+			if !ok {
+				fmt.Fprintln(w.out, "Not installed. Nothing was changed.")
+				return nil
+			}
+			mcpBinding.Hosts = choice.hosts
+			mcpBinding.Force = choice.force
+		}
 	}
 
 	// A plugin is installed like an MCP server: the pinned tree is fetched,
@@ -1345,6 +1372,95 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		fmt.Fprintf(w.out, "  • %s: entry written in %s\n", h.HostID, h.ConfigPath)
 	}
 	return nil
+}
+
+// mcpConflictChoice is the resolved answer to "some target agents already
+// register this entry name": the target set to plan for, and whether an
+// existing entry may be replaced. authorizeHumanInstall seals both into the
+// plan hash, so this decision has to be taken before the approval, not after.
+type mcpConflictChoice struct {
+	hosts []string
+	force bool
+}
+
+// resolveMCPConflicts asks what to do about the agents that already carry
+// entryName and returns the adjusted target set. ok=false means the user chose
+// to leave everything as it is (or to cancel): nothing is written.
+//
+// Skipping is the default because replacing an existing entry is the
+// destructive answer, and a replace always keeps the per-write backup
+// InstallServerEntry takes before it edits the file.
+func (w *Wizard) resolveMCPConflicts(entryName string, hosts, conflicts []string) (mcpConflictChoice, bool, error) {
+	conflictSet := make(map[string]bool, len(conflicts))
+	fmt.Fprintf(w.out, "\nA server named %q is already registered in:\n", entryName)
+	for _, hostID := range conflicts {
+		conflictSet[hostID] = true
+		fmt.Fprintf(w.out, "  • %s\n", hostDisplayName(hostID))
+	}
+	remaining := make([]string, 0, len(hosts))
+	for _, hostID := range hosts {
+		if !conflictSet[hostID] {
+			remaining = append(remaining, hostID)
+		}
+	}
+
+	keepLabel := "Leave it exactly as it is (nothing to do)"
+	if len(remaining) == 1 {
+		keepLabel = "Install into the other agent and leave the existing entry alone"
+	} else if len(remaining) > 1 {
+		keepLabel = fmt.Sprintf("Install into the other %d agents and leave the existing entry alone", len(remaining))
+	}
+	replaceLabel := "Replace the existing entry there (a backup is kept)"
+
+	choice := "skip"
+	if terminalUIAvailable(w.in, w.out) {
+		field := huh.NewSelect[string]().
+			Title(fmt.Sprintf("%q is already registered somewhere", entryName)).
+			Description("Nothing has been written yet. This answer is sealed into the install plan you approve next.").
+			Options(
+				huh.NewOption(keepLabel, "skip"),
+				huh.NewOption(replaceLabel, "replace"),
+				huh.NewOption("Cancel", "cancel"),
+			).
+			Value(&choice).
+			WithHeight(6)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return mcpConflictChoice{}, false, nil
+			}
+			return mcpConflictChoice{}, false, err
+		}
+	} else {
+		fmt.Fprintln(w.out, "")
+		fmt.Fprintf(w.out, "  [1] %s\n", keepLabel)
+		fmt.Fprintf(w.out, "  [2] %s\n", replaceLabel)
+		fmt.Fprintln(w.out, "  [3] Cancel")
+		fmt.Fprint(w.out, "Choose [1]: ")
+		line, err := w.readLine()
+		if err != nil {
+			return mcpConflictChoice{}, false, err
+		}
+		switch strings.TrimSpace(line) {
+		case "", "1":
+			choice = "skip"
+		case "2":
+			choice = "replace"
+		default:
+			choice = "cancel"
+		}
+	}
+
+	switch choice {
+	case "replace":
+		return mcpConflictChoice{hosts: hosts, force: true}, true, nil
+	case "skip":
+		if len(remaining) == 0 {
+			return mcpConflictChoice{}, false, nil
+		}
+		return mcpConflictChoice{hosts: remaining}, true, nil
+	default:
+		return mcpConflictChoice{}, false, nil
+	}
 }
 
 // removableItem is one thing the user can remove: an install LiteSPM recorded
