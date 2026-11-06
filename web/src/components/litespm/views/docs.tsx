@@ -21,24 +21,51 @@ const SECTIONS: Array<{ id: string; label: string; icon: React.ElementType }> = 
   { id: "troubleshooting", label: "Troubleshooting & FAQ", icon: HelpCircle },
 ];
 
-const COMMANDS: Array<{ cmd: string; description: string; example?: string }> = [
-  { cmd: "litespm", description: "Open the setup and management wizard. Finds agents on your machine, shows the exact file it will touch, and asks before writing." },
-  { cmd: "litespm search <text>", description: "Search the local catalog. Marks which results are installable and which are discovery-only, before you run anything.", example: "litespm search postgres" },
-  { cmd: "litespm install <id>", description: "Install a server, skill or plugin. Resolves the listing, plans the change, previews it, and asks before writing.", example: "litespm install neon --agent claude-code" },
-  { cmd: "litespm install remove <id>", description: "Remove one install. Strips only the nodes LiteSPM wrote and keeps anything you edited." },
-  { cmd: "litespm list", description: "What is installed, by agent and kind. --drifted shows entries changed since install." },
-  { cmd: "litespm skills add <source>", description: "Install skills from a GitHub repository, Git URL, skill URL or local folder. Discovers skills, lets you choose, previews destinations, and asks before writing.", example: "litespm skills add https://github.com/anthropics/skills" },
-  { cmd: "litespm skills use <src>@<skill>", description: "Print a skill's prompt without installing anything.", example: "litespm skills use anthropics/skills@pdf" },
-  { cmd: "litespm restore <id>", description: "Roll a config back to its exact previous bytes — not a re-merge." },
-  { cmd: "litespm copy --from A --to B", description: "Port one agent's setup to another host." },
-  { cmd: "litespm host list", description: "Every supported host and the config file it writes." },
-  { cmd: "litespm host detect", description: "Which of the supported hosts are on this machine." },
-  { cmd: "litespm host setup <host>", description: "Connect one host: writes the bridge entry with preview and backup.", example: "litespm host setup codex" },
-  { cmd: "litespm doctor", description: "Check the install and repair it." },
-  { cmd: "litespm catalog sync", description: "Download or refresh the local catalog." },
-  { cmd: "litespm bridge stdio --host <id>", description: "Run the MCP bridge a connected agent talks to.", example: "litespm bridge stdio --host codex" },
-  { cmd: "litespm approve", description: "Mint a single-use token so an agent can prepare a plan you approve interactively." },
-  { cmd: "litespm help", description: "The full command reference." },
+type CommandGroup = "Discover" | "View" | "Install & manage" | "Connect" | "Recover" | "System";
+
+const COMMANDS: Array<{ cmd: string; description: string; example?: string; group: CommandGroup }> = [
+  { group: "Discover", cmd: "litespm search <text>", description: "Search the local catalog. Marks which results are installable and which are discovery-only, before you run anything.", example: "litespm search postgres" },
+  { group: "Discover", cmd: "litespm skills find [<query>]", description: "Search the local catalog index for skills. --owner <org> narrows the results to one publisher." },
+  { group: "Discover", cmd: "litespm agent list|resolve <id>", description: "List the coding agents in the ACP registry with the launch strategy for this OS, or resolve one agent's executable, arguments, environment and archive digest." },
+  { group: "Discover", cmd: "litespm catalog sync", description: "Download or refresh the local catalog. The only command that touches the catalog origin; search then runs entirely offline." },
+
+  { group: "View", cmd: "litespm list", description: "What is installed, by agent and kind. --drifted shows entries changed since install; --json is the stable machine-readable form." },
+  { group: "View", cmd: "litespm inventory [mcp|skills|plugins]", description: "Emit one stable litespm.inventory/v1 record per deployment, with placement, origin, install id, config path, digests and drift state." },
+  { group: "View", cmd: "litespm capabilities list|search|describe|refresh", description: "Refresh the tools an installed MCP server exposes, then list, search or describe them. describe prints one tool's input schema." },
+  { group: "View", cmd: "litespm invoke <capability-id>", description: "Call one discovered capability from the terminal through the same policy-checked path the bridge uses. Pass JSON with --arguments." },
+
+  { group: "Install & manage", cmd: "litespm install <id>", description: "Install a server, skill or plugin. Resolves the listing, plans the change, previews it, and asks before writing. --dry-run prints the plan and stops; --frozen installs the version pinned in litespm.lock.", example: "litespm install neon --agent claude-code" },
+  { group: "Install & manage", cmd: "litespm install remove <id>", description: "Remove one install. Strips only the nodes LiteSPM wrote and keeps anything you edited." },
+  { group: "Install & manage", cmd: "litespm skills add <source>", description: "Install skills from a GitHub repository, Git URL, skill URL or local folder. Discovers skills, lets you choose, previews destinations, and asks before writing.", example: "litespm skills add https://github.com/anthropics/skills" },
+  { group: "Install & manage", cmd: "litespm init [name]", description: "Scaffold a SKILL.md in the current directory. The generated file parses under the same loader `skills add` uses.", example: "litespm init my-skill" },
+  { group: "Install & manage", cmd: "litespm skills use <source>[@<skill>]", description: "Print a skill's prompt without installing anything. It configures no host and launches no agent.", example: "litespm skills use anthropics/skills@pdf" },
+  { group: "Install & manage", cmd: "litespm skills list", description: "The skills ledger: every skill LiteSPM copied, its source and its destination. Filter with -g or -a <agent>." },
+  { group: "Install & manage", cmd: "litespm skills update [<name>...]", description: "Re-copy skills from each ledger row's recorded source. No arguments updates everything; --dry-run previews the writes." },
+  { group: "Install & manage", cmd: "litespm skills remove [<name>|<source>]", description: "Ledger-scoped removal. Only directories the ledger names are deleted; --all removes every ledger entry." },
+  { group: "Install & manage", cmd: "litespm skills adopt <name>", description: "Take ownership of a skill already in an agent's skills tree. Nothing is reinstalled or rewritten — only the ledger changes." },
+  { group: "Install & manage", cmd: "litespm adopt <name> --host <id>", description: "Take ownership of an MCP server already in a host's config. Writes nothing to that config; removal restores the node and keeps later edits.", example: "litespm adopt sequential-thinking --host claude-code" },
+  { group: "Install & manage", cmd: "litespm copy --from A --to B", description: "Port one agent's MCP servers and skills to another host through the canonical entry model, with a plan before any write." },
+  { group: "Install & manage", cmd: "litespm lock", description: "Resolve litespm.yml into a deterministic litespm.lock. --check catches drift in CI; --sbom emits CycloneDX or SPDX; --verify re-checks the lock digest." },
+  { group: "Install & manage", cmd: "litespm import <format> <path>", description: "Plan an import from skills-lock.json, server.json, a marketplace manifest or plugin.json into litespm.yml. Nothing is written without --apply." },
+
+  { group: "Connect", cmd: "litespm", description: "Open the setup and management wizard. Finds agents on your machine, shows the exact file it will touch, and asks before writing." },
+  { group: "Connect", cmd: "litespm setup [--agent <host-id>]", description: "Connect one agent, or use --all for every detected host. Each host is previewed and backed up separately before it is written.", example: "litespm setup --agent codex" },
+  { group: "Connect", cmd: "litespm host list|detect|setup|remove", description: "List every supported adapter and the file it writes, detect the ones on this machine, connect one, or remove LiteSPM's entry.", example: "litespm host detect" },
+  { group: "Connect", cmd: "litespm marketplace", description: "Open the four-tab browser marketplace: Skills, Plugins, MCP Servers and Installed, with live search. --no-open prints the URL instead." },
+  { group: "Connect", cmd: "litespm bridge stdio --host <id>", description: "Run the 13-tool MCP bridge a connected agent talks to. The bridge speaks stdio and forwards to the local daemon.", example: "litespm bridge stdio --host codex" },
+  { group: "Connect", cmd: "litespm daemon serve", description: "Run the single-writer background supervisor and local IPC engine in the foreground. Recovery runs before the listener binds." },
+  { group: "Connect", cmd: "litespm auth login|status|logout", description: "Run the OAuth 2.0 PKCE loopback flow, report stored provider credentials, or revoke one. Tokens stay in the OS vault." },
+  { group: "Connect", cmd: "litespm grant <capability-id>", description: "Grant an agent permission to invoke one discovered tool. The grant is bound to the tool's schema fingerprint; grant list and grant revoke manage existing grants." },
+  { group: "Connect", cmd: "litespm approve <plan-id>", description: "Show a stored install plan, record your approval on yes, and print the single-use token an agent passes to request_install. The agent cannot approve for you." },
+
+  { group: "Recover", cmd: "litespm restore <id>", description: "Roll a config back to its exact previous bytes — not a re-merge. Refuses when a sibling entry or a node LiteSPM owns has been edited." },
+  { group: "Recover", cmd: "litespm doctor", description: "Check the install: state database, operation journal, CAS, secrets, host registrations, backups, runtimes and disk space. --repair previews and applies the fixes it can." },
+  { group: "Recover", cmd: "litespm audit", description: "Scan the published catalog and the local receipt chain. --ci exits non-zero on errors; --sarif writes a SARIF 2.1.0 report." },
+  { group: "Recover", cmd: "litespm uninstall", description: "Remove LiteSPM's bridge entry from every agent config it wrote, with a backup, and list the installs and skills it left behind." },
+
+  { group: "System", cmd: "litespm self-update", description: "Replace this binary with a newer signed release. The first command in a terminal session performs the same check automatically." },
+  { group: "System", cmd: "litespm version", description: "Print the binary version, protocol version and platform. Also available as --version or -v." },
+  { group: "System", cmd: "litespm help [command]", description: "The full command reference, a per-command detail page, or help concepts for the vocabulary." },
 ];
 
 const INSTALL_FLAGS = [
@@ -215,6 +242,13 @@ function GettingStarted() {
       <InstallBar command="npm install -g litespm" label="npm" />
 
       <P>
+        Upgrade later with{" "}
+        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">npm update -g litespm</code>{" "}
+        or <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">litespm self-update</code>.
+        The first LiteSPM command in a terminal session also checks the signed release channel once.
+      </P>
+
+      <P>
         Running <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">litespm</code> with
         no arguments opens the setup wizard. It finds the agents on your machine, shows the exact
         file it will touch, and asks before writing. You can skip agent connection and open the
@@ -236,11 +270,17 @@ litespm list                # see what is installed`}
       </P>
 
       <div className="rounded-xl border border-brand/25 bg-brand-soft/60 p-4">
-        <p className="text-[13px] font-semibold">Qwen Code note</p>
+        <p className="text-[13px] font-semibold">Host prompt names</p>
         <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-          For Qwen Code, restart the CLI after setup, then use{" "}
-          <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/marketplace</code> to
-          browse through the connected LiteSPM MCP server.
+          Claude Code, Codex and Cline surface the prompt as{" "}
+          <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/marketplace</code>. OpenCode
+          namespaces it by server as{" "}
+          <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/litespm:marketplace</code>{" "}
+          — type it, accept the completion, then press Enter. Qwen Code 0.14.4 does not register MCP
+          prompts as slash commands: run{" "}
+          <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/mcp</code> to confirm the{" "}
+          <span className="font-mono text-[12px]">litespm</span> server and use its 13 tools
+          conversationally.
         </p>
       </div>
     </DocSection>
@@ -251,27 +291,35 @@ function Commands() {
   return (
     <DocSection title="Command reference">
       <P>
-        Every command with what it does. The install flags below are the flags the published npm
-        binary actually accepts — verified against the registry, not the source tree.
+        Every shipped command, grouped by what you are trying to do. The install flags below are the
+        flags the published npm binary actually accepts — verified against the registry, not the
+        source tree.
       </P>
 
       <div className="space-y-2.5">
-        {COMMANDS.map((command) => (
-          <div
-            key={command.cmd}
-            className="rounded-xl border border-border/70 bg-card p-4 transition-colors hover:border-brand/30"
-          >
-            <p className="font-mono text-[12.5px] font-semibold text-brand">{command.cmd}</p>
-            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-              {command.description}
-            </p>
-            {command.example && (
-              <pre className="mt-2 overflow-x-auto rounded-lg bg-muted/40 px-3 py-2 font-mono text-[11.5px] text-foreground/90">
-                <code>$ {command.example}</code>
-              </pre>
-            )}
-          </div>
-        ))}
+        {COMMANDS.map((command, index) => {
+          const previous = index > 0 ? COMMANDS[index - 1] : undefined;
+          return (
+            <React.Fragment key={command.cmd}>
+              {(!previous || previous.group !== command.group) && (
+                <h2 className="pt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground first:pt-0">
+                  {command.group}
+                </h2>
+              )}
+              <div className="rounded-xl border border-border/70 bg-card p-4 transition-colors hover:border-brand/30">
+                <p className="font-mono text-[12.5px] font-semibold text-brand">{command.cmd}</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+                  {command.description}
+                </p>
+                {command.example && (
+                  <pre className="mt-2 overflow-x-auto rounded-lg bg-muted/40 px-3 py-2 font-mono text-[11.5px] text-foreground/90">
+                    <code>$ {command.example}</code>
+                  </pre>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
       </div>
 
       <h2 className="pt-3 text-[17px] font-semibold">Install flags</h2>
@@ -365,9 +413,9 @@ function Hosts() {
 
       <CodeBlock
         title="host commands"
-        code={`litespm host list      # every supported host and the file it writes
-litespm host detect    # which of them are on this machine
-litespm host setup     # connect one
+        code={`litespm host list              # every supported host and the file it writes
+litespm host detect            # which of them are on this machine
+litespm host setup <host-id>   # connect one
 litespm install <id> --agent <host>   # target any of them`}
       />
 
@@ -386,18 +434,24 @@ function InsideAgent() {
   return (
     <DocSection title="Inside your agent">
       <P>
-        With a host configured, <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/marketplace</code>{" "}
-        in your agent reaches the same catalog and the same install path through the LiteSPM
-        bridge. An agent can search, prepare a plan, and ask you to approve it — it cannot approve
-        for you.
+        With a host configured, the marketplace prompt in your agent reaches the same catalog and
+        the same install path through the LiteSPM bridge. The name is host-specific:{" "}
+        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/marketplace</code> on
+        Claude Code, Codex and Cline, and{" "}
+        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/litespm:marketplace</code>{" "}
+        on OpenCode. Qwen Code 0.14.4 does not map MCP prompts to slash commands — use{" "}
+        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/mcp</code> and the tools
+        conversationally. An agent can search, prepare a plan, and ask you to approve it; it cannot
+        approve for you.
       </P>
       <CodeBlock
         title="run the bridge for a host"
         code={`litespm bridge stdio --host codex`}
       />
       <P>
-        The agent sees one MCP server (<span className="font-mono text-[12px]">litespm</span>) whose
-        tools resolve at runtime. Approvals still route through you: a single-use token from{" "}
+        The agent sees one MCP server (<span className="font-mono text-[12px]">litespm</span>)
+        exposing 13 tools that resolve at runtime. Approvals still route through you: a single-use
+        token from{" "}
         <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">litespm approve</code> is
         the only way an install proceeds from inside an agent.
       </P>
@@ -414,7 +468,7 @@ function Security() {
           { title: "Nothing is written without a preview", body: "You see the change first, and the file is backed up before it is touched." },
           { title: "Fail-closed remote installs", body: "A host with no vendor-documented URL entry object is refused with a clear error, never written in a guessed shape." },
           { title: "Pinned plugin sources", body: "A plugin installs from the pinned commit its publisher ships. LiteSPM fetches that commit, verifies it, and installs what the plugin's own manifest declares. A plugin with no fetchable pinned source is refused with the reason." },
-          { title: "Single-use approval tokens", body: "From an agent, litespm approve mints a one-shot token — the agent can prepare a plan but cannot approve it for you." },
+          { title: "Single-use approval tokens", body: "From an agent, litespm approve <plan-id> records your approval and mints a one-shot token — the agent can prepare a plan but cannot approve it for you." },
         ].map((item) => (
           <div key={item.title} className="rounded-xl border border-border/70 bg-card p-4">
             <p className="flex items-center gap-2 text-[13.5px] font-semibold">
@@ -517,7 +571,7 @@ litespm catalog sync    # refresh local catalog index`}
           },
           {
             q: "litespm install says unknown flag",
-            a: "Your installed CLI version is older than the flag being used. Run 'npm update -g litespm' to update to the latest release; all documentation on this site reflects the current published CLI version.",
+            a: "Your installed CLI version is older than the flag being used. Run 'npm update -g litespm' (or 'litespm self-update') to update to the latest release. This site's command reference and install flags are checked against the version npm serves as latest, not against an unreleased build.",
           },
         ].map((item) => (
           <details key={item.q} className="group rounded-xl border border-border/70 bg-card transition-colors hover:border-border">

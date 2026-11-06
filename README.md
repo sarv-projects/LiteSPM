@@ -137,11 +137,17 @@ and keeps anything you edited.
 | `litespm install <id>` | Install a server, skill or plugin |
 | `litespm install remove <id>` | Remove one install |
 | `litespm list` | What is installed, by agent and kind |
+| `litespm inventory` | One stable JSON record per deployment |
 | `litespm skills add <source>` | Install skills from a repo, URL or folder |
 | `litespm skills use <src>@<skill>` | Print a skill's prompt, install nothing |
+| `litespm skills adopt <name>` | Take ownership of a skill already in an agent's tree |
+| `litespm adopt <name> --host <id>` | Take ownership of an MCP server already in a config |
 | `litespm restore <id>` | Roll a config back to its previous bytes |
 | `litespm copy --from A --to B` | Port one agent's setup to another |
 | `litespm doctor` | Check the install and repair it |
+| `litespm audit` | Scan the published catalog and the receipt chain |
+| `litespm uninstall` | Remove LiteSPM's bridge entry from every agent config |
+| `litespm self-update` | Replace the binary with a newer signed release |
 | `litespm host list` | Every supported agent and its config file |
 | `litespm help` | The full command reference |
 
@@ -173,6 +179,7 @@ litespm marketplace
 litespm doctor        # the usual first stop
 litespm list --drifted  # entries changed since install
 litespm catalog sync  # refresh a stale catalog
+npm update -g litespm # update the CLI
 ```
 
 ## Documentation

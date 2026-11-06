@@ -1,10 +1,11 @@
 package main
 
-// auto_update.go — the once-per-session update check.
+// auto_update.go — the every-run update check.
 //
-// The first LiteSPM command in a terminal session checks the release channel
-// and, when a newer binary exists, verifies and installs it before the command
-// runs. It is deliberately narrow:
+// Every interactive LiteSPM run checks the release channel and, when a newer
+// binary exists, verifies and installs it before the command runs. A short
+// burst window stops a wizard from re-checking for each child process it
+// spawns. It is deliberately narrow:
 //
 //   - it never opens the state database, the catalog, the skills ledger or any
 //     agent configuration file;
@@ -14,9 +15,9 @@ package main
 //   - it fails open: a network or verification problem never blocks the
 //     command the person actually asked for.
 //
-// "Session" is the parent process that started the shell command, with a
-// short 3-minute burst window so a wizard spawning `litespm skills add`
-// cannot trigger a second check. LITESPM_NO_AUTO_UPDATE=1 or CI=1 disables it.
+// The check is deduplicated with a 30-second burst window so a wizard spawning
+// `litespm skills add` cannot trigger a second download. LITESPM_NO_AUTO_UPDATE=1
+// or CI=1 disables it.
 
 import (
 	"context"
@@ -34,10 +35,11 @@ import (
 )
 
 const (
-	autoUpdateSessionTTL = 12 * time.Hour
-	autoUpdateBurstTTL   = 3 * time.Minute
-	autoUpdateLockTTL    = 10 * time.Minute
-	autoUpdateTimeout    = 6 * time.Second
+	// autoUpdateBurstTTL is the only suppression window now that each run
+	// checks. It exists for child processes, not for the next shell command.
+	autoUpdateBurstTTL = 30 * time.Second
+	autoUpdateLockTTL  = 10 * time.Minute
+	autoUpdateTimeout  = 6 * time.Second
 )
 
 type autoUpdateMarker struct {
@@ -202,9 +204,6 @@ func runAutoUpdate(ctx context.Context, opts autoUpdateOptions) (bool, error) {
 	markerPath := filepath.Join(opts.CacheDir, "update-session.json")
 	now := opts.Now()
 	if marker, ok := readAutoUpdateMarker(markerPath); ok {
-		if marker.Session == opts.SessionID && now.Sub(marker.CheckedAt) < autoUpdateSessionTTL {
-			return false, nil
-		}
 		if now.Sub(marker.CheckedAt) >= 0 && now.Sub(marker.CheckedAt) < autoUpdateBurstTTL {
 			return false, nil
 		}
@@ -219,7 +218,7 @@ func runAutoUpdate(ctx context.Context, opts autoUpdateOptions) (bool, error) {
 	// Re-check after taking the lock: another process may have finished while
 	// this one waited.
 	if marker, ok := readAutoUpdateMarker(markerPath); ok {
-		if marker.Session == opts.SessionID && now.Sub(marker.CheckedAt) < autoUpdateSessionTTL {
+		if now.Sub(marker.CheckedAt) >= 0 && now.Sub(marker.CheckedAt) < autoUpdateBurstTTL {
 			return false, nil
 		}
 	}

@@ -538,6 +538,16 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 		return MCPToolResult{Content: []MCPContent{{Type: "text", Text: string(outBytes)}}}, nil
 
 	case "list_installed":
+		// The schema advertises kind/enabled, so honor them here. Ignoring
+		// them made `list_installed {kind:"skill"}` return every MCP entry
+		// and every external duplicate, which read as a broken filter.
+		var req struct {
+			Kind    string `json:"kind,omitempty"`
+			Enabled *bool  `json:"enabled,omitempty"`
+		}
+		if rpcErr := decodeToolArgs(name, args, &req); rpcErr != nil {
+			return MCPToolResult{}, rpcErr
+		}
 		var resp struct {
 			Count    int              `json:"count"`
 			Installs []CapabilityItem `json:"installs"`
@@ -546,7 +556,21 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 		if err != nil {
 			return FormatErrorResult(err), nil
 		}
-		return MCPToolResult{Content: []MCPContent{{Type: "text", Text: FormatInstalledPanel(resp.Installs)}}}, nil
+		kind := strings.ToLower(strings.TrimSpace(req.Kind))
+		filtered := resp.Installs[:0]
+		for _, it := range resp.Installs {
+			if kind != "" && strings.ToLower(it.Kind) != kind {
+				continue
+			}
+			if req.Enabled != nil {
+				disabled := it.Status == StatusDisabled
+				if *req.Enabled == disabled {
+					continue
+				}
+			}
+			filtered = append(filtered, it)
+		}
+		return MCPToolResult{Content: []MCPContent{{Type: "text", Text: FormatInstalledPanel(filtered)}}}, nil
 
 	case "adopt_capability":
 		var req struct {
