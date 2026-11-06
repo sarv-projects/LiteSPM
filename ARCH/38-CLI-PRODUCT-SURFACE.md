@@ -1,6 +1,6 @@
 # CLI Product Surface: Port, Orient & Help
 
-> **Status: `IMPLEMENTED` for §3 (help), §4 (list/inventory) and §5 (copy);
+> **Status: `IMPLEMENTED` for §3 (help), §4 (list/inventory), §5 (copy), and the scoped existing-MCP `adopt` CLI;
 > `DESIGNED` for §2's unshipped verbs, §6 (orient), §7 (profiles) and §8
 > (plan/apply spine).** This document specifies the Phase-J command family —
 > `litespm copy` (cross-agent porting), `list`/`inventory`, the `help` system,
