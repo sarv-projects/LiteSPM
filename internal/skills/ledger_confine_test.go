@@ -53,6 +53,29 @@ func TestLedgerRemoveRefusesDestinationsOutsideSkillsTrees(t *testing.T) {
 	}
 }
 
+// TestLedgerRefusesNulSuffixDestination: a NUL byte in a recorded destination
+// must be refused by confinement. Path APIs accept the string, but any layer
+// that truncates at the NUL would name a DIFFERENT, real directory, so the
+// row is refused outright rather than handed to RemoveAll.
+func TestLedgerRefusesNulSuffixDestination(t *testing.T) {
+	root := t.TempDir()
+	l, _ := OpenLedger(filepath.Join(root, "ledger.json"))
+	dir := filepath.Join(root, ".claude", "skills", "pdf") + "\x00evil"
+	if err := l.Add([]LedgerEntry{{SkillName: "pdf", DestDir: dir}}); err != nil {
+		t.Fatal(err)
+	}
+	out, err := l.RemoveScoped(RemoveOptions{Force: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 1 || out[0].Removed || !strings.Contains(out[0].Reason, "NUL") {
+		t.Fatalf("NUL-suffixed destination must be refused, got %+v", out)
+	}
+	if err := l.DeleteDest(dir, ""); err == nil || !strings.Contains(err.Error(), "NUL") {
+		t.Fatalf("DeleteDest must refuse a NUL-suffixed destination, got %v", err)
+	}
+}
+
 func TestLedgerRemoveAcceptsDefaultSkillsTree(t *testing.T) {
 	root := t.TempDir()
 	l, _ := OpenLedger(filepath.Join(root, "ledger.json"))
