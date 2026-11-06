@@ -162,6 +162,13 @@ func needsStripping(s string) bool {
 				return true
 			}
 		}
+		// C1 controls also arrive legitimately encoded: U+0080-U+009F is the
+		// two-byte sequence 0xC2 0x80-0x9F, which IS valid UTF-8 and therefore
+		// invisible to the invalid-byte test above. A hostile name carrying
+		// "\u009b" (CSI) must not pass this fast path and reach the terminal.
+		if b == 0xC2 && i+1 < len(s) && s[i+1] >= 0x80 && s[i+1] <= 0x9f {
+			return true
+		}
 	}
 	return false
 }
