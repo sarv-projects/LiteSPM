@@ -57,9 +57,12 @@ func testSHA256Hex(b []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func TestAutoUpdateRunsOncePerSession(t *testing.T) {
+func TestAutoUpdateChecksAgainAfterBurst(t *testing.T) {
 	payload := []byte("new binary")
 	opts, calls := autoUpdateFixture(t, payload)
+	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+	opts.Now = func() time.Time { return now }
+
 	updated, err := runAutoUpdate(context.Background(), opts)
 	if err != nil {
 		t.Fatalf("runAutoUpdate: %v", err)
@@ -74,15 +77,26 @@ func TestAutoUpdateRunsOncePerSession(t *testing.T) {
 	if string(got) != string(payload) {
 		t.Fatalf("target = %q", got)
 	}
+
+	// A child process inside the burst window must not download again.
 	updated, err = runAutoUpdate(context.Background(), opts)
 	if err != nil {
 		t.Fatalf("second runAutoUpdate: %v", err)
 	}
 	if updated {
-		t.Fatal("second run in the same session updated again")
+		t.Fatal("second run inside the burst window updated again")
 	}
 	if *calls != 1 {
-		t.Fatalf("check calls = %d, want 1", *calls)
+		t.Fatalf("check calls after burst = %d, want 1", *calls)
+	}
+
+	// The next run after the burst checks again, even in the same shell.
+	now = now.Add(autoUpdateBurstTTL + time.Second)
+	if _, err := runAutoUpdate(context.Background(), opts); err != nil {
+		t.Fatalf("third runAutoUpdate: %v", err)
+	}
+	if *calls != 2 {
+		t.Fatalf("check calls after the burst = %d, want 2", *calls)
 	}
 }
 
@@ -131,8 +145,10 @@ func TestAutoUpdateLeavesUnrelatedStateUntouched(t *testing.T) {
 	}
 }
 
-func TestAutoUpdateCheckFailureRecordsSessionAndDoesNotBlock(t *testing.T) {
+func TestAutoUpdateCheckFailureRecordsBurstAndDoesNotBlock(t *testing.T) {
 	opts, calls := autoUpdateFixture(t, []byte("new binary"))
+	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+	opts.Now = func() time.Time { return now }
 	opts.Check = func(context.Context, string) (*update.UpdateStatus, *update.ReleaseInfo, error) {
 		*calls++
 		return nil, nil, context.DeadlineExceeded
@@ -141,12 +157,20 @@ func TestAutoUpdateCheckFailureRecordsSessionAndDoesNotBlock(t *testing.T) {
 	if err != nil || updated {
 		t.Fatalf("failed check: updated=%v err=%v", updated, err)
 	}
-	// The marker is written, so the same session does not retry the timeout.
+	// The marker is written, so a child process does not retry the timeout.
 	if _, err := runAutoUpdate(context.Background(), opts); err != nil {
 		t.Fatal(err)
 	}
 	if *calls != 1 {
-		t.Fatalf("check calls after failed attempt = %d, want 1", *calls)
+		t.Fatalf("check calls inside the burst = %d, want 1", *calls)
+	}
+	// The next user run retries instead of staying silent for a session.
+	now = now.Add(autoUpdateBurstTTL + time.Second)
+	if _, err := runAutoUpdate(context.Background(), opts); err != nil {
+		t.Fatal(err)
+	}
+	if *calls != 2 {
+		t.Fatalf("check calls after the burst = %d, want 2", *calls)
 	}
 }
 

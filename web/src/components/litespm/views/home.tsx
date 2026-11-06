@@ -733,7 +733,7 @@ export function HomeView() {
             {
               icon: Bookmark,
               title: "Ledger ownership",
-              body: "litespm remove strips only the nodes LiteSPM wrote. Your own manual edits are left untouched.",
+              body: "litespm install remove strips only the nodes LiteSPM wrote. Your own manual edits are left untouched.",
             },
             {
               icon: Star,
