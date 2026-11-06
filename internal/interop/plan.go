@@ -261,6 +261,10 @@ type Plan struct {
 	PreservedExisting int // existing manifest requires not touched by this import
 	Lossy             []string
 	Warnings          []string
+	// ProjectFlag echoes the --project value the run used, when any, so the
+	// rendered Apply hint reproduces the exact target this plan reviewed.
+	// Empty means the target was derived from the working directory.
+	ProjectFlag string
 }
 
 // BuildPlan diffs the parsed doc against the target manifest (nil when the
@@ -448,8 +452,12 @@ func (p *Plan) Render(w io.Writer) {
 		}
 	}
 	if p.Actionable() > 0 {
-		fmt.Fprintf(w, "\nApply:  litespm import %s %s --apply  (add --yes for non-interactive approval)\n",
-			p.Format, p.SourcePath)
+		project := ""
+		if p.ProjectFlag != "" {
+			project = " --project " + p.ProjectFlag
+		}
+		fmt.Fprintf(w, "\nApply:  litespm import %s %s%s --apply  (add --yes for non-interactive approval)\n",
+			p.Format, p.SourcePath, project)
 	}
 }
 
