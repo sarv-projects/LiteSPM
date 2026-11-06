@@ -1059,7 +1059,7 @@ export function Assistant() {
           <div>
             <p className="text-[13.5px] font-semibold leading-tight">Ask AI</p>
             <p className="text-[11px] leading-tight text-muted-foreground">
-              Grounded in the live catalog
+              Grounded in the live catalog and LiteSPM docs
             </p>
           </div>
         </div>
@@ -1078,7 +1078,7 @@ export function Assistant() {
           <div className="space-y-3">
             <p className="text-[13px] leading-relaxed text-muted-foreground">
               Ask what your agent should install — I search the live catalog and answer with real
-              listings.
+              listings. Or ask how LiteSPM works: setup, commands, backups.
             </p>
             <div className="grid gap-2">
               {SUGGESTIONS.map((s) => (

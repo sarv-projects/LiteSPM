@@ -8,7 +8,7 @@
     "postbuild": "node scripts/postbuild.mjs",
     "build:search-index": "node scripts/build-search-index.mjs",
     "start": "node .next/standalone/server.js",
-    "lint": "eslint . && node scripts/check-no-embedded-secrets.mjs && node scripts/check-web-truth.mjs",
+    "lint": "eslint . && node scripts/check-no-embedded-secrets.mjs && node scripts/check-web-truth.mjs && node scripts/check-assistant-product.mjs",
     "type-check": "prisma generate && tsc --noEmit",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
