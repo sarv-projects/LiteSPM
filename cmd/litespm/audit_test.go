@@ -131,7 +131,12 @@ func TestAuditReadsTheCachedRelease(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "v1", "current.json"), []byte(pointer), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	shard := `[{"id":"mcp:x:bad","kind":"mcp","installability":"discovery_only","command":"npx","source":"builtin:mcp-registry"}]`
+	// The shard is written in the shape the origin actually serves — the v1
+	// release schema, where `source` is an object. The flat string belongs to
+	// the website's bundled dataset, and using it here let a real defect ship:
+	// plain `litespm audit` failed against every synced release with
+	// "cannot unmarshal object into Go struct field Row.source of type string".
+	shard := `[{"id":"mcp:x:bad","kind":"mcp","installability":"discovery_only","command":"npx","source":{"sourceId":"feed:example","upstreamId":"bad","url":"https://github.com/x/bad"},"schemaVersion":1}]`
 	if err := os.WriteFile(filepath.Join(release, "listings-0000.json"), []byte(shard), 0o600); err != nil {
 		t.Fatal(err)
 	}

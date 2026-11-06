@@ -757,6 +757,25 @@ constraint = ">=1.4 <2"
 	}
 }
 
+func TestPlanRenderApplyHintCarriesProjectFlag(t *testing.T) {
+	// Following the printed Apply hint must reproduce the reviewed target;
+	// without --project it writes to the working directory instead.
+	withProject := BuildPlan(skillsDoc(t), "/tmp/proj/litespm.toml", nil)
+	withProject.ProjectFlag = "/tmp/proj"
+	var buf bytes.Buffer
+	withProject.Render(&buf)
+	if out := buf.String(); !strings.Contains(out, "Apply:  litespm import skills-lock ./skills-lock.json --project /tmp/proj --apply") {
+		t.Errorf("hint does not reproduce the --project target:\n%s", out)
+	}
+
+	dflt := BuildPlan(skillsDoc(t), "/x/litespm.toml", nil)
+	buf.Reset()
+	dflt.Render(&buf)
+	if out := buf.String(); strings.Contains(out, "--project") {
+		t.Errorf("hint gained a --project flag the run never used:\n%s", out)
+	}
+}
+
 func TestPlanJSON(t *testing.T) {
 	plan := BuildPlan(skillsDoc(t), "/x/litespm.toml", nil)
 	first, err := plan.JSON(false)
