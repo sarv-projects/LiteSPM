@@ -221,6 +221,13 @@ func extractZip(r io.ReaderAt, size int64, stagingDir string, limits ExtractionL
 			return nil, domain.ErrArchiveSlip(fmt.Sprintf("path traversal escape: %s", f.Name))
 		}
 
+		// A pre-existing symlink ABOVE the leaf is never written through:
+		// MkdirAll and OpenFile both follow one, landing the write outside
+		// the staging tree even though the validated path stays inside it.
+		if err := refuseSymlinkedParent(stagingDir, targetPath); err != nil {
+			return nil, err
+		}
+
 		if isDir || f.FileInfo().IsDir() {
 			if err := os.MkdirAll(targetPath, 0755); err != nil {
 				return nil, err
@@ -331,6 +338,13 @@ func extractTarGz(r io.ReaderAt, size int64, stagingDir string, limits Extractio
 			return nil, domain.ErrArchiveSlip(fmt.Sprintf("path traversal escape: %s", hdr.Name))
 		}
 
+		// The same parent-chain guard as the zip path: a symlink planted at a
+		// parent component must refuse, not redirect the write out of the
+		// staging tree.
+		if err := refuseSymlinkedParent(stagingDir, targetPath); err != nil {
+			return nil, err
+		}
+
 		if isDir || hdr.Typeflag == tar.TypeDir {
 			if err := os.MkdirAll(targetPath, 0755); err != nil {
 				return nil, err
@@ -352,6 +366,15 @@ func extractTarGz(r io.ReaderAt, size int64, stagingDir string, limits Extractio
 
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 			return nil, err
+		}
+
+		// Ensure targetPath does not pre-exist as a symlink (the same guard
+		// the zip path applies): remove the link so the write creates a real
+		// file instead of following it out of the staging tree.
+		if fi, err := os.Lstat(targetPath); err == nil {
+			if fi.Mode()&os.ModeSymlink != 0 {
+				_ = os.Remove(targetPath)
+			}
 		}
 
 		if err := writeBoundedFile(tr, targetPath, hdr.Size, limits.MaxSingleFileSize); err != nil {
@@ -409,6 +432,51 @@ func validateAndNormalizePath(name string, maxPathLength int, seenLower map[stri
 	}
 
 	return cleaned, isDir, nil
+}
+
+// refuseSymlinkedParent refuses an extraction destination whose parent chain
+// below the staging root contains a symlink.
+//
+// Every write resolves through filepath.Join(stagingDir, relPath), and both
+// os.MkdirAll and os.OpenFile follow symlinks at every component, so a symlink
+// planted at a parent component redirects the write out of the staging tree
+// even though the validated path itself never leaves it. The leaf keeps its
+// existing handling: each format removes a pre-existing symlink at the leaf
+// before writing, so a write there lands on a real file.
+//
+// The check is a component-by-component Lstat walk because the alternative -
+// opening with O_NOFOLLOW|O_EXCL relative to a staging-directory fd - is not
+// portable to this package's Windows build, and O_EXCL would also refuse the
+// legitimate case of an archive listing the same name twice. The residual
+// window between the Lstat and the open matches every other check in the
+// extractor and is only reachable by an actor who can already write inside the
+// staging directory.
+func refuseSymlinkedParent(stagingDir, targetPath string) error {
+	rel, err := filepath.Rel(stagingDir, targetPath)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		// The traversal guard upstream already refused this; never let a path
+		// this helper cannot name reach the filesystem.
+		return domain.ErrArchiveSlip(fmt.Sprintf("path traversal escape: %s", targetPath))
+	}
+
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	current := stagingDir
+	for _, part := range parts[:len(parts)-1] {
+		current = filepath.Join(current, part)
+		fi, lerr := os.Lstat(current)
+		if lerr != nil {
+			if os.IsNotExist(lerr) {
+				// Not created yet; MkdirAll below creates real directories.
+				continue
+			}
+			return fmt.Errorf("failed to inspect %s: %w", current, lerr)
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			return domain.ErrArchiveSlip(fmt.Sprintf(
+				"path traversal through symlink refused: %s (%s is a symlink)", filepath.ToSlash(rel), filepath.ToSlash(part)))
+		}
+	}
+	return nil
 }
 
 func writeBoundedFile(r io.Reader, targetPath string, expectedSize int64, maxSingleSize int64) error {

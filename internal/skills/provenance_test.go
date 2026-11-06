@@ -3,6 +3,7 @@ package skills
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -87,5 +88,46 @@ func TestCaptureProvenanceRefusesSymlink(t *testing.T) {
 	}
 	if _, err := CaptureProvenance(dir); err == nil {
 		t.Fatal("symlink in a skill tree must be refused")
+	}
+}
+
+// TestCapturePreImageDigestIsNeverEmpty pins the digest's real invariant. The
+// doc used to say it "is empty only when the directory has no regular files",
+// but the implementation always hashes: an empty tree digests the empty input
+// (sha256 e3b0c442...), so the digest is never empty. "" only ever means "not
+// captured" (a legacy entry), and no caller may read it as "no files".
+func TestCapturePreImageDigestIsNeverEmpty(t *testing.T) {
+	// sha256("") - the digest of an empty directory: every file record
+	// including its path and size is a separate hash update, and there are
+	// none.
+	const emptyInputSHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+	dir := t.TempDir() // deliberately holds no regular files
+
+	pre, err := CapturePreImage(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pre.Digest == "" {
+		t.Fatal("an empty directory must not produce an empty digest")
+	}
+	if len(pre.Digest) != 64 || strings.Trim(pre.Digest, "0123456789abcdef") != "" {
+		t.Fatalf("digest must be 64 lowercase hex characters, got %q", pre.Digest)
+	}
+	if pre.Digest != emptyInputSHA256 {
+		t.Fatalf("empty-tree digest = %q, want the sha256 of empty input %q", pre.Digest, emptyInputSHA256)
+	}
+	if len(pre.Inventory) != 0 {
+		t.Fatalf("empty tree must have an empty inventory, got %+v", pre.Inventory)
+	}
+
+	// CaptureProvenance shares the implementation and must not return ""
+	// either.
+	prov, err := CaptureProvenance(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prov.Digest != emptyInputSHA256 {
+		t.Fatalf("CaptureProvenance empty-tree digest = %q, want %q", prov.Digest, emptyInputSHA256)
 	}
 }
