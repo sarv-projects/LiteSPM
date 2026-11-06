@@ -120,3 +120,49 @@ func tomlBridgeRegistered(content, table string) bool {
 	}
 	return false
 }
+
+// spliceTOMLBridgeBlock returns content with block (a table body with no
+// surrounding blank lines, e.g. "[mcp_servers.litespm]\ncommand = ...") written
+// exactly once: the live table declared by header is replaced when it exists,
+// and the block is appended otherwise. Blank lines around the block are
+// normalised to exactly one, so re-running the merge over its own output is
+// byte-identical. The previous replacement kept the replaced region's leading
+// newlines and prefixed the block with another one, so every re-run grew the
+// user's config by a blank line.
+func spliceTOMLBridgeBlock(content, header, block string) string {
+	var prefix, suffix []string
+	inBlock := false
+	for _, line := range strings.Split(content, "\n") {
+		if !inBlock && tomlHeaderMatches(line, header) {
+			inBlock = true
+			continue
+		}
+		if inBlock {
+			if tomlHeaderOf(line) != "" { // the next table closes the replaced body
+				inBlock = false
+				suffix = append(suffix, line)
+			}
+			continue
+		}
+		prefix = append(prefix, line)
+	}
+	for len(prefix) > 0 && strings.TrimSpace(prefix[len(prefix)-1]) == "" {
+		prefix = prefix[:len(prefix)-1]
+	}
+	for len(suffix) > 0 && strings.TrimSpace(suffix[0]) == "" {
+		suffix = suffix[1:]
+	}
+
+	var b strings.Builder
+	if len(prefix) > 0 {
+		b.WriteString(strings.Join(prefix, "\n"))
+		b.WriteString("\n\n")
+	}
+	b.WriteString(block)
+	b.WriteString("\n")
+	if len(suffix) > 0 {
+		b.WriteString("\n")
+		b.WriteString(strings.Join(suffix, "\n"))
+	}
+	return b.String()
+}

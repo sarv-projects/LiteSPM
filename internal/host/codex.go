@@ -112,32 +112,11 @@ func (a *CodexAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 		base = cleaned
 	}
 
-	proposed := base
-	// A commented-out table is not a registration: writing must append the
-	// bridge rather than "update" a section no live header opens (the update
-	// loop below would then replace nothing and leave the file unchanged).
-	if tomlTableRegistered(base, "[mcp_servers.litespm]") {
-		// Update existing section
-		lines := strings.Split(base, "\n")
-		var newLines []string
-		skip := false
-		for _, l := range lines {
-			if stripTOMLComment(l) == "[mcp_servers.litespm]" {
-				skip = true
-				newLines = append(newLines, strings.TrimRight(entry, "\n"))
-				continue
-			}
-			if skip && strings.HasPrefix(stripTOMLComment(l), "[") {
-				skip = false
-			}
-			if !skip {
-				newLines = append(newLines, l)
-			}
-		}
-		proposed = strings.Join(newLines, "\n")
-	} else {
-		proposed = strings.TrimRight(base, "\n") + entry
-	}
+	// The splice replaces a live table (inline comment included) and appends
+	// otherwise; a commented-out table is not a registration, so nothing is
+	// "updated" that no live header opens. The splice is a fixed point: a
+	// second run is byte-identical to the first.
+	proposed := spliceTOMLBridgeBlock(base, "[mcp_servers.litespm]", strings.Trim(entry, "\n"))
 
 	// Nothing is planned that the host could not read: the merged text is
 	// re-parsed here, before any plan exists, so an escaping bug fails closed.
