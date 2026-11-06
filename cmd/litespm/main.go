@@ -58,11 +58,11 @@ const (
 )
 
 func main() {
-	// First command in this terminal session: check for a newer signed binary
-	// and install it before doing anything else. The check is silent when
-	// there is nothing to do and fails open, so it can never block the
-	// command the person asked for. It opens no state database, catalog,
-	// ledger or agent configuration.
+	// Every interactive run: check for a newer signed binary and install it
+	// before doing anything else, with a short cooldown window so a burst of
+	// commands is one check. The check is silent when there is nothing to do
+	// and fails open, so it can never block the command the person asked for.
+	// It opens no state database, catalog, ledger or agent configuration.
 	maybeAutoUpdate(os.Args[1:])
 
 	if len(os.Args) < 2 {

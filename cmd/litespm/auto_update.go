@@ -134,9 +134,10 @@ func autoUpdateCommandAllowed(args []string) bool {
 	return true
 }
 
-// autoUpdateSessionID identifies the shell session. An explicit override wins,
-// then the parent process. A terminal that reuses a shell keeps the same pid,
-// so the first command in that shell checks and later ones do not.
+// autoUpdateSessionID identifies the shell session for the marker record. An
+// explicit override wins, then the parent process. It is informational only:
+// the burst window, not this id, is what keeps a burst of commands to one
+// check, so a long-lived shell still checks again after the window passes.
 func autoUpdateSessionID() string {
 	if id := strings.TrimSpace(os.Getenv("LITESPM_SESSION_ID")); id != "" {
 		return id
