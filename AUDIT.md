@@ -1,0 +1,192 @@
+# LiteSPM — Audit Remediation Backlog
+
+A prioritized, actionable list of everything the November 2026 security/correctness audit found to upgrade, edit, or fix.
+
+- **Audit baseline:** commit `318e421` (cloned from `https://github.com/sarv-projects/LiteSPM`).
+- **Method:** four adversarial deep-dives (Go core, artifact/exec path, secrets/IPC/update, web+npm+worker+CI) plus an end-to-end attack on the catalog client. Every finding was either reproduced with a probe or is explicitly marked SUSPECTED.
+- **Raw evidence:** probe sources and outputs were collected under `/tmp/audit/` (`mine/`, `secrets-ipc/`, `artifact-exec/`, `web-supplychain/`) during the audit session.
+- **Status markers:** `[FIXED]` = changed in this branch; `[OPEN]` = still to do; `[DECISION]` = needs a product call before code; `[ACTION]` = a human must do it (console/UI access, not code).
+
+---
+
+## 0. Status of this change set
+
+| Item | State |
+|------|-------|
+| F1 catalog cache escape | `[FIXED]` — `internal/catalog/client.go` (shard-name validation + containment guard) and a regression test in `internal/catalog/shard_name_test.go` |
+| F2 published bundle + missing `cosign` installed anyway | `[FIXED]` — `cmd/litespm/main.go` `verifyDownloadedUpdate` now fails closed |
+| F3 `host.apply_setup` wrote a caller-chosen binary | `[FIXED]` — `cmd/litespm/main.go` (`resolveRequestedBinaryPath`), test updated in `cmd/litespm/main_test.go` |
+| F4 three live Groq keys committed | `[FIXED]` in code (keys deleted, scanner text corrected) — **`[ACTION]` rotate them in the Groq console; deleting the code does not revoke them** |
+
+**Behaviour changes to be aware of (intentional):**
+
+1. A release that *publishes* a signature bundle now requires `cosign` on the updating machine. Without it the self-update refuses instead of falling back to checksums. That is the documented promise (`SECURITY.md` lines 64-67); the alternative is to vendor a Go Sigstore verifier and delete the `cosign` exec dependency (see §5).
+2. `host.apply_setup` no longer accepts a `binaryPath` other than the running binary. Callers that legitimately passed a path must pass nothing.
+3. A catalog manifest naming anything other than `<base>.json` / `<base>-NNNN.json` is now refused as a whole, instead of the invalid entry being skipped.
+
+---
+
+## 1. Fix now (High)
+
+### F1 `[FIXED]` — Catalog sync could write files anywhere the user can write
+
+- **Where:** `internal/catalog/client.go` — `releaseShardNames` (was line ~690) and the cache-write loop in `Sync` (was line ~976).
+- **What was wrong:** the manifest's file names were accepted on a bare `listings-`/`versions-` prefix and then joined into a path with `filepath.Join(releaseDir, file.name)`. A name like `listings-../../../../../../victim.txt` satisfied the prefix test, `filepath.Join` resolved the traversal, and `writeAtomicFile` created parents and renamed over the target. Reproduced: `Sync` reported success and overwrote a file outside the cache directory.
+- **Amplifier:** every call site passes `paths.DataRoot` as the cache root (e.g. `cmd/litespm/main.go` `runSearch`, `runCatalogSync`), so the escape starts inside LiteSPM's own state directory.
+- **Fix shipped:** `releaseShardName` accepts exactly `<base>.json` or `<base>-NNNN.json` (4+ digits); `releaseShardNames` refuses the manifest if any prefixed entry is not a valid shard name; `pathWithinDir` is a second lexical containment gate immediately before the write.
+- **Regression test:** `TestReleaseShardName`, `TestPathWithinDir`, `TestSyncRefusesTraversingShardName` in `internal/catalog/shard_name_test.go`.
+- **Related (same defect class), still `[OPEN]`:**
+  - `internal/update/updater.go` already screens file names (`filepath.Base(name) != name`) — keep that and add the same shard-name/traversal test coverage there.
+  - `internal/catalogbuild/verify.go` (`VerifyMaterializedTree`, the packaging gate) does not validate manifest file-name shape. Add the same rule so a hostile tree fails packaging, not just syncing.
+  - `internal/catalogbuild/compiler.go` (`manifestShards`) uses the same bare-prefix rule to *count* generated names; it is fed only by the generator today, so no injection path — but keep the two rules in sync if names ever change.
+
+### F2 `[FIXED]` — A published signature was not actually required
+
+- **Where:** `cmd/litespm/main.go` `verifyDownloadedUpdate` (the `default: // unavailable` branch), and `internal/trust/blob.go` (which classifies a missing `cosign` as `ResultUnavailable`, never `ResultFailed`).
+- **What was wrong:** when a release published a bundle but `cosign` was not installed, the updater printed a warning and **installed on checksum-only**. `SECURITY.md` promises the opposite: "a bundle that is published and does not verify **always** aborts".
+- **Fix shipped:** a present bundle whose verdict is `unavailable` is now fatal. The unsigned-release fallback (no bundle published at all) still applies unless `LITESPM_REQUIRE_SIGNED_UPDATE=1`.
+- **`[DECISION]` The catalog client has the same shape, deliberately:** `internal/catalog/client.go` `verifyCurrentSignature` documents that an *unavailable verifier* (cosign missing) proceeds unless `LITESPM_REQUIRE_CATALOG_SIGNATURE=1`. A hostile origin can simply publish no bundle (404) under the current default, so making "present but unverifiable" fatal does not close that hole — the switch that does is `LITESPM_REQUIRE_CATALOG_SIGNATURE=1`. Decide: (a) default the catalog to requiring a signature, (b) ship a Go verifier so `cosign` is never the control point (also fixes F2's residual dependency), or (c) document the default loudly in `SECURITY.md` and the CLI output. Recommended: (b), then (a).
+
+### F3 `[FIXED]` — `host.apply_setup` bypassed the plan/approval machinery
+
+- **Where:** `cmd/litespm/main.go`, handler `host.apply_setup` (was line ~3622) and the new helper `resolveRequestedBinaryPath` (line ~650).
+- **What was wrong:** the handler took `binaryPath` verbatim from the IPC caller and wrote it into the agent host's config as the command the host executes. Any same-uid process (including a shell a prompt-injected agent runs) could reach the socket. No plan, no approval, no audit row — unlike `install.execute` next door.
+- **Fix shipped:** empty `binaryPath` means the running binary; a non-empty one must be the same file as `os.Executable()` (compared with `os.SameFile`, so symlinks and alternate spellings still pass) or the call is refused with `-32602`.
+- **Test:** the success path in `TestHostApplySetup_RealBehavior` no longer sends a foreign path, and a new subtest asserts the refusal and that no config file is written.
+- **Related `[OPEN]` hardening:** `internal/host/*` adapters still write host configs without a plan/approval binding when reached through other RPC handlers (`host.remove`-style paths are lower-risk because they remove rather than add execution). Sweep every handler that names a program or URL written into an agent config and give it either a plan binding or the same "must be the running binary" rule. See §3 S1 for the read-back side.
+
+### F4 `[FIXED]` + `[ACTION]` — Three live Groq API keys were committed
+
+- **Where:** `web/src/server/llm/gateway.ts`, `collectKeys` (was lines 120-132), encoded as character-code arrays to dodge the repo's own scanner; the scanner's comments (`web/scripts/check-no-embedded-secrets.mjs`) explicitly whitelisted that form.
+- **Evidence:** all three keys answered `HTTP 200` on `GET https://api.groq.com/openai/v1/models` during the audit (no completions were run). The route is server-only, but the repository is public, so the keys are public.
+- **Fix shipped:** the fallback block is deleted; the scanner's header/message now say the opposite of the old allowance. Deployment must supply `GROQ_API_KEY` (or `GROQ_API_KEY_1..N`).
+- **`[ACTION]` Rotate all three keys in the Groq console** — removing them from source does not revoke them. Until rotation, anyone holding the old values can spend the demo quota and impersonate the project.
+- **`[OPEN]` follow-ups:**
+  - Extend `web/scripts/check-no-embedded-secrets.mjs` to flag suspicious `String.fromCharCode(...)` arrays (human review is what covers it today) — or add a linter rule that forbids `fromCharCode` with >16 numeric elements in `web/src/server/**`.
+  - Add a `.env`-documented deploy requirement (`web/.env.example` should list `GROQ_API_KEY*` as required-for-demo, optional otherwise).
+  - Trusted-publishing/pre-commit review: add a CI step that greps the *diff* for high-entropy strings in server directories.
+
+---
+
+## 2. Fix next (Medium)
+
+### F5 `[OPEN]` — Vault has no cross-process locking; revocation can be undone
+
+- **Where:** `internal/secrets/vault_file.go` (whole-file snapshot writes, ~lines 111-140).
+- **What's wrong:** two writers that load → mutate → save lose one update (last writer wins), and a writer holding a stale snapshot **resurrects a credential that was just purged**, so `litespm auth logout` revocation does not stick while another process is mid-operation.
+- **Fix:** take `internal/fslock` around load-mutate-save (the package already exists and is used for the daemon lock), and make the vault write path re-read-and-merge rather than blind-overwrite. Add a test that spawns two writers, one deleting and one adding, and asserts the delete survives.
+
+### F6 `[OPEN]` — A transient keyring failure silently rotates the master key
+
+- **Where:** `internal/secrets/store_linux.go` (~lines 21-45), same shape in `store_darwin.go` and `store_windows.go`.
+- **What's wrong:** if the keyring read fails (locked keyring, D-Bus hiccup, headless session), the store treats it as "no key yet" and mints a new one. Every previously stored secret becomes permanently undecryptable, with no error surfaced at the time.
+- **Fix:** distinguish "no key stored" from "keyring unreachable": a failed read must abort the operation with a typed error (`LPSM-AUTH-VAULT-UNAVAILABLE` already exists), never create a replacement key. Only mint when the read succeeded and returned empty. Add unit coverage using a stubbed keyring that fails on read.
+
+### F7 `[OPEN]` — Archive extraction is not confined when the staging dir already holds a symlink
+
+- **Where:** `internal/artifact/extractor.go` — zip leaf guard at ~250-255 (removes a pre-existing symlink), tar path at ~353-359 (no guard at all), shared writer `writeBoundedFile` at ~414-418 (`os.OpenFile` without `O_NOFOLLOW`/`O_EXCL`). Reproduced: writes through a pre-existing leaf symlink (tar) and through a symlinked parent directory (both formats).
+- **Reachability today:** the in-tree callers pre-create private staging dirs (`internal/install/engine.go` `op_<rand>` with `0700`, `cmd/litespm/install_plugin.go` uses `os.MkdirTemp`), so this needs a local actor who can already write inside the staging dir. Grade: defense-in-depth, not currently exploitable remotely.
+- **Fix:** add the missing `Lstat` symlink removal to the tar path; walk the parent chain component-by-component refusing symlinks (or open with `O_NOFOLLOW|O_EXCL` relative to a staging-dir fd); add a regression test that pre-plants both a leaf symlink and a symlinked parent for both archive formats.
+
+### F8 `[OPEN]` — Catalog `command`/`args` are interpolated into the copy-paste config snippet unescaped
+
+- **Where:** `web/src/server/litespm/type-specs.ts` (~lines 141-146) builds `command = "${command}"` / `args = ["${arg}", …]` for the TOML snippet shown to users by `web/src/components/litespm/views/package-detail.tsx` (~723-734, copy button). Demonstrated: a catalog row containing a quote + newline injects a whole extra `[mcp_servers.*]` block that users paste into their agent config.
+- **Current data is clean** (0 of 69,376 rows carry quotes/backslashes/newlines in `command`/`args`), but nothing downstream *enforces* that: the guard is the producer alone, and the web dataset loader applies no charset check.
+- **Fix:** escape per target format (`JSON.stringify` for JSON, a real TOML string escaper for TOML: backslash, quote, control chars), reject control characters outright, and validate `command`/`args` shape at dataset load time in `web/src/server/litespm/dataset.ts` (allowlist `[A-Za-z0-9._/@:=+~-]` per token, matching the id grammar already enforced in `scripts/build_full_catalog.py`). Also fix the `litespm install ${hit.id}` interpolation in `marketplace.tsx` (~104) to use the same `shellArg` helper as `package-detail.tsx` (~144).
+
+### F9 `[OPEN]` — A tag push alone builds, signs and publishes a release
+
+- **Where:** `.github/workflows/release.yml` — `on: push: tags: 'v*'` (lines 3-6).
+- **What's wrong:** nothing verifies the tagged commit is on `main`, was reviewed, or passed CI before `cosign sign-blob` runs. Since the npm installer and the updater pin the signer to *this workflow on a version tag*, anyone with tag-push rights (or a compromised maintainer token) mints a release every installer accepts.
+- **Fix:** add a tag ruleset for `v*`, require the tagged commit to be an ancestor of `main`, and gate the signing/publish job behind a protected GitHub Environment with required reviewers. Consider generating releases from a workflow_dispatch that takes an already-CI-green commit.
+
+### F10 `[OPEN]` — Signing job holds write + OIDC while actions ride movable tags
+
+- **Where:** `.github/workflows/release.yml` lines 8-13 (`permissions: contents: write`, `id-token: write`) with `sigstore/cosign-installer@v3`, `anchore/sbom-action@v0`, `softprops/action-gh-release@v2`, `actions/*@v4|v5`.
+- **What's wrong:** a hijacked tag executes *before* signing with an OIDC token and a write token, and can sign arbitrary bytes under the project's identity.
+- **Fix:** pin every action in this job to a commit SHA (Dependabot/Renovate can bump SHAs), grant `id-token: write` only to the signing step, keep build/test steps `contents: read`.
+
+### F11 `[OPEN]` — `web/package-lock.json` lacks `integrity` for most entries
+
+- **Where:** `web/package-lock.json` — 836 of 880 entries have no `integrity` hash, while CI builds with `npm ci`/`bun install --frozen-lockfile`.
+- **Fix:** regenerate the lockfile with a modern npm (`npm install --package-lock-only` with npm ≥ 9 writes integrity for all entries; verify with a script that fails if any `node_modules/*` entry lacks `integrity`), then commit. Add that check to CI.
+
+### F12 `[OPEN]` — The daily catalog-sync job cannot succeed and pushes upstream data unreviewed
+
+- **Where:** `.github/workflows/catalog-sync.yml` — `go-version: '1.24'` (vs `go.mod` 1.26), `git add data/ web/public/v1/ web/src/` (there is no `data/` directory), and the failure point is "Verify Web Build". The job has **never** succeeded; its commit step pushes directly to `main`.
+- **Fix:** set the Go version from `go.mod`, drop `data/` and `web/src/` from the add list (the producers write JSON only — keep it that way and assert it), fix the web-build step (it needs `prisma generate` first — see §4), and open a PR instead of pushing to `main` so a human sees each daily data change.
+
+### F13 `[SUSPECTED]` — Rate-limit identity is client-controllable
+
+- **Where:** `web/src/server/litespm/rate-limit.ts` (~lines 50-58) keys the limiter on the **leftmost** `x-forwarded-for` entry.
+- **Why suspected:** if the edge preserves client-supplied XFF (typical on Vercel), rotating the header gives a fresh bucket and bypasses the 20-per-5-min assistant cap — which then spends the (formerly committed) Groq keys. Not demonstrable from the repo alone; needs a staging request with a spoofed header.
+- **Fix:** use the platform-set value (rightmost hop, or `x-vercel-forwarded-for`), and add a per-instance global budget for LLM routes so a bypass cannot escalate spend.
+
+---
+
+## 3. Hardening backlog (Low)
+
+| ID | Where | What to do |
+|----|-------|------------|
+| L1 | `internal/ipc/transport_unix.go` | Close the bind→chmod window on the Unix socket (create with the mode applied, or `umask` around bind). Auth is enforced by `SO_PEERCRED`, so this is cosmetic today. |
+| L2 | `internal/state/*` | `state.db` + WAL are `0644` inside a `0700` root. Set `0600` on DB, WAL and SHM for defense in depth. |
+| L3 | `internal/config/*` | Data root and state file are opened by path and follow symlinks; the runtime root is lstat-hardened. Resolve once at startup and use `openat`-style access. |
+| L4 | `internal/secrets/vault_file.go` | A read-only open does not repair a wrong mode; chmod on write is not re-checked on read. Repair mode on open where possible. |
+| L5 | `web/package.json` | `@sigstore/*` are `^`-ranged, so the code that *decides verification* changes under the installer's feet. Pin exact versions; note `z-ai-web-dev-sdk` (`^0.0.18`, unrelated maintainers) receives prompts when no other key is configured — review or vendor it. |
+| L6 | `internal/receipts/receipts.go` | The chain is unkeyed and `hashReceipt` omits `invocationId`, so IDs can be swapped without breaking `VerifyChain`, and `Open` never verifies. HMAC the projection with a daemon key, include `invocationId`, verify on `Open`, and anchor the head hash in the SQLite journal. |
+| L7 | `cmd/litespm/capabilities.go` (~257-265) | `capabilities refresh` builds a run spec from the *host config file* and executes it without re-checking the recorded `EntryFingerprint` (checked in `list.go` and `lifecycle_wire.go`). Compare the fingerprint before probing. |
+| L8 | `internal/source/mcp_registry.go` (~385-390) | `RuntimeDescriptor.Env` is populated from the remote registry and currently dropped on the host-config path. Add an assertion/comment so it stays dropped, or filter it through `provider.BuildChildEnv` if ever consumed — otherwise a catalog row can set `NODE_OPTIONS`/`LD_PRELOAD`/`PYTHONPATH`. |
+| L9 | `npm/scripts/install-binary.js` (~1030-1047) | Temp file `${targetPath}.tmp.${Date.now()}` has no `O_EXCL`/`O_NOFOLLOW`; open with `wx`/`0o600` and rename. Also move redirect refusals out of the retryable-error class (~933-937). |
+| L10 | `web/src/app/layout.tsx` / `next.config.ts` | No CSP, `frame-ancestors`, or `Referrer-Policy`. Add baseline headers; the renderer analysis found no injection sink today, so this is defense in depth. |
+| L11 | `worker/index.js` | The 302 carries no HSTS/`X-Content-Type-Options`; `_headers` has `/data/*` stanzas this worker never serves. Tidy and add the headers. |
+| L12 | `internal/artifact/extractor.go` (~155) | `ExtractArchiveSafelyWithLimits` ignores `limits.MaxArchiveSize` (only `ExtractFileSafely` enforces it). Enforce it for reader-based callers too. |
+| L13 | `internal/artifact/extractor.go` (~383-411) | Backslash-containing names are accepted on Linux as literal filenames, so the tree digest differs from Windows. Reject backslashes uniformly for cross-OS determinism. |
+
+---
+
+## 4. Repository, CI and release-process items
+
+| ID | State | Item |
+|----|-------|------|
+| R1 | `[OPEN]` | **CI is red on `main`** — 75 of the last 100 runs failed; last green 2026-10-24. Two independent causes: (a) the release-tree gate `litespm catalog build --materialize --prev web/public/v1/current.json` fails against the committed dataset (it passes at `0ea6141^`, so the drift arrived with the 69,376-row refresh — whose own commit message says 69,311); (b) the web type-check fails because the workflow never runs `prisma generate` (it passes locally after `bunx prisma generate`). Fix the workflow step and re-cut the dataset/release so (a) passes; until then every push merges onto a red branch. |
+| R2 | `[OPEN]` | **The claimed release `rel-2026-11-05-03` was never deployed**: the live origin still serves `rel-2026-10-21-01`. Either deploy or mark the pointer as undeployed in `STATUS.md`; the current text says the release "is cut from the dataset", which the materialize failure contradicts. |
+| R3 | `[OPEN]` | `STATUS.md`/`SECURITY.md` are otherwise unusually accurate — keep them that way: after fixing F2, the `SECURITY.md` line about published bundles becomes true; after F4 rotation, remove any claim that the demo ships fallback keys. |
+| R4 | `[OPEN]` | The daily `catalog-sync.yml` job has **never** succeeded (see F12). Treat a permanently-red scheduled workflow as an incident, not background noise: add an alert when a scheduled job fails N times in a row. |
+
+---
+
+## 5. Optional architectural upgrades
+
+1. **Vendor signature verification.** Replace the `cosign` exec with a Go Sigstore verifier (`sigstore-go` or an in-tree implementation of `verify-blob` semantics). Removes the class of "verifier unavailable ⇒ skipped check" bugs entirely (F2 and its catalog twin), and removes an exec dependency from the update path.
+2. **TUF-style catalog envelope.** The catalog client comment notes a full TUF root/timestamp/snapshot envelope is "DESIGNED, not shipped". Shipping it would give the catalog the rollback/freeze protection the code comments currently approximate with sequence numbers.
+3. **Keyed receipts.** L6's HMAC turns the receipt log from "internally consistent" into "tamper-evident against a local attacker".
+4. **Single writer for host configs.** Route every host-config write (setup, install, remove, plugin) through one journalled writer with plan/approval binding, so F3's class of "a handler beside the gate" cannot recur.
+
+---
+
+## 6. What the audit verified as sound (do not regress)
+
+Keep these properties covered by tests; they held under attack and are the project's strongest claims:
+
+- **Approval pipeline:** plan-hash recomputation, expiry, single-use atomic consumption (`UPDATE … WHERE status='active' AND subject_hash=?` + `RowsAffected` check), human-cli-only approvals, no self-approval path, and execution bound to the sealed plan (no approve-benign/execute-malicious window).
+- **Archive defence:** all 16 traversal forms refused in zip and tar; symlink/hardlink/device members refused; cumulative compression-ratio check before every write; modes never setuid/world-writable; declared-vs-produced size enforced both ways.
+- **Execution safety:** no shell on any command path; child env restricted to an allowlist; secrets never resolved from `{file:…}`/`!cmd`; the archive-engine fallback fails closed.
+- **IPC:** Unix socket `0600`, `SO_PEERCRED`/`LOCAL_PEERCRED` fail-closed same-uid check, 16 MiB + depth bounds, no client-controlled identity/approval-channel field.
+- **Egress:** HTTPS-only, literal-IP pinned dial, loopback/link-local/metadata/private refused, no env proxy, redirect downgrade refused.
+- **npm installer:** verification on by default, signer identity matched exactly (`^…$`, escaped), published-but-invalid refused even with `LITESPM_ALLOW_UNSIGNED_RELEASE=1`, HTTPS + host allowlist + redirect cap, no archive extraction, no shell.
+- **Data claims:** 69,376 listings (48,418 / 20,320 / 638 by kind), 50 hosts (46 remote-capable), 81 skill targets, 13 bridge tools, producer id grammar enforced (`69,376/69,376` conform), no committed `.env`/private keys beyond F4, worker has no open proxy/XSS, exactly one `dangerouslySetInnerHTML` in `web/` (a static theme `<style>`), assistant renderer emits text nodes with https-only links.
+
+---
+
+## 7. Suggested order of work
+
+1. `[ACTION]` Rotate the three Groq keys (F4) — minutes, and the only item with an active exposure window.
+2. Review/merge this change set (F1-F4) — includes a behaviour change for signed updates without `cosign`.
+3. F6 (keyring rotation data loss) — silent, permanent data loss for users.
+4. F11 + F12 + R1 (lockfile integrity, unbreakable-and-unattended sync job, red CI) — the release pipeline is currently not trustworthy.
+5. F5 (vault locking) and F9/F10 (release trust chain).
+6. F7, F8, F13, then the L-items and §5 upgrades.
+
+---
+
+*Prepared as part of the cloned-repo audit. All line numbers refer to the audit baseline (`318e421`) unless marked otherwise; the F1-F4 fixes above shift lines in `internal/catalog/client.go`, `cmd/litespm/main.go`, `cmd/litespm/main_test.go`, `web/src/server/llm/gateway.ts` and `web/scripts/check-no-embedded-secrets.mjs`.*

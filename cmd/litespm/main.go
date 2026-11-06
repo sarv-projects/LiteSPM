@@ -398,10 +398,10 @@ func runSelfUpdate(args []string) {
 	// answer "who produced this". The Sigstore bundle can: release.yml signs
 	// every asset with its OIDC identity (keyless), and the certificate SAN
 	// pins the signer to this repository's release workflow on a v-tag ref.
-	// A bundle that exists but does not verify always aborts. A release that
-	// publishes no bundle (pre-signing) may proceed with a stated
-	// checksum-only fallback — unless LITESPM_REQUIRE_SIGNED_UPDATE=1 makes
-	// authenticity mandatory.
+	// A bundle that exists but does not verify always aborts — including when the
+	// verifier cannot run at all. A release that publishes no bundle (pre-signing)
+	// may proceed with a stated checksum-only fallback — unless
+	// LITESPM_REQUIRE_SIGNED_UPDATE=1 makes authenticity mandatory.
 	if err := verifyDownloadedUpdate(ctx, u, info, binName, payload, stagingDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Update aborted: %v\n", err)
 		os.Exit(1)
@@ -459,9 +459,11 @@ func releaseDownloadTarget(info *update.ReleaseInfo, binName string) (downloadUR
 // verifyDownloadedUpdate checks the release's Sigstore bundle for the target
 // binary against the bytes just downloaded, before they can be installed.
 //
-// Failure semantics are deliberately asymmetric: a bundle that is published
-// and does not verify is always fatal (that is the attack signal); a release
-// that publishes no bundle at all is a stated checksum-only fallback, which
+// Failure semantics are deliberately asymmetric: a bundle that is published and
+// does not verify — or cannot be verified at all, which is what a missing
+// cosign binary produces — is always fatal, because that is the attack signal
+// and the whole reason a bundle is published; only a release that publishes no
+// bundle at all is the stated checksum-only fallback, which
 // LITESPM_REQUIRE_SIGNED_UPDATE=1 turns into a hard refusal.
 func verifyDownloadedUpdate(ctx context.Context, u *update.Updater, info *update.ReleaseInfo, binName string, payload []byte, stagingDir string) error {
 	if info == nil {
@@ -504,11 +506,15 @@ func verifyDownloadedUpdate(ctx context.Context, u *update.Updater, info *update
 	case trust.ResultFailed:
 		return fmt.Errorf("signature verification FAILED for %s: %s — the downloaded bytes do not match the release's signing identity; refusing to install them", binName, verdict.Detail)
 	default: // unavailable
-		if required {
-			return fmt.Errorf("signature verification unavailable (%s) and LITESPM_REQUIRE_SIGNED_UPDATE is set; refusing an unverified self-update", verdict.Detail)
-		}
-		fmt.Printf("Warning: signature verification unavailable (%s); falling back to checksum-only verification.\n", verdict.Detail)
-		return nil
+		// The bundle EXISTS — it was fetched successfully above — so this is a
+		// signed release whose signature could not be checked (typically: cosign
+		// is not installed here). SECURITY.md promises that a published bundle
+		// always aborts, and "the verifier could not run" is exactly the case
+		// that used to slip past that promise by falling back to checksums, so it
+		// is now fatal too. An unsigned release never reaches this branch: it
+		// returns in the bundleURL == "" case above, where the documented
+		// checksum-only fallback still applies.
+		return fmt.Errorf("release %s publishes a signature bundle for %s but it cannot be verified here (%s); refusing to install unverified bytes — install cosign to verify this release, or pin a release that publishes no bundle", info.Version, binName, verdict.Detail)
 	}
 }
 
@@ -639,6 +645,32 @@ func runSetup(args []string) {
 	}
 
 	runInteractiveWizard()
+}
+
+// resolveRequestedBinaryPath resolves the binary path a host.setup-style call
+// asked for. An empty request means "this binary". A non-empty one must name the
+// same file as the running executable: these handlers write the command an
+// agent host will execute and carry no plan or approval binding of their own, so
+// a caller — including a shell an agent itself runs — must not be able to point
+// the host at a program of its choosing. os.SameFile compares the underlying
+// file, so a symlink or another spelling of the same binary still passes.
+func resolveRequestedBinaryPath(requested, self string) (string, error) {
+	requested = strings.TrimSpace(requested)
+	if requested == "" {
+		return self, nil
+	}
+	requestedInfo, err := os.Stat(requested)
+	if err != nil {
+		return "", fmt.Errorf("binaryPath %q does not name an existing file: %w", requested, err)
+	}
+	selfInfo, err := os.Stat(self)
+	if err != nil {
+		return "", fmt.Errorf("stat the running executable %q: %w", self, err)
+	}
+	if !os.SameFile(requestedInfo, selfInfo) {
+		return "", fmt.Errorf("binaryPath %q is not the running litespm binary (%s); refusing to write a foreign command into an agent host config", requested, self)
+	}
+	return self, nil
 }
 
 // applyHostSetup plans and applies the LiteSPM bridge entry for one host and
@@ -3632,9 +3664,14 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}
 		}
 
-		binPath := req.BinaryPath
-		if binPath == "" {
-			binPath, _ = os.Executable()
+		self, err := os.Executable()
+		if err != nil {
+			return nil, &ipc.RPCError{Code: ipc.CodeInternalError,
+				Message: fmt.Sprintf("resolve the running executable: %v", err)}
+		}
+		binPath, err := resolveRequestedBinaryPath(req.BinaryPath, self)
+		if err != nil {
+			return nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: err.Error()}
 		}
 		plan, err := adapter.PlanSetup(ctx, binPath, paths.BackupsPath())
 		if err != nil {

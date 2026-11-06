@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// Gate: no plaintext provider credential is checked into the web source.
+// Gate: no provider credential — plaintext or encoded — belongs in the web
+// source.
 //
-// The hosted demo intentionally keeps an encoded free-tier Groq fallback in
-// the gateway. Environment keys take precedence, and the fallback is stored as
-// character codes so a plaintext `gsk_...` string is not published in source
-// or copied by a naive scanner. This gate still fails on a plaintext key; it
-// does not try to decode the intentional demo fallback.
+// The gateway has NO built-in fallback keys: a credential committed here is a
+// credential anyone can spend, and encoding it as character codes only hides it
+// from the plaintext pattern below. This gate fails on a plaintext key; the
+// encoded-array form is reviewed by humans (see AUDIT.md), because a pattern
+// that tries to decode arbitrary character-code arrays produces false
+// positives on ordinary data tables.
 //
 // Usage: node scripts/check-no-embedded-secrets.mjs
 
@@ -28,7 +30,7 @@ const files = execFileSync(
 const failures = [];
 
 // Real key material has a distinctive prefix and enough length to avoid
-// matching prose or examples. The encoded demo fallback is allowed.
+// matching prose or examples.
 const keyPattern = /\bgsk_[A-Za-z0-9]{20,}\b/;
 
 for (const rel of files) {
@@ -46,7 +48,7 @@ if (failures.length > 0) {
   console.error("Embedded credential check failed:");
   for (const failure of failures) console.error(`  ${failure}`);
   console.error(
-    "Remove the plaintext credential and use the deployment environment or the encoded demo fallback.",
+    "Remove the credential from source and provide it through the deployment environment (for the LLM gateway: GROQ_API_KEY*).",
   );
   process.exit(1);
 }

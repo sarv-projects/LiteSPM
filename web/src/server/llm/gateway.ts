@@ -117,19 +117,14 @@ function collectKeys(envPrefix: string): string[] {
     if (numbered?.trim()) keys.push(numbered.trim());
   }
 
-  // Hosted-demo fallback keys. Environment keys always win; these are encoded
-  // only so a plaintext `gsk_...` string does not trip source scanners. They
-  // are free-tier credentials for the public demo, not a private secret.
-  if (keys.length === 0 && envPrefix === "GROQ_API_KEY") {
-    try {
-      const c1 = [103,115,107,95,53,100,108,80,74,90,116,104,110,86,52,83,108,97,103,78,111,80,76,76,87,71,100,121,98,51,70,89,116,120,99,54,54,57,49,87,118,118,75,69,57,51,98,81,87,82,112,74,111,111,113,51];
-      const c2 = [103,115,107,95,52,76,102,103,121,87,77,85,105,79,48,111,68,117,50,73,52,118,89,120,87,71,100,121,98,51,70,89,118,113,53,51,50,107,76,89,119,121,113,97,74,113,116,86,68,122,111,86,108,105,70,112];
-      const c3 = [103,115,107,95,97,100,112,77,108,71,98,98,111,102,78,75,122,101,75,104,106,79,100,97,87,71,100,121,98,51,70,89,117,119,57,121,116,83,67,67,49,66,83,67,105,118,73,67,77,98,83,109,101,118,82,122];
-      keys.push(String.fromCharCode(...c1));
-      keys.push(String.fromCharCode(...c2));
-      keys.push(String.fromCharCode(...c3));
-    } catch {}
-  }
+  // No built-in fallback keys. A credential committed to this repository is a
+  // credential anyone can spend, and a scanner-safe encoding is still a live
+  // secret — the CI scan cannot tell the two apart. Deployment must provide
+  // GROQ_API_KEY*; without it the groq provider is simply absent from the pool
+  // and the gateway reports "No LLM credentials configured.".
+  //
+  // (An earlier build carried three encoded demo keys here. They were removed
+  // after an audit confirmed all three were live against the public API.)
 
   // de-duplicate while preserving order
   return [...new Set(keys)];
