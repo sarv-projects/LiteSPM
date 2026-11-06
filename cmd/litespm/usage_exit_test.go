@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -51,6 +52,25 @@ func TestUsageExitCodes(t *testing.T) {
 				t.Fatalf("litespm %v exit = %d, want %d\nstderr:\n%s", tc.args, code, tc.want, stderr.String())
 			}
 		})
+	}
+}
+
+// TestSkillsHelpExitsZero pins the dead end where `litespm skills --help`
+// printed "Unknown skills subcommand: --help" and exited 2, even though the
+// usage line it printed advertises --help. Both spellings must route to the
+// usage printer and exit 0.
+func TestSkillsHelpExitsZero(t *testing.T) {
+	for _, arg := range []string{"--help", "-h"} {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestUsageExitHelperProcess$", "--", "skills", arg)
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = io.Discard
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("litespm skills %s: %v (output: %s)", arg, err, out.String())
+		}
+		if !strings.Contains(out.String(), "Usage: litespm skills") {
+			t.Fatalf("litespm skills %s printed no usage; stdout:\n%s", arg, out.String())
+		}
 	}
 }
 
