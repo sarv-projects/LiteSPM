@@ -191,14 +191,28 @@ func PlanRemoval(ctx context.Context, adapter HostAdapter, backupDir string) (*H
 	}
 	spec.KeyPath = effective
 
-	// Never write a config we cannot read back.
-	if spec.Format == FormatJSON {
+	// Never write a config we cannot read back. The JSON branch re-parses;
+	// the TOML branch used to write its merge unchecked, so a writer bug could
+	// ship a config the host rejects wholesale.
+	switch spec.Format {
+	case FormatJSON:
 		verify, err := parseConfigJSON(BridgeTarget{TolerateComments: true}, []byte(proposed))
 		if err != nil {
 			return nil, nil, fmt.Errorf("%s: removal would produce invalid JSON, refusing to write: %w",
 				adapter.Descriptor().DisplayName, err)
 		}
 		if inspectNamedEntry(verify, spec.KeyPath, litespmServerName) || inspectNamedEntry(verify, spec.KeyPath, legacyServerName) {
+			return nil, nil, fmt.Errorf("%s: removal did not take effect, refusing to write",
+				adapter.Descriptor().DisplayName)
+		}
+	case FormatTOML:
+		if verr := verifyTOMLDocument(proposed); verr != nil {
+			return nil, nil, fmt.Errorf("%s: %s: removal would produce invalid TOML, refusing to write: %w",
+				adapter.Descriptor().DisplayName, TOMLInvalidCode, verr)
+		}
+		table := "[" + strings.Join(append(append([]string{}, spec.KeyPath...), litespmServerName), ".") + "]"
+		legacy := "[" + strings.Join(append(append([]string{}, spec.KeyPath...), legacyServerName), ".") + "]"
+		if tomlTableRegistered(proposed, table) || tomlTableRegistered(proposed, legacy) {
 			return nil, nil, fmt.Errorf("%s: removal did not take effect, refusing to write",
 				adapter.Descriptor().DisplayName)
 		}

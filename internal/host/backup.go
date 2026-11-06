@@ -158,6 +158,17 @@ func resolveAtomicTarget(targetPath string) (string, error) {
 	return link, nil
 }
 
+// syncParentDir flushes a directory entry so a rename into it survives a crash.
+// Like the skills ledger's write, this is best-effort: some filesystems (and
+// Windows) refuse to fsync a directory with EINVAL/ENOTSUP, and that refusal
+// does not make the already-completed rename any less written.
+func syncParentDir(dir string) {
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+}
+
 func atomicWriteFile(targetPath string, data []byte, perm os.FileMode, expected []byte, expectedExists, compare bool) error {
 	resolved := targetPath
 	if fi, err := os.Lstat(targetPath); err == nil && fi.Mode()&os.ModeSymlink != 0 {
@@ -205,6 +216,16 @@ func atomicWriteFile(targetPath string, data []byte, perm os.FileMode, expected 
 		_ = os.Remove(tmpName)
 		return err
 	}
+	// Flush the file's CONTENTS before it is renamed into place. Without the
+	// fsync a power loss can leave the renamed target empty or truncated even
+	// though the rename itself survived — and this is someone else's agent
+	// config, where an empty file silently unregisters every server. The
+	// skills ledger flushes its file for the same reason.
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+		return fmt.Errorf("flushing %s: %w", targetPath, err)
+	}
 	if err := tmp.Close(); err != nil {
 		_ = os.Remove(tmpName)
 		return err
@@ -251,5 +272,12 @@ func atomicWriteFile(targetPath string, data []byte, perm os.FileMode, expected 
 		_ = os.Remove(tmpName)
 		return err
 	}
-	return os.Chmod(resolved, effective)
+	if err := os.Chmod(resolved, effective); err != nil {
+		return err
+	}
+	// Flush the DIRECTORY too, so the rename itself is durable. Without it a
+	// crash can undo the rename and leave the old config in place while the
+	// caller has already been told the write succeeded.
+	syncParentDir(dir)
+	return nil
 }
