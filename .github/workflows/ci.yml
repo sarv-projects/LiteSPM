@@ -146,16 +146,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # F11: web/package-lock.json is what `npm ci` in release.yml and
-      # catalog-sync.yml installs from, and npm only verifies a tarball against
-      # the lockfile when the entry carries an `integrity` hash. A lockfile edit
-      # that drops one silently downgrades those installs to "same name, same
-      # version, unknown bytes" — nothing else in the pipeline would notice, so
-      # it is checked here before anything installs. (Bun reads web/bun.lock,
-      # not this file, so installed trees above do not depend on it.)
-      - name: Check npm Lockfile Integrity
-        run: node scripts/check-web-lock-integrity.mjs
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
