@@ -123,7 +123,8 @@ type InstallRequest struct {
 	BackupRoot string
 	// OnOverwrite, when set, receives the disclosure that an existing
 	// destination is about to be replaced (or refused). The CLI collects
-	// these and prints them before its install spinner; nil keeps the
+	// these and prints them with its install summary, naming the replaced
+	// destination and the shortened pre-image digest; nil keeps the
 	// historical stderr line so library callers are unchanged.
 	OnOverwrite func(dst string)
 }
