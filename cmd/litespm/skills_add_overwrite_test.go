@@ -29,13 +29,6 @@ func TestSkillsAddForcePrintsOverwritesAndPreImageDigest(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dest, "SKILL.md")); err != nil {
 		t.Fatalf("seed install wrote nothing: %v", err)
 	}
-	// macOS: t.TempDir() sits under /var, itself a symlink to /private/var,
-	// and the installer prints the destination as the filesystem resolves
-	// it. Compare against that canonical spelling, not the one t.TempDir
-	// handed us, or the assertion fails on the path macOS uses.
-	if resolved, err := filepath.EvalSymlinks(dest); err == nil {
-		dest = resolved
-	}
 	pre, err := skills.CapturePreImage(dest)
 	if err != nil {
 		t.Fatalf("fingerprint the tree that will be replaced: %v", err)
@@ -47,8 +40,23 @@ func TestSkillsAddForcePrintsOverwritesAndPreImageDigest(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("force install exit = %d, stderr:\n%s", code, stderr)
 	}
-	if !strings.Contains(stdout, "overwrites: "+dest) {
-		t.Errorf("stdout must name the replaced destination with an overwrites: line, got:\n%s", stdout)
+	// The installer prints the destination in the spelling the filesystem
+	// gives it: macOS resolves the /var symlink to /private/var, and Windows
+	// can expand an 8.3 short name (RUNNER~1). Accept either spelling of the
+	// same directory; both name the replaced destination.
+	spellings := []string{"overwrites: " + dest}
+	if resolved, err := filepath.EvalSymlinks(dest); err == nil && resolved != dest {
+		spellings = append(spellings, "overwrites: "+resolved)
+	}
+	named := false
+	for _, want := range spellings {
+		if strings.Contains(stdout, want) {
+			named = true
+			break
+		}
+	}
+	if !named {
+		t.Errorf("stdout must name the replaced destination with an overwrites: line (one of %q), got:\n%s", spellings, stdout)
 	}
 	want := shortDigest(pre.Digest)
 	if !strings.Contains(stdout, "pre-image "+want) {
