@@ -5,12 +5,16 @@ on:
     tags:
       - 'v*'
 
+# F10: least privilege, workflow-wide. Nothing in this file needs write access
+# except the job that signs and creates the release, and (separately) the job
+# that publishes to npm. Both widen this default for themselves and say why.
+#
+# GitHub Actions has no per-step permissions, so "grant the token only to the
+# signing step" is expressed the only way the platform allows: as a job
+# boundary. Everything that builds, tests or packages lives in the read-only
+# `build` job; this default covers every job that does not override it.
 permissions:
-  contents: write
-  # Two consumers of this OIDC token: `npm publish --provenance` attests the
-  # tarball against this workflow run, and `cosign sign-blob` mints the
-  # keyless (Fulcio) certificates that sign every release artifact.
-  id-token: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,7 +46,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # merge-base needs the tagged commit and main to share history, which
           # the default depth-1 clone does not give.
@@ -58,21 +62,27 @@ jobs:
           fi
           echo "${GITHUB_REF_NAME} (${GITHUB_SHA}) is an ancestor of origin/main"
 
-  build-and-release:
-    name: Build & Publish Release
+  # Everything that produces bytes, with `contents: read` and no OIDC token in
+  # scope. A hijacked action or a doctored dependency cannot sign here, because
+  # there is nothing to sign with; the finished archives are handed to the
+  # signing job as a workflow artifact.
+  build:
+    name: Build Release Artifacts
     needs: verify-tag-on-main
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: '1.26'
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
 
@@ -107,6 +117,55 @@ jobs:
             exit 1
           fi
 
+      # The only thing that crosses the job boundary, and it holds exactly the
+      # assets the release publishes. `if-no-files-found: error` keeps a silent
+      # packaging regression from reaching the signing job as an empty release.
+      - name: Upload release assets for the signing job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-assets
+          path: release-assets/
+          if-no-files-found: error
+          # The next job publishes these to the GitHub Release permanently;
+          # this copy is a handoff between jobs, not an archive.
+          retention-days: 1
+          # Binaries and .tar.gz are already compressed: re-compressing them
+          # only spends runner minutes.
+          compression-level: 0
+
+  # The only job that may write to the repository or mint a Fulcio certificate.
+  #
+  # `environment: release` puts a human approval gate in front of this job once
+  # the environment has required reviewers. That protection is a repository
+  # setting, not YAML:
+  #   Settings → Environments → release → Required reviewers.
+  # Without it this line is a label, not a gate.
+  #
+  # Residual, stated rather than implied: there is no per-step permission in
+  # GitHub Actions, so *every* step in this job runs with `contents: write` and
+  # `id-token: write` available. That is why build, test and packaging live in
+  # the `build` job above, and why this job's step list stayed short: sign the
+  # archives, describe them, publish them. Nothing else belongs here.
+  sign-and-release:
+    name: Sign & Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      # `cosign sign-blob` mints the keyless (Fulcio) certificates that sign
+      # every release artifact, bound to this workflow run.
+      id-token: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-assets
+          path: release-assets
+
       # Keyless Sigstore signing: every published artifact — binaries, the
       # checksum listing, the web archive — gets a short-lived Fulcio
       # certificate bound to THIS workflow run (identity:
@@ -116,7 +175,7 @@ jobs:
       # SHA-256 shipped in the same channel as the binary it protects.
       # No long-lived signing key exists to rotate or leak.
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
       - name: Sign release artifacts (cosign keyless)
         run: |
@@ -138,7 +197,7 @@ jobs:
       # notes. (A second, lockfile-derived SBOM path exists in
       # internal/trust for `litespm.lock` consumers.)
       - name: Generate SBOM (CycloneDX)
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           path: release-assets
           format: cyclonedx
@@ -146,12 +205,31 @@ jobs:
           upload-artifact: false
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: release-assets/*
           generate_release_notes: true
           draft: false
           prerelease: false
+
+  # Verifying the *published* installer is a test, and a test does not need a
+  # write token: the release exists by now, so the cases that verify the
+  # published bundle for THIS tag run against the real assets with
+  # `contents: read` and no OIDC token in the job's environment.
+  verify-npm-installer:
+    name: Verify npm Installer Against Published Assets
+    needs: sign-and-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
 
       - name: Verify npm version matches the release tag
         working-directory: ./npm
@@ -164,25 +242,43 @@ jobs:
           echo "npm package version v${VERSION} matches the tag"
 
       # The installer is what every `npm install -g litespm` runs, so the
-      # release is gated on its refusal paths. This runs after the GitHub
-      # release exists, so the cases that verify the published bundle for THIS
-      # tag run against real assets. A case that cannot reach the network is
-      # skipped, never silently passed.
+      # release is gated on its refusal paths. A case that cannot reach the
+      # network is skipped, never silently passed.
       - name: Test npm Wrapper and Installer
         working-directory: ./npm
         run: |
           npm ci --ignore-scripts
           npm test
 
-      # The npm tarball must carry the project license and notices. The canonical
-      # files live at the repository root; copy them into ./npm so the `files`
-      # allowlist in npm/package.json packs them.
+  # The npm tarball must carry the project license and notices. The canonical
+  # files live at the repository root; copy them into ./npm so the `files`
+  # allowlist in npm/package.json packs them.
+  #
+  # `id-token: write` here is only for `npm publish --provenance`, which attests
+  # the tarball against this workflow run. No `contents: write`: publishing to
+  # npm does not need to touch the repository.
+  publish-npm:
+    name: Publish npm Package
+    needs: verify-npm-installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
       - name: Stage license files for npm
         run: cp LICENSE NOTICE npm/
 
-      # Deliberately after the GitHub release: the npm postinstall fetches the
-      # v<version> assets, so publishing before they exist would ship a package
-      # whose binary download 404s.
+      # Deliberately depends on the GitHub release: the npm postinstall fetches
+      # the v<version> assets, so publishing before they exist would ship a
+      # package whose binary download 404s.
       #
       # NODE_AUTH_TOKEN is scoped to this step only: a job-level env would
       # expose the token to every preceding step (build, test, packaging).
