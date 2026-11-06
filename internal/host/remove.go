@@ -210,11 +210,13 @@ func PlanRemoval(ctx context.Context, adapter HostAdapter, backupDir string) (*H
 	}
 
 	return &HostChangePlan{
-			HostID:          adapter.Descriptor().HostID,
-			ConfigPath:      configPath,
-			OriginalContent: orig,
-			ProposedContent: proposed,
-			BackupPath:      backupPath,
+			HostID:                 adapter.Descriptor().HostID,
+			ConfigPath:             configPath,
+			OriginalContent:        orig,
+			ProposedContent:        proposed,
+			BackupPath:             backupPath,
+			OriginalExists:         true,
+			OriginalExistenceKnown: true,
 		}, &RemovalResult{
 			HostID:     adapter.Descriptor().HostID,
 			ConfigPath: configPath,

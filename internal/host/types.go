@@ -39,6 +39,16 @@ type HostChangePlan struct {
 	OriginalContent string `json:"originalContent"`
 	ProposedContent string `json:"proposedContent"`
 	BackupPath      string `json:"backupPath"`
+	// OriginalExists records whether the config file existed when the plan was
+	// built. OriginalContent alone cannot tell a missing file from an existing
+	// empty one — and the JSON adapters spell a missing file as "{}" — so the
+	// compare-and-swap gate needs the existence bit to refuse a plan built
+	// against nothing from being applied over a file that appeared since.
+	OriginalExists bool `json:"originalExists,omitempty"`
+	// OriginalExistenceKnown distinguishes a planner that set the bit above
+	// from a plan built before it existed (or by hand in a test): those keep
+	// the historical empty-or-"{}"-means-missing reading.
+	OriginalExistenceKnown bool `json:"originalExistenceKnown,omitempty"`
 }
 
 // HostApplyResult captures the result of applying configuration changes.

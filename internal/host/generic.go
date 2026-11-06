@@ -104,8 +104,10 @@ func (a *GenericAdapter) PlanSetupAt(ctx context.Context, binaryPath, backupDir,
 	}
 
 	orig := ""
+	origExists := false
 	if data, err := os.ReadFile(configPath); err == nil {
 		orig = string(data)
+		origExists = true
 	}
 
 	backupPath, err := CreateAtomicBackup(configPath, backupDir, a.Target.ID)
@@ -119,11 +121,13 @@ func (a *GenericAdapter) PlanSetupAt(ctx context.Context, binaryPath, backupDir,
 	}
 
 	return &HostChangePlan{
-		HostID:          a.Target.ID,
-		ConfigPath:      configPath,
-		OriginalContent: orig,
-		ProposedContent: proposed,
-		BackupPath:      backupPath,
+		HostID:                 a.Target.ID,
+		ConfigPath:             configPath,
+		OriginalContent:        orig,
+		ProposedContent:        proposed,
+		BackupPath:             backupPath,
+		OriginalExists:         origExists,
+		OriginalExistenceKnown: true,
 	}, nil
 }
 

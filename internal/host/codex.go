@@ -87,8 +87,10 @@ func (a *CodexAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 	}
 
 	origContent := ""
+	origExists := false
 	if data, err := os.ReadFile(configPath); err == nil {
 		origContent = string(data)
+		origExists = true
 	}
 
 	backupPath, err := CreateAtomicBackup(configPath, backupDir, "codex")
@@ -144,11 +146,13 @@ func (a *CodexAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 	}
 
 	return &HostChangePlan{
-		HostID:          "codex",
-		ConfigPath:      configPath,
-		OriginalContent: origContent,
-		ProposedContent: proposed,
-		BackupPath:      backupPath,
+		HostID:                 "codex",
+		ConfigPath:             configPath,
+		OriginalContent:        origContent,
+		ProposedContent:        proposed,
+		BackupPath:             backupPath,
+		OriginalExists:         origExists,
+		OriginalExistenceKnown: true,
 	}, nil
 }
 

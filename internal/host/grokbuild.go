@@ -81,8 +81,10 @@ func (a *GrokBuildAdapter) PlanSetupAt(ctx context.Context, binaryPath string, b
 	}
 
 	origContent := ""
+	origExists := false
 	if data, err := os.ReadFile(configPath); err == nil {
 		origContent = string(data)
+		origExists = true
 	}
 
 	backupPath, err := CreateAtomicBackup(configPath, backupDir, "grok-build")
@@ -137,11 +139,13 @@ func (a *GrokBuildAdapter) PlanSetupAt(ctx context.Context, binaryPath string, b
 	}
 
 	return &HostChangePlan{
-		HostID:          "grok-build",
-		ConfigPath:      configPath,
-		OriginalContent: origContent,
-		ProposedContent: proposed,
-		BackupPath:      backupPath,
+		HostID:                 "grok-build",
+		ConfigPath:             configPath,
+		OriginalContent:        origContent,
+		ProposedContent:        proposed,
+		BackupPath:             backupPath,
+		OriginalExists:         origExists,
+		OriginalExistenceKnown: true,
 	}, nil
 }
 

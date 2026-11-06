@@ -62,8 +62,10 @@ func (a *ClaudeCodeAdapter) PlanSetupAt(ctx context.Context, binaryPath string, 
 	}
 
 	origContent := "{}"
+	origExists := false
 	if data, err := os.ReadFile(configPath); err == nil {
 		origContent = string(data)
+		origExists = true
 	}
 
 	backupPath, err := CreateAtomicBackup(configPath, backupDir, "claude-code")
@@ -83,11 +85,13 @@ func (a *ClaudeCodeAdapter) PlanSetupAt(ctx context.Context, binaryPath string, 
 	}
 
 	return &HostChangePlan{
-		HostID:          "claude-code",
-		ConfigPath:      configPath,
-		OriginalContent: origContent,
-		ProposedContent: proposed,
-		BackupPath:      backupPath,
+		HostID:                 "claude-code",
+		ConfigPath:             configPath,
+		OriginalContent:        origContent,
+		ProposedContent:        proposed,
+		BackupPath:             backupPath,
+		OriginalExists:         origExists,
+		OriginalExistenceKnown: true,
 	}, nil
 }
 
