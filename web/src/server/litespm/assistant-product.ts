@@ -6,6 +6,12 @@
  * questions are not catalog searches, so they get a deterministic answer from
  * this module and never enter BM25. That keeps both the answer and the
  * latency honest.
+ *
+ * Wire-up contract: the assistant route asks this module before retrieval and
+ * only falls back to BM25 + the LLM when it declines (`productAnswerForConversation`).
+ * A follow-up like "how does it work?" is answered only when the conversation
+ * already established LiteSPM as the subject, so "what is it?" after a package
+ * question still gets the catalog answer.
  */
 
 function normalize(question: string): string {
@@ -56,28 +62,45 @@ litespm self-update                # replace the binary with a newer release
 
 Inside a connected host, the prompt is \`/marketplace\` on Claude Code, Codex and Cline, and \`/litespm:marketplace\` on OpenCode (type it, accept the completion, then press Enter). Qwen Code 0.14.4 does not map MCP prompts to slash commands: run \`/mcp\` to confirm the \`litespm\` server and use its 13 tools conversationally.`;
 
+const INSTALL = `Install the CLI from npm (Node 22.22.2+; the wrapper downloads the signed binary for your platform):
+
+\`\`\`bash
+npm install -g litespm
+litespm
+\`\`\`
+
+\`litespm\` opens the setup wizard: it finds the agents on this machine, shows the exact file it will touch, and asks before writing. To wire a single host directly, run \`litespm setup --agent <host-id>\` (for example \`litespm setup --agent claude-code\`). Nothing is written without a preview, every write is backed up, and each change lands in a ledger you can roll back with \`litespm restore <installId>\`.`;
+
 const SECURITY = `LiteSPM is local-first: no account, no telemetry and no credentials proxy. Before writing, it previews the exact entry, saves a backup, and records the change in a ledger. \`litespm restore <installId>\` restores the previous file bytes; \`litespm install remove <installId>\` strips only the nodes LiteSPM wrote and leaves manual edits alone. Skills are reported as **unverified** unless a real audit source exists — LiteSPM does not invent a safety score.`;
 
 const AGENTS = `LiteSPM supports **50 MCP agent hosts** and **81 skill targets**. Examples include Cursor, GitHub Copilot, Cline, Claude Code, OpenAI Codex, Gemini CLI, Zed, OpenCode, Devin, OpenHands and Qwen Code. Run \`litespm host list\` for the full table, or \`litespm host detect\` for the ones on this machine.`;
 
 /**
- * Return a product answer, or null when the question is a catalog search.
- * The patterns deliberately describe LiteSPM itself; "what can LiteSPM install
- * for Postgres" remains a catalog query.
+ * Branch selection over an already-normalized question. The patterns
+ * deliberately describe LiteSPM itself; "what can LiteSPM install for
+ * Postgres" remains a catalog query.
  */
-export function productAnswer(question: string): string | null {
-  const q = normalize(question);
-  if (!/\blite ?spm\b/.test(q)) return null;
-
-  // Catalog questions that happen to mention LiteSPM.
-  if (/\b(install|find|search|recommend|suggest|compare)\b/.test(q) && !/\b(how|what is|what does|who|why|is)\b.*\blite ?spm\s+(work|do|free|made|built|safe|open source)\b/.test(q)) {
+function answerFor(q: string): string | null {
+  // Catalog questions that happen to mention LiteSPM. "How do I install
+  // LiteSPM with Claude Code?" is about this product; "What can LiteSPM
+  // install for Postgres?" is a catalog query.
+  if (
+    /\b(install|find|search|recommend|suggest|compare)\b/.test(q) &&
+    !installsItself(q) &&
+    !/\b(how|what is|what does|who|why|is)\b.*\blite ?spm\s+(work|do|free|made|built|safe|open source)\b/.test(q)
+  ) {
     if (/\binstall\b.*\b(for|with|that|to)\b/.test(q) || /\b(find|search|recommend|suggest|compare)\b/.test(q)) {
       return null;
     }
   }
 
-  if (/\b(commands?|cli|usage|flags?)\b/.test(q) && /\blite ?spm\b/.test(q)) return COMMANDS;
-  if (/\b(security|safe|backup|backups|restore|rollback|ledger|permissions?)\b/.test(q)) return SECURITY;
+  if (/\b(commands?|cli|usage|flags?)\b/.test(q)) return COMMANDS;
+  if (/\b(security|safe|backup|backups|restore|rollback|undo|uninstall|remove|ledger|permissions?|account|telemetry|privacy|credentials?)\b/.test(q)) {
+    return SECURITY;
+  }
+  if (/\b(install|setup|set ?up|getting started|get started|start using|download|try it)\b/.test(q)) {
+    return INSTALL;
+  }
   if (/\b(agents?|hosts?|supported|support|compatible)\b/.test(q)) return AGENTS;
   if (/\b(is|are)\b.*\b(free|open source|paid|cost|price|license)\b/.test(q)) {
     return "LiteSPM is open source under the Apache-2.0 license and free to use. The catalog, CLI and browser marketplace do not require an account or a paid plan.";
@@ -97,4 +120,83 @@ The browser marketplace and the in-agent \`/marketplace\` prompt read the same c
   }
 
   return OVERVIEW;
+}
+
+/**
+ * Return a product answer, or null when the question is a catalog search.
+ */
+export function productAnswer(question: string): string | null {
+  const q = normalize(question);
+  if (!/\blite ?spm\b/.test(q)) return null;
+  return answerFor(q);
+}
+
+/** Nouns that name a catalog row rather than the product itself. */
+const CATALOG_OBJECTS = /\b(packages?|skills?|listings?)\b/;
+
+/** Wording that only makes sense when the subject is LiteSPM itself. */
+const PRODUCT_VOCABULARY =
+  /\b(commands?|cli|usage|flags?|security|safe|backup|backups|restore|rollback|undo|uninstall|remove|ledger|permissions?|account|telemetry|privacy|credentials?|hosts?|supports?|supported|compatible|getting started|get started|download|free|open source|paid|cost|pricing|price|license|maintainers?|maintained|works?|pipeline|architecture|behind)\b/;
+
+/** True when the message is shorthand for LiteSPM itself rather than a package. */
+function refersToProduct(q: string): boolean {
+  return /\b(it|its|this|that|the (cli|tool|app|package manager|marketplace|ledger|wizard|catalog|site|website))\b/.test(q);
+}
+
+/** "install/set up X" where X is LiteSPM itself, not a catalog row. */
+const SELF_INSTALL = /\b(install|setup|set ?up)\b[^.!?]{0,40}\b(litespm|it|this|the (cli|tool|app|package manager))\b/;
+
+function installsItself(q: string): boolean {
+  return SELF_INSTALL.test(q) && !CATALOG_OBJECTS.test(q);
+}
+
+/**
+ * A catalog ask even when the sentence says "it": a search verb, or an
+ * install/setup aimed at something other than LiteSPM ("how do I install
+ * it?" counts as LiteSPM; "how do I install Postgres for Docker" does not).
+ */
+function asksForCatalog(q: string): boolean {
+  if (/\b(find|search|recommend|suggest|compare)\b/.test(q)) return true;
+  return /\b(install|setup|set ?up)\b.*\b(for|with|that|to)\b/.test(q) && !installsItself(q);
+}
+
+/** A message that stays on the LiteSPM subject: a pronoun, or the product's own vocabulary. */
+function productShaped(q: string): boolean {
+  return refersToProduct(q) || PRODUCT_VOCABULARY.test(q);
+}
+
+/**
+ * Product answers for a whole turn list. A question that names neither LiteSPM
+ * nor a package ("how does it work?") is only a product question when this
+ * conversation already established LiteSPM as the subject: the thread starts on
+ * a message that names it, a catalog question ends it again, and package nouns
+ * or search verbs always send the question back to retrieval.
+ */
+export function productAnswerForConversation(
+  messages: Array<{ role: string; content: string }>,
+): string | null {
+  const userTurns = messages.filter(
+    (message) => message.role === "user" && message.content.trim().length > 0,
+  );
+  const last = userTurns[userTurns.length - 1];
+  if (!last) return null;
+
+  const direct = productAnswer(last.content);
+  if (direct !== null) return direct;
+
+  let inProduct = false;
+  for (const turn of userTurns.slice(0, -1)) {
+    if (productAnswer(turn.content) !== null) {
+      inProduct = true;
+      continue;
+    }
+    const prior = normalize(turn.content);
+    inProduct = inProduct && productShaped(prior) && !asksForCatalog(prior) && !CATALOG_OBJECTS.test(prior);
+  }
+  if (!inProduct) return null;
+
+  const q = normalize(last.content);
+  if (asksForCatalog(q) || CATALOG_OBJECTS.test(q)) return null;
+  if (!productShaped(q)) return null;
+  return answerFor(q);
 }
