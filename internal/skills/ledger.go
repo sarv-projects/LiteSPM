@@ -75,7 +75,9 @@ type LedgerEntry struct {
 	InstalledAt time.Time `json:"installedAt"`
 
 	// ContentDigest is the tree digest captured at install time (see
-	// CaptureProvenance). Empty for legacy entries and for empty trees.
+	// CaptureProvenance). Empty for legacy entries only: a tree with no
+	// regular files still digests to the sha256 of empty input, so "" is
+	// never a "no files" marker.
 	ContentDigest string `json:"contentDigest,omitempty"`
 	// SourceRef is the source pin/commit recorded at install time. Empty when
 	// the source was unpinned or unknown.
