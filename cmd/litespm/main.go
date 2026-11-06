@@ -1491,8 +1491,10 @@ const installUsage = "Usage: litespm install <listing-id> [--version <ver>] [--s
 	"           contradiction and is refused). The directory is the workspace\n" +
 	"           identity: the same directory is the same workspace for every\n" + "           install and every read that names it.\n" +
 	"  --agent  install into exactly this agent (repeatable). A skill takes a skills\n" +
-	"           target id; an MCP server or plugin takes a host id. '*' expands to every\n" +
-	"           known target. The resolved destinations are sealed into the plan, so\n" +
+	"           target id; an MCP server or plugin takes a host id. '*' expands to\n" +
+	"           every known skills target — it is not a host wildcard, so an MCP\n" +
+	"           server or plugin must name host ids. The resolved destinations are\n" +
+	"           sealed into the plan, so\n" +
 	"           naming one agent never writes another. Default for a skill: the agents\n" +
 	"           detected on this machine. Default for an MCP server/plugin: every host\n" +
 	"           where 'litespm host setup' has been run.\n" +

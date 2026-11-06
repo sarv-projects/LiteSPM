@@ -127,7 +127,7 @@ func (s *Shim) initTools() {
 		},
 		{
 			Name:        "request_install",
-			Description: "Execute an installation with a human approval token or active grant.",
+			Description: "Execute an installation with a single-use human approval token (from `litespm approve`).",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"planId":{"type":"string"},"approvalToken":{"type":"string"}},"required":["planId"]}`),
 		},
 		{
