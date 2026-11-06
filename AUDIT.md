@@ -148,7 +148,7 @@ A prioritized, actionable list of everything the November 2026 security/correctn
 
 | ID | State | Item |
 |----|-------|------|
-| R1 | `[OPEN]` | **CI is red on `main`** — 75 of the last 100 runs failed; last green 2026-10-24. Two independent causes: (a) the release-tree gate `litespm catalog build --materialize --prev web/public/v1/current.json` fails against the committed dataset (it passes at `0ea6141^`, so the drift arrived with the 69,376-row refresh — whose own commit message says 69,311); (b) the web type-check fails because the workflow never runs `prisma generate` (it passes locally after `bunx prisma generate`). Fix the workflow step and re-cut the dataset/release so (a) passes; until then every push merges onto a red branch. |
+| R1 | `[PARTLY FIXED]` | **CI was red on `main`** — 75 of the last 100 runs failed; last green 2026-10-24. Two independent causes: (a) the release-tree gate `litespm catalog build --materialize --prev web/public/v1/current.json` fails against the committed dataset (it passes at `0ea6141^`, so the drift arrived with the 69,376-row refresh — whose own commit message says 69,311); (b) the web type-check fails because the workflow never runs `prisma generate` (it passes locally after `bunx prisma generate`). Both are fixed on `forge/handoff-a` (PR #11): the committed `web/data/hosts.json` was regenerated from the authoritative registry and the web `type-check` script now runs `prisma generate` first. On that branch `Static Checks`, `Build Next.js`, all three Go-engine OS jobs and `release-journey` are green; the only remaining red check is the Cloudflare `Workers Builds` job, which is also red on `main`'s tip (`11eeccb`) and is unrelated to the repo's own gates. |
 | R2 | `[OPEN]` | **The claimed release `rel-2026-11-05-03` was never deployed**: the live origin still serves `rel-2026-10-21-01`. Either deploy or mark the pointer as undeployed in `STATUS.md`; the current text says the release "is cut from the dataset", which the materialize failure contradicts. |
 | R3 | `[OPEN]` | `STATUS.md`/`SECURITY.md` are otherwise unusually accurate — keep them that way: after fixing F2, the `SECURITY.md` line about published bundles becomes true; after F4 rotation, remove any claim that the demo ships fallback keys. |
 | R4 | `[OPEN]` | The daily `catalog-sync.yml` job has **never** succeeded (see F12). Treat a permanently-red scheduled workflow as an incident, not background noise: add an alert when a scheduled job fails N times in a row. |
@@ -190,4 +190,44 @@ Keep these properties covered by tests; they held under attack and are the proje
 
 ---
 
-*Prepared as part of the cloned-repo audit. All line numbers refer to the audit baseline (`318e421`) unless marked otherwise; the F1-F4 fixes above shift lines in `internal/catalog/client.go`, `cmd/litespm/main.go`, `cmd/litespm/main_test.go`, `web/src/server/llm/gateway.ts` and `web/scripts/check-no-embedded-secrets.mjs`.*
+## 8. Second deep-dive — skills subsystem and host adapters (baseline `64bf56f`)
+
+Scope: `internal/skills/`, `cmd/litespm/skills_*.go`, `internal/host/` (the code that edits users' live agent configs). Method: read, then falsify with focused in-package probes; every finding below was reproduced, and the repository was left byte-identical (probe sources and outputs under `/tmp/audit/skills-host/`).
+
+### 8.1 Confirmed — host adapters
+
+| ID | Sev | Where | What | Status |
+|----|-----|-------|------|--------|
+| H1 | **High** | `internal/host/generic.go` | TOML table headers are matched with `TrimSpace(l) == table`, so `[mcp_servers.demo] # comment` is invisible: merge appends a second identical table (invalid TOML — the host rejects the whole file, bridge entry included) and collision detection misses it. The comment-aware `stripTOMLComment` helper exists and is used only by verify. | `[FIXING]` |
+| H2 | **High** | `internal/host/remove.go` | Same exact-line matcher: `host remove` reports `Removed:false · the litespm entry is not present in this file` while a live `[mcp_servers.litespm] # comment` bridge table stays in the config — the failure that file's header says it prevents. | `[FIXING]` |
+| H3 | **High** | `internal/host/entry_install.go`, `codex.go`, `grokbuild.go` | TOML is written with Go's `%q` (`\v`, `\a`, `\xNN` are not TOML escapes): a publisher-controlled arg yields a config every TOML parser rejects (reproduced with Python `tomllib`), and the TOML branch has no post-merge verify — the JSON branch does. | `[FIXING]` |
+| H4 | Med | `internal/host/jsonc_merge.go` | The separator comma lands inside a container's trailing `// comment`, so `{ "mcpServers": { … // add your servers here\n} }` fails with an opaque refusal (fail-closed, but a common hand-written shape becomes un-installable). | `[FIXING]` |
+| H5 | **Med (data loss)** | `internal/host/apply_guard.go` | `RestoreBackup` deletes the config when the recorded backup file is missing (`IsNotExist` → `os.Remove`), but a non-empty `BackupPath` means a backup WAS taken. Reproduced: deleted backup + user-edited config → success, config gone. | `[FIXING]` |
+| H6 | Med | `internal/host/codex.go`, `grokbuild.go` | Bridge setup is not idempotent: the replaced block's leading blank lines accumulate (one extra newline per re-run) — needless churn in a user's config. | `[FIXING]` |
+| H7 | Low | `internal/host/backup.go` | `AtomicWriteFile` never fsyncs (temp file or parent dir), unlike the skills ledger which documents why. Power loss can rename a zero-length config into place. | `[FIXING]` |
+| H8 | Low | `internal/host/remove.go` | Removal verifies the rewritten JSON before writing; TOML gets no equivalent (inherits H1's duplicate-table write). | `[FIXING]` |
+| H9 | Low | `internal/host/apply_guard.go` | The compare-and-swap treats a missing file and `{}` as equal; compare the existence bit too. | `[FIXING]` |
+
+### 8.2 Confirmed — skills subsystem
+
+| ID | Sev | Where | What | Status |
+|----|-----|-------|------|--------|
+| S1 | High | `internal/skills/sanitize.go` | The escape stripper's fast-path only fires on **invalid UTF-8**, so UTF-8-encoded C1 controls (`U+009B` = `C2 9B`) survive: `\x9b2K` is stripped, `\u009b`+`2K` is not. A hostile skill name/description can still inject CSI/OSC into install summaries. | `[FIXING]` |
+| S2 | Med | `internal/skills/install.go`, `provenance.go`, `installer.go` | `--force`'s advertised byte-exact backup silently omits `.git` (copy AND digester skip it), so the ledger's pre-image digest *matches the incomplete backup* while the omitted bytes are destroyed. | `[FIXING]` |
+| S3 | Med | `internal/skills/ledger.go` | Removal follows a symlink **mid-path**: `RemoveAll` resolves an intermediate `skills → elsewhere` link and deletes `elsewhere/victim`. Leaf-level symlinks are correctly refused; the guard is leaf-only. | `[OPEN]` |
+| S4 | Low | `internal/skills/loader.go` | `ParseSkillMD` drops the first body line of a frontmatter-less `SKILL.md`, so a `# heading` never reaches the name fallback and body text loses line 0. | `[FIXING]` |
+| S5 | Low | `internal/skills/provenance.go` | The digest doc says "empty only when the directory has no regular files" — it is never empty (always sha256, even `e3b0c442…`); empty directories and file modes are not bound. Doc bug; any caller reading `Digest == ""` is wrong. | `[OPEN]` |
+| S6 | Low | `cmd/litespm/skills_add.go` | AGENTS.md promises `--force` prints `overwrites: <path>` plus a pre-image digest; the CLI prints only a count and the backups directory. | `[FIXING]` |
+| S7 | Low | `internal/skills/ledger.go` | `confineDest` accepts a NUL-suffixed destination (the syscall then fails, but the guard should refuse a path it cannot name). | `[FIXING]` |
+| C1 | Low | `cmd/litespm/main.go` | `litespm skills --help` exits 2 with `Unknown skills subcommand: --help` while printing usage that advertises `--help`. | `[FIXING]` |
+| C2 | Low | `cmd/litespm/skills_adopt.go` | The error tells users to run `litespm skills list --all`, which is refused (unknown argument). Dead end in an error message. | `[FIXING]` |
+
+### 8.3 Verified as sound (second deep-dive)
+
+Ledger integrity on corrupt/truncated files (hard error, never silent) and fsync'd ledger writes; `confineDest` traversal/root/relative refusals; removal refuses a symlinked destination and a tree with user-added files (with and without `--force`); `--force` backup content for everything it copies; digest binds `path\0size\0content\0` (no collision found; absolute-path independent); the 32 MiB cap; symlink/non-regular refusal; sanitiser consumes truncated CSI/OSC/DCS/ESC; documented counts hold (50 hosts / 81 skill targets / `--agent '*'` → 54 destinations); cross-scope `--all` never deletes across scopes; JSONC splicing preserves comments, key order and newlines and is idempotent; a commented-out header is not a registration; name-based config injection impossible (value escaping was the real vector, H3); backup bytes/mode/name and apply-guard staleness refusals; rollback refuses to touch a config whose digest moved; the path written is the path agreed.
+
+Not determined: Windows-only behaviours (reserved device names pass `SanitizeSkillName`; unverifiable on Linux) and Unicode bidi/zero-width display spoofing (survives the sanitiser — its scope is terminal escapes).
+
+---
+
+*Prepared as part of the cloned-repo audit. All line numbers refer to the audit baseline (`318e421`) unless marked otherwise; §8 uses the `64bf56f` baseline. The F1-F4 fixes above shift lines in `internal/catalog/client.go`, `cmd/litespm/main.go`, `cmd/litespm/main_test.go`, `web/src/server/llm/gateway.ts` and `web/scripts/check-no-embedded-secrets.mjs`.*
