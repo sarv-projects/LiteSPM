@@ -5,10 +5,16 @@
 // which are publisher data. A value carrying a quote and a newline used to
 // inject a whole extra [mcp_servers.*] block into a config the visitor pastes
 // into their agent. The escapers plus the token validator live in
-// `src/server/litespm/config-snippet.ts`, which is dependency-free, so this
-// gate transpiles it with the repo's own typescript devDependency and runs
-// the real code — no bundler, no test runner. The wiring around it is
-// asserted at source level (those modules pull in the Next.js runtime).
+// `src/server/litespm/config-snippet.ts`.
+//
+// F13 — the rate limiter must key on the platform-set hop, never the leftmost
+// client-supplied `x-forwarded-for` entry, and the assistant route must carry
+// a per-instance global budget that a rotated header cannot lift.
+//
+// Both modules are dependency-free, so this gate transpiles them with the
+// repo's own typescript devDependency and runs the real code — no bundler,
+// no test runner. The wiring around them is asserted at source level (those
+// modules pull in the Next.js runtime).
 //
 // Usage: node scripts/check-web-hardening.mjs
 
@@ -45,6 +51,9 @@ const {
   tomlString,
   validateCommandLine,
 } = await loadModule("src/server/litespm/config-snippet.ts");
+const { clientIp, globalBudget } = await loadModule("src/server/litespm/rate-limit.ts");
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const failures = [];
 const expect = (label, actual, predicate) => {
@@ -194,6 +203,124 @@ expect(
     v.marketplace.includes('from "@/lib/litespm/shell"') &&
     v.packageDetail.includes('from "@/lib/litespm/shell"') &&
     !v.packageDetail.includes("function shellArg("),
+);
+
+/* ------------------------------- F13 — IP -------------------------------- */
+
+const requestWith = (headers) => ({ headers: new Headers(headers) });
+
+expect(
+  "a single XFF hop is used as-is",
+  clientIp(requestWith({ "x-forwarded-for": "203.0.113.9" })),
+  (v) => v === "203.0.113.9",
+);
+expect(
+  "the rightmost XFF hop wins",
+  clientIp(requestWith({ "x-forwarded-for": "203.0.113.9, 198.51.100.7, 192.0.2.1" })),
+  (v) => v === "192.0.2.1",
+);
+expect(
+  "a spoofed leftmost entry never wins",
+  clientIp(requestWith({ "x-forwarded-for": "spoofed, 10.0.0.1" })),
+  (v) => v === "10.0.0.1" && v !== "spoofed",
+);
+expect(
+  "the platform-set header is preferred over XFF",
+  clientIp(requestWith({ "x-forwarded-for": "9.9.9.9, 8.8.8.8", "x-vercel-forwarded-for": "198.51.100.7" })),
+  (v) => v === "198.51.100.7",
+);
+expect(
+  "the platform header also resolves its rightmost hop",
+  clientIp(requestWith({ "x-vercel-forwarded-for": "10.0.0.9, 198.51.100.7" })),
+  (v) => v === "198.51.100.7",
+);
+expect(
+  "x-real-ip is the last resort",
+  clientIp(requestWith({ "x-real-ip": "192.0.2.5" })),
+  (v) => v === "192.0.2.5",
+);
+expect("no identity headers mean unknown", clientIp(requestWith({})), (v) => v === "unknown");
+
+/* ---------------------------- F13 — budget ------------------------------- */
+
+const budgetScope = `hardening-${Date.now()}`;
+const firstThree = [0, 1, 2].map(() => globalBudget(budgetScope, 3, 60_000));
+expect(
+  "the global budget allows up to its max",
+  firstThree,
+  (v) => v.every((result) => result.allowed === true),
+);
+expect(
+  "the global budget then refuses with Retry-After",
+  globalBudget(budgetScope, 3, 60_000),
+  (v) => v.allowed === false && v.retryAfterSeconds >= 1 && v.remaining === 0,
+);
+expect(
+  "budget scopes are independent",
+  globalBudget(`${budgetScope}-other`, 1, 60_000),
+  (v) => v.allowed === true,
+);
+
+// Sliding, not fixed: after the first event ages out but the second is still
+// inside the window, exactly one slot is free again (a fixed window keyed on
+// the first event would have released both).
+const slidingScope = `${budgetScope}-sliding`;
+expect(
+  "sliding budget: first request allowed",
+  globalBudget(slidingScope, 2, 150),
+  (v) => v.allowed === true,
+);
+await sleep(100);
+expect(
+  "sliding budget: second request allowed inside the window",
+  globalBudget(slidingScope, 2, 150),
+  (v) => v.allowed === true,
+);
+await sleep(70);
+expect(
+  "sliding budget: an aged-out event frees one slot",
+  globalBudget(slidingScope, 2, 150),
+  (v) => v.allowed === true,
+);
+expect(
+  "sliding budget: the recent event still counts",
+  globalBudget(slidingScope, 2, 150),
+  (v) => v.allowed === false,
+);
+
+/* ---------------------------- F13 — wiring ------------------------------- */
+
+const rateLimitSource = readSource("src/server/litespm/rate-limit.ts");
+expect(
+  "rate-limit no longer reads the leftmost XFF hop",
+  rateLimitSource,
+  (v) => !/split\(\s*",\s*"\)\s*\[\s*0\s*\]/.test(v),
+);
+expect(
+  "rate-limit prefers the platform-set header",
+  rateLimitSource,
+  (v) => v.includes("x-vercel-forwarded-for"),
+);
+expect(
+  "rate-limit exports the global budget",
+  rateLimitSource,
+  (v) => v.includes("export function globalBudget("),
+);
+const assistantRoute = readSource("src/app/api/litespm/assistant/route.ts");
+expect(
+  "the assistant route keeps the per-IP limit",
+  assistantRoute,
+  (v) => v.includes("rateLimit(`assistant:${clientIp(request)}"),
+);
+expect(
+  "the assistant route enforces the global budget",
+  assistantRoute,
+  (v) => v.includes("globalBudget,") && v.includes('const budget = globalBudget("assistant"'),
+);
+expect(
+  "the assistant route answers the budget with 429 + Retry-After",
+  assistantRoute,
+  (v) => v.includes('"Retry-After": String(budget.retryAfterSeconds)') && v.includes("status: 429"),
 );
 
 if (failures.length > 0) {
