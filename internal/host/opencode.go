@@ -128,8 +128,10 @@ func (a *OpenCodeAdapter) PlanSetupAt(ctx context.Context, binaryPath string, ba
 	}
 
 	origContent := "{}"
+	origExists := false
 	if data, err := os.ReadFile(configPath); err == nil {
 		origContent = string(data)
+		origExists = true
 	}
 
 	backupPath, err := CreateAtomicBackup(configPath, backupDir, "opencode")
@@ -158,11 +160,13 @@ func (a *OpenCodeAdapter) PlanSetupAt(ctx context.Context, binaryPath string, ba
 	}
 
 	return &HostChangePlan{
-		HostID:          "opencode",
-		ConfigPath:      configPath,
-		OriginalContent: origContent,
-		ProposedContent: proposed,
-		BackupPath:      backupPath,
+		HostID:                 "opencode",
+		ConfigPath:             configPath,
+		OriginalContent:        origContent,
+		ProposedContent:        proposed,
+		BackupPath:             backupPath,
+		OriginalExists:         origExists,
+		OriginalExistenceKnown: true,
 	}, nil
 }
 

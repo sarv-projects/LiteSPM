@@ -296,6 +296,41 @@ func mcpInstallBindingFromPlan(ctx context.Context, plan *domain.InstallPlan, li
 	return binding, nil
 }
 
+// hostDisplayName names a host the way the user knows it, falling back to the
+// registry id when the adapter is unknown.
+func hostDisplayName(hostID string) string {
+	if adapter, err := host.GetAdapter(hostID); err == nil {
+		return adapter.Descriptor().DisplayName
+	}
+	return hostID
+}
+
+// mcpConflictHosts reports which of the given hosts already register a server
+// entry named name in this scope. It is the lookup the installer's collision
+// preflight enforces (installMCPFromListing) and the one the wizard asks about
+// before sealing a plan: there a collision is a user choice (skip the agent,
+// replace the entry, or cancel), here it is a refusal — so both surfaces must
+// agree on what counts as a collision, which is why this is one function.
+//
+// A host whose config cannot be read is skipped rather than reported: the
+// install path itself reports the real parse/IO failure when it tries to write.
+func mcpConflictHosts(ctx context.Context, hosts []string, name string, scope domain.InstallScope, projectRoot string) []string {
+	var conflicts []string
+	for _, hostID := range hosts {
+		names, err := host.ListServerEntries(ctx, hostID, scope, projectRoot)
+		if err != nil {
+			continue // InstallServerEntry reports the real parse/IO failure
+		}
+		for _, existing := range names {
+			if existing == name {
+				conflicts = append(conflicts, hostID)
+				break
+			}
+		}
+	}
+	return conflicts
+}
+
 // mcpInstallOutcome is what the CLI prints and the daemon returns.
 type mcpInstallOutcome struct {
 	InstallID string
@@ -492,25 +527,19 @@ func installMCPFromListing(
 	}
 
 	// Check every host BEFORE writing any of them, so a collision on the third
-	// host cannot leave the first two modified.
+	// host cannot leave the first two modified. The lookup itself is shared with
+	// the wizard's conflict question (mcpConflictHosts), so the two surfaces
+	// cannot disagree about what a collision is.
 	for _, hostID := range hosts {
-		adapter, err := host.GetAdapter(hostID)
-		if err != nil {
+		if _, err := host.GetAdapter(hostID); err != nil {
 			return nil, err
 		}
-		if force {
-			continue
-		}
-		names, err := host.ListServerEntries(ctx, hostID, scope, projectRoot)
-		if err != nil {
-			continue // InstallServerEntry reports the real parse/IO failure
-		}
-		for _, existing := range names {
-			if existing == name {
-				return nil, domain.ErrNameConflict(fmt.Sprintf(
-					"host %q already registers a server named %q; re-run with --force to replace it",
-					adapter.Descriptor().DisplayName, name))
-			}
+	}
+	if !force {
+		if conflicts := mcpConflictHosts(ctx, hosts, name, scope, projectRoot); len(conflicts) > 0 {
+			return nil, domain.ErrNameConflict(fmt.Sprintf(
+				"host %q already registers a server named %q; re-run with --force to replace it",
+				hostDisplayName(conflicts[0]), name))
 		}
 	}
 

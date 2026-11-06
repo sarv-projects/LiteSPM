@@ -175,6 +175,12 @@ func jsonKey(name string) string {
 
 // insertRawMember writes `"name": literal` into an object literal immediately
 // before its closing brace at offset closeRel.
+//
+// The separator comma must sit immediately after the last LIVE member. When the
+// container's tail is a comment (`// add your servers here`), appending `,`
+// after the comment text buries the comma inside the comment: the next member
+// then has no separator and the document stops parsing. So the comma is placed
+// at the last live byte instead, and the member follows the comment.
 func insertRawMember(objText string, closeRel int, name, literal string) (string, error) {
 	closeIndent := lineIndentOf(objText, closeRel)
 	memberIndent := closeIndent + "  "
@@ -183,14 +189,34 @@ func insertRawMember(objText string, closeRel int, name, literal string) (string
 	if isEmptyJSONObject(body) {
 		return body + "\n" + memberIndent + member + "\n" + closeIndent + objText[closeRel:], nil
 	}
-	// JSONC permits a trailing comma after the last member. Adding another
-	// comma there would produce `},,` and break a file the host accepted
-	// before LiteSPM touched it.
-	separator := ",\n"
-	if strings.HasSuffix(strings.TrimRight(body, " \t\r\n"), ",") {
-		separator = "\n"
+	// Decide from the comment-stripped text: is there a live member before us,
+	// and does it already end in a comma? A comment after the brace hides both
+	// answers from a raw-text check.
+	live := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(stripJSONComments(body)), "{"))
+	if live == "" || strings.HasSuffix(live, ",") {
+		// No live member yet, or a trailing comma already separates the next
+		// member from the last one. Either way nothing needs a separator, and
+		// the member follows the comment on its own line.
+		return body + "\n" + memberIndent + member + "\n" + closeIndent + objText[closeRel:], nil
 	}
-	return body + separator + memberIndent + member + "\n" + closeIndent + objText[closeRel:], nil
+	last := lastLiveByte(body)
+	if last < 0 {
+		return "", fmt.Errorf("object literal has no live member to extend")
+	}
+	withComma := body[:last+1] + "," + body[last+1:]
+	return withComma + "\n" + memberIndent + member + "\n" + closeIndent + objText[closeRel:], nil
+}
+
+// lastLiveByte returns the index of the last byte of text that is neither
+// whitespace nor part of a comment, or -1 when there is none.
+func lastLiveByte(text string) int {
+	stripped := stripJSONComments(text)
+	for i := len(stripped) - 1; i >= 0; i-- {
+		if !isJSONSpace(stripped[i]) {
+			return i
+		}
+	}
+	return -1
 }
 
 // isEmptyJSONObject reports whether a `{...}` prefix contains no members.

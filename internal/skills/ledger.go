@@ -140,6 +140,12 @@ func (l *Ledger) confineDest(dest string) error {
 	if dest == "" {
 		return fmt.Errorf("empty destination")
 	}
+	// A NUL byte would let layers that truncate at NUL (or C-string path APIs
+	// under any binding) name a DIFFERENT, real directory than the recorded
+	// one. Refuse the row outright rather than hand such a path to RemoveAll.
+	if strings.ContainsRune(dest, 0) {
+		return fmt.Errorf("destination %q contains a NUL byte", dest)
+	}
 	if !filepath.IsAbs(dest) {
 		return fmt.Errorf("destination %q is not absolute", dest)
 	}

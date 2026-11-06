@@ -87,8 +87,10 @@ func (a *CodexAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 	}
 
 	origContent := ""
+	origExists := false
 	if data, err := os.ReadFile(configPath); err == nil {
 		origContent = string(data)
+		origExists = true
 	}
 
 	backupPath, err := CreateAtomicBackup(configPath, backupDir, "codex")
@@ -97,7 +99,11 @@ func (a *CodexAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 	}
 
 	cleanBin := filepath.ToSlash(binaryPath)
-	entry := fmt.Sprintf("\n[mcp_servers.litespm]\ncommand = %q\nargs = [\"bridge\", \"stdio\", \"--host\", \"codex\"]\n", cleanBin)
+	quotedBin, qerr := tomlQuoteString(cleanBin)
+	if qerr != nil {
+		return nil, fmt.Errorf("codex: %s: %w", TOMLInvalidCode, qerr)
+	}
+	entry := fmt.Sprintf("\n[mcp_servers.litespm]\ncommand = %s\nargs = [\"bridge\", \"stdio\", \"--host\", \"codex\"]\n", quotedBin)
 
 	// Adopt a pre-rename `[mcp_servers.litepsm]` table before writing the
 	// current one, so an upgraded host keeps exactly one bridge table.
@@ -106,39 +112,26 @@ func (a *CodexAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 		base = cleaned
 	}
 
-	proposed := base
-	// A commented-out table is not a registration: writing must append the
-	// bridge rather than "update" a section no live header opens (the update
-	// loop below would then replace nothing and leave the file unchanged).
-	if tomlTableRegistered(base, "[mcp_servers.litespm]") {
-		// Update existing section
-		lines := strings.Split(base, "\n")
-		var newLines []string
-		skip := false
-		for _, l := range lines {
-			if stripTOMLComment(l) == "[mcp_servers.litespm]" {
-				skip = true
-				newLines = append(newLines, strings.TrimRight(entry, "\n"))
-				continue
-			}
-			if skip && strings.HasPrefix(stripTOMLComment(l), "[") {
-				skip = false
-			}
-			if !skip {
-				newLines = append(newLines, l)
-			}
-		}
-		proposed = strings.Join(newLines, "\n")
-	} else {
-		proposed = strings.TrimRight(base, "\n") + entry
+	// The splice replaces a live table (inline comment included) and appends
+	// otherwise; a commented-out table is not a registration, so nothing is
+	// "updated" that no live header opens. The splice is a fixed point: a
+	// second run is byte-identical to the first.
+	proposed := spliceTOMLBridgeBlock(base, "[mcp_servers.litespm]", strings.Trim(entry, "\n"))
+
+	// Nothing is planned that the host could not read: the merged text is
+	// re-parsed here, before any plan exists, so an escaping bug fails closed.
+	if verr := verifyTOMLDocument(proposed); verr != nil {
+		return nil, fmt.Errorf("codex: %s: the merged config would not parse as TOML, refusing to plan: %w", TOMLInvalidCode, verr)
 	}
 
 	return &HostChangePlan{
-		HostID:          "codex",
-		ConfigPath:      configPath,
-		OriginalContent: origContent,
-		ProposedContent: proposed,
-		BackupPath:      backupPath,
+		HostID:                 "codex",
+		ConfigPath:             configPath,
+		OriginalContent:        origContent,
+		ProposedContent:        proposed,
+		BackupPath:             backupPath,
+		OriginalExists:         origExists,
+		OriginalExistenceKnown: true,
 	}, nil
 }
 
@@ -209,14 +202,11 @@ func parseTomlMcpComponents(content string, configPath string) []PreExistingComp
 	}
 
 	for _, l := range lines {
-		trimmed := strings.TrimSpace(l)
-		if strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		header := tomlHeaderOf(l)
+		if header != "" {
 			flush()
-			if strings.HasPrefix(trimmed, "[mcp_servers.") {
-				name := strings.TrimSuffix(strings.TrimPrefix(trimmed, "[mcp_servers."), "]")
+			if strings.HasPrefix(header, "[mcp_servers.") && strings.HasSuffix(header, "]") {
+				name := strings.TrimSuffix(strings.TrimPrefix(header, "[mcp_servers."), "]")
 				if name != litespmServerName && name != legacyServerName {
 					currentComp = &PreExistingComponent{
 						Name:       name,
@@ -228,8 +218,13 @@ func parseTomlMcpComponents(content string, configPath string) []PreExistingComp
 			}
 			continue
 		}
+		trimmed := strings.TrimSpace(l)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
 
 		if currentComp != nil {
+			trimmed = stripTOMLComment(l)
 			if strings.HasPrefix(trimmed, "command") && strings.Contains(trimmed, "=") {
 				parts := strings.SplitN(trimmed, "=", 2)
 				val := strings.TrimSpace(parts[1])
@@ -260,7 +255,7 @@ func (a *CodexAdapter) RenderManualSetup(binaryPath string) string {
 	cleanBin := filepath.ToSlash(binaryPath)
 	return fmt.Sprintf(`# Add to ~/.codex/config.toml
 [mcp_servers.litespm]
-command = %q
+command = %s
 args = ["bridge", "stdio", "--host", "codex"]
-`, cleanBin)
+`, tomlQuoteStringLossy(cleanBin))
 }

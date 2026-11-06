@@ -9,7 +9,7 @@
     "build:search-index": "node scripts/build-search-index.mjs",
     "start": "node .next/standalone/server.js",
     "lint": "eslint . && node scripts/check-no-embedded-secrets.mjs && node scripts/check-web-truth.mjs",
-    "type-check": "tsc --noEmit",
+    "type-check": "prisma generate && tsc --noEmit",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

@@ -707,3 +707,122 @@ func TestInitializeNegotiatesTheClientProtocolVersion(t *testing.T) {
 		}
 	}
 }
+
+// TestListInstalledFiltersAndCollapses pins the three behaviors the in-agent
+// marketplace needed: the kind and enabled filters the schema advertises, and
+// the collapse of duplicate deployments (one host registration per agent) into
+// one row per unique capability with an honest count.
+func TestListInstalledFiltersAndCollapses(t *testing.T) {
+	ctx := context.Background()
+	shim := newDaemonBackedShim(t, map[string]ipc.HandlerFunc{
+		"tools.list": func(ctx context.Context, params json.RawMessage) (any, *ipc.RPCError) {
+			return map[string]any{
+				"count": 7,
+				"installs": []CapabilityItem{
+					{ID: "mcp:github:modelcontextprotocol:servers:postgres", Name: "postgres", Kind: "mcp", Status: StatusReady, Verified: true},
+					{ID: "external:native:fetch", Name: "fetch", Kind: "mcp", Status: StatusReady, IsExternal: true},
+					{ID: "external:cursor:fetch", Name: "fetch", Kind: "mcp", Status: StatusDisabled, IsExternal: true},
+					{ID: "skill:builtin:pdf", Name: "pdf", Kind: "skill", Scope: "user", Status: StatusReady},
+					{ID: "skill:builtin:pdf@cursor", Name: "pdf", Kind: "skill", Scope: "user", Status: StatusReady},
+					{ID: "skill:builtin:pdf@project", Name: "pdf", Kind: "skill", Scope: "project", Status: StatusReady},
+					{ID: "mcp:github:example:stopped", Name: "stopped-tool", Kind: "mcp", Status: StatusDisabled},
+				},
+			}, nil
+		},
+	})
+
+	render := func(t *testing.T, args string) string {
+		t.Helper()
+		var raw json.RawMessage
+		if args != "" {
+			raw = json.RawMessage(args)
+		}
+		res := shim.DispatchTool(ctx, "list_installed", raw)
+		if res.IsError {
+			t.Fatalf("list_installed(%s) errored: %s", args, res.Content[0].Text)
+		}
+		return res.Content[0].Text
+	}
+
+	t.Run("duplicate deployments collapse into one row with a count", func(t *testing.T) {
+		text := render(t, "")
+		if got := strings.Count(text, "**fetch**"); got != 1 {
+			t.Errorf("fetch must render once (one capability in two agents), got %d rows:\n%s", got, text)
+		}
+		if !strings.Contains(text, "[External / Detected] in 2 agents") {
+			t.Errorf("fetch must report both agents:\n%s", text)
+		}
+		// The user-scope pdf collapses (two agent directories); the
+		// project-scope copy is a different install and keeps its own row.
+		if got := strings.Count(text, "**pdf**"); got != 2 {
+			t.Errorf("pdf must render once per scope, got %d rows:\n%s", got, text)
+		}
+		if !strings.Contains(text, "7 deployments · 5 unique capabilities") {
+			t.Errorf("summary must state deployments and uniques:\n%s", text)
+		}
+		if !strings.Contains(text, "[INSTALLED (5)]") {
+			t.Errorf("header count must be the unique count:\n%s", text)
+		}
+	})
+
+	t.Run("a group keeps the best observed status", func(t *testing.T) {
+		text := render(t, "")
+		for _, line := range strings.Split(text, "\n") {
+			if strings.Contains(line, "**fetch**") && !strings.Contains(line, "● Ready") {
+				t.Errorf("fetch is Ready in one agent, so the row must not downgrade: %q", line)
+			}
+		}
+	})
+
+	t.Run("kind filters the inventory", func(t *testing.T) {
+		mcp := render(t, `{"kind":"MCP"}`)
+		if !strings.Contains(mcp, "postgres") || strings.Contains(mcp, "**pdf**") {
+			t.Errorf("kind=mcp must keep MCP rows only:\n%s", mcp)
+		}
+		skills := render(t, `{"kind":"skill"}`)
+		if strings.Contains(skills, "postgres") || !strings.Contains(skills, "**pdf**") {
+			t.Errorf("kind=skill must keep skill rows only:\n%s", skills)
+		}
+	})
+
+	t.Run("enabled filters disabled installs", func(t *testing.T) {
+		enabled := render(t, `{"enabled":true}`)
+		if strings.Contains(enabled, "stopped-tool") {
+			t.Errorf("enabled=true must drop disabled installs:\n%s", enabled)
+		}
+		disabled := render(t, `{"enabled":false}`)
+		if !strings.Contains(disabled, "stopped-tool") || strings.Contains(disabled, "postgres") {
+			t.Errorf("enabled=false must keep only disabled installs:\n%s", disabled)
+		}
+	})
+}
+
+// TestMarketplacePromptForbidsBrowserLaunch pins the transcript bug this text
+// caused: the prompt told the agent to open a browser, and the agent asked for
+// computer-use permission instead of answering. MCP prompts are text, so the
+// prompt must say so and point at the command a human can run.
+func TestMarketplacePromptForbidsBrowserLaunch(t *testing.T) {
+	shim := NewShim("opencode", nil, nil, nil)
+	id := json.RawMessage(`1`)
+	resp := shim.HandleRequest(context.Background(), &ipc.Request{
+		JSONRPC: "2.0", ID: &id, Method: "prompts/get",
+		Params: json.RawMessage(`{"name":"marketplace","arguments":{}}`),
+	})
+	if resp == nil || resp.Error != nil {
+		t.Fatalf("prompts/get failed: %+v", resp)
+	}
+	text := string(resp.Result)
+	for _, want := range []string{
+		"Do not launch a browser",
+		"computer-use",
+		"litespm marketplace",
+		"list_installed ONCE",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("marketplace prompt must contain %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "open it for the user") {
+		t.Errorf("marketplace prompt must not instruct the agent to open a browser:\n%s", text)
+	}
+}

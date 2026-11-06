@@ -63,7 +63,7 @@ const COMMANDS: Array<{ cmd: string; description: string; example?: string; grou
   { group: "Recover", cmd: "litespm audit", description: "Scan the published catalog and the local receipt chain. --ci exits non-zero on errors; --sarif writes a SARIF 2.1.0 report." },
   { group: "Recover", cmd: "litespm uninstall", description: "Remove LiteSPM's bridge entry from every agent config it wrote, with a backup, and list the installs and skills it left behind." },
 
-  { group: "System", cmd: "litespm self-update", description: "Replace this binary with a newer signed release. The first command in a terminal session performs the same check automatically." },
+  { group: "System", cmd: "litespm self-update", description: "Replace this binary with a newer signed release. Every interactive run performs the same check automatically, with a short cooldown window." },
   { group: "System", cmd: "litespm version", description: "Print the binary version, protocol version and platform. Also available as --version or -v." },
   { group: "System", cmd: "litespm help [command]", description: "The full command reference, a per-command detail page, or help concepts for the vocabulary." },
 ];
@@ -71,7 +71,7 @@ const COMMANDS: Array<{ cmd: string; description: string; example?: string; grou
 const INSTALL_FLAGS = [
   "--help, -h", "--version, -v", "--scope, -s", "--workspace, -w", "--host",
   "--agent, -a", "--all-detected", "--env", "--force, -f", "--frozen",
-  "--dry-run", "--allow-partial",
+  "--dry-run", "--allow-partial", "--yes, -y",
 ];
 
 export function DocsView({ section }: { section: string }) {
@@ -245,7 +245,8 @@ function GettingStarted() {
         Upgrade later with{" "}
         <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">npm update -g litespm</code>{" "}
         or <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">litespm self-update</code>.
-        The first LiteSPM command in a terminal session also checks the signed release channel once.
+        Every interactive run also checks the signed release channel, with a short cooldown
+        window that keeps a burst of commands to one check.
       </P>
 
       <P>
@@ -443,6 +444,14 @@ function InsideAgent() {
         <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/mcp</code> and the tools
         conversationally. An agent can search, prepare a plan, and ask you to approve it; it cannot
         approve for you.
+      </P>
+      <P>
+        The in-agent prompt is text: MCP has no portable window, so{" "}
+        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/marketplace</code> cannot
+        render a popup, a panel or a live search bar inside the agent. For the windowed
+        marketplace with live search, run{" "}
+        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">litespm marketplace</code>
+        {" "}and use the page&apos;s Skills, Plugins, MCP Servers and Installed tabs.
       </P>
       <CodeBlock
         title="run the bridge for a host"

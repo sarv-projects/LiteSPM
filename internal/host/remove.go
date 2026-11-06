@@ -191,14 +191,28 @@ func PlanRemoval(ctx context.Context, adapter HostAdapter, backupDir string) (*H
 	}
 	spec.KeyPath = effective
 
-	// Never write a config we cannot read back.
-	if spec.Format == FormatJSON {
+	// Never write a config we cannot read back. The JSON branch re-parses;
+	// the TOML branch used to write its merge unchecked, so a writer bug could
+	// ship a config the host rejects wholesale.
+	switch spec.Format {
+	case FormatJSON:
 		verify, err := parseConfigJSON(BridgeTarget{TolerateComments: true}, []byte(proposed))
 		if err != nil {
 			return nil, nil, fmt.Errorf("%s: removal would produce invalid JSON, refusing to write: %w",
 				adapter.Descriptor().DisplayName, err)
 		}
 		if inspectNamedEntry(verify, spec.KeyPath, litespmServerName) || inspectNamedEntry(verify, spec.KeyPath, legacyServerName) {
+			return nil, nil, fmt.Errorf("%s: removal did not take effect, refusing to write",
+				adapter.Descriptor().DisplayName)
+		}
+	case FormatTOML:
+		if verr := verifyTOMLDocument(proposed); verr != nil {
+			return nil, nil, fmt.Errorf("%s: %s: removal would produce invalid TOML, refusing to write: %w",
+				adapter.Descriptor().DisplayName, TOMLInvalidCode, verr)
+		}
+		table := "[" + strings.Join(append(append([]string{}, spec.KeyPath...), litespmServerName), ".") + "]"
+		legacy := "[" + strings.Join(append(append([]string{}, spec.KeyPath...), legacyServerName), ".") + "]"
+		if tomlTableRegistered(proposed, table) || tomlTableRegistered(proposed, legacy) {
 			return nil, nil, fmt.Errorf("%s: removal did not take effect, refusing to write",
 				adapter.Descriptor().DisplayName)
 		}
@@ -210,11 +224,13 @@ func PlanRemoval(ctx context.Context, adapter HostAdapter, backupDir string) (*H
 	}
 
 	return &HostChangePlan{
-			HostID:          adapter.Descriptor().HostID,
-			ConfigPath:      configPath,
-			OriginalContent: orig,
-			ProposedContent: proposed,
-			BackupPath:      backupPath,
+			HostID:                 adapter.Descriptor().HostID,
+			ConfigPath:             configPath,
+			OriginalContent:        orig,
+			ProposedContent:        proposed,
+			BackupPath:             backupPath,
+			OriginalExists:         true,
+			OriginalExistenceKnown: true,
 		}, &RemovalResult{
 			HostID:     adapter.Descriptor().HostID,
 			ConfigPath: configPath,
@@ -519,6 +535,9 @@ func stripTOMLEntry(content string, keyPath []string) (string, bool, error) {
 }
 
 // stripTOMLEntryNamed removes one `[prefix.<serverName>]` table and its keys.
+// The header is matched comment-aware, so `[mcp_servers.litespm] # note` is
+// found and removed — the exact-line comparison used to report "not present"
+// while the live table stayed in the config.
 func stripTOMLEntryNamed(content string, keyPath []string, serverName string) (string, bool, error) {
 	table := "[" + strings.Join(append(append([]string{}, keyPath...), serverName), ".") + "]"
 	lines := strings.Split(content, "\n")
@@ -527,14 +546,13 @@ func stripTOMLEntryNamed(content string, keyPath []string, serverName string) (s
 	removed := false
 
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == table {
+		if tomlHeaderMatches(line, table) {
 			skipping = true
 			removed = true
 			continue
 		}
 		if skipping {
-			if strings.HasPrefix(trimmed, "[") {
+			if tomlHeaderOf(line) != "" {
 				skipping = false
 			} else {
 				continue // a key or blank line belonging to the removed table

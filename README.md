@@ -29,10 +29,12 @@ agents, locks the shared `.agents/skills` destinations, previews every write,
 and asks before it copies anything. Existing destinations are offered a
 byte-exact backup rather than being overwritten silently.
 
-The first LiteSPM command in a terminal session checks the signed release
-channel and installs a newer binary in place, once. The check is silent when
-there is nothing to do, can be disabled with `LITESPM_NO_AUTO_UPDATE=1`, and
-never opens the state database, catalog, skills ledger or an agent config.
+Every interactive LiteSPM run checks the signed release channel and installs a
+newer binary in place; a short cooldown window keeps a burst of commands to
+one check. It is silent when there is nothing to do, fails open (offline means
+the run continues), can be disabled with `LITESPM_NO_AUTO_UPDATE=1`, and only
+ever replaces the LiteSPM binary — never the state database, catalog, skills
+ledger or an agent config. A `dev` source build is never replaced by a release.
 
 OpenCode namespaces MCP prompts by server, so its command is
 `/litespm:marketplace` (type it, press Enter to accept the completion, then
@@ -126,6 +128,10 @@ the reason instead of being half-installed.
 
 Existing entries are left alone. Removal strips only the nodes LiteSPM wrote
 and keeps anything you edited.
+
+In a terminal, `litespm install <id>` prints that plan and asks before it
+writes; `--dry-run` stops at the preview and `--yes` skips the question. A
+piped or CI run never asks, so scripts behave exactly as before.
 
 ## Common commands
 

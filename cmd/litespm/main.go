@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -57,12 +58,16 @@ const (
 	ProtocolVersion = "2026-07-28"
 )
 
+// skillsUsageLine is the single usage line for the skills dispatcher: the bare
+// command, an unknown subcommand, and --help/-h all print exactly this text.
+const skillsUsageLine = "Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | adopt <name> | --help]"
+
 func main() {
-	// First command in this terminal session: check for a newer signed binary
-	// and install it before doing anything else. The check is silent when
-	// there is nothing to do and fails open, so it can never block the
-	// command the person asked for. It opens no state database, catalog,
-	// ledger or agent configuration.
+	// Every interactive run: check for a newer signed binary and install it
+	// before doing anything else, with a short cooldown window so a burst of
+	// commands is one check. The check is silent when there is nothing to do
+	// and fails open, so it can never block the command the person asked for.
+	// It opens no state database, catalog, ledger or agent configuration.
 	maybeAutoUpdate(os.Args[1:])
 
 	if len(os.Args) < 2 {
@@ -199,7 +204,7 @@ func main() {
 
 	case "skills":
 		if len(os.Args) < 3 {
-			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | adopt <name> | --help]")
+			fmt.Println(skillsUsageLine)
 			os.Exit(2)
 		}
 		switch os.Args[2] {
@@ -227,9 +232,14 @@ func main() {
 			if code := runSkillsAdopt(os.Args[3:]); code != 0 {
 				os.Exit(code)
 			}
+		// --help/-h is advertised by the usage line itself; answering it with
+		// "Unknown skills subcommand" and exit 2 was a dead end.
+		case "--help", "-h":
+			fmt.Println(skillsUsageLine)
+			os.Exit(0)
 		default:
 			fmt.Printf("Unknown skills subcommand: %s\n", os.Args[2])
-			fmt.Println("Usage: litespm skills [add <source> | list | use <source> | find [<query>] | update [<name>...] | remove [<name>|<source>] | adopt <name> | --help]")
+			fmt.Println(skillsUsageLine)
 			os.Exit(2)
 		}
 
@@ -1471,6 +1481,9 @@ type installFlags struct {
 	// directories, sealed artifact — then exits without recording a plan,
 	// consuming an approval or writing anything.
 	dryRun bool
+	// yes is the scripted answer to the pre-write confirmation a terminal
+	// install shows. A non-interactive run never asks in the first place.
+	yes bool
 	// allowPartial acknowledges that a plugin install may deliver only the
 	// components this build projects, skipping the host-specific ones. Without
 	// it such an install is refused before any write (LPSM-INSTALL-PARTIAL).
@@ -1481,7 +1494,7 @@ type installFlags struct {
 
 const installUsage = "Usage: litespm install <listing-id> [--version <ver>] [--scope user|project]\n" +
 	"                     [--workspace <dir>] [--agent <id>]... [--all-detected]\n" +
-	"                     [--host <host-id>]... [--env <VAR>]... [--force] [--frozen] [--dry-run]\n" +
+	"                     [--host <host-id>]... [--env <VAR>]... [--force] [--frozen] [--dry-run] [--yes]\n" +
 	"                     [--allow-partial]\n\n" +
 	"  --scope  user installs for this machine; project installs for one project\n" +
 	"           directory (the current directory, or --workspace).\n" +
@@ -1491,8 +1504,10 @@ const installUsage = "Usage: litespm install <listing-id> [--version <ver>] [--s
 	"           contradiction and is refused). The directory is the workspace\n" +
 	"           identity: the same directory is the same workspace for every\n" + "           install and every read that names it.\n" +
 	"  --agent  install into exactly this agent (repeatable). A skill takes a skills\n" +
-	"           target id; an MCP server or plugin takes a host id. '*' expands to every\n" +
-	"           known target. The resolved destinations are sealed into the plan, so\n" +
+	"           target id; an MCP server or plugin takes a host id. '*' expands to\n" +
+	"           every known skills target — it is not a host wildcard, so an MCP\n" +
+	"           server or plugin must name host ids. The resolved destinations are\n" +
+	"           sealed into the plan, so\n" +
 	"           naming one agent never writes another. Default for a skill: the agents\n" +
 	"           detected on this machine. Default for an MCP server/plugin: every host\n" +
 	"           where 'litespm host setup' has been run.\n" +
@@ -1512,6 +1527,10 @@ const installUsage = "Usage: litespm install <listing-id> [--version <ver>] [--s
 	"           print the plan the install would run — effects, every target file and\n" +
 	"           skills directory, the sealed artifact and version — then stop. No plan is\n" +
 	"           recorded, no approval is consumed, and nothing on this machine changes.\n" +
+	"  --yes    skip the confirmation an interactive install shows. In a terminal the\n" +
+	"           plan is printed and you are asked before anything is written; --yes\n" +
+	"           answers that in advance. A piped or CI run never asks at all, so\n" +
+	"           scripts are unaffected either way.\n" +
 	"  --allow-partial\n" +
 	"           acknowledge a plugin installing only part of itself. A plugin may declare\n" +
 	"           commands, hooks, subagents or LSP servers, which LiteSPM has no adapter to\n" +
@@ -1585,6 +1604,8 @@ func parseInstallFlags(args []string) (installFlags, error) {
 			flags.envNames = append(flags.envNames, args[i])
 		case "--force", "-f":
 			flags.force = true
+		case "--yes", "-y":
+			flags.yes = true
 		case "--frozen":
 			flags.frozen = true
 		case "--dry-run":
@@ -1846,10 +1867,27 @@ func runInstall(args []string) {
 		return
 	}
 
+	// In a terminal the plan is printed and confirmed before anything is
+	// written. --yes answers in advance and a non-interactive run never asks:
+	// there, typing the command is the approval, exactly as before.
+	var confirm installConfirmFunc
+	if installConfirmWanted(flags) {
+		confirm = func(plan *domain.InstallPlan) (bool, error) {
+			writeApprovalPrompt(os.Stdout, plan)
+			return confirmInstallPrompt(os.Stdin, os.Stdout)
+		}
+	}
 	var grant *installGrant
 	if listing.Kind == domain.KindSkill || listing.Kind == domain.KindMCP || listing.Kind == domain.KindPlugin {
-		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, projectRoot, mcpBinding, skillBinding)
+		g, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, flags.version, flags.scope, projectRoot, mcpBinding, skillBinding, confirm)
 		if gerr != nil {
+			if errors.Is(gerr, errInstallDeclined) {
+				// Declining is a normal outcome, not a failed install: record
+				// that the question was asked and answered, then stop cleanly.
+				auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", "declined at the confirmation prompt")
+				fmt.Println("Nothing was written: the plan was not confirmed.")
+				return
+			}
 			// The gate refused before any effect; it is still a refusal, and the
 			// agent path audits this same point. No approval was consumed.
 			auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", gerr.Error())
@@ -1949,6 +1987,36 @@ func runInstall(args []string) {
 	auditCLIInstall(ctx, db, flags.listingID, approvalID, "deny", "refused", unsupported.Error())
 	fmt.Fprintf(os.Stderr, "Install failed: %v\n", unsupported)
 	os.Exit(1)
+}
+
+// installConfirmWanted reports whether this run should print the plan and ask.
+// Only a real terminal asks, and only when the caller did not answer in
+// advance: --dry-run stops at the preview, --yes is the scripted answer, and a
+// piped run (CI, an agent harness) must never block on a question nobody can
+// see.
+func installConfirmWanted(flags installFlags) bool {
+	if flags.yes || flags.dryRun {
+		return false
+	}
+	return isTerminal(os.Stdin) && isTerminal(os.Stdout)
+}
+
+// confirmInstallPrompt asks the CLI install question in the wizard's [Y/n]
+// dialect: Enter means yes, anything else means no, and an input that ends
+// without an answer declines rather than guessing.
+func confirmInstallPrompt(in io.Reader, out io.Writer) (bool, error) {
+	fmt.Fprint(out, "\nInstall this plan? [Y/n]: ")
+	line, err := bufio.NewReader(in).ReadString('\n')
+	answer := strings.ToLower(strings.TrimSpace(line))
+	if err != nil && answer == "" {
+		return false, nil
+	}
+	switch answer {
+	case "", "y", "yes":
+		return true, nil
+	default:
+		return false, nil
+	}
 }
 
 // versionOrLatest mirrors the install engine's default: an empty requested

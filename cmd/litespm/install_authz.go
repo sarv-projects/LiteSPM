@@ -26,6 +26,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -95,6 +96,16 @@ func (g *installGrant) context(ctx context.Context) context.Context {
 func (g *installGrant) refund(ctx context.Context, db *state.DB) {
 	_ = db.RefundApproval(context.WithoutCancel(ctx), g.ApprovalID)
 }
+
+// installConfirmFunc is shown the sealed plan and answers whether to continue.
+// It runs after the plan is built and before anything is recorded, so a
+// declined install leaves no plan row, no approval and no write behind, and
+// the plan the person saw is exactly the one an approval would bind.
+type installConfirmFunc func(plan *domain.InstallPlan) (bool, error)
+
+// errInstallDeclined reports that a person was shown the plan and chose not to
+// run it. It is not a failure: callers stop without writing anything.
+var errInstallDeclined = errors.New("install declined at the confirmation prompt")
 
 func unauthorizedRPC(msg string) *ipc.RPCError {
 	return &ipc.RPCError{Code: ipc.CodeUnauthorized, Message: msg}
@@ -260,10 +271,22 @@ func recordHumanApproval(ctx context.Context, db *state.DB, plan *domain.Install
 // auto-chosen target set (always empty for an explicit --host set, which
 // fails instead, and for stdio runtimes): the caller prints them so the user
 // sees exactly which hosts the approval covers.
-func authorizeHumanInstall(ctx context.Context, db *state.DB, catClient *catalog.Client, listing *domain.Listing, version string, scope domain.InstallScope, projectRoot string, mcpBinding *mcpInstallBinding, skillBinding *skillInstallBinding) (*installGrant, []hostCapabilityDrop, error) {
+func authorizeHumanInstall(ctx context.Context, db *state.DB, catClient *catalog.Client, listing *domain.Listing, version string, scope domain.InstallScope, projectRoot string, mcpBinding *mcpInstallBinding, skillBinding *skillInstallBinding, confirm installConfirmFunc) (*installGrant, []hostCapabilityDrop, error) {
 	plan, droppedHosts, rpcErr := buildInstallPlan(ctx, catClient, listing.ID, version, scope, projectRoot, listing, mcpBinding, skillBinding)
 	if rpcErr != nil {
 		return nil, nil, fmt.Errorf("plan install: %s", rpcErr.Message)
+	}
+	// The confirmation sits between the plan and its approval on purpose: the
+	// person is shown the sealed plan, and saying no leaves no plan row, no
+	// approval and no write behind.
+	if confirm != nil {
+		proceed, confirmErr := confirm(plan)
+		if confirmErr != nil {
+			return nil, nil, confirmErr
+		}
+		if !proceed {
+			return nil, nil, errInstallDeclined
+		}
 	}
 	if err := db.SavePlan(ctx, plan); err != nil {
 		return nil, nil, fmt.Errorf("record plan %s: %w", plan.PlanID, err)

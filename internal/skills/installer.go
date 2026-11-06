@@ -123,7 +123,8 @@ type InstallRequest struct {
 	BackupRoot string
 	// OnOverwrite, when set, receives the disclosure that an existing
 	// destination is about to be replaced (or refused). The CLI collects
-	// these and prints them before its install spinner; nil keeps the
+	// these and prints them with its install summary, naming the replaced
+	// destination and the shortened pre-image digest; nil keeps the
 	// historical stderr line so library callers are unchanged.
 	OnOverwrite func(dst string)
 }
@@ -187,10 +188,12 @@ func (in *Installer) Install(ctx context.Context, req InstallRequest) (LedgerEnt
 		case !info.IsDir():
 			return LedgerEntry{}, fmt.Errorf("refusing to overwrite %s: not a directory", op.ToDir)
 		}
-		// Fingerprint the tree being replaced BEFORE anything is touched: a
-		// destination that cannot be fingerprinted (a symlink inside, a
-		// non-regular file) is refused, never deleted blind.
-		prov, perr := CaptureProvenance(op.ToDir)
+		// Fingerprint the tree being replaced BEFORE anything is touched — the
+		// WHOLE tree, .git included: the digest must cover exactly the bytes the
+		// verbatim backup below preserves. A destination that cannot be
+		// fingerprinted (a symlink inside, a non-regular file) is refused,
+		// never deleted blind.
+		prov, perr := CapturePreImage(op.ToDir)
 		if perr != nil {
 			return LedgerEntry{}, fmt.Errorf("capturing the pre-image of %s: %w", op.ToDir, perr)
 		}
@@ -215,7 +218,7 @@ func (in *Installer) Install(ctx context.Context, req InstallRequest) (LedgerEnt
 			name = "skill"
 		}
 		backup := filepath.Join(req.BackupRoot, fmt.Sprintf("skill-%s-%d", name, time.Now().UnixNano()))
-		if err := CopySkillDir(op.ToDir, backup); err != nil {
+		if err := copyDirVerbatim(op.ToDir, backup); err != nil {
 			return LedgerEntry{}, fmt.Errorf("backing up the existing %s before overwrite: %w", op.ToDir, err)
 		}
 		preImageBackup = backup
@@ -396,16 +399,25 @@ func (in *Installer) Update(ctx context.Context, req UpdateRequest) (UpdateOutco
 	// backup that exists. The old row's pre-image described an earlier
 	// replacement and named a backup that had already been deleted.
 	preImageBackup := ""
+	newPreImageDigest := oldDigest
 	if strings.TrimSpace(req.BackupRoot) != "" {
+		// Fingerprint and copy the SAME verbatim tree (.git included), so the
+		// recorded digest proves the backup and the backup can restore exactly
+		// what this update replaces.
+		preProv, perr := CapturePreImage(entry.DestDir)
+		if perr != nil {
+			return UpdateOutcome{Entry: entry}, fmt.Errorf("capturing the pre-image of %s: %w", entry.DestDir, perr)
+		}
 		name, serr := SanitizeSkillName(entry.SkillName)
 		if serr != nil {
 			name = "skill"
 		}
 		backupPath := filepath.Join(req.BackupRoot, fmt.Sprintf("skill-%s-%d", name, time.Now().UnixNano()))
-		if err := CopySkillDir(entry.DestDir, backupPath); err != nil {
+		if err := copyDirVerbatim(entry.DestDir, backupPath); err != nil {
 			return UpdateOutcome{Entry: entry}, fmt.Errorf("backing up the current %s before the update: %w", entry.DestDir, err)
 		}
 		preImageBackup = backupPath
+		newPreImageDigest = preProv.Digest
 	}
 
 	backup, err := swapDir(req.NewDir, entry.DestDir)
@@ -419,8 +431,9 @@ func (in *Installer) Update(ctx context.Context, req UpdateRequest) (UpdateOutco
 	updated := entry
 	updated.ContentDigest = newProv.Digest
 	updated.Inventory = newProv.Inventory
-	// The pre-image is the tree THIS update replaced.
-	updated.PreImageDigest = oldDigest
+	// The pre-image is the tree THIS update replaced; with a backup it is the
+	// verbatim digest captured with that backup.
+	updated.PreImageDigest = newPreImageDigest
 	updated.PreImageBackup = preImageBackup
 	if req.NewSource != "" {
 		updated.Source = req.NewSource

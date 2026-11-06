@@ -46,8 +46,27 @@ type Provenance struct {
 
 // CaptureProvenance fingerprints a skill directory. Symlinks and non-regular
 // files are refused (never followed), matching CopySkillDir: the ledger and
-// the copy must agree on what a skill tree may contain.
+// the copy must agree on what a skill tree may contain. VCS metadata (.git) is
+// not part of an installed skill and is skipped.
 func CaptureProvenance(dir string) (Provenance, error) {
+	return captureProvenance(dir, true)
+}
+
+// CapturePreImage fingerprints a REPLACED tree verbatim, including its .git
+// directory (and any other dot-directory CopySkillDir would skip). The
+// pre-image digest is the ledger's proof of what a forced overwrite or update
+// destroyed, so it must cover exactly the bytes the pre-image backup holds:
+// the .git-skipping digest used to "match" a backup that silently omitted
+// .git, certifying a restore that could never be complete.
+//
+// The refusals are identical to CaptureProvenance: symlinks and non-regular
+// files make the tree un-preservable, and an un-preservable tree is refused
+// before anything destructive happens, never half-backuped.
+func CapturePreImage(dir string) (Provenance, error) {
+	return captureProvenance(dir, false)
+}
+
+func captureProvenance(dir string, skipVCS bool) (Provenance, error) {
 	info, err := os.Lstat(dir)
 	if err != nil {
 		return Provenance{}, err
@@ -68,7 +87,7 @@ func CaptureProvenance(dir string) (Provenance, error) {
 		if path == dir {
 			return nil
 		}
-		if d.Name() == ".git" {
+		if skipVCS && d.Name() == ".git" {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}

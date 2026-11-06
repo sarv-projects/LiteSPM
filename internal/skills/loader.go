@@ -56,7 +56,6 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 	}
 
 	inFrontmatter := false
-	frontmatterDone := false
 	var bodyLines []string
 	var currentListKey string
 	inMetadata := false
@@ -73,7 +72,6 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 		if inFrontmatter {
 			if trimmed == "---" {
 				inFrontmatter = false
-				frontmatterDone = true
 				continue
 			}
 
@@ -156,9 +154,12 @@ func ParseSkillMD(content []byte) (*SkillPackage, error) {
 			continue
 		}
 
-		if frontmatterDone || i > 0 {
-			bodyLines = append(bodyLines, line)
-		}
+		// Everything that reaches here is body text, including line 0 of a
+		// frontmatter-less SKILL.md. Line 0 was only ever the opening `---`
+		// delimiter when it WAS frontmatter, and that case is consumed above —
+		// suppressing it here dropped a real first line (the `# Heading` that
+		// feeds the name fallback) from frontmatter-less files.
+		bodyLines = append(bodyLines, line)
 	}
 
 	if v, ok := pkg.Metadata["internal"]; ok {

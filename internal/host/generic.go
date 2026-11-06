@@ -104,8 +104,10 @@ func (a *GenericAdapter) PlanSetupAt(ctx context.Context, binaryPath, backupDir,
 	}
 
 	orig := ""
+	origExists := false
 	if data, err := os.ReadFile(configPath); err == nil {
 		orig = string(data)
+		origExists = true
 	}
 
 	backupPath, err := CreateAtomicBackup(configPath, backupDir, a.Target.ID)
@@ -119,11 +121,13 @@ func (a *GenericAdapter) PlanSetupAt(ctx context.Context, binaryPath, backupDir,
 	}
 
 	return &HostChangePlan{
-		HostID:          a.Target.ID,
-		ConfigPath:      configPath,
-		OriginalContent: orig,
-		ProposedContent: proposed,
-		BackupPath:      backupPath,
+		HostID:                 a.Target.ID,
+		ConfigPath:             configPath,
+		OriginalContent:        orig,
+		ProposedContent:        proposed,
+		BackupPath:             backupPath,
+		OriginalExists:         origExists,
+		OriginalExistenceKnown: true,
 	}, nil
 }
 
@@ -183,7 +187,21 @@ func (a *GenericAdapter) renderConfig(orig, binaryPath string, projectScope bool
 		if err != nil {
 			return "", fmt.Errorf("%s: %w", a.Target.Name, err)
 		}
-		return mergeTOMLEntry(cleaned, a.Target.tomlTable(), a.Target.tomlEntryBlock(binaryPath))
+		block, berr := a.Target.tomlEntryBlock(binaryPath)
+		if berr != nil {
+			return "", fmt.Errorf("%s: %s: %w", a.Target.Name, TOMLInvalidCode, berr)
+		}
+		merged, merr := mergeTOMLEntry(cleaned, a.Target.tomlTable(), block)
+		if merr != nil {
+			return "", fmt.Errorf("%s: %w", a.Target.Name, merr)
+		}
+		// The JSON branch re-parses its merge before writing; TOML did not,
+		// so an escaping bug could only surface in the host. Same discipline
+		// here: read the merged document back before it is proposed.
+		if verr := verifyTOMLDocument(merged); verr != nil {
+			return "", fmt.Errorf("%s: %s: the merged config would not parse as TOML, refusing to write: %w", a.Target.Name, TOMLInvalidCode, verr)
+		}
+		return merged, nil
 	}
 	// Same adoption for JSON/JSONC: drop the legacy member, then splice in the
 	// current one. The legacy member is removed surgically so comments and key
@@ -215,15 +233,16 @@ func (t BridgeTarget) tomlTable() string {
 }
 
 // mergeTOMLEntry replaces or appends a single TOML table block, leaving every
-// other section untouched (including comments).
+// other section untouched (including comments). A header with an inline
+// comment (`[mcp_servers.demo] # managed by hand`) is the same table as one
+// without: matching it as text alone appended a SECOND, invalid table.
 func mergeTOMLEntry(orig, table, block string) (string, error) {
 	lines := strings.Split(orig, "\n")
 	var out []string
 	skipping := false
 	replaced := false
 	for _, l := range lines {
-		trimmed := strings.TrimSpace(l)
-		if trimmed == table {
+		if tomlHeaderMatches(l, table) {
 			skipping = true
 			if !replaced {
 				out = append(out, strings.TrimRight(block, "\n"))
@@ -232,10 +251,11 @@ func mergeTOMLEntry(orig, table, block string) (string, error) {
 			continue
 		}
 		if skipping {
-			// A new table header (or EOF) ends our section.
-			if strings.HasPrefix(trimmed, "[") {
+			// A new live table header (or EOF) ends our section; a
+			// commented header does not.
+			if tomlHeaderOf(l) != "" {
 				skipping = false
-			} else if trimmed != "" {
+			} else if strings.TrimSpace(l) != "" {
 				continue // drop the old keys of our own table
 			}
 		}
@@ -339,14 +359,16 @@ func (a *GenericAdapter) DetectPreExistingComponents(ctx context.Context) ([]Pre
 }
 
 // parseTOMLComponents extracts `[mcp_servers.<name>]` headers read-only.
+// Header matching is comment-aware: `[mcp_servers.demo] # managed` names
+// demo, and a commented-out header names nothing.
 func parseTOMLComponents(content, path string) []PreExistingComponent {
 	var out []PreExistingComponent
 	for _, line := range strings.Split(content, "\n") {
-		t := strings.TrimSpace(line)
-		if !strings.HasPrefix(t, "[mcp_servers.") {
+		header := tomlHeaderOf(line)
+		if !strings.HasPrefix(header, "[mcp_servers.") || !strings.HasSuffix(header, "]") {
 			continue
 		}
-		name := strings.TrimSuffix(strings.TrimPrefix(t, "[mcp_servers."), "]")
+		name := strings.TrimSuffix(strings.TrimPrefix(header, "[mcp_servers."), "]")
 		if name == "" || name == litespmServerName || name == legacyServerName {
 			continue
 		}
@@ -366,7 +388,7 @@ func (a *GenericAdapter) RenderManualSetup(binaryPath string) string {
 	bin := filepathSlash(binaryPath)
 	key := strings.Join(a.Target.keyPathFor(false), ".")
 	if a.Target.Format == FormatTOML {
-		return fmt.Sprintf("# %s\n%s", a.Target.ID, a.Target.tomlEntryBlock(bin))
+		return fmt.Sprintf("# %s\n%s", a.Target.ID, a.Target.tomlEntryBlockLossy(bin))
 	}
 	var snippet string
 	switch a.Target.Shape {

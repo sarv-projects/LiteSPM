@@ -341,7 +341,7 @@ export function HomeView() {
               </div>
               <h3 className="mt-4 text-[16px] font-semibold tracking-tight">/marketplace in Chat</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                Just type <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">/marketplace</code> right inside your AI agent&apos;s chatbar. Search, browse, and 1-click install or remove tools without ever leaving your conversation.
+                Type <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">/marketplace</code> in your agent&apos;s chat: a text prompt that searches the same catalog and prepares installs for your approval. For the windowed marketplace with live search, run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm marketplace</code>.
               </p>
             </motion.div>
 

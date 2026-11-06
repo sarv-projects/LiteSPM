@@ -22,6 +22,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -37,6 +38,7 @@ import (
 	"github.com/sarv-projects/litespm/internal/deployment"
 	"github.com/sarv-projects/litespm/internal/domain"
 	"github.com/sarv-projects/litespm/internal/host"
+	"github.com/sarv-projects/litespm/internal/skills"
 	"github.com/sarv-projects/litespm/internal/state"
 )
 
@@ -176,14 +178,13 @@ func (w *Wizard) printBanner() {
 	fmt.Fprintln(w.out, "")
 }
 
-// printRuntimeSummary says what LiteSPM is and how many agents it supports,
-// derived from the adapter registry. It claims no runtime check: nothing on
-// this machine has been inspected yet.
+// printRuntimeSummary states the one fact the wizard knows before it inspects
+// anything: how many agent hosts this build supports, derived from the adapter
+// registry. It claims no runtime check, and it no longer repeats "nothing has
+// changed yet" on every run — the configured summary and each action's own
+// report say what did or did not change.
 func (w *Wizard) printRuntimeSummary() {
-	adapters := host.ListAdapters()
-	fmt.Fprintf(w.out, "LiteSPM can connect to %d different agent hosts.\n", len(adapters))
-	fmt.Fprintln(w.out, "This run has not changed anything yet.")
-	fmt.Fprintln(w.out, "")
+	fmt.Fprintf(w.out, "LiteSPM can connect to %d agent hosts.\n\n", len(host.ListAdapters()))
 }
 
 // configuredHosts lists the hosts whose LiteSPM bridge already verifies.
@@ -206,20 +207,22 @@ func (w *Wizard) configuredHosts(ctx context.Context) ([]host.HostVerification, 
 	return configured, nil
 }
 
+// printConfiguredSummary is deliberately compact: one line naming the count
+// and the agents, not every configuration path on every run. `litespm host
+// detect` owns the full paths, so a management session stays short and the
+// paths have a single place that prints them.
 func (w *Wizard) printConfiguredSummary(configured []host.HostVerification) {
-	fmt.Fprintln(w.out, "LiteSPM is already set up for:")
+	names := make([]string, 0, len(configured))
 	for _, v := range configured {
-		name := v.HostID
-		if a, err := host.GetAdapter(v.HostID); err == nil {
-			name = a.Descriptor().DisplayName
-		}
-		path := v.ConfigPath
-		if path == "" {
-			path = "(no configuration file was reported)"
-		}
-		fmt.Fprintf(w.out, "  • %s\n    %s\n", name, path)
+		names = append(names, hostDisplayName(v.HostID))
 	}
-	fmt.Fprintln(w.out, "Nothing was changed.")
+	shown, extra := names, ""
+	if len(shown) > 8 {
+		shown, extra = shown[:8], fmt.Sprintf(" (+%d more)", len(names)-8)
+	}
+	fmt.Fprintf(w.out, "LiteSPM is already set up for %d agent%s: %s%s\n",
+		len(names), plural(len(names)), strings.Join(shown, ", "), extra)
+	fmt.Fprintln(w.out, "Nothing was changed. Run `litespm host detect` to see every configuration path.")
 	fmt.Fprintln(w.out, "")
 }
 
@@ -706,6 +709,38 @@ func (w *Wizard) printNextStep(adapter host.HostAdapter) {
 
 // --- the "what next" action menu -----------------------------------------
 
+// actionMenuItems describes the manager menu as prompt rows. The ids are the
+// same ones the numbered fallback accepts, so the two menus cannot drift: an
+// action is listed in both or in neither.
+func (w *Wizard) actionMenuItems() []promptItem {
+	catalogEmpty := true
+	if c := w.catalog(); c != nil {
+		catalogEmpty = c.Count() == 0
+	}
+	catalogHint := "refresh the capability index"
+	catalogDetail := "Download the latest published list of MCP servers, skills and plugins. This is the only action here that uses the network, and it installs nothing."
+	if catalogEmpty {
+		catalogHint = "download the capability index"
+		catalogDetail = "The local catalog is empty, so searching finds nothing yet. Download the published list of MCP servers, skills and plugins. It installs nothing."
+	}
+	return []promptItem{
+		{ID: "1", Label: "Update catalog", Hint: catalogHint, Detail: catalogDetail, Group: "Catalog"},
+		{ID: "2", Label: "Find and install", Hint: "search the local catalog", Group: "Catalog",
+			Detail: "Search the catalog this machine already has, preview a row, and install it through the same plan and approval gate `litespm install` uses."},
+		{ID: "3", Label: "Remove an install", Hint: "review destinations first", Group: "Manage",
+			Detail: "Show what LiteSPM installed, with every destination, and remove the chosen one. Only the parts LiteSPM wrote are deleted."},
+		{ID: "4", Label: "View installed capabilities", Group: "Manage",
+			Detail: "The same inventory as `litespm list`: install records, the skills ledger, and the agent configurations on this machine."},
+		{ID: "5", Label: "Connect or repair an agent", Group: "Agents",
+			Detail: "Write the LiteSPM bridge into an agent's configuration file, with a preview, a backup and a confirmation."},
+		{ID: "6", Label: "Install a skill", Hint: "GitHub, URL, or local folder", Group: "Agents",
+			Detail: "Opens the same interactive installer as `litespm skills add`, with discovery and per-agent approval."},
+		{ID: "7", Label: "Open the browser marketplace", Hint: "Skills, Plugins, MCP, Installed", Group: "Agents",
+			Detail: "Open the four-tab marketplace page in the default browser. The Installed tab reads this machine when the page is served locally."},
+		{ID: "q", Label: "Finish", Group: "Session", Detail: "Close the manager. Nothing more is changed."},
+	}
+}
+
 // runActionMenu is reachable both after a fresh setup and on a machine that is
 // already configured (a second bare `litespm` run). Every entry performs a real
 // action; nothing here leads to a refusal.
@@ -733,37 +768,33 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 
 	for {
 		choice := ""
+		fromPrompt := false
 		if terminalUIAvailable(w.in, w.out) {
-			cat := w.catalog()
-			catalogEmpty := cat == nil || cat.Count() == 0
-			catalogLabel := "Update catalog"
-			if catalogEmpty {
-				catalogLabel += "  ·  download the capability index"
-			} else {
-				catalogLabel += "  ·  refresh the capability index"
+			picked, err := runSearchPrompt(w.in, w.out, searchPromptOptions{
+				Title:       "LiteSPM Manager",
+				Description: "Choose an action. Type to filter by name; the detail pane describes the highlighted action.",
+				Items:       w.actionMenuItems(),
+				Single:      true,
+				Searchable:  true,
+				ShowDetail:  true,
+				DetailLines: 3,
+				MaxVisible:  12,
+			})
+			switch {
+			case err != nil:
+				// runSearchPrompt refuses when the streams are not a terminal
+				// (and can fail if one is lost mid-session). Fall through to the
+				// numbered menu below, which reads the same input stream.
+			case picked.Cancelled || len(picked.Selected) == 0:
+				// Esc or Ctrl-C at the menu is a deliberate stop, exactly as
+				// aborting the previous form was.
+				return nil
+			default:
+				choice = picked.Selected[0]
+				fromPrompt = true
 			}
-			field := huh.NewSelect[string]().
-				Title("LiteSPM Manager").
-				Description("Choose an action. Use ↑/↓ to move, Enter to select, or / to filter.").
-				Options(
-					huh.NewOption(catalogLabel, "1"),
-					huh.NewOption("Find and install  ·  search the local catalog", "2"),
-					huh.NewOption("Remove an install  ·  review destinations first", "3"),
-					huh.NewOption("View installed capabilities", "4"),
-					huh.NewOption("Connect or repair an agent", "5"),
-					huh.NewOption("Install a skill  ·  GitHub, URL, or local folder", "6"),
-					huh.NewOption("Open the browser marketplace  ·  Skills, Plugins, MCP, Installed", "7"),
-					huh.NewOption("Finish", "q"),
-				).
-				Value(&choice).
-				WithHeight(10)
-			if err := runTerminalForm(w.in, w.out, field); err != nil {
-				if errors.Is(err, huh.ErrUserAborted) {
-					return nil
-				}
-				return err
-			}
-		} else {
+		}
+		if !fromPrompt {
 			fmt.Fprintln(w.out, "")
 			fmt.Fprintln(w.out, "What would you like to do?")
 			if c := w.catalog(); c != nil && c.Count() == 0 {
@@ -779,11 +810,11 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 			fmt.Fprintln(w.out, "  [7] Open the browser marketplace (Skills, Plugins, MCP, Installed)")
 			fmt.Fprintln(w.out, "  [q] Finish")
 			fmt.Fprint(w.out, "Enter choice [1-7, q]: ")
-			var err error
-			choice, err = w.readLine()
+			line, err := w.readLine()
 			if err != nil {
 				return err
 			}
+			choice = line
 		}
 
 		var actionErr error
@@ -1100,8 +1131,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		return nil
 	}
 
-	fmt.Fprint(w.out, "\nWhat are you looking for? (for example: github, postgres, pdf) ")
-	query, err := w.readLine()
+	query, err := w.promptCatalogQuery()
 	if err != nil {
 		return err
 	}
@@ -1136,14 +1166,23 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		return nil
 	}
 
-	fmt.Fprint(w.out, "\nInstall for all your agents on this machine [1], or only for this project [2]? [1]: ")
-	scopeChoice, err := w.readLine()
+	scopeChoice, chooseScope, err := w.promptInstallScope(listing)
 	if err != nil {
 		return err
 	}
-	scope := domain.ScopeUser
+	if !chooseScope {
+		fmt.Fprintln(w.out, "No scope was chosen. Nothing was installed.")
+		return nil
+	}
+	// The prompt's ids are the scope names; the numbered fallback answers with
+	// its own numbers, and both map through the same function, so the two
+	// menus cannot disagree about which scope an answer selects.
+	scope, scopeKnown := installScopeFromPromptID(scopeChoice)
+	if !scopeKnown {
+		scope = domain.ScopeUser
+	}
 	projectRoot := ""
-	if scopeChoice == "2" {
+	if scope == domain.ScopeProject {
 		cwd, cerr := os.Getwd()
 		if cerr != nil {
 			fmt.Fprintf(w.out, "Could not find the current directory: %v\n", cerr)
@@ -1154,20 +1193,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			fmt.Fprintf(w.out, "The current directory cannot be used as a project: %v\n", perr)
 			return nil
 		}
-		scope = domain.ScopeProject
 		projectRoot = abs
-	}
-
-	fmt.Fprintf(w.out, "Install %s (%s) for %s? [Y/n]: ", listing.Name, kindLabel(listing.Kind), installScopeLabel(scope))
-	confirm, err := w.readLine()
-	if err != nil {
-		return err
-	}
-	switch strings.ToLower(confirm) {
-	case "", "y", "yes":
-	default:
-		fmt.Fprintln(w.out, "Not installed.")
-		return nil
 	}
 
 	// Fail-closed invariant: the kind gate above admits only the kinds that
@@ -1182,7 +1208,11 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 
 	// An MCP server is registered in every agent that has the LiteSPM bridge.
 	// The target set is captured here, before the plan is sealed, exactly as
-	// `litespm install` captures it.
+	// `litespm install` captures it. conflictNote records what the collision
+	// preflight found, for the pre-install summary: an entry name that already
+	// exists in some agent is a question that was answered here, and the
+	// answer belongs in front of the person approving the write.
+	conflictNote := ""
 	var mcpBinding *mcpInstallBinding
 	if listing.Kind == domain.KindMCP {
 		runtime, rerr := catClient.RuntimeForListing(listing.ID, "latest")
@@ -1197,6 +1227,42 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			return nil
 		}
 		mcpBinding = &mcpInstallBinding{Hosts: uniqueHostIDs(targetHosts), Runtime: runtime}
+
+		// An entry name the user already has in some agents is a QUESTION, not an
+		// abort: the installer's collision preflight (LPSM-NAME-CONFLICT) refuses
+		// the whole install when ANY target already carries the name, which in the
+		// field killed an install for every agent because one of eleven already
+		// had the server. The answer adjusts the target set and the force flag
+		// BEFORE authorizeHumanInstall, because the plan hash seals both —
+		// filtering hosts after approval would invalidate the plan, and silently
+		// replacing an existing entry without consent would not be a choice at
+		// all.
+		entryName, nameErr := serverEntryNameFor(listing)
+		if nameErr != nil {
+			fmt.Fprintf(w.out, "Cannot install %s: %v\n", listing.Name, nameErr)
+			return nil
+		}
+		if conflicts := mcpConflictHosts(ctx, mcpBinding.Hosts, entryName, scope, projectRoot); len(conflicts) > 0 {
+			choice, ok, rerr := w.resolveMCPConflicts(entryName, mcpBinding.Hosts, conflicts)
+			if rerr != nil {
+				return rerr
+			}
+			if !ok {
+				fmt.Fprintln(w.out, "Not installed. Nothing was changed.")
+				return nil
+			}
+			mcpBinding.Hosts = choice.hosts
+			mcpBinding.Force = choice.force
+			if choice.force {
+				conflictNote = fmt.Sprintf("Replacing the existing entry named %q in %s; each replaced config is backed up first.",
+					entryName, strings.Join(hostDisplayNames(conflicts), ", "))
+			} else {
+				conflictNote = fmt.Sprintf("Leaving the existing entry named %q untouched in %s.",
+					entryName, strings.Join(hostDisplayNames(conflicts), ", "))
+			}
+		} else {
+			conflictNote = fmt.Sprintf("No target agent already registers an entry named %q.", entryName)
+		}
 	}
 
 	// A plugin is installed like an MCP server: the pinned tree is fetched,
@@ -1223,7 +1289,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		skillBinding = &skillInstallBinding{AllDetected: true}
 	}
 
-	grant, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, mcpBinding, skillBinding)
+	grant, droppedHosts, gerr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, mcpBinding, skillBinding, nil)
 	if gerr != nil {
 		fmt.Fprintf(w.out, "Install refused before anything was changed: %v\n", gerr)
 		return nil
@@ -1232,6 +1298,24 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		fmt.Fprintf(w.out, "Note: %s will not receive this server: %s\n", d.HostID, d.Reason)
 	}
 	grantCtx := grant.context(ctx)
+
+	// The pre-install summary is built from the plan the approval sealed, so
+	// every row it shows is a value that will actually be written; the final
+	// confirmation answers that summary, never the other way round. A declined
+	// install refunds the approval so no consent is spent on nothing.
+	fmt.Fprintln(w.out, w.installSummaryBox(listing, grant, conflictNote))
+	fmt.Fprintln(w.out)
+
+	confirmed, confirmErr := w.confirmInstall(listing, grant.Scope)
+	if confirmErr != nil {
+		grant.refund(grantCtx, db)
+		return confirmErr
+	}
+	if !confirmed {
+		grant.refund(grantCtx, db)
+		fmt.Fprintln(w.out, "Not installed. Nothing was changed.")
+		return nil
+	}
 
 	if listing.Kind == domain.KindSkill {
 		home, _ := os.UserHomeDir()
@@ -1250,10 +1334,8 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 			return nil
 		}
-		fmt.Fprintf(w.out, "✓ Installed skill %s\n", outcome.SkillName)
-		for _, dest := range outcome.Destinations {
-			fmt.Fprintf(w.out, "  • Written to: %s\n", dest)
-		}
+		fmt.Fprintln(w.out, skillInstallCompletionBox(outcome))
+		fmt.Fprintln(w.out)
 		return nil
 	}
 
@@ -1293,7 +1375,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 					Hosts:        uniqueHostIDs(host.RegisteredBridgeHosts(ctx, scope)),
 					AllowPartial: true,
 				}
-				partialGrant, _, perr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, partialBinding, nil)
+				partialGrant, _, perr := authorizeHumanInstall(ctx, db, catClient, listing, "", scope, projectRoot, partialBinding, nil, nil)
 				if perr != nil {
 					fmt.Fprintf(w.out, "Install refused before anything was changed: %v\n", perr)
 					return nil
@@ -1313,7 +1395,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 					fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 					return nil
 				}
-				printPluginInstallTo(w.out, outcome)
+				w.printPluginInstallSummary(listing, outcome)
 				return nil
 			}
 			grant.refund(grantCtx, db)
@@ -1321,7 +1403,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 			return nil
 		}
-		printPluginInstallTo(w.out, outcome)
+		w.printPluginInstallSummary(listing, outcome)
 		return nil
 	}
 
@@ -1340,11 +1422,565 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 		return nil
 	}
-	fmt.Fprintf(w.out, "✓ Registered MCP server %s\n", outcome.Entry.Name)
-	for _, h := range outcome.Hosts {
-		fmt.Fprintf(w.out, "  • %s: entry written in %s\n", h.HostID, h.ConfigPath)
-	}
+	fmt.Fprintln(w.out, mcpInstallCompletionBox(outcome))
+	fmt.Fprintln(w.out)
 	return nil
+}
+
+// --- install prompts, the pre-install summary and the completion boxes -----
+
+// promptCatalogQuery asks what to search for. A terminal gets a styled input;
+// a pipe keeps the single-line prompt the scripted runs answer.
+func (w *Wizard) promptCatalogQuery() (string, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		query := ""
+		field := huh.NewInput().
+			Title("What are you looking for?").
+			Description("Searches the catalog on this machine by name, kind or publisher. Searching downloads nothing.").
+			Placeholder("github, postgres, pdf").
+			Value(&query)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return "", nil
+			}
+			return "", err
+		}
+		return strings.TrimSpace(query), nil
+	}
+	fmt.Fprint(w.out, "\nWhat are you looking for? (for example: github, postgres, pdf) ")
+	return w.readLine()
+}
+
+// installScopePromptItems describes the two install scopes for the searchable
+// prompt.
+func installScopePromptItems() []promptItem {
+	return []promptItem{
+		{
+			ID:     "user",
+			Label:  "All my agents on this machine",
+			Hint:   "this machine, every project",
+			Detail: "Writes into your user-level agent configuration or skills folders, so every project on this machine can use it.",
+		},
+		{
+			ID:     "project",
+			Label:  "Only this project",
+			Hint:   "the directory this wizard was started in",
+			Detail: "Writes into this project's own agent configuration or skills folders, so teammates who check out the project get it with it.",
+		},
+	}
+}
+
+// installScopeFromPromptID maps a scope answer onto the install scope. The
+// prompt answers with the scope names and the numbered fallback with "1"/"2";
+// both land here, so the two surfaces cannot disagree.
+func installScopeFromPromptID(id string) (domain.InstallScope, bool) {
+	switch strings.TrimSpace(id) {
+	case "project", "2":
+		return domain.ScopeProject, true
+	case "", "user", "1":
+		return domain.ScopeUser, true
+	}
+	return "", false
+}
+
+// promptInstallScope asks where the install should land. ok=false means the
+// person cancelled: the caller writes nothing and returns to the menu.
+func (w *Wizard) promptInstallScope(listing *domain.Listing) (string, bool, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		picked, err := runSearchPrompt(w.in, w.out, searchPromptOptions{
+			Title:       "Installation scope",
+			Description: fmt.Sprintf("Choose where LiteSPM should install %s (%s).", listing.Name, kindLabel(listing.Kind)),
+			Items:       installScopePromptItems(),
+			Single:      true,
+			ShowDetail:  true,
+			DetailLines: 3,
+			Preselected: []string{"user"},
+		})
+		if err != nil {
+			return "", false, err
+		}
+		if picked.Cancelled || len(picked.Selected) == 0 {
+			return "", false, nil
+		}
+		return picked.Selected[0], true, nil
+	}
+	fmt.Fprint(w.out, "\nInstall for all your agents on this machine [1], or only for this project [2]? [1]: ")
+	line, err := w.readLine()
+	if err != nil {
+		return "", false, err
+	}
+	if line == "2" {
+		return "project", true, nil
+	}
+	return "1", true, nil
+}
+
+// confirmInstall is the final question before a write: a styled confirm on a
+// terminal, the one-line [Y/n] prompt on a pipe. It is asked after the plan is
+// sealed and its summary printed, so the answer covers what was shown.
+func (w *Wizard) confirmInstall(listing *domain.Listing, scope domain.InstallScope) (bool, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		confirmed := false
+		field := huh.NewConfirm().
+			Title(fmt.Sprintf("Install %s?", listing.Name)).
+			Description(fmt.Sprintf("%s · %s. Nothing has been written yet.", kindLabel(listing.Kind), installScopeLabel(scope))).
+			Affirmative("Install").
+			Negative("Cancel").
+			Value(&confirmed)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return false, nil
+			}
+			return false, err
+		}
+		return confirmed, nil
+	}
+	fmt.Fprintf(w.out, "Install %s (%s) for %s? [Y/n]: ", listing.Name, kindLabel(listing.Kind), installScopeLabel(scope))
+	line, err := w.readLine()
+	if err != nil {
+		return false, err
+	}
+	switch strings.ToLower(line) {
+	case "", "y", "yes":
+		return true, nil
+	}
+	return false, nil
+}
+
+// --- what the person reads before and after a write -------------------------
+
+// installSummaryBox is the pre-install summary: what the sealed plan will
+// write, where, and the effects it declares. It is built from the approved
+// plan, never from a re-resolved machine, so the summary and the approval
+// cannot describe different installs.
+func (w *Wizard) installSummaryBox(listing *domain.Listing, grant *installGrant, conflictNote string) string {
+	if listing == nil || grant == nil || grant.Plan == nil {
+		return ""
+	}
+	var lines []string
+	switch listing.Kind {
+	case domain.KindMCP:
+		lines = mcpInstallSummaryLines(listing, grant.Plan, conflictNote, w.backupNote())
+	case domain.KindSkill:
+		lines = skillInstallSummaryLines(listing, grant.Plan)
+	case domain.KindPlugin:
+		lines = pluginInstallSummaryLines(listing, grant.Plan, w.backupNote())
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return renderInstallSummaryBox("Install summary", lines)
+}
+
+// backupNote says, once, where a replaced config file is copied before the
+// write. DataRoot is the directory the installers use for their backups.
+func (w *Wizard) backupNote() string {
+	if w.paths != nil {
+		if dir := w.paths.BackupsPath(); dir != "" {
+			return "Each existing configuration file is backed up into " + dir + " before it is edited."
+		}
+	}
+	return "Each existing configuration file is backed up before it is edited."
+}
+
+// planScopeOf reads the scope a plan targets, defaulting the way the plan
+// builder does when the field is empty.
+func planScopeOf(plan *domain.InstallPlan) domain.InstallScope {
+	if plan == nil || plan.Request.TargetScope == "" {
+		return domain.ScopeUser
+	}
+	return plan.Request.TargetScope
+}
+
+// mcpInstallRuntimeFromPlan returns the launch line the plan sealed: the
+// command line or the endpoint with its transport. A plan that carries neither
+// is impossible (the plan gate refuses it), so an unreadable value prints
+// nothing rather than a guess.
+func mcpInstallRuntimeFromPlan(plan *domain.InstallPlan) (mcpInstallPlanValue, bool) {
+	if plan == nil {
+		return mcpInstallPlanValue{}, false
+	}
+	for _, change := range plan.HostChanges {
+		if change.ValueJSON == "" {
+			continue
+		}
+		var value mcpInstallPlanValue
+		if err := json.Unmarshal([]byte(change.ValueJSON), &value); err != nil {
+			continue
+		}
+		if strings.TrimSpace(value.Runtime.Command) != "" || strings.TrimSpace(value.Runtime.Endpoint) != "" {
+			return value, true
+		}
+	}
+	return mcpInstallPlanValue{}, false
+}
+
+// pluginArtifactFromPlan returns the pinned artifact a plugin plan sealed.
+func pluginArtifactFromPlan(plan *domain.InstallPlan) (pluginArtifact, bool) {
+	if plan == nil {
+		return pluginArtifact{}, false
+	}
+	for _, change := range plan.HostChanges {
+		if change.ValueJSON == "" {
+			continue
+		}
+		var value pluginInstallPlanValue
+		if err := json.Unmarshal([]byte(change.ValueJSON), &value); err != nil {
+			continue
+		}
+		if value.Artifact.Commit != "" {
+			return value.Artifact, true
+		}
+	}
+	return pluginArtifact{}, false
+}
+
+// planTargetRows renders the config writes a plan sealed, one row per target
+// host, with the agent's display name and the file it will be written to.
+func planTargetRows(changes []domain.HostChange, action string) []string {
+	var rows []string
+	for _, change := range changes {
+		if change.Action != action {
+			continue
+		}
+		row := "  " + uiGreenS.Render("→") + " " + uiBold.Render(hostDisplayName(change.HostID))
+		if change.ConfigPath != "" {
+			row += uiDim.Render("  " + change.ConfigPath)
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// mcpInstallSummaryLines is the sealed facts of an MCP registration.
+func mcpInstallSummaryLines(listing *domain.Listing, plan *domain.InstallPlan, conflictNote, backupNote string) []string {
+	entryName, _ := serverEntryNameFor(listing)
+	lines := []string{
+		uiDim.Render("entry") + "    " + uiBold.Render(firstNonEmpty(entryName, listing.Name)),
+		uiDim.Render("listing") + "  " + listing.ID,
+		uiDim.Render("version") + "  " + firstNonEmpty(plan.Resolved.Version, plan.Request.RequestedVersion, "latest"),
+		uiDim.Render("scope") + "    " + installScopeLabel(planScopeOf(plan)),
+	}
+	if plan.Request.ProjectRoot != "" {
+		lines = append(lines, uiDim.Render("project")+"  "+plan.Request.ProjectRoot)
+	}
+	if value, ok := mcpInstallRuntimeFromPlan(plan); ok {
+		switch {
+		case strings.TrimSpace(value.Runtime.Command) != "":
+			command := append([]string{value.Runtime.Command}, value.Runtime.Args...)
+			lines = append(lines, uiDim.Render("command")+"  "+strings.Join(command, " "))
+		default:
+			lines = append(lines, uiDim.Render("endpoint")+" "+value.Runtime.Endpoint+
+				uiDim.Render(" ("+entryTransportLabel(host.ServerEntry{
+					Endpoint:  value.Runtime.Endpoint,
+					Transport: host.RegistryRemoteTransport(value.Runtime.Type),
+				})+")"))
+		}
+		if len(value.EnvNames) > 0 {
+			lines = append(lines, uiDim.Render("env")+"      "+strings.Join(value.EnvNames, ", ")+
+				uiDim.Render("  (names only; no value is written)"))
+		}
+	}
+	if len(plan.Effects) > 0 {
+		lines = append(lines, uiDim.Render("effects")+"  "+strings.Join(plan.Effects, ", "))
+	}
+	rows := planTargetRows(plan.HostChanges, "register_command")
+	lines = append(lines, "", fmt.Sprintf("%s  %d agent%s", uiDim.Render("targets"), len(rows), plural(len(rows))))
+	lines = append(lines, rows...)
+	if conflictNote != "" {
+		lines = append(lines, "", uiDim.Render(conflictNote))
+	}
+	if backupNote != "" {
+		lines = append(lines, uiDim.Render(backupNote))
+	}
+	return lines
+}
+
+// skillInstallSummaryLines is the sealed facts of a catalog skill install:
+// every destination directory the plan approved, by agent.
+func skillInstallSummaryLines(listing *domain.Listing, plan *domain.InstallPlan) []string {
+	lines := []string{
+		uiDim.Render("skill") + "    " + uiBold.Render(listing.Name),
+		uiDim.Render("listing") + "  " + listing.ID,
+		uiDim.Render("version") + "  " + firstNonEmpty(plan.Resolved.Version, plan.Request.RequestedVersion, "latest"),
+		uiDim.Render("scope") + "    " + installScopeLabel(planScopeOf(plan)),
+	}
+	if plan.Request.ProjectRoot != "" {
+		lines = append(lines, uiDim.Render("project")+"  "+plan.Request.ProjectRoot)
+	}
+	if len(plan.Effects) > 0 {
+		lines = append(lines, uiDim.Render("effects")+"  "+strings.Join(plan.Effects, ", "))
+	}
+	dests, err := skillDestinationsFromPlan(plan)
+	if err != nil {
+		return append(lines, "", uiYellowS.Render("No destination could be read from the plan: "+err.Error()))
+	}
+	rows := make([]string, 0, len(dests))
+	for _, dest := range dests {
+		rows = append(rows, "  "+uiGreenS.Render("→")+" "+uiBold.Render(skillAgentLabel(dest.AgentID))+uiDim.Render("  "+dest.Root))
+	}
+	lines = append(lines, "", fmt.Sprintf("%s  %d destination%s", uiDim.Render("writes"), len(rows), plural(len(rows))))
+	lines = append(lines, rows...)
+	lines = append(lines, "", uiDim.Render("Nothing existing is overwritten: the install stops if a skill directory is already there."))
+	return lines
+}
+
+// pluginInstallSummaryLines is the sealed facts of a plugin install: the
+// pinned artifact, the target agents, and where the entry list itself comes
+// from — the plugin's manifest lives inside the pinned tree, so the commit is
+// what the approval binds.
+func pluginInstallSummaryLines(listing *domain.Listing, plan *domain.InstallPlan, backupNote string) []string {
+	lines := []string{
+		uiDim.Render("plugin") + "   " + uiBold.Render(listing.Name),
+		uiDim.Render("listing") + "  " + listing.ID,
+		uiDim.Render("version") + "  " + firstNonEmpty(plan.Resolved.Version, plan.Request.RequestedVersion, "latest"),
+		uiDim.Render("scope") + "    " + installScopeLabel(planScopeOf(plan)),
+	}
+	if plan.Request.ProjectRoot != "" {
+		lines = append(lines, uiDim.Render("project")+"  "+plan.Request.ProjectRoot)
+	}
+	if artifact, ok := pluginArtifactFromPlan(plan); ok {
+		lines = append(lines, uiDim.Render("artifact")+" "+artifact.Repo+"@"+artifact.Commit)
+	}
+	if len(plan.Effects) > 0 {
+		lines = append(lines, uiDim.Render("effects")+"  "+strings.Join(plan.Effects, ", "))
+	}
+	rows := planTargetRows(plan.HostChanges, "register_command")
+	lines = append(lines, "", fmt.Sprintf("%s  %d agent%s", uiDim.Render("targets"), len(rows), plural(len(rows))))
+	lines = append(lines, rows...)
+	lines = append(lines, "", uiDim.Render("The MCP servers and skills the plugin declares are read from its manifest inside that pinned tree; this plan seals the tree and the agents."))
+	if backupNote != "" {
+		lines = append(lines, uiDim.Render(backupNote))
+	}
+	return lines
+}
+
+// skillAgentLabel names a skill target the way its own registry does, falling
+// back to the MCP host registry and then to the id. The ledger's own label is
+// the id for some agents, so the display name is preferred when there is one.
+func skillAgentLabel(id string) string {
+	if strings.TrimSpace(id) == "" {
+		return ""
+	}
+	for _, target := range skills.AgentTargets() {
+		if target.ID == id {
+			return target.DisplayName
+		}
+	}
+	return hostDisplayName(id)
+}
+
+// hostDisplayNames renders host ids the way the person knows them.
+func hostDisplayNames(hostIDs []string) []string {
+	out := make([]string, 0, len(hostIDs))
+	for _, id := range hostIDs {
+		out = append(out, hostDisplayName(id))
+	}
+	return out
+}
+
+// hostWriteRow renders one host config write: the agent, the file, and what
+// happened to it.
+func hostWriteRow(h *host.EntryInstallResult) string {
+	if h == nil {
+		return "  " + uiDim.Render("(no host write was recorded)")
+	}
+	verb := "entry written"
+	switch {
+	case h.Replaced:
+		verb = "entry replaced · a backup was kept"
+	case h.Created:
+		verb = "file created"
+	}
+	return "  " + uiGreenS.Render("✓") + " " + uiBold.Render(hostDisplayName(h.HostID)) + uiDim.Render("  "+h.ConfigPath+"  ("+verb+")")
+}
+
+// mcpInstallCompletionBox reports a finished MCP registration: the entry and
+// every agent config that now carries it.
+func mcpInstallCompletionBox(outcome *mcpInstallOutcome) string {
+	entry := outcome.Entry
+	var lines []string
+	switch {
+	case strings.TrimSpace(entry.Endpoint) != "":
+		lines = append(lines, uiDim.Render("endpoint")+" "+entry.Endpoint+uiDim.Render(" ("+entryTransportLabel(entry)+")"))
+	case strings.TrimSpace(entry.Command) != "":
+		lines = append(lines, uiDim.Render("command")+"  "+strings.Join(append([]string{entry.Command}, entry.Args...), " "))
+	}
+	for _, h := range outcome.Hosts {
+		lines = append(lines, hostWriteRow(h))
+	}
+	footer := "Nothing else was changed: no other file was touched. Remove it later from this menu, or with `litespm install remove " + entry.Name + "`."
+	return renderCompletionBox("✓ Registered MCP server "+entry.Name, lines, footer)
+}
+
+// skillInstallCompletionBox reports a finished skill install: every agent tree
+// that received a copy.
+func skillInstallCompletionBox(outcome *skillInstallOutcome) string {
+	var lines []string
+	for i, dest := range outcome.Destinations {
+		agent := ""
+		if i < len(outcome.LedgerEntries) {
+			entry := outcome.LedgerEntries[i]
+			agent = firstNonEmpty(skillAgentLabel(entry.AgentID), entry.HostLabel)
+		}
+		row := "  " + uiGreenS.Render("✓") + " "
+		if agent != "" {
+			row += uiBold.Render(agent) + " "
+		}
+		row += uiDim.Render(shortHome(dest, userHome()))
+		lines = append(lines, row)
+	}
+	if len(lines) == 0 {
+		lines = append(lines, uiDim.Render("No directory was written."))
+	}
+	footer := "Nothing else was changed: no other file was touched. Manage it with `litespm skills list`, `litespm skills update` and `litespm skills remove`."
+	return renderCompletionBox("✓ Installed skill "+outcome.SkillName, lines, footer)
+}
+
+// pluginInstallCompletionBox reports a finished plugin install in the same
+// shape, including the partial-install wording when the plugin declares
+// components this build cannot project.
+func pluginInstallCompletionBox(listing *domain.Listing, outcome *pluginInstallOutcome) string {
+	name := outcome.ListingID
+	if listing != nil && strings.TrimSpace(listing.Name) != "" {
+		name = listing.Name
+	}
+	lines := []string{
+		uiDim.Render("id") + "      " + outcome.ListingID,
+		uiDim.Render("version") + "  " + firstNonEmpty(outcome.Version, "latest"),
+	}
+	if outcome.Artifact.Commit != "" {
+		lines = append(lines, uiDim.Render("commit")+"   "+outcome.Artifact.Repo+"@"+outcome.Artifact.Commit)
+	}
+	for _, server := range outcome.Servers {
+		row := "  " + uiGreenS.Render("✓") + " " + uiBold.Render(server.Name) + "  "
+		if strings.TrimSpace(server.Endpoint) != "" {
+			row += server.Endpoint + uiDim.Render(" ("+entryTransportLabel(host.ServerEntry{Endpoint: server.Endpoint, Transport: server.Transport})+")")
+		} else {
+			row += server.Command + " " + strings.Join(server.Args, " ")
+		}
+		lines = append(lines, strings.TrimRight(row, " "))
+	}
+	for _, h := range outcome.Hosts {
+		lines = append(lines, hostWriteRow(h))
+	}
+	for _, sk := range outcome.Skills {
+		lines = append(lines, "  "+uiGreenS.Render("✓")+" skill "+uiBold.Render(sk.SkillName)+uiDim.Render("  "+strings.Join(sk.Destinations, ", ")))
+	}
+	if len(outcome.Skipped) > 0 {
+		parts := make([]string, 0, len(outcome.Skipped))
+		for _, skipped := range outcome.Skipped {
+			parts = append(parts, fmt.Sprintf("%d %s", skipped.Count, skipped.Kind))
+		}
+		acknowledged := ""
+		if outcome.AllowPartial {
+			acknowledged = " (acknowledged with --allow-partial)"
+		}
+		lines = append(lines, "", uiYellowS.Render(fmt.Sprintf(
+			"PARTIAL install%s — the plugin also declares %s; LiteSPM installs a plugin's MCP servers and skills, and the host-specific extras have no adapter here.",
+			acknowledged, strings.Join(parts, ", "))))
+	}
+	for _, warning := range outcome.Warnings {
+		lines = append(lines, uiDim.Render("note  "+warning))
+	}
+	footer := "Nothing else was changed: no other file was touched. Remove it later from this menu, or with `litespm install remove " + outcome.ListingID + "`."
+	return renderCompletionBox("✓ Installed plugin "+name, lines, footer)
+}
+
+// printPluginInstallSummary prints the plugin completion box on the wizard's
+// writer. The CLI keeps printPluginInstallTo for `litespm install`.
+func (w *Wizard) printPluginInstallSummary(listing *domain.Listing, outcome *pluginInstallOutcome) {
+	fmt.Fprintln(w.out, pluginInstallCompletionBox(listing, outcome))
+	fmt.Fprintln(w.out)
+}
+
+// mcpConflictChoice is the resolved answer to "some target agents already
+// register this entry name": the target set to plan for, and whether an
+// existing entry may be replaced. authorizeHumanInstall seals both into the
+// plan hash, so this decision has to be taken before the approval, not after.
+type mcpConflictChoice struct {
+	hosts []string
+	force bool
+}
+
+// resolveMCPConflicts asks what to do about the agents that already carry
+// entryName and returns the adjusted target set. ok=false means the user chose
+// to leave everything as it is (or to cancel): nothing is written.
+//
+// Skipping is the default because replacing an existing entry is the
+// destructive answer, and a replace always keeps the per-write backup
+// InstallServerEntry takes before it edits the file.
+func (w *Wizard) resolveMCPConflicts(entryName string, hosts, conflicts []string) (mcpConflictChoice, bool, error) {
+	conflictSet := make(map[string]bool, len(conflicts))
+	fmt.Fprintf(w.out, "\nA server named %q is already registered in:\n", entryName)
+	for _, hostID := range conflicts {
+		conflictSet[hostID] = true
+		fmt.Fprintf(w.out, "  • %s\n", hostDisplayName(hostID))
+	}
+	remaining := make([]string, 0, len(hosts))
+	for _, hostID := range hosts {
+		if !conflictSet[hostID] {
+			remaining = append(remaining, hostID)
+		}
+	}
+
+	keepLabel := "Leave it exactly as it is (nothing to do)"
+	if len(remaining) == 1 {
+		keepLabel = "Install into the other agent and leave the existing entry alone"
+	} else if len(remaining) > 1 {
+		keepLabel = fmt.Sprintf("Install into the other %d agents and leave the existing entry alone", len(remaining))
+	}
+	replaceLabel := "Replace the existing entry there (a backup is kept)"
+
+	choice := "skip"
+	if terminalUIAvailable(w.in, w.out) {
+		field := huh.NewSelect[string]().
+			Title(fmt.Sprintf("%q is already registered somewhere", entryName)).
+			Description("Nothing has been written yet. This answer is sealed into the install plan you approve next.").
+			Options(
+				huh.NewOption(keepLabel, "skip"),
+				huh.NewOption(replaceLabel, "replace"),
+				huh.NewOption("Cancel", "cancel"),
+			).
+			Value(&choice).
+			WithHeight(6)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return mcpConflictChoice{}, false, nil
+			}
+			return mcpConflictChoice{}, false, err
+		}
+	} else {
+		fmt.Fprintln(w.out, "")
+		fmt.Fprintf(w.out, "  [1] %s\n", keepLabel)
+		fmt.Fprintf(w.out, "  [2] %s\n", replaceLabel)
+		fmt.Fprintln(w.out, "  [3] Cancel")
+		fmt.Fprint(w.out, "Choose [1]: ")
+		line, err := w.readLine()
+		if err != nil {
+			return mcpConflictChoice{}, false, err
+		}
+		switch strings.TrimSpace(line) {
+		case "", "1":
+			choice = "skip"
+		case "2":
+			choice = "replace"
+		default:
+			choice = "cancel"
+		}
+	}
+
+	switch choice {
+	case "replace":
+		return mcpConflictChoice{hosts: hosts, force: true}, true, nil
+	case "skip":
+		if len(remaining) == 0 {
+			return mcpConflictChoice{}, false, nil
+		}
+		return mcpConflictChoice{hosts: remaining}, true, nil
+	default:
+		return mcpConflictChoice{}, false, nil
+	}
 }
 
 // removableItem is one thing the user can remove: an install LiteSPM recorded

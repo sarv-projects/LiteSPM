@@ -77,8 +77,10 @@ func (a *PiAgentAdapter) PlanSetupAt(ctx context.Context, binaryPath string, bac
 	}
 
 	origContent := "{}"
+	origExists := false
 	if data, err := os.ReadFile(configPath); err == nil {
 		origContent = string(data)
+		origExists = true
 	}
 
 	backupPath, err := CreateAtomicBackup(configPath, backupDir, "pi-agent")
@@ -115,11 +117,13 @@ func (a *PiAgentAdapter) PlanSetupAt(ctx context.Context, binaryPath string, bac
 	}
 
 	return &HostChangePlan{
-		HostID:          "pi-agent",
-		ConfigPath:      configPath,
-		OriginalContent: origContent,
-		ProposedContent: proposed,
-		BackupPath:      backupPath,
+		HostID:                 "pi-agent",
+		ConfigPath:             configPath,
+		OriginalContent:        origContent,
+		ProposedContent:        proposed,
+		BackupPath:             backupPath,
+		OriginalExists:         origExists,
+		OriginalExistenceKnown: true,
 	}, nil
 }
 
