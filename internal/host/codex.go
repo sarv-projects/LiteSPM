@@ -97,7 +97,11 @@ func (a *CodexAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 	}
 
 	cleanBin := filepath.ToSlash(binaryPath)
-	entry := fmt.Sprintf("\n[mcp_servers.litespm]\ncommand = %q\nargs = [\"bridge\", \"stdio\", \"--host\", \"codex\"]\n", cleanBin)
+	quotedBin, qerr := tomlQuoteString(cleanBin)
+	if qerr != nil {
+		return nil, fmt.Errorf("codex: %s: %w", TOMLInvalidCode, qerr)
+	}
+	entry := fmt.Sprintf("\n[mcp_servers.litespm]\ncommand = %s\nargs = [\"bridge\", \"stdio\", \"--host\", \"codex\"]\n", quotedBin)
 
 	// Adopt a pre-rename `[mcp_servers.litepsm]` table before writing the
 	// current one, so an upgraded host keeps exactly one bridge table.
@@ -131,6 +135,12 @@ func (a *CodexAdapter) PlanSetupAt(ctx context.Context, binaryPath string, backu
 		proposed = strings.Join(newLines, "\n")
 	} else {
 		proposed = strings.TrimRight(base, "\n") + entry
+	}
+
+	// Nothing is planned that the host could not read: the merged text is
+	// re-parsed here, before any plan exists, so an escaping bug fails closed.
+	if verr := verifyTOMLDocument(proposed); verr != nil {
+		return nil, fmt.Errorf("codex: %s: the merged config would not parse as TOML, refusing to plan: %w", TOMLInvalidCode, verr)
 	}
 
 	return &HostChangePlan{
@@ -262,7 +272,7 @@ func (a *CodexAdapter) RenderManualSetup(binaryPath string) string {
 	cleanBin := filepath.ToSlash(binaryPath)
 	return fmt.Sprintf(`# Add to ~/.codex/config.toml
 [mcp_servers.litespm]
-command = %q
+command = %s
 args = ["bridge", "stdio", "--host", "codex"]
-`, cleanBin)
+`, tomlQuoteStringLossy(cleanBin))
 }

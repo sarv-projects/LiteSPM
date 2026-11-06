@@ -571,27 +571,47 @@ func (s entrySpec) tomlEntryBlock(name string, e ServerEntry) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		url, uerr := tomlQuoteString(e.Endpoint)
+		if uerr != nil {
+			return "", fmt.Errorf("server %q endpoint: %w", name, uerr)
+		}
 		var b strings.Builder
-		fmt.Fprintf(&b, "[%s]\n%s = %q\n", header, s.Remote.URLKey, e.Endpoint)
+		fmt.Fprintf(&b, "[%s]\n%s = %s\n", header, s.Remote.URLKey, url)
 		if s.Remote.TypeKey != "" {
-			fmt.Fprintf(&b, "%s = %q\n", s.Remote.TypeKey, typeValue)
+			tv, terr := tomlQuoteString(typeValue)
+			if terr != nil {
+				return "", fmt.Errorf("server %q type: %w", name, terr)
+			}
+			fmt.Fprintf(&b, "%s = %s\n", s.Remote.TypeKey, tv)
 		}
 		return b.String(), nil
 	}
-	quoted := make([]string, 0, len(e.Args))
-	for _, a := range e.Args {
-		quoted = append(quoted, fmt.Sprintf("%q", a))
+	command, cerr := tomlQuoteString(e.Command)
+	if cerr != nil {
+		return "", fmt.Errorf("server %q command: %w", name, cerr)
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "[%s]\ncommand = %q\n", header, e.Command)
-	if len(quoted) > 0 {
+	fmt.Fprintf(&b, "[%s]\ncommand = %s\n", header, command)
+	if len(e.Args) > 0 {
+		quoted := make([]string, 0, len(e.Args))
+		for _, a := range e.Args {
+			q, qerr := tomlQuoteString(a)
+			if qerr != nil {
+				return "", fmt.Errorf("server %q argument: %w", name, qerr)
+			}
+			quoted = append(quoted, q)
+		}
 		fmt.Fprintf(&b, "args = [%s]\n", strings.Join(quoted, ", "))
 	}
 	if len(e.EnvNames) > 0 && s.HasEnvRef && s.EnvRef.Style == envref.StyleEnvNameList {
 		// A name-list host takes no value, so there is nothing to quote.
 		names := make([]string, 0, len(e.EnvNames))
 		for _, n := range envref.SortedNames(e.EnvNames) {
-			names = append(names, fmt.Sprintf("%q", n))
+			q, qerr := tomlQuoteString(n)
+			if qerr != nil {
+				return "", fmt.Errorf("server %q environment name: %w", name, qerr)
+			}
+			names = append(names, q)
 		}
 		fmt.Fprintf(&b, "%s = [%s]\n", s.EnvRef.NameListField, strings.Join(names, ", "))
 	} else if m := s.EnvRef.EnvMap(e.EnvNames); len(m) > 0 {
@@ -602,7 +622,11 @@ func (s entrySpec) tomlEntryBlock(name string, e ServerEntry) (string, error) {
 		// Deterministic order: a config that reorders itself on every install is
 		// unreviewable in a diff.
 		sortStrings(keys)
-		fmt.Fprintf(&b, "%s = { %s }\n", s.EnvRef.Field, joinTOMLPairs(keys, m))
+		pairs, perr := joinTOMLPairs(keys, m)
+		if perr != nil {
+			return "", fmt.Errorf("server %q environment: %w", name, perr)
+		}
+		fmt.Fprintf(&b, "%s = { %s }\n", s.EnvRef.Field, pairs)
 	}
 	return b.String(), nil
 }
@@ -615,12 +639,20 @@ func sortStrings(s []string) {
 	}
 }
 
-func joinTOMLPairs(keys []string, env map[string]string) string {
+func joinTOMLPairs(keys []string, env map[string]string) (string, error) {
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%q = %q", k, env[k]))
+		qk, err := tomlQuoteString(k)
+		if err != nil {
+			return "", err
+		}
+		qv, err := tomlQuoteString(env[k])
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, qk+" = "+qv)
 	}
-	return strings.Join(parts, ", ")
+	return strings.Join(parts, ", "), nil
 }
 
 // parseTOMLStringArray reads a TOML array of quoted strings, such as
@@ -825,6 +857,14 @@ func InstallServerEntry(ctx context.Context, hostID string, entry ServerEntry, o
 				return nil, fmt.Errorf("%s: %w", adapter.Descriptor().HostID, mergeErr)
 			}
 			proposed = merged
+		}
+		// Re-parse the merged text exactly as the JSON branch below does. A
+		// writer bug — an escape TOML does not define, a string that never
+		// closes — must fail here, not in the agent, where the host rejects
+		// the WHOLE config and every other server in it disappears.
+		if verr := verifyTOMLDocument(proposed); verr != nil {
+			return nil, fmt.Errorf("%s: %s: the merged config would not parse as TOML, refusing to write: %w",
+				adapter.Descriptor().HostID, TOMLInvalidCode, verr)
 		}
 	} else {
 		value, valueErr := spec.entryValue(entry)

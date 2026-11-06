@@ -91,7 +91,11 @@ func (a *GrokBuildAdapter) PlanSetupAt(ctx context.Context, binaryPath string, b
 	}
 
 	cleanBin := filepath.ToSlash(binaryPath)
-	entry := fmt.Sprintf("\n[mcp_servers.litespm]\ncommand = %q\nargs = [\"bridge\", \"stdio\", \"--host\", \"grok-build\"]\n", cleanBin)
+	quotedBin, qerr := tomlQuoteString(cleanBin)
+	if qerr != nil {
+		return nil, fmt.Errorf("grok-build: %s: %w", TOMLInvalidCode, qerr)
+	}
+	entry := fmt.Sprintf("\n[mcp_servers.litespm]\ncommand = %s\nargs = [\"bridge\", \"stdio\", \"--host\", \"grok-build\"]\n", quotedBin)
 
 	// Adopt a pre-rename `[mcp_servers.litepsm]` table before writing the
 	// current one, so an upgraded host keeps exactly one bridge table.
@@ -124,6 +128,12 @@ func (a *GrokBuildAdapter) PlanSetupAt(ctx context.Context, binaryPath string, b
 		proposed = strings.Join(newLines, "\n")
 	} else {
 		proposed = strings.TrimRight(base, "\n") + entry
+	}
+
+	// Nothing is planned that the host could not read: the merged text is
+	// re-parsed here, before any plan exists, so an escaping bug fails closed.
+	if verr := verifyTOMLDocument(proposed); verr != nil {
+		return nil, fmt.Errorf("grok-build: %s: the merged config would not parse as TOML, refusing to plan: %w", TOMLInvalidCode, verr)
 	}
 
 	return &HostChangePlan{
@@ -193,7 +203,7 @@ func (a *GrokBuildAdapter) RenderManualSetup(binaryPath string) string {
 	cleanBin := filepath.ToSlash(binaryPath)
 	return fmt.Sprintf(`# Add to ~/.grok/config.toml
 [mcp_servers.litespm]
-command = %q
+command = %s
 args = ["bridge", "stdio", "--host", "grok-build"]
-`, cleanBin)
+`, tomlQuoteStringLossy(cleanBin))
 }
