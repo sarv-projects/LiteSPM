@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/sarv-projects/litespm/internal/domain"
+	"github.com/sarv-projects/litespm/internal/fslock"
 )
 
 type vaultDiskEntry struct {
@@ -87,28 +88,77 @@ func DefaultVaultPath() string {
 	return filepath.Join(".", "secrets", "vault.enc")
 }
 
-func (s *FileEncryptedSecretStore) load() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+// readEntries reads and decodes the vault file. The returned map is never nil.
+func (s *FileEncryptedSecretStore) readEntries() (map[string]vaultDiskEntry, error) {
 	data, err := os.ReadFile(s.vaultPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var vault serializedVault
 	if err := json.Unmarshal(data, &vault); err != nil {
+		return nil, err
+	}
+	if vault.Entries == nil {
+		vault.Entries = make(map[string]vaultDiskEntry)
+	}
+	return vault.Entries, nil
+}
+
+func (s *FileEncryptedSecretStore) load() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	entries, err := s.readEntries()
+	if err != nil {
 		return err
 	}
-
-	s.entries = vault.Entries
-	if s.entries == nil {
-		s.entries = make(map[string]vaultDiskEntry)
-	}
+	s.entries = entries
 	return nil
 }
 
-func (s *FileEncryptedSecretStore) persist() error {
+// vaultLockTimeout bounds how long one mutation waits for another process
+// that holds the vault lock.
+const vaultLockTimeout = 10 * time.Second
+
+// mutate runs one read-modify-write cycle against the vault file.
+//
+// The in-process mutex only orders callers of this store; the file lock in
+// internal/fslock orders every process that opens the same vault (the CLI,
+// the daemon, a script). The vault is re-read UNDER that lock and fn mutates
+// that fresh map, so a store that loaded its snapshot before another process
+// added or deleted an entry merges its change into the current file instead
+// of stamping the stale snapshot over it — which is how a logout (Delete)
+// used to be undone by any concurrent writer, and how a concurrent add used
+// to be silently dropped.
+func (s *FileEncryptedSecretStore) mutate(fn func(entries map[string]vaultDiskEntry) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	lock, err := fslock.Acquire(s.vaultPath+".lock", fslock.Options{Timeout: vaultLockTimeout})
+	if err != nil {
+		return fmt.Errorf("failed to lock vault %s: %w", s.vaultPath, err)
+	}
+	defer func() { _ = lock.Release() }()
+
+	entries, err := s.readEntries()
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read encrypted vault: %w", err)
+	}
+	if entries == nil {
+		entries = make(map[string]vaultDiskEntry)
+	}
+	if err := fn(entries); err != nil {
+		return err
+	}
+	if err := s.persist(entries); err != nil {
+		return fmt.Errorf("failed to persist encrypted vault: %w", err)
+	}
+	s.entries = entries
+	return nil
+}
+
+func (s *FileEncryptedSecretStore) persist(entries map[string]vaultDiskEntry) error {
 	dir := filepath.Dir(s.vaultPath)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
@@ -116,7 +166,7 @@ func (s *FileEncryptedSecretStore) persist() error {
 
 	vault := serializedVault{
 		Version: 1,
-		Entries: s.entries,
+		Entries: entries,
 	}
 
 	data, err := json.MarshalIndent(vault, "", "  ")
@@ -140,9 +190,6 @@ func (s *FileEncryptedSecretStore) persist() error {
 }
 
 func (s *FileEncryptedSecretStore) Put(ctx context.Context, namespace, key string, secretBytes []byte) (*SecretRef, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	ref := NewSecretRef(namespace, key)
 	nonce := make([]byte, s.gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
@@ -150,28 +197,29 @@ func (s *FileEncryptedSecretStore) Put(ctx context.Context, namespace, key strin
 	}
 
 	ciphertext := s.gcm.Seal(nil, nonce, secretBytes, []byte(ref.URI))
-
 	now := time.Now().UTC()
-	existing, ok := s.entries[ref.URI]
-	createdAt := now
-	if ok {
-		createdAt = existing.Metadata.CreatedAt
-	}
 
-	s.entries[ref.URI] = vaultDiskEntry{
-		EncryptedData: ciphertext,
-		Nonce:         nonce,
-		Metadata: SecretMetadata{
-			URI:       ref.URI,
-			Namespace: namespace,
-			Key:       key,
-			CreatedAt: createdAt,
-			UpdatedAt: now,
-		},
-	}
+	err := s.mutate(func(entries map[string]vaultDiskEntry) error {
+		createdAt := now
+		if existing, ok := entries[ref.URI]; ok {
+			createdAt = existing.Metadata.CreatedAt
+		}
 
-	if err := s.persist(); err != nil {
-		return nil, fmt.Errorf("failed to persist encrypted vault: %w", err)
+		entries[ref.URI] = vaultDiskEntry{
+			EncryptedData: ciphertext,
+			Nonce:         nonce,
+			Metadata: SecretMetadata{
+				URI:       ref.URI,
+				Namespace: namespace,
+				Key:       key,
+				CreatedAt: createdAt,
+				UpdatedAt: now,
+			},
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return ref, nil
 }
@@ -194,18 +242,13 @@ func (s *FileEncryptedSecretStore) Get(ctx context.Context, ref SecretRef) ([]by
 }
 
 func (s *FileEncryptedSecretStore) Delete(ctx context.Context, ref SecretRef) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.entries[ref.URI]; !ok {
-		return domain.ErrNotFound("secret", ref.URI)
-	}
-
-	delete(s.entries, ref.URI)
-	if err := s.persist(); err != nil {
-		return fmt.Errorf("failed to persist encrypted vault after deletion: %w", err)
-	}
-	return nil
+	return s.mutate(func(entries map[string]vaultDiskEntry) error {
+		if _, ok := entries[ref.URI]; !ok {
+			return domain.ErrNotFound("secret", ref.URI)
+		}
+		delete(entries, ref.URI)
+		return nil
+	})
 }
 
 func (s *FileEncryptedSecretStore) Exists(ctx context.Context, ref SecretRef) (bool, error) {

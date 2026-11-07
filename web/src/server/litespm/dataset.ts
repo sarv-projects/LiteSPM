@@ -17,6 +17,7 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 
 import { listingIdentity, normalizeListing, uniqueListings } from "./discovery";
+import { validateCommandLine } from "./config-snippet";
 import { dedupeKey, rankScore } from "./ranking";
 import type { FeaturedShelf, Listing, ReleaseManifest, Telemetry } from "./types";
 
@@ -102,6 +103,28 @@ async function load(): Promise<Dataset> {
   for (const row of unique) slugCounts.set(row.slug, (slugCounts.get(row.slug) ?? 0) + 1);
 
   const rows: Listing[] = unique.map((row) => ({ ...row, linkKey: linkKeyFor(row, slugCounts) }));
+
+  // F8: `command`/`args` are publisher data that used to be interpolated raw
+  // into the copy-paste host config snippet. The producer enforces the id
+  // grammar upstream, but nothing enforced the launch-line shape here, so the
+  // loader does it now. Policy is fail-closed and narrow: a row whose launch
+  // line exceeds the token allowlist keeps working in browse, search, compare
+  // and `litespm install <id>`; only its install snippet is withheld
+  // (type-specs.ts honours the mark) and one aggregate warning is logged.
+  const withheld: string[] = [];
+  for (const row of rows) {
+    const command = typeof row.command === "string" ? row.command.trim() : "";
+    if (!command) continue; // no launch line to emit, so nothing to withhold
+    if (validateCommandLine(command, row.args) !== null) continue;
+    row.snippetWithheld = true;
+    withheld.push(row.id);
+  }
+  if (withheld.length > 0) {
+    console.warn(
+      `[catalog] withheld the install snippet for ${withheld.length} listing(s) whose command/args exceed the allowed token characters: ` +
+        `${withheld.slice(0, 5).join(", ")}${withheld.length > 5 ? ", …" : ""}`,
+    );
+  }
 
   // Rank score: deterministic composite of the row's own record fields.
   for (const row of rows) row.rankScore = rankScore(row);

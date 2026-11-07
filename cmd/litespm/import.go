@@ -215,6 +215,10 @@ func runImportTo(out io.Writer, args []string) int {
 		return 1
 	}
 	plan := interop.BuildPlan(doc, targetPath, snapshot.manifest)
+	// The Apply hint must reproduce this run's target: without echoing
+	// --project, following it writes the manifest to the working directory
+	// instead of the directory the plan just named.
+	plan.ProjectFlag = flags.project
 
 	// ---- the plan prints unconditionally, before any decision.
 	interactive := !flags.jsonOut && isTerminal(os.Stdin) && isTerminal(os.Stdout)

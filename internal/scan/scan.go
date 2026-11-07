@@ -18,6 +18,7 @@
 package scan
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"sort"
@@ -65,22 +66,59 @@ const (
 // subset of the published row, so the scanner can run over a JSON file
 // without the website's types.
 type Row struct {
-	ID             string `json:"id"`
-	Kind           string `json:"kind"`
-	Name           string `json:"name"`
-	Version        string `json:"version"`
-	Installability string `json:"installability"`
-	Source         string `json:"source"`
-	URL            string `json:"url"`
-	Command        string `json:"command"`
-	Transport      string `json:"transport"`
-	SkillSource    string `json:"skillSource"`
+	ID             string    `json:"id"`
+	Kind           string    `json:"kind"`
+	Name           string    `json:"name"`
+	Version        string    `json:"version"`
+	Installability string    `json:"installability"`
+	Source         SourceRef `json:"source"`
+	URL            string    `json:"url"`
+	Command        string    `json:"command"`
+	Transport      string    `json:"transport"`
+	SkillSource    string    `json:"skillSource"`
 	// Artifact is the published source descriptor of a plugin.
 	Artifact *Artifact `json:"artifact"`
 	// Metadata carries the row's own metadata block (the producer's
 	// `metadata.internal` marker lives here).
 	Metadata map[string]any `json:"metadata"`
 }
+
+// SourceRef is the row's source reference, which the catalog publishes in two
+// shapes. The website's bundled dataset and the legacy producers write a flat
+// string ("builtin:mcp-registry"); the v1 release shards that
+// `litespm catalog sync` caches — the file plain `litespm audit` reads — write
+// an object {"sourceId", "upstreamId", "url"}. Both must decode, or the audit
+// fails against every synced release instead of checking it.
+type SourceRef string
+
+func (s *SourceRef) UnmarshalJSON(data []byte) error {
+	var flat string
+	if err := json.Unmarshal(data, &flat); err == nil {
+		*s = SourceRef(flat)
+		return nil
+	}
+	var obj struct {
+		SourceID   string `json:"sourceId"`
+		UpstreamID string `json:"upstreamId"`
+		URL        string `json:"url"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return fmt.Errorf("source is neither a string nor a source object: %w", err)
+	}
+	// Prefer the most identifying value: the source id, then the upstream row
+	// it was ingested from, then its URL.
+	switch {
+	case obj.SourceID != "":
+		*s = SourceRef(obj.SourceID)
+	case obj.UpstreamID != "":
+		*s = SourceRef(obj.UpstreamID)
+	default:
+		*s = SourceRef(obj.URL)
+	}
+	return nil
+}
+
+func (s SourceRef) String() string { return string(s) }
 
 // Artifact is a published source locator.
 type Artifact struct {
@@ -156,7 +194,7 @@ func Scan(row Row) []Finding {
 	}
 
 	// 5. A version with no source.
-	if strings.TrimSpace(row.Version) != "" && strings.TrimSpace(row.Source) == "" {
+	if strings.TrimSpace(row.Version) != "" && strings.TrimSpace(string(row.Source)) == "" {
 		add(RuleVersionWithoutSource, SeverityNote,
 			"the row carries a version but no source id, so its provenance cannot be traced")
 	}

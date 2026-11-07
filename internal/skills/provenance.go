@@ -36,9 +36,14 @@ type FileRecord struct {
 
 // Provenance is the recorded evidence for one installed skill directory.
 type Provenance struct {
-	// Digest is a sha256 over the sorted inventory (path, size, content) of
-	// every regular file in the tree. It is empty only when the directory has
-	// no regular files.
+	// Digest is a sha256 over the sorted inventory of every regular file in
+	// the tree: for each file in path order, "<relative path>\x00<size>\x00"
+	// then the file's content and a trailing NUL are hashed, so paths, sizes
+	// and contents are bound. Empty directories and file modes are NOT bound.
+	// The digest is never empty: a tree with no regular files digests the
+	// empty input (sha256 e3b0c442...). An empty string therefore means "no
+	// digest was captured" (a legacy entry), never "the directory had no
+	// files".
 	Digest string
 	// Inventory lists every regular file captured, sorted by path.
 	Inventory []FileRecord

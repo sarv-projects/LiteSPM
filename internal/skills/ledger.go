@@ -16,7 +16,9 @@ package skills
 //   - a directory is removed only if it still contains a SKILL.md, so a path
 //     that was repurposed by the user is left alone;
 //   - a directory is refused as symlinked (never followed out of the skill
-//     tree);
+//     tree), and a destination whose path traverses a symlink between the
+//     skills root and the leaf is refused as well, so a planted link above
+//     the leaf cannot redirect os.RemoveAll outside the tree;
 //   - a directory containing files beyond the recorded inventory is left
 //     alone, so user-added content is never destroyed;
 //   - removal is refused, per entry, when the recorded scope does not match
@@ -73,7 +75,9 @@ type LedgerEntry struct {
 	InstalledAt time.Time `json:"installedAt"`
 
 	// ContentDigest is the tree digest captured at install time (see
-	// CaptureProvenance). Empty for legacy entries and for empty trees.
+	// CaptureProvenance). Empty for legacy entries only: a tree with no
+	// regular files still digests to the sha256 of empty input, so "" is
+	// never a "no files" marker.
 	ContentDigest string `json:"contentDigest,omitempty"`
 	// SourceRef is the source pin/commit recorded at install time. Empty when
 	// the source was unpinned or unknown.
@@ -137,38 +141,48 @@ func (l *Ledger) withLock(fn func() error) error {
 // independent of the filesystem state, so it also holds for entries whose
 // directory is missing or a symlink (those are refused separately).
 func (l *Ledger) confineDest(dest string) error {
+	_, err := l.confinedRoot(dest)
+	return err
+}
+
+// confinedRoot performs confineDest's lexical checks and returns the root the
+// destination is confined to. Removal uses the root to verify the filesystem
+// path too: every component between that root and the leaf must be a real
+// directory, or os.RemoveAll resolves a planted symlink and deletes outside
+// the skills tree.
+func (l *Ledger) confinedRoot(dest string) (string, error) {
 	if dest == "" {
-		return fmt.Errorf("empty destination")
+		return "", fmt.Errorf("empty destination")
 	}
 	// A NUL byte would let layers that truncate at NUL (or C-string path APIs
 	// under any binding) name a DIFFERENT, real directory than the recorded
 	// one. Refuse the row outright rather than hand such a path to RemoveAll.
 	if strings.ContainsRune(dest, 0) {
-		return fmt.Errorf("destination %q contains a NUL byte", dest)
+		return "", fmt.Errorf("destination %q contains a NUL byte", dest)
 	}
 	if !filepath.IsAbs(dest) {
-		return fmt.Errorf("destination %q is not absolute", dest)
+		return "", fmt.Errorf("destination %q is not absolute", dest)
 	}
 	if filepath.Clean(dest) != dest {
-		return fmt.Errorf("destination %q is not a clean path (contains .., ., or duplicate separators)", dest)
+		return "", fmt.Errorf("destination %q is not a clean path (contains .., ., or duplicate separators)", dest)
 	}
 	parent := filepath.Dir(dest)
 	if parent == dest || filepath.Dir(parent) == parent {
-		return fmt.Errorf("destination %q is a filesystem root or sits directly under one", dest)
+		return "", fmt.Errorf("destination %q is a filesystem root or sits directly under one", dest)
 	}
 	if len(l.roots) > 0 {
 		for _, r := range l.roots {
 			rel, err := filepath.Rel(r, dest)
 			if err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-				return nil
+				return r, nil
 			}
 		}
-		return fmt.Errorf("destination %q is outside the permitted skill roots", dest)
+		return "", fmt.Errorf("destination %q is outside the permitted skill roots", dest)
 	}
 	if !strings.EqualFold(filepath.Base(parent), "skills") {
-		return fmt.Errorf("destination %q is not inside a skills directory (parent %q)", dest, filepath.Base(parent))
+		return "", fmt.Errorf("destination %q is not inside a skills directory (parent %q)", dest, filepath.Base(parent))
 	}
-	return nil
+	return parent, nil
 }
 
 // OpenLedger loads the ledger at path. A missing file is not an error: it means
@@ -382,8 +396,18 @@ func (l *Ledger) removeScopedLocked(opts RemoveOptions) ([]RemovalOutcome, error
 			keep = append(keep, e)
 			continue
 		}
-		if cerr := l.confineDest(e.DestDir); cerr != nil {
+		root, cerr := l.confinedRoot(e.DestDir)
+		if cerr != nil {
 			outcomes = append(outcomes, RemovalOutcome{Entry: e, Reason: "refusing to delete: " + cerr.Error()})
+			keep = append(keep, e)
+			continue
+		}
+		// The lexical confinement above does not prove the filesystem path
+		// stays inside the root: RemoveAll resolves every component, so a
+		// symlink between the root and the leaf redirects the delete. Refuse
+		// to traverse one, for the normal and the forced pass alike.
+		if reason := symlinkParentReason(root, e.DestDir); reason != "" {
+			outcomes = append(outcomes, RemovalOutcome{Entry: e, Removed: false, Reason: reason})
 			keep = append(keep, e)
 			continue
 		}
@@ -463,6 +487,42 @@ func (l *Ledger) DeleteDest(destDir, contentDigest string) error {
 		}
 		return l.write(kept)
 	})
+}
+
+// symlinkParentReason refuses a destination when a component between the root
+// that confines it and the leaf is a symlink. confinedRoot proves the path is
+// inside the skills root lexically; this proves the path actually stays there,
+// because both the leaf checks and os.RemoveAll resolve every component before
+// reaching the leaf. The leaf itself is exempt: removableReason refuses a
+// symlinked destination with its own message.
+//
+// A component that cannot be stat'd is not reported here: a missing parent
+// means the destination cannot be removed anyway, and removableReason reports
+// that case.
+func symlinkParentReason(root, dest string) string {
+	if fi, err := os.Lstat(root); err == nil && fi.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Sprintf("refusing to remove %s: %s is a symlink; removal never traverses a symlinked parent", dest, root)
+	}
+	dir := filepath.Dir(dest)
+	rel, err := filepath.Rel(root, dir)
+	if err != nil || rel == "." {
+		return ""
+	}
+	current := root
+	for _, part := range strings.Split(filepath.ToSlash(rel), "/") {
+		if part == "" || part == "." {
+			continue
+		}
+		current = filepath.Join(current, part)
+		fi, lerr := os.Lstat(current)
+		if lerr != nil {
+			return ""
+		}
+		if fi.Mode()&fs.ModeSymlink != 0 {
+			return fmt.Sprintf("refusing to remove %s: path component %s is a symlink; removal never traverses a symlinked parent", dest, current)
+		}
+	}
+	return ""
 }
 
 // removableReason returns "" when the directory is safe to delete, or an
