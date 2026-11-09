@@ -1,0 +1,4 @@
+{
+  "description": "LiteSPM marketplace pane (__MARKER__ __LITESPM_VERSION__)",
+  "modules": ["./register.js"]
+}

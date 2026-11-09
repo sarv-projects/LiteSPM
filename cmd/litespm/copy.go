@@ -381,9 +381,7 @@ func runCopyTo(out io.Writer, args []string) int {
 			fmt.Fprintln(os.Stderr, "copy: --apply needs an interactive terminal to approve, or --yes to approve the printed plan non-interactively")
 			return 1
 		}
-		fmt.Fprintf(out, "\nApply %d change(s) to %s? [y/N] ", len(writable), tgt.Display)
-		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-		if !isAffirmative(line) {
+		if !askApply(out, fmt.Sprintf("Apply %d change(s) to %s?", len(writable), tgt.Display)) {
 			fmt.Fprintln(out, "Not applied; no changes were made.")
 			return 1
 		}
@@ -396,6 +394,19 @@ func runCopyTo(out io.Writer, args []string) int {
 // An unrecognised answer re-asks; "a" (or EOF) reports an abort so the run
 // stops with nothing written.
 func askConflictDecision(in *bufio.Reader, out io.Writer, c porting.Conflict) (string, bool) {
+	if terminalUIAvailable(os.Stdin, out) {
+		id, ok, err := uiSelectOne(os.Stdin, out, fmt.Sprintf("%s %s", c.Kind, c.ID), c.Detail,
+			[]choiceOption{
+				{ID: porting.StrategyKeepTarget, Label: "Keep the target", Hint: "leave the existing entry"},
+				{ID: porting.StrategyUseSource, Label: "Use the source", Hint: "replace the existing entry"},
+				{ID: porting.StrategySkip, Label: "Skip this one"},
+				{ID: "abort", Label: "Abort", Hint: "write nothing"},
+			}, porting.StrategyKeepTarget)
+		if err != nil || !ok || id == "abort" {
+			return "", true
+		}
+		return id, false
+	}
 	for {
 		fmt.Fprintf(out, "  %s %s (%s): keep target [k] / use source [u] / skip [s] / abort [a]? ",
 			c.Kind, c.ID, c.Detail)

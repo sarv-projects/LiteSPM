@@ -46,6 +46,9 @@ func marketplaceURL() string {
 }
 
 func runMarketplace(args []string) {
+	if len(args) > 0 && args[0] == "rows" {
+		os.Exit(runMarketplaceRows(args[1:]))
+	}
 	target := marketplaceURL()
 	open := true
 	for i := 0; i < len(args); i++ {

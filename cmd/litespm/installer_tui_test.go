@@ -188,3 +188,40 @@ func TestWindowForKeepsCursorVisible(t *testing.T) {
 		t.Fatalf("small window = %d..%d", start, end)
 	}
 }
+
+// A caller's ordering may interleave groups (the wizard sorts agents by name
+// and one detected agent lands mid-list). Each group must still get exactly
+// one heading, with its members together under it, in first-seen order.
+func TestSearchPromptNeverRepeatsAGroupHeading(t *testing.T) {
+	items := []promptItem{
+		{ID: "a", Label: "Aider", Group: "Other agents"},
+		{ID: "b", Label: "Amp", Group: "Other agents"},
+		{ID: "c", Label: "Claude Code", Group: "Detected on this machine"},
+		{ID: "d", Label: "Codex", Group: "Other agents"},
+	}
+	m := newSearchPromptModel(searchPromptOptions{Title: "Pick", Items: items})
+	headings := map[string]int{}
+	var order []string
+	for _, e := range m.entries() {
+		if e.group != "" {
+			headings[e.group]++
+		} else if e.item.ID != "" {
+			order = append(order, e.item.ID)
+		}
+	}
+	for g, n := range headings {
+		if n != 1 {
+			t.Fatalf("heading %q appears %d times, want 1", g, n)
+		}
+	}
+	if got := strings.Join(order, ","); got != "a,b,d,c" {
+		t.Fatalf("row order %s, want a,b,d,c (members together, groups first-seen)", got)
+	}
+	// Toggling a group must reach every member, not just its first run.
+	m.toggleGroup("Other agents")
+	for _, id := range []string{"a", "b", "d"} {
+		if !m.selected[id] {
+			t.Fatalf("toggleGroup missed %s", id)
+		}
+	}
+}

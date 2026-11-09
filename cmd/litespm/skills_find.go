@@ -323,6 +323,39 @@ func printSkillsFindTable(out io.Writer, opts skillsFindOptions, results []*cata
 // before any input (an EOF), the list already printed stays the answer and the
 // command exits 0 rather than pretending a selection was made.
 func runSkillsFindPicker(out, errOut io.Writer, stdin io.Reader, results []*catalog.SearchResult) int {
+	if terminalUIAvailable(stdin, out) {
+		items := make([]promptItem, 0, len(results))
+		for i, r := range results {
+			owner, _ := skillSourceOwner(r.Listing)
+			items = append(items, promptItem{
+				ID:     strconv.Itoa(i),
+				Label:  r.Listing.Name,
+				Hint:   owner,
+				Detail: r.Listing.Name + "\n" + truncateRunes(r.Listing.Summary, 160) + "\nID: " + r.Listing.ID,
+			})
+		}
+		picked, perr := runSearchPrompt(stdin, out, searchPromptOptions{
+			Title:       fmt.Sprintf("%d skills found", len(results)),
+			Description: "Type to filter. Enter shows how to use or install the highlighted skill.",
+			Items:       items,
+			Single:      true,
+			Searchable:  true,
+			ShowDetail:  true,
+			DetailLines: 3,
+			MaxVisible:  11,
+		})
+		if perr != nil {
+			fmt.Fprintf(errOut, "Error: %v\n", perr)
+			return 1
+		}
+		if picked.Cancelled || len(picked.Selected) != 1 {
+			return 0
+		}
+		if idx, convErr := strconv.Atoi(picked.Selected[0]); convErr == nil && idx >= 0 && idx < len(results) {
+			printSkillsFindSelection(out, results[idx])
+		}
+		return 0
+	}
 	fmt.Fprintln(out, "◇  Select a skill (one number)")
 	for i, r := range results {
 		fmt.Fprintf(out, "│  %d) %s — %s\n", i+1, r.Listing.Name, truncateRunes(r.Listing.Summary, 80))

@@ -402,6 +402,21 @@ func shortDigest(digest string) string {
 // other lifecycle commands: what was written, where, from which source, and at
 // which revision. It claims nothing beyond what the ledger recorded.
 func printSkillInstall(outcome *skillInstallOutcome) {
+	if terminalUIAvailable(os.Stdin, os.Stdout) {
+		home := userHome()
+		lines := []string{uiKV("from", outcome.Source), uiKV("scope", string(outcome.Scope))}
+		if outcome.SourceRef != "" {
+			lines[0] += uiDim.Render("  @ " + outcome.SourceRef)
+		}
+		for _, dest := range outcome.Destinations {
+			lines = append(lines, uiKV("wrote", shortHome(dest, home)))
+		}
+		lines = append(lines, uiKV("install id", outcome.InstallID), uiKV("undo", "litespm install remove "+outcome.InstallID))
+		fmt.Println()
+		fmt.Println(uiCard(os.Stdout, "ok", "✓ Installed skill "+outcome.SkillName, lines,
+			"Restart your agent so it picks the skill up."))
+		return
+	}
 	fmt.Printf("✓ Installed skill %s\n", outcome.SkillName)
 	fmt.Printf("  • Listing ID:  %s\n", outcome.ListingID)
 	fmt.Printf("  • Install ID:  %s\n", outcome.InstallID)

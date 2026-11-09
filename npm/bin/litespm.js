@@ -85,7 +85,11 @@ function main() {
     try {
       const installScript = path.join(__dirname, "..", "scripts", "install-binary.js");
       if (fs.existsSync(installScript)) {
-        const result = spawnSync(process.execPath, [installScript], { stdio: "inherit" });
+        // The installer's progress and verification lines go to stderr, never
+        // stdout. `litespm bridge stdio` speaks JSON-RPC on stdout: an MCP host
+        // that launches the shim before the binary exists would otherwise read
+        // "[litespm] Installing ..." as a malformed protocol frame.
+        const result = spawnSync(process.execPath, [installScript], { stdio: ["inherit", 2, "inherit"] });
         const failure = installerResultError(result);
         if (failure) {
           console.error(failure);
@@ -116,6 +120,28 @@ function main() {
     console.error(`[litespm] Failed to spawn native binary: ${err.message}`);
     process.exit(1);
   });
+
+  // Forward termination to the native process. An MCP host stops a bridge with
+  // SIGTERM (or SIGHUP when its terminal closes); without forwarding, only this
+  // Node shim dies and the native `litespm bridge stdio` child is orphaned.
+  // SIGINT is forwarded only without a terminal: with one, Ctrl-C already
+  // reaches the child through the foreground process group, and a second
+  // SIGINT would make a Go program that traps the first one exit hard.
+  const forwarded = ["SIGTERM", "SIGHUP"];
+  if (!process.stdin.isTTY) forwarded.push("SIGINT");
+  for (const sig of forwarded) {
+    try {
+      process.on(sig, () => {
+        try {
+          child.kill(sig);
+        } catch (e) {
+          /* the child already exited */
+        }
+      });
+    } catch (e) {
+      /* a signal this platform cannot listen for (e.g. SIGHUP on Windows) */
+    }
+  }
 
   child.on("exit", (code, signal) => {
     if (signal) {

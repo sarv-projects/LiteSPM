@@ -23,7 +23,6 @@ package main
 // codes LPSM-IMPORT-001..007 live in internal/interop.
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -252,9 +251,7 @@ func runImportTo(out io.Writer, args []string) int {
 		return 0
 	}
 	if decision == interop.DecisionPrompt {
-		fmt.Fprintf(out, "\nApply %d change(s) to %s? [y/N] ", plan.Actionable(), plan.TargetPath)
-		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-		if !isAffirmative(line) {
+		if !askApply(out, fmt.Sprintf("Apply %d change(s) to %s?", plan.Actionable(), plan.TargetPath)) {
 			fmt.Fprintln(out, "Not applied; no changes were made.")
 			return 1
 		}

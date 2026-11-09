@@ -173,13 +173,13 @@ func (a *PiAgentAdapter) ApplySetup(ctx context.Context, plan *HostChangePlan) (
 		return nil, err
 	}
 
-	// Also ensure companion extension directory and file exists for Pi agent
-	extPath := a.ExtensionPath()
-	extDir := filepath.Dir(extPath)
-	if err := os.MkdirAll(extDir, 0700); err == nil {
-		if _, err := os.Stat(extPath); os.IsNotExist(err) {
-			_ = os.WriteFile(extPath, []byte(piExtensionCode), 0600)
-		}
+	// The companion extension (the /marketplace popup) is written with the
+	// bridge, and upgraded in place on a re-run. A removal plan — the same
+	// ApplySetup with the bridge stripped — must not re-create it.
+	if strings.Contains(plan.ProposedContent, `"`+litespmServerName+`"`) {
+		// The extension reads the binary from the bridge entry in mcp.json
+		// itself, so it needs no path baked in.
+		_, _ = InstallMarketplaceCommand(ctx, "pi-agent", MarketplaceCommandOptions{})
 	}
 
 	return &HostApplyResult{

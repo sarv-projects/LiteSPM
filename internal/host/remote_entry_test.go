@@ -72,8 +72,8 @@ func remoteGoldenCases() []remoteGoldenCase {
 			// discriminator is mandatory here.
 			hostID:            "claude-code",
 			file:              ".claude.json",
-			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"type\":\"http\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
-			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"type\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n    \"demo\": {\"type\":\"http\",\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
+			sse:               "{\n  \"mcpServers\": {\n    \"demo\": {\"type\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: "http",
 		},
 		{
@@ -82,14 +82,14 @@ func remoteGoldenCases() []remoteGoldenCase {
 			// wrong transport.
 			hostID:            "cline",
 			file:              ".cline/data/settings/cline_mcp_settings.json",
-			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"type\":\"streamableHttp\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
-			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"type\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n    \"demo\": {\"type\":\"streamableHttp\",\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
+			sse:               "{\n  \"mcpServers\": {\n    \"demo\": {\"type\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: "streamableHttp",
 		},
 		{
 			hostID:            "opencode",
 			file:              ".config/opencode/opencode.json",
-			streamableHTTP:    "{\n  \"mcp\": {\n    \"servers\": {\n  \"demo\": {\"type\":\"remote\",\"url\":\"" + remoteTestURL + "\"}\n}\n  }\n}",
+			streamableHTTP:    "{\n  \"mcp\": {\n    \"servers\": {\n      \"demo\": {\"type\":\"remote\",\"url\":\"" + remoteTestURL + "\"}\n    }\n  }\n}",
 			readBackTransport: "remote",
 		},
 		{
@@ -107,7 +107,7 @@ func remoteGoldenCases() []remoteGoldenCase {
 		{
 			hostID:            "pi-agent",
 			file:              ".pi/agent/mcp.json",
-			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n    \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: TransportStreamableHTTP,
 		},
 		{
@@ -115,15 +115,15 @@ func remoteGoldenCases() []remoteGoldenCase {
 			// sse entry is byte-identical to the streamable-http one.
 			hostID:            "cursor",
 			file:              ".cursor/mcp.json",
-			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
-			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n    \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
+			sse:               "{\n  \"mcpServers\": {\n    \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: TransportStreamableHTTP,
 		},
 		{
 			hostID:            "zed",
 			file:              ".config/zed/settings.json",
 			fileWindows:       filepath.Join("AppData", "Roaming", "Zed", "settings.json"),
-			streamableHTTP:    "{\n  \"context_servers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"context_servers\": {\n    \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: TransportStreamableHTTP,
 		},
 		{
@@ -132,8 +132,8 @@ func remoteGoldenCases() []remoteGoldenCase {
 			// objects carry "transport":"http" / "sse".
 			hostID:            "rovodev",
 			file:              ".rovodev/mcp.json",
-			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"transport\":\"http\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
-			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"transport\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n    \"demo\": {\"transport\":\"http\",\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
+			sse:               "{\n  \"mcpServers\": {\n    \"demo\": {\"transport\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: "http",
 		},
 		{
@@ -142,16 +142,16 @@ func remoteGoldenCases() []remoteGoldenCase {
 			// endpoint. There is no discriminator at all.
 			hostID:            "gemini-cli",
 			file:              ".gemini/settings.json",
-			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"httpUrl\":\"" + remoteTestURL + "\"}\n}\n}",
-			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n    \"demo\": {\"httpUrl\":\"" + remoteTestURL + "\"}\n  }\n}",
+			sse:               "{\n  \"mcpServers\": {\n    \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: TransportStreamableHTTP,
 		},
 		{
 			// Qwen Code uses the same per-transport keys as Gemini.
 			hostID:            "qwen-code",
 			file:              ".qwen/settings.json",
-			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"httpUrl\":\"" + remoteTestURL + "\"}\n}\n}",
-			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n    \"demo\": {\"httpUrl\":\"" + remoteTestURL + "\"}\n  }\n}",
+			sse:               "{\n  \"mcpServers\": {\n    \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: TransportStreamableHTTP,
 		},
 		{
@@ -159,8 +159,8 @@ func remoteGoldenCases() []remoteGoldenCase {
 			// only its SSE entry carries {"transport":"sse"}.
 			hostID:            "kimi-code-cli",
 			file:              ".kimi-code/mcp.json",
-			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n}\n}",
-			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"transport\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n    \"demo\": {\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
+			sse:               "{\n  \"mcpServers\": {\n    \"demo\": {\"transport\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: TransportStreamableHTTP,
 		},
 		{
@@ -169,8 +169,8 @@ func remoteGoldenCases() []remoteGoldenCase {
 			// is set).
 			hostID:            "tabnine-cli",
 			file:              ".tabnine/agent/settings.json",
-			streamableHTTP:    "{\n  \"mcpServers\": {\n  \"demo\": {\"type\":\"http\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
-			sse:               "{\n  \"mcpServers\": {\n  \"demo\": {\"type\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n}\n}",
+			streamableHTTP:    "{\n  \"mcpServers\": {\n    \"demo\": {\"type\":\"http\",\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
+			sse:               "{\n  \"mcpServers\": {\n    \"demo\": {\"type\":\"sse\",\"url\":\"" + remoteTestURL + "\"}\n  }\n}",
 			readBackTransport: "http",
 		},
 	}

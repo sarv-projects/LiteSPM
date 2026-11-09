@@ -8,8 +8,10 @@ package main
 // wizard tests use.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -390,5 +392,88 @@ func TestWizardCompactConfiguredSummaryHandlesManyHosts(t *testing.T) {
 	}
 	if n := countLines(got); n > 3 {
 		t.Errorf("the configured summary is %d lines, want at most 3:\n%s", n, got)
+	}
+}
+
+// A path pasted from Windows "Copy as path" arrives quoted, and a typed `~`
+// is not expanded by anything but a shell. Both used to be planned verbatim.
+func TestNormalizeTypedPath(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("no home directory: %v", err)
+	}
+	cases := map[string]string{
+		`"C:\Users\me\.claude.json"`: `C:\Users\me\.claude.json`,
+		`'/tmp/x.json'`:              `/tmp/x.json`,
+		`  /tmp/y.json  `:            `/tmp/y.json`,
+		`"unbalanced`:                `"unbalanced`,
+		`~`:                          home,
+		`~/.claude.json`:             filepath.Join(home, ".claude.json"),
+		`~user/x`:                    `~user/x`, // another user's home is not ours to guess
+		``:                           ``,
+	}
+	for in, want := range cases {
+		if got := normalizeTypedPath(in); got != want {
+			t.Errorf("normalizeTypedPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Only an explicit answer chooses a scope; a typo is asked again, and q
+// cancels. Previously any text but "2" silently selected "all agents".
+func TestWizardScopePromptRejectsTypos(t *testing.T) {
+	listing := &domain.Listing{ID: "mcp:x", Name: "X", Kind: domain.KindMCP}
+	cases := []struct {
+		input  string
+		choice string
+		ok     bool
+	}{
+		{"\n", "1", true},
+		{"1\n", "1", true},
+		{"2\n", "project", true},
+		{"3\n2\n", "project", true},
+		{"x\nq\n", "", false},
+	}
+	for _, tc := range cases {
+		var out bytes.Buffer
+		w := &Wizard{in: strings.NewReader(tc.input), out: &out}
+		choice, ok, err := w.promptInstallScope(listing)
+		if err != nil {
+			t.Fatalf("input %q: %v", tc.input, err)
+		}
+		if choice != tc.choice || ok != tc.ok {
+			t.Fatalf("input %q: got (%q,%v), want (%q,%v)", tc.input, choice, ok, tc.choice, tc.ok)
+		}
+		if strings.Count(tc.input, "\n") > 1 && !strings.Contains(out.String(), "Please enter 1, 2 or q.") {
+			t.Fatalf("input %q: a typo was not answered with the accepted choices:\n%s", tc.input, out.String())
+		}
+	}
+	// An input that ends mid-prompt is still the ended-input signal, not a scope.
+	w := &Wizard{in: strings.NewReader("7\n"), out: &bytes.Buffer{}}
+	if _, _, err := w.promptInstallScope(listing); !errors.Is(err, errInputEnded) {
+		t.Fatalf("ended input after a typo: err=%v, want errInputEnded", err)
+	}
+}
+
+// askYesNo keeps the pipe contract the scripted tests rely on: Enter takes
+// the default, y/yes is yes, anything else is no, and EOF is not "no".
+func TestWizardAskYesNoPipePath(t *testing.T) {
+	for _, tc := range []struct {
+		in         string
+		defaultYes bool
+		want       bool
+	}{
+		{"\n", true, true}, {"\n", false, false}, {"y\n", false, true},
+		{"YES\n", false, true}, {"n\n", true, false}, {"maybe\n", true, false},
+	} {
+		w := &Wizard{in: strings.NewReader(tc.in), out: &bytes.Buffer{}}
+		got, err := w.askYesNo("Proceed?", tc.defaultYes)
+		if err != nil || got != tc.want {
+			t.Fatalf("askYesNo(%q, default=%v) = %v, %v; want %v", tc.in, tc.defaultYes, got, err, tc.want)
+		}
+	}
+	w := &Wizard{in: strings.NewReader(""), out: &bytes.Buffer{}}
+	if _, err := w.askYesNo("Proceed?", true); !errors.Is(err, errInputEnded) {
+		t.Fatalf("EOF: err=%v, want errInputEnded", err)
 	}
 }

@@ -150,6 +150,25 @@ func resolvePluginSkills(treeDir string, manifest *interop.PluginInstallManifest
 			if err != nil {
 				return nil, err
 			}
+			// The Claude Code manifest declares `"skills": "./skills/"`: a
+			// directory OF skills, not one skill. A declared directory with no
+			// SKILL.md of its own is a container, and each child directory that
+			// holds a SKILL.md is a component. Every child is re-resolved
+			// against the tree, so the containment checks above still apply.
+			if _, statErr := os.Lstat(filepath.Join(dir, "SKILL.md")); os.IsNotExist(statErr) {
+				children, cerr := skillContainerChildren(treeDir, dir)
+				if cerr != nil {
+					return nil, cerr
+				}
+				if len(children) > 0 {
+					for _, child := range children {
+						if err := add(child, ""); err != nil {
+							return nil, err
+						}
+					}
+					continue
+				}
+			}
 			if err := add(dir, declared.Name); err != nil {
 				return nil, err
 			}
@@ -182,6 +201,42 @@ func resolvePluginSkills(treeDir string, manifest *interop.PluginInstallManifest
 	sort.Slice(out, func(i, j int) bool { return out[i].Dir < out[j].Dir })
 	if len(out) > maxPluginSkills {
 		return nil, fmt.Errorf("the plugin declares %d skills, more than the %d this build installs in one plugin; install the skills from their own sources instead", len(out), maxPluginSkills)
+	}
+	return out, nil
+}
+
+// skillContainerChildren lists the child directories of a declared skills
+// directory that hold a SKILL.md, each re-resolved inside the verified tree.
+// Hidden directories are skipped, as in the conventional-layout branch.
+func skillContainerChildren(treeDir, containerDir string) ([]string, error) {
+	entries, err := os.ReadDir(containerDir)
+	if err != nil {
+		return nil, fmt.Errorf("read the plugin's skills directory %s: %w", containerDir, err)
+	}
+	root, err := filepath.Abs(treeDir)
+	if err != nil {
+		return nil, err
+	}
+	if root, err = filepath.EvalSymlinks(root); err != nil {
+		return nil, fmt.Errorf("could not resolve the plugin tree %s: %w", treeDir, err)
+	}
+	var out []string
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		rel, rerr := filepath.Rel(root, filepath.Join(containerDir, entry.Name()))
+		if rerr != nil {
+			return nil, rerr
+		}
+		child, cerr := resolveInsidePluginTree(treeDir, filepath.ToSlash(rel))
+		if cerr != nil {
+			return nil, cerr
+		}
+		if _, statErr := os.Lstat(filepath.Join(child, "SKILL.md")); statErr != nil {
+			continue // a directory that is not a skill is not a component
+		}
+		out = append(out, child)
 	}
 	return out, nil
 }

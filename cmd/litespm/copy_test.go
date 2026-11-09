@@ -652,7 +652,7 @@ func TestPortingCopiesRemoteEntryBetweenCapableHosts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("target config not written: %v", err)
 	}
-	want := "{\n  \"mcpServers\": {\n  \"demo\": {\"type\":\"http\",\"url\":\"https://mcp.example.com/mcp\"}\n}\n}"
+	want := "{\n  \"mcpServers\": {\n    \"demo\": {\"type\":\"http\",\"url\":\"https://mcp.example.com/mcp\"}\n  }\n}"
 	if string(got) != want {
 		t.Errorf("target is not the host's own remote spelling:\n got: %q\nwant: %q", got, want)
 	}

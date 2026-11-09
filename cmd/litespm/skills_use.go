@@ -43,6 +43,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/sarv-projects/litespm/internal/skills"
@@ -383,6 +384,34 @@ func selectSkillsUseSkill(found []skills.DiscoveredSkill, want string, interacti
 	if !interactive {
 		fmt.Fprintf(errOut, "Error: the source holds %d skills; name one with --skill <name> or owner/repo@<skill> in non-interactive mode.\n", len(found))
 		fmt.Fprintf(errOut, "Available skills: %s\n", strings.Join(names, ", "))
+		return skills.DiscoveredSkill{}, 1
+	}
+
+	// On a real terminal the choice is an arrow-key list; the numbered prompt
+	// below is the pipe and test path.
+	if terminalUIAvailable(stdin, out) {
+		picked, perr := runSearchPrompt(stdin, out, searchPromptOptions{
+			Title:       fmt.Sprintf("Choose a skill  ·  %d available", len(found)),
+			Description: "Its prompt is printed to stdout. Nothing is installed.",
+			Items:       skillPromptItems(found),
+			Single:      true,
+			Searchable:  true,
+			ShowDetail:  true,
+			DetailLines: 3,
+			MaxVisible:  11,
+		})
+		if perr != nil {
+			fmt.Fprintf(errOut, "Error: %v\n", perr)
+			return skills.DiscoveredSkill{}, 1
+		}
+		if picked.Cancelled || len(picked.Selected) != 1 {
+			fmt.Fprintln(errOut, "Cancelled.")
+			return skills.DiscoveredSkill{}, 1
+		}
+		if idx, convErr := strconv.Atoi(picked.Selected[0]); convErr == nil && idx >= 0 && idx < len(found) {
+			return found[idx], 0
+		}
+		fmt.Fprintln(errOut, "Error: that skill is no longer in the list.")
 		return skills.DiscoveredSkill{}, 1
 	}
 

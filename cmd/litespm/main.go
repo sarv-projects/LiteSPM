@@ -314,13 +314,19 @@ func catalogTimeoutOf(cfg *config.Config) time.Duration {
 
 // catalogSyncTimeout bounds one full catalog sync. The release tree is about
 // 100 MB across several files, so a ten-second ceiling failed on ordinary
-// links; five minutes covers a slow download, and an explicitly configured
-// network timeout still wins.
+// links; five minutes covers a slow download.
+//
+// A configured network timeout wins only when the operator raised it above the
+// compiled default. config.DefaultConfig always fills Network.Timeout with 30s,
+// so a loaded config can never be told apart from "unset" by comparing against
+// zero: the previous `> 0` test made the five-minute budget unreachable and a
+// 100 MB sync was cut off at 30 seconds on every ordinary connection.
 func catalogSyncTimeout(cfg *config.Config) time.Duration {
-	if cfg != nil && cfg.Network.Timeout > 0 {
+	const syncBudget = 5 * time.Minute
+	if cfg != nil && cfg.Network.Timeout > config.DefaultConfig(nil).Network.Timeout {
 		return cfg.Network.Timeout
 	}
-	return 5 * time.Minute
+	return syncBudget
 }
 
 // policyDefaultsFrom maps loaded configuration onto the policy engine's
@@ -699,11 +705,27 @@ func applyHostSetup(ctx context.Context, hostID string) int {
 		return 1
 	}
 
+	if terminalUIAvailable(os.Stdin, os.Stdout) {
+		home := userHome()
+		lines := []string{uiKV("wrote", shortHome(result.ConfigPath, home))}
+		if result.BackupPath != "" {
+			lines = append(lines, uiKV("backup", shortHome(result.BackupPath, home)))
+		}
+		footer := "Restart the agent to load LiteSPM."
+		if info, ok := host.MarketplaceCommandFor(hostID); ok {
+			footer = fmt.Sprintf("Start %s and type %s to browse capabilities.", adapter.Descriptor().DisplayName, info.Invoke)
+		}
+		fmt.Println(uiCard(os.Stdout, "ok", "✓ Connected "+adapter.Descriptor().DisplayName, lines, footer))
+		// The marketplace command is still written, and reported under the card.
+		installMarketplaceCommand(ctx, os.Stdout, hostID, execPath)
+		return 0
+	}
 	fmt.Printf("✓ Successfully configured %s:\n", adapter.Descriptor().DisplayName)
 	fmt.Printf("  • Config File: %s\n", result.ConfigPath)
 	if result.BackupPath != "" {
 		fmt.Printf("  • Backup:      %s\n", result.BackupPath)
 	}
+	installMarketplaceCommand(ctx, os.Stdout, hostID, execPath)
 	return 0
 }
 
@@ -759,6 +781,7 @@ func applyAllDetectedSetup(ctx context.Context) int {
 
 		configured++
 		fmt.Printf("✓ Configured %s (%s)\n", desc.DisplayName, result.ConfigPath)
+		installMarketplaceCommand(ctx, os.Stdout, desc.HostID, execPath)
 	}
 
 	fmt.Printf("\nBatch setup summary: %d configured · %d already set up · %d failed\n",
@@ -1760,7 +1783,11 @@ func runInstall(args []string) {
 	regURL := registryURLOf(cfg)
 	catClient := catalog.NewClientWithTimeout(regURL, paths.DataRoot, catalogTimeoutOf(cfg), nil)
 
-	fmt.Printf("Resolving and installing %s...\n", flags.listingID)
+	if terminalUIAvailable(os.Stdin, os.Stdout) {
+		fmt.Printf("%s\n  %s\n", uiCompactHeader("install"), uiDim.Render(flags.listingID))
+	} else {
+		fmt.Printf("Resolving and installing %s...\n", flags.listingID)
+	}
 	listing, listingErr := catClient.GetListing(flags.listingID)
 	if listingErr != nil {
 		msg := fmt.Sprintf("listing %s is not in the local catalog index", flags.listingID)
@@ -1893,6 +1920,9 @@ func runInstall(args []string) {
 	var confirm installConfirmFunc
 	if installConfirmWanted(flags) {
 		confirm = func(plan *domain.InstallPlan) (bool, error) {
+			if terminalUIAvailable(os.Stdin, os.Stdout) {
+				fmt.Fprintf(os.Stdout, "\n%s %s\n", uiStepStyle.Render("◆"), uiBold.Render("Review the install plan"))
+			}
 			writeApprovalPrompt(os.Stdout, plan)
 			return confirmInstallPrompt(os.Stdin, os.Stdout)
 		}
@@ -1951,11 +1981,13 @@ func runInstall(args []string) {
 			failInstall(aerr)
 		}
 		for _, change := range grant.Plan.HostChanges {
-			if change.Action == skillWriteAction {
+			if change.Action == skillWriteAction && !terminalUIAvailable(os.Stdin, os.Stdout) {
 				fmt.Printf("Skill target (sealed in the plan): %s\n", change.ConfigPath)
 			}
 		}
-		outcome, err := installSkillFromListing(ctx, db, paths.DataRoot, projectRoot, home, listing, versionOrLatest(flags.version), flags.scope, agents, grant.Plan)
+		outcome, err := runWithSpinner(ctx, os.Stdin, os.Stdout, "Installing "+listing.Name, func() (*skillInstallOutcome, error) {
+			return installSkillFromListing(ctx, db, paths.DataRoot, projectRoot, home, listing, versionOrLatest(flags.version), flags.scope, agents, grant.Plan)
+		})
 		if err != nil {
 			failInstall(err)
 		}
@@ -1969,8 +2001,10 @@ func runInstall(args []string) {
 		if err != nil {
 			failInstall(err)
 		}
-		outcome, err := installMCPFromListing(ctx, db, paths.DataRoot, listing, grant.Version, flags.scope, projectRoot,
-			plannedBinding.Hosts, plannedBinding.Force, plannedBinding.Runtime, plannedBinding.EnvNames)
+		outcome, err := runWithSpinner(ctx, os.Stdin, os.Stdout, "Registering "+listing.Name, func() (*mcpInstallOutcome, error) {
+			return installMCPFromListing(ctx, db, paths.DataRoot, listing, grant.Version, flags.scope, projectRoot,
+				plannedBinding.Hosts, plannedBinding.Force, plannedBinding.Runtime, plannedBinding.EnvNames)
+		})
 		if err != nil {
 			failInstall(err)
 		}
@@ -1987,8 +2021,10 @@ func runInstall(args []string) {
 		if err != nil {
 			failInstall(err)
 		}
-		outcome, err := installPluginFromListing(ctx, db, paths.DataRoot, listing, grant.Version, flags.scope,
-			projectRoot, plannedBinding)
+		outcome, err := runWithSpinner(ctx, os.Stdin, os.Stdout, "Fetching and installing "+listing.Name, func() (*pluginInstallOutcome, error) {
+			return installPluginFromListing(ctx, db, paths.DataRoot, listing, grant.Version, flags.scope,
+				projectRoot, plannedBinding)
+		})
 		if err != nil {
 			failInstall(err)
 		}
@@ -2025,6 +2061,10 @@ func installConfirmWanted(flags installFlags) bool {
 // dialect: Enter means yes, anything else means no, and an input that ends
 // without an answer declines rather than guessing.
 func confirmInstallPrompt(in io.Reader, out io.Writer) (bool, error) {
+	if terminalUIAvailable(in, out) {
+		fmt.Fprintln(out, "")
+		return uiConfirm(in, out, "Install this plan?", "Nothing is written until you confirm.", "Install", "Cancel", true)
+	}
 	fmt.Fprint(out, "\nInstall this plan? [Y/n]: ")
 	line, err := bufio.NewReader(in).ReadString('\n')
 	answer := strings.ToLower(strings.TrimSpace(line))
@@ -2058,11 +2098,30 @@ func runCatalogSync() {
 	cfg, _ := config.LoadCurrentConfig()
 	regURL := registryURLOf(cfg)
 
-	catClient := catalog.NewClientWithTimeout(regURL, paths.DataRoot, catalogTimeoutOf(cfg), nil)
-	fmt.Printf("Synchronizing catalog from %s...\n", regURL)
-
+	// The per-request client timeout covers a whole response body, so a 20 MB
+	// shard shares the sync budget instead of the 30s used for a small search.
+	catClient := catalog.NewClientWithTimeout(regURL, paths.DataRoot, catalogSyncTimeout(cfg), nil)
 	ctx, cancel := context.WithTimeout(context.Background(), catalogSyncTimeout(cfg))
 	defer cancel()
+
+	// On a terminal the ~40s download shows a spinner with the elapsed time
+	// and ends in one ✓/✗ line. Anything else keeps the exact lines below.
+	if terminalUIAvailable(os.Stdin, os.Stdout) {
+		fmt.Printf("%s\n  %s\n", uiCompactHeader("catalog sync"), uiDim.Render(regURL))
+		started := time.Now()
+		res, err := runWithSpinner(ctx, os.Stdin, os.Stdout, "Downloading the capability catalog", func() (*catalog.SyncResult, error) {
+			return catClient.Sync(ctx)
+		})
+		if err != nil {
+			uiErr(os.Stderr, "Catalog synchronization failed: %v", err)
+			uiHint(os.Stderr, "No catalog data was written; the existing local cache was left unchanged.")
+			os.Exit(1)
+		}
+		uiOK(os.Stdout, "Catalog synchronized · %d capabilities · release %s · %s", res.ItemCount, res.ReleaseID, uiElapsed(time.Since(started)))
+		uiHint(os.Stdout, "Next: litespm search <term>, or run litespm to browse.")
+		return
+	}
+	fmt.Printf("Synchronizing catalog from %s...\n", regURL)
 
 	res, err := catClient.Sync(ctx)
 	if err != nil {
@@ -2491,32 +2550,36 @@ func runDoctor(args []string) int {
 		}
 	}
 
-	fmt.Println("\nLiteSPM Diagnostic Health Report")
-	fmt.Println(strings.Repeat("=", 60))
-	for _, c := range report.Checks {
-		var statusIcon string
-		switch c.Status {
-		case doctor.StatusPass:
-			statusIcon = "✓ [PASS]"
-		case doctor.StatusWarn:
-			statusIcon = "⚠ [WARN]"
-		case doctor.StatusFail:
-			statusIcon = "✗ [FAIL]"
+	if terminalUIAvailable(os.Stdin, os.Stdout) {
+		printDoctorReportTTY(os.Stdout, report)
+	} else {
+		fmt.Println("\nLiteSPM Diagnostic Health Report")
+		fmt.Println(strings.Repeat("=", 60))
+		for _, c := range report.Checks {
+			var statusIcon string
+			switch c.Status {
+			case doctor.StatusPass:
+				statusIcon = "✓ [PASS]"
+			case doctor.StatusWarn:
+				statusIcon = "⚠ [WARN]"
+			case doctor.StatusFail:
+				statusIcon = "✗ [FAIL]"
+			}
+			fmt.Printf("%-9s %-32s: %s\n", statusIcon, c.Name, c.Message)
+			// The time each check took, in the same line: a check that took four
+			// seconds is a different finding from one that took four milliseconds,
+			// and the operator can only act on the slow one.
+			if c.DurationMs > 0 {
+				fmt.Printf("          \u00b7 %s\n", doctorDuration(c.DurationMs))
+			}
+			if c.Recommendation != "" {
+				fmt.Printf("          ➜ Recommendation: %s\n", c.Recommendation)
+			}
 		}
-		fmt.Printf("%-9s %-32s: %s\n", statusIcon, c.Name, c.Message)
-		// The time each check took, in the same line: a check that took four
-		// seconds is a different finding from one that took four milliseconds,
-		// and the operator can only act on the slow one.
-		if c.DurationMs > 0 {
-			fmt.Printf("          \u00b7 %s\n", doctorDuration(c.DurationMs))
-		}
-		if c.Recommendation != "" {
-			fmt.Printf("          ➜ Recommendation: %s\n", c.Recommendation)
-		}
+		fmt.Println(strings.Repeat("-", 60))
+		fmt.Printf("Summary: %d Passed, %d Warnings, %d Failures (Overall: %s) in %s\n",
+			report.PassedCount, report.WarnCount, report.FailCount, strings.ToUpper(string(report.OverallStatus)), doctorDuration(report.DurationMs))
 	}
-	fmt.Println(strings.Repeat("-", 60))
-	fmt.Printf("Summary: %d Passed, %d Warnings, %d Failures (Overall: %s) in %s\n",
-		report.PassedCount, report.WarnCount, report.FailCount, strings.ToUpper(string(report.OverallStatus)), doctorDuration(report.DurationMs))
 
 	if repairMode {
 		plan := doctor.BuildRepairPlan(report, paths)
@@ -2530,9 +2593,16 @@ func runDoctor(args []string) int {
 		}
 
 		if !yesMode {
-			fmt.Print("\nApply these repair actions? [y/N]: ")
 			var response string
-			fmt.Scanln(&response)
+			if terminalUIAvailable(os.Stdin, os.Stdout) {
+				fmt.Println()
+				if ok, _ := uiConfirm(os.Stdin, os.Stdout, "Apply these repair actions?", "Each action is listed above. Nothing changes until you confirm.", "Apply", "Cancel", false); ok {
+					response = "y"
+				}
+			} else {
+				fmt.Print("\nApply these repair actions? [y/N]: ")
+				fmt.Scanln(&response)
+			}
 			response = strings.TrimSpace(strings.ToLower(response))
 			if response != "y" && response != "yes" {
 				fmt.Println("Repair aborted by user.")
@@ -3737,6 +3807,7 @@ func registerCoreHandlers(server *ipc.Server, db *state.DB, catClient *catalog.C
 		if err != nil {
 			return nil, &ipc.RPCError{Code: ipc.CodeInternalError, Message: err.Error()}
 		}
+		_, _ = host.InstallMarketplaceCommand(ctx, req.HostID, host.MarketplaceCommandOptions{Binary: binPath})
 		return res, nil
 	})
 
@@ -4471,4 +4542,42 @@ func acquireLock(lockPath string) (*fslock.Lock, error) {
 // was reclaimed by another daemon is left untouched.
 func releaseLock(l *fslock.Lock) {
 	_ = l.Release()
+}
+
+// printDoctorReportTTY is the terminal rendering of the doctor report: the
+// same checks, durations and recommendations as the plain report, with the
+// status as a coloured mark instead of a bracketed word. The plain report
+// above stays byte-for-byte what scripts and tests read.
+func printDoctorReportTTY(out io.Writer, report *doctor.DoctorReport) {
+	fmt.Fprintf(out, "\n%s\n\n", uiCompactHeader("health check"))
+	width := uiWidth(out)
+	for _, c := range report.Checks {
+		mark := uiGreenS.Bold(true).Render("✓")
+		switch c.Status {
+		case doctor.StatusWarn:
+			mark = uiYellowS.Bold(true).Render("!")
+		case doctor.StatusFail:
+			mark = uiRedS.Bold(true).Render("✗")
+		}
+		took := ""
+		if c.DurationMs > 0 {
+			took = uiDim.Render("  " + doctorDuration(c.DurationMs))
+		}
+		fmt.Fprintf(out, "%s %s%s\n", mark, uiFit(fmt.Sprintf("%-30s %s", c.Name, c.Message), width-12), took)
+		if c.Recommendation != "" {
+			fmt.Fprintf(out, "  %s\n", uiDim.Render(uiFit("→ "+c.Recommendation, width-4)))
+		}
+	}
+	tone, headline := "ok", "All checks passed"
+	if report.FailCount > 0 {
+		tone, headline = "err", fmt.Sprintf("%d check%s failed", report.FailCount, plural(report.FailCount))
+	} else if report.WarnCount > 0 {
+		tone, headline = "warn", fmt.Sprintf("%d warning%s", report.WarnCount, plural(report.WarnCount))
+	}
+	fmt.Fprintln(out, uiCard(out, tone, headline, []string{
+		uiKV("passed", fmt.Sprint(report.PassedCount)),
+		uiKV("warnings", fmt.Sprint(report.WarnCount)),
+		uiKV("failures", fmt.Sprint(report.FailCount)),
+		uiKV("took", doctorDuration(report.DurationMs)),
+	}, ""))
 }

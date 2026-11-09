@@ -1,0 +1,7 @@
+{
+  "name": "litespm-marketplace",
+  "version": "2.0.0",
+  "description": "Adds /litespm-marketplace: a pane to search, install and remove MCP servers, skills and plugins with LiteSPM (__MARKER__ __LITESPM_VERSION__)",
+  "author": { "name": "LiteSPM" },
+  "license": "Apache-2.0"
+}

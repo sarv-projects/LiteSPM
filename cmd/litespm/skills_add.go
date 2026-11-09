@@ -201,7 +201,9 @@ func runSkillsAdd(args []string) {
 	defer out.Flush()
 
 	if !opts.jsonOut {
-		fmt.Fprint(out, renderInstallerBanner())
+		// One compact line: the wordmark belongs to the first-run welcome, not
+		// to every command.
+		fmt.Fprintln(out, uiCompactHeader("skills installer"))
 		out.Flush()
 	}
 

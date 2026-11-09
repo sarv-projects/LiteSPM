@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/sarv-projects/litespm/internal/config"
@@ -444,6 +445,53 @@ func runInteractiveSkillsRemove(opts skillsRemoveOptions) {
 		return
 	}
 
+	if terminalUIAvailable(os.Stdin, os.Stdout) {
+		items := make([]promptItem, 0, len(candidates))
+		for i, c := range candidates {
+			items = append(items, promptItem{
+				ID:     strconv.Itoa(i),
+				Label:  c.SkillName,
+				Hint:   fmt.Sprintf("%s · %d destination%s", c.Scope, len(c.Dests), plural(len(c.Dests))),
+				Detail: c.SkillName + "\nWould delete:\n" + strings.Join(c.Dests, "\n"),
+				Group:  scopeLabel(c.Scope),
+			})
+		}
+		result, perr := runSearchPrompt(os.Stdin, os.Stdout, searchPromptOptions{
+			Title:       fmt.Sprintf("Choose skills to remove  ·  %d installed", len(candidates)),
+			Description: "Type to filter. Nothing is deleted until you confirm.",
+			Items:       items,
+			Required:    true,
+			Searchable:  true,
+			SelectAll:   true,
+			ShowDetail:  true,
+			DetailLines: 4,
+			MaxVisible:  10,
+		})
+		if perr != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", perr)
+			os.Exit(1)
+		}
+		if result.Cancelled || len(result.Selected) == 0 {
+			fmt.Println("Cancelled. Nothing was removed.")
+			return
+		}
+		var tuiPicked []int
+		for _, id := range result.Selected {
+			if idx, convErr := strconv.Atoi(id); convErr == nil && idx >= 0 && idx < len(candidates) {
+				tuiPicked = append(tuiPicked, idx)
+			}
+		}
+		ok, cerr := uiConfirm(os.Stdin, os.Stdout,
+			fmt.Sprintf("Remove %d skill%s?", len(tuiPicked), plural(len(tuiPicked))),
+			"Only directories the ledger names are deleted; anything you added is kept.", "Remove", "Keep them", false)
+		if cerr != nil || !ok {
+			fmt.Println("Nothing was removed.")
+			return
+		}
+		removeSkillsPicked(opts, paths, candidates, tuiPicked)
+		return
+	}
+
 	fmt.Println("◇  Select skills to remove (numbers, comma-separated, or 'all')")
 	for i, c := range candidates {
 		fmt.Printf("│  %d) %-28s [%s] %d destination(s): %s\n",
@@ -464,33 +512,7 @@ func runInteractiveSkillsRemove(opts skillsRemoveOptions) {
 		os.Exit(1)
 	}
 
-	// Group the picks by scope: the ledger's removal is scoped, so one call
-	// serves one scope. The picker labels every row with its recorded scope,
-	// so a selection spanning scopes is explicit, not silent.
-	order := []string{}
-	byScope := map[string][]string{}
-	for _, idx := range picked {
-		c := candidates[idx]
-		if _, ok := byScope[c.Scope]; !ok {
-			order = append(order, c.Scope)
-		}
-		byScope[c.Scope] = append(byScope[c.Scope], c.SkillName)
-	}
-
-	var outcomes []skills.RemovalOutcome
-	for _, scope := range order {
-		group := opts
-		group.names = byScope[scope]
-		group.scope = scope
-		group.scopeGiven = true
-		groupOutcomes, err := executeSkillsRemove(group, paths)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		outcomes = append(outcomes, groupOutcomes...)
-	}
-	reportSkillsRemove(opts, outcomes)
+	removeSkillsPicked(opts, paths, candidates, picked)
 }
 
 // removeCandidate is one selectable row of the interactive picker: a skill in
@@ -741,4 +763,36 @@ func repeat(s string, n int) string {
 		out = append(out, s...)
 	}
 	return string(out)
+}
+
+// removeSkillsPicked removes the chosen candidates, one call per recorded scope,
+// and reports the outcome. Shared by the arrow-key and the numbered picker.
+func removeSkillsPicked(opts skillsRemoveOptions, paths *config.PlatformPaths, candidates []removeCandidate, picked []int) {
+	// Group the picks by scope: the ledger's removal is scoped, so one call
+	// serves one scope. The picker labels every row with its recorded scope,
+	// so a selection spanning scopes is explicit, not silent.
+	order := []string{}
+	byScope := map[string][]string{}
+	for _, idx := range picked {
+		c := candidates[idx]
+		if _, ok := byScope[c.Scope]; !ok {
+			order = append(order, c.Scope)
+		}
+		byScope[c.Scope] = append(byScope[c.Scope], c.SkillName)
+	}
+
+	var outcomes []skills.RemovalOutcome
+	for _, scope := range order {
+		group := opts
+		group.names = byScope[scope]
+		group.scope = scope
+		group.scopeGiven = true
+		groupOutcomes, err := executeSkillsRemove(group, paths)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		outcomes = append(outcomes, groupOutcomes...)
+	}
+	reportSkillsRemove(opts, outcomes)
 }

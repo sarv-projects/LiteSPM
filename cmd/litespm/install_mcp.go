@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/netip"
 	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -821,6 +822,30 @@ func serverEntryNameFor(listing *domain.Listing) (string, error) {
 
 func printMCPInstall(outcome *mcpInstallOutcome) {
 	entry := outcome.Entry
+	if terminalUIAvailable(os.Stdin, os.Stdout) {
+		home := userHome()
+		launch := entry.Command + " " + strings.Join(entry.Args, " ")
+		if entry.Endpoint != "" {
+			launch = fmt.Sprintf("%s (%s)", entry.Endpoint, entryTransportLabel(entry))
+		}
+		lines := []string{uiKV("runs", strings.TrimSpace(launch))}
+		for _, h := range outcome.Hosts {
+			verb := "added"
+			switch {
+			case h.Replaced:
+				verb = "replaced"
+			case h.Created:
+				verb = "created"
+			}
+			lines = append(lines, uiKV(h.HostID, fmt.Sprintf("%s in %s", verb, shortHome(h.ConfigPath, home))))
+		}
+		lines = append(lines, uiKV("undo", "litespm install remove "+outcome.InstallID))
+		fmt.Println()
+		fmt.Println(uiCard(os.Stdout, "ok", "✓ Registered MCP server "+entry.Name, lines,
+			"Some agents need a restart to start the server."))
+		printForwardedEnv(outcome)
+		return
+	}
 	fmt.Printf("✓ Registered MCP server %s\n", entry.Name)
 	fmt.Printf("  Listing ID:  %s\n", outcome.InstallID)
 	if entry.Endpoint != "" {

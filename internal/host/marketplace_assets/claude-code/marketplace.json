@@ -1,0 +1,12 @@
+{
+  "name": "litespm-local",
+  "owner": { "name": "LiteSPM" },
+  "description": "Written by litespm host setup (__MARKER__ __LITESPM_VERSION__).",
+  "plugins": [
+    {
+      "name": "litespm-marketplace",
+      "source": "./plugins/litespm-marketplace",
+      "description": "/litespm-marketplace: search, install and remove MCP servers, skills and plugins"
+    }
+  ]
+}

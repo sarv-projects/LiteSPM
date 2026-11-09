@@ -458,10 +458,31 @@ func (m *searchPromptModel) entries() []promptEntry {
 			break
 		}
 	}
+	// Items are emitted group by group, groups in first-seen order and items in
+	// their given order within a group. Emitting a header whenever the group
+	// changed instead repeated a heading as soon as a caller's ordering
+	// interleaved groups: the wizard's alphabetical agent list showed
+	// "Other agents", then "Detected on this machine", then "Other agents"
+	// again, with the toggle-a-group gesture only reaching the first run.
+	if useGroups {
+		var order []string
+		byGroup := map[string][]promptItem{}
+		for _, item := range filtered {
+			if _, seen := byGroup[item.Group]; !seen {
+				order = append(order, item.Group)
+			}
+			byGroup[item.Group] = append(byGroup[item.Group], item)
+		}
+		regrouped := make([]promptItem, 0, len(filtered))
+		for _, group := range order {
+			regrouped = append(regrouped, byGroup[group]...)
+		}
+		filtered = regrouped
+	}
 	lastGroup := ""
-	for _, item := range filtered {
+	for i, item := range filtered {
 		if useGroups {
-			if item.Group != lastGroup {
+			if i == 0 || item.Group != lastGroup {
 				lastGroup = item.Group
 				out = append(out, promptEntry{group: item.Group})
 			}
@@ -549,7 +570,12 @@ func (m *searchPromptModel) View() string {
 	if m.opts.Description != "" {
 		b.WriteString(uiBar)
 		b.WriteString("  ")
-		b.WriteString(uiDim.Render(wrapText(m.opts.Description, inner)))
+		for i, line := range strings.Split(wrapText(m.opts.Description, inner), "\n") {
+			if i > 0 {
+				b.WriteString("\n" + uiBar + "  ")
+			}
+			b.WriteString(uiDim.Render(line))
+		}
 		b.WriteString("\n")
 	}
 	b.WriteString(uiBar + "\n")

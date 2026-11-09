@@ -18,6 +18,7 @@ package host
 // in the test file pins it.
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -117,11 +118,17 @@ func lineIndentOf(text string, offset int) string {
 // indentValue renders a compact JSON value with continuation lines indented to
 // match the surrounding document.
 func indentValue(value any, indent string) (string, error) {
-	compact, err := json.Marshal(value)
-	if err != nil {
+	// SetEscapeHTML(false): json.Marshal rewrites <, > and & as \u003c, \u003e
+	// and \u0026. That is valid JSON but turns a hand-readable
+	// `mongodb-mcp-server@<3` into `@\u003c3` in a file the user will open.
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(value); err != nil {
 		return "", err
 	}
-	lines := strings.Split(string(compact), "\n")
+	compact := strings.TrimSuffix(buf.String(), "\n")
+	lines := strings.Split(compact, "\n")
 	for i := 1; i < len(lines); i++ {
 		lines[i] = indent + lines[i]
 	}
@@ -132,6 +139,13 @@ func indentValue(value any, indent string) (string, error) {
 // leaving the rest of the literal byte-identical. objText may contain comments;
 // they are stripped for locating only, never rewritten.
 func upsertObjectMember(objText, name string, value any) (string, error) {
+	return upsertObjectMemberAt(objText, name, value, "")
+}
+
+// upsertObjectMemberAt is upsertObjectMember for an object literal that is a
+// slice of a larger document; outerIndent is the leading indentation of the
+// line the slice begins on (see insertRawMemberAt).
+func upsertObjectMemberAt(objText, name string, value any, outerIndent string) (string, error) {
 	locatable := stripTrailingCommas(stripJSONComments(objText))
 	start, end, found, err := jsonValueSpan(locatable, []string{name})
 	if err != nil && strings.Contains(err.Error(), "expected object") {
@@ -151,11 +165,15 @@ func upsertObjectMember(objText, name string, value any) (string, error) {
 	if closeRel < 0 {
 		return "", fmt.Errorf("object literal has no closing brace")
 	}
-	rendered, err := indentValue(value, lineIndentOf(objText, closeRel)+"  ")
+	closeIndent := lineIndentOf(objText, closeRel)
+	if closeIndent == "" && !strings.Contains(objText[:closeRel], "\n") {
+		closeIndent = outerIndent
+	}
+	rendered, err := indentValue(value, closeIndent+"  ")
 	if err != nil {
 		return "", err
 	}
-	return insertRawMember(objText, closeRel, name, rendered)
+	return insertRawMemberAt(objText, closeRel, name, rendered, outerIndent)
 }
 
 // jsonKey renders a member name as a JSON string.
@@ -182,7 +200,41 @@ func jsonKey(name string) string {
 // then has no separator and the document stops parsing. So the comma is placed
 // at the last live byte instead, and the member follows the comment.
 func insertRawMember(objText string, closeRel int, name, literal string) (string, error) {
+	return insertRawMemberAt(objText, closeRel, name, literal, "")
+}
+
+// leadingIndentOf returns the whitespace that begins the line containing
+// offset, whatever follows it on that line.
+func leadingIndentOf(text string, offset int) string {
+	lineStart := strings.LastIndex(text[:offset], "\n") + 1
+	end := lineStart
+	for end < len(text) && (text[end] == ' ' || text[end] == '\t') {
+		end++
+	}
+	return text[lineStart:end]
+}
+
+// insertRawMemberAt is insertRawMember for an object literal that is a SLICE
+// of a larger document. outerIndent is the leading indentation of the document
+// line the slice begins on.
+//
+// The closing brace's indentation used to be read from the slice alone. For a
+// container LiteSPM had just created (`"mcpServers": {}`) the brace shares its
+// line with the key, so the slice holds no indentation at all and the new
+// member landed at column 2 under a key at column 2:
+//
+//	"mcpServers": {
+//	"litespm": {...}
+//	}
+//
+// A brace on the slice's first line takes the enclosing line's indentation.
+// Anywhere else the slice's own text already carries the context, and the
+// previous rule is kept.
+func insertRawMemberAt(objText string, closeRel int, name, literal, outerIndent string) (string, error) {
 	closeIndent := lineIndentOf(objText, closeRel)
+	if closeIndent == "" && !strings.Contains(objText[:closeRel], "\n") {
+		closeIndent = outerIndent
+	}
 	memberIndent := closeIndent + "  "
 	body := strings.TrimRight(objText[:closeRel], " \t\r\n")
 	member := fmt.Sprintf("%s: %s", jsonKey(name), literal)
@@ -288,7 +340,7 @@ func ensureKeyPath(raw string, keyPath []string) (string, int, int, error) {
 		if closeRel < 0 {
 			return "", 0, 0, fmt.Errorf("cannot create %v: parent is not an object", keyPath[:depth])
 		}
-		updated, err := insertRawMember(objText, closeRel, keyPath[depth], value)
+		updated, err := insertRawMemberAt(objText, closeRel, keyPath[depth], value, leadingIndentOf(cur, containerStart))
 		if err != nil {
 			return "", 0, 0, err
 		}
@@ -324,7 +376,7 @@ func mergeJSONEntrySurgicalNamed(raw string, keyPath []string, name string, valu
 		return "", err
 	}
 	objText := cur[start:end]
-	updated, err := upsertObjectMember(objText, name, value)
+	updated, err := upsertObjectMemberAt(objText, name, value, leadingIndentOf(cur, start))
 	if err != nil {
 		return "", err
 	}

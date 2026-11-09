@@ -128,6 +128,12 @@ func (a *interactivePolicyAsker) resolve(_ context.Context, req skills.PolicyReq
 		return a.approved
 	}
 	a.asked = true
+	if terminalUIAvailable(os.Stdin, os.Stderr) {
+		ok, _ := uiConfirm(os.Stdin, os.Stderr, "Policy requires approval",
+			fmt.Sprintf("%s %s — %s", req.Operation, req.SkillName, detail), "Approve", "Deny", false)
+		a.approved = ok
+		return a.approved
+	}
 	fmt.Fprintf(os.Stderr, "Policy requires approval: %s %s — %s [y/N] ", req.Operation, req.SkillName, detail)
 	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	a.approved = isAffirmative(line)

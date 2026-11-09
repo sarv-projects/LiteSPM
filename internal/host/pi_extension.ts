@@ -1,24 +1,44 @@
+// __MARKER__ __LITESPM_VERSION__: written by `litespm host setup`; `litespm host remove` deletes it.
+//
 // LiteSPM companion extension for Pi Agent.
 //
-//   /marketplace [query]   browse and install capabilities from inside Pi
+//   /marketplace [query]   browse, install and remove capabilities from inside Pi
 //   /litespm               plain-text list of the bridge's MCP tools
+//
+// The panel renders LiteSPM's one marketplace view model
+// (`litespm marketplace rows --json`) and acts through the normal verbs, so
+// nothing here re-implements search, ranking or install rules.
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 const BRIDGE_TOOL_PREFIX = "mcp__litespm__";
+const HOST = "pi-agent";
 
+/** One row of `litespm marketplace rows --json`. */
 interface Capability {
   id: string;
   name: string;
   kind: string;
+  kindLabel?: string;
   publisher: string;
   summary: string;
-  installability?: string;
-  scope?: string;
+  version?: string;
+  installable?: boolean;
+  reason?: string;
   installed?: boolean;
+  installedHere?: boolean;
   installId?: string;
+  removable?: boolean;
+}
+
+interface RowsDoc {
+  schema?: string;
+  total?: number;
+  truncated?: boolean;
+  notice?: string;
+  rows?: Capability[];
 }
 
 /** The parts of pi's Theme this panel uses. Structural, so the panel never
@@ -54,13 +74,24 @@ function liteSPMBinary(): string {
 }
 
 async function readJSON<T>(pi: ExtensionAPI, args: string[]): Promise<T | undefined> {
-  const result = await pi.exec(liteSPMBinary(), args, { timeout: 30000 });
+  const result = await pi.exec(liteSPMBinary(), args, { timeout: 90000 });
   if (result.code !== 0) return undefined;
   try {
     return JSON.parse(result.stdout) as T;
   } catch {
     return undefined;
   }
+}
+
+/** The sentence that matters from LiteSPM's output: its ✓/✗ line, without the
+ *  machine detail an LPSM error carries. */
+function outcomeLine(text: string): string {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "");
+  const line = lines.find((l) => /^[✓✗]/.test(l)) ?? lines[lines.length - 1] ?? "";
+  return line
+    .replace(/^Install failed:\s*/i, "")
+    .replace(/\s*\(category: [^)]*\)\s*$/, "")
+    .replace(/^\[LPSM-[A-Z-]+\]\s*/, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +130,7 @@ function compose(theme: PanelTheme | undefined, segs: Seg[], width: number): str
     if (used >= width) break;
     let plain = seg.t;
     const limit = seg.w !== undefined ? Math.min(seg.w, width - used) : width - used;
-    if (visible(plain) > limit) plain = plain.slice(0, Math.max(0, limit - 1)) + "~";
+    if (visible(plain) > limit) plain = plain.slice(0, Math.max(0, limit - 1)) + "…";
     const pad = seg.w === undefined ? 0 : Math.max(0, limit - visible(plain));
     out += paint(theme, { t: plain, c: seg.c, b: seg.b });
     out += " ".repeat(pad);
@@ -115,44 +146,54 @@ function compose(theme: PanelTheme | undefined, segs: Seg[], width: number): str
 // system stores.
 // ---------------------------------------------------------------------------
 
-const KIND_LABEL: Record<string, string> = {
-  mcp: "MCP server",
-  skill: "Skill",
-  plugin: "Plugin",
-};
-
 const KIND_EXPLAINS: Record<string, string> = {
   mcp: "connects your agent to a service or database",
   skill: "a workflow your agent can follow",
-  plugin: "a bundle of tools and skills",
+  plugin: "a bundle of servers and skills",
 };
 
-/** Row state, in the vocabulary "claude mcp list" already teaches people:
- *  ✔ added, and a bare "add" for something installable. "not yet" is a
- *  deliberate softening of discovery_only: the reason is spelled out in the
- *  detail band, where there is room to say it properly. */
-function rowState(row: Capability): { label: string; tone: string } {
-  if (row.installed) return { label: "✔ added", tone: "success" };
-  if (row.installability === "metadata_verified") return { label: "add", tone: "accent" };
-  return { label: "not yet", tone: "warning" };
+interface Tab {
+  id: string;
+  label: string;
+  keep: (row: Capability) => boolean;
 }
 
-interface Row {
-  capability: Capability;
-  installId?: string;
+const TABS: Tab[] = [
+  { id: "all", label: "All", keep: () => true },
+  { id: "mcp", label: "MCP servers", keep: (r) => r.kind === "mcp" },
+  { id: "skill", label: "Skills", keep: (r) => r.kind === "skill" },
+  { id: "plugin", label: "Plugins", keep: (r) => r.kind === "plugin" },
+  { id: "installed", label: "Installed", keep: (r) => Boolean(r.installed) },
+];
+
+/** Row state, in the vocabulary "claude mcp list" already teaches people. */
+function rowState(row: Capability): { label: string; tone: string } {
+  if (row.installedHere) return { label: "✔ added", tone: "success" };
+  if (row.installed) return { label: "elsewhere", tone: "muted" };
+  if (row.installable) return { label: "add", tone: "accent" };
+  return { label: "manual", tone: "warning" };
+}
+
+/** What Enter does on a row, or undefined when it does nothing. */
+function actionFor(row: Capability): string | undefined {
+  if (row.installedHere && row.removable && row.installId) return "remove:" + row.installId;
+  if (row.installable && !row.installedHere) return "install:" + row.id;
+  return undefined;
 }
 
 class MarketplacePanel {
-  private rows: Row[];
-  private visible: Row[];
+  private rows: Capability[];
+  private visible: Capability[];
+  private tab = 0;
   private query = "";
   private selected = 0;
+  private flash = "";
   private theme: PanelTheme | undefined;
   private notice: string;
   private readonly done: (result: string | undefined) => void;
 
   constructor(
-    rows: Row[],
+    rows: Capability[],
     notice: string,
     theme: PanelTheme | undefined,
     done: (result: string | undefined) => void,
@@ -168,36 +209,62 @@ class MarketplacePanel {
 
   private refilter(): void {
     const needle = this.query.trim().toLowerCase();
-    this.visible =
-      needle === ""
-        ? this.rows
-        : this.rows.filter((row) => {
-            const c = row.capability;
-            return (c.name + " " + c.id + " " + c.publisher + " " + c.summary)
-              .toLowerCase()
-              .includes(needle);
-          });
+    const keep = TABS[this.tab].keep;
+    this.visible = this.rows.filter((c) => {
+      if (!keep(c)) return false;
+      if (needle === "") return true;
+      return (c.name + " " + c.id + " " + c.publisher + " " + c.summary).toLowerCase().includes(needle);
+    });
     if (this.selected >= this.visible.length) {
       this.selected = Math.max(0, this.visible.length - 1);
     }
   }
 
-  private current(): Row | undefined {
+  private current(): Capability | undefined {
     return this.visible[this.selected];
+  }
+
+  private moveTab(delta: number): void {
+    this.tab = (this.tab + delta + TABS.length) % TABS.length;
+    this.selected = 0;
+    this.flash = "";
+    this.refilter();
   }
 
   handleInput(data: string): void {
     switch (data) {
       case "\x1b[A":
         this.selected = Math.max(0, this.selected - 1);
+        this.flash = "";
         return;
       case "\x1b[B":
         this.selected = Math.max(0, Math.min(this.visible.length - 1, this.selected + 1));
+        this.flash = "";
+        return;
+      case "\x1b[5~": // page up
+        this.selected = Math.max(0, this.selected - 8);
+        return;
+      case "\x1b[6~": // page down
+        this.selected = Math.max(0, Math.min(this.visible.length - 1, this.selected + 8));
+        return;
+      case "\t":
+      case "\x1b[C":
+        this.moveTab(1);
+        return;
+      case "\x1b[Z":
+      case "\x1b[D":
+        this.moveTab(-1);
         return;
       case "\r":
       case "\n": {
         const picked = this.current();
-        this.done(picked ? picked.capability.id : undefined);
+        if (!picked) return;
+        const action = actionFor(picked);
+        if (action) {
+          this.done(action);
+        } else {
+          this.flash = picked.reason || "Nothing to do for this one here.";
+        }
         return;
       }
       case "\x1b":
@@ -218,8 +285,7 @@ class MarketplacePanel {
   }
 
   /** Wrap segments across several lines, breaking on spaces and keeping each
-   *  segment's colour. The detail band uses it because clipping a sentence
-   *  hides exactly the half that explains the decision. */
+   *  segment's colour. */
   private wrap(width: number, segs: Seg[]): string[] {
     const tokens: Seg[] = [];
     for (const seg of segs) {
@@ -238,7 +304,6 @@ class MarketplacePanel {
         used = 0;
       }
       if (token.t.length >= width) {
-        // One word longer than the whole line: clip it rather than loop on it.
         lines.push(compose(this.theme, [token], width));
         continue;
       }
@@ -252,56 +317,60 @@ class MarketplacePanel {
   }
 
   render(width: number): string[] {
-    const inner = Math.max(24, width - 4);
-    const nameW = Math.max(14, Math.min(28, inner - 34));
+    const inner = Math.max(30, width - 4);
+    const nameW = Math.max(14, Math.min(30, (inner * 0.32) | 0));
+    const whoW = Math.max(8, Math.min(16, (inner * 0.16) | 0));
     const stateW = 10;
-    const blurbW = Math.max(8, inner - 2 - nameW - 2 - stateW - 2);
+    const blurbW = Math.max(6, inner - 2 - nameW - 2 - whoW - 2 - stateW - 2);
 
     const rows: string[] = [];
 
-    // Header: what this is, and how much of it there is.
     rows.push(
       compose(this.theme, [
-        { t: "LiteSPM marketplace", b: true },
-        { t: "  " },
-        { t: this.visible.length + " of " + this.rows.length, c: "dim" },
+        { t: "LiteSPM", b: true, c: "accent" },
+        { t: " marketplace", b: true },
         { t: "   " + this.notice, c: "dim" },
       ], inner),
     );
     rows.push("");
 
-    // Search line, with a caret so an empty box reads as a prompt.
+    // Tabs, with live counts.
+    const tabSegs: Seg[] = [];
+    TABS.forEach((t, i) => {
+      const n = this.rows.filter(t.keep).length;
+      const on = i === this.tab;
+      tabSegs.push({ t: on ? " " + t.label + " " + n + " " : " " + t.label + " " + n + " ", c: on ? "accent" : "dim", b: on });
+      tabSegs.push({ t: " " });
+    });
+    rows.push(compose(this.theme, tabSegs, inner));
+    rows.push(compose(this.theme, [{ t: "─".repeat(inner), c: "border" }], inner));
+
     rows.push(
       compose(this.theme, [
         { t: "Find  ", c: "dim" },
-        { t: this.query === "" ? "type to search" : this.query, c: this.query === "" ? "dim" : "text" },
-        { t: this.query === "" ? "" : " ", c: "text" },
+        { t: this.query === "" ? "type to filter" : this.query, c: this.query === "" ? "dim" : "text" },
         { t: this.query === "" ? "" : "▌", c: "accent" },
       ], inner),
     );
     rows.push("");
 
-    // The list. The cursor is drawn as spaces on every other row, so nothing
-    // shifts when the selection moves.
-    const height = Math.max(3, Math.min(10, inner / 4 | 0));
+    const height = Math.max(4, Math.min(12, (inner / 5) | 0));
     if (this.visible.length === 0) {
-      rows.push(compose(this.theme, [{ t: "Nothing matches that yet.", c: "muted" }], inner));
-      rows.push(compose(this.theme, [{ t: "Try a shorter word, or clear the search with backspace.", c: "dim" }], inner));
+      rows.push(compose(this.theme, [{ t: TABS[this.tab].id === "installed" ? "Nothing installed here yet." : "Nothing matches.", c: "muted" }], inner));
+      rows.push(compose(this.theme, [{ t: "Tab switches tabs · backspace clears the filter · /marketplace <word> searches the whole catalogue", c: "dim" }], inner));
     }
-    const start = Math.max(
-      0,
-      Math.min(this.selected - (height >> 1), this.visible.length - height),
-    );
+    const start = Math.max(0, Math.min(this.selected - (height >> 1), this.visible.length - height));
     const end = Math.min(this.visible.length, start + height);
     for (let i = start; i < end; i++) {
-      const row = this.visible[i];
-      const c = row.capability;
+      const c = this.visible[i];
       const picked = i === this.selected;
       const state = rowState(c);
       rows.push(
         compose(this.theme, [
           { t: picked ? "❯ " : "  ", c: picked ? "accent" : "dim", b: picked },
-          { t: c.name, c: picked ? "accent" : "text", b: picked, w: nameW },
+          { t: c.name, c: picked ? "accent" : c.installable || c.installed ? "text" : "muted", b: picked, w: nameW },
+          { t: "  " },
+          { t: c.publisher && c.publisher !== "community" ? c.publisher : "", c: "dim", w: whoW },
           { t: "  " },
           { t: c.summary || KIND_EXPLAINS[c.kind] || "", c: "muted", w: blurbW },
           { t: "  " },
@@ -309,53 +378,48 @@ class MarketplacePanel {
         ], inner),
       );
     }
+    if (this.visible.length > height) {
+      rows.push(compose(this.theme, [{ t: "  " + (this.selected + 1) + " / " + this.visible.length, c: "dim" }], inner));
+    }
 
-    // Detail band: who made it, what it is, and — the point of the panel —
-    // exactly what Enter will do, in words and with the file it touches.
-    rows.push("");
-    rows.push(compose(this.theme, [{ t: "─".repeat(inner) }], inner), );
+    rows.push(compose(this.theme, [{ t: "─".repeat(inner), c: "border" }], inner));
     const cur = this.current();
     if (cur) {
-      const c = cur.capability;
-      const from = c.publisher && c.publisher !== "community" ? "from " + c.publisher : "";
       rows.push(
         compose(this.theme, [
-          { t: c.name, b: true },
-          { t: from ? "  ·  " + from : "", c: "muted" },
-          { t: "  ·  " + (KIND_LABEL[c.kind] ?? c.kind), c: "muted" },
+          { t: cur.name, b: true },
+          { t: cur.publisher ? "  ·  from " + cur.publisher : "", c: "muted" },
+          { t: "  ·  " + (cur.kindLabel ?? cur.kind), c: "muted" },
+          { t: cur.version ? "  ·  v" + cur.version : "", c: "dim" },
         ], inner),
       );
-      if (c.summary) rows.push(compose(this.theme, [{ t: c.summary, c: "text" }], inner));
-      rows.push(compose(this.theme, [{ t: "It " + (KIND_EXPLAINS[c.kind] ?? "runs in your agent") + ".", c: "dim" }], inner));
-      rows.push("");
-      if (c.installed) {
-        rows.push(
-          ...this.wrap(inner, [{ t: "Press Enter to remove it from Pi.", c: "success" }]),
-        );
-      } else if (c.installability === "metadata_verified") {
+      if (cur.summary) rows.push(...this.wrap(inner, [{ t: cur.summary, c: "text" }]).slice(0, 2));
+      rows.push(compose(this.theme, [{ t: "It " + (KIND_EXPLAINS[cur.kind] ?? "runs in your agent") + ".", c: "dim" }], inner));
+      if (cur.installedHere && cur.removable) {
+        rows.push(...this.wrap(inner, [{ t: "Installed. Press Enter to remove it from Pi.", c: "success" }]));
+      } else if (cur.installedHere) {
+        rows.push(...this.wrap(inner, [{ t: "Found in Pi's own configuration. LiteSPM shows it but does not change it.", c: "muted" }]));
+      } else if (cur.installable) {
         rows.push(
           ...this.wrap(inner, [
             { t: "Press Enter to add it to Pi", c: "accent", b: true },
-            { t: " (~/.pi/agent/mcp.json). Nothing else on your computer changes.", c: "muted" },
+            { t: cur.kind === "skill" ? " (copied into your skills folder)." : " (~/.pi/agent/mcp.json). Nothing else on your computer changes.", c: "muted" },
           ]),
         );
       } else {
-        rows.push(
-          ...this.wrap(inner, [
-            { t: "Not installable yet: ", c: "warning" },
-            { t: "LiteSPM has not verified a build for this one, so it will not run it for you. Local servers can run code on this computer.", c: "muted" },
-          ]),
-        );
+        rows.push(...this.wrap(inner, [{ t: "Manual setup: ", c: "warning" }, { t: cur.reason || "LiteSPM cannot install this one.", c: "muted" }]));
       }
     }
+    if (this.flash) rows.push(...this.wrap(inner, [{ t: this.flash, c: "warning" }]));
     rows.push("");
 
-    // One dim line of hints, the host's own idiom.
     rows.push(
       compose(this.theme, [
         { t: "↑↓ move", c: "dim" },
         { t: "  ·  ", c: "border" },
-        { t: cur && cur.capability.installed ? "enter remove" : "enter add", c: "dim" },
+        { t: "tab switch", c: "dim" },
+        { t: "  ·  ", c: "border" },
+        { t: cur && cur.installedHere ? "enter remove" : "enter add", c: "dim" },
         { t: "  ·  ", c: "border" },
         { t: "type to filter", c: "dim" },
         { t: "  ·  ", c: "border" },
@@ -386,105 +450,71 @@ export default function (pi: ExtensionAPI) {
     description: "Find and install things your agent can do",
     handler: async (args, ctx) => {
       const query = args.trim();
-      const installedDoc = await readJSON<{
-        records?: Array<{ id?: string; scope?: string; installId?: string }>;
-      }>(pi, ["list", "--json"]);
-      const searchDoc =
-        query === ""
-          ? undefined
-          : await readJSON<{ results?: Capability[] }>(pi, [
-              "search",
-              query,
-              "--json",
-              "--limit",
-              "300",
-            ]);
+      ctx.ui.notify(query === "" ? "Opening the LiteSPM marketplace…" : "Searching LiteSPM for " + query + "…", "info");
+      const [searchDoc, installedDoc] = await Promise.all([
+        readJSON<RowsDoc>(pi, ["marketplace", "rows", "--json", "--host", HOST, "--query", query, "--limit", "300"]),
+        readJSON<RowsDoc>(pi, ["marketplace", "rows", "--json", "--host", HOST, "--kind", "installed"]),
+      ]);
+      if (!searchDoc && !installedDoc) {
+        ctx.ui.notify(
+          "LiteSPM did not answer. Check that it is installed (litespm --version) and up to date: npm install -g litespm",
+          "warning",
+        );
+        return;
+      }
 
-      const installed = new Map<string, { scope: string; installId?: string }>();
-      const records = installedDoc && installedDoc.records ? installedDoc.records : [];
-      for (const record of records) {
-        if (record.id) {
-          installed.set(record.id, {
-            scope: record.scope ? record.scope : "user",
-            installId: record.installId,
-          });
+      // One list: installed rows first, then the search, de-duplicated by id.
+      const rows: Capability[] = [];
+      const seen = new Set<string>();
+      for (const doc of [installedDoc, searchDoc]) {
+        for (const row of doc && doc.rows ? doc.rows : []) {
+          if (!row.id || seen.has(row.id)) continue;
+          seen.add(row.id);
+          rows.push(row);
         }
       }
 
-      const rows: Row[] = [];
-      const seen = new Set<string>();
-      const results = searchDoc && searchDoc.results ? searchDoc.results : [];
-      for (const row of results) {
-        if (!row.id || seen.has(row.id)) continue;
-        seen.add(row.id);
-        const entry = installed.get(row.id);
-        row.installed = Boolean(entry);
-        row.scope = entry ? entry.scope : undefined;
-        rows.push({ capability: row, installId: entry ? entry.installId : undefined });
-      }
-      for (const entry of installed) {
-        if (seen.has(entry[0])) continue;
-        seen.add(entry[0]);
-        rows.push({
-          capability: {
-            id: entry[0],
-            name: entry[0],
-            kind: "installed",
-            publisher: "",
-            summary: "",
-            installed: true,
-            scope: entry[1].scope,
-          },
-          installId: entry[1].installId,
-        });
-      }
-
       if (rows.length === 0) {
+        const hint = searchDoc && searchDoc.notice ? searchDoc.notice : "";
         ctx.ui.notify(
-          query === ""
-            ? "Nothing installed here yet, and no search given. Try: /marketplace github"
-            : "Nothing matched " + query + ". If the catalogue is empty, run litespm catalog sync.",
+          hint !== ""
+            ? hint
+            : query === ""
+              ? "Nothing installed here yet. Try: /marketplace github"
+              : "Nothing matched " + query + ".",
           "info",
         );
         return;
       }
 
+      const total = searchDoc && searchDoc.total ? searchDoc.total : 0;
       const notice =
         query === ""
-          ? "installed here · /marketplace <word> searches the catalogue"
-          : "searching for " + query;
+          ? "installed + installable picks · /marketplace <word> searches"
+          : total + " result" + (total === 1 ? "" : "s") + " for " + query;
 
       const theme = ctx.ui.theme as PanelTheme | undefined;
       const picked = await ctx.ui.custom<string | undefined>(
-        (_tui, _theme, _keybindings, done) =>
-          new MarketplacePanel(rows, notice, theme, done),
+        (_tui, _theme, _keybindings, done) => new MarketplacePanel(rows, notice, theme, done),
         { overlay: true },
       );
-
       if (!picked) return;
 
-      const row = rows.find((r) => r.capability.id === picked);
-      const removing = Boolean(row && row.capability.installed && row.installId);
-      const argv = removing && row && row.installId
-        ? ["install", "remove", row.installId]
-        : ["install", picked, "--host", "pi-agent"];
-      const outcome = await pi.exec(liteSPMBinary(), argv, { timeout: 120000 });
-      const output = (outcome.stdout + outcome.stderr).trim();
+      const removing = picked.startsWith("remove:");
+      const target = picked.slice(picked.indexOf(":") + 1);
+      const row = rows.find((r) => (removing ? r.installId === target : r.id === target));
+      const label = row ? row.name : target;
+      const argv = removing ? ["install", "remove", target] : ["install", target, "--host", HOST];
+      ctx.ui.notify((removing ? "Removing " : "Adding ") + label + "…", "info");
+      const outcome = await pi.exec(liteSPMBinary(), argv, { timeout: 180000 });
       if (outcome.code === 0) {
         ctx.ui.notify(
-          removing
-            ? "Removed. Quit and restart Pi to finish."
-            : "Added. Quit and restart Pi to use it.",
+          removing ? "Removed " + label + ". Quit and restart Pi to finish." : "Added " + label + ". Quit and restart Pi to use it.",
           "info",
         );
       } else {
-        ctx.ui.notify(
-          (removing ? "Could not remove " : "Could not add ") +
-            picked +
-            ":\n" +
-            (output === "" ? "no output" : output),
-          "warning",
-        );
+        const why = outcomeLine(outcome.stdout + "\n" + outcome.stderr);
+        ctx.ui.notify((removing ? "Could not remove " : "Could not add ") + label + (why ? ": " + why : "."), "warning");
       }
     },
   });

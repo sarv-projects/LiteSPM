@@ -480,6 +480,75 @@ async function main() {
   fs.writeFileSync(binaryPath, "not really a binary");
   const realDigestOf = (p) => computeFileSHA256(p);
 
+  // A throwaway copy of the package: the real shim, a stub installer, and a
+  // HOME with no managed binary, so the shim has to take the installer path.
+  const makeShimPackage = (installerBody, withBinaryScript) => {
+    const pkg = tempDir("litespm-shim-");
+    fs.mkdirSync(path.join(pkg, "bin"), { recursive: true });
+    fs.mkdirSync(path.join(pkg, "scripts"), { recursive: true });
+    fs.copyFileSync(path.join(__dirname, "bin", "litespm.js"), path.join(pkg, "bin", "litespm.js"));
+    fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "x", version: "9.9.9" }));
+    fs.writeFileSync(path.join(pkg, "scripts", "install-binary.js"), installerBody);
+    if (withBinaryScript) {
+      // The "native binary" is a copy of node, so it runs a script on any OS.
+      fs.copyFileSync(process.execPath, path.join(pkg, "bin", getBinaryName()));
+      fs.chmodSync(path.join(pkg, "bin", getBinaryName()), 0o755);
+    }
+    return pkg;
+  };
+
+  await checkAsync("the shim keeps installer output off stdout (MCP framing)", () => {
+    const pkg = makeShimPackage('console.log("INSTALLER-STDOUT-LINE"); process.exit(1);');
+    const home = tempDir("litespm-shim-home-");
+    try {
+      const res = spawnSync(process.execPath, [path.join(pkg, "bin", "litespm.js")], {
+        encoding: "utf8",
+        env: { ...process.env, HOME: home, USERPROFILE: home },
+      });
+      assert.strictEqual(res.stdout, "", `installer text reached stdout: ${JSON.stringify(res.stdout)}`);
+      assert.match(res.stderr, /INSTALLER-STDOUT-LINE/, "the installer's output must still be visible, on stderr");
+      assert.notStrictEqual(res.status, 0, "a failed installer must fail the shim");
+    } finally {
+      fs.rmSync(pkg, { recursive: true, force: true });
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  if (process.platform === "win32") {
+    skip("the shim forwards SIGTERM to the native process", "POSIX signal semantics");
+  } else {
+    await checkAsync("the shim forwards SIGTERM to the native process", async () => {
+      const pkg = makeShimPackage("process.exit(0);", true);
+      const marker = path.join(pkg, "got-term");
+      const ready = path.join(pkg, "ready");
+      // The fake native binary is node; the shim passes argv through to it.
+      const script = path.join(pkg, "child.js");
+      fs.writeFileSync(
+        script,
+        `const fs=require("fs");
+         process.on("SIGTERM",()=>{fs.writeFileSync(${JSON.stringify(marker)},"1");process.exit(0);});
+         fs.writeFileSync(${JSON.stringify(ready)},"1");
+         setInterval(()=>{},1000);`
+      );
+      const shim = spawn(process.execPath, [path.join(pkg, "bin", "litespm.js"), script], { stdio: "ignore" });
+      try {
+        const deadline = Date.now() + 10000;
+        while (!fs.existsSync(ready) && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        assert(fs.existsSync(ready), "the native process never started");
+        shim.kill("SIGTERM");
+        while (!fs.existsSync(marker) && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        assert(fs.existsSync(marker), "SIGTERM was not forwarded: the native process was orphaned");
+      } finally {
+        try { shim.kill("SIGKILL"); } catch (e) { /* already gone */ }
+        fs.rmSync(pkg, { recursive: true, force: true });
+      }
+    });
+  }
+
   await checkAsync("a matching digest is accepted", () => {
     const kept = path.join(tmp, "kept-" + binName);
     fs.writeFileSync(kept, "payload");

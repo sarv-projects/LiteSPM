@@ -319,3 +319,38 @@ func TestResolvePluginSkillsRefusesADirectoryWithoutSKILLmd(t *testing.T) {
 		t.Fatal("a declared skill directory without SKILL.md was accepted")
 	}
 }
+
+// The Claude Code manifest declares `"skills": "./skills/"` — a directory OF
+// skills. Treating it as one skill failed `plugin:claude-official:mongodb`
+// with "has no SKILL.md". A declared container expands to its child skills.
+func TestResolvePluginSkillsExpandsADeclaredSkillsContainer(t *testing.T) {
+	tree := t.TempDir()
+	for _, name := range []string{"alpha", "beta"} {
+		dir := filepath.Join(tree, "skills", name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: "+name+"\ndescription: x\n---\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A sibling that is not a skill, and a hidden directory, are not components.
+	if err := os.MkdirAll(filepath.Join(tree, "skills", "notes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(tree, "skills", ".cache"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := &interop.PluginInstallManifest{Skills: []interop.PluginSkill{{Path: "./skills/"}}}
+	got, err := resolvePluginSkills(tree, manifest)
+	if err != nil {
+		t.Fatalf("a declared skills container was refused: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d components, want 2 (alpha, beta): %+v", len(got), got)
+	}
+	if filepath.Base(got[0].Dir) != "alpha" || filepath.Base(got[1].Dir) != "beta" {
+		t.Fatalf("components %q, %q; want alpha then beta", got[0].Dir, got[1].Dir)
+	}
+}

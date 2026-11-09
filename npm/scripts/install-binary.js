@@ -387,31 +387,65 @@ function formatBytes(bytes) {
  * nothing when stdout is a pipe, so `npm install --silent` and CI logs stay
  * clean. The final update is forced so the user always sees 100%.
  */
-function makeDownloadProgress(label) {
-  let lastAt = 0;
-  return (bytes, total) => {
-    if (!process.stdout.isTTY) return;
-    const now = Date.now();
-    const complete = Number.isFinite(total) && total > 0 && bytes >= total;
-    if (!complete && now - lastAt < 100) return;
-    lastAt = now;
-    const width = 20;
-    let bar = "";
-    let pct = "";
-    if (Number.isFinite(total) && total > 0) {
-      const ratio = Math.max(0, Math.min(1, bytes / total));
-      const filled = Math.round(ratio * width);
-      bar = `${"█".repeat(filled)}${"░".repeat(width - filled)} `;
-      pct = `${Math.round(ratio * 100)}% `;
-    }
-    const size = Number.isFinite(total) && total > 0
-      ? `${formatBytes(bytes)} / ${formatBytes(total)}`
-      : formatBytes(bytes);
-    process.stdout.write(`\r[litespm] ${label} ${bar}${pct}${size}`);
-    if (complete) process.stdout.write("\n");
-  };
+function formatRate(bytesPerSec) {
+  if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return "";
+  return `${formatBytes(bytesPerSec)}/s`;
 }
 
+function formatEta(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  const s = Math.round(seconds);
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
+}
+
+function makeDownloadProgress(label) {
+  const startedAt = Date.now();
+  let lastAt = 0;
+  return (bytes, total) => {
+    // A pipe, CI and TERM=dumb get no animation at all; the plain "Downloading"
+    // and "Verified" lines are the whole story there.
+    if (!process.stdout.isTTY || process.env.TERM === "dumb") return;
+    const now = Date.now();
+    const known = Number.isFinite(total) && total > 0;
+    const complete = known && bytes >= total;
+    if (!complete && now - lastAt < 100) return;
+    lastAt = now;
+    const elapsed = Math.max((now - startedAt) / 1000, 0.001);
+    const rate = bytes / elapsed;
+    const columns = process.stdout.columns || 80;
+    const parts = [];
+    if (known) {
+      const ratio = Math.max(0, Math.min(1, bytes / total));
+      parts.push(`${Math.round(ratio * 100)}%`.padStart(4));
+      parts.push(`${formatBytes(bytes)} / ${formatBytes(total)}`);
+    } else {
+      parts.push(formatBytes(bytes));
+    }
+    if (!complete) {
+      const speed = formatRate(rate);
+      if (speed) parts.push(speed);
+      if (known && rate > 0 && elapsed > 1) parts.push(`ETA ${formatEta((total - bytes) / rate)}`);
+    }
+    const text = parts.join("  ");
+    let bar = "";
+    const prefix = `[litespm] ${label} `;
+    const room = columns - prefix.length - text.length - 3;
+    if (known && room >= 10) {
+      const width = Math.min(24, room);
+      const filled = Math.round(Math.max(0, Math.min(1, bytes / total)) * width);
+      bar = `${"█".repeat(filled)}${"░".repeat(width - filled)} `;
+    }
+    const line = `${prefix}${bar}${text}`.slice(0, Math.max(columns - 1, 20));
+    if (complete) {
+      process.stdout.write(
+        `\r\x1b[K[litespm] ✓ Downloaded ${formatBytes(bytes)} in ${elapsed.toFixed(1)}s (${formatRate(rate)})\n`
+      );
+    } else {
+      process.stdout.write(`\r\x1b[K${line}`);
+    }
+  };
+}
 function downloadFile(url, targetPath, redirects = 0, policy = null, onProgress = null) {  return new Promise((resolve, reject) => {
     if (redirects > MAX_REDIRECTS) {
       reject(new Error("too many redirects"));
@@ -1045,7 +1079,13 @@ async function installBinary() {
       fs.chmodSync(targetPath, 0o755);
     }
     fs.writeFileSync(stampPath, `${VERSION}\n`);
-    console.log(`[litespm] Successfully downloaded and installed ${binName} to ${targetPath}`);
+    if (process.stdout.isTTY && process.env.TERM !== "dumb") {
+      console.log(`[litespm] ✓ Installed ${binName} (checksum and signature verified)`);
+      console.log(`[litespm]   ${targetPath}`);
+      console.log("[litespm]   Next: run `litespm` to connect your agents.");
+    } else {
+      console.log(`[litespm] Successfully downloaded and installed ${binName} to ${targetPath}`);
+    }
   } catch (err) {
     // A partial artifact must never survive a refusal, whatever the failure.
     try {

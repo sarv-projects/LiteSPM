@@ -1621,3 +1621,22 @@ func TestDaemonInvokeResolvesSecretReferences(t *testing.T) {
 		t.Errorf("the secret value reached an error message: %v", err)
 	}
 }
+
+// config.DefaultConfig always fills Network.Timeout with 30s, so a `> 0` test
+// made the five-minute sync budget unreachable: a 100 MB sync was cut off at
+// 30 seconds on ordinary connections. Only a value above the default is an
+// operator's explicit choice.
+func TestCatalogSyncTimeoutIgnoresTheCompiledDefault(t *testing.T) {
+	def := config.DefaultConfig(nil)
+	if got := catalogSyncTimeout(def); got != 5*time.Minute {
+		t.Fatalf("default config gave %v, want the 5m sync budget", got)
+	}
+	if got := catalogSyncTimeout(nil); got != 5*time.Minute {
+		t.Fatalf("nil config gave %v, want 5m", got)
+	}
+	raised := config.DefaultConfig(nil)
+	raised.Network.Timeout = 20 * time.Minute
+	if got := catalogSyncTimeout(raised); got != 20*time.Minute {
+		t.Fatalf("raised config gave %v, want the configured 20m", got)
+	}
+}

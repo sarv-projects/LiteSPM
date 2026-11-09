@@ -28,9 +28,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/sarv-projects/litespm/internal/catalog"
@@ -68,6 +70,8 @@ type Wizard struct {
 	// source chosen in this wizard. Tests inject a recorder; production keeps
 	// the installer's own interactive prompts and approval path.
 	launchSkillInstaller func(ctx context.Context, source string) error
+	// setupLog collects what the current setup pass wrote, for the summary card.
+	setupLog []setupRecord
 	// openState opens the state database the menu actions read and write.
 	// Tests inject the database they assert against; nil means opening
 	// paths.StateDBPath().
@@ -95,10 +99,12 @@ func NewWizard(in io.Reader, out io.Writer, paths *config.PlatformPaths) *Wizard
 // anything: it is told what is configured and goes straight to the menu, so a
 // second bare `litespm` run is a management session, not a silent rewrite.
 func (w *Wizard) Run(ctx context.Context) error {
-	w.printBanner()
-	w.printRuntimeSummary()
-
 	configured, err := w.configuredHosts(ctx)
+	// The wordmark is for the first run only; a machine that is already set up
+	// gets the one-line header, so a management session does not open with six
+	// rows of banner every time.
+	w.printBanner(err != nil || len(configured) == 0)
+	w.printRuntimeSummary()
 	if err != nil {
 		fmt.Fprintf(w.out, "Could not check for existing LiteSPM setups: %v\n", err)
 		configured = nil
@@ -160,9 +166,13 @@ func (w *Wizard) readLine() (string, error) {
 	}
 }
 
-func (w *Wizard) printBanner() {
+func (w *Wizard) printBanner(firstRun bool) {
 	fmt.Fprintln(w.out, "")
 	if terminalUIAvailable(w.in, w.out) {
+		if !firstRun {
+			fmt.Fprintln(w.out, uiCompactHeader("agent capability manager"))
+			return
+		}
 		fmt.Fprint(w.out, renderWordmarkBanner(
 			"agent capability manager",
 			"Discover and manage MCP servers, skills and plugins across your agents.",
@@ -184,6 +194,9 @@ func (w *Wizard) printBanner() {
 // changed yet" on every run — the configured summary and each action's own
 // report say what did or did not change.
 func (w *Wizard) printRuntimeSummary() {
+	if terminalUIAvailable(w.in, w.out) {
+		return // the agent picker already says "N detected of M supported"
+	}
 	fmt.Fprintf(w.out, "LiteSPM can connect to %d agent hosts.\n\n", len(host.ListAdapters()))
 }
 
@@ -220,6 +233,12 @@ func (w *Wizard) printConfiguredSummary(configured []host.HostVerification) {
 	if len(shown) > 8 {
 		shown, extra = shown[:8], fmt.Sprintf(" (+%d more)", len(names)-8)
 	}
+	if terminalUIAvailable(w.in, w.out) {
+		uiOK(w.out, "Connected to %d agent%s: %s%s", len(names), plural(len(names)), strings.Join(shown, ", "), extra)
+		uiHint(w.out, "Nothing was changed. `litespm host detect` lists every configuration path.")
+		fmt.Fprintln(w.out, "")
+		return
+	}
 	fmt.Fprintf(w.out, "LiteSPM is already set up for %d agent%s: %s%s\n",
 		len(names), plural(len(names)), strings.Join(shown, ", "), extra)
 	fmt.Fprintln(w.out, "Nothing was changed. Run `litespm host detect` to see every configuration path.")
@@ -235,6 +254,11 @@ func (w *Wizard) printConfiguredSummary(configured []host.HostVerification) {
 // them in one pass, and every selected host still gets its own preview and
 // approval. Nothing is written until each host's file is confirmed.
 func (w *Wizard) runSetup(ctx context.Context) (bool, error) {
+	tty := terminalUIAvailable(w.in, w.out)
+	w.setupLog = nil
+	if tty {
+		uiStepHeader(w.out, 1, 3, "Choose agents")
+	}
 	adapters, err := w.promptAgentSelectionMany(ctx)
 	if err != nil {
 		if errors.Is(err, errSetupSkipped) {
@@ -249,6 +273,9 @@ func (w *Wizard) runSetup(ctx context.Context) (bool, error) {
 
 	configured := 0
 	attempted := 0
+	if tty {
+		uiStepHeader(w.out, 2, 3, fmt.Sprintf("Review and connect (%d agent%s)", len(adapters), plural(len(adapters))))
+	}
 	for _, adapter := range adapters {
 		configPath, ok, err := w.resolveAgentConfig(ctx, adapter)
 		if err != nil {
@@ -262,20 +289,60 @@ func (w *Wizard) runSetup(ctx context.Context) (bool, error) {
 			if errors.Is(err, errInputEnded) {
 				return false, err
 			}
-			fmt.Fprintf(w.out, "\nSetup did not finish for %s: %v\n", adapter.Descriptor().DisplayName, err)
-			fmt.Fprintln(w.out, "Nothing was written to a file you did not name.")
+			if tty {
+				fmt.Fprintln(w.out, "")
+				uiErr(w.out, "Setup did not finish for %s: %v", adapter.Descriptor().DisplayName, err)
+				uiHint(w.out, "Nothing was written to a file you did not name.")
+			} else {
+				fmt.Fprintf(w.out, "\nSetup did not finish for %s: %v\n", adapter.Descriptor().DisplayName, err)
+				fmt.Fprintln(w.out, "Nothing was written to a file you did not name.")
+			}
 			continue
 		}
 		configured++
 	}
 
 	if configured > 0 {
-		fmt.Fprintf(w.out, "\nConnected %d of %d selected agent(s).\n", configured, len(adapters))
+		if tty {
+			w.printSetupCard(configured, len(adapters))
+		} else {
+			fmt.Fprintf(w.out, "\nConnected %d of %d selected agent(s).\n", configured, len(adapters))
+		}
+	} else if tty && attempted > 0 {
+		uiStepHeader(w.out, 3, 3, "Done")
+		uiWarn(w.out, "Nothing was written.")
 	}
 	if configured == 0 && attempted == 0 {
 		return true, nil
 	}
 	return false, nil
+}
+
+// setupRecord is one successful bridge registration, kept for the summary card.
+type setupRecord struct {
+	agent   string
+	file    string
+	backup  string
+	trigger string
+}
+
+// printSetupCard is step 3: what was written where, and what to do next.
+func (w *Wizard) printSetupCard(configured, selected int) {
+	uiStepHeader(w.out, 3, 3, "Done")
+	lines := []string{}
+	for _, r := range w.setupLog {
+		lines = append(lines, uiGreenS.Bold(true).Render("✓ ")+uiBold.Render(r.agent))
+		lines = append(lines, "  "+uiKV("wrote", shortHome(r.file, userHome())))
+		if r.backup != "" {
+			lines = append(lines, "  "+uiKV("backup", shortHome(r.backup, userHome())))
+		}
+	}
+	next := "Next: start your agent and run its LiteSPM marketplace command."
+	if len(w.setupLog) == 1 && w.setupLog[0].trigger != "" {
+		next = fmt.Sprintf("Next: start %s and type %s to browse and install.", w.setupLog[0].agent, w.setupLog[0].trigger)
+	}
+	title := fmt.Sprintf("Connected %d of %d selected agent%s", configured, selected, plural(selected))
+	fmt.Fprintln(w.out, uiCard(w.out, "ok", title, lines, next)+"\n")
 }
 
 // agentMenuRow is one selectable agent, built from the adapter registry rather
@@ -422,7 +489,21 @@ func (w *Wizard) promptAgentMultiSelectTUI(rows, detected []agentMenuRow) ([]hos
 		detectedIDs = append(detectedIDs, row.descriptor.HostID)
 	}
 	items := make([]promptItem, 0, len(rows))
+	// Detected agents first: they are preselected and the likeliest answer, and
+	// the "Detected" group should lead rather than land wherever the
+	// alphabet puts its first member.
+	ordered := make([]agentMenuRow, 0, len(rows))
 	for _, row := range rows {
+		if row.exists {
+			ordered = append(ordered, row)
+		}
+	}
+	for _, row := range rows {
+		if !row.exists {
+			ordered = append(ordered, row)
+		}
+	}
+	for _, row := range ordered {
 		group := "Other agents"
 		if row.exists {
 			group = "Detected on this machine"
@@ -495,8 +576,11 @@ func (w *Wizard) printAgentRows(rows []agentMenuRow) {
 // detect` and made "edit my file" indistinguishable from "create one".
 func describeConfigTarget(name, path string) string {
 	if fileExists(path) {
+		// Two short lines rather than one 120-column sentence: a terminal wraps
+		// a long line wherever the column runs out, mid-word ("backup copy i /
+		// s saved first").
 		return fmt.Sprintf(
-			"Found your existing configuration file:\n  %s\nLiteSPM will add one entry to this file. Everything else in it is left as it is, and a backup copy is saved first.",
+			"Found your existing configuration file:\n  %s\nLiteSPM will add one entry to this file. Everything else in it is left as it is,\nand a backup copy is saved first.",
 			path)
 	}
 	return fmt.Sprintf(
@@ -509,19 +593,20 @@ func describeConfigTarget(name, path string) string {
 // internal/host.PlanSetupAt, and a setup that cannot write there is refused —
 // never redirected to the adapter's own default.
 func (w *Wizard) resolveAgentConfig(ctx context.Context, adapter host.HostAdapter) (string, bool, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		return w.resolveAgentConfigTTY(ctx, adapter)
+	}
 	name := adapter.Descriptor().DisplayName
 	fmt.Fprintf(w.out, "\nLooking for %s's configuration file...\n", name)
 
 	candidate, detectErr := adapter.DetectConfig(ctx, domain.ScopeUser)
 	if detectErr == nil && candidate != "" {
 		fmt.Fprintln(w.out, describeConfigTarget(name, candidate))
-		fmt.Fprint(w.out, "Use this file? [Y/n]: ")
-		line, err := w.readLine()
+		use, err := w.askYesNo("Use this file?", true)
 		if err != nil {
 			return "", false, err
 		}
-		switch strings.ToLower(line) {
-		case "", "y", "yes":
+		if use {
 			return candidate, true, nil
 		}
 	} else {
@@ -548,6 +633,7 @@ func (w *Wizard) resolveAgentConfig(ctx context.Context, adapter host.HostAdapte
 			if err != nil {
 				return "", false, err
 			}
+			custom = normalizeTypedPath(custom)
 			if custom == "" {
 				fmt.Fprintln(w.out, "No path was entered.")
 				continue
@@ -567,13 +653,11 @@ func (w *Wizard) resolveAgentConfig(ctx context.Context, adapter host.HostAdapte
 				continue
 			}
 			fmt.Fprintln(w.out, describeConfigTarget(name, retry))
-			fmt.Fprint(w.out, "Use this file? [Y/n]: ")
-			line, err := w.readLine()
+			use, err := w.askYesNo("Use this file?", true)
 			if err != nil {
 				return "", false, err
 			}
-			switch strings.ToLower(line) {
-			case "", "y", "yes":
+			if use {
 				return retry, true, nil
 			}
 
@@ -584,6 +668,92 @@ func (w *Wizard) resolveAgentConfig(ctx context.Context, adapter host.HostAdapte
 			fmt.Fprintln(w.out, "Please enter 1, 2, 3 or q.")
 		}
 	}
+}
+
+// resolveAgentConfigTTY is resolveAgentConfig on a real terminal: one
+// arrow-key menu instead of a question followed by a numbered list. The
+// invariant is unchanged: the returned path is the one the person chose, and
+// nothing is written here.
+func (w *Wizard) resolveAgentConfigTTY(ctx context.Context, adapter host.HostAdapter) (string, bool, error) {
+	name := adapter.Descriptor().DisplayName
+	home := userHome()
+	candidate, detectErr := adapter.DetectConfig(ctx, domain.ScopeUser)
+	for {
+		have := detectErr == nil && candidate != ""
+		var options []choiceOption
+		desc := fmt.Sprintf("Could not work out where %s keeps its configuration file.", name)
+		def := "path"
+		if have {
+			def = "use"
+			if fileExists(candidate) {
+				desc = "Found your existing file. LiteSPM adds one entry, leaves the rest alone and saves a backup first."
+				options = append(options, choiceOption{ID: "use", Label: "Use " + shortHome(candidate, home)})
+			} else {
+				desc = "No file exists yet. LiteSPM will create it."
+				options = append(options, choiceOption{ID: "use", Label: "Create " + shortHome(candidate, home)})
+			}
+		}
+		options = append(options,
+			choiceOption{ID: "path", Label: "Choose a different file", Hint: "type or paste a path"},
+			choiceOption{ID: "snippet", Label: "Show a snippet to paste myself", Hint: "nothing is written"},
+			choiceOption{ID: "retry", Label: "Look for the file again"},
+			choiceOption{ID: "cancel", Label: "Skip this agent"},
+		)
+		fmt.Fprintln(w.out, "")
+		choice, ok, err := uiSelectOne(w.in, w.out, name+" · configuration file", desc, options, def)
+		if err != nil {
+			return "", false, err
+		}
+		if !ok {
+			return "", false, nil
+		}
+		switch choice {
+		case "use":
+			return candidate, true, nil
+		case "path":
+			typed, ok, err := uiInputText(w.in, w.out, "Full path of the configuration file", "Quotes and ~ are fine.", "~/.config/agent/mcp.json")
+			if err != nil {
+				return "", false, err
+			}
+			custom := normalizeTypedPath(typed)
+			if !ok || custom == "" {
+				uiWarn(w.out, "No path was entered.")
+				continue
+			}
+			uiHint(w.out, "%s", strings.ReplaceAll(describeConfigTarget(name, custom), "\n", " "))
+			return custom, true, nil
+		case "snippet":
+			fmt.Fprintf(w.out, "\nPaste this into the configuration file of %s:\n", name)
+			fmt.Fprintln(w.out, adapter.RenderManualSetup(w.binary))
+		case "retry":
+			candidate, detectErr = adapter.DetectConfig(ctx, domain.ScopeUser)
+			if detectErr != nil || candidate == "" {
+				uiWarn(w.out, "Still could not work out where %s keeps its configuration file.", name)
+			}
+		default:
+			return "", false, nil
+		}
+	}
+}
+
+// normalizeTypedPath cleans a path a person typed or pasted. Windows "Copy as
+// path" wraps it in double quotes and shells teach single quotes, so a pasted
+// path arrived as `"C:\Users\me\.claude.json"` and was planned as a file whose
+// name starts with a quote. A leading `~` is expanded to the home directory,
+// which the shell would have done had the path been an argument.
+func normalizeTypedPath(p string) string {
+	p = strings.TrimSpace(p)
+	if len(p) >= 2 {
+		if (p[0] == '"' && p[len(p)-1] == '"') || (p[0] == '\'' && p[len(p)-1] == '\'') {
+			p = strings.TrimSpace(p[1 : len(p)-1])
+		}
+	}
+	if p == "~" || strings.HasPrefix(p, "~/") || strings.HasPrefix(p, `~\`) {
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			p = filepath.Join(home, p[1:])
+		}
+	}
+	return p
 }
 
 // applyAgentIntegration plans the bridge write against the agreed path, shows
@@ -604,9 +774,18 @@ func (w *Wizard) applyAgentIntegration(ctx context.Context, adapter host.HostAda
 		return fmt.Errorf("cannot write %s: the adapter proposed an empty file, refusing to touch it", configPath)
 	}
 
-	fmt.Fprintf(w.out, "\nAbout to make one change to %s:\n\n", plan.ConfigPath)
+	tty := terminalUIAvailable(w.in, w.out)
+	if tty {
+		fmt.Fprintf(w.out, "\n%s\n\n", uiBold.Render("About to change "+shortHome(plan.ConfigPath, userHome())))
+	} else {
+		fmt.Fprintf(w.out, "\nAbout to make one change to %s:\n\n", plan.ConfigPath)
+	}
 	preview, hidden := changePreview(plan.OriginalContent, plan.ProposedContent, 40)
-	if terminalUIAvailable(w.in, w.out) {
+	if tty {
+		fit := uiWidth(w.out) - 6
+		for i := range preview {
+			preview[i] = uiFit(preview[i], fit)
+		}
 		fmt.Fprintln(w.out, renderDiffPreview(preview, hidden))
 	} else {
 		for _, l := range preview {
@@ -616,16 +795,21 @@ func (w *Wizard) applyAgentIntegration(ctx context.Context, adapter host.HostAda
 			fmt.Fprintf(w.out, "  … and %d more changed line(s)\n", hidden)
 		}
 	}
-	fmt.Fprintln(w.out, "\nEverything else in the file is left as it is.")
-	fmt.Fprint(w.out, "Write this change? [Y/n]: ")
-	line, err := w.readLine()
+	if tty {
+		uiHint(w.out, "Everything else in the file is left as it is. A backup is saved first.")
+	} else {
+		fmt.Fprintln(w.out, "\nEverything else in the file is left as it is.")
+	}
+	write, err := w.askYesNo("Write this change?", true)
 	if err != nil {
 		return err
 	}
-	switch strings.ToLower(line) {
-	case "", "y", "yes":
-	default:
-		fmt.Fprintln(w.out, "Nothing was written.")
+	if !write {
+		if tty {
+			uiWarn(w.out, "Nothing was written.")
+		} else {
+			fmt.Fprintln(w.out, "Nothing was written.")
+		}
 		return nil
 	}
 
@@ -634,11 +818,31 @@ func (w *Wizard) applyAgentIntegration(ctx context.Context, adapter host.HostAda
 		return fmt.Errorf("could not write %s: %w", configPath, err)
 	}
 
+	if tty {
+		trigger := adapter.Descriptor().SlashCommandTrigger
+		if trigger == "" {
+			trigger = "/marketplace"
+		}
+		if info, ok := host.MarketplaceCommandFor(adapter.Descriptor().HostID); ok {
+			trigger = info.Invoke
+		}
+		w.setupLog = append(w.setupLog, setupRecord{
+			agent: adapter.Descriptor().DisplayName, file: result.ConfigPath,
+			backup: result.BackupPath, trigger: trigger,
+		})
+		uiOK(w.out, "Registered with %s", adapter.Descriptor().DisplayName)
+		installMarketplaceCommand(ctx, w.out, adapter.Descriptor().HostID, w.binary)
+		if preExisting, _ := adapter.DetectPreExistingComponents(ctx); len(preExisting) > 0 {
+			uiHint(w.out, "%d other MCP server(s) already in this file were left untouched.", len(preExisting))
+		}
+		return nil
+	}
 	fmt.Fprintf(w.out, "✓ Done. LiteSPM is registered with %s.\n", adapter.Descriptor().DisplayName)
 	if result.BackupPath != "" {
 		fmt.Fprintf(w.out, "  • Backup of the previous file: %s\n", result.BackupPath)
 	}
 	fmt.Fprintf(w.out, "  • File written: %s\n", result.ConfigPath)
+	installMarketplaceCommand(ctx, w.out, adapter.Descriptor().HostID, w.binary)
 
 	preExisting, _ := adapter.DetectPreExistingComponents(ctx)
 	if len(preExisting) > 0 {
@@ -700,6 +904,10 @@ func (w *Wizard) printNextStep(adapter host.HostAdapter) {
 	trigger := d.SlashCommandTrigger
 	if trigger == "" {
 		trigger = "/marketplace"
+	}
+	// The registrar knows the command this agent actually got.
+	if info, ok := host.MarketplaceCommandFor(d.HostID); ok {
+		trigger = info.Invoke
 	}
 	fmt.Fprintln(w.out, "")
 	fmt.Fprintln(w.out, "Next:")
@@ -950,40 +1158,79 @@ func (w *Wizard) catalog() *catalog.Client {
 	return catalog.NewClientWithTimeout(registryURLOf(cfg), w.paths.DataRoot, catalogTimeoutOf(cfg), nil)
 }
 
+// syncCatalog is catalog() for the one action that downloads the whole release
+// tree: its per-request timeout is the sync budget, not the 30s a search uses.
+func (w *Wizard) syncCatalog() *catalog.Client {
+	if w.catalogClient != nil {
+		return w.catalogClient()
+	}
+	cfg, _ := config.LoadCurrentConfig()
+	return catalog.NewClientWithTimeout(registryURLOf(cfg), w.paths.DataRoot, catalogSyncTimeout(cfg), nil)
+}
+
 // actionSyncCatalog is the one step that must touch the network, so it is an
 // explicit opt-in that says what it fetches — and a failure says so instead of
 // printing a success line.
 func (w *Wizard) actionSyncCatalog(ctx context.Context) error {
-	catClient := w.catalog()
+	catClient := w.syncCatalog()
 	cfg, _ := config.LoadCurrentConfig()
 	regURL := registryURLOf(cfg)
 
-	fmt.Fprintln(w.out, "")
-	fmt.Fprintf(w.out, "LiteSPM will download the capability catalog from:\n  %s\n", regURL)
-	fmt.Fprintln(w.out, "This is the list of MCP servers and skills the catalog publishes. It installs nothing and changes nothing on your machine.")
 	empty := catClient.Count() == 0
-	if empty {
-		fmt.Fprintln(w.out, "The local catalog is empty right now, so searching finds nothing until this succeeds.")
+	if terminalUIAvailable(w.in, w.out) {
+		fmt.Fprintln(w.out, "")
+		local := "empty"
+		if !empty {
+			local = fmt.Sprintf("%d capabilities", catClient.Count())
+		}
+		fmt.Fprintln(w.out, uiCard(w.out, "", "Update the capability catalog", []string{
+			uiKV("from", regURL),
+			uiKV("local copy", local),
+		}, "Downloads the published list of MCP servers, skills and plugins. Installs nothing."))
 	} else {
-		fmt.Fprintf(w.out, "The local copy currently holds %d capabilities; this replaces it with the latest published list.\n", catClient.Count())
+		fmt.Fprintln(w.out, "")
+		fmt.Fprintf(w.out, "LiteSPM will download the capability catalog from:\n  %s\n", regURL)
+		fmt.Fprintln(w.out, "This is the list of MCP servers and skills the catalog publishes. It installs nothing and changes nothing on your machine.")
+		if empty {
+			fmt.Fprintln(w.out, "The local catalog is empty right now, so searching finds nothing until this succeeds.")
+		} else {
+			fmt.Fprintf(w.out, "The local copy currently holds %d capabilities; this replaces it with the latest published list.\n", catClient.Count())
+		}
 	}
-	fmt.Fprint(w.out, "Download it now? [Y/n]: ")
-	line, err := w.readLine()
+	download, err := w.askYesNo("Download it now?", true)
 	if err != nil {
 		return err
 	}
-	switch strings.ToLower(line) {
-	case "", "y", "yes":
-	default:
+	if !download {
 		fmt.Fprintln(w.out, "Not downloaded.")
 		return nil
 	}
 
 	syncCtx, cancel := context.WithTimeout(ctx, catalogSyncTimeout(cfg))
 	defer cancel()
+	started := time.Now()
 	res, err := runWithSpinner(syncCtx, w.in, w.out, "Updating capability catalog", func() (*catalog.SyncResult, error) {
 		return catClient.Sync(syncCtx)
 	})
+	if tty := terminalUIAvailable(w.in, w.out); tty {
+		took := uiElapsed(time.Since(started))
+		if err != nil {
+			uiErr(w.out, "Could not update the catalog: %v", err)
+			if empty {
+				uiHint(w.out, "The local catalog is still empty. Nothing was changed.")
+			} else {
+				uiHint(w.out, "Nothing was changed; the previous local copy is still there.")
+			}
+			uiHint(w.out, "Try again with: litespm catalog sync")
+			return nil
+		}
+		verb := "Catalog updated"
+		if !res.Updated {
+			verb = "Catalog already up to date"
+		}
+		uiOK(w.out, "%s · %d capabilities · release %s · %s", verb, res.ItemCount, res.ReleaseID, took)
+		return nil
+	}
 	if err != nil {
 		fmt.Fprintf(w.out, "✗ Could not update the catalog: %v\n", err)
 		if empty {
@@ -1105,6 +1352,22 @@ func (w *Wizard) pickCatalogResult(results []*catalog.SearchResult, query string
 // prints recorded fields only; a transport or launch line the catalog does not
 // carry is not guessed here.
 func (w *Wizard) printListingDetail(l *domain.Listing) {
+	if terminalUIAvailable(w.in, w.out) {
+		lines := []string{uiKV("id", l.ID)}
+		if l.PublisherClaim.Name != "" {
+			lines = append(lines, uiKV("publisher", l.PublisherClaim.Name))
+		}
+		lines = append(lines, uiKV("provenance", string(l.Installability.Effective())))
+		if l.Summary != "" {
+			lines = append(lines, uiKV("summary", truncate(l.Summary, 90)))
+		}
+		tone, footer := "", ""
+		if !l.IsInstallable() {
+			tone, footer = "warn", "Catalog metadata only: no verified source or launch line, so it cannot be installed."
+		}
+		fmt.Fprintf(w.out, "\n%s\n", uiCard(w.out, tone, l.Name+"  ·  "+kindLabel(l.Kind), lines, footer))
+		return
+	}
 	fmt.Fprintf(w.out, "\n%s  %s\n", renderStatusPill(kindLabel(l.Kind)), l.Name)
 	fmt.Fprintf(w.out, "  id:         %s\n", l.ID)
 	if l.PublisherClaim.Name != "" {
@@ -1360,12 +1623,11 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			if domain.ErrorCode(ierr) == "LPSM-INSTALL-PARTIAL" {
 				grant.refund(grantCtx, db)
 				fmt.Fprintf(w.out, "\n%s\n", ierr)
-				fmt.Fprint(w.out, "Install the parts LiteSPM can install, and leave the rest out? [y/N]: ")
-				answer, aerr := w.readLine()
+				partialOK, aerr := w.askYesNo("Install the parts LiteSPM can install, and leave the rest out?", false)
 				if aerr != nil {
 					return aerr
 				}
-				if !isAffirmative(answer) {
+				if !partialOK {
 					fmt.Fprintln(w.out, "Not installed. Nothing was changed.")
 					return nil
 				}
@@ -1504,15 +1766,66 @@ func (w *Wizard) promptInstallScope(listing *domain.Listing) (string, bool, erro
 		}
 		return picked.Selected[0], true, nil
 	}
-	fmt.Fprint(w.out, "\nInstall for all your agents on this machine [1], or only for this project [2]? [1]: ")
+	// Only an explicit answer selects a scope. Any other text used to fall
+	// through to "all agents", so a typo such as "3" or "q" silently chose the
+	// widest scope. Enter keeps the documented default; q cancels.
+	for {
+		fmt.Fprint(w.out, "\nInstall for all your agents on this machine [1], or only for this project [2]? (q cancels) [1]: ")
+		line, err := w.readLine()
+		if err != nil {
+			return "", false, err
+		}
+		switch strings.ToLower(strings.TrimSpace(line)) {
+		case "", "1":
+			return "1", true, nil
+		case "2":
+			return "project", true, nil
+		case "q", "quit", "cancel":
+			return "", false, nil
+		}
+		fmt.Fprintln(w.out, "Please enter 1, 2 or q.")
+	}
+}
+
+// askYesNo is the one yes/no question the wizard asks everywhere. On a
+// terminal it is the same styled confirm the install step uses, so arrow keys
+// move a selection instead of echoing `^[[B` into a half-typed answer; on a
+// pipe it stays the one-line prompt the scripted tests and screen readers
+// answer. defaultYes picks the answer Enter gives on the pipe path and the
+// preselected button on the terminal path. An ended input stream is still
+// reported as errInputEnded, never as "no".
+func (w *Wizard) askYesNo(prompt string, defaultYes bool) (bool, error) {
+	if terminalUIAvailable(w.in, w.out) {
+		answer := defaultYes
+		field := huh.NewConfirm().
+			Title(strings.TrimSpace(prompt)).
+			Affirmative("Yes").
+			Negative("No").
+			Value(&answer)
+		if err := runTerminalForm(w.in, w.out, field); err != nil {
+			if errors.Is(err, huh.ErrUserAborted) {
+				return false, nil
+			}
+			return false, err
+		}
+		return answer, nil
+	}
+	hint := "[Y/n]"
+	if !defaultYes {
+		hint = "[y/N]"
+	}
+	fmt.Fprintf(w.out, "%s %s: ", strings.TrimSpace(prompt), hint)
 	line, err := w.readLine()
 	if err != nil {
-		return "", false, err
+		return false, err
 	}
-	if line == "2" {
-		return "project", true, nil
+	switch strings.ToLower(line) {
+	case "":
+		return defaultYes, nil
+	case "y", "yes":
+		return true, nil
 	}
-	return "1", true, nil
+	return false, nil
 }
 
 // confirmInstall is the final question before a write: a styled confirm on a
@@ -2081,44 +2394,91 @@ func (w *Wizard) actionRemove(ctx context.Context, db *state.DB) error {
 		return nil
 	}
 
-	fmt.Fprintln(w.out, "\nLiteSPM installed these. Choose one to remove:")
-	fmt.Fprintln(w.out, "")
-	for i, it := range items {
-		fmt.Fprintf(w.out, "  [%d] %s\n", i+1, it.label)
-		for _, dest := range it.dests {
-			fmt.Fprintf(w.out, "      %s\n", dest)
+	var item removableItem
+	if terminalUIAvailable(w.in, w.out) {
+		prompts := make([]promptItem, 0, len(items)+1)
+		for i, it := range items {
+			prompts = append(prompts, promptItem{
+				ID:     strconv.Itoa(i),
+				Label:  it.label,
+				Detail: "Would delete:\n" + strings.Join(it.dests, "\n"),
+				Group:  "Installed by LiteSPM",
+			})
+		}
+		prompts = append(prompts, promptItem{ID: "back", Label: "← Back to the menu", Detail: "Remove nothing.", Group: "Navigation"})
+		picked, perr := runSearchPrompt(w.in, w.out, searchPromptOptions{
+			Title:       fmt.Sprintf("Remove an install  ·  %d installed", len(items)),
+			Description: "Pick one to review. Nothing is deleted until you confirm on the next screen.",
+			Items:       prompts,
+			Single:      true,
+			Searchable:  true,
+			ShowDetail:  true,
+			DetailLines: 4,
+			MaxVisible:  10,
+		})
+		if perr != nil {
+			return perr
+		}
+		if picked.Cancelled || len(picked.Selected) == 0 || picked.Selected[0] == "back" {
+			return nil
+		}
+		idx, _ := strconv.Atoi(picked.Selected[0])
+		if idx < 0 || idx >= len(items) {
+			return nil
+		}
+		item = items[idx]
+		fmt.Fprintf(w.out, "\n%s\n", uiBold.Render("This will delete:"))
+		for _, dest := range item.dests {
+			fmt.Fprintf(w.out, "  %s\n", uiFit(dest, uiWidth(w.out)-4))
+		}
+		uiHint(w.out, "Only the parts LiteSPM wrote are removed; anything you edited or added is kept.")
+		ok, cerr := uiConfirm(w.in, w.out, "Remove this install?", item.label, "Remove", "Keep it", false)
+		if cerr != nil {
+			return cerr
+		}
+		if !ok {
+			uiWarn(w.out, "Nothing was removed.")
+			return nil
+		}
+	} else {
+		fmt.Fprintln(w.out, "\nLiteSPM installed these. Choose one to remove:")
+		fmt.Fprintln(w.out, "")
+		for i, it := range items {
+			fmt.Fprintf(w.out, "  [%d] %s\n", i+1, it.label)
+			for _, dest := range it.dests {
+				fmt.Fprintf(w.out, "      %s\n", dest)
+			}
+		}
+		fmt.Fprint(w.out, "\nEnter the number to remove (or press Enter to go back): ")
+		line, err := w.readLine()
+		if err != nil {
+			return err
+		}
+		if line == "" {
+			return nil
+		}
+		n, nerr := strconv.Atoi(line)
+		if nerr != nil || n < 1 || n > len(items) {
+			fmt.Fprintln(w.out, "That is not one of the numbers shown.")
+			return nil
+		}
+		item = items[n-1]
+
+		fmt.Fprintln(w.out, "\nThis will delete:")
+		for _, dest := range item.dests {
+			fmt.Fprintf(w.out, "  • %s\n", dest)
+		}
+		fmt.Fprintln(w.out, "Only the parts LiteSPM wrote are removed; anything you edited or added is kept.")
+		fmt.Fprint(w.out, "Remove it? [y/N]: ")
+		confirm, err := w.readLine()
+		if err != nil {
+			return err
+		}
+		if !strings.EqualFold(confirm, "y") && !strings.EqualFold(confirm, "yes") {
+			fmt.Fprintln(w.out, "Nothing was removed.")
+			return nil
 		}
 	}
-	fmt.Fprint(w.out, "\nEnter the number to remove (or press Enter to go back): ")
-	line, err := w.readLine()
-	if err != nil {
-		return err
-	}
-	if line == "" {
-		return nil
-	}
-	n, nerr := strconv.Atoi(line)
-	if nerr != nil || n < 1 || n > len(items) {
-		fmt.Fprintln(w.out, "That is not one of the numbers shown.")
-		return nil
-	}
-	item := items[n-1]
-
-	fmt.Fprintln(w.out, "\nThis will delete:")
-	for _, dest := range item.dests {
-		fmt.Fprintf(w.out, "  • %s\n", dest)
-	}
-	fmt.Fprintln(w.out, "Only the parts LiteSPM wrote are removed; anything you edited or added is kept.")
-	fmt.Fprint(w.out, "Remove it? [y/N]: ")
-	confirm, err := w.readLine()
-	if err != nil {
-		return err
-	}
-	if !strings.EqualFold(confirm, "y") && !strings.EqualFold(confirm, "yes") {
-		fmt.Fprintln(w.out, "Nothing was removed.")
-		return nil
-	}
-
 	if item.installID != "" {
 		if err := removeInstalledPackage(ctx, db, w.paths.DataRoot, item.installID); err != nil {
 			fmt.Fprintf(w.out, "Remove failed: %v\n", err)

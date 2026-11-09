@@ -13,6 +13,11 @@ import (
 )
 
 func terminalUIAvailable(in io.Reader, out io.Writer) bool {
+	// TERM=dumb cannot draw a prompt, a spinner or a colour: take the plain
+	// text path exactly as a pipe does.
+	if uiTermDumb() {
+		return false
+	}
 	inFile, inOK := in.(*os.File)
 	outFile, outOK := out.(*os.File)
 	if !inOK || !outOK {
@@ -93,6 +98,10 @@ func renderDiffPreview(lines []string, hiddenCount int) string {
 	return borderBox.Render(sb.String())
 }
 
+// runWithSpinner runs a slow operation behind an animated spinner with the
+// elapsed time. On a terminal the spinner line is erased when the operation
+// ends, so the caller's own ✓/✗ line replaces it; on a pipe or a dumb
+// terminal nothing is drawn at all.
 func runWithSpinner[T any](ctx context.Context, in io.Reader, out io.Writer, label string, run func() (T, error)) (T, error) {
 	if !terminalUIAvailable(in, out) {
 		return run()
@@ -107,12 +116,20 @@ func runWithSpinner[T any](ctx context.Context, in io.Reader, out io.Writer, lab
 		done <- result{value: value, err: err}
 	}()
 	frames := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")).Bold(true)
+	style := lipgloss.NewStyle().Foreground(uiAccent).Bold(true)
+	start := time.Now()
 	ticker := time.NewTicker(90 * time.Millisecond)
 	defer ticker.Stop()
+	fmt.Fprint(out, "\x1b[?25l") // hide the cursor while animating
+	defer fmt.Fprint(out, "\x1b[?25h")
+	width := uiWidth(out)
 	index := 0
 	for {
-		fmt.Fprintf(out, "\r%s %s", style.Render(string(frames[index%len(frames)])), label)
+		line := label
+		if elapsed := time.Since(start); elapsed >= 2*time.Second {
+			line += uiDim.Render("  " + uiElapsed(elapsed.Truncate(time.Second)))
+		}
+		fmt.Fprintf(out, "\r\x1b[2K%s %s", style.Render(string(frames[index%len(frames)])), uiFit(line, width-2))
 		index++
 		select {
 		case result := <-done:

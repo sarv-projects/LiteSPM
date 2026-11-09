@@ -225,9 +225,14 @@ func (idx *SearchIndex) Search(query string, opts SearchOptions) []*SearchResult
 		}
 	}
 
-	// Sort descending by Score, then ascending by Name
+	// Sort descending by Score, then ascending by Name, then by ID. The ID
+	// tie-break matters: dozens of rows share a name ("GitHub"), and map
+	// iteration order made their order change on every run.
 	sort.Slice(results, func(i, j int) bool {
 		if results[i].Score == results[j].Score {
+			if results[i].Listing.Name == results[j].Listing.Name {
+				return results[i].Listing.ID < results[j].Listing.ID
+			}
 			return results[i].Listing.Name < results[j].Listing.Name
 		}
 		return results[i].Score > results[j].Score

@@ -123,6 +123,9 @@ type RemovalResult struct {
 	BackupPath string
 	Removed    bool
 	Reason     string
+	// CommandRemoved lists the in-agent marketplace command files removed
+	// alongside the bridge entry.
+	CommandRemoved []string
 }
 
 // PlanRemoval produces the content that would result from removing the bridge
@@ -576,6 +579,14 @@ func stripTOMLEntryNamed(content string, keyPath []string, serverName string) (s
 // installed into: that case returns Removed=false with a reason.
 func RemoveSetup(ctx context.Context, adapter HostAdapter, backupDir string) (*RemovalResult, error) {
 	plan, result, err := PlanRemoval(ctx, adapter, backupDir)
+	if err == nil {
+		// The in-agent marketplace command goes with the bridge. Only files
+		// LiteSPM marked as its own are deleted; a failure here never blocks
+		// the bridge removal itself.
+		if mres, merr := RemoveMarketplaceCommand(ctx, adapter.Descriptor().HostID); merr == nil && mres != nil && result != nil {
+			result.CommandRemoved = mres.Removed
+		}
+	}
 	if err != nil || plan == nil {
 		return result, err
 	}

@@ -238,6 +238,28 @@ func resolveUpdateScope(opts skillsUpdateOptions, entries []skills.LedgerEntry, 
 // auto-detected choice is the default a plain Enter accepts.
 func promptUpdateScope(opts skillsUpdateOptions, entries []skills.LedgerEntry, cwd string) skillsUpdateOptions {
 	auto := detectUpdateScope(entries, cwd)
+	if terminalUIAvailable(os.Stdin, os.Stdout) {
+		id, ok, err := uiSelectOne(os.Stdin, os.Stdout, "Update scope",
+			fmt.Sprintf("Which installs should be refreshed? Detected: %s.", scopeLabel(auto)),
+			[]choiceOption{
+				{ID: "project", Label: "This project only"},
+				{ID: "global", Label: "Global", Hint: "user-wide"},
+				{ID: "all", Label: "Every scope"},
+			}, auto)
+		if err != nil || !ok {
+			// Cancelling keeps the safe, auto-detected scope rather than
+			// widening to every scope.
+			opts.scope, opts.scopeGiven = auto, true
+			return opts
+		}
+		switch id {
+		case "all":
+			opts.scope, opts.scopeGiven = "", false
+		default:
+			opts.scope, opts.scopeGiven = id, true
+		}
+		return opts
+	}
 	fmt.Println("◇  Update scope")
 	fmt.Println("│  1) This project only")
 	fmt.Println("│  2) Global (user-wide)")

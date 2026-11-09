@@ -1213,19 +1213,32 @@ func printPluginInstallTo(w io.Writer, outcome *pluginInstallOutcome) {
 	for _, sk := range outcome.Skills {
 		fmt.Fprintf(w, "  • skill      %s -> %s\n", sk.SkillName, strings.Join(sk.Destinations, ", "))
 	}
-	if len(outcome.Skipped) > 0 {
-		parts := make([]string, 0, len(outcome.Skipped))
-		for _, skipped := range outcome.Skipped {
+	// Only classes that actually have members are reported. A zero count (the
+	// skip set can carry "disabled servers: 0") is not a skipped component, and
+	// calling the install PARTIAL because of one is wrong.
+	var shown []skippedComponent
+	for _, skipped := range outcome.Skipped {
+		if skipped.Count > 0 {
+			shown = append(shown, skipped)
+		}
+	}
+	if len(shown) > 0 {
+		parts := make([]string, 0, len(shown))
+		for _, skipped := range shown {
 			parts = append(parts, fmt.Sprintf("%d %s", skipped.Count, skipped.Kind))
 		}
-		acknowledged := ""
-		if outcome.AllowPartial {
-			acknowledged = " (acknowledged with --allow-partial)"
+		if len(unprojectedComponentCounts(shown)) > 0 {
+			acknowledged := ""
+			if outcome.AllowPartial {
+				acknowledged = " (acknowledged with --allow-partial)"
+			}
+			fmt.Fprintf(w, "  Note: this is a PARTIAL install%s — the plugin also declares %s.\n"+
+				"        LiteSPM installs a plugin's MCP servers and skills; the host-specific extras have no adapter here.\n",
+				acknowledged, strings.Join(parts, ", "))
+		} else {
+			fmt.Fprintf(w, "  Note: the plugin's own manifest leaves out %s.\n", strings.Join(parts, ", "))
 		}
-		fmt.Fprintf(w, "  Note: this is a PARTIAL install%s — the plugin also declares %s.\n"+
-			"        LiteSPM installs a plugin's MCP servers and skills; the host-specific extras have no adapter here.\n",
-			acknowledged, strings.Join(parts, ", "))
-		for _, skipped := range outcome.Skipped {
+		for _, skipped := range shown {
 			fmt.Fprintf(w, "        %s: %s\n", skipped.Kind, skipped.Reason)
 		}
 	}
