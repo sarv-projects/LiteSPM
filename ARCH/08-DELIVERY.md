@@ -63,7 +63,7 @@ Highest honest state per phase, with the subsystem rows that back it in [STATUS.
 | F — MCP profiles, Secrets & OAuth | `WIRED` (secrets, mcpclient, auth) | `mcpclient`'s first production importer is `internal/discover`; `auth`'s is `litespm auth login/status/logout` (STATUS §1, §4) |
 | G — Marketplace, `/marketplace`, wizard | `WIRED` for read tools and the web marketplace | `request_install` completes for skills, MCP servers and pinned-source plugins; all twelve bridge tools answer, `get_invocation`/`cancel_invocation` from the invocation registry (STATUS §3, §4) |
 | H — Build, Conformance & Packaging | `IMPLEMENTED` | the npm installer is fail-closed on every path: it verifies the release's Sigstore bundle against a signer identity pinned in code (signature, Fulcio chain, CT-log SCT, Rekor inclusion promise via sigstore-js) **and** cross-checks the published SHA-256 listing, discarding the download on a missing bundle, an unparseable bundle, a wrong signer, a wrong issuer, a mismatch, a truncated transfer or an unexpected redirect. `npm test` pins each refusal and asserts the packed tarball is exactly the `files` allowlist with the shipped installer byte-identical to the reviewed source; `LICENSE`/`NOTICE` are listed and staged by `release.yml` before publish (STATUS §1) |
-| I — Fixtures, Self-Update & Migrations | `WIRED` (self-update) / `TESTED` (state) | self-update verifies SHA-256 fail-closed and then the release's keyless Sigstore bundle when one is published; `v0.4.0` (2026-10-11) is the first tag to publish one for every asset; earlier tags are checksum-only with a stated note (STATUS §1) |
+| I - Fixtures, Self-Update & Migrations | `WIRED` (self-update) / `TESTED` (state) | self-update verifies SHA-256 fail-closed and requires the release's keyless Sigstore bundle by default; `LITESPM_ALLOW_UNSIGNED_RELEASE=1` is an explicit opt-out for pre-signing tags only; `v0.4.0` (2026-10-11) is the first tag to publish bundles for every asset (STATUS ?1) |
 
 **Not yet true, and not claimed here:** provider autostart; provider health states, restart and
 cross-provider fallback (`ARCH/34`); an archive-engine caller (`archive/zip` installs); a TUF-style
@@ -141,7 +141,7 @@ that is not met is **not** met, regardless of how much of the deliverable exists
     *   `internal/provider`: process supervisor — Windows Job Object (kill-on-close only), Unix process group + `PR_SET_PDEATHSIG` / watchdog pipe. No cgroups and no resource caps ([ARCH/05 §1](05-SECURITY.md#1-core-security-invariant)).
     *   `internal/policy`: 17-action effect taxonomy and approval engine with effect provenance.
     *   `internal/bridge`: stdio MCP shim exposing the 12 core Bridge tools.
-    *   `internal/host`: adapter framework with automated config discovery — 6 bespoke + 44 generic `BridgeTarget`s (50 total) plus 81 skill targets, **MCP-entry merge only** (STATUS §1).
+    *   `internal/host`: adapter framework with automated config discovery — 6 bespoke + 46 generic `BridgeTarget`s (52 total) plus 81 skill targets, **MCP-entry merge only** (STATUS §1).
 *   **Gate:** terminating the daemon terminates all child provider processes; host adapters merge Bridge entries into golden fixtures without altering unrelated keys.
 *   **Current state:** host merge is `WIRED` and backup/inverse (`host remove`) exist; provider
     lifecycle is `IMPLEMENTED` — provider rows are now written at install time (`m4` closed
@@ -195,7 +195,7 @@ that is not met is **not** met, regardless of how much of the deliverable exists
 ### Phase I: Golden Fixtures, Self-Update & Migrations
 *   **Deliverables:**
     *   Golden host-configuration fixture corpus (`fixtures/hosts/`, `fixtures/source/`).
-    *   `self-update` with fail-closed SHA-256 verification, Sigstore bundle verification when the release publishes one (`cmd/litespm/main.go:391-438`), downgrade guard, and atomic replace (`internal/update`) — `WIRED`. **`v0.4.0` is the first tag to publish one** (8 bundles, one per asset), so the checksum-only branch with a stated note now applies only to older tags.
+    *   `self-update` with fail-closed SHA-256 verification, signature-required-by-default Sigstore bundle verification, downgrade guard, and atomic replace (`internal/update`) - `WIRED`. `LITESPM_ALLOW_UNSIGNED_RELEASE=1` is the explicit checksum-only opt-out for pre-signing tags; `v0.4.0` is the first tag to publish bundles for every asset.
     *   Transactional migrations with downgrade prevention (`internal/state/migrations.go:57` → `LPSM-STATE-VERSION-INCOMPATIBLE`).
 *   **Gate:** fixture-backed adapter tests pass offline; update without a published checksum is refused; higher-schema databases halt.
 *   **Current state:** the three stated checks hold. Signed releases **are** shipped — `v0.4.0`

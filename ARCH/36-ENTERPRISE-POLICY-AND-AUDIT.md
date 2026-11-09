@@ -131,7 +131,7 @@ Rules:
 
 * **SBOM:** CycloneDX and SPDX, generated from the lock ([32 §4.1](32-MANIFEST-LOCK-INTEROP.md)); the SBOM digest is recorded and attested.
 * **Build provenance:** SLSA-style provenance for released binaries and packages, describing source, builder, and inputs.
-* **Signing:** Sigstore/cosign for releases and (later) packages; signed tags. Self-update verifies SHA-256 fail-closed and then the release's keyless bundle **when the release publishes one** — a bundle that fails aborts, none falls back to checksum-only with a stated note, and `LITESPM_REQUIRE_SIGNED_UPDATE=1` refuses it (`cmd/litespm/main.go:391-438`); `v0.4.0` is the first tag to publish one ([22 §3](22-PLATFORM-RELEASE-MIGRATIONS.md), [STATUS.md](../STATUS.md) §1). The npm installer verifies the same bundle against the same pinned signer identity, and requires it by default (`npm/scripts/install-binary.js`).
+* **Signing:** Sigstore/cosign for releases and (later) packages; signed tags. Self-update verifies SHA-256 fail-closed and uses `sigstore-go` in-process to require the release's keyless bundle by default; a published bundle that fails or cannot be verified aborts, and a release with no bundle is refused unless `LITESPM_ALLOW_UNSIGNED_RELEASE=1` explicitly opts into checksum-only verification for pre-signing tags. `v0.4.0` is the first tag to publish one ([22 ?3](22-PLATFORM-RELEASE-MIGRATIONS.md), [STATUS.md](../STATUS.md) ?1). The npm installer verifies the same bundle against the same pinned signer identity, and requires it by default (`npm/scripts/install-binary.js`).
 * **Rule:** a signature/provenance field is `unavailable` until a real verifier produces `verified`/`failed`. No fabricated green.
 
 ---

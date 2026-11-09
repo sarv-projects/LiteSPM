@@ -1,5 +1,5 @@
 // Package trust implements supply-chain verification hooks (ARCH/36 §5):
-// Sigstore/cosign verification, SBOM export from the lock, and signed
+// in-process Sigstore verification, SBOM export from the lock, and signed
 // advisory/revocation tracking.
 //
 // Honesty rule (binding): every verification result defaults to

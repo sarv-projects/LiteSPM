@@ -30,6 +30,13 @@ export function AgentDetailView({ id }: { id: string }) {
   const navigate = useApp((s) => s.navigate);
   const [detail, setDetail] = React.useState<AgentDetailData | null>(null);
   const [state, setState] = React.useState<"loading" | "found" | "missing">("loading");
+  const [platform, setPlatform] = React.useState<"win" | "mac" | "linux">("linux");
+
+  React.useEffect(() => {
+    const ua = navigator.userAgent;
+    if (/Windows/i.test(ua)) setPlatform("win");
+    else if (/Macintosh|Mac OS/i.test(ua)) setPlatform("mac");
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -77,6 +84,9 @@ export function AgentDetailView({ id }: { id: string }) {
   }
 
   const { row, setup } = detail;
+  const platformPath = setup.platformPaths?.[platform];
+  const platformSnippet = setup.bridgeSnippets?.[platform] ?? (platform === "linux" ? setup.bridgeSnippet : undefined);
+  const platformLabel = platform === "win" ? "Windows" : platform === "mac" ? "macOS" : "Linux";
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
@@ -199,21 +209,69 @@ export function AgentDetailView({ id }: { id: string }) {
                 <Terminal className="h-4 w-4 text-brand" /> Connect LiteSPM
               </h2>
               <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-                One command writes the bridge entry into {row.name}&apos;s own config — previewed,
-                backed up, and recorded in the ledger.
+                Configure the bridge in {row.name}&apos;s documented config format. LiteSPM previews the
+                change, backs up the original file, and verifies the result.
               </p>
-              <div className="mt-3.5">
-                <InstallBar command={`litespm host setup ${setup.hostId}`} />
+              {setup.platformPaths && (
+              <div className="mt-3.5 flex flex-wrap gap-1.5" role="group" aria-label="Operating system">
+                {([
+                  ["win", "Windows"],
+                  ["mac", "macOS"],
+                  ["linux", "Linux"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={platform === value}
+                    onClick={() => setPlatform(value)}
+                    className={
+                      platform === value
+                        ? "rounded-lg border border-brand/40 bg-brand-soft px-3 py-1.5 text-[12px] font-semibold text-brand"
+                        : "rounded-lg border border-border/70 bg-background px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
+              )}
+              {!setup.hostId ? (
+                <p className="mt-3.5 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
+                  LiteSPM does not currently have an MCP configuration adapter for this host.
+                </p>
+              ) : platformPath ? (
+                <div className="mt-3.5">
+                  <InstallBar command={`litespm host setup ${setup.hostId}`} />
+                  {setup.projectOnly && (
+                    <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                      Workspace scope only. Run the setup command from the project root; install entries with{" "}
+                      <code className="font-mono text-[11px]">--scope project --agent {setup.hostId}</code>.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-3.5 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
+                  {row.name} does not publish a supported {platformLabel} configuration. LiteSPM will not guess a config path or write to an unsupported location.
+                </p>
+              )}
 
-              {setup.bridgeSnippet && (
+              {platformPath && (
+                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                  Default config location. LiteSPM honours documented host-specific environment overrides when present.
+                  {platform === "win" && setup.windowsPathHomeDerived
+                    ? " This Windows path expands the home-relative location under %USERPROFILE%; it is not a separately published vendor path."
+                    : ""}
+                </p>
+              )}
+
+              {platformSnippet && platformPath && (
                 <div className="mt-4">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     Or paste the entry yourself
                   </p>
                   <CodeBlock
-                    code={setup.bridgeSnippet}
-                    title={setup.userPath ?? "config"}
+                    code={platformSnippet}
+                    title={platformPath}
                     language={setup.format === "toml" ? "toml" : "json"}
                     maxHeight={260}
                   />
@@ -339,12 +397,12 @@ export function AgentDetailView({ id }: { id: string }) {
                     <span className="font-mono text-[11px]">{setup.shape}</span>
                   </FactRow>
                 )}
-                {setup.userPath && (
-                  <FactRow label="User config">
-                    <code className="break-all font-mono text-[10.5px]">{setup.userPath}</code>
+                {platformPath && (
+                  <FactRow label={setup.projectOnly ? "Project config" : `Config (${platformLabel})`}>
+                    <code className="break-all font-mono text-[10.5px]">{platformPath}</code>
                   </FactRow>
                 )}
-                {setup.projectPath && (
+                {!setup.projectOnly && setup.projectPath && (
                   <FactRow label="Project config">
                     <code className="font-mono text-[10.5px]">{setup.projectPath}</code>
                   </FactRow>

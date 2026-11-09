@@ -76,7 +76,7 @@ export function CodeBlock({
             <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
           </span>
-          <span className="truncate font-mono text-[11px] uppercase tracking-[0.12em] text-white/50">
+          <span className="truncate font-mono text-[11px] uppercase tracking-[0.12em] text-white/52">
             {title ?? language}
           </span>
         </span>

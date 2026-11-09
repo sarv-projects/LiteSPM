@@ -16,8 +16,9 @@
  *     LLM_GENERIC_1_MODEL, LLM_GENERIC_1_STYLE ("openai"|"gemini"), LLM_GENERIC_1_PRIORITY
  *
  *   Model overrides: NVIDIA_MODEL, GROQ_MODEL, GEMINI_MODEL, OPENROUTER_MODEL
- *   Order override:  LLM_PROVIDER_ORDER="groq,nvidia,openrouter" (unlisted = dropped,
- *                    except zai which is auto-appended last if nothing else is configured)
+ *   Order override:  LLM_PROVIDER_ORDER="groq,nvidia,openrouter" (unlisted = dropped)
+ *   ZAI SDK:         LLM_ZAI_ENABLED=1 explicitly enables the Z.AI Web Dev SDK;
+ *                    it requires a .z-ai-config file and is disabled by default
  *
  * Routing rules:
  *   1. Requests start at a rotating cursor → healthy keys share load (round-robin).
@@ -33,6 +34,7 @@ import {
   geminiChatStream,
   LlmAdapterError,
   openAiCompatibleChat,
+  openAiCompatibleChatWithTools,
   openAiCompatibleChatStream,
   zaiChat,
   type StreamAdapterOptions,
@@ -246,7 +248,7 @@ function buildPool(): LlmCredential[] {
   for (const generic of [...parseGenericJson(), ...parseGenericNumbered()]) {
     pool.push({
       provider: generic.name,
-      keyIndex: 1,
+      keyIndex: generic.apiKey ? 1 : null,
       style: generic.style,
       baseUrl: generic.baseUrl,
       apiKey: generic.apiKey,
@@ -255,10 +257,13 @@ function buildPool(): LlmCredential[] {
     });
   }
 
-  // zai is keyless in this environment and always stands as the last resort
-  // unless LLM_PROVIDER_ORDER explicitly excludes it.
+  // z-ai-web-dev-sdk is not a keyless hosted provider: ZAI.create() reads a
+  // .z-ai-config file from the process directory, home directory, or /etc.
+  // It was previously inserted unconditionally, making production health look
+  // configured even when no usable provider credential existed. Keep it opt-in.
   const orderEnv = process.env.LLM_PROVIDER_ORDER?.trim();
-  if (!orderEnv || orderEnv.split(",").map((s) => s.trim()).includes("zai")) {
+  const zaiEnabled = process.env.LLM_ZAI_ENABLED === "1";
+  if (zaiEnabled && (!orderEnv || orderEnv.split(",").map((s) => s.trim()).includes("zai"))) {
     pool.push({
       provider: "zai",
       keyIndex: null,
@@ -271,16 +276,13 @@ function buildPool(): LlmCredential[] {
 
   if (!orderEnv) return pool.sort((a, b) => a.priority - b.priority);
 
-  // Explicit order: listed providers first (in listed order), everything not
-  // listed is dropped. zai is auto-appended when the explicit list is empty
-  // or yields nothing.
+  // Explicit order: only listed providers are eligible. A typo or an
+  // unavailable provider must produce an empty pool, never a silent fallback
+  // to an adapter that may not be configured on this deployment.
   const order = orderEnv.split(",").map((s) => s.trim()).filter(Boolean);
   const ordered: LlmCredential[] = [];
   for (const name of order) {
     ordered.push(...pool.filter((c) => c.provider === name));
-  }
-  if (ordered.length === 0) {
-    return pool.filter((c) => c.provider === "zai");
   }
   return ordered;
 }
@@ -646,5 +648,75 @@ export function getLlmStatus(): {
         ...(health?.lastUsedAt ? { lastUsedAt: health.lastUsedAt } : {}),
       };
     }),
+  };
+}
+
+
+/**
+ * Non-streaming tool-selection pass for the allowlisted assistant registry.
+ * Only OpenAI-compatible providers receive function schemas. The caller must
+ * validate every returned name and argument before executing anything.
+ */
+export async function chatCompleteWithTools(request: LlmChatRequest): Promise<LlmChatResult> {
+  const pool = getPool().filter((credential) => credential.style === "openai");
+  if (pool.length === 0) {
+    return { ok: false, error: "No OpenAI-compatible tool-calling provider configured.", attempts: [], retryInMs: 0 };
+  }
+
+  const started = Date.now();
+  const attempts: LlmAttempt[] = [];
+  const cursor = (globalForLlm.__litespmLlmCursor = (globalForLlm.__litespmLlmCursor ?? 0) + 1);
+  const start = cursor % pool.length;
+  let earliestCooldown = Number.POSITIVE_INFINITY;
+
+  for (let i = 0; i < pool.length; i += 1) {
+    const credential = pool[(start + i) % pool.length];
+    const health = healthMap().get(healthKey(credential));
+    if ((health?.cooldownUntil ?? 0) > Date.now()) {
+      earliestCooldown = Math.min(earliestCooldown, health?.cooldownUntil ?? 0);
+      continue;
+    }
+    const attemptStart = Date.now();
+    try {
+      const completion = await openAiCompatibleChatWithTools(credential, request, PER_ATTEMPT_TIMEOUT_MS);
+      markSuccess(credential);
+      attempts.push({
+        provider: credential.provider,
+        keyIndex: credential.keyIndex,
+        outcome: "ok",
+        ms: Date.now() - attemptStart,
+      });
+      return {
+        ok: true,
+        text: completion.text,
+        toolCalls: completion.toolCalls,
+        provider: credential.provider,
+        keyIndex: credential.keyIndex,
+        model: credential.model,
+        attempts,
+        tookMs: Date.now() - started,
+      };
+    } catch (error) {
+      const adapterError = error instanceof LlmAdapterError
+        ? error
+        : new LlmAdapterError("network", error instanceof Error ? error.message : "unknown error");
+      markFailure(credential, adapterError.outcome, adapterError.message, adapterError.retryAfterMs);
+      attempts.push({
+        provider: credential.provider,
+        keyIndex: credential.keyIndex,
+        outcome: adapterError.outcome,
+        status: adapterError.status,
+        ms: Date.now() - attemptStart,
+      });
+    }
+  }
+
+  return {
+    ok: false,
+    error: attempts.length
+      ? `All ${pool.length} tool-capable LLM credential(s) failed.`
+      : `All ${pool.length} tool-capable LLM credential(s) are cooling down.`,
+    attempts,
+    retryInMs: Number.isFinite(earliestCooldown) ? Math.max(earliestCooldown - Date.now(), 0) : 0,
   };
 }

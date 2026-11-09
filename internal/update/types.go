@@ -12,7 +12,7 @@ type ReleaseInfo struct {
 	// BundleURLs maps an asset name to the Sigstore bundle release.yml
 	// signed it with (`<asset>.sigstore.json`), when the release publishes
 	// one. Absent on pre-signing releases; the consumer decides whether that
-	// is acceptable (see LITESPM_REQUIRE_SIGNED_UPDATE).
+	// is acceptable only with the explicit LITESPM_ALLOW_UNSIGNED_RELEASE opt-out.
 	BundleURLs map[string]string `json:"bundleUrls,omitempty"`
 }
 

@@ -42,6 +42,10 @@ export interface HostAdapter {
   remote?: boolean;
   /** Which transports that URL entry can express. */
   remoteTransports?: readonly string[];
+  /** Go OS names explicitly supported by the vendor; absent means all three. */
+  supportedOS?: readonly string[];
+  /** Which scope supplies the emitted key path and entry shape. */
+  layoutScope?: "user" | "project";
 }
 
 /** Shape of one row in the generated data/litespm/hosts.json. */
@@ -59,6 +63,8 @@ interface GeneratedHost {
   projectScope?: boolean;
   projectPath?: string;
   remoteTransports?: string[];
+  supportedOS?: string[];
+  layoutScope?: "user" | "project";
 }
 
 function getDataDir(): string {
@@ -77,10 +83,11 @@ const generatedSkillTargets = readJson<
 >("skill-targets.json");
 
 /**
- * Curated per-OS path overrides. Only hosts whose Windows and macOS locations
- * were read from vendor documentation appear here. Everything else falls back
- * to `userPath` (the Unix form), and the UI labels it as such rather than
- * inventing a Windows location.
+ * Per-OS paths for the agent directory. Home-relative paths in the generated
+ * registry are portable across Unix systems; Windows expands the same relative
+ * path under %USERPROFILE%. Hosts that use AppData or Application Support have
+ * explicit vendor-documented overrides here. A host with no userPath is
+ * project-only and resolves through its generated projectPath instead.
  */
 const PATH_OVERRIDES: Record<string, Partial<Record<PlatformOS, string>>> = {
   "claude-code": { win: "%USERPROFILE%\\.claude.json" },
@@ -89,6 +96,14 @@ const PATH_OVERRIDES: Record<string, Partial<Record<PlatformOS, string>>> = {
   cline: { win: "%USERPROFILE%\\.cline\\data\\settings\\cline_mcp_settings.json" },
   "pi-agent": { win: "%USERPROFILE%\\.pi\\agent\\mcp.json" },
   "grok-build": { win: "%USERPROFILE%\\.grok\\config.toml" },
+  devin: { win: "%APPDATA%\\devin\\mcp_config.json" },
+  crush: { win: "%LOCALAPPDATA%\\crush\\crush.json" },
+  zed: { win: "%APPDATA%\\Zed\\settings.json" },
+  "claude-desktop": {
+    win: "%APPDATA%\\Claude\\claude_desktop_config.json",
+    mac: "~/Library/Application Support/Claude/claude_desktop_config.json",
+    linux: "~/.config/Claude/claude_desktop_config.json",
+  },
 };
 
 export const HOSTS: HostAdapter[] = generatedHosts.map((h) => {
@@ -110,14 +125,32 @@ export const HOSTS: HostAdapter[] = generatedHosts.map((h) => {
     projectPath: h.projectPath,
     remote: h.remote,
     remoteTransports: h.remoteTransports,
+    supportedOS: h.supportedOS,
+    layoutScope: h.layoutScope,
   };
 });
 
+/** Whether the vendor explicitly supports this operating system. */
+export function hostSupportsPlatform(host: HostAdapter, os: PlatformOS): boolean {
+  const goos = os === "win" ? "windows" : os === "mac" ? "darwin" : "linux";
+  return !host.supportedOS || host.supportedOS.includes(goos);
+}
+
 /** Resolve the documented config path for one host on one platform. */
 export function hostPath(host: HostAdapter, os: PlatformOS): string {
+  if (!hostSupportsPlatform(host, os)) return "";
   const override = PATH_OVERRIDES[host.id]?.[os];
   if (override) return override;
+  if (!host.userPath) return "";
+  if (os === "win") {
+    return host.userPath.replace(/^~\//, "%USERPROFILE%\\").replace(/\//g, "\\");
+  }
   return host.userPath;
+}
+
+/** True when Windows uses LiteSPM's home-relative expansion, not an explicit vendor path. */
+export function hostPathIsHomeDerived(host: HostAdapter, os: PlatformOS): boolean {
+  return os === "win" && Boolean(host.userPath) && !PATH_OVERRIDES[host.id]?.win;
 }
 
 export const SKILL_TARGETS = generatedSkillTargets;
@@ -129,9 +162,11 @@ export const SKILL_TARGETS = generatedSkillTargets;
  */
 export const HOST_POPULARITY_RANK: readonly string[] = [
   "cursor",
+  "vscode",
   "github-copilot",
   "cline",
   "claude-code",
+  "claude-desktop",
   "codex",
   "gemini-cli",
   "zed",
@@ -213,15 +248,15 @@ function registryTransport(raw?: string | null): string {
 /**
  * The hosts an entry can actually be configured for.
  *
- *   - an **MCP** row installs into all 50 hosts when it is a local stdio
- *     process. A remote (URL) row installs only into the 46 hosts whose
- *     registry row documents a remote entry spelling; the other four
- *     (codestudio, iflow-cli, mux, zcode) refuse a URL entry with
+ *   - an **MCP** row installs into all 52 hosts when it is a local stdio
+ *     process. A remote (URL) row installs only into the 47 hosts whose
+ *     registry row documents a remote entry spelling; the other five
+ *     (claude-desktop, codestudio, iflow-cli, mux, zcode) refuse a URL entry with
  *     LPSM-HOST-REMOTE-UNSUPPORTED. There is no relay: a host that cannot
  *     express a URL cannot receive one.
  *   - a **skill** row configures across all 81 skill targets (with global
  *     targets supported out of the box in user scope).
- *   - a **plugin** row targets declared hosts, or all 50 hosts for its portable
+ *   - a **plugin** row targets declared hosts, or all 52 hosts for its portable
  *     MCP and skill components.
  */
 export function hostsFor(
@@ -238,7 +273,7 @@ export function hostsFor(
     if (item.compatibleHosts && item.compatibleHosts.length > 0) {
       return item.compatibleHosts;
     }
-    // Portable plugin components (MCPs + skills) install across all 50 hosts.
+    // Portable plugin components (MCPs + skills) install across all 52 hosts.
     return HOSTS.map((host) => host.name);
   }
 
@@ -361,7 +396,7 @@ export function bridgeSnippet(
   binary = "litespm",
   os: PlatformOS = "linux",
 ): string {
-  const path = hostPath(host, os);
+  const path = hostPath(host, os) || (host.projectPath ? `<project>/${host.projectPath}` : "");
   const keyPath = host.keyPath || "mcpServers";
 
   if (host.kind === "toml") {

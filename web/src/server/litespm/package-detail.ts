@@ -123,7 +123,7 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
   });
 
   // Install targets: every host (or skill target) this entry can land in.
-  // MCP local rows → all 50 hosts; remote MCP → the remote-capable subset;
+  // MCP local rows → all 52 hosts; remote MCP → the remote-capable subset;
   // skills → the skill targets with a global directory; plugins → declared.
   // A discovery-only row has no launch line, so it claims no target; a
   // plugin still shows its publisher-declared compatibility.

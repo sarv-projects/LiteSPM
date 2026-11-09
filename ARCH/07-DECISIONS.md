@@ -106,7 +106,7 @@ For supported agents, LiteSPM configures a single Bridge entry per host. Subsequ
 ### D-018: TUF Metadata Framework for Future Signed Releases
 *   **Context:** Ad-hoc cryptographic signing schemes are vulnerable to rollback and freeze attacks.
 *   **Decision:** If cryptographic catalog signing is introduced, LiteSPM will adopt The Update Framework (TUF) standard. V1 implements HTTPS origin verification and monotonic sequence verification.
-*   **Status:** Accepted, future-facing. The design record is now [ARCH/36 §4](36-ENTERPRISE-POLICY-AND-AUDIT.md) (`DESIGNED`), together with advisories/quarantine (`§3`) and TUF catalog signing. Today's reality: `self-update` verifies **SHA-256 fail-closed and then the release's keyless Sigstore bundle when one is published** — a bundle that fails aborts, a release with none falls back to checksum-only with a stated note, and `LITESPM_REQUIRE_SIGNED_UPDATE=1` refuses it (`cmd/litespm/main.go:391-438`; [STATUS.md](../STATUS.md) §1). `v0.4.0` (2026-10-11) is the first tag to carry one, so updates from it verify a signature; older tags still verify checksum only. A *catalog* trust root remains unsigned ([SECURITY.md](../SECURITY.md)).
+*   **Status:** Accepted, future-facing. The design record is now [ARCH/36 ?4](36-ENTERPRISE-POLICY-AND-AUDIT.md) (`DESIGNED`), together with advisories/quarantine (?3) and TUF catalog signing. Today's reality: `self-update` verifies **SHA-256 and requires the release's keyless Sigstore bundle by default** - a published bundle that fails or cannot be verified aborts, and a release with none is refused unless the operator explicitly sets `LITESPM_ALLOW_UNSIGNED_RELEASE=1` for checksum-only verification of a pre-signing tag (`cmd/litespm/main.go`; [STATUS.md](../STATUS.md) ?1). `v0.4.0` (2026-10-11) is the first tag to carry one. A *catalog* trust root remains unsigned ([SECURITY.md](../SECURITY.md)).
 
 ### D-019: Prohibition of Command Marketplace Sources
 *   **Context:** Claude Code and Grok Build manifests support `command` sources that execute shell scripts during catalog ingestion.
@@ -204,7 +204,7 @@ open); the rationale is preserved rather than back-ported into the earlier serie
 *   **Status:** Accepted as spec (2026-10-07); implementation in flight (TODO J001–J009).
 
 ### D-028: Porting Goes Through One Canonical IR, Never Pairwise Translators
-*   **Context:** moving an MCP server from OpenCode to Codex required a human to understand both schemas, split a `command` array into `command`+`args`, preserve arguments, verify executables and re-write TOML — a package-manager job done by hand. With ~50 bridge targets, pairwise translators would be ~2,450 directed pairs.
+*   **Context:** moving an MCP server from OpenCode to Codex required a human to understand both schemas, split a `command` array into `command`+`args`, preserve arguments, verify executables and re-write TOML — a package-manager job done by hand. With ~52 bridge targets, pairwise translators would be ~2,450 directed pairs.
 *   **Decision:**
     *   `litespm copy` normalizes source configs into the existing canonical IR (`host.ServerEntry` + skills records) and lets each target's existing adapter render it: **N readers → one IR → N writers**. No `HostAdapter` interface method is added for porting.
     *   Porting is plan-first (default output is a plan; `--apply`/TTY approval executes), and its writes go through the normal managed install paths (registration, skills ledger, deployment rows, install transaction) so copies are as reversible and auditable as installs.

@@ -63,8 +63,10 @@ export function compareHash(keys: string[]): string {
 
 export function toPath(target: string): string {
   if (!target) return "/";
+  // Only hashes beginning with "#/" are application routes. Ordinary
+  // fragment identifiers (for example #main-content) must remain anchors.
   if (target.startsWith("#/")) return target.slice(1);
-  if (target.startsWith("#")) return target.length > 1 ? `/${target.slice(1)}` : "/";
+  if (target.startsWith("#")) return target.length > 1 ? target : "/";
   return target.startsWith("/") ? target : `/${target}`;
 }
 
@@ -149,7 +151,7 @@ export function parseLocation(): Route {
 
   // Check for backward-compatible hash routing: #/package/... or #/explore?...
   const hash = window.location.hash;
-  if (hash && (hash.startsWith("#/") || hash.startsWith("#"))) {
+  if (hash.startsWith("#/")) {
     const hashRoute = parsePath(hash.replace(/^#/, ""), "");
     // Upgrade URL in place to clean path without reloading
     const cleanPath = toPath(hash);

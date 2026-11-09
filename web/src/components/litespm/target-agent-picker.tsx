@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 /**
  * Searchable target-agent picker for the install command.
  *
- * A package page can offer up to 81 valid targets (50 MCP hosts for local MCP
+ * A package page can offer up to 81 valid targets (52 MCP hosts for local MCP
  * rows, the remote-capable subset for URL rows, 79 skill targets for skills),
  * so a plain select no longer fits — this combobox filters as you type and
  * keeps the "target agent" control one click wide.
@@ -49,7 +49,7 @@ export function TargetAgentPicker({
           className="h-8 w-[210px] justify-between rounded-lg px-2.5 text-[12px] font-normal"
         >
           <span className="truncate">{selected ? selected.name : "Select agent"}</span>
-          <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-52" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[260px] p-0" align="end">

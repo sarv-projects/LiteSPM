@@ -32,8 +32,27 @@ function loadModule(rel) {
   return import(pathToFileURL(file).href);
 }
 
-const { productAnswer, productAnswerForConversation } = await loadModule(
-  "src/server/litespm/assistant-product.ts",
+async function loadGateway() {
+  const dir = mkdtempSync(path.join(tmpdir(), "litespm-llm-gateway-"));
+  for (const [rel, filename] of [
+    ["src/server/llm/providers.ts", "providers.mjs"],
+    ["src/server/llm/gateway.ts", "gateway.mjs"],
+  ]) {
+    const source = readFileSync(path.join(webRoot, rel), "utf8");
+    let { outputText } = ts.transpileModule(source, {
+      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
+      fileName: rel,
+    });
+    if (filename === "gateway.mjs") {
+      outputText = outputText.replace('from "./providers"', 'from "./providers.mjs"');
+    }
+    writeFileSync(path.join(dir, filename), outputText);
+  }
+  return import(pathToFileURL(path.join(dir, "gateway.mjs")).href);
+}
+
+const { routeAssistantIntent, assistantSystemPrompt } = await loadModule(
+  "src/server/litespm/assistant-orchestrator.ts",
 );
 const { claimedPackageIds } = await loadModule("src/server/litespm/assistant-grounding.ts");
 
@@ -45,58 +64,83 @@ const expect = (label, actual, predicate) => {
 };
 const userTurn = (content) => ({ role: "user", content });
 
-// Product questions name LiteSPM and must answer from the knowledge base.
-expect("product answers 'what is litespm'", productAnswer("what is litespm"), (a) =>
-  typeof a === "string" && a.includes("open-source package manager"),
-);
-expect("product answers 'how do I install LiteSPM'", productAnswer("how do I install LiteSPM"), (a) =>
-  typeof a === "string" && a.includes("npm install -g litespm"),
-);
-expect("product answers 'how does litespm work'", productAnswer("how does litespm work"), (a) =>
-  typeof a === "string" && a.includes("four steps"),
-);
+// The Z.AI Web Dev SDK is not a keyless hosted provider: it reads a local
+// .z-ai-config file. Exercise the real gateway pool with isolated env values
+// so a missing production key cannot be disguised as a healthy "keyless" slot.
+const llmEnvPattern = /^(?:NVIDIA_API_KEY(?:_\d+)?|GROQ_API_KEY(?:_\d+)?|GEMINI_API_KEY(?:_\d+)?|OPENROUTER_API_KEY(?:_\d+)?|GROQ_MODELS|NVIDIA_MODEL|GROQ_MODEL|GEMINI_MODEL|OPENROUTER_MODEL|LLM_PROVIDER_ORDER|LLM_ZAI_ENABLED|LLM_GENERIC_JSON|LLM_GENERIC_PROVIDERS|LLM_GENERIC_\d+_(?:NAME|BASE_URL|API_KEY|MODEL|STYLE|PRIORITY))$/;
+const savedLlmEnv = new Map(Object.entries(process.env).filter(([key]) => llmEnvPattern.test(key)));
+for (const key of savedLlmEnv.keys()) delete process.env[key];
+const llmGateway = await loadGateway();
+try {
+  llmGateway.resetLlmPool();
+  expect("no provider is fabricated when deployment credentials are absent", llmGateway.getLlmStatus(),
+    (status) => status.credentials.length === 0 && status.order.length === 0);
 
-// Catalog questions that merely mention LiteSPM stay on the retrieval path.
-expect("the Postgres chip stays a catalog query", productAnswer("What can LiteSPM install for working with Postgres?"), (a) => a === null);
-expect("a find-question stays a catalog query", productAnswer("find skills for react with litespm"), (a) => a === null);
+  process.env.LLM_ZAI_ENABLED = "1";
+  llmGateway.resetLlmPool();
+  expect("Z.AI SDK is available only after explicit opt-in", llmGateway.getLlmStatus(),
+    (status) => status.order.length === 1 && status.order[0] === "zai" && status.credentials[0]?.keyIndex === null);
 
-// Follow-ups require this conversation to have made LiteSPM the subject.
-expect("a follow-up after LiteSPM is answered", productAnswerForConversation([userTurn("what is litespm"), userTurn("how does it work?")]), (a) =>
-  typeof a === "string" && a.includes("four steps"),
-);
-expect("a follow-up after a package question stays catalog", productAnswerForConversation([userTurn("tell me about semgrep"), userTurn("how does it work?")]), (a) => a === null);
-expect("a catalog turn ends the product thread", productAnswerForConversation([userTurn("what is litespm"), userTurn("which skills help with PDF documents?"), userTurn("how do I install it?")]), (a) => a === null);
-expect("undoing an install stays product-shaped", productAnswerForConversation([userTurn("what is litespm"), userTurn("how do I undo an install?")]), (a) =>
-  typeof a === "string" && a.includes("restore"),
-);
+  process.env.LLM_PROVIDER_ORDER = "misspelled-provider";
+  llmGateway.resetLlmPool();
+  expect("an invalid explicit provider order fails closed instead of falling back to Z.AI", llmGateway.getLlmStatus(),
+    (status) => status.credentials.length === 0);
 
-// The guard must not read documented syntax as an invented package, while a
-// real unretrieved id still trips it.
+  process.env.LLM_PROVIDER_ORDER = "groq";
+  process.env.GROQ_API_KEY = "test-only-not-a-real-key";
+  process.env.GROQ_MODELS = "model-a,model-b";
+  delete process.env.LLM_ZAI_ENABLED;
+  llmGateway.resetLlmPool();
+  expect("two Groq model routes backed by one API key share one key index", llmGateway.getLlmStatus(),
+    (status) => status.order.length === 1 && status.order[0] === "groq" && status.credentials.length === 2 && status.credentials.every((credential) => credential.keyIndex === 1));
+
+  process.env.LLM_PROVIDER_ORDER = "local";
+  process.env.LLM_GENERIC_JSON = JSON.stringify([{ name: "local", baseUrl: "http://127.0.0.1:8000/v1", model: "test-model" }]);
+  llmGateway.resetLlmPool();
+  expect("an explicitly keyless OpenAI-compatible endpoint is not reported as an API key", llmGateway.getLlmStatus(),
+    (status) => status.credentials.length === 1 && status.credentials[0]?.provider === "local" && status.credentials[0]?.keyIndex === null);
+} finally {
+  for (const key of Object.keys(process.env)) if (llmEnvPattern.test(key)) delete process.env[key];
+  for (const [key, value] of savedLlmEnv) process.env[key] = value;
+  llmGateway.resetLlmPool();
+}
+
+// Intent routing must keep ordinary chat away from catalog retrieval.
+expect("greetings use general conversation", routeAssistantIntent("Hi!").mode, (a) => a === "conversation");
+expect("identity questions use general conversation", routeAssistantIntent("Hi, who are you?").mode, (a) => a === "conversation");
+expect("general technical questions are not catalog searches", routeAssistantIntent("Explain vector databases").mode, (a) => a === "conversation");
+expect("LiteSPM product questions use documentation RAG", routeAssistantIntent("What is LiteSPM?").mode, (a) => a === "knowledge");
+expect("product security questions use documentation RAG", routeAssistantIntent("Explain LiteSPM security and rollback").mode, (a) => a === "knowledge");
+expect("catalog recommendations use catalog retrieval", routeAssistantIntent("Recommend PostgreSQL MCP servers for database administration").mode, (a) => a === "catalog");
+expect("social acknowledgements do not trigger retrieval", routeAssistantIntent("Thanks!").mode, (a) => a === "conversation");
+
+const followupHistory = [
+  userTurn("What is LiteSPM?"),
+  { role: "assistant", content: "LiteSPM is a local-first package manager." },
+  userTurn("How does it handle rollback?"),
+];
+expect("contextual product follow-up uses documentation RAG", routeAssistantIntent("How does it handle rollback?", followupHistory).mode, (a) => a === "knowledge");
+expect("assistant identifies itself as a general chatbot", assistantSystemPrompt(), (a) => a.includes("general-purpose chatbot") && !a.includes("steer gently back"));
+
+// The guard must not read documented syntax as an invented package.
 expect("the placeholder form is not a claim", claimedPackageIds("Run `litespm install <id>` to add it."), (a) => a.length === 0);
 expect("install remove is not a claim", claimedPackageIds("Use `litespm install remove <installId>` to strip it."), (a) => a.length === 0);
 expect("prose after the verb is not a claim", claimedPackageIds("Then run litespm install for the package you picked."), (a) => a.length === 0);
 expect("a real id is a claim", claimedPackageIds("Run litespm install deepwiki-mcp."), (a) => a.length === 1 && a[0] === "deepwiki-mcp");
 
-// Dead wiring is the exact regression this gate exists for: the route must ask
-// the product branch before it builds the retrieval context, in both the
-// streamed and the buffered response.
 const route = readFileSync(path.join(webRoot, "src/app/api/litespm/assistant/route.ts"), "utf8");
-const productAt = route.indexOf("productAnswerForConversation(history)");
-const retrievalAt = route.indexOf("await buildContext(");
-if (productAt === -1) {
-  failures.push("assistant route: productAnswerForConversation(history) is never called (dead product branch)");
-}
-if (!route.includes("if (product)")) {
-  failures.push("assistant route: no product answer is served");
-}
-if ((route.split("if (product)").length - 1) < 2) {
-  failures.push("assistant route: the product branch is missing from the streamed or buffered response");
-}
-if (!route.includes("claimedPackageIds(answer)")) {
-  failures.push("assistant route: the grounding guard no longer uses claimedPackageIds");
-}
-if (productAt !== -1 && retrievalAt !== -1 && productAt > retrievalAt) {
-  failures.push("assistant route: the product branch runs after retrieval");
+if (!route.includes("routeAssistantIntent(lastUser.content, history)")) failures.push("assistant route does not use contextual intent routing");
+if (!route.includes("executeAssistantTool(\"knowledge.search\"")) failures.push("assistant route does not call the documentation search tool");
+if (!route.includes('executeAssistantTool("catalog.search"')) failures.push("assistant route does not call the catalog search tool");
+if (!route.includes("assistantToolForQuestion(lastUser.content)")) failures.push("assistant route does not use the allowlisted host tools");
+if (!route.includes("if (catalog)")) failures.push("assistant route does not preserve catalog grounding");
+if (!route.includes("knowledgeCitations(knowledge)")) failures.push("assistant route does not return knowledge source citations");
+
+// The public health route must distinguish real API keys from keyless SDK
+// adapters and count unique provider/key pairs (not model routes) accurately.
+const llmStatusRoute = readFileSync(path.join(webRoot, "src/app/api/litespm/llm/route.ts"), "utf8");
+if (!llmStatusRoute.includes("keyIds.size") || !llmStatusRoute.includes("keylessAdapters.size") || !llmStatusRoute.includes("providers: status.order")) {
+  failures.push("LLM health route: provider/key inventory is misleading or incomplete");
 }
 
 if (failures.length > 0) {

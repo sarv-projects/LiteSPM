@@ -17,7 +17,7 @@
 existing writer (`InstallServerEntry`) through the canonical IR defined in
 §6 below.
 
-> **Config-path audit (2026-10-07).** All 44 generic bridge-target rows in
+> **Config-path audit (2026-10-07).** All 46 generic bridge-target rows in
 > `internal/host/targets_data.go` were checked against official vendor
 > documentation or vendor source: **44/44 verified**. 41 matched upstream as
 > recorded; the two env-relocation filename defects found were fixed
@@ -158,7 +158,7 @@ HTTP request at all**. The one wizard step that touches the network is the actio
 *   **Layout (re-verified against the v2 docs 2026-10-11):** OpenCode v2 documents servers at `mcp.servers.<name>` (`https://opencode.ai/v2/docs/mcp-servers`, "Config"; flat names directly under `mcp` are stated to be not the v2 layout), so the adapter writes that container — bridge and server entries alike. The flat `mcp.<name>` shape (written by earlier LiteSPM releases, still loaded by a live v2.0.26 run) stays readable everywhere: verify, pre-existing-tool detection, listing, collision detection and fingerprinting span both shapes (`readKeyPaths`), removal tries all three documented candidates (`mcp.servers`, `mcp`, `mcpServers`), and setup migrates LiteSPM's own flat bridge member into the documented container while leaving foreign flat members alone. An earlier cut had this backwards — flat-only writes plus pruning of an empty `mcp.servers` — corrected against the v2 documentation; `mcp.servers` is the documented home of servers, not residue.
 *   **Detected External Capabilities:** Scans existing configured servers in read-only mode.
 
-### 3.7 Data-driven targets: 44 generic + 6 bespoke = 50 total (`internal/host/target.go`, `ARCH/30`)
+### 3.7 Data-driven targets: 46 generic + 6 bespoke = 52 total (`internal/host/target.go`, `ARCH/30`)
 *   The six adapters above are hand-written and retained (they carry behaviour the generic path does not model: Cline's legacy-path fallback and shared-settings overrides, and the Pi extension file).
 *   All other agents are data rows (`verifiedBridgeTargets` in `internal/host/targets_data.go`, **44 rows**) served by the single `GenericAdapter` (`internal/host/generic.go`). Bespoke IDs always win name collisions (`TestBridgeTargetTableDoesNotShadowBespokeAdapters`).
 *   **Counts:** `litespm host list` prints `Registered Agent Host Adapters (50)`. Skill installation targets are a separate set of **81** targets in `internal/skills/agents.go` (`AgentTargets()` — the 77 transcribed rows plus `universal`/`warp`/`grok`/`pi`, appended 2026-10-14; `ARCH/30` §10); the two sets overlap but are not equal, and `host list` reports bridge adapters only.
@@ -198,7 +198,7 @@ behind `litespm install <mcp-id>`.
 #### 3.7.1 Config-write contract (all hosts, bespoke and generic)
 
 A host config belongs to the user, so a setup or removal must touch exactly one
-member. The rules are uniform across all 50 adapters:
+member. The rules are uniform across all 52 adapters:
 
 *   **Splice, never re-serialize.** JSON and JSONC hosts are edited by byte
     offset (`mergeJSONEntrySurgical`), TOML hosts by a table-level text edit.
@@ -290,10 +290,10 @@ URL-only entry — one transport, spelled exactly the way that host spells it:
     **Measured 2026-10-19:** the published release `rel-2026-10-17-01` carries **25,401 rows with a
     non-null `url`**, and those are exactly the 25,401 `metadata_verified` MCP listings — the producer
     change is live, so the path below is fed by a release ([STATUS.md](../STATUS.md) §2–§3).
-*   **8 of 50 hosts are verified capable:** the six bespoke adapters (`claude-code`, `cline`,
-    `opencode`, `codex`, `pi-agent`, `grok-build`) plus the two data rows whose exact remote entry
-    object was read from the row's `DocsURL` (`cursor`, `zed`).
-    `TestRemoteCapabilityMatrixCounts` pins the counts at exactly 8 capable / 42 refused, so an
+*   **47 of 52 hosts are remote-capable:** the six bespoke adapters (`claude-code`, `cline`,
+    `opencode`, `codex`, `pi-agent`, `grok-build`) plus 41 data-driven rows whose complete
+    remote entry objects were read from their vendor documentation, including VS Code.
+    `TestRemoteCapabilityMatrixCounts` pins the counts at exactly 47 capable / 5 refused, so an
     accidental mass-enable (or an un-evidenced spec) fails the test instead of silently changing
     what installs write.
 *   **The honesty rule.** A `RemoteEntrySpec` may be set only when the *entire* entry object — URL
@@ -303,7 +303,7 @@ URL-only entry — one transport, spelled exactly the way that host spells it:
     entry the host silently ignores, which is worse than refusing.
 *   **Everything else refuses, fail-closed.** `host.RemoteEntrySpecFor` is the single capability
     query that plan-time filtering, install and copy all resolve through
-    (`internal/host/entry_install.go:368-387`): the other 42 targets answer "no spec" and receive
+    (`internal/host/entry_install.go:368-387`): the other 5 targets answer "no spec" and receive
     `LPSM-HOST-REMOTE-UNSUPPORTED` — never a fallback to a stdio write, never a guessed URL key.
     The plan applies the same rule per host: a LiteSPM-chosen default set is filtered to capable
     hosts with every drop reported, while an explicit `--host` set is never filtered — an incapable

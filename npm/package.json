@@ -1,7 +1,7 @@
 {
   "name": "litespm",
-  "version": "0.6.0",
-  "description": "The package manager for AI agents \u2014 MCP servers, skills and plugins through one local bridge.",
+  "version": "0.6.1",
+  "description": "The package manager for AI agents — MCP servers, skills and plugins through one local bridge.",
   "bin": {
     "litespm": "bin/litespm.js"
   },
@@ -42,7 +42,7 @@
     "type": "git",
     "url": "git+https://github.com/sarv-projects/LiteSPM.git"
   },
-  "homepage": "https://litespm.sarveshbh-2022.workers.dev/",
+  "homepage": "https://lite-spm-nine.vercel.app/",
   "bugs": {
     "url": "https://github.com/sarv-projects/LiteSPM/issues"
   },

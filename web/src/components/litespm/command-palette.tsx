@@ -28,7 +28,7 @@ const TEXT_FIELD_TAGS = ["INPUT", "TEXTAREA", "SELECT"];
 const PAGES = [
   { label: "Home", hash: "/", icon: Home, hint: "Landing page" },
   { label: "Explore the catalog", hash: "/explore", icon: LayoutGrid, hint: "Search 69k listings" },
-  { label: "Agents directory", hash: "/agents", icon: Users, hint: "50 agent hosts" },
+  { label: "Agents directory", hash: "/agents", icon: Users, hint: "52 agent hosts" },
   { label: "Insights dashboard", hash: "/insights", icon: BarChart3, hint: "Catalog analytics" },
   { label: "Compare packages", hash: "/compare", icon: GitCompareArrows, hint: "Side by side" },
   { label: "Docs — getting started", hash: "/docs/getting-started", icon: BookOpen, hint: "Quickstart" },

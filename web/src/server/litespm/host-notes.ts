@@ -43,6 +43,18 @@ export const HOST_NOTES: Record<string, HostNote> = {
       "Connects to external tools and data via MCP",
     ],
   },
+  "claude-desktop": {
+    profileType: "Desktop AI assistant",
+    summary: "Claude Desktop is Anthropic's desktop application. It connects Claude conversations to local MCP servers, letting Claude work with tools and data exposed by applications on your computer.",
+    interface: "Desktop application (Windows, macOS, and Linux)",
+    website: "https://claude.ai/download",
+    source: "https://modelcontextprotocol.io/docs/develop/connect-local-servers",
+    capabilities: [
+      "Connects to local MCP servers through a desktop configuration file",
+      "Launches local servers over standard input/output",
+      "Makes connected MCP tools and resources available in Claude conversations",
+    ],
+  },
   codex: {
     summary:
       "Codex is OpenAI's coding agent for your terminal. Start it in a project folder, describe the task, and it inspects files, makes edits, runs your local tools, and shows you the result to review.",
@@ -112,6 +124,18 @@ export const HOST_NOTES: Record<string, HostNote> = {
       "Edits files, runs commands and tests, and works with Git",
       "Connects to external services through MCP",
       "Supports shell pipelines and script-based workflows",
+    ],
+  },
+  vscode: {
+    profileType: "Code editor + AI agent",
+    summary: "Visual Studio Code is Microsoft's code editor with integrated agent workflows. LiteSPM writes the portable Copilot workspace .mcp.json format, which uses mcpServers and is read directly by Copilot harness sessions. The legacy .vscode/mcp.json Local-harness format is still supported by VS Code but deprecated in current guided setup and is not written by this adapter.",
+    interface: "Desktop code editor (Windows, macOS, Linux)",
+    website: "https://code.visualstudio.com",
+    source: "https://code.visualstudio.com/docs/agents/reference/mcp-configuration",
+    capabilities: [
+      "Writes the portable workspace .mcp.json format with a top-level mcpServers object",
+      "Portable configuration supports local stdio and remote HTTP entries; SSE is not supported by this format",
+      "The separate .vscode/mcp.json Local-harness format remains available in VS Code but is deprecated in guided setup and is not written by this adapter",
     ],
   },
   cursor: {

@@ -1,7 +1,10 @@
 package trust
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -15,8 +18,8 @@ func regexpMatches(pattern, s string) bool {
 	return err == nil && ok
 }
 
-// The verifier's contract: verified only on cosign exit 0, failed on a
-// non-zero exit, unavailable when cosign is absent — never a pass by default.
+// The verifier's contract: verified only after the in-process Sigstore verifier
+// returns nil; any malformed or unverifiable published bundle fails closed.
 func TestBlobVerifierResultMatrix(t *testing.T) {
 	blob := filepath.Join(t.TempDir(), "litespm-linux-amd64")
 	if err := os.WriteFile(blob, []byte("payload"), 0o600); err != nil {
@@ -27,79 +30,55 @@ func TestBlobVerifierResultMatrix(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("verified on exit 0", func(t *testing.T) {
-		var gotArgs []string
-		v := BlobVerifier{
-			LookPath: func(string) (string, error) { return "/usr/bin/cosign", nil },
-			Run: func(_ context.Context, args []string) ([]byte, error) {
-				gotArgs = args
-				return []byte("ok"), nil
-			},
-		}
-		verdict := v.VerifyBundle(context.Background(), blob, bundle)
-		if verdict.Result != ResultVerified {
-			t.Fatalf("result = %q (%s), want verified", verdict.Result, verdict.Detail)
-		}
-		joined := strings.Join(gotArgs, " ")
-		for _, want := range []string{
-			"verify-blob",
-			"--bundle " + bundle,
-			"--certificate-identity-regexp " + DefaultBlobIdentityRegexp,
-			"--certificate-oidc-issuer " + DefaultBlobIssuer,
-			blob,
-		} {
-			if !strings.Contains(joined, want) {
-				t.Errorf("args missing %q: %v", want, gotArgs)
+	t.Run("verified by in-process verifier", func(t *testing.T) {
+		called := false
+		v := BlobVerifier{VerifyFunc: func(_ context.Context, artifactPath, bundlePath, identity, issuer string) error {
+			called = true
+			if artifactPath != blob || bundlePath != bundle {
+				t.Fatalf("unexpected verification paths: %q %q", artifactPath, bundlePath)
 			}
+			if identity != DefaultBlobIdentityRegexp || issuer != DefaultBlobIssuer {
+				t.Fatalf("unexpected trust policy: identity=%q issuer=%q", identity, issuer)
+			}
+			return nil
+		}}
+		verdict := v.VerifyBundle(context.Background(), blob, bundle)
+		if !called || verdict.Result != ResultVerified {
+			t.Fatalf("called=%v result=%q (%s), want verified", called, verdict.Result, verdict.Detail)
 		}
-		// The blob path must be the final argument (cosign verifies what it
-		// names last).
-		if gotArgs[len(gotArgs)-1] != blob {
-			t.Errorf("blob is not the final argument: %v", gotArgs)
+		if verdict.Method != "sigstore-bundle" {
+			t.Errorf("method = %q", verdict.Method)
 		}
 	})
 
-	t.Run("failed on non-zero exit", func(t *testing.T) {
-		v := BlobVerifier{
-			LookPath: func(string) (string, error) { return "/usr/bin/cosign", nil },
-			Run: func(context.Context, []string) ([]byte, error) {
-				return []byte("signature mismatch"), errors.New("exit 1")
-			},
-		}
+	t.Run("failed verification is not downgraded", func(t *testing.T) {
+		v := BlobVerifier{VerifyFunc: func(context.Context, string, string, string, string) error {
+			return errors.New("signature mismatch")
+		}}
 		verdict := v.VerifyBundle(context.Background(), blob, bundle)
 		if verdict.Result != ResultFailed {
 			t.Fatalf("result = %q, want failed", verdict.Result)
 		}
 		if !strings.Contains(verdict.Detail, "signature mismatch") {
-			t.Errorf("detail must carry cosign's output, got: %q", verdict.Detail)
+			t.Errorf("detail must carry verifier output, got: %q", verdict.Detail)
 		}
 	})
 
-	t.Run("unavailable when cosign is missing", func(t *testing.T) {
-		v := BlobVerifier{
-			LookPath: func(string) (string, error) { return "", errors.New("not found") },
-			Run: func(context.Context, []string) ([]byte, error) {
-				t.Fatal("must not run cosign when it is not installed")
-				return nil, nil
-			},
-		}
+	t.Run("unavailable when trust material cannot be obtained", func(t *testing.T) {
+		v := BlobVerifier{VerifyFunc: func(context.Context, string, string, string, string) error {
+			return unavailableVerification(errors.New("Sigstore trust root is unreachable"))
+		}}
 		verdict := v.VerifyBundle(context.Background(), blob, bundle)
 		if verdict.Result != ResultUnavailable {
 			t.Fatalf("result = %q, want unavailable", verdict.Result)
 		}
-		if !strings.Contains(verdict.Detail, "cosign binary not found") {
-			t.Errorf("detail = %q", verdict.Detail)
-		}
 	})
 
 	t.Run("unavailable for missing inputs", func(t *testing.T) {
-		v := BlobVerifier{
-			LookPath: func(string) (string, error) { return "/usr/bin/cosign", nil },
-			Run: func(context.Context, []string) ([]byte, error) {
-				t.Fatal("must not run cosign without inputs")
-				return nil, nil
-			},
-		}
+		v := BlobVerifier{VerifyFunc: func(context.Context, string, string, string, string) error {
+			t.Fatal("must not invoke verifier without inputs")
+			return nil
+		}}
 		if got := v.VerifyBundle(context.Background(), "", bundle); got.Result != ResultUnavailable {
 			t.Errorf("empty path result = %q, want unavailable", got.Result)
 		}
@@ -107,6 +86,80 @@ func TestBlobVerifierResultMatrix(t *testing.T) {
 			t.Errorf("empty bundle result = %q, want unavailable", got.Result)
 		}
 	})
+
+	t.Run("custom signer policy is passed through", func(t *testing.T) {
+		v := BlobVerifier{
+			IdentityRegexp: `^https://example\.com/release@refs/tags/v[0-9]+$`,
+			Issuer:         "https://issuer.example.com",
+			VerifyFunc: func(_ context.Context, _, _, identity, issuer string) error {
+				if identity != `^https://example\.com/release@refs/tags/v[0-9]+$` || issuer != "https://issuer.example.com" {
+					t.Fatalf("custom trust policy not passed through: %q %q", identity, issuer)
+				}
+				return nil
+			},
+		}
+		if got := v.VerifyBundle(context.Background(), blob, bundle); got.Result != ResultVerified {
+			t.Fatalf("custom identity verification result = %q (%s)", got.Result, got.Detail)
+		}
+	})
+}
+
+func TestDecodeBase64Strict(t *testing.T) {
+	if _, err := decodeBase64Strict("AQID", "test"); err != nil {
+		t.Fatalf("valid base64 rejected: %v", err)
+	}
+	for _, bad := range []string{"", "not-base64", "AQI", "AQ==junk"} {
+		if _, err := decodeBase64Strict(bad, "test"); err == nil {
+			t.Errorf("invalid base64 %q accepted", bad)
+		}
+	}
+}
+
+func TestLegacyCosignBundleToV01RejectsIncompleteMetadata(t *testing.T) {
+	legacy := legacyCosignBundle{}
+	if _, err := legacyCosignBundleToV01(legacy, make([]byte, 32)); err == nil {
+		t.Fatal("incomplete legacy bundle must be rejected")
+	}
+}
+
+func TestBlobVerifierRealReleaseBundle(t *testing.T) {
+	artifactPath := strings.TrimSpace(os.Getenv("LITESPM_SIGSTORE_TEST_ARTIFACT"))
+	bundlePath := strings.TrimSpace(os.Getenv("LITESPM_SIGSTORE_TEST_BUNDLE"))
+	if artifactPath == "" || bundlePath == "" {
+		t.Skip("set LITESPM_SIGSTORE_TEST_ARTIFACT and LITESPM_SIGSTORE_TEST_BUNDLE to verify a real release bundle")
+	}
+	verdict := (BlobVerifier{}).VerifyBundle(context.Background(), artifactPath, bundlePath)
+	if verdict.Result != ResultVerified {
+		t.Fatalf("real legacy release bundle was not verified: %s: %s", verdict.Result, verdict.Detail)
+	}
+
+	artifact, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(artifact)
+	legacyBytes, err := os.ReadFile(bundlePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(legacyBytes))
+	decoder.UseNumber()
+	var legacy legacyCosignBundle
+	if err := decoder.Decode(&legacy); err != nil {
+		t.Fatal(err)
+	}
+	normalized, err := legacyCosignBundleToV01(legacy, digest[:])
+	if err != nil {
+		t.Fatalf("normalize legacy bundle to protobuf: %v", err)
+	}
+	normalizedPath := filepath.Join(t.TempDir(), "normalized.sigstore.json")
+	if err := os.WriteFile(normalizedPath, normalized, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	verdict = (BlobVerifier{}).VerifyBundle(context.Background(), artifactPath, normalizedPath)
+	if verdict.Result != ResultVerified {
+		t.Fatalf("normalized protobuf release bundle was not verified: %s: %s", verdict.Result, verdict.Detail)
+	}
 }
 
 // The default identity regexp must pin the release workflow on a tag ref and

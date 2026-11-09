@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         const title = `${resp.detail.name} — LiteSPM`;
         const description =
           resp.detail.summary ||
-          `Install ${resp.detail.name} into 50 supported AI agent hosts with LiteSPM.`;
+          `Install ${resp.detail.name} into 52 supported AI agent hosts with LiteSPM.`;
         return {
           title,
           description,
@@ -57,14 +57,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (section === "explore") {
     return {
       title: "Explore MCP Servers, Skills & Plugins · LiteSPM",
-      description: "Search 69k+ listings across 50 agent hosts.",
+      description: "Search 69k+ listings across 52 agent hosts.",
     };
   }
 
   if (section === "agents") {
     return {
       title: "Supported Agent Hosts · LiteSPM",
-      description: "Explore 50 agent hosts supported by LiteSPM.",
+      description: "Explore 52 agent hosts supported by LiteSPM.",
     };
   }
 

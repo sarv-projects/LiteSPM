@@ -163,6 +163,14 @@ jobs:
         working-directory: ./web
         run: bun run lint
 
+      - name: Web Hardening Regression Tests
+        working-directory: ./web
+        run: bun run test:hardening
+
+      - name: Host Platform Path Tests
+        working-directory: ./web
+        run: bun run test:host-paths
+
       - name: Build Web Application
         working-directory: ./web
         run: bun run build

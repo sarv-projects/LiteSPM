@@ -5,12 +5,19 @@
 **The package manager for AI agents.**
 
 Discover and install MCP servers, skills and plugins across Claude Code,
-OpenAI Codex, OpenCode, Cline and 45 more hosts — 50 in all. 46 of them can
-also receive a remote (URL) MCP entry; the other four — CodeStudio, iFlow CLI,
-Mux and Zcode — are refused rather than written in a shape the host would
-ignore.
+Claude Desktop, Visual Studio Code, OpenAI Codex, OpenCode, Cline and 46 more
+hosts — 52 in all. 47 of them can
+also receive a remote (URL) MCP entry; the other five — Claude Desktop,
+CodeStudio, iFlow CLI, Mux and Zcode — are local-only in LiteSPM and are
+refused for remote entries rather than written in a shape the host would ignore.
 
-**Browse the catalog:** **[litespm.sarveshbh-2022.workers.dev](https://litespm.sarveshbh-2022.workers.dev/)**
+Visual Studio Code is workspace-scoped: run `litespm host setup vscode` from the
+workspace root and install entries with `--scope project --agent vscode`. This
+writes the portable Copilot `.mcp.json` format with `mcpServers`; it supports
+stdio and HTTP, not SSE. The separate `.vscode/mcp.json` Local-harness format
+remains available but is deprecated in guided setup and is not written here.
+
+**Browse the catalog:** **[lite-spm-nine.vercel.app](https://lite-spm-nine.vercel.app/)**
 — search all 69,376 listings and copy the install command for anything you pick.
 
 [![npm version](https://img.shields.io/npm/v/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
@@ -24,14 +31,14 @@ ignore.
 
 ```console
 $ litespm
-LiteSPM can connect to 50 different agent hosts.
+LiteSPM can connect to 52 different agent hosts.
 This run has not changed anything yet.
 
 Which AI coding agent do you use?
 
 Found on this machine (1):
   [1] Claude Code                    /home/you/.claude.json
-  [a] Show all 50 supported agents
+  [a] Show all 52 supported agents
   [q] Quit
 Enter a number, an agent name, or 'a' [q]: 1
 
@@ -77,6 +84,29 @@ place.
 npm install -g litespm
 ```
 
+`npm uninstall -g litespm` removes the npm wrapper, but npm 7 and later do not
+run package uninstall lifecycle scripts. If you also want to remove the
+versioned native binary cache, run this **before** uninstalling:
+
+```bash
+node "$(npm root -g)/litespm/scripts/uninstall-binary.js"
+npm uninstall -g litespm
+```
+
+On Windows PowerShell, use:
+
+```powershell
+node "$(npm root -g)\litespm\scripts\uninstall-binary.js"
+npm uninstall -g litespm
+```
+
+The cleanup script removes only the current package version's native executable
+and matching version stamp. It leaves the LiteSPM state database, backups,
+installed skills, and agent configuration entries untouched. Run `litespm
+uninstall` first to inspect remaining agent changes and the explicit per-entry
+removal commands. npm's lack of uninstall hooks is documented by npm itself:
+https://docs.npmjs.com/cli/v11/using-npm/scripts/#a-note-on-a-lack-of-npm-uninstall-scripts.
+
 On Linux or WSL, `bash: .../bin/litespm: Permission denied` means the installed
 command shim is missing its executable bit. This repository now preserves and
 checks that bit in the npm tarball. For an already-installed broken shim, repair
@@ -110,12 +140,12 @@ prints `INSTALL REFUSED` and exits non-zero:
 ```text
 [litespm] INSTALL REFUSED — refusing to install litespm-linux-amd64: signature verification failed: digest mismatch
 [litespm] The download was discarded rather than installed unverified. Nothing was written to ~/.litespm/bin/v<version>/litespm-linux-amd64.
-[litespm] Check https://github.com/sarv-projects/LiteSPM/releases/tag/v0.4.1 for litespm-linux-amd64 and its .sigstore.json bundle, then reinstall. Setting LITESPM_ALLOW_UNSIGNED_RELEASE=1 disables publisher authentication and is not a fix.
+[litespm] Check https://github.com/sarv-projects/LiteSPM/releases/tag/v0.6.0 for litespm-linux-amd64 and its .sigstore.json bundle, then reinstall. Setting LITESPM_ALLOW_UNSIGNED_RELEASE=1 disables publisher authentication and is not a fix.
 ```
 
 | Variable | Effect |
 |---|---|
-| `LITESPM_ALLOW_UNSIGNED_RELEASE=1` | **Explicit opt-out.** Falls back to SHA-256-only verification for releases that publish no bundle at all — every tag before `v0.4.0` — or for a machine that cannot reach the Sigstore trust root. It prints a warning saying so. It is not a silent fallback: a release that publishes a bundle which fails to verify is still refused, because that is the attack signal. A checksum travels in the same release as the binary, so it proves the download was not corrupted, not who published it. |
+| `LITESPM_ALLOW_UNSIGNED_RELEASE=1` | **Explicit opt-out.** Falls back to SHA-256-only verification only for releases that publish no bundle at all (tags before `v0.4.0`). It does not bypass verification of a bundle that exists but cannot be fetched or verified. It prints a warning. A checksum from the same release proves integrity, not publisher identity. |
 | `LITESPM_RELEASE_REPO=<owner>/<name>` or `https://<host>/<path>` | Install from a mirror. A mirror can replace the binary *and* its signature together, so it is refused unless you also state the signer you expect it to present. |
 | `LITESPM_TRUST_IDENTITY` / `LITESPM_TRUST_ISSUER` | Required with `LITESPM_RELEASE_REPO`: the exact certificate identity and OIDC issuer the mirror must present. Ignored when installing from the pinned repository — the identity there is fixed in the installer, because a trust anchor an environment variable can move is not an anchor. |
 | `LITESPM_ALLOW_LOCAL_DIST=1` | Use a `dist/` build in the checkout instead of the published release. Developer convenience; no checksum or signature is verified, and the installer says so. |
@@ -136,7 +166,7 @@ Obtaining the Sigstore trust root needs network access to
 > has no adapter for those classes. See
 > [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
 >
-> **The published package is current: `litespm@0.4.1` (2026-10-15).** A clean
+> **The published package is `litespm@0.6.0` (2026-10-22).** A clean install downloads the native binary and verifies its published Sigstore signature. The live catalog currently reports release `rel-2026-11-05-03` (sequence 154), with 69,311 unique listings from 69,376 source rows. The earlier `0.4.0` sharded-catalog incident is recorded as history in [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) ?2.
 > install downloads the native binary, verifies its published Sigstore
 > signature, and syncs the live catalog — `✓ Catalog synchronization complete
 > (Release rel-2026-10-15-01, 69376 capabilities indexed)` (verified

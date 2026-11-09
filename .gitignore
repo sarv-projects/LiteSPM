@@ -74,3 +74,5 @@ tmp-agent-sandbox-*/
 .engram/
 
 /web-local.log
+# Generated at build/dev time from canonical LiteSPM documentation.
+web/src/server/litespm/generated/assistant-knowledge.json

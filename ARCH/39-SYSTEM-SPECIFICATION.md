@@ -301,7 +301,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
   │   ├── bridge/                                       # Stdio Bridge shim (12 tools)
   │   ├── provider/                                     # Supervisor (Job Objects/watchdog) + isolation
   │   ├── policy/                                       # 17-action effect taxonomy + 5-tier engine
-  │   ├── host/                                         # 6 bespoke adapters + 44 generic BridgeTargets (50 total)
+  │   ├── host/                                         # 6 bespoke adapters + 46 generic BridgeTargets (52 total)
   │   ├── mcpclient/                                    # Dual-profile MCP client (2026-07-28 + legacy)
   │   ├── secrets/                                      # OS vault + memory/file stores
   │   ├── auth/                                         # OAuth PKCE loopback broker

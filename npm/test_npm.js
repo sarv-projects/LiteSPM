@@ -639,6 +639,50 @@ async function main() {
     }
   });
 
+  await checkAsync("[uninstall] explicit cleanup removes only this version's managed binary", async () => {
+    const { resolveManagedPaths, removeManagedBinary } = require("./scripts/uninstall-binary.js");
+    const home = tempDir("litespm-uninstall-home-");
+    try {
+      const paths = resolveManagedPaths({ home, version: VERSION });
+      assert(paths, "test platform should have a supported binary name");
+      fs.mkdirSync(paths.versionDir, { recursive: true });
+      fs.writeFileSync(paths.binaryPath, "managed executable");
+      fs.writeFileSync(paths.stampPath, `${VERSION}-local\n`);
+      const userFile = path.join(paths.versionDir, "user-note.txt");
+      fs.writeFileSync(userFile, "must survive cleanup");
+      const stateDir = path.join(home, ".litespm", "state");
+      fs.mkdirSync(stateDir, { recursive: true });
+      const stateFile = path.join(stateDir, "state.db");
+      fs.writeFileSync(stateFile, "user state");
+
+      const result = removeManagedBinary({ home, version: VERSION, log: () => {} });
+      assert.strictEqual(result.removed, true);
+      assert(!fs.existsSync(paths.binaryPath), "managed executable should be removed");
+      assert(!fs.existsSync(paths.stampPath), "matching version stamp should be removed");
+      assert.strictEqual(fs.readFileSync(userFile, "utf8"), "must survive cleanup", "unknown files must survive");
+      assert.strictEqual(fs.readFileSync(stateFile, "utf8"), "user state", "LiteSPM state must survive npm uninstall");
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  await checkAsync("[uninstall] a mismatched version stamp never deletes an unknown binary", async () => {
+    const { resolveManagedPaths, removeManagedBinary } = require("./scripts/uninstall-binary.js");
+    const home = tempDir("litespm-uninstall-mismatch-");
+    try {
+      const paths = resolveManagedPaths({ home, version: VERSION });
+      fs.mkdirSync(paths.versionDir, { recursive: true });
+      fs.writeFileSync(paths.binaryPath, "unknown executable");
+      fs.writeFileSync(paths.stampPath, "999.0.0\n");
+      const result = removeManagedBinary({ home, version: VERSION, log: () => {} });
+      assert.strictEqual(result.removed, false);
+      assert.strictEqual(fs.readFileSync(paths.binaryPath, "utf8"), "unknown executable");
+      assert.strictEqual(fs.readFileSync(paths.stampPath, "utf8").trim(), "999.0.0");
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   // =========================================================================
   // npm pack content: the installer is only as trustworthy as the package
   // =========================================================================
@@ -669,6 +713,7 @@ async function main() {
         "bin/litespm.js",
         "package.json",
         "scripts/install-binary.js",
+        "scripts/uninstall-binary.js",
       ];
       assert.deepStrictEqual(shipped, expected, `unexpected tarball contents: ${shipped.join(", ")}`);
       const shim = meta.files.find((f) => f.path === "bin/litespm.js");
@@ -704,6 +749,7 @@ async function main() {
       assert(shippedPkg.dependencies["@sigstore/verify"], "sigstore verifier is not a dependency");
       assert(shippedPkg.dependencies["@sigstore/tuf"], "TUF client is not a dependency");
       assert(shippedPkg.dependencies["@sigstore/bundle"], "bundle parser is not a dependency");
+      assert.strictEqual(shippedPkg.scripts.postuninstall, undefined, "npm v7+ does not support uninstall lifecycle hooks; do not advertise one");
     } finally {
       fs.rmSync(packDir, { recursive: true, force: true });
     }
@@ -730,8 +776,9 @@ async function main() {
 //
 // Every case below runs against bytes that were actually published, and the
 // refusals are produced by real cryptography — not by a mock returning false.
-// Cases skip (never pass silently) when the release or the Sigstore trust root
-// cannot be reached.
+// Local pre-release runs may skip when the tag has no assets yet. The release
+// workflow sets LITESPM_TEST_REQUIRE_RELEASE=1, turning missing/unreachable
+// release assets into a hard failure before npm can be published.
 // ===========================================================================
 const FIXTURE_DIR = path.join(os.tmpdir(), "litespm-npm-fixtures");
 
@@ -760,6 +807,9 @@ async function realArtifactCases(tmp, binName) {
     binaryPath = await fetchFixture(`${base(VERSION)}/${binName}`, `v${VERSION}-${binName}`);
     sumsText = await fetchText(`${base(VERSION)}/SHA256SUMS.txt`);
   } catch (err) {
+    if (process.env.LITESPM_TEST_REQUIRE_RELEASE === "1") {
+      throw new Error(`required real release fixtures are unavailable (${err.message})`);
+    }
     skip("real release fixtures", `cannot reach the release (${err.message})`);
     return null;
   }

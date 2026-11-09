@@ -4,16 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "prisma generate && next build",
+    "predev": "node scripts/build-assistant-knowledge.mjs",
+    "build": "node scripts/build-assistant-knowledge.mjs && prisma generate && next build",
     "postbuild": "node scripts/postbuild.mjs",
     "build:search-index": "node scripts/build-search-index.mjs",
     "start": "node .next/standalone/server.js",
+    "test:hardening": "node scripts/test-hardening.mjs",
+    "test:host-paths": "bun scripts/test-host-paths.ts",
     "lint": "eslint . && node scripts/check-no-embedded-secrets.mjs && node scripts/check-web-truth.mjs && node scripts/check-assistant-product.mjs && node scripts/check-web-hardening.mjs",
     "type-check": "prisma generate && tsc --noEmit",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "test:assistant": "node scripts/build-assistant-knowledge.mjs && bun scripts/test-assistant-rag.ts",
+    "pretype-check": "node scripts/build-assistant-knowledge.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

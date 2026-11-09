@@ -7,6 +7,8 @@ import {
   ArrowUpRight,
   Bookmark,
   BookmarkCheck,
+  BookOpen,
+  BrainCircuit,
   Check,
   Copy,
   ExternalLink,
@@ -19,8 +21,10 @@ import {
   Sparkles,
   Square,
   Terminal,
+  Trash2,
   X,
 } from "lucide-react";
+import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 import { useApp, exploreHash } from "@/lib/litespm/router";
@@ -30,10 +34,20 @@ import type { AssistantCitation, AssistantMeta, CompareColumn, PackageDetailData
 import { AvailabilityBadge, KindBadge } from "./primitives";
 import { InstallBar } from "./install-bar";
 
+interface AssistantSource {
+  id: string;
+  title: string;
+  source: string;
+  section: string;
+  startLine: number;
+  endLine: number;
+}
+
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   citations?: AssistantCitation[];
+  sources?: AssistantSource[];
   meta?: AssistantMeta;
   /** Set while tokens are still arriving for this bubble. */
   streaming?: boolean;
@@ -47,14 +61,15 @@ type StreamEvent =
   | { type: "delta"; text: string }
   | { type: "status"; text: string }
   | { type: "cards"; keys: string[]; citations?: AssistantCitation[] }
-  | { type: "done"; answer: string; citations?: AssistantCitation[]; meta?: AssistantMeta }
+  | { type: "sources"; sources: AssistantSource[] }
+  | { type: "done"; answer: string; citations?: AssistantCitation[]; sources?: AssistantSource[]; meta?: AssistantMeta }
   | { type: "error"; message: string };
 
 const SUGGESTIONS = [
-  "What can LiteSPM install for working with Postgres?",
-  "I want my agent to browse the web — what should I install?",
-  "Which skills help with PDF documents?",
-  "How do I set up LiteSPM with Claude Code?",
+  "Hi! What can you help me with?",
+  "What is LiteSPM and how does it work?",
+  "Recommend PostgreSQL MCP servers for database administration.",
+  "Explain LiteSPM’s security and rollback model.",
 ];
 
 // The streamed answer's first token has been measured at ~10s on a cold
@@ -148,7 +163,7 @@ function InteractivePackageItem({ linkKey, onOpenLink }: { linkKey: string; onOp
   if (loading) {
     return (
       <div className="flex h-20 items-center justify-center rounded-xl border border-border/60 bg-muted/20">
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/60" />
+        <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none text-muted-foreground/60" />
       </div>
     );
   }
@@ -247,7 +262,7 @@ function InteractiveCompareMatrix({
   if (loading) {
     return (
       <div className="my-3 flex h-24 items-center justify-center rounded-xl border border-border/60 bg-muted/20">
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/60" />
+        <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none text-muted-foreground/60" />
       </div>
     );
   }
@@ -381,6 +396,33 @@ function tryParseWidgetJson(content: string): Record<string, unknown> | null {
 }
 
 /** Render Dynamic UI Widgets or fall back to standard code block */
+function InteractiveChecklist({ items }: { items: Array<{ label: string; detail?: string }> }) {
+  const [checked, setChecked] = React.useState<boolean[]>(() => items.map(() => false));
+  const completed = checked.filter(Boolean).length;
+  return (
+    <div className="my-3 rounded-xl border border-border/70 bg-card/70 p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-[12px] font-semibold">Checklist</p>
+        <span className="text-[10px] tabular-nums text-muted-foreground">{completed}/{items.length} complete</span>
+      </div>
+      <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-muted">
+        <motion.div className="h-full rounded-full bg-brand" initial={{ width: 0 }} animate={{ width: `${items.length ? completed / items.length * 100 : 0}%` }} transition={{ type: "spring", stiffness: 110, damping: 20 }} />
+      </div>
+      <div className="space-y-2">
+        {items.slice(0, 12).map((item, index) => (
+          <label key={`${item.label}-${index}`} className="flex cursor-pointer items-start gap-2.5 text-[12px]">
+            <input type="checkbox" checked={!!checked[index]} onChange={(event) => setChecked((old) => old.map((value, i) => i === index ? event.target.checked : value))} className="mt-0.5 accent-[var(--brand)]" />
+            <span className={cn("min-w-0", checked[index] && "text-muted-foreground line-through")}>
+              <span className="font-medium">{item.label}</span>
+              {item.detail && <span className="mt-0.5 block text-[11px] text-muted-foreground">{item.detail}</span>}
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DynamicWidgetOrCode({
   content,
   lang,
@@ -428,6 +470,56 @@ function DynamicWidgetOrCode({
             onOpenLink={onOpenLink}
           />
         );
+      }
+      if (parsed.type === "metric_cards" && Array.isArray(parsed.metrics)) {
+        const metrics = (parsed.metrics as Array<Record<string, unknown>>).slice(0, 4).filter((item) => typeof item.label === "string" && (typeof item.value === "string" || typeof item.value === "number"));
+        return (
+          <div className="my-3 grid grid-cols-2 gap-2">
+            {metrics.map((item, index) => (
+              <motion.div key={`${String(item.label)}-${index}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.07, duration: 0.24 }} className="rounded-xl border border-border/70 bg-card/70 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{String(item.label).slice(0, 48)}</p>
+                <p className="mt-1 text-xl font-semibold tracking-tight">{String(item.value).slice(0, 32)}</p>
+                {typeof item.detail === "string" && <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">{item.detail.slice(0, 120)}</p>}
+              </motion.div>
+            ))}
+          </div>
+        );
+      }
+      if (parsed.type === "steps" && Array.isArray(parsed.steps)) {
+        const steps = (parsed.steps as Array<Record<string, unknown>>).slice(0, 8).filter((step) => typeof step.title === "string");
+        return (
+          <div className="my-3 space-y-2">
+            {steps.map((step, index) => (
+              <motion.div key={`${String(step.title)}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.06 }} className="flex gap-3 rounded-xl border border-border/70 bg-card/60 p-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand/10 text-[11px] font-semibold text-brand">{index + 1}</span>
+                <div className="min-w-0"><p className="text-[12px] font-semibold">{String(step.title).slice(0, 72)}</p>{typeof step.description === "string" && <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{step.description.slice(0, 220)}</p>}</div>
+              </motion.div>
+            ))}
+          </div>
+        );
+      }
+      if (parsed.type === "host_cards" && Array.isArray(parsed.hosts)) {
+        const hosts = (parsed.hosts as Array<Record<string, unknown>>).slice(0, 8).filter((host) => typeof host.id === "string" && typeof host.name === "string");
+        return (
+          <div className="my-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {hosts.map((host, index) => (
+              <motion.div key={String(host.id)} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="rounded-xl border border-border/70 bg-card/70 p-3">
+                <div className="flex items-start justify-between gap-2"><p className="text-[12px] font-semibold">{String(host.name).slice(0, 60)}</p><span className="rounded-md bg-brand/10 px-1.5 py-0.5 text-[9px] font-semibold text-brand">{host.remote === true ? "REMOTE" : "STDIO"}</span></div>
+                <code className="mt-1 block text-[10px] text-muted-foreground">{String(host.id).slice(0, 80)}</code>
+                {typeof host.keyPath === "string" && <p className="mt-2 truncate text-[10px] text-muted-foreground">Config: {host.keyPath}</p>}
+                {typeof host.userPath === "string" && <p className="mt-1 truncate text-[10px] text-muted-foreground">{host.userPath}</p>}
+              </motion.div>
+            ))}
+          </div>
+        );
+      }
+      if (parsed.type === "checklist" && Array.isArray(parsed.items)) {
+        const items = (parsed.items as Array<Record<string, unknown>>).filter((item) => typeof item.label === "string").slice(0, 12).map((item) => ({ label: String(item.label).slice(0, 100), detail: typeof item.detail === "string" ? item.detail.slice(0, 180) : undefined }));
+        return <InteractiveChecklist items={items} />;
+      }
+      if (parsed.type === "timeline" && Array.isArray(parsed.events)) {
+        const events = (parsed.events as Array<Record<string, unknown>>).slice(0, 8).filter((event) => typeof event.title === "string");
+        return <div className="my-3 space-y-0">{events.map((event, index) => <motion.div key={`${String(event.title)}-${index}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.06 }} className="relative flex gap-3 pb-4 last:pb-0"><span className="relative mt-1 flex h-3 w-3 shrink-0 items-center justify-center rounded-full border-2 border-brand bg-background">{index < events.length - 1 && <span className="absolute top-2 h-12 w-px bg-border" />}</span><div><p className="text-[12px] font-semibold">{String(event.title).slice(0, 80)}</p>{typeof event.time === "string" && <p className="text-[10px] text-brand">{event.time.slice(0, 40)}</p>}{typeof event.description === "string" && <p className="mt-1 text-[11px] text-muted-foreground">{event.description.slice(0, 180)}</p>}</div></motion.div>)}</div>;
       }
       if (parsed.type === "explore_link" && typeof parsed.label === "string" && parsed.query && typeof parsed.query === "object") {
         const sanitizedQuery: Record<string, string> = {};
@@ -735,6 +827,7 @@ export function Assistant() {
   const compareActive = useApp((s) => s.compareKeys.length > 0 && s.route.view !== "compare");
   const [mounted, setMounted] = React.useState(false);
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+  const [rememberChats, setRememberChats] = React.useState(false);
   const [input, setInput] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [waitingFirstToken, setWaitingFirstToken] = React.useState(false);
@@ -744,7 +837,33 @@ export function Assistant() {
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
 
-  React.useEffect(() => setMounted(true), []);
+  React.useEffect(() => {
+    setMounted(true);
+    try {
+      const enabled = window.localStorage.getItem("litespm-askai-memory-enabled") === "1";
+      setRememberChats(enabled);
+      if (enabled) {
+        const saved = window.localStorage.getItem("litespm-askai-history");
+        if (saved) {
+          const parsed = JSON.parse(saved) as ChatMessage[];
+          if (Array.isArray(parsed)) setMessages(parsed.filter((item) => item && (item.role === "user" || item.role === "assistant") && typeof item.content === "string" && !item.streaming && !item.preview).slice(-50));
+        }
+      }
+    } catch { /* local history is optional and may be unavailable */ }
+  }, []);
+
+  React.useEffect(() => {
+    if (!mounted) return;
+    try {
+      if (rememberChats) {
+        window.localStorage.setItem("litespm-askai-memory-enabled", "1");
+        window.localStorage.setItem("litespm-askai-history", JSON.stringify(messages.filter((item) => !item.streaming && !item.preview).slice(-50)));
+      } else {
+        window.localStorage.removeItem("litespm-askai-memory-enabled");
+        window.localStorage.removeItem("litespm-askai-history");
+      }
+    } catch { /* storage quota/private browsing must not break chat */ }
+  }, [messages, rememberChats, mounted]);
 
   React.useEffect(() => {
     if (open) window.setTimeout(() => inputRef.current?.focus(), 50);
@@ -804,6 +923,7 @@ export function Assistant() {
 
       let hasReceivedFirstToken = false;
       let proseStarted = false;
+      let streamSources: AssistantSource[] = [];
       // Abort a stalled remote LLM stream and fall back to the catalog. The
       // window is deliberately wider than the observed cold-start latency.
       const timeoutId = setTimeout(() => {
@@ -823,6 +943,11 @@ export function Assistant() {
       const handleEvent = (event: StreamEvent) => {
         if (event.type === "status") {
           setStatusText(event.text);
+          return;
+        }
+
+        if (event.type === "sources") {
+          streamSources = event.sources;
           return;
         }
 
@@ -875,6 +1000,7 @@ export function Assistant() {
                       ...message,
                       content: event.answer,
                       citations: event.citations,
+                      sources: event.sources ?? streamSources,
                       meta: event.meta,
                       streaming: false,
                     }
@@ -887,6 +1013,7 @@ export function Assistant() {
                 role: "assistant",
                 content: event.answer,
                 citations: event.citations,
+                sources: event.sources ?? streamSources,
                 meta: event.meta,
               },
             ];
@@ -922,7 +1049,7 @@ export function Assistant() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+            messages: history.slice(-20).map((m) => ({ role: m.role, content: m.content })),
             stream: true,
           }),
           signal: controller.signal,
@@ -940,6 +1067,7 @@ export function Assistant() {
           const data = (await response.json()) as {
             answer?: string;
             citations?: AssistantCitation[];
+            sources?: AssistantSource[];
             meta?: AssistantMeta;
             error?: string;
           };
@@ -949,7 +1077,7 @@ export function Assistant() {
           }
           setMessages([
             ...history,
-            { role: "assistant", content: data.answer, citations: data.citations, meta: data.meta },
+            { role: "assistant", content: data.answer, citations: data.citations, sources: data.sources, meta: data.meta },
           ]);
           return;
         }
@@ -986,45 +1114,9 @@ export function Assistant() {
       } catch {
         clearTimeout(timeoutId);
         if (controller.signal.aborted) {
-          // If aborted before receiving any tokens, fall back to the catalog.
-          // Try the cleaned keyword queries, not just the raw sentence: the
-          // suggested chips are questions, and a catalog search for the whole
-          // sentence finds nothing.
           if (!hasReceivedFirstToken) {
-            try {
-              const queries = assistantFallbackQueries(question);
-              let items: Array<{ linkKey: string; name: string }> = [];
-              let matchedQuery = "";
-              for (const q of queries) {
-                const fallbackRes = await fetch(`/api/litespm/list?q=${encodeURIComponent(q)}&pageSize=4`);
-                if (!fallbackRes.ok) continue;
-                const searchData = (await fallbackRes.json()) as { items?: Array<{ linkKey: string; name: string }> };
-                if (searchData.items && searchData.items.length > 0) {
-                  items = searchData.items.slice(0, 4);
-                  matchedQuery = q;
-                  break;
-                }
-              }
-              if (items.length > 0) {
-                const fallbackContent = `Here are the matching capabilities found in the live catalog for **${matchedQuery}**:\n\n\`\`\`json\n{\n  "type": "package_cards",\n  "keys": ${JSON.stringify(items.map((x) => x.linkKey))}\n}\n\`\`\``;
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    role: "assistant",
-                    content: fallbackContent,
-                    streaming: false,
-                  },
-                ]);
-                return;
-              }
-              const hint = queries.find((q) => q !== question.trim()) ?? question;
-              setError(`The assistant timed out. Search the catalog for “${hint}”, or ask again.`);
-            } catch {
-              /* fallback network error */
-              setError("Request timed out — please try again or search the catalog directly.");
-            }
+            setError("The assistant took too long to respond. Please try again.");
           } else {
-            // The visitor pressed stop or partial stream ended — keep whatever streamed in
             patchLast({ streaming: false });
           }
         } else {
@@ -1038,7 +1130,7 @@ export function Assistant() {
         abortRef.current = null;
       }
     },
-    [busy, messages, patchLast],
+    [busy, messages, patchLast, rememberChats],
   );
 
   if (!mounted) return null;
@@ -1059,10 +1151,26 @@ export function Assistant() {
           <div>
             <p className="text-[13.5px] font-semibold leading-tight">Ask AI</p>
             <p className="text-[11px] leading-tight text-muted-foreground">
-              Grounded in the live catalog and LiteSPM docs
+              General chat · documentation RAG · live catalog
             </p>
           </div>
         </div>
+        <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setRememberChats((enabled) => !enabled)}
+          title={rememberChats ? "Conversation history is saved on this device. Click to turn off and clear it." : "Turn on local conversation history for this device."}
+          aria-label={rememberChats ? "Turn off local chat memory" : "Turn on local chat memory"}
+          className={cn("inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors", rememberChats ? "bg-brand/10 text-brand" : "text-muted-foreground hover:bg-muted")}
+        >
+          <BrainCircuit className="h-3.5 w-3.5" />
+          {rememberChats ? "Memory on" : "Memory off"}
+        </button>
+        {messages.length > 0 && (
+          <button type="button" onClick={() => setMessages([])} disabled={busy} aria-label="Clear conversation" title="Clear this conversation and any locally saved history" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           type="button"
           aria-label="Close assistant"
@@ -1071,14 +1179,14 @@ export function Assistant() {
         >
           <X className="h-4 w-4" />
         </button>
+        </div>
       </div>
 
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="space-y-3">
             <p className="text-[13px] leading-relaxed text-muted-foreground">
-              Ask what your agent should install — I search the live catalog and answer with real
-              listings. Or ask how LiteSPM works: setup, commands, backups.
+              Ask me anything. I can chat normally, explain LiteSPM using its documentation, or search and compare real catalog listings when you need something to install.
             </p>
             <div className="grid gap-2">
               {SUGGESTIONS.map((s) => (
@@ -1111,9 +1219,9 @@ export function Assistant() {
                 <>
                   {message.content.length === 0 && message.streaming ? (
                     <div className="flex items-center gap-1.5 py-1" aria-label="The assistant is thinking">
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand [animation-delay:0ms]" />
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand [animation-delay:150ms]" />
-                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand [animation-delay:300ms]" />
+                      <span className="h-1.5 w-1.5 animate-bounce motion-reduce:animate-none rounded-full bg-brand [animation-delay:0ms]" />
+                      <span className="h-1.5 w-1.5 animate-bounce motion-reduce:animate-none rounded-full bg-brand [animation-delay:150ms]" />
+                      <span className="h-1.5 w-1.5 animate-bounce motion-reduce:animate-none rounded-full bg-brand [animation-delay:300ms]" />
                     </div>
                   ) : (
                     <div>
@@ -1126,7 +1234,7 @@ export function Assistant() {
                       />
                       {message.streaming && (
                         <span
-                          className="ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] animate-pulse rounded-[1px] bg-brand"
+                          className="ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] animate-pulse motion-reduce:animate-none rounded-[1px] bg-brand"
                           aria-hidden="true"
                         />
                       )}
@@ -1138,6 +1246,32 @@ export function Assistant() {
                     </p>
                   )}
                 </>
+              )}
+              {message.sources && message.sources.length > 0 && (
+                <div className="mt-3 border-t border-border/60 pt-2.5">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                      <BookOpen className="h-3 w-3 text-brand" /> Documentation sources
+                    </p>
+                    {message.meta?.rag && (
+                      <span
+                        className="rounded-md border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground"
+                        title={`${message.meta.rag.chunks.toLocaleString()} chunks across ${message.meta.rag.sources} sources · ${message.meta.rag.embeddedChunks.toLocaleString()} semantic embeddings`}
+                      >
+                        {message.meta.rag.mode === "hybrid-semantic" ? "Semantic hybrid" : "Lexical + local vectors"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {message.sources.slice(0, 6).map((source) => (
+                      <span key={source.id} title={`${source.section} · lines ${source.startLine}-${source.endLine}`} className="inline-flex max-w-full items-center gap-1 rounded-lg border border-border/70 bg-muted/50 px-2 py-1 text-[10.5px] text-muted-foreground">
+                        <span className="font-semibold text-brand">{source.id}</span>
+                        <span className="truncate">{source.source}</span>
+                        <span className="shrink-0 opacity-70">L{source.startLine}–{source.endLine}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
               {message.citations && message.citations.length > 0 && !message.content.includes('"type": "package_cards"') && (
                 <div className="mt-3 border-t border-border/60 pt-2.5">
@@ -1169,7 +1303,7 @@ export function Assistant() {
 
         {busy && waitingFirstToken && (
           <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none text-brand" />
             {statusText ?? "Searching the catalog…"}
           </div>
         )}
@@ -1199,8 +1333,8 @@ export function Assistant() {
               }
             }}
             rows={1}
-            placeholder="Ask about packages, hosts or setup…"
-            className="max-h-28 min-h-[38px] flex-1 resize-none rounded-lg border border-border/70 bg-background px-3 py-2 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:border-brand/50"
+            placeholder="Ask anything — chat, docs, packages, code…"
+            className="max-h-28 min-h-[38px] flex-1 resize-none rounded-lg border border-border/70 bg-background px-3 py-2 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:border-brand/52"
             aria-label="Message"
           />
           <button
@@ -1238,7 +1372,7 @@ export function Assistant() {
         Ask AI
         {messages.length === 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-foreground opacity-60" />
+            <span className="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-brand-foreground opacity-60" />
             <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-card bg-brand-foreground" />
           </span>
         )}
@@ -1251,7 +1385,7 @@ export function Assistant() {
           )}
           aria-hidden="true"
         >
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
+          <span className="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-brand opacity-60" />
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand" />
         </span>
       )}

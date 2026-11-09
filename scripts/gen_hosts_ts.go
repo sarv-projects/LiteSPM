@@ -8,10 +8,10 @@
 //
 // Usage:  go run scripts/gen_hosts_ts.go
 //
-// The emitted userPath is the Unix-resolution of the adapter's user-scope
-// config, with the home directory replaced by "~". Windows paths are NOT
-// synthesised: the registry deliberately refuses to guess them (see
-// ARCH/30), so neither does this generator.
+// The emitted userPath is the canonical home-relative config path, with the
+// fake home replaced by "~". Platform-specific application-data locations are
+// represented by supportedOS plus explicit website overrides, not by leaking
+// the machine that happened to run this generator.
 package main
 
 import (
@@ -69,13 +69,18 @@ type emittedHost struct {
 	// — for 38 hosts the binary would happily install into. Emitting the set
 	// here is the fix the table's own comment asked for: one source.
 	RemoteTransports []string `json:"remoteTransports,omitempty"`
+	SupportedOS      []string `json:"supportedOS,omitempty"`
+	LayoutScope      string   `json:"layoutScope,omitempty"`
 }
 
 func main() {
 	os.Setenv("HOME", fakeHome)
+	os.Setenv("USERPROFILE", fakeHome)
 	os.Setenv("XDG_CONFIG_HOME", filepath.Join(fakeHome, ".config"))
-	// APPDATA is meaningless on Unix and windowsAppData() ignores it there, so
-	// setting it would change nothing. Left unset deliberately.
+	// Keep generated paths deterministic when run on Windows as well as CI.
+	// These application-data roots are emitted as explicit UI overrides.
+	os.Setenv("APPDATA", "")
+	os.Setenv("LOCALAPPDATA", "")
 
 	ctx := context.Background()
 	var out []emittedHost
@@ -90,18 +95,20 @@ func main() {
 		if g, ok := a.(*host.GenericAdapter); ok {
 			row.Generic = true
 			row.DocsURL = g.Target.DocsURL
+			row.SupportedOS = append([]string(nil), g.Target.SupportedOS...)
 			if g.Target.UserPath == nil {
 				row.Projected = true
 			}
 		}
-		// The container key path and entry shape come from the registry for
-		// EVERY adapter, the six hand-written ones included
-		// (host.EntryLayoutForScope resolves bespokeEntrySpecs for those). The
-		// web UI used to hard-code those six and its rows drifted from the
-		// adapters (its OpenCode row disagreed with opencode.go), so the
-		// drift is removed at the source instead of being patched in
-		// TypeScript. The site documents the user-scope layout.
-		if keyPath, shape, ok := host.EntryLayoutForScope(a, domain.ScopeUser); ok {
+		// Publish the layout for the scope the installer can actually write.
+		// Project-only hosts (for example VS Code's workspace mcp.json) must
+		// not inherit the user-scope mcpServers default in the website.
+		layoutScope := domain.ScopeUser
+		if !host.SupportsUserScope(a) && host.SupportsProjectScope(a) {
+			layoutScope = domain.ScopeProject
+		}
+		row.LayoutScope = string(layoutScope)
+		if keyPath, shape, ok := host.EntryLayoutForScope(a, layoutScope); ok {
 			row.KeyPath = keyPath
 			row.Shape = shape
 		}
@@ -130,8 +137,10 @@ func main() {
 				row.ProjectPath = strings.TrimPrefix(tidyPath(path), fakeRootSlash)
 			}
 		}
-		if p, err := a.DetectConfig(ctx, domain.ScopeUser); err == nil && p != "" {
-			row.UserPath = tidyPath(p)
+		if host.SupportsUserScope(a) && len(row.SupportedOS) == 0 {
+			if p, err := a.DetectConfig(ctx, domain.ScopeUser); err == nil && p != "" {
+				row.UserPath = tidyPath(p)
+			}
 		}
 		out = append(out, row)
 	}

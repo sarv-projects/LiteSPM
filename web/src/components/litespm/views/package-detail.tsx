@@ -693,7 +693,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                     className={`rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
                       isActive
                         ? "bg-brand-soft text-brand border border-brand/40"
-                        : "bg-muted/40 text-muted-foreground hover:bg-muted/80 hover:text-foreground border border-border/50"
+                        : "bg-muted/40 text-muted-foreground hover:bg-muted/80 hover:text-foreground border border-border/52"
                     }`}
                   >
                     {h.name.replace(/ \(.*\)/, "").replace(/ CLI$/, "")}

@@ -3,7 +3,7 @@
  *
  * Every file under `data/litespm/` is the actual generated dataset from the
  * LiteSPM repository: 69,376 raw catalog rows that dedupe to the unique
- * listings the site publishes, the 50 bridge adapters in `hosts.json`, the
+ * listings the site publishes, the 52 bridge adapters in `hosts.json`, the
  * 81 skills targets, the curated featured shelf, the release manifest and the
  * published CLI version. Nothing here is synthesized.
  *

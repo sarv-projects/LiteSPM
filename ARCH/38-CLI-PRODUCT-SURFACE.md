@@ -227,7 +227,7 @@ mechanical.
 `copy` is **not**: a file copy, a config diff tool (`diff` is), a continuous
 reconciler (`sync` is), or a secret mover (invariant 3).
 
-The N×N problem is refused outright: with ~50 bridge targets, pairwise
+The N×N problem is refused outright: with ~52 bridge targets, pairwise
 translators are 2,450 directed pairs. LiteSPM already ships the alternative.
 
 ### 5.2 HLD — one intermediate representation

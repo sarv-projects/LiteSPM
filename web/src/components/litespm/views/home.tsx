@@ -157,7 +157,7 @@ export function HomeView() {
             >
               <Sparkles className="h-3.5 w-3.5" />
               {cliVersion ? `v${cliVersion.replace(/^v/, "")} on npm` : "on npm"} ·{" "}
-              {stats ? `${stats.hosts} agent hosts` : "50 agent hosts"}
+              {stats ? `${stats.hosts} agent hosts` : "52 agent hosts"}
             </motion.p>
             <motion.h1
               initial={{ opacity: 0, y: 12 }}
@@ -175,7 +175,7 @@ export function HomeView() {
               className="mt-5 max-w-[52ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]"
             >
               Stop manually configuring your AI agents. Discover, install, and manage MCP servers,
-              skills, and plugins across {stats ? stats.hosts : 50} agent hosts — with previews, auto-backups, and 1-click rollback.
+              skills, and plugins across {stats ? stats.hosts : 52} agent hosts — with previews, auto-backups, and 1-click rollback.
             </motion.p>
 
             <motion.div
@@ -246,7 +246,7 @@ export function HomeView() {
                   </span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
-                  {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : "50"}
+                  {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : "52"}
                 </dd>
               </div>
               <div
@@ -276,7 +276,7 @@ export function HomeView() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15, duration: 0.5, ease: [0.21, 0.6, 0.35, 1] }}
           >
-            <TerminalHero hostsCount={stats?.hosts ?? 50} />
+            <TerminalHero hostsCount={stats?.hosts ?? 52} />
             <p className="mt-3 text-center text-[11px] text-muted-foreground/80">
               Interactive CLI walkthrough: search, preview, install with backup, and ledger tracking.
             </p>
@@ -496,7 +496,7 @@ export function HomeView() {
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                   <step.icon className="h-5 w-5" />
                 </span>
-                <span className="font-mono text-[11px] font-semibold text-muted-foreground/50">
+                <span className="font-mono text-[11px] font-semibold text-muted-foreground/52">
                   0{i + 1}
                 </span>
               </div>
@@ -661,7 +661,7 @@ export function HomeView() {
         <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
           <SectionHeading
             eyebrow="Works with your agent"
-            title={<span id="agents-title">{stats ? `${stats.hosts} hosts` : "50 hosts"}. One command.</span>}
+            title={<span id="agents-title">{stats ? `${stats.hosts} hosts` : "52 hosts"}. One command.</span>}
             description="Whether you build in Cursor, Claude Code, Cline, or Copilot — every agent host gets automatic configuration, pre-write backups, and a rollback ledger."
             action={
               <Button variant="outline" className="rounded-xl" onClick={() => navigate("#/agents")}>
@@ -801,7 +801,7 @@ export function HomeView() {
               },
               {
                 q: "Which AI coding agents are supported?",
-                a: "LiteSPM supports 50 agent hosts for local stdio MCP servers (including Cursor, Claude Code, Cline, OpenAI Codex, OpenCode, Grok Build, Gemini CLI, and GitHub Copilot) and 81 targets for skills, covering terminal, IDE, and desktop environments. 46 hosts also document a native remote (URL) entry; four support local stdio only and refuse a remote install.",
+                a: "LiteSPM supports 52 agent hosts for local stdio MCP servers (including Cursor, Claude Code, Cline, OpenAI Codex, OpenCode, Grok Build, Gemini CLI, and GitHub Copilot) and 81 targets for skills, covering terminal, IDE, and desktop environments. 47 hosts also document a native remote (URL) entry; four support local stdio only and refuse a remote install.",
               },
             ].map((item) => (
               <details
@@ -910,7 +910,7 @@ function TopRail({
           View top 100 <ChevronRight className="h-3.5 w-3.5" />
         </button>
       </div>
-      <ol className="divide-y divide-border/50">
+      <ol className="divide-y divide-border/52">
         {items.map((hit, i) => (
           <li key={hit.id}>
             <button
@@ -918,7 +918,7 @@ function TopRail({
               onClick={() => navigate(`#/package/${encodeURIComponent(hit.linkKey)}`)}
               className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-brand-soft/40"
             >
-              <span className="w-6 shrink-0 text-center font-mono text-[12px] font-semibold text-muted-foreground/50">
+              <span className="w-6 shrink-0 text-center font-mono text-[12px] font-semibold text-muted-foreground/52">
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span className="min-w-0 flex-1">

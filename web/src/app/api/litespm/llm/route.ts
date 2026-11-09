@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/litespm/llm
- * Key-free health snapshot of the LLM gateway. It reports counts only: the
- * provider order and per-key cooldown state are deployment details that a
- * public route has no reason to publish.
+ * Key-free health snapshot of the LLM gateway. It exposes provider names and
+ * aggregate credential counts for diagnosis, but never credential values or
+ * per-key failure details.
  */
 export async function GET(request: NextRequest) {
   const limit = rateLimit(`llm-status:${clientIp(request)}`, 30, 60_000);
@@ -20,12 +20,18 @@ export async function GET(request: NextRequest) {
     );
   }
   const status = getLlmStatus();
+  const keyed = status.credentials.filter((credential) => credential.keyIndex !== null);
+  const keyless = status.credentials.filter((credential) => credential.keyIndex === null);
+  const keyIds = new Set(keyed.map((credential) => `${credential.provider}#${credential.keyIndex}`));
+  const keylessAdapters = new Set(keyless.map((credential) => credential.provider));
   return NextResponse.json(
     {
       configured: status.credentials.length > 0,
+      providers: status.order,
       summary: {
         providers: status.order.length,
-        keys: status.credentials.length,
+        keys: keyIds.size,
+        keylessAdapters: keylessAdapters.size,
         healthy: status.credentials.filter((c) => c.healthy).length,
         cooling: status.credentials.filter((c) => !c.healthy).length,
       },

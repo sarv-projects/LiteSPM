@@ -28,8 +28,9 @@ in the dataset, because the homepage's cards link to it.
 Usage:
   scripts/check_site_links.py [BUILT_DIR] [--dataset web/data/catalog.json]
 
-BUILT_DIR defaults to web/out. Exits 0 when every link resolves, 1 otherwise,
-2 on a usage error.
+BUILT_DIR defaults to web/out (legacy static export). The current production
+app uses Next.js standalone output; this checker is only for explicit HTML
+export fixtures. Exits 0 when every link resolves, 1 otherwise, 2 on usage.
 """
 
 import argparse
@@ -86,7 +87,7 @@ def collect_links(root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("built", nargs="?", default="web/out",
-                        help="the built site directory (default: web/out)")
+                        help="legacy static HTML export directory (default: web/out)")
     parser.add_argument("--dataset", default="web/data/catalog.json",
                         help="the catalog dataset the site was built from")
     parser.add_argument("--featured", default="web/data/featured.json",

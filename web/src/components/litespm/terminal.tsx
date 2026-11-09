@@ -86,7 +86,7 @@ const LINE_STYLES: Record<ScriptLine["kind"], string> = {
 
 export function TerminalHero({
   className,
-  hostsCount = 50,
+  hostsCount = 52,
 }: {
   className?: string;
   hostsCount?: number;
@@ -196,7 +196,7 @@ export function TerminalHero({
             <span className="h-3 w-3 rounded-full bg-amber-500/80 transition-opacity hover:opacity-100" />
             <span className="h-3 w-3 rounded-full bg-emerald-500/80 transition-opacity hover:opacity-100" />
           </span>
-          <span className="ml-2 inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-white/50">
+          <span className="ml-2 inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-white/52">
             <Terminal className="h-3 w-3 text-brand" /> litespm — terminal
           </span>
         </div>

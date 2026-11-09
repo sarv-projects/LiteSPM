@@ -179,8 +179,12 @@ type BridgeTarget struct {
 	// SlashCommandTrigger is the in-agent command this host is told to use.
 	SlashCommandTrigger string
 
-	// UserPath resolves the user-scope config file. Required.
+	// UserPath resolves the user-scope config file. Required unless the host
+	// documents project-scope configuration only.
 	UserPath func(home string) string
+	// SupportedOS restricts a target to operating systems the vendor supports.
+	// Empty means the adapter's documented path applies on all Go-supported OSes.
+	SupportedOS []string
 	// ProjectPath resolves the repo-local config file. May be nil for hosts
 	// that only accept user-scope configuration.
 	ProjectPath func(root string) string

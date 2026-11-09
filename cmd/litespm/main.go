@@ -410,8 +410,8 @@ func runSelfUpdate(args []string) {
 	// pins the signer to this repository's release workflow on a v-tag ref.
 	// A bundle that exists but does not verify always aborts — including when the
 	// verifier cannot run at all. A release that publishes no bundle (pre-signing)
-	// may proceed with a stated checksum-only fallback — unless
-	// LITESPM_REQUIRE_SIGNED_UPDATE=1 makes authenticity mandatory.
+	// is refused by default. LITESPM_ALLOW_UNSIGNED_RELEASE=1 is the explicit
+	// opt-out for a pre-signing release and prints a warning.
 	if err := verifyDownloadedUpdate(ctx, u, info, binName, payload, stagingDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Update aborted: %v\n", err)
 		os.Exit(1)
@@ -469,29 +469,24 @@ func releaseDownloadTarget(info *update.ReleaseInfo, binName string) (downloadUR
 // verifyDownloadedUpdate checks the release's Sigstore bundle for the target
 // binary against the bytes just downloaded, before they can be installed.
 //
-// Failure semantics are deliberately asymmetric: a bundle that is published and
-// does not verify — or cannot be verified at all, which is what a missing
-// cosign binary produces — is always fatal, because that is the attack signal
-// and the whole reason a bundle is published; only a release that publishes no
-// bundle at all is the stated checksum-only fallback, which
-// LITESPM_REQUIRE_SIGNED_UPDATE=1 turns into a hard refusal.
+// A published bundle that fails, cannot be fetched, or cannot be verified is
+// always fatal. A release with no bundle is also refused by default. Only the
+// explicit LITESPM_ALLOW_UNSIGNED_RELEASE=1 opt-out permits checksum-only
+// verification for pre-signing releases, matching the npm installer.
 func verifyDownloadedUpdate(ctx context.Context, u *update.Updater, info *update.ReleaseInfo, binName string, payload []byte, stagingDir string) error {
 	if info == nil {
 		return fmt.Errorf("no release information to verify against")
 	}
 	bundleURL := strings.TrimSpace(info.BundleURLs[binName+trust.DefaultBundleSuffix])
-	required := signedUpdateRequired()
 	if bundleURL == "" {
-		if required {
-			return fmt.Errorf("release %s publishes no signature bundle for %s and LITESPM_REQUIRE_SIGNED_UPDATE is set; refusing an unverified self-update", info.Version, binName)
+		if !unsignedReleaseAllowed() {
+			return fmt.Errorf("release %s publishes no signature bundle for %s; signed self-updates are required by default. For a pre-signing release only, set LITESPM_ALLOW_UNSIGNED_RELEASE=1 to explicitly accept checksum-only verification", info.Version, binName)
 		}
-		fmt.Println("Note: this release predates signed artifacts; verifying the SHA-256 checksum only.")
+		fmt.Println("WARNING: LITESPM_ALLOW_UNSIGNED_RELEASE=1 is set; this release has no signature bundle. Verifying SHA-256 only does not authenticate the publisher.")
 		return nil
 	}
 	bundle, err := u.FetchAsset(ctx, bundleURL)
 	if err != nil {
-		// The release DID publish a signature and it could not be fetched:
-		// authenticity is unestablished, so the update does not proceed.
 		return fmt.Errorf("release %s publishes a signature bundle for %s but it could not be fetched: %w", info.Version, binName, err)
 	}
 	if err := os.MkdirAll(stagingDir, 0o700); err != nil {
@@ -514,29 +509,22 @@ func verifyDownloadedUpdate(ctx context.Context, u *update.Updater, info *update
 		fmt.Println("Signature verified (keyless: this repository's release workflow on a v-tag).")
 		return nil
 	case trust.ResultFailed:
-		return fmt.Errorf("signature verification FAILED for %s: %s — the downloaded bytes do not match the release's signing identity; refusing to install them", binName, verdict.Detail)
-	default: // unavailable
-		// The bundle EXISTS — it was fetched successfully above — so this is a
-		// signed release whose signature could not be checked (typically: cosign
-		// is not installed here). SECURITY.md promises that a published bundle
-		// always aborts, and "the verifier could not run" is exactly the case
-		// that used to slip past that promise by falling back to checksums, so it
-		// is now fatal too. An unsigned release never reaches this branch: it
-		// returns in the bundleURL == "" case above, where the documented
-		// checksum-only fallback still applies.
-		return fmt.Errorf("release %s publishes a signature bundle for %s but it cannot be verified here (%s); refusing to install unverified bytes — install cosign to verify this release, or pin a release that publishes no bundle", info.Version, binName, verdict.Detail)
+		return fmt.Errorf("signature verification FAILED for %s: %s ? the downloaded bytes do not match the release's signing identity; refusing to install them", binName, verdict.Detail)
+	default:
+		return fmt.Errorf("release %s publishes a signature bundle for %s but it cannot be verified here (%s); refusing to install unverified bytes ? ensure the Sigstore trust root can be fetched to verify this release", info.Version, binName, verdict.Detail)
 	}
 }
 
-// signedUpdateRequired reports whether the operator demanded signed updates.
-// An unrecognized value is "not required": a typo must not brick self-update,
-// while the honest note above still tells the user what was checked.
-func signedUpdateRequired() bool {
-	switch strings.TrimSpace(strings.ToLower(os.Getenv("LITESPM_REQUIRE_SIGNED_UPDATE"))) {
+// unsignedReleaseAllowed is an explicit, opt-in downgrade for releases cut
+// before artifact signing was introduced. Unknown values never weaken the
+// signature-required default.
+func unsignedReleaseAllowed() bool {
+	switch strings.TrimSpace(strings.ToLower(os.Getenv("LITESPM_ALLOW_UNSIGNED_RELEASE"))) {
 	case "1", "true", "yes":
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 // readBounded reads at most limit bytes and refuses an oversized payload rather

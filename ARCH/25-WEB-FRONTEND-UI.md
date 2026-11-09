@@ -96,7 +96,7 @@ Each capability is rendered as a clean card:
 *   **Description:** Concise 2-line summary.
 *   **Metadata Badges:**
     *   Exactly two tags: type + category.
-    *   Host-compatibility chips derived from registries (MCP → all 50 bridge adapters; skill → all 81 skill targets; plugin → publisher-declared).
+    *   Host-compatibility chips derived from registries (MCP → all 52 bridge adapters; skill → all 81 skill targets; plugin → publisher-declared).
     *   No stars: the catalog publishes no popularity figures. `publisher.verified` is a registry flag with a not-a-security-audit disclaimer (`PublisherMark.tsx`, `SiteFooter.tsx`).
 *   **One-Click Copy Command:** Button that copies `litespm install <id>` to clipboard with toast feedback. A row that carries an `installHint` gets a second copyable line, and the label follows whose command it is: a skill's hint is *our* `litespm skills add …` ("Install it straight from the source repo"), a plugin's is the host's own `/plugin install` ("The host's own command"), because LiteSPM cannot install plugins at all (`AddSteps.tsx`). Package names and commands render in monospace.
 

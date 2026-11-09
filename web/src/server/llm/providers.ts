@@ -4,10 +4,10 @@
  * Every adapter receives the same normalized request and returns either
  * plain text or an `LlmAdapterError`. Three styles are supported:
  *
- *  - "openai"  : OpenAI-compatible POST /chat/completions — covers NVIDIA NIM,
- *                Groq, OpenRouter, Together, DeepSeek, vLLM, Ollama, LM Studio…
+ *  - "openai"  : OpenAI-compatible POST /chat/completions - covers NVIDIA NIM,
+ *                Groq, OpenRouter, Together, DeepSeek, vLLM, Ollama, LM Studio...
  *  - "gemini"  : Google Generative Language generateContent
- *  - "zai"     : the z-ai-web-dev-sdk (keyless in this sandbox, used as fallback)
+ *  - "zai"     : the z-ai-web-dev-sdk (requires a .z-ai-config file; opt-in only)
  */
 
 import type { LlmChatRequest } from "./types";
@@ -109,7 +109,7 @@ function toAdapterError(response: Response, body: string): LlmAdapterError {
   return new LlmAdapterError("bad_request", `request rejected: ${body}`, response.status);
 }
 
-/** POST {baseUrl}/chat/completions — NVIDIA NIM, Groq, OpenRouter, and friends. */
+/** POST {baseUrl}/chat/completions - NVIDIA NIM, Groq, OpenRouter, and friends. */
 export async function openAiCompatibleChat(
   credential: { baseUrl: string; apiKey?: string; model: string; provider: string },
   request: LlmChatRequest,
@@ -165,7 +165,7 @@ export async function openAiCompatibleChat(
   }
 }
 
-/** POST {baseUrl}/models/{model}:generateContent — Google Gemini. */
+/** POST {baseUrl}/models/{model}:generateContent - Google Gemini. */
 export async function geminiChat(
   credential: { baseUrl: string; apiKey?: string; model: string; provider: string },
   request: LlmChatRequest,
@@ -226,7 +226,7 @@ export async function geminiChat(
   }
 }
 
-/** z-ai-web-dev-sdk — keyless in this environment, kept as the final fallback. */
+/** z-ai-web-dev-sdk - requires .z-ai-config and is enabled only by explicit opt-in. */
 export async function zaiChat(
   request: LlmChatRequest,
   timeoutMs: number,
@@ -235,7 +235,7 @@ export async function zaiChat(
   const { default: ZAI } = await import("z-ai-web-dev-sdk");
   // The SDK has no AbortController surface of its own, so the completion is
   // raced against both the timeout and (when the caller passes one) a client
-  // abort — we may not be able to stop the SDK's work, but we stop waiting.
+  // abort - we may not be able to stop the SDK's work, but we stop waiting.
   const loser = new Promise<never>((_, reject) => {
     const timer = setTimeout(
       () => reject(new LlmAdapterError("network", `zai timed out after ${timeoutMs}ms`)),
@@ -347,7 +347,7 @@ async function consumeSse(
         try {
           json = JSON.parse(payload);
         } catch {
-          continue; // partial frame — the next chunk completes it
+          continue; // partial frame - the next chunk completes it
         }
         // If choices/delta is present (including reasoning frames), acknowledge stream activity
         if ((json as { choices?: Array<{ delta?: unknown }> })?.choices?.[0]?.delta) {
@@ -373,7 +373,7 @@ async function consumeSse(
             options.onDelta(text);
           }
         } catch {
-          /* incomplete tail — ignore */
+          /* incomplete tail - ignore */
         }
       }
     }
@@ -509,4 +509,77 @@ export async function geminiChatStream(
     if (!parts?.length) return undefined;
     return parts.map((p) => p.text ?? "").join("") || undefined;
   });
+}
+
+
+/**
+ * OpenAI-compatible non-streaming tool call. Tool execution remains outside
+ * the provider adapter; this function only returns the model's proposed calls.
+ */
+export async function openAiCompatibleChatWithTools(
+  credential: { baseUrl: string; apiKey?: string; model: string; provider: string },
+  request: LlmChatRequest,
+  timeoutMs: number,
+): Promise<{ text: string; toolCalls: Array<{ id: string; name: string; arguments: string }> }> {
+  if (!request.tools?.length) {
+    throw new LlmAdapterError("bad_request", "tool call requested without a tool registry");
+  }
+  const url = `${credential.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (credential.apiKey) headers.Authorization = `Bearer ${credential.apiKey}`;
+  headers["HTTP-Referer"] = "https://litespm.local";
+  headers["X-Title"] = "LiteSPM";
+
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: credential.model,
+        messages: [{ role: "system", content: request.system }, ...request.messages],
+        temperature: request.temperature ?? DEFAULT_TEMPERATURE,
+        max_tokens: request.maxTokens ?? 1024,
+        stream: false,
+        tools: request.tools,
+        tool_choice: request.toolChoice ?? "auto",
+        parallel_tool_calls: false,
+      }),
+    }, timeoutMs);
+  } catch (error) {
+    const reason = error instanceof Error && error.name === "AbortError"
+      ? `timed out after ${timeoutMs}ms`
+      : "connection failed";
+    throw new LlmAdapterError("network", `${credential.provider} ${reason}`);
+  }
+
+  if (!response.ok) throw toAdapterError(response, await readErrorBody(response));
+  try {
+    const json = await response.json() as {
+      choices?: Array<{
+        message?: {
+          content?: string | null;
+          tool_calls?: Array<{
+            id?: string;
+            function?: { name?: string; arguments?: string };
+          }>;
+        };
+      }>;
+    };
+    const message = json.choices?.[0]?.message;
+    const toolCalls = (message?.tool_calls ?? []).flatMap((call) => {
+      const name = call.function?.name;
+      const args = call.function?.arguments;
+      if (!call.id || !name || typeof args !== "string") return [];
+      return [{ id: call.id, name, arguments: args }];
+    });
+    const text = typeof message?.content === "string" ? message.content.trim() : "";
+    if (!text && toolCalls.length === 0) {
+      throw new LlmAdapterError("empty", `${credential.provider} returned neither text nor tool calls`);
+    }
+    return { text, toolCalls };
+  } catch (error) {
+    if (error instanceof LlmAdapterError) throw error;
+    throw new LlmAdapterError("bad_request", `${credential.provider} returned malformed tool-call JSON`);
+  }
 }

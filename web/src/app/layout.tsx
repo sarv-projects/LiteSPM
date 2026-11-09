@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://lite-spm-nine.vercel.app"),
   title: "LiteSPM — The package manager for AI agents",
   description:
-    "Find MCP servers, skills and plugins once, and install them into the coding agents you use. Browse 69k+ listings across 50 agent hosts (46 remote-capable) — with publisher, source and installability stated up front.",
+    "Find MCP servers, skills and plugins once, and install them into the coding agents you use. Browse 69k+ listings across 52 agent hosts (47 remote-capable) — with publisher, source and installability stated up front.",
   keywords: [
     "MCP",
     "Model Context Protocol",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "LiteSPM — The package manager for AI agents",
     description:
-      "Search 69k+ MCP servers, skills and plugins, and install them into 50 supported agent hosts with preview, backup and undo.",
+      "Search 69k+ MCP servers, skills and plugins, and install them into 52 supported agent hosts with preview, backup and undo.",
     siteName: "LiteSPM",
     type: "website",
     images: [
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "LiteSPM — The package manager for AI agents",
     description:
-      "Search 69k+ MCP servers, skills and plugins, and install them into 50 supported agent hosts with preview, backup and undo.",
+      "Search 69k+ MCP servers, skills and plugins, and install them into 52 supported agent hosts with preview, backup and undo.",
     images: ["/og.png"],
   },
   robots: { index: true, follow: true },

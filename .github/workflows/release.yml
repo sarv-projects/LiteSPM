@@ -34,6 +34,24 @@ jobs:
         with:
           node-version: '22'
 
+      # Fail before building or creating a GitHub Release if the npm wrapper,
+      # lockfile and source tag do not describe the same release. The binary is
+      # compiled from this exact tag commit, so its schema migrations and CLI
+      # commands must be the same source users install through npm.
+      - name: Verify release version metadata
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./npm/package.json').version")"
+          LOCK_VERSION="$(node -p "require('./npm/package-lock.json').packages[''].version")"
+          if [ "${PACKAGE_VERSION}" != "${LOCK_VERSION}" ]; then
+            echo "::error::npm package version ${PACKAGE_VERSION} does not match lockfile version ${LOCK_VERSION}"
+            exit 1
+          fi
+          if [ "v${PACKAGE_VERSION}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::npm/package.json is v${PACKAGE_VERSION} but this release is ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          echo "Release tag, npm package and lockfile all match v${PACKAGE_VERSION}"
+
       - name: Run Go Test Suite
         run: go test ./...
 
@@ -111,23 +129,17 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Verify npm version matches the release tag
-        working-directory: ./npm
-        run: |
-          VERSION="$(node -p "require('./package.json').version")"
-          if [ "v${VERSION}" != "${GITHUB_REF_NAME}" ]; then
-            echo "::error::npm/package.json is v${VERSION} but this release is ${GITHUB_REF_NAME}"
-            exit 1
-          fi
-          echo "npm package version v${VERSION} matches the tag"
-
       # The installer is what every `npm install -g litespm` runs, so the
       # release is gated on its refusal paths. This runs after the GitHub
       # release exists, so the cases that verify the published bundle for THIS
-      # tag run against real assets. A case that cannot reach the network is
-      # skipped, never silently passed.
+      # tag run against real assets. In release mode, missing or unreachable
+      # assets are fatal rather than skips; local pre-release test runs may skip.
       - name: Test npm Wrapper and Installer
         working-directory: ./npm
+        env:
+          # A release pipeline must never publish npm after silently skipping
+          # the real binary, checksum-manifest and Sigstore-bundle checks.
+          LITESPM_TEST_REQUIRE_RELEASE: "1"
         run: |
           npm ci --ignore-scripts
           npm test

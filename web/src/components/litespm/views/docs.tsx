@@ -161,7 +161,7 @@ function Introduction() {
 
   const totalListings = stats?.all ? formatFull(stats.all) : "69k+";
   const installableCount = stats?.installable ? formatFull(stats.installable) : "26k+";
-  const hostsCount = stats?.hosts ? String(stats.hosts) : "50";
+  const hostsCount = stats?.hosts ? String(stats.hosts) : "52";
 
   return (
     <DocSection title="Introduction">
@@ -396,14 +396,14 @@ function Hosts() {
   return (
     <DocSection title="Agent hosts">
       <P>
-        LiteSPM supports <strong className="text-foreground">50 agent hosts</strong> for local stdio
+        LiteSPM supports <strong className="text-foreground">52 agent hosts</strong> for local stdio
         MCP servers and <strong className="text-foreground">81 targets</strong> for skills. The MCP
-        set includes Claude Code, OpenAI Codex, OpenCode, Cline, Pi, Grok Build, Cursor, Zed, Gemini
-        CLI, GitHub Copilot and AiderDesk.
+        set includes Claude Code, Claude Desktop, OpenAI Codex, OpenCode, Cline, Pi, Grok Build, Cursor,
+        Visual Studio Code, Zed, Gemini CLI, GitHub Copilot and AiderDesk.
       </P>
       <P>
-        <strong className="text-foreground">46 of the 50</strong> hosts document a native remote (URL)
-        entry. The other four — codestudio, iflow-cli, mux and zcode — support local stdio only and
+        <strong className="text-foreground">47 of the 52</strong> hosts document a native remote (URL)
+        entry. The other five — Claude Desktop, codestudio, iflow-cli, mux and zcode — support local stdio only and
         refuse a remote install with <code className="font-mono text-brand">LPSM-HOST-REMOTE-UNSUPPORTED</code>.
         There is no relay: LiteSPM does not write a URL shape a host cannot read, and it does not run
         a hidden proxy process on the host&apos;s behalf.
@@ -425,7 +425,7 @@ litespm install <id> --agent <host>   # target any of them`}
         onClick={() => navigate("#/agents")}
         className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand hover:underline"
       >
-        Browse all 50 agent profiles <ArrowRight className="h-3.5 w-3.5" />
+        Browse all 52 agent profiles <ArrowRight className="h-3.5 w-3.5" />
       </button>
     </DocSection>
   );
@@ -572,7 +572,7 @@ litespm catalog sync    # refresh local catalog index`}
           },
           {
             q: "A host refuses a remote (URL) install",
-            a: "46 of the 50 supported agent hosts document a native remote URL entry. Four hosts (Code Studio, iFlow CLI, Mux, and ZCode) support local stdio processes only; they refuse a remote install with LPSM-HOST-REMOTE-UNSUPPORTED. LiteSPM does not write an unsupported URL shape and does not run a hidden proxy on the host's behalf.",
+            a: "47 of the 52 supported agent hosts document a native remote URL entry. Five hosts (Claude Desktop, Code Studio, iFlow CLI, Mux, and ZCode) support local stdio processes only; they refuse a remote install with LPSM-HOST-REMOTE-UNSUPPORTED. LiteSPM does not write an unsupported URL shape and does not run a hidden proxy on the host's behalf.",
           },
           {
             q: "What does it mean when entries show as 'drifted'?",

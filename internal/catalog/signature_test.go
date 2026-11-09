@@ -52,32 +52,26 @@ func stubVerifier(scriptedVerdict string) (*trust.BlobVerifier, *[]string, *[]by
 	var seen []string
 	var stagedPointer []byte
 	v := &trust.BlobVerifier{
-		LookPath: func(string) (string, error) {
-			if scriptedVerdict == trust.ResultUnavailable {
-				return "", os.ErrNotExist
+		VerifyFunc: func(_ context.Context, artifactPath, bundlePath, _, _ string) error {
+			seen = append(seen, artifactPath, bundlePath)
+			if data, err := os.ReadFile(artifactPath); err == nil {
+				stagedPointer = data
 			}
-			return "/usr/bin/cosign", nil
-		},
-		Run: func(_ context.Context, args []string) ([]byte, error) {
-			seen = append(seen, args...)
-			for _, a := range args {
-				if strings.HasSuffix(a, "current.json") {
-					if data, err := os.ReadFile(a); err == nil {
-						stagedPointer = data
-					}
-				}
+			switch scriptedVerdict {
+			case trust.ResultUnavailable:
+				return trust.NewUnavailableError(os.ErrNotExist)
+			case trust.ResultFailed:
+				return errStubVerification
+			default:
+				return nil
 			}
-			if scriptedVerdict == trust.ResultFailed {
-				return []byte("certificate identity mismatch"), errStubCosign
-			}
-			return []byte("ok"), nil
 		},
 	}
 	return v, &seen, &stagedPointer
 }
 
-// errStubCosign is a non-nil error for the scripted "failed" verdict.
-var errStubCosign = &stubError{"cosign exited non-zero"}
+// errStubVerification is a non-nil error for the scripted "failed" verdict.
+var errStubVerification = &stubError{"certificate identity mismatch"}
 
 type stubError struct{ s string }
 
@@ -181,8 +175,9 @@ func TestSyncProceedsWithoutBundleByDefault(t *testing.T) {
 	}
 }
 
-// Published bundle + verifier unavailable (cosign not installed): default
-// mode falls back with the gap left visible; required mode refuses.
+// Published bundle + verifier unavailable (for example, the Sigstore trust
+// root cannot be fetched): default mode falls back with the gap left visible;
+// required mode refuses.
 func TestSyncUnavailableVerifierRespectsRequireFlag(t *testing.T) {
 	files := signedReleaseFiles(t, pointerFor(t), []byte(`{"bundle":"real"}`))
 

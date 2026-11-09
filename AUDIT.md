@@ -20,7 +20,7 @@ A prioritized, actionable list of everything the November 2026 security/correctn
 
 **Behaviour changes to be aware of (intentional):**
 
-1. A release that *publishes* a signature bundle now requires `cosign` on the updating machine. Without it the self-update refuses instead of falling back to checksums. That is the documented promise (`SECURITY.md` lines 64-67); the alternative is to vendor a Go Sigstore verifier and delete the `cosign` exec dependency (see §5).
+1. A release that *publishes* a signature bundle is verified in-process with `sigstore-go`; end users do not need the `cosign` executable. A present bundle that is invalid or cannot be verified aborts. A missing bundle is refused by default; only `LITESPM_ALLOW_UNSIGNED_RELEASE=1` explicitly permits checksum-only verification for pre-signing releases. `cosign` remains a release-workflow signing tool, not a self-update runtime dependency.
 2. `host.apply_setup` no longer accepts a `binaryPath` other than the running binary. Callers that legitimately passed a path must pass nothing.
 3. A catalog manifest naming anything other than `<base>.json` / `<base>-NNNN.json` is now refused as a whole, instead of the invalid entry being skipped.
 
@@ -42,10 +42,10 @@ A prioritized, actionable list of everything the November 2026 security/correctn
 
 ### F2 `[FIXED]` — A published signature was not actually required
 
-- **Where:** `cmd/litespm/main.go` `verifyDownloadedUpdate` (the `default: // unavailable` branch), and `internal/trust/blob.go` (which classifies a missing `cosign` as `ResultUnavailable`, never `ResultFailed`).
-- **What was wrong:** when a release published a bundle but `cosign` was not installed, the updater printed a warning and **installed on checksum-only**. `SECURITY.md` promises the opposite: "a bundle that is published and does not verify **always** aborts".
-- **Fix shipped:** a present bundle whose verdict is `unavailable` is now fatal. The unsigned-release fallback (no bundle published at all) still applies unless `LITESPM_REQUIRE_SIGNED_UPDATE=1`.
-- **`[DECISION]` The catalog client has the same shape, deliberately:** `internal/catalog/client.go` `verifyCurrentSignature` documents that an *unavailable verifier* (cosign missing) proceeds unless `LITESPM_REQUIRE_CATALOG_SIGNATURE=1`. A hostile origin can simply publish no bundle (404) under the current default, so making "present but unverifiable" fatal does not close that hole — the switch that does is `LITESPM_REQUIRE_CATALOG_SIGNATURE=1`. Decide: (a) default the catalog to requiring a signature, (b) ship a Go verifier so `cosign` is never the control point (also fixes F2's residual dependency), or (c) document the default loudly in `SECURITY.md` and the CLI output. Recommended: (b), then (a).
+- **Where:** `cmd/litespm/main.go` `verifyDownloadedUpdate` and `internal/trust/blob.go` (`BlobVerifier`).
+- **What was wrong:** the original updater treated an unavailable signature verifier as a warning and could continue on checksum-only verification even when a bundle was published. That violated the fail-closed promise in `SECURITY.md`.
+- **Fix shipped:** the updater now uses `sigstore-go` in-process. A published bundle that fails verification or cannot be verified is fatal; a release with no bundle is refused by default. Only `LITESPM_ALLOW_UNSIGNED_RELEASE=1` explicitly permits checksum-only verification for pre-signing releases. The end user does not need a separate `cosign` executable.
+- **`[DECISION]` Catalog signature absence remains a separate policy choice:** `internal/catalog/client.go` also uses `trust.BlobVerifier` in-process. A published bundle that fails verification is always fatal, but an origin that publishes no bundle may proceed on the digest chain unless `LITESPM_REQUIRE_CATALOG_SIGNATURE=1` is set. Decide whether unsigned catalog pointers should remain compatible by default or become a hard refusal; this is unrelated to installing Cosign.
 
 ### F3 `[FIXED]` — `host.apply_setup` bypassed the plan/approval machinery
 

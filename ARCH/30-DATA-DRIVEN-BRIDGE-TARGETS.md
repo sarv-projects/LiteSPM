@@ -1,6 +1,6 @@
 # ARCH-30 — Data-Driven Agent Bridge Targets
 
-Status: **`WIRED`.** The 44-row table is compiled into the adapter registry (`internal/host/registry.go:34-41`) and drives `host detect/setup` through `GenericAdapter`; `litespm host list` reports 50 adapters (6 bespoke + 44 generic).
+Status: **`WIRED`.** The 46-row table is compiled into the adapter registry (`internal/host/registry.go:34-41`) and drives `host detect/setup` through `GenericAdapter`; `litespm host list` reports 52 adapters (6 bespoke + 46 generic).
 Related: [16 — Host Adapters](16-HOST-ADAPTERS.md), [14 — Bridge & Provider MCP](14-BRIDGE-PROVIDER-MCP.md), [29 — Connector System Design](29-CONNECTOR-SYSTEM-DESIGN.md).
 
 ---
@@ -63,20 +63,22 @@ TOML targets use `mergeTOMLEntry`, which replaces or appends a single `[mcp_serv
 
 | Shape | Written as | Hosts |
 |---|---|---|
-| `ShapeObject` | `{"command": …, "args": [...]}` | the majority |
+| `ShapeObject` | `{"command": …, "args": [...]}` | the majority, including Claude Desktop and VS Code portable Copilot |
+| `ShapeStdioTyped` | `{"type": "stdio", "command": …, "args": [...]}` | Crush |
+| `ShapeLocalTypedString` | `{"type": "local", "command": "…"}` | GitHub Copilot CLI |
 | `ShapeLocalArray` | `{"type": "local", "command": [argv…]}` | opencode, kilo, fx, codearts-agent, posit-assistant |
 | `ShapeCommandString` | `"<bin> bridge stdio --host <id>"` | mux (Xum) |
 
-MCP key paths in use: `mcpServers`, nested `mcp` and `amp.mcpServers`, `mcp.servers`, `context_servers` (Zed), `servers` (codestudio, Xum).
+MCP key paths in use: `mcpServers` (including VS Code portable Copilot), nested `mcp` and `amp.mcpServers`, `mcp.servers`, `context_servers` (Zed), `servers` (codestudio, Xum).
 
 ## 6. Path resolution
 
-`resolveHomeDir()` honours `USERPROFILE` on Windows and `HOME` on Unix. `%APPDATA%` is read **only** when `runtime.GOOS == "windows"` — gating on the variable merely being set silently redirected config paths during testing, since `APPDATA` is meaningless on Unix. `XDG_CONFIG_HOME` is honoured via `xdgConfigDir`.
+`resolveHomeDir()` honours `USERPROFILE` on Windows and `HOME` on Unix. `%APPDATA%` and `%LOCALAPPDATA%` are read **only** when `runtime.GOOS == "windows"`; gating on the variable merely being set silently redirected config paths during testing, since those variables are meaningless on Unix. `XDG_CONFIG_HOME` is honoured via `xdgConfigDir`. Claude Desktop uses `%APPDATA%\\Claude\\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, and `${XDG_CONFIG_HOME:-~/.config}/Claude/claude_desktop_config.json` on Linux.
 
 Per-target overrides actually read by this resolver (`internal/host/targets_data.go`): `XDG_CONFIG_HOME`
 (via `xdgConfigDir`), `ASTRBOT_ROOT`, `GEMINI_CLI_HOME`, `COPILOT_HOME`, `KIMI_CODE_HOME`,
 `QODER_CONFIG_DIR`, `QODERCN_CONFIG_DIR`, `KODE_CONFIG_DIR`, `OH_PERSISTENCE_DIR`,
-`CRUSH_GLOBAL_CONFIG`.
+`CRUSH_GLOBAL_CONFIG`, `APPDATA` and `LOCALAPPDATA` (Windows only).
 
 Agent-home variables `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `GROK_HOME`, `AUTOHAND_HOME`,
 `HERMES_HOME`, `VIBE_HOME` and `SARVAM_HOME` are honoured by **`internal/skills`** only — they
@@ -93,7 +95,7 @@ These exist to make an unverified or wrong row impossible to ship quietly:
 | `TestBridgeTargetTableHasNoUndeclaredSharedConfigFiles` | Two hosts resolving to one config file unless **both** declare the overlap in `SharedConfigWith` and explain it in `Note`. This is the Windsurf bug class. Currently one declared pair: `antigravity` / `antigravity-cli`, which genuinely share `~/.gemini/config/mcp_config.json`. |
 | `TestBridgeTargetTableDoesNotShadowBespokeAdapters` | A table row silently replacing a tested hand-written adapter. |
 | `TestBridgeTargetTableExcludesUnverifiedAgents` | Quietly re-adding an agent that was excluded for lack of evidence. |
-| `TestEveryTableTargetAppliesToARealisticFile` | Any row emitting a broken edit — runs all 44 rows against a realistic seeded config and asserts the bridge entry lands, the key path is right, and foreign servers and unrelated settings survive. |
+| `TestEveryTableTargetAppliesToARealisticFile` | Any row emitting a broken edit — runs all 46 rows against a realistic seeded config and asserts the bridge entry lands, the key path is right, and foreign servers and unrelated settings survive. |
 | `TestGenericAdapterPreservesUserCommentsEndToEnd` | Regression test for the comment-deletion data-loss bug. |
 | `TestRenderConfigRefusesToClobberScalar` | Confused-deputy overwrite: if a key path collides with an unrelated scalar, fail rather than replace it. |
 
@@ -107,7 +109,7 @@ go vet ./...
 go test ./... -count=1     # all packages green
 ```
 
-Registered adapters after this change: **50** (6 hand-written + 44 verified targets).
+Registered adapters after this change: **52** (6 hand-written + 46 verified targets).
 
 ### 8.1 Host documentation audit — 2026-10-06
 
@@ -149,18 +151,40 @@ The durable lesson, now enforced by `internal/host/host_docs_audit_test.go`:
 assert the *host-visible* result (valid JSON, the server named, the entry under
 the key the vendor documents), not just that our own writer round-trips.
 
+### 8.2 Cross-platform host additions and website path matrix — 2026-11-08
+
+Two vendor integrations were added after checking the current official configuration references:
+
+| Host | Config path | Format and scope | OS coverage | Remote |
+|---|---|---|---|---|
+| Claude Desktop | Windows: `%APPDATA%\\Claude\\claude_desktop_config.json`; macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`; Linux: `${XDG_CONFIG_HOME:-~/.config}/Claude/claude_desktop_config.json` | JSON, top-level `mcpServers`, local stdio | Windows, macOS, Linux | Not advertised by the local config reference; refused |
+| Visual Studio Code (Copilot harness) | Workspace: `.mcp.json` | JSON, top-level `mcpServers`; stdio entries use `command` + `args` without a VS Code-specific `type` | Windows, macOS, Linux | HTTP only, with `type: "http"` + `url` |
+
+Sources: [MCP local-server guide](https://modelcontextprotocol.io/docs/develop/connect-local-servers) (Claude Desktop availability, OS paths, and `mcpServers` shape), [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration) (workspace/profile/portable formats, fields and transports), and [VS Code configuration destinations](https://code.visualstudio.com/docs/agent-customization/mcp-servers) (current compatibility/deprecation status).
+
+**Important platform corrections and decisions:**
+
+* Claude Desktop's current MCP docs include Linux support. Linux uses `XDG_CONFIG_HOME/Claude`, defaulting to `~/.config/Claude`. The installer now honours `XDG_CONFIG_HOME`; the old macOS/Windows-only assumption was wrong.
+* VS Code has distinct configuration schemas. LiteSPM writes the portable Copilot workspace `.mcp.json` format (top-level `mcpServers`), which Copilot harness sessions read directly. Portable entries support stdio and HTTP, not SSE. The separate VS Code `.vscode/mcp.json` Local-harness format uses top-level `servers`, requires `type: "stdio"` for stdio entries, and supports HTTP/SSE; VS Code still accepts it but labels it deprecated in guided setup. LiteSPM does not write that legacy format or guess a profile-managed global path.
+* The generated host registry now carries `supportedOS` and `layoutScope`. Project-only adapters emit the project-scope key path and entry shape, fixing the previous user-scope website mismatch.
+* App recovery now has a route-level `error.tsx`, root `global-error.tsx`, and custom `not-found.tsx`. Both error boundaries log diagnostics, offer a retry action, and provide a safe return to the catalog without exposing raw exception details.
+* The website agent detail view now has Windows/macOS/Linux selectors and displays the path and matching bridge example for the selected OS. Windows paths derived from a home-relative config are explicitly labelled as derived; AppData-specific paths have vendor-specific overrides. The installer continues to honour host-specific environment overrides.
+* Regression coverage: `TestClaudeDesktopConfigPaths`, `TestVSCodeUsesPortableCopilotSchemaAndProjectScope`, `TestSupportedTargetOSIsFailClosed`, `TestRemoteCapabilityMatrixCounts`, `web/scripts/test-hardening.mjs`, and `web/scripts/test-host-paths.ts` (all 52 hosts across Windows, macOS, and Linux).
+
+This is an implementation-level path matrix: where a vendor documents an OS-specific path, LiteSPM uses it; where the vendor only documents a home-relative path, the Windows form is labelled as LiteSPM's expansion rather than represented as a vendor quotation.
+
 ## 9. Known limitations
 
 * `TolerateComments` is advisory metadata. The writer preserves comments for all JSON targets regardless; the flag records which hosts document the format as comment-tolerant.
 * `DetectPaths` and `DetectBinaries` are recorded but install-detection is not yet wired into a CLI command; `DetectInstalledHosts` currently reports verification state only.
-* Several rows note that a **Windows-native path is derived from `~` expansion** rather than stated by the vendor. `resolveHomeDir` applies the standard expansion, which is correct but is an inference, not a quotation.
+* Several rows note that a **Windows-native path is derived from `~` expansion** rather than stated by the vendor. The website labels these as home-relative defaults expanded under `%USERPROFILE%`; it does not present them as vendor-quoted paths. The installer honours documented host-specific environment overrides (for example `XDG_CONFIG_HOME`, `COPILOT_HOME`, `GEMINI_CLI_HOME`, `APPDATA`, and `LOCALAPPDATA`) when present.
 * No target supports TOML array-of-tables or YAML. Those two formats account for the majority of the 23 fully-excluded agents (the §3 table names 24 agents; `roo` is a scope-only exclusion, shipped at repo scope).
 
 ## 10. Relationship to the 81 skill targets
 
 Two different registries, deliberately not conflated:
 
-* **Bridge targets** (this document, 44 rows) — agents whose **config file LiteSPM can edit** to register the MCP bridge.
+* **Bridge targets** (this document, 46 rows) — agents whose **config file LiteSPM can edit** to register the MCP bridge.
 * **Skill install targets** (`internal/skills/agents.go`, 81 targets) — agents where LiteSPM can **write a `SKILL.md`** into a skills directory. The 77 transcribed rows plus the `universal`/`warp`/`grok`/`pi` ids appended 2026-10-14; the generated `web/data/skill-targets.json` was regenerated on 2026-10-15 and now lists all **81**, matching `skills.AgentTargets()` — the CI gate "Verify Generated Host Data Is Current" passes.
 
-The sets overlap but are not equal. 67 agents were researched for bridge support: **44 shipped** and **23 fully excluded**. (The §3 exclusion table names 24 agents, but `roo` is excluded only at user scope; its repo-scope target is shipped, so it is counted among the 44, not among the 23.) Some skill targets are IDE extensions with no CLI config file; some bridge targets are cloud products with no skills directory. `litespm host list` reports bridge adapters only — it does not claim skill coverage.
+The sets overlap but are not equal. 69 agents were researched for bridge support: **46 shipped** and **23 fully excluded**. (The §3 exclusion table names 24 agents, but `roo` is excluded only at user scope; its repo-scope target is shipped, so it is counted among the 46, not among the 23.) Some skill targets are IDE extensions with no CLI config file; some bridge targets are cloud products with no skills directory. `litespm host list` reports bridge adapters only — it does not claim skill coverage.

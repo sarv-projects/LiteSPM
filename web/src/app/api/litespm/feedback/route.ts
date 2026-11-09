@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { db, databaseConfigured } from "@/lib/db";
 import { clientIp, rateLimit } from "@/server/litespm/rate-limit";
+import { readJsonBody, RequestBodyTooLargeError } from "@/server/litespm/request-body";
 
 export const dynamic = "force-dynamic";
 
@@ -24,30 +25,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = (await request.json()) as {
+    const body = (await readJsonBody(request, 16 * 1024)) as {
       kind?: string;
       name?: string;
       email?: string;
       listing?: string;
       message?: string;
     };
-
-    const kind = KINDS.has(body.kind ?? "") ? body.kind! : "general";
-    const name = body.name?.trim().slice(0, 200) ?? "";
-    const email = body.email?.trim().slice(0, 320) ?? "";
-    const listing = body.listing?.trim().slice(0, 300) || null;
-    const message = body.message?.trim().slice(0, 4000) ?? "";
+    const rawName = typeof body.name === "string" ? body.name.trim() : "";
+    const rawEmail = typeof body.email === "string" ? body.email.trim() : "";
+    const rawListing = typeof body.listing === "string" ? body.listing.trim() : "";
+    const rawMessage = typeof body.message === "string" ? body.message.trim() : "";
 
     const errors: Record<string, string> = {};
-    if (name.length < 2) errors.name = "Tell us your name.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "A reachable email address is required.";
-    if (message.length < 10) errors.message = "A little more detail helps (10+ characters).";
-    if (message.length > 4000) errors.message = "That is longer than we can store.";
-    if (listing && listing.length > 300) errors.listing = "That listing reference is too long.";
+    if (rawName.length < 2) errors.name = "Tell us your name.";
+    else if (rawName.length > 200) errors.name = "That name is too long.";
+    if (rawEmail.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) errors.email = "A reachable email address is required (maximum 320 characters).";
+    if (rawMessage.length < 10) errors.message = "A little more detail helps (10+ characters).";
+    else if (rawMessage.length > 4000) errors.message = "That is longer than we can store.";
+    if (rawListing.length > 300) errors.listing = "That listing reference is too long.";
 
     if (Object.keys(errors).length > 0) {
       return NextResponse.json({ errors }, { status: 400 });
     }
+
+    const kind = KINDS.has(body.kind ?? "") ? body.kind! : "general";
+    const name = rawName;
+    const email = rawEmail;
+    const listing = rawListing || null;
+    const message = rawMessage;
 
     let entryId = `sub_${Date.now().toString(36)}`;
     try {
@@ -72,6 +78,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, id: entryId });
   } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return NextResponse.json({ errors: { form: "Request body is too large." } }, { status: 413 });
+    }
     console.error("litespm feedback failed", error);
     return NextResponse.json(
       { errors: { form: "Unable to process submission. Please verify your entries and try again." } },

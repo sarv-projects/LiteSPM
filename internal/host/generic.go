@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"unicode"
 
@@ -46,8 +47,26 @@ func configExt(f ConfigFormat) string {
 	return ".json"
 }
 
+// supportsTargetOS is the fail-closed platform gate for hosts whose vendor
+// explicitly limits the supported desktop operating systems.
+func supportsTargetOS(supported []string, goos string) bool {
+	if len(supported) == 0 {
+		return true
+	}
+	for _, candidate := range supported {
+		if candidate == goos {
+			return true
+		}
+	}
+	return false
+}
+
 // DetectConfig implements HostAdapter.
 func (a *GenericAdapter) DetectConfig(ctx context.Context, scope domain.InstallScope) (string, error) {
+	if !supportsTargetOS(a.Target.SupportedOS, runtime.GOOS) {
+		return "", fmt.Errorf("%s is not supported on %s; supported operating systems: %s",
+			a.Target.Name, runtime.GOOS, strings.Join(a.Target.SupportedOS, ", "))
+	}
 	home := resolveHomeDir()
 	// User scope uses UserPath; hosts that only document repo-local config fall
 	// back to the project file rather than inventing a user path. Project scope

@@ -486,7 +486,7 @@ func (c *Client) FetchCurrent(ctx context.Context) (*catalogbuild.CurrentPointer
 //     alone (TLS + rollback/equivocation guards still apply), stated in the
 //     docs rather than silently passed as "verified";
 //   - LITESPM_REQUIRE_CATALOG_SIGNATURE=1 makes absence, unreachability, or
-//     an unavailable verifier (cosign not installed) a hard refusal.
+//     unavailable Sigstore trust material a hard refusal.
 func (c *Client) verifyCurrentSignature(ctx context.Context, currentRaw []byte) error {
 	required := catalogSignatureRequired()
 	bundleURL := fmt.Sprintf("%s/v1/current.json%s", c.baseURL, trust.DefaultBundleSuffix)
@@ -508,7 +508,7 @@ func (c *Client) verifyCurrentSignature(ctx context.Context, currentRaw []byte) 
 		return nil
 	}
 
-	// Verify the pointer bytes against the bundle on disk (cosign reads
+	// Verify the pointer bytes against the bundle on disk (BlobVerifier reads
 	// files). A scratch directory keeps the cache dir clean of them.
 	scratch, err := os.MkdirTemp("", "litespm-catalog-verify-*")
 	if err != nil {

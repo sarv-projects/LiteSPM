@@ -80,18 +80,18 @@ When a user installs LiteSPM (via `npm install -g litespm`, `curl`, or direct bi
 
 ```text
 $ litespm
-LiteSPM can connect to 50 different agent hosts.
+LiteSPM can connect to 52 different agent hosts.
 Nothing on this machine has been changed yet.
 
 Which AI coding agent do you use?
 
 Found on this machine (1):
   [1] Claude Code                    /home/you/.claude.json
-  [a] Show all 50 supported agents
+  [a] Show all 52 supported agents
   [q] Quit
 ```
 
-> Implementation note: the wizard derives its rows from the adapter registry (`host.ListAdapters`, `cmd/litespm/wizard.go:agentMenuRows`), so it covers all 50 bridge targets (6 bespoke + 44 generic, ARCH/30) — detected agents first, `[a]` for the full list — rather than a hand-maintained six-row list. There is no separate `Generic MCP Configuration (JSON export)` wizard entry.
+> Implementation note: the wizard derives its rows from the adapter registry (`host.ListAdapters`, `cmd/litespm/wizard.go:agentMenuRows`), so it covers all 52 bridge targets (6 bespoke + 46 generic, ARCH/30) — detected agents first, `[a]` for the full list — rather than a hand-maintained six-row list. There is no separate `Generic MCP Configuration (JSON export)` wizard entry.
 
 1.  **Agent Selection:** User picks a detected agent, any of the 50 supported adapters by name or number, or `[q]` to quit.
 2.  **Automated Path Discovery:** LiteSPM scans documented default paths across Windows, macOS, and Linux (e.g., `~/.claude.json`, `$CODEX_HOME/config.toml`; native Windows user scope is `%USERPROFILE%\.codex\config.toml` — the adapter honours `$CODEX_HOME` and does not probe `%APPDATA%\Codex\config.toml`, `internal/host/codex.go:43-49`).

@@ -248,6 +248,9 @@ export interface AgentSetupFacts {
   keyPath?: string;
   shape?: string;
   userPath?: string;
+  platformPaths?: Partial<Record<"win" | "mac" | "linux", string>>;
+  bridgeSnippets?: Partial<Record<"win" | "mac" | "linux", string>>;
+  windowsPathHomeDerived?: boolean;
   projectOnly?: boolean;
   projectScope?: boolean;
   projectPath?: string;
@@ -455,4 +458,10 @@ export interface AssistantMeta {
     status?: number;
     ms: number;
   }>;
+  rag?: {
+    mode: "hybrid-semantic" | "lexical+feature-vector";
+    chunks: number;
+    sources: number;
+    embeddedChunks: number;
+  };
 }

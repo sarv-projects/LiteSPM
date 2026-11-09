@@ -8,7 +8,7 @@
 import { vendorName } from "./vendor-names";
 import { hostNote } from "./host-notes";
 import { HOST_IDENTITIES, resolveHostId, tallyHosts, hostIdsFor } from "./identity";
-import { HOSTS, SKILL_TARGETS, bridgeSnippet, hostPath, compareHostsByAdoption } from "./hosts";
+import { HOSTS, SKILL_TARGETS, bridgeSnippet, hostPath, hostPathIsHomeDerived, hostSupportsPlatform, compareHostsByAdoption, type PlatformOS } from "./hosts";
 import { availabilityOf } from "./availability";
 import { listingIdentity } from "./discovery";
 import { getDataset } from "./dataset";
@@ -183,8 +183,13 @@ export interface AgentSetupFacts {
   format?: "json" | "toml";
   keyPath?: string;
   shape?: string;
-  /** Unix-resolved user-scope config path, with "~" for the home directory. */
+  /** Linux-resolved user-scope path, retained for API compatibility. */
   userPath?: string;
+  /** Exact per-platform config path, or absent when the host is unsupported. */
+  platformPaths?: Partial<Record<PlatformOS, string>>;
+  /** Matching host-shaped bridge examples for each supported platform. */
+  bridgeSnippets?: Partial<Record<PlatformOS, string>>;
+  windowsPathHomeDerived?: boolean;
   projectOnly?: boolean;
   projectScope?: boolean;
   projectPath?: string;
@@ -272,13 +277,29 @@ export async function buildAgentDetail(id: string): Promise<AgentDetail | null> 
   const skillTarget = identity?.skill;
   const note = hostNote(row.slug);
 
+  const platforms: PlatformOS[] = ["win", "mac", "linux"];
+  const platformPaths: Partial<Record<PlatformOS, string>> = {};
+  const bridgeSnippets: Partial<Record<PlatformOS, string>> = {};
+  if (adapter) {
+    for (const os of platforms) {
+      if (!hostSupportsPlatform(adapter, os)) continue;
+      const resolved = hostPath(adapter, os) || (adapter.projectPath ? `<project>/${adapter.projectPath}` : "");
+      if (!resolved) continue;
+      platformPaths[os] = resolved;
+      bridgeSnippets[os] = bridgeSnippet(adapter, "litespm", os);
+    }
+  }
+
   const setup: AgentSetupFacts = {
     hostId: adapter?.id,
     displayName: row.name,
     format: adapter?.kind,
     keyPath: adapter?.keyPath,
     shape: adapter?.shape,
-    userPath: adapter ? hostPath(adapter, "linux") : undefined,
+    userPath: adapter ? hostPath(adapter, "linux") || undefined : undefined,
+    platformPaths: adapter ? platformPaths : undefined,
+    bridgeSnippets: adapter ? bridgeSnippets : undefined,
+    windowsPathHomeDerived: adapter ? hostPathIsHomeDerived(adapter, "win") : undefined,
     projectOnly: adapter?.projectOnly,
     projectScope: adapter?.projectScope,
     projectPath: adapter?.projectPath,
@@ -290,7 +311,7 @@ export async function buildAgentDetail(id: string): Promise<AgentDetail | null> 
       skillTarget && skillTarget.hasGlobal ? undefined : skillTarget ? "project scope only" : undefined,
     skillUniversal: skillTarget?.universal,
     skillHasGlobal: skillTarget?.hasGlobal,
-    bridgeSnippet: adapter ? bridgeSnippet(adapter) : undefined,
+    bridgeSnippet: adapter && bridgeSnippets.linux ? bridgeSnippets.linux : undefined,
     setupCommand: adapter ? `litespm host setup ${adapter.id}` : undefined,
   };
 

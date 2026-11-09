@@ -114,8 +114,8 @@ export function AgentsView() {
               Choose your <span className="text-brand">agent.</span>
             </h1>
             <p className="mt-5 max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]">
-              LiteSPM writes each agent&apos;s own config — 50 hosts for local stdio MCP servers
-              (46 of them also accept a remote URL), 81 targets for skills. Choose the agent you use,
+              LiteSPM writes each agent&apos;s own config — 52 hosts for local stdio MCP servers
+              (47 of them also accept a remote URL), 81 targets for skills. Choose the agent you use,
               then browse packages with clear setup details. Each profile includes sourced product
               facts and the exact config file it touches.
             </p>
@@ -615,7 +615,7 @@ export function AgentCard({ agent }: { agent: AgentRow }) {
             e.stopPropagation();
             navigate(exploreHash({ host: agent.name, installable: "1" }));
           }}
-          className="mt-2 flex items-center justify-between rounded-lg border border-brand/25 bg-brand-soft px-2.5 py-2 text-left transition-colors hover:border-brand/50"
+          className="mt-2 flex items-center justify-between rounded-lg border border-brand/25 bg-brand-soft px-2.5 py-2 text-left transition-colors hover:border-brand/52"
           aria-label={`${formatFull(agent.installable)} packages installable into ${agent.name} — browse them`}
         >
           <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-brand">

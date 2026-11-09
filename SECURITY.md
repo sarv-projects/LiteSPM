@@ -62,17 +62,21 @@ absent and carried a hard-coded bypass string; both were removed) and then
 verifies the bundle against the downloaded bytes:
 
 - a bundle that is published and does not verify **always** aborts;
-- a release that publishes none falls back to checksum-only with a stated
-  note, unless `LITESPM_REQUIRE_SIGNED_UPDATE=1` makes an unsigned release a
-  hard refusal;
-- verification shells out to `cosign verify-blob` and pins the certificate
+- a release that publishes none is refused by default; only the explicit
+  `LITESPM_ALLOW_UNSIGNED_RELEASE=1` opt-out permits checksum-only verification
+  for pre-signing releases, with a prominent warning;
+- verification uses the `sigstore-go` library in-process and pins the certificate
   identity to this repository's release workflow on a version tag
   (`.../release.yml@refs/tags/v...`, issuer
   `https://token.actions.githubusercontent.com`), so a signature minted by a
   fork, a branch build, or a different workflow does not verify.
 
-The npm installer verifies the same bundle, and is now **signature-verified by
-default**. `npm/scripts/install-binary.js` fetches `<binary>.sigstore.json`
+Both the Go self-updater and npm installer require the same bundle by default.
+The Go verifier uses `sigstore-go` in-process, so end users do not need to
+install a separate `cosign` executable. It still obtains the public-good
+Sigstore trust root through TUF and fails closed if trust material or
+verification is unavailable. The npm installer verifies the same bundle and
+is **signature-verified by default**. `npm/scripts/install-binary.js` fetches `<binary>.sigstore.json`
 beside the binary, checks the signature over the downloaded bytes, the
 certificate chain to a Fulcio CA at the transparency-log timestamp, the SCT
 against a trusted certificate-transparency log, and the Rekor inclusion promise
@@ -89,10 +93,11 @@ different bytes, a signature by a different identity, a wrong issuer, a
 truncated transfer, a digest mismatch, and a redirect off the expected origins.
 Nothing unverified is installed or executed.
 
-The default is *require a signature*. `LITESPM_ALLOW_UNSIGNED_RELEASE=1` is the
-explicit, documented opt-out for tags cut before `release.yml` began signing
-(every tag before `v0.4.0`) and for machines that cannot reach the Sigstore
-trust root; it falls back to checksum-only **and says so loudly**. It is never a
+The default is *require a signature* for both installation and self-update.
+`LITESPM_ALLOW_UNSIGNED_RELEASE=1` is the explicit, documented opt-out for tags
+cut before `release.yml` began signing (every tag before `v0.4.0`); it falls
+back to checksum-only **and says so loudly**. A published bundle that cannot
+be verified is always refused, even with the opt-out set. It is never a
 silent downgrade: a release that publishes a bundle which fails to verify is
 refused even with the opt-out set, because that is the attack signal rather
 than the absence of one. `LITESPM_RELEASE_REPO` redirects where bytes are
@@ -100,7 +105,7 @@ fetched from, and because a mirror can replace the binary *and* its signature
 together it is refused unless the operator also states the expected signer via
 `LITESPM_TRUST_IDENTITY` and `LITESPM_TRUST_ISSUER`.
 
-The cryptography is sigstore-js (`@sigstore/verify` + `@sigstore/tuf`); the
+The Go cryptography is sigstore-go; the npm cryptography is sigstore-js (`@sigstore/verify` + `@sigstore/tuf`); the
 installer does not implement certificate-chain, Merkle-proof or SET validation
 itself. The trusted root is fetched over TUF, which verifies it against the root
 shipped inside `@sigstore/tuf` before trusting anything it serves, and is cached

@@ -2,8 +2,11 @@ package host
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -66,6 +69,13 @@ func TestBridgeTargetRowsAreComplete(t *testing.T) {
 			if len(tgt.DetectPaths) == 0 && len(tgt.DetectBinaries) == 0 {
 				t.Error("no install-detection signal declared")
 			}
+			for _, goos := range tgt.SupportedOS {
+				switch goos {
+				case "windows", "darwin", "linux":
+				default:
+					t.Errorf("unsupported Go OS token %q", goos)
+				}
+			}
 		})
 	}
 }
@@ -99,7 +109,7 @@ func TestBridgeTargetTableHasNoUndeclaredSharedConfigFiles(t *testing.T) {
 	}
 	byPath := map[string][]owner{}
 	for _, tgt := range verifiedBridgeTargets {
-		if tgt.UserPath == nil {
+		if tgt.UserPath == nil || !supportsTargetOS(tgt.SupportedOS, runtime.GOOS) {
 			continue
 		}
 		byPath[tgt.UserPath(home)] = append(byPath[tgt.UserPath(home)], owner{tgt, "user"})
@@ -158,6 +168,94 @@ func TestBridgeTargetTableExcludesUnverifiedAgents(t *testing.T) {
 		if _, ok := LookupBridgeTarget(id); ok {
 			t.Errorf("target %q is registered but was classified as not verifiable", id)
 		}
+	}
+}
+
+// TestSupportedTargetOSIsFailClosed prevents setup on an OS the vendor does not support.
+func TestSupportedTargetOSIsFailClosed(t *testing.T) {
+	if !supportsTargetOS([]string{"windows", "darwin"}, "windows") {
+		t.Fatal("Windows should be supported")
+	}
+	if !supportsTargetOS([]string{"windows", "darwin"}, "darwin") {
+		t.Fatal("macOS should be supported")
+	}
+	if supportsTargetOS([]string{"windows", "darwin"}, "linux") {
+		t.Fatal("a host restricted to Windows and macOS must refuse Linux")
+	}
+	if !supportsTargetOS([]string{"windows", "darwin", "linux"}, "linux") {
+		t.Fatal("Claude Desktop supports Linux according to current MCP docs")
+	}
+	if !supportsTargetOS(nil, "linux") {
+		t.Fatal("an empty allowlist preserves existing cross-platform targets")
+	}
+}
+
+func TestClaudeDesktopConfigPaths(t *testing.T) {
+	home := filepath.Join("home", "sarvesh")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	cases := []struct {
+		name, goos, appData, want string
+	}{
+		{"windows", "windows", filepath.Join("C:", "Users", "sarvesh", "AppData", "Roaming"), filepath.Join("C:", "Users", "sarvesh", "AppData", "Roaming", "Claude", "claude_desktop_config.json")},
+		{"windows fallback", "windows", "", filepath.Join(home, "AppData", "Roaming", "Claude", "claude_desktop_config.json")},
+		{"macOS", "darwin", "", filepath.Join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")},
+		{"Linux", "linux", "", filepath.Join(home, ".config", "Claude", "claude_desktop_config.json")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := claudeDesktopConfigPath(tc.goos, home, tc.appData); got != tc.want {
+				t.Fatalf("path = %q, want %q", got, tc.want)
+			}
+		})
+	}
+	xdg := filepath.Join(t.TempDir(), "xdg")
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	if got, want := claudeDesktopConfigPath("linux", home, ""), filepath.Join(xdg, "Claude", "claude_desktop_config.json"); got != want {
+		t.Fatalf("Linux XDG override = %q, want %q", got, want)
+	}
+}
+
+func TestVSCodeUsesPortableCopilotSchemaAndProjectScope(t *testing.T) {
+	target, ok := LookupBridgeTarget("vscode")
+	if !ok {
+		t.Fatal("VS Code target missing")
+	}
+	adapter := NewGenericAdapter(target)
+	if SupportsUserScope(adapter) {
+		t.Fatal("VS Code must not guess a profile-managed Copilot config path")
+	}
+	if !SupportsProjectScope(adapter) {
+		t.Fatal("VS Code portable workspace config should support project scope")
+	}
+	root := t.TempDir()
+	if got, ok := ProjectConfigPathFor(adapter, root); !ok || got != filepath.Join(root, ".mcp.json") {
+		t.Fatalf("project config path = %q, ok=%v", got, ok)
+	}
+	key, shape, ok := EntryLayoutForScope(adapter, domain.ScopeProject)
+	if !ok || key != "mcpServers" || shape != string(ShapeObject) {
+		t.Fatalf("project layout = (%q, %q, %v)", key, shape, ok)
+	}
+	out, err := adapter.renderConfig("{\"mcpServers\":{\"existing\":{\"command\":\"node\"}}}", "C:/bin/litespm.exe", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("rendered VS Code config is invalid JSON: %v", err)
+	}
+	servers, ok := parsed["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatalf("mcpServers object missing: %s", out)
+	}
+	entry, ok := servers["litespm"].(map[string]any)
+	if !ok || entry["type"] != nil || entry["command"] == nil {
+		t.Fatalf("portable VS Code stdio entry has an unexpected shape: %s", out)
+	}
+	if _, ok := servers["existing"]; !ok {
+		t.Fatalf("pre-existing VS Code server was not preserved: %s", out)
+	}
+	if target.Remote == nil || !reflect.DeepEqual(target.Remote.Transports, []string{TransportStreamableHTTP}) {
+		t.Fatalf("portable Copilot format must advertise HTTP only: %#v", target.Remote)
 	}
 }
 
@@ -491,7 +589,7 @@ var remoteCapableBespokeIDs = []string{"claude-code", "cline", "opencode", "code
 // object was read from the row's DocsURL (or, where the vendor documents the
 // object only in its own repository, from that repository).
 //
-// The list grew from two to forty on 2026-10-21, when every row's
+// The list grew from two to forty-one on 2026-11-08, when every row's
 // DocsURL was re-fetched and the entry object re-read: twenty-nine rows were
 // found to document a remote entry LiteSPM had been refusing, and four rows
 // turned out to document a different local entry shape than the one written.
@@ -499,12 +597,7 @@ var remoteCapableBespokeIDs = []string{"claude-code", "cline", "opencode", "code
 // actually read — but it is now applied to far more rows, because far more
 // rows were actually checked.
 //
-// The five rows still refused are the ones whose vendor publishes no remote
-// entry object: gemini-cli (its HTTP and SSE forms use two DIFFERENT url
-// keys, which one URLKey cannot express), iflow-cli (the CLI accepts a
-// remote but the on-disk entry object is unpublished), zcode (HTTP and SSE
-// are mentioned; no object is published), mux (stdio only by
-// construction), rovodev, tabnine-cli, roo, and codestudio (stdio only).
+// Five rows remain remote-refused: Claude Desktop (local config only), CodeStudio, iFlow CLI, Mux, and ZCode. VS Code's portable Copilot format supports HTTP but not SSE.
 var remoteCapableGenericIDs = []string{
 	"aider-desk", "amp", "antigravity", "antigravity-cli", "astrbot",
 	"augment", "bob", "codearts-agent", "codebuddy", "command-code",
@@ -512,18 +605,18 @@ var remoteCapableGenericIDs = []string{
 	"firebender", "forgecode", "fx", "github-copilot", "jazz", "junie",
 	"kilo", "kimchi", "kimi-code-cli", "kiro-cli", "kode", "neovate",
 	"ona", "openhands", "pochi", "posit-assistant", "qoder", "qoder-cn",
-	"qwen-code", "zed", "rovodev", "tabnine-cli", "roo", "gemini-cli",
+	"qwen-code", "zed", "rovodev", "tabnine-cli", "roo", "gemini-cli", "vscode",
 }
 
 // remoteRefusedGenericIDs are the generic targets whose vendor publishes no
 // remote entry object, so a remote install stays refused for them.
 var remoteRefusedGenericIDs = []string{
-	"codestudio", "iflow-cli", "mux", "zcode",
+	"claude-desktop", "codestudio", "iflow-cli", "mux", "zcode",
 }
 
 // TestRemoteCapabilityMatrixCounts is the anti-mass-enable guard: for every
 // registered host RemoteEntrySpecFor must answer (spec or false), and the
-// counts must stay at exactly 8 capable hosts / 42 refused targets. Enabling
+// counts must stay at exactly 47 capable hosts / 5 refused targets. Enabling
 // a Tier B/C/D row without evidence — or disabling a verified one — fails
 // here rather than silently changing what installs write.
 func TestRemoteCapabilityMatrixCounts(t *testing.T) {
@@ -542,9 +635,9 @@ func TestRemoteCapabilityMatrixCounts(t *testing.T) {
 		}
 	}
 
-	// Exactly 46 capable HOSTS among the registered adapter ids: the six
+	// Exactly 47 capable HOSTS among the registered adapter ids: the six
 	// hand-written adapters, whose remote shapes were verified from the
-	// vendors' own documentation, plus the 40 generic rows above.
+	// vendors' own documentation, plus the 41 generic rows above.
 	wantCapable := map[string]bool{
 		"claude-code": true, "cline": true, "opencode": true, "codex": true,
 		"pi-agent": true, "grok-build": true,
@@ -565,7 +658,7 @@ func TestRemoteCapabilityMatrixCounts(t *testing.T) {
 			t.Errorf("host %q is remote-capable but is not in the verified set — a spec was enabled without evidence", id)
 		}
 	}
-	// Exactly 4 refused targets, and the two sets cover the registry.
+	// Exactly 5 refused targets, and the two sets cover the registry.
 	if len(refusedIDs) != len(remoteRefusedGenericIDs) {
 		t.Errorf("remote-refused hosts = %d, want %d (refused ids: %v)", len(refusedIDs), len(remoteRefusedGenericIDs), refusedIDs)
 	}

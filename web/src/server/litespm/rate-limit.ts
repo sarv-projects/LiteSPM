@@ -11,7 +11,10 @@
 interface Window {
   startedAt: number;
   count: number;
+  windowMs: number;
 }
+
+const RATE_WINDOW_MAX_KEYS = 10_000;
 
 const globalForLimit = globalThis as unknown as {
   __litespmRateWindows?: Map<string, Window>;
@@ -19,6 +22,19 @@ const globalForLimit = globalThis as unknown as {
 
 function windows(): Map<string, Window> {
   return (globalForLimit.__litespmRateWindows ??= new Map());
+}
+
+/** Bound attacker-controlled key growth and opportunistically evict expired buckets. */
+function pruneWindows(map: Map<string, Window>, now: number): void {
+  if (map.size < RATE_WINDOW_MAX_KEYS) return;
+  for (const [key, value] of map) {
+    if (now - value.startedAt >= value.windowMs) map.delete(key);
+  }
+  while (map.size >= RATE_WINDOW_MAX_KEYS) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
 }
 
 export interface RateLimitResult {
@@ -33,7 +49,8 @@ export function rateLimit(key: string, max: number, windowMs: number): RateLimit
   const current = map.get(key);
 
   if (!current || now - current.startedAt >= windowMs) {
-    map.set(key, { startedAt: now, count: 1 });
+    if (!current) pruneWindows(map, now);
+    map.set(key, { startedAt: now, count: 1, windowMs });
     return { allowed: true, retryAfterSeconds: 0, remaining: Math.max(0, max - 1) };
   }
 

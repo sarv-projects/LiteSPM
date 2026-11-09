@@ -13,7 +13,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "amp",
@@ -30,7 +31,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "antigravity",
@@ -47,7 +49,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "antigravity-cli",
@@ -64,7 +67,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "astrbot",
@@ -81,7 +85,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "augment",
@@ -96,7 +101,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "bob",
@@ -112,7 +118,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "claude-code",
@@ -128,7 +135,23 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
+  },
+  {
+    "id": "claude-desktop",
+    "name": "Claude Desktop",
+    "format": "json",
+    "keyPath": "mcpServers",
+    "shape": "object",
+    "docsUrl": "https://modelcontextprotocol.io/docs/develop/connect-local-servers",
+    "generic": true,
+    "supportedOS": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "cline",
@@ -142,7 +165,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "codearts-agent",
@@ -158,7 +182,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "codebuddy",
@@ -175,18 +200,21 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "codestudio",
     "name": "Code Studio",
     "format": "json",
-    "userPath": "\u003cproject\u003e/.codestudio/mcp.json",
+    "keyPath": "servers",
+    "shape": "object",
     "projectOnly": true,
     "docsUrl": "https://ej2.syncfusion.com/angular/documentation/mcp",
     "generic": true,
     "projectScope": true,
-    "projectPath": ".codestudio/mcp.json"
+    "projectPath": ".codestudio/mcp.json",
+    "layoutScope": "project"
   },
   {
     "id": "codex",
@@ -201,7 +229,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "command-code",
@@ -217,7 +246,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "cortex",
@@ -232,7 +262,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "crush",
@@ -249,7 +280,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "cursor",
@@ -266,7 +298,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "deepagents",
@@ -283,7 +316,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "devin",
@@ -300,7 +334,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "droid",
@@ -317,7 +352,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "firebender",
@@ -334,7 +370,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "forgecode",
@@ -351,7 +388,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "fx",
@@ -368,7 +406,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "gemini-cli",
@@ -385,7 +424,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "github-copilot",
@@ -402,7 +442,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "grok-build",
@@ -417,7 +458,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "iflow-cli",
@@ -429,7 +471,8 @@
     "docsUrl": "https://github.com/iflow-ai/iflow-cli",
     "generic": true,
     "projectScope": true,
-    "projectPath": ".iflow/settings.json"
+    "projectPath": ".iflow/settings.json",
+    "layoutScope": "user"
   },
   {
     "id": "jazz",
@@ -445,7 +488,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "junie",
@@ -461,7 +505,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "kilo",
@@ -477,7 +522,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "kimchi",
@@ -492,7 +538,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "kimi-code-cli",
@@ -509,7 +556,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "kiro-cli",
@@ -525,7 +573,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "kode",
@@ -542,7 +591,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "mux",
@@ -554,7 +604,8 @@
     "docsUrl": "https://xum.coder.com/config/mcp-servers",
     "generic": true,
     "projectScope": true,
-    "projectPath": ".xum/mcp.jsonc"
+    "projectPath": ".xum/mcp.jsonc",
+    "layoutScope": "user"
   },
   {
     "id": "neovate",
@@ -571,13 +622,15 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "ona",
     "name": "Ona",
     "format": "json",
-    "userPath": "\u003cproject\u003e/.ona/mcp-config.json",
+    "keyPath": "mcpServers",
+    "shape": "object",
     "projectOnly": true,
     "docsUrl": "https://ona.com/docs/ona/mcp",
     "generic": true,
@@ -586,7 +639,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "project"
   },
   {
     "id": "opencode",
@@ -601,7 +655,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "openhands",
@@ -616,7 +671,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "pi-agent",
@@ -631,7 +687,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "pochi",
@@ -648,7 +705,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "posit-assistant",
@@ -664,7 +722,8 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "qoder",
@@ -681,7 +740,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "qoder-cn",
@@ -698,7 +758,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "qwen-code",
@@ -715,13 +776,15 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "roo",
     "name": "Roo Code",
     "format": "json",
-    "userPath": "\u003cproject\u003e/.roo/mcp.json",
+    "keyPath": "mcpServers",
+    "shape": "object",
     "projectOnly": true,
     "docsUrl": "https://docs.roocode.com/features/mcp/using-mcp-in-roo",
     "generic": true,
@@ -731,7 +794,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "project"
   },
   {
     "id": "rovodev",
@@ -746,7 +810,8 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   },
   {
     "id": "tabnine-cli",
@@ -763,7 +828,30 @@
     "remoteTransports": [
       "sse",
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
+  },
+  {
+    "id": "vscode",
+    "name": "Visual Studio Code (Copilot harness)",
+    "format": "json",
+    "keyPath": "mcpServers",
+    "shape": "object",
+    "projectOnly": true,
+    "docsUrl": "https://code.visualstudio.com/docs/agents/reference/mcp-configuration",
+    "generic": true,
+    "projectScope": true,
+    "projectPath": ".mcp.json",
+    "remote": true,
+    "remoteTransports": [
+      "streamable-http"
+    ],
+    "supportedOS": [
+      "windows",
+      "darwin",
+      "linux"
+    ],
+    "layoutScope": "project"
   },
   {
     "id": "zcode",
@@ -775,7 +863,8 @@
     "docsUrl": "https://zcode.z.ai/en/docs/mcp-services",
     "generic": true,
     "projectScope": true,
-    "projectPath": ".zcode/config.json"
+    "projectPath": ".zcode/config.json",
+    "layoutScope": "user"
   },
   {
     "id": "zed",
@@ -791,6 +880,7 @@
     "remote": true,
     "remoteTransports": [
       "streamable-http"
-    ]
+    ],
+    "layoutScope": "user"
   }
 ]

@@ -24,13 +24,13 @@ const readRepo = (rel) => readFileSync(path.join(repoRoot, rel), "utf8");
 
 // 1. The registry is the source of truth for remote capability.
 const hosts = JSON.parse(read("data/hosts.json"));
-if (!Array.isArray(hosts) || hosts.length !== 50) {
-  failures.push(`hosts.json: expected 50 hosts, got ${hosts?.length ?? "non-array"}`);
+if (!Array.isArray(hosts) || hosts.length !== 52) {
+  failures.push(`hosts.json: expected 52 hosts, got ${hosts?.length ?? "non-array"}`);
 } else {
   const remote = hosts.filter((h) => h.remote === true).length;
   const localOnly = hosts.filter((h) => h.remote !== true).map((h) => h.id).sort();
-  if (remote !== 46) failures.push(`hosts.json: expected 46 remote-capable hosts, got ${remote}`);
-  const expectedLocal = ["codestudio", "iflow-cli", "mux", "zcode"];
+  if (remote !== 47) failures.push(`hosts.json: expected 47 remote-capable hosts, got ${remote}`);
+  const expectedLocal = ["claude-desktop", "codestudio", "iflow-cli", "mux", "zcode"];
   if (JSON.stringify(localOnly) !== JSON.stringify(expectedLocal)) {
     failures.push(`hosts.json: local-only hosts changed: ${localOnly.join(", ")}`);
   }

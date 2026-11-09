@@ -9,7 +9,7 @@ Find MCP servers, skills and plugins once, and install them into every coding
 agent you use. LiteSPM writes each agent's own config, backs it up first, and
 keeps a ledger of what it changed so you can take it back out.
 
-**Browse the catalog:** **[litespm.sarveshbh-2022.workers.dev](https://litespm.sarveshbh-2022.workers.dev/)**
+**Browse the catalog:** **[lite-spm-nine.vercel.app](https://lite-spm-nine.vercel.app/)**
 — search all 69,376 listings by kind, category, publisher, runtime or host,
 and copy the install command for anything you pick.
 
@@ -55,8 +55,8 @@ litespm list                # see what is installed
 ## Why LiteSPM
 
 - **One install, every agent.** Add a server or a skill once and point it at
-  Claude Code, Codex, Cursor, OpenCode, Cline and the rest — no hand-editing
-  five different config formats.
+  Claude Code, Claude Desktop, Codex, Cursor, Visual Studio Code, OpenCode,
+  Cline and the rest — no hand-editing five different config formats.
 - **Nothing is written without a preview.** You see the change first, and the
   file is backed up before it is touched.
 - **Undo is a command.** `restore` puts a config back to its exact previous
@@ -68,22 +68,23 @@ litespm list                # see what is installed
 
 ## Works with your agent
 
-LiteSPM supports **50 agent hosts** for MCP servers and **81** targets for
-skills. The MCP set includes Claude Code, OpenAI Codex, OpenCode, Cline, Pi
-Agent, Grok Build, Cursor, Zed, Gemini CLI, GitHub Copilot and AiderDesk; the
+LiteSPM supports **52 agent hosts** for MCP servers and **81** targets for
+skills. The MCP set includes Claude Code, Claude Desktop, OpenAI Codex, OpenCode,
+Cline, Pi Agent, Grok Build, Cursor, Visual Studio Code, Zed, Gemini CLI,
+GitHub Copilot and AiderDesk; the
 skills set is that group plus the agents that take skills only — Windsurf and
 Warp among them.
 
-**46 of the 50** hosts can also receive a remote (URL) MCP entry, because that
+**47 of the 52** hosts can also receive a remote (URL) MCP entry, because that
 is the number whose vendor documentation publishes the exact entry object the
-host expects. The other four — CodeStudio, iFlow CLI, Mux and Zcode — are
-refused with a clear error rather than written in a shape the host would
-silently ignore.
+host expects. The other five — Claude Desktop, CodeStudio, iFlow CLI, Mux and
+Zcode — are local-only in LiteSPM and are refused for remote entries rather than
+written in a shape the host would silently ignore.
 
 Each host has its own adapter: **six** — Claude Code, Codex, OpenCode, Cline,
 Pi Agent and Grok Build — are hand-written and know their config layout in
 detail (JSONC merging, TOML round-tripping, per-platform path discovery), and
-the other **forty-four** come from one data-driven registry generated from each
+the other **forty-six** come from one data-driven registry generated from each
 agent's documented configuration format. A new host is therefore a registry
 entry rather than a new code path, and it gets the same plan, backup and
 ledger as the six.
@@ -95,6 +96,15 @@ litespm setup          # connect one
 ```
 
 The same command targets any of them: `--agent <host-id>`.
+
+Visual Studio Code is workspace-scoped in LiteSPM: run `litespm host setup vscode`
+from the workspace root, then install MCP entries with `--scope project --agent vscode`.
+This writes the portable Copilot `.mcp.json` format with a top-level `mcpServers`
+object. It supports stdio and HTTP (not SSE). VS Code's separate `.vscode/mcp.json`
+Local-harness format remains available but is deprecated in guided setup and is
+not written by this adapter.
+Claude Desktop supports Windows, macOS, and Linux; its Linux config path honours
+`XDG_CONFIG_HOME` (default `~/.config/Claude/claude_desktop_config.json`).
 
 ## What you can install
 
@@ -200,7 +210,7 @@ npm update -g litespm # update the CLI
 | [TODO.md](TODO.md) | Known gaps and planned work |
 
 The full catalog is browsable at
-[litespm.sarveshbh-2022.workers.dev](https://litespm.sarveshbh-2022.workers.dev/).
+[lite-spm-nine.vercel.app](https://lite-spm-nine.vercel.app/).
 
 ## Development
 

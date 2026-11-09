@@ -90,6 +90,25 @@ func windowsLocalAppData() string {
 	return os.Getenv("LOCALAPPDATA")
 }
 
+// claudeDesktopConfigPath mirrors the current MCP documentation's desktop
+// config paths on Windows, macOS, and Linux. Linux follows XDG_CONFIG_HOME.
+func claudeDesktopConfigPath(goos, home, appData string) string {
+	const fileName = "claude_desktop_config.json"
+	switch goos {
+	case "windows":
+		if appData == "" {
+			appData = filepath.Join(home, "AppData", "Roaming")
+		}
+		return filepath.Join(appData, "Claude", fileName)
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "Claude", fileName)
+	case "linux":
+		return filepath.Join(xdgConfigDir(home), "Claude", fileName)
+	default:
+		return ""
+	}
+}
+
 // firstExisting returns the first path that exists, else the first candidate.
 func firstExisting(candidates ...string) string {
 	for _, c := range candidates {
@@ -1099,6 +1118,37 @@ var verifiedBridgeTargets = []BridgeTarget{
 		DetectPaths: []string{".roo"},
 		DocsURL:     "https://docs.roocode.com/features/mcp/using-mcp-in-roo",
 		Note:        "Repo-scope only. The IDE stores user-scope servers under VS Code's globalStorage, whose absolute path the vendor docs never print, so we do not guess it. Remote: a url member with a REQUIRED \"type\" discriminator (streamable-http / sse); a url without a type is an error in Roo.",
+	},
+	{
+		ID: "claude-desktop", Name: "Claude Desktop", Format: FormatJSON,
+		UserKey:     []string{"mcpServers"},
+		Shape:       ShapeObject,
+		SupportedOS: []string{"windows", "darwin", "linux"},
+		UserPath: func(home string) string {
+			return claudeDesktopConfigPath(runtime.GOOS, home, windowsAppData())
+		},
+		DetectPaths: []string{"AppData/Roaming/Claude", "Library/Application Support/Claude", ".config/Claude"},
+		DocsURL:     "https://modelcontextprotocol.io/docs/develop/connect-local-servers",
+		Note:        "Claude Desktop's documented local MCP config is claude_desktop_config.json with a top-level mcpServers object. Current MCP docs list macOS, Windows, and Linux paths; Linux uses XDG_CONFIG_HOME/Claude with ~/.config/Claude as the default. Local stdio only: the referenced config documents command/args/env, not a remote URL entry.",
+	},
+	{
+		ID: "vscode", Name: "Visual Studio Code (Copilot harness)", Format: FormatJSON,
+		UserKey: []string{"mcpServers"}, ProjectKey: []string{"mcpServers"},
+		Shape:       ShapeObject,
+		SupportedOS: []string{"windows", "darwin", "linux"},
+		// The portable Copilot format is the current workspace-sharing path.
+		// It uses .mcp.json + mcpServers and supports stdio and HTTP, not SSE.
+		// The legacy .vscode/mcp.json Local-harness format remains supported by
+		// VS Code but is labelled deprecated in its current guided setup.
+		ProjectPath: func(root string) string { return filepath.Join(root, ".mcp.json") },
+		Remote: &RemoteEntrySpec{
+			URLKey: "url", TypeKey: "type", TypeValue: "http",
+			Transports: []string{TransportStreamableHTTP},
+		},
+		DetectPaths:    []string{".mcp.json"},
+		DetectBinaries: []string{"code", "code-insiders"},
+		DocsURL:        "https://code.visualstudio.com/docs/agents/reference/mcp-configuration",
+		Note:           "Workspace-scope portable Copilot adapter: writes .mcp.json with a top-level mcpServers object. Use litespm install <id> --scope project --agent vscode. Portable entries support stdio and HTTP; SSE is not supported by this format. VS Code's separate .vscode/mcp.json Local-harness format remains available but is labelled deprecated in current guided setup and is not written by this adapter. Copilot-global mcp-config.json is also profile-managed and is not guessed.",
 	},
 }
 

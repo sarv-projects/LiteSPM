@@ -15,10 +15,10 @@ import (
 	"github.com/sarv-projects/litespm/internal/skills"
 )
 
-func TestAll50HostsInstallAndRemoveInSandbox(t *testing.T) {
+func TestAll52HostsInstallAndRemoveInSandbox(t *testing.T) {
 	adapters := ListAdapters()
-	if len(adapters) != 50 {
-		t.Fatalf("expected exactly 50 adapters, got %d", len(adapters))
+	if len(adapters) != 52 {
+		t.Fatalf("expected exactly 52 adapters, got %d", len(adapters))
 	}
 
 	for _, adapter := range adapters {
@@ -208,13 +208,13 @@ func TestAllProjectCapableHostsInstallAndRemoveInSandbox(t *testing.T) {
 	}
 }
 
-// TestAll50HostsMarketplaceHandshakeInSandbox verifies that EVERY ONE of the 50
+// TestAll52HostsMarketplaceHandshakeInSandbox verifies that EVERY ONE of the 52
 // supported agent hosts discovers the /marketplace slash command over MCP and
 // has all 13 canonical Bridge tools advertised.
-func TestAll50HostsMarketplaceHandshakeInSandbox(t *testing.T) {
+func TestAll52HostsMarketplaceHandshakeInSandbox(t *testing.T) {
 	adapters := ListAdapters()
-	if len(adapters) != 50 {
-		t.Fatalf("expected 50 adapters, got %d", len(adapters))
+	if len(adapters) != 52 {
+		t.Fatalf("expected 52 adapters, got %d", len(adapters))
 	}
 
 	for _, adapter := range adapters {
@@ -328,9 +328,9 @@ func TestAll50HostsMarketplaceHandshakeInSandbox(t *testing.T) {
 	}
 }
 
-// TestAll50HostsSkillsIntegrationInSandbox verifies skill target resolution and
+// TestAll52HostsSkillsIntegrationInSandbox verifies skill target resolution and
 // file placement across all supported hosts.
-func TestAll50HostsSkillsIntegrationInSandbox(t *testing.T) {
+func TestAll52HostsSkillsIntegrationInSandbox(t *testing.T) {
 	adapters := ListAdapters()
 	for _, adapter := range adapters {
 		desc := adapter.Descriptor()
@@ -377,9 +377,9 @@ func TestAll50HostsSkillsIntegrationInSandbox(t *testing.T) {
 	}
 }
 
-// TestAll50HostsBridgeSetupAndTeardownInSandbox verifies that PlanSetup,
+// TestAll52HostsBridgeSetupAndTeardownInSandbox verifies that PlanSetup,
 // ApplySetup, syntax validation, and RemoveSetup succeed for every host.
-func TestAll50HostsBridgeSetupAndTeardownInSandbox(t *testing.T) {
+func TestAll52HostsBridgeSetupAndTeardownInSandbox(t *testing.T) {
 	adapters := ListAdapters()
 	for _, adapter := range adapters {
 		desc := adapter.Descriptor()

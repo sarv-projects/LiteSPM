@@ -316,7 +316,7 @@ function InstalledTab() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter installed…"
               aria-label="Filter installed capabilities"
-              className="w-44 rounded-lg border border-border/70 bg-background py-1.5 pl-8 pr-2 text-[12px] outline-none focus:border-brand/50"
+              className="w-44 rounded-lg border border-border/70 bg-background py-1.5 pl-8 pr-2 text-[12px] outline-none focus:border-brand/52"
             />
           </label>
           <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
@@ -490,7 +490,7 @@ export function MarketplaceView({
               onChange={(e) => setQuery(e.target.value)}
               placeholder={`Search ${active.label.toLowerCase()} in the live catalog…`}
               aria-label={`Search ${active.label}`}
-              className="w-full rounded-xl border border-border/70 bg-background py-2.5 pl-9 pr-3 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:border-brand/50"
+              className="w-full rounded-xl border border-border/70 bg-background py-2.5 pl-9 pr-3 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:border-brand/52"
             />
           </label>
         )}
