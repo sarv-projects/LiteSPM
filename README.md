@@ -9,7 +9,7 @@ Find MCP servers, skills and plugins once, and install them into every coding
 agent you use. LiteSPM writes each agent's own config, backs it up first, and
 keeps a ledger of what it changed so you can take it back out.
 
-**Browse the catalog:** **[litespm.sarveshbh-2022.workers.dev](https://litespm.sarveshbh-2022.workers.dev/)**
+**Browse the catalog:** **[liteSPM/Explore](https://lite-spm-nine.vercel.app/)**
 — search all 69,376 listings by kind, category, publisher, runtime or host,
 and copy the install command for anything you pick.
 
