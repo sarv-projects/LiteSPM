@@ -337,3 +337,19 @@ func tokenize(text string) []string {
 	}
 	return tokens
 }
+
+// snapshot returns every indexed listing and version record, for building the
+// on-disk index from a release that was just verified in memory.
+func (idx *SearchIndex) snapshot() ([]*domain.Listing, []*domain.VersionRecord) {
+	idx.mu.RLock()
+	defer idx.mu.RUnlock()
+	listings := make([]*domain.Listing, 0, len(idx.listings))
+	for _, l := range idx.listings {
+		listings = append(listings, l)
+	}
+	var versions []*domain.VersionRecord
+	for _, recs := range idx.versions {
+		versions = append(versions, recs...)
+	}
+	return listings, versions
+}

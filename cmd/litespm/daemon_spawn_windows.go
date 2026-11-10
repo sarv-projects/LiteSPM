@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"github.com/sarv-projects/litespm/internal/config"
@@ -24,12 +25,19 @@ func spawnDaemonProcess(paths *config.PlatformPaths) error {
 	if err != nil {
 		return err
 	}
+	return spawnDetached(paths, exe, args, daemonLogPath(paths))
+}
+
+// spawnDetached starts exe with args detached from this process, with its
+// output appended to logPath. The daemon and the background catalog sync both
+// start this way, so neither is killed when the parent command exits.
+func spawnDetached(paths *config.PlatformPaths, exe string, args []string, logPath string) error {
 	if err := paths.EnsureDirectories(); err != nil {
 		return fmt.Errorf("prepare LiteSPM storage: %w", err)
 	}
-	logFile, err := os.OpenFile(daemonLogPath(paths), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
-		return fmt.Errorf("open daemon log: %w", err)
+		return fmt.Errorf("open log %s: %w", logPath, err)
 	}
 	defer logFile.Close()
 
@@ -41,7 +49,7 @@ func spawnDaemonProcess(paths *config.PlatformPaths) error {
 		CreationFlags: detachedProcess | createNewProcessGroup | createNoWindow,
 	}
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start LiteSPM daemon: %w", err)
+		return fmt.Errorf("start %s: %w", strings.Join(args, " "), err)
 	}
 	_ = cmd.Process.Release()
 	return nil

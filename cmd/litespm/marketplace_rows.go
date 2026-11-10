@@ -236,6 +236,9 @@ func runMarketplaceRowsTo(out, errOut io.Writer, args []string) int {
 	}
 
 	doc := buildMarketplaceRows(catClient, records, opts)
+	if doc.CatalogCount == 0 {
+		doc.Notice = autoSyncNoticeForEmptyCatalog(paths)
+	}
 	if doc.Notice == "" {
 		doc.Notice = notice
 	}

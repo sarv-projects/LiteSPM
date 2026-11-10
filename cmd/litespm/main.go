@@ -70,6 +70,11 @@ func main() {
 	// It opens no state database, catalog, ledger or agent configuration.
 	maybeAutoUpdate(os.Args[1:])
 
+	// Every run: keep the catalog fresh. A check at most every few hours runs
+	// in a detached background sync, so it never delays this command; only a
+	// first run that needs the catalog downloads it in the foreground.
+	maybeAutoSyncCatalog(os.Args[1:])
+
 	if len(os.Args) < 2 {
 		// The bare invocation opens the same setup surface as `litespm setup`,
 		// so both get the same argument handling and the same refusal when
@@ -157,6 +162,9 @@ func main() {
 		if len(os.Args) >= 3 {
 			switch os.Args[2] {
 			case "sync":
+				if hasFlag(os.Args[3:], "--auto") {
+					os.Exit(runAutoSync())
+				}
 				runCatalogSync()
 			case "build":
 				runCatalogBuild(os.Args[3:])

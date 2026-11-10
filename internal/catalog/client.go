@@ -53,6 +53,20 @@ type Client struct {
 	currentDigest    string
 	mu               sync.RWMutex
 
+	// disk is the on-disk FTS5 index for the current release. When set,
+	// Search/GetListing/Count/VersionRecordFor read it and the in-memory
+	// index stays empty, so no command loads the ~100 MB release.
+	disk *diskIndex
+	// progress, when set, is told how many release bytes have arrived.
+	progress func(done, total int64)
+	syncProg *syncProgress
+
+	// pointerMod is the cached pointer's mtime when the disk index was
+	// attached. A long-lived client (the daemon) re-checks it at most every
+	// pointerRecheck, so a background sync's new release is picked up.
+	pointerMod       time.Time
+	pointerCheckedAt time.Time
+
 	// bundleVerifier checks the Sigstore bundle the deploy publishes beside
 	// /v1/current.json (B3). A nil field selects trust.BlobVerifier with the
 	// release workflow's default identity; tests inject verdicts here rather
@@ -237,8 +251,9 @@ func NewClientWithTimeout(baseURL, cacheDir string, timeout time.Duration, httpC
 			shardClient: shardClient,
 			index:       NewSearchIndex(),
 		}
-		// Try loading cached release on startup
-		_ = c.LoadFromCache()
+		// Open the cached release: the on-disk index when one matches it,
+		// otherwise a full verified load that builds that index.
+		_ = c.openCache()
 		return c
 	}
 	// Do not mutate a caller-owned client: the catalog's redirect and
@@ -265,8 +280,9 @@ func NewClientWithTimeout(baseURL, cacheDir string, timeout time.Duration, httpC
 		shardClient: httpClient,
 		index:       NewSearchIndex(),
 	}
-	// Try loading cached release on startup
-	_ = c.LoadFromCache()
+	// Open the cached release: the on-disk index when one matches it,
+	// otherwise a full verified load that builds that index.
+	_ = c.openCache()
 	return c
 }
 
@@ -373,8 +389,88 @@ func readCatalogFileBody(body io.Reader, expectedSize int64) ([]byte, error) {
 	return data, nil
 }
 
-// LoadFromCache loads existing cached catalog files from disk into the in-memory search index.
-//
+// openCache attaches the cached release without parsing it when it can: if the
+// cached pointer validates and an index built for exactly that release and
+// manifest digest exists, it is opened read-only. Otherwise the release is
+// loaded and verified in full (LoadFromCache) and the index is built from the
+// verified rows, so the next process opens it instead.
+func (c *Client) openCache() error {
+	if c.cacheDir == "" {
+		return nil
+	}
+	current, err := readCachedPointer(c.cacheDir)
+	if err != nil {
+		return err
+	}
+	if d, derr := openDiskIndex(c.cacheDir, current); derr == nil {
+		c.attachDisk(d, current)
+		return nil
+	}
+	if err := c.LoadFromCache(); err != nil {
+		return err
+	}
+	c.buildDiskFromMemory(current)
+	return nil
+}
+
+func readCachedPointer(cacheDir string) (*catalogbuild.CurrentPointer, error) {
+	data, err := os.ReadFile(filepath.Join(cacheDir, "v1", "current.json"))
+	if err != nil {
+		return nil, err
+	}
+	var current catalogbuild.CurrentPointer
+	if err := json.Unmarshal(data, &current); err != nil {
+		return nil, err
+	}
+	if err := validateCurrent(&current); err != nil {
+		return nil, err
+	}
+	return &current, nil
+}
+
+func (c *Client) attachDisk(d *diskIndex, current *catalogbuild.CurrentPointer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.disk != nil && c.disk != d {
+		c.disk.close()
+	}
+	c.disk = d
+	c.pointerMod = pointerModTime(c.cacheDir)
+	c.pointerCheckedAt = time.Now()
+	c.currentReleaseID = current.ReleaseID
+	c.currentSequence = current.Sequence
+	c.currentDigest = current.ManifestDigest
+	// The rows live on disk now; drop the in-memory copy.
+	c.index.Replace(nil, nil)
+}
+
+// buildDiskFromMemory writes the index from the verified in-memory rows and
+// switches to it. A failure keeps the in-memory index: slower, never wrong.
+func (c *Client) buildDiskFromMemory(current *catalogbuild.CurrentPointer) {
+	listings, versions := c.index.snapshot()
+	d, err := buildDiskIndex(c.cacheDir, current, listings, versions)
+	if err != nil {
+		return
+	}
+	c.attachDisk(d, current)
+}
+
+// Ready reports whether a release is loaded (from the index or in memory).
+func (c *Client) Ready() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.disk != nil || c.index.Count() > 0
+}
+
+// SetProgress registers a callback told how many release bytes have arrived
+// during Sync, against the manifest's total.
+func (c *Client) SetProgress(fn func(done, total int64)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.progress = fn
+}
+
+// LoadFromCache loads existing cached catalog files from disk into the in-memory search index.//
 // The cache is re-verified on every load: the pointer must name a safe release
 // and carry a digest that matches the cached manifest bytes, and the cached
 // listings must match the manifest's entry. A corrupted or tampered cache
@@ -830,7 +926,7 @@ func (c *Client) fetchListings(ctx context.Context, releaseID string, manifest *
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("failed to download %s: status %d", name, resp.StatusCode)
 		}
-		return readCatalogFileBody(resp.Body, size)
+		return readCatalogFileBody(c.progressReader(resp.Body), size)
 	})
 	if err != nil {
 		return nil, nil, err
@@ -875,7 +971,7 @@ func (c *Client) fetchVersions(ctx context.Context, releaseID string, manifest *
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("failed to download %s: status %d", name, resp.StatusCode)
 		}
-		return readCatalogFileBody(resp.Body, size)
+		return readCatalogFileBody(c.progressReader(resp.Body), size)
 	})
 	if err != nil {
 		return nil, nil, err
@@ -887,9 +983,7 @@ func (c *Client) fetchVersions(ctx context.Context, releaseID string, manifest *
 // catalog has been synced. Installers use it to read the runtime descriptor; a
 // listing alone cannot start anything.
 func (c *Client) VersionRecordFor(listingID, version string) (*domain.VersionRecord, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	records := c.index.VersionRecords(listingID)
+	records := c.versionRecords(listingID)
 	if len(records) == 0 {
 		return nil, fmt.Errorf("no published version record for %s; run 'litespm catalog sync' first", listingID)
 	}
@@ -961,7 +1055,7 @@ func (c *Client) Sync(ctx context.Context) (*SyncResult, error) {
 				return &SyncResult{
 					ReleaseID: current.ReleaseID,
 					Sequence:  current.Sequence,
-					ItemCount: c.index.Count(),
+					ItemCount: c.Count(),
 					Updated:   false,
 				}, nil
 			}
@@ -983,6 +1077,7 @@ func (c *Client) Sync(ctx context.Context) (*SyncResult, error) {
 	if actual := domain.ComputeBytesDigest(manifestRaw); actual != current.ManifestDigest {
 		return nil, domain.ErrChecksumMismatch(current.ManifestDigest, actual)
 	}
+	c.startProgress(manifest)
 
 	// Download listings
 	listings, listingsRaw, err := c.fetchListings(ctx, current.ReleaseID, manifest)
@@ -1051,6 +1146,15 @@ func (c *Client) Sync(ctx context.Context) (*SyncResult, error) {
 	c.currentDigest = current.ManifestDigest
 	c.mu.Unlock()
 
+	// Build the on-disk search index from the rows just verified, so every
+	// later search opens it instead of parsing the release again. A failure
+	// leaves the verified in-memory index in place.
+	if c.cacheDir != "" {
+		if d, err := buildDiskIndex(c.cacheDir, current, listings, versions); err == nil {
+			c.attachDisk(d, current)
+		}
+	}
+
 	return &SyncResult{
 		ReleaseID: current.ReleaseID,
 		Sequence:  current.Sequence,
@@ -1117,7 +1221,10 @@ func fsyncParentDir(dir string) error {
 }
 
 // IndexListings indexes listings directly into the client's search index.
+// It switches the client to the in-memory index (tests and deterministic
+// consumers populate it this way).
 func (c *Client) IndexListings(listings []*domain.Listing) {
+	c.detachDisk()
 	c.index.IndexListings(listings)
 }
 
@@ -1125,18 +1232,95 @@ func (c *Client) IndexListings(listings []*domain.Listing) {
 // client's in-memory index. Production callers normally populate these via
 // Sync; this mirrors IndexListings for deterministic consumers and tests.
 func (c *Client) IndexVersionRecords(records []*domain.VersionRecord) {
+	c.detachDisk()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.index.IndexVersions(records)
 }
 
-// Search queries the in-memory catalog index.
+func (c *Client) detachDisk() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.disk != nil {
+		c.disk.close()
+		c.disk = nil
+	}
+}
+
+// pointerRecheck bounds how often a client stats the cached pointer.
+const pointerRecheck = 30 * time.Second
+
+func pointerModTime(cacheDir string) time.Time {
+	info, err := os.Stat(filepath.Join(cacheDir, "v1", "current.json"))
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
+}
+
+// diskOrNil returns the attached disk index, if any, reopening it when a
+// newer release was synced since it was attached.
+func (c *Client) diskOrNil() *diskIndex {
+	c.mu.RLock()
+	d, cacheDir, mod, checked := c.disk, c.cacheDir, c.pointerMod, c.pointerCheckedAt
+	c.mu.RUnlock()
+	if d == nil || cacheDir == "" || time.Since(checked) < pointerRecheck {
+		return d
+	}
+	c.mu.Lock()
+	c.pointerCheckedAt = time.Now()
+	c.mu.Unlock()
+	if now := pointerModTime(cacheDir); !now.IsZero() && !now.Equal(mod) {
+		if current, err := readCachedPointer(cacheDir); err == nil {
+			if nd, err := openDiskIndex(cacheDir, current); err == nil {
+				c.attachDisk(nd, current)
+				return nd
+			}
+		}
+	}
+	return d
+}
+
+// fallBackToMemory is used when a disk query fails. It reopens the cache
+// (the index for the current release, when one exists, e.g. after another
+// process synced and pruned the old file), and otherwise loads and verifies
+// the release in full, so a damaged index file can never return wrong rows.
+func (c *Client) fallBackToMemory() {
+	c.detachDisk()
+	_ = c.openCache()
+}
+
+// Search queries the catalog: the on-disk index when attached, else memory.
 func (c *Client) Search(query string, opts SearchOptions) []*SearchResult {
+	for attempt := 0; attempt < 2; attempt++ {
+		d := c.diskOrNil()
+		if d == nil {
+			break
+		}
+		if res, err := d.search(query, opts); err == nil {
+			return res
+		}
+		c.fallBackToMemory()
+	}
 	return c.index.Search(query, opts)
 }
 
 // GetListing retrieves a listing by ID.
 func (c *Client) GetListing(id string) (*domain.Listing, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		d := c.diskOrNil()
+		if d == nil {
+			break
+		}
+		l, ok, err := d.get(id)
+		if err == nil {
+			if !ok {
+				return nil, domain.ErrNotFound("listing", id)
+			}
+			return l, nil
+		}
+		c.fallBackToMemory()
+	}
 	l, ok := c.index.Get(id)
 	if !ok {
 		return nil, domain.ErrNotFound("listing", id)
@@ -1146,5 +1330,23 @@ func (c *Client) GetListing(id string) (*domain.Listing, error) {
 
 // Count returns the total number of indexed listings.
 func (c *Client) Count() int {
+	if d := c.diskOrNil(); d != nil {
+		return d.count
+	}
 	return c.index.Count()
+}
+
+// versionRecords returns a listing's records, newest first.
+func (c *Client) versionRecords(listingID string) []*domain.VersionRecord {
+	for attempt := 0; attempt < 2; attempt++ {
+		d := c.diskOrNil()
+		if d == nil {
+			break
+		}
+		if recs, err := d.versionRecords(listingID); err == nil {
+			return recs
+		}
+		c.fallBackToMemory()
+	}
+	return c.index.VersionRecords(listingID)
 }

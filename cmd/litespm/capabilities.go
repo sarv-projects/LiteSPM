@@ -479,8 +479,10 @@ func newCatalogClient(paths *config.PlatformPaths) (*catalog.Client, error) {
 	cfg, _ := config.LoadCurrentConfig()
 	registry := registryURLOf(cfg)
 	client := catalog.NewClientWithTimeout(registry, paths.DataRoot, catalogTimeoutOf(cfg), nil)
-	if err := client.LoadFromCache(); err != nil {
-		return nil, err
+	// The constructor already opened the cached release (the on-disk index,
+	// or a verified full load); reloading here would parse ~100 MB again.
+	if !client.Ready() {
+		return nil, fmt.Errorf("the local catalog is empty; run 'litespm catalog sync'")
 	}
 	return client, nil
 }
