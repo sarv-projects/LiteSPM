@@ -1,5 +1,10 @@
 # LiteSPM Remediation Plan
 
+> **Historical session note (dated header added 2026-11-10).** This is the record of the earlier
+> remediation waves. The current defect tracker is [AUDIT.md](AUDIT.md) and the current capability
+> truth is [STATUS.md](STATUS.md); where this file disagrees with either, it is the one that is out
+> of date.
+
 > **Not the status authority.** [STATUS.md](STATUS.md) is the single source of truth for what each
 > subsystem actually does — its six states (`DESIGNED` / `IMPLEMENTED` / `WIRED` / `TESTED` /
 > `VERIFIED` / `SHIPPED`) are binding repo-wide. This file is the **remediation history and

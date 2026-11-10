@@ -76,6 +76,10 @@ type marketplaceRowsDoc struct {
 	Notice       string           `json:"notice,omitempty"`
 	Tabs         []string         `json:"tabs"`
 	Rows         []marketplaceRow `json:"rows"`
+	// Installed is every LiteSPM-known deployment (the Installed tab), always
+	// present so a renderer needs one call, not two: each call loads the
+	// whole catalog.
+	Installed []marketplaceRow `json:"installed"`
 	// Commands are the exact verbs a renderer runs; spelled out here so a
 	// renderer never has to know LiteSPM's CLI grammar.
 	Commands marketplaceCommands `json:"commands"`
@@ -380,6 +384,12 @@ func buildMarketplaceRows(cat marketplaceSearcher, records []inventoryRecord, op
 		rows = []marketplaceRow{}
 	}
 	doc.Rows = rows
+	doc.Installed = []marketplaceRow{}
+	for _, r := range installedOnlyRows(cat, installed) {
+		if opts.kind == "" || opts.kind == "installed" || r.Kind == opts.kind {
+			doc.Installed = append(doc.Installed, r)
+		}
+	}
 	return doc
 }
 

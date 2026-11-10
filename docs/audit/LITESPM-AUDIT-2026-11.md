@@ -8,6 +8,23 @@ Conventions: **V** = verified by me (read / ran / fetched). **V-d** = verified b
 
 ---
 
+> **Status update, 2026-11-10 (after this audit).** Work landed since the audit was written; each item
+> below was re-checked in the working tree. Everything not listed keeps the status the register gives it.
+> - **F-07** (in-agent marketplace real for one agent): addressed. A per-agent CommandRegistrar
+>   (`internal/host/marketplace_command.go`) installs popups for Pi, OpenCode, Claude Code, Copilot CLI
+>   and Amp and prompt commands for 12 more; Pi and OpenCode were driven end to end in the real agents
+>   (see STATUS.md). The bootstrap-skill claims are replaced by what the registrar actually writes.
+> - **F-03** (search cost): partly addressed. Popups now make one `marketplace rows` call instead of
+>   two; each call still loads the full catalog (~1.6 s, ~500 MB on Linux). A resident index (daemon
+>   or a compact on-disk search index) is still the fix.
+> - **F-11** (three "installable" rules): the website now uses one rule (`availabilityOf()`); the Go
+>   `IsInstallable` comparison remains open.
+> - **F-10** (site shows commands the CLI rejects): the site's commands and counts are now derived from
+>   data files (`web/scripts/build-site-facts.mjs`); see `web/AUDIT-WEBSITE-2026-11.md`.
+> - New and fixed: the bridge blocked the MCP handshake on a cold daemon (OpenCode timed out); a skills
+>   ledger row whose directory was deleted could never be removed.
+> - **Open, unchanged:** F-01, F-02, F-04, F-05, F-06, F-08, F-09, F-12 to F-15 and the rest of the register.
+
 ## 0. Executive summary
 
 LiteSPM's *core* is unusually careful for a project of its age: plan → hash-sealed approval → journaled write → byte-exact restore, with a real crash-recovery path. The weaknesses are at the edges: **(a)** trust in the catalog is TLS-only by default, **(b)** the human-approval story is stronger in docs than in the CLI, **(c)** the "in-agent marketplace" is real for exactly one agent, **(d)** the CLI is slow on the full 69k catalog, and **(e)** the website and docs describe flags and counts the binary does not have.

@@ -10,10 +10,10 @@ import { useApp, type Route } from "@/lib/litespm/router";
 import type { CatalogStatsResponse } from "@/lib/litespm/types";
 import { formatFull } from "@/lib/litespm/format";
 import { Logo } from "./logo";
+import { NavLink } from "./nav-link";
 
 const NAV: Array<{ label: string; hash: string; match: Route["view"][] }> = [
-  { label: "Marketplace", hash: "/marketplace", match: ["marketplace"] },
-  { label: "Explore", hash: "/explore", match: ["explore", "package"] },
+  { label: "Marketplace", hash: "/marketplace", match: ["marketplace", "package"] },
   { label: "Agents", hash: "/agents", match: ["agents", "agent"] },
   { label: "Insights", hash: "/insights", match: ["insights"] },
   { label: "Docs", hash: "/docs", match: ["docs"] },
@@ -81,7 +81,7 @@ export function AnnouncementBar() {
             {formatFull(stats.release.itemCount)} listings, {stats.hosts} agent hosts.{" "}
             <button
               type="button"
-              onClick={() => useApp.getState().navigate("#/insights")}
+              onClick={() => useApp.getState().navigate("/insights")}
               className="font-medium underline decoration-brand/50 underline-offset-2 hover:text-brand"
             >
               See catalog stats →
@@ -134,23 +134,17 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <button
-          type="button"
-          onClick={() => navigate("/")}
-          className="shrink-0 rounded-md focus-visible:outline-2 focus-visible:outline-brand"
-          aria-label="LiteSPM home"
-        >
+        <NavLink to="/" className="shrink-0 rounded-md" aria-label="LiteSPM home">
           <Logo />
-        </button>
+        </NavLink>
 
         <nav aria-label="Primary" className="ml-2 hidden items-center gap-0.5 md:flex">
           {NAV.map((item) => {
             const active = item.match.includes(route.view);
             return (
-              <button
+              <NavLink
                 key={item.label}
-                type="button"
-                onClick={() => navigate(item.hash)}
+                to={item.hash}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-[13.5px] font-medium transition-colors",
@@ -160,7 +154,7 @@ export function Header() {
                 )}
               >
                 {item.label}
-              </button>
+              </NavLink>
             );
           })}
         </nav>
@@ -211,7 +205,7 @@ export function Header() {
           <Button
             size="sm"
             className="h-9 rounded-lg bg-brand px-3.5 text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90"
-            onClick={() => navigate("#/docs/getting-started")}
+            onClick={() => navigate("/docs/getting-started")}
           >
             Get started
           </Button>
@@ -232,10 +226,10 @@ export function Header() {
         <nav aria-label="Mobile" className="border-t border-border/60 bg-background md:hidden">
           <div className="mx-auto grid max-w-6xl gap-1 px-4 py-3">
             {NAV.map((item) => (
-              <button
+              <NavLink
                 key={item.label}
-                type="button"
-                onClick={() => navigate(item.hash)}
+                to={item.hash}
+                aria-current={item.match.includes(route.view) ? "page" : undefined}
                 className={cn(
                   "rounded-lg px-3 py-2 text-left text-[14px] font-medium transition-colors",
                   item.match.includes(route.view)
@@ -244,7 +238,7 @@ export function Header() {
                 )}
               >
                 {item.label}
-              </button>
+              </NavLink>
             ))}
             <button
               type="button"

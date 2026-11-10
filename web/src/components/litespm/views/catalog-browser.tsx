@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Filter,
   GitCompareArrows,
-  Loader2,
   Search,
   SlidersHorizontal,
   X,
@@ -21,19 +20,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useApp, exploreHash, type ExploreQuery, type SortKey } from "@/lib/litespm/router";
-import { useDebounced, useWatchlist } from "@/lib/litespm/hooks";
-import { formatFull, displayPackageName } from "@/lib/litespm/format";
-import type { CatalogListResponse } from "@/lib/litespm/types";
+import {
+  useApp,
+  exploreHash,
+  type ExploreQuery,
+  type MarketplaceTab,
+  type SortKey,
+} from "@/lib/litespm/router";
+import { useDebounced } from "@/lib/litespm/hooks";
+import { formatFull } from "@/lib/litespm/format";
+import type { CatalogFacets, CatalogListResponse } from "@/lib/litespm/types";
 import { PackageCard } from "../package-card";
 import { FilterPill } from "../primitives";
 import { RankExplainer } from "../rank-badge";
-
-const KIND_FACETS = [
-  { id: "mcp", label: "MCP servers" },
-  { id: "skill", label: "Skills" },
-  { id: "plugin", label: "Plugins" },
-];
 
 const INSTALLABILITY_FACETS: Array<{ id: string; label: string }> = [
   { id: "metadata_verified", label: "Metadata verified" },
@@ -57,65 +56,116 @@ const GOAL_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-export function ExploreView({ query }: { query: ExploreQuery }) {
+const TAB_NOUN: Record<MarketplaceTab, string> = {
+  all: "the catalog",
+  mcp: "MCP servers",
+  skills: "skills",
+  plugins: "plugins",
+  installed: "the catalog",
+};
+
+function paramsFor(query: ExploreQuery): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query.q) params.set("q", query.q);
+  if (query.kind) params.set("kind", query.kind);
+  if (query.goal) params.set("goal", query.goal);
+  if (query.category) params.set("category", query.category);
+  if (query.publisher) params.set("publisher", query.publisher);
+  if (query.installability) params.set("installability", query.installability);
+  if (query.transport) params.set("transport", query.transport);
+  if (query.host) params.set("host", query.host);
+  if (query.installable) params.set("installable", query.installable);
+  return params;
+}
+
+/**
+ * The one catalog surface behind `/marketplace`. Every keystroke becomes a
+ * server-side query for ONE page (24 cards, ~20 KB); the client never holds
+ * the catalog. Results and facet counts are fetched independently so cards
+ * paint without waiting for the sidebar.
+ */
+export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: MarketplaceTab }) {
   const navigate = useApp((s) => s.navigate);
   const [searchText, setSearchText] = React.useState(query.q ?? "");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
-  const debouncedSearch = useDebounced(searchText, 350);
+  const debouncedSearch = useDebounced(searchText, 300);
+  // What this component last wrote to the route. Without it, the route echo of
+  // an older keystroke overwrote text the user had typed in the meantime.
+  const lastPushed = React.useRef(query.q ?? "");
 
   const [data, setData] = React.useState<CatalogListResponse | null>(null);
+  const [facets, setFacets] = React.useState<CatalogFacets | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const requestId = React.useRef(0);
+  const [failed, setFailed] = React.useState(false);
+  const [retry, setRetry] = React.useState(0);
 
-  // Sync the text input when the route changes externally (palette, links,
-  // browser history). When the user typed, the debounced effect below is what
-  // writes the route, so this only fires on true external changes.
+  // External route changes (palette, assistant links, browser history).
   React.useEffect(() => {
-    setSearchText(query.q ?? "");
+    if ((query.q ?? "") !== lastPushed.current) {
+      lastPushed.current = query.q ?? "";
+      setSearchText(query.q ?? "");
+    }
   }, [query.q]);
 
-  // Push the debounced search box into the route — the route is the single
-  // source of truth the fetch reads.
+  // Debounced typing -> route (replace, so Back leaves the page).
   React.useEffect(() => {
-    if (debouncedSearch === (query.q ?? "")) return;
-    const next: ExploreQuery = { ...query, q: debouncedSearch || undefined, page: 1 };
-    if (!debouncedSearch) delete next.q;
-    navigate(exploreHash(next));
-  }, [debouncedSearch, navigate, query]);
+    const committed = debouncedSearch.trim();
+    if (committed === (query.q ?? "")) return;
+    lastPushed.current = committed;
+    const next: ExploreQuery = { ...query, q: committed || undefined, page: 1 };
+    if (!committed) delete next.q;
+    navigate(exploreHash(next, tab), { replace: true });
+  }, [debouncedSearch, navigate, query, tab]);
 
+  // Results: one page for the current route.
   React.useEffect(() => {
-    const id = ++requestId.current;
+    const controller = new AbortController();
     setLoading(true);
-    const params = new URLSearchParams();
-    if (query.q) params.set("q", query.q);
-    if (query.kind) params.set("kind", query.kind);
-    if (query.goal) params.set("goal", query.goal);
-    if (query.category) params.set("category", query.category);
-    if (query.publisher) params.set("publisher", query.publisher);
-    if (query.installability) params.set("installability", query.installability);
-    if (query.transport) params.set("transport", query.transport);
-    if (query.host) params.set("host", query.host);
-    if (query.installable) params.set("installable", query.installable);
+    setFailed(false);
+    const params = paramsFor(query);
     if (query.sort) params.set("sort", query.sort);
     params.set("page", String(query.page ?? 1));
     params.set("pageSize", "24");
+    params.set("facets", "0");
 
-    fetch(`/api/litespm/list?${params.toString()}`)
-      .then((r) => r.json())
-      .then((response: CatalogListResponse) => {
-        if (id === requestId.current) setData(response);
+    fetch(`/api/litespm/list?${params.toString()}`, { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<CatalogListResponse>;
       })
-      .catch(() => {})
-      .finally(() => {
-        if (id === requestId.current) setLoading(false);
+      .then((response) => {
+        setData(response);
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if ((err as { name?: string }).name === "AbortError") return;
+        setFailed(true);
+        setLoading(false);
       });
-  }, [query]);
+    return () => controller.abort();
+  }, [query, retry]);
+
+  // Facet counts depend on the filters and search, not on page or sort.
+  const facetKey = paramsFor(query).toString();
+  React.useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams(facetKey);
+    params.set("facets", "only");
+    fetch(`/api/litespm/list?${params.toString()}`, { signal: controller.signal })
+      .then((r) => (r.ok ? (r.json() as Promise<CatalogListResponse>) : null))
+      .then((response) => {
+        if (response) setFacets(response.facets);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [facetKey, retry]);
 
   const setParam = React.useCallback(
     (key: keyof ExploreQuery, value?: string | number) => {
       const next: ExploreQuery = { ...query, page: 1 };
       if (key === "q") {
         setSearchText(typeof value === "string" ? value : "");
+        lastPushed.current = typeof value === "string" ? value : "";
         if (!value) delete next.q;
         else next.q = String(value);
       } else if (value === undefined || value === "" || next[key] === value) {
@@ -123,9 +173,9 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
       } else {
         (next as Record<string, unknown>)[key as string] = value;
       }
-      navigate(exploreHash(next));
+      navigate(exploreHash(next, tab));
     },
-    [navigate, query],
+    [navigate, query, tab],
   );
 
   const toggleParam = React.useCallback(
@@ -135,8 +185,12 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
     [query, setParam],
   );
 
+  const clearFilters = React.useCallback(() => {
+    // Filters only: the tab (kind) and the search the person typed stay.
+    navigate(exploreHash({ q: query.q, kind: query.kind }, tab));
+  }, [navigate, query.q, query.kind, tab]);
+
   const activeCount =
-    (query.kind ? 1 : 0) +
     (query.goal ? 1 : 0) +
     (query.category ? 1 : 0) +
     (query.publisher ? 1 : 0) +
@@ -145,119 +199,82 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
     (query.host ? 1 : 0) +
     (query.installable ? 1 : 0);
 
-  const facets = data?.facets;
   const page = data?.page ?? 1;
   const pageCount = data?.pageCount ?? 1;
+  const status = failed
+    ? "The catalog could not be searched."
+    : loading && !data
+      ? "Searching the catalog…"
+      : data
+        ? `${formatFull(data.total)} listing${data.total === 1 ? "" : "s"}${query.q ? ` for “${query.q}”` : ""} · page ${formatFull(page)} of ${formatFull(pageCount)}`
+        : "";
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-      {/* Header row */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
-            The catalog
-          </p>
-          <h1 className="mt-1 text-[26px] font-semibold tracking-tight sm:text-[30px]">
-            {query.q ? (
-              <>
-                Results for <span className="text-brand">“{query.q}”</span>
-              </>
-            ) : query.host ? (
-              <>
-                Packages for <span className="text-brand">{query.host}</span>
-              </>
-            ) : (
-              "Explore every capability"
-            )}
-          </h1>
-          <p className="mt-1 text-[13px] text-muted-foreground">
-            {loading && !data
-              ? "Searching the catalog…"
-              : data
-                ? `${formatFull(data.total)} listing${data.total === 1 ? "" : "s"} · page ${page} of ${formatFull(pageCount)} · duplicate re-publications collapsed per page`
-                : "—"}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearchText("");
-                navigate(exploreHash({}));
-              }}
-              className="h-9 gap-1 text-[12px] font-medium text-brand hover:text-brand hover:bg-brand-soft lg:hidden"
-            >
-              <X className="h-3.5 w-3.5" /> Clear all ({activeCount})
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 rounded-lg lg:hidden"
-            onClick={() => setFiltersOpen((v) => !v)}
-            aria-expanded={filtersOpen}
-          >
-            <Filter className="h-3.5 w-3.5" />
-            Filters
-            {activeCount > 0 && (
-              <span className="ml-1 rounded-full bg-brand px-1.5 text-[10px] font-semibold text-brand-foreground">
-                {activeCount}
-              </span>
-            )}
-          </Button>
-          <Select
-            value={query.sort ?? (query.q ? "relevance" : "rank")}
-            onValueChange={(v) => setParam("sort", v === "rank" && !query.q ? undefined : (v as SortKey))}
-          >
-            <SelectTrigger className="h-9 w-[160px] rounded-lg text-[12.5px]" aria-label="Sort">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="rank">
-                <span className="inline-flex items-center gap-1.5">
-                  Top ranked <RankExplainer />
-                </span>
-              </SelectItem>
-              <SelectItem value="relevance">Relevance</SelectItem>
-              <SelectItem value="name">Name A→Z</SelectItem>
-              <SelectItem value="kind">Kind</SelectItem>
-              <SelectItem value="publisher">Publisher</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Search */}
-      <div className="mt-5 flex gap-2">
-        <label className="relative flex h-11 flex-1 items-center gap-2.5 rounded-xl border border-border/80 bg-card px-3.5">
-          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="sr-only">Search the catalog</span>
+    <div>
+      {/* Search + sort */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative flex h-11 min-w-[14rem] flex-1 items-center gap-2.5 rounded-xl border border-border/80 bg-card px-3.5 focus-within:border-brand/60">
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="sr-only">Search {TAB_NOUN[tab]}</span>
           <input
             type="search"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Search the catalog — name, publisher, summary, command…"
+            maxLength={200}
+            placeholder={`Search ${TAB_NOUN[tab]} — name, publisher, summary, command…`}
             autoComplete="off"
-            className="h-full min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/70"
+            spellCheck={false}
+            className="h-full min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/70 [&::-webkit-search-cancel-button]:hidden"
           />
           {searchText && (
             <button
               type="button"
               aria-label="Clear search"
               onClick={() => setParam("q", "")}
-              className="rounded p-0.5 text-muted-foreground/60 hover:text-foreground"
+              className="rounded p-0.5 text-muted-foreground hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </label>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-11 rounded-xl lg:hidden"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+        >
+          <Filter className="h-3.5 w-3.5" />
+          Filters
+          {activeCount > 0 && (
+            <span className="ml-1 rounded-full bg-brand px-1.5 text-[10px] font-semibold text-brand-foreground">
+              {activeCount}
+            </span>
+          )}
+        </Button>
+        <Select
+          value={query.sort ?? (query.q ? "relevance" : "rank")}
+          onValueChange={(v) => setParam("sort", v === "rank" && !query.q ? undefined : (v as SortKey))}
+        >
+          <SelectTrigger className="h-11 w-[168px] rounded-xl text-[12.5px]" aria-label="Sort">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="rank">
+              <span className="inline-flex items-center gap-1.5">
+                Top ranked <RankExplainer />
+              </span>
+            </SelectItem>
+            <SelectItem value="relevance">Relevance</SelectItem>
+            <SelectItem value="name">Name A→Z</SelectItem>
+            <SelectItem value="kind">Kind</SelectItem>
+            <SelectItem value="publisher">Publisher</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Quick facets */}
-      <div className="mt-4 flex flex-wrap items-center gap-1.5">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <FilterPill
           active={Boolean(query.installable)}
           onClick={() => setParam("installable", query.installable ? undefined : "1")}
@@ -265,54 +282,32 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
         >
           Installable only
         </FilterPill>
-        <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
-        {KIND_FACETS.map((kind) => (
-          <FilterPill
-            key={kind.id}
-            active={query.kind === kind.id}
-            onClick={() => toggleParam("kind", kind.id)}
-            count={facets?.kinds.find(([k]) => k === kind.id)?.[1]}
-          >
-            {kind.label}
+        {query.host && (
+          <FilterPill active onClick={() => setParam("host", undefined)} title="Remove the host filter">
+            Host: {query.host} <X className="h-3 w-3" aria-hidden="true" />
           </FilterPill>
-        ))}
-        {activeCount > 0 && (
-          <>
-            <span aria-hidden="true" className="mx-1 h-4 w-px bg-border" />
-            <button
-              type="button"
-              onClick={() => {
-                setSearchText("");
-                navigate(exploreHash({}));
-              }}
-              className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-muted/60 px-2.5 py-1 text-[12px] font-medium text-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <X className="h-3.5 w-3.5 text-muted-foreground" />
-              Clear all ({activeCount})
-            </button>
-          </>
         )}
+        {activeCount > 0 && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-muted/60 px-2.5 py-1 text-[12px] font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+            Clear filters ({activeCount})
+          </button>
+        )}
+        <p className="ml-auto text-[12px] text-muted-foreground" role="status" aria-live="polite">
+          {status}
+        </p>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[260px_1fr]">
+      <div className="mt-5 grid gap-6 lg:grid-cols-[260px_1fr]">
         {/* Facet sidebar */}
         <aside
-          className={cn(
-            "space-y-6 lg:block",
-            filtersOpen ? "block" : "hidden",
-          )}
+          className={cn("space-y-6 lg:block", filtersOpen ? "block" : "hidden")}
           aria-label="Filters"
         >
-          {activeCount > 0 && (
-            <button
-              type="button"
-              onClick={() => navigate(exploreHash({}))}
-              className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-brand hover:underline"
-            >
-              <X className="h-3.5 w-3.5" /> Clear all {activeCount} filter{activeCount === 1 ? "" : "s"}
-            </button>
-          )}
-
           <FacetGroup title="Goal" hint="LiteSPM's editorial grouping by task">
             {(facets?.goals ?? []).slice(0, 12).map((goal) => (
               <FilterPill
@@ -394,8 +389,18 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
         </aside>
 
         {/* Results */}
-        <div>
-          {loading && !data ? (
+        <div aria-busy={loading}>
+          {failed && !data ? (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-8 text-center">
+              <p className="text-[15px] font-medium">The catalog could not be searched.</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                Check the connection and try again.
+              </p>
+              <Button className="mt-4" variant="outline" onClick={() => setRetry((n) => n + 1)}>
+                Try again
+              </Button>
+            </div>
+          ) : loading && !data ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 9 }).map((_, i) => (
                 <div
@@ -406,18 +411,27 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
             </div>
           ) : data && data.items.length > 0 ? (
             <>
-              <div className={cn("grid gap-3 sm:grid-cols-2 xl:grid-cols-3", loading && "opacity-60")}>
+              {failed && (
+                <p className="mb-3 text-[12px] text-amber-700 dark:text-amber-400">
+                  This page could not be refreshed; showing the previous results.{" "}
+                  <button type="button" className="underline" onClick={() => setRetry((n) => n + 1)}>
+                    Retry
+                  </button>
+                </p>
+              )}
+              <div
+                className={cn(
+                  "grid gap-3 transition-opacity sm:grid-cols-2 xl:grid-cols-3",
+                  loading && "opacity-60",
+                )}
+              >
                 {data.items.map((hit, i) => (
                   <PackageCard key={hit.id} hit={hit} index={i} />
                 ))}
               </div>
 
-              {/* Pagination */}
               {pageCount > 1 && (
-                <nav
-                  className="mt-8 flex items-center justify-center gap-2"
-                  aria-label="Pagination"
-                >
+                <nav className="mt-8 flex items-center justify-center gap-2" aria-label="Pagination">
                   <Button
                     variant="outline"
                     size="sm"
@@ -444,7 +458,9 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
             </>
           ) : (
             <div className="rounded-2xl border border-dashed border-border/70 p-12 text-center">
-              <p className="text-[15px] font-medium">No listings match these filters.</p>
+              <p className="text-[15px] font-medium">
+                {query.q ? `Nothing in ${TAB_NOUN[tab]} matches “${query.q}”.` : "No listings match these filters."}
+              </p>
               <p className="mt-1 text-[13px] text-muted-foreground">
                 Try removing a filter, or search for something broader.
               </p>
@@ -453,10 +469,11 @@ export function ExploreView({ query }: { query: ExploreQuery }) {
                 variant="outline"
                 onClick={() => {
                   setSearchText("");
-                  navigate(exploreHash({}));
+                  lastPushed.current = "";
+                  navigate(exploreHash({ kind: query.kind }, tab));
                 }}
               >
-                Reset everything
+                Reset search and filters
               </Button>
             </div>
           )}
@@ -484,7 +501,7 @@ function FacetGroup({
           {title}
         </span>
         {hint && (
-          <span className="text-[10px] text-muted-foreground/60" title={hint}>
+          <span className="text-[10px] text-muted-foreground" title={hint}>
             ⓘ
           </span>
         )}

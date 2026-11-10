@@ -1,0 +1,26 @@
+{
+  "hosts": 52,
+  "remoteHosts": 47,
+  "localOnlyHosts": [
+    "claude-desktop",
+    "codestudio",
+    "iflow-cli",
+    "mux",
+    "zcode"
+  ],
+  "localOnlyHostNames": [
+    "Claude Desktop",
+    "Code Studio",
+    "Mux (Xum)",
+    "ZCode",
+    "iFlow CLI"
+  ],
+  "skillTargets": 81,
+  "listings": 69376,
+  "mcpServers": 48418,
+  "skills": 20320,
+  "plugins": 638,
+  "releaseId": "rel-2026-11-05-03",
+  "npmVersion": "0.6.0",
+  "bridgeTools": 13
+}

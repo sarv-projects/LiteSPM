@@ -11,6 +11,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (working tree, 2026-11-10)
+
+- **In-agent marketplace command.** `litespm setup --agent <id>`, `host setup <id>`, the wizard and the
+  daemon's `host.apply_setup` now also write a per-agent marketplace command
+  (`internal/host/marketplace_command.go`): popups for Pi Agent, OpenCode, Claude Code and GitHub Copilot
+  CLI (plus an unverified Amp plugin), and prompt commands/skills for Gemini CLI and, unverified, Qwen Code,
+  Kiro CLI, Cursor, Augment, Roo, Factory Droid, Kilo, Cline, Grok Build, Codex and Crush. Files carry the
+  `litespm-marketplace-command` ownership marker; `litespm host remove` deletes only marked files.
+- `litespm marketplace rows [--json] [--query] [--host] [--kind] [--limit] [--installable]`
+  (schema `litespm.marketplace.rows/v1`): the view model the popups render. Installable rows lead every
+  search; an empty query starts from the same twelve curated picks as the website's home page
+  (`web/data/featured.json`, kept equal by a test); every document carries an `installed` array, so a
+  popup needs one call (each call loads the catalog) instead of two.
+- The Pi popup gained tabs (All, MCP servers, Skills, Plugins, Installed), publisher column, paging, and
+  refuses Enter on rows LiteSPM cannot install (it shows the reason instead of a raw error).
+- Website: `/explore` and `/marketplace` merged into one `/marketplace` page with server-side, paged
+  search; new docs pages for the in-agent marketplace and agent compatibility. See
+  `web/AUDIT-WEBSITE-2026-11.md`.
+
+### Fixed (working tree, 2026-11-10)
+
+- `litespm bridge stdio` answers the MCP handshake immediately and connects to the daemon in the
+  background; tool calls wait for it (up to 90 s). On a cold machine the daemon loads the whole catalog
+  before it listens, and agents gave up on the handshake (OpenCode 2.2.6: "Request timed out").
+- `catalog sync` now gets its 5-minute budget (`catalogSyncTimeout`); it was cut off at the 30 s config
+  default on ordinary connections.
+- A plugin's `"skills": "./skills/"` container now expands to one component per child holding a `SKILL.md`.
+- The npm shim forwards `SIGTERM`/`SIGHUP` to the native process (so a host stopping a bridge no longer
+  orphans it) and keeps installer output off stdout.
+- JSON host-config writes no longer HTML-escape (`@<3` stays `@<3`), and newly created containers are
+  indented to match the document.
+- The skills ledger clears a row whose directory is already gone instead of listing it forever.
+- Wizard prompts are arrow-key pickers on a TTY, with the numbered text prompts as the fallback.
+- Catalog search breaks score/name ties by listing ID, so equal-name results no longer reorder per run.
+
+### Documentation (2026-11-10)
+
+- Corrected host and tool counts across the docs (52 adapters, 47 remote-capable, 81 skill targets,
+  13 bridge tools incl. `adopt_capability`); see `docs/DOCS-REVIEW-2026-11.md`.
+
 Twenty-four defects fixed across the CLI, the host adapters, the site and the
 vendored skill library, and every agent host re-verified against its vendor's
 live documentation.

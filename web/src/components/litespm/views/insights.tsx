@@ -179,7 +179,7 @@ export function InsightsView() {
               label={bar.label}
               value={bar.value}
               max={Math.max(...data.topCategories.map((b) => b.value))}
-              href={`#/explore?category=${encodeURIComponent(bar.label)}`}
+              href={`#/marketplace?category=${encodeURIComponent(bar.label)}`}
               onNavigate={navigate}
             />
           ))}
@@ -193,7 +193,7 @@ export function InsightsView() {
               label={bar.label}
               value={bar.value}
               max={Math.max(...data.topPublishers.map((b) => b.value))}
-              href={`#/explore?publisher=${encodeURIComponent(bar.label)}`}
+              href={`#/marketplace?publisher=${encodeURIComponent(bar.label)}`}
               onNavigate={navigate}
             />
           ))}

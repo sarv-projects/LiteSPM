@@ -168,12 +168,19 @@ if (process.env.NODE_ENV !== "production") {
 export function getSearchIndex(rows: Listing[], releaseId: string): SearchIndex {
   const startedAt = Date.now();
   const cached = globalForIndex.__litespmBm25;
-  if (cached && cached.releaseId === releaseId && cached.postings && cached.rowIds) {
+  // Keyed by release AND shape: a release id alone would keep serving an index
+  // built for a different row set (compact vs full projection, a hot-swapped
+  // data directory) and map posting offsets onto the wrong rows.
+  const sameRows = (candidate: SearchIndex): boolean =>
+    candidate.n === rows.length &&
+    candidate.rowIds[0] === rows[0]?.id &&
+    candidate.rowIds[rows.length - 1] === rows[rows.length - 1]?.id;
+  if (cached && cached.releaseId === releaseId && cached.postings && cached.rowIds && sameRows(cached)) {
     return cached;
   }
 
   const loaded = loadSerializedIndex(releaseId);
-  if (loaded) {
+  if (loaded && sameRows(loaded)) {
     globalForIndex.__litespmBm25 = loaded;
     return loaded;
   }
@@ -338,7 +345,7 @@ export function candidateRowIds(
   index: SearchIndex,
   groups: string[][],
   matchAny = false,
-): Set<string> | null {
+): number[] | null {
   if (groups.length === 0) return null;
   let intersection: Set<number> | null = null;
 
@@ -349,7 +356,7 @@ export function candidateRowIds(
     }
     if (groupRows.size === 0) {
       if (matchAny) continue;
-      return new Set();
+      return [];
     }
     if (intersection === null) {
       intersection = groupRows;
@@ -362,15 +369,71 @@ export function candidateRowIds(
     for (const rowIndex of intersection) {
       if (!groupRows.has(rowIndex)) intersection.delete(rowIndex);
     }
-    if (intersection.size === 0) return new Set<string>();
+    if (intersection.size === 0) return [];
   }
 
-  const out = new Set<string>();
-  for (const rowIndex of intersection ?? []) {
-    const id = index.rowIds[rowIndex];
-    if (id) out.add(id);
+  // Row offsets in dataset order, so the caller can index the rows array
+  // directly instead of scanning all 69k rows against an id Set.
+  return [...(intersection ?? [])].sort((a, b) => a - b);
+}
+
+/**
+ * Make a query term that is absent from the vocabulary useful instead of
+ * sending the request to a full-catalog scan: expand it to vocabulary terms it
+ * is a prefix of (search-as-you-type: "postg" -> postgres) or, failing that,
+ * to terms one edit away (typos: "dokcer" -> docker). Terms that already exist
+ * are left alone. The typed token stays first in its group.
+ */
+export function expandGroups(index: SearchIndex, groups: string[][]): string[][] {
+  return groups.map((group) => {
+    if (group.some((term) => index.postings.has(term))) return group;
+    const token = group[0]!;
+    if (token.length < 3) return group;
+
+    const prefix: Array<[string, number]> = [];
+    const near: Array<[string, number]> = [];
+    for (const [term, df] of index.df) {
+      if (term.startsWith(token)) prefix.push([term, df]);
+      else if (token.length >= 4 && Math.abs(term.length - token.length) <= 1 && withinOneEdit(token, term)) {
+        near.push([term, df]);
+      }
+    }
+    const picked = (prefix.length > 0 ? prefix : near)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, prefix.length > 0 ? 24 : 6)
+      .map(([term]) => term);
+    return picked.length > 0 ? [...group, ...picked] : group;
+  });
+}
+
+function withinOneEdit(a: string, b: string): boolean {
+  const m = a.length;
+  const n = b.length;
+  let i = 0;
+  let j = 0;
+  let diff = 0;
+  while (i < m && j < n) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    if (i + 1 < m && j + 1 < n && a[i] === b[j + 1] && a[i + 1] === b[j]) {
+      diff++;
+      i += 2;
+      j += 2;
+    } else {
+      diff++;
+      if (m > n) i++;
+      else if (n > m) j++;
+      else {
+        i++;
+        j++;
+      }
+    }
+    if (diff > 1) return false;
   }
-  return out;
+  return diff + (m - i) + (n - j) <= 1;
 }
 
 export { queryGroups };

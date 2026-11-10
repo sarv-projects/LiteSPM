@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "predev": "node scripts/build-assistant-knowledge.mjs",
-    "build": "node scripts/build-assistant-knowledge.mjs && prisma generate && next build",
+    "predev": "node scripts/build-site-facts.mjs && node scripts/build-assistant-knowledge.mjs",
+    "build": "node scripts/build-site-facts.mjs && node scripts/build-assistant-knowledge.mjs && prisma generate && next build",
     "postbuild": "node scripts/postbuild.mjs",
     "build:search-index": "node scripts/build-search-index.mjs",
     "start": "node .next/standalone/server.js",
@@ -18,7 +18,7 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "test:assistant": "node scripts/build-assistant-knowledge.mjs && bun scripts/test-assistant-rag.ts",
-    "pretype-check": "node scripts/build-assistant-knowledge.mjs"
+    "pretype-check": "node scripts/build-site-facts.mjs && node scripts/build-assistant-knowledge.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -824,24 +824,37 @@ func runBridge(args []string) {
 
 	paths, err := config.ResolvePlatformPaths()
 	var client *ipc.Client
+	var pending chan *ipc.Client
 	if err != nil {
 		// Standalone mode has no capability data; say so instead of letting a
 		// silent path failure masquerade as a working bridge.
 		fmt.Fprintf(os.Stderr, "litespm bridge: platform path resolution failed: %v; running standalone with no capabilities\n", err)
+	} else if c, dialErr := ipc.Dial(paths.IPCEndpoint()); dialErr == nil {
+		client = c
+		defer client.Close()
 	} else {
-		c, dialErr := connectOrStartDaemon(context.Background(), paths)
-		if dialErr != nil {
-			fmt.Fprintf(os.Stderr, "litespm bridge: daemon dial failed: %v; running standalone with no capabilities (start it with 'litespm daemon serve')\n", dialErr)
-			if tail := daemonLogTail(paths, 500); tail != "" {
-				fmt.Fprintf(os.Stderr, "litespm bridge: daemon log tail:\n%s\n", tail)
+		// Cold machine: start (or wait for) the daemon in the background and
+		// answer the MCP handshake now. Agents time the handshake out (OpenCode
+		// gives up after 60s), and a cold daemon loads the whole catalog first.
+		pending = make(chan *ipc.Client, 1)
+		go func() {
+			c, dialErr := connectOrStartDaemon(context.Background(), paths)
+			if dialErr != nil {
+				fmt.Fprintf(os.Stderr, "litespm bridge: daemon dial failed: %v; running standalone with no capabilities (start it with 'litespm daemon serve')\n", dialErr)
+				if tail := daemonLogTail(paths, 500); tail != "" {
+					fmt.Fprintf(os.Stderr, "litespm bridge: daemon log tail:\n%s\n", tail)
+				}
+				pending <- nil
+				return
 			}
-		} else {
-			client = c
-			defer client.Close()
-		}
+			pending <- c
+		}()
 	}
 
 	shim := bridge.NewShim(hostID, client, os.Stdin, os.Stdout)
+	if pending != nil {
+		shim.SetPendingClient(pending)
+	}
 	// Best effort, never fatal: a bridge that cannot name the project still
 	// serves the user scope, which is what every bridge did before.
 	shim.ProjectRoot = resolveBridgeProjectRoot(workspace)

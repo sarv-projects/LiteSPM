@@ -35,7 +35,10 @@ import type {
   FeaturedResponse,
   TrendingItem,
 } from "@/lib/litespm/types";
+import facts from "@/lib/litespm/site-facts.json";
+import { IN_AGENT } from "@/lib/litespm/in-agent";
 import { InstallBar } from "../install-bar";
+import { NavLink } from "../nav-link";
 import { TerminalHero } from "../terminal";
 import { KindBadge, SectionHeading } from "../primitives";
 import { RankBadge, RankExplainer } from "../rank-badge";
@@ -97,11 +100,11 @@ export function HomeView() {
       .then((r) => r.json())
       .then((data: { items: TrendingItem[] }) => setTrending(data.items ?? []))
       .catch(() => {});
-    fetch("/api/litespm/list?sort=rank&kind=mcp&installable=1&pageSize=8")
+    fetch("/api/litespm/list?sort=rank&kind=mcp&installable=1&pageSize=8&facets=0")
       .then((r) => r.json())
       .then((data: CatalogListResponse) => setTopMcp(data.items ?? []))
       .catch(() => {});
-    fetch("/api/litespm/list?sort=rank&kind=skill&installable=1&pageSize=8")
+    fetch("/api/litespm/list?sort=rank&kind=skill&installable=1&pageSize=8&facets=0")
       .then((r) => r.json())
       .then((data: CatalogListResponse) => setTopSkills(data.items ?? []))
       .catch(() => {});
@@ -157,7 +160,7 @@ export function HomeView() {
             >
               <Sparkles className="h-3.5 w-3.5" />
               {cliVersion ? `v${cliVersion.replace(/^v/, "")} on npm` : "on npm"} ·{" "}
-              {stats ? `${stats.hosts} agent hosts` : "52 agent hosts"}
+              {`${stats?.hosts ?? facts.hosts} agent hosts`}
             </motion.p>
             <motion.h1
               initial={{ opacity: 0, y: 12 }}
@@ -175,7 +178,7 @@ export function HomeView() {
               className="mt-5 max-w-[52ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]"
             >
               Stop manually configuring your AI agents. Discover, install, and manage MCP servers,
-              skills, and plugins across {stats ? stats.hosts : 52} agent hosts — with previews, auto-backups, and 1-click rollback.
+              skills, and plugins across {stats?.hosts ?? facts.hosts} agent hosts — with previews, automatic backups, and one-command rollback.
             </motion.p>
 
             <motion.div
@@ -185,19 +188,21 @@ export function HomeView() {
               className="mt-7 flex flex-wrap items-center gap-3"
             >
               <Button
+                asChild
                 size="lg"
                 className="h-11 rounded-xl bg-brand px-5 text-[14.5px] font-semibold text-brand-foreground hover:bg-brand/90 transition-transform active:scale-[0.98]"
-                onClick={() => navigate("#/docs/getting-started")}
               >
-                Get started <ArrowRight className="h-4 w-4" />
+                <NavLink to="/docs/getting-started">
+                  Get started <ArrowRight className="h-4 w-4" />
+                </NavLink>
               </Button>
               <Button
+                asChild
                 size="lg"
                 variant="outline"
                 className="h-11 rounded-xl px-5 text-[14.5px] transition-transform active:scale-[0.98]"
-                onClick={() => navigate(exploreHash({}))}
               >
-                Explore catalog
+                <NavLink to="/marketplace">Browse the marketplace</NavLink>
               </Button>
               <button
                 type="button"
@@ -246,7 +251,7 @@ export function HomeView() {
                   </span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
-                  {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : "52"}
+                  {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : String(facts.hosts)}
                 </dd>
               </div>
               <div
@@ -276,7 +281,7 @@ export function HomeView() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15, duration: 0.5, ease: [0.21, 0.6, 0.35, 1] }}
           >
-            <TerminalHero hostsCount={stats?.hosts ?? 52} />
+            <TerminalHero hostsCount={stats?.hosts ?? facts.hosts} />
             <p className="mt-3 text-center text-[11px] text-muted-foreground/80">
               Interactive CLI walkthrough: search, preview, install with backup, and ledger tracking.
             </p>
@@ -339,9 +344,9 @@ export function HomeView() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand font-mono text-[13px] font-bold">
                 /m
               </div>
-              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">/marketplace in Chat</h3>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Marketplace inside your agent</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                Type <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">/marketplace</code> in your agent&apos;s chat: a text prompt that searches the same catalog and prepares installs for your approval. For the windowed marketplace with live search, run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm marketplace</code>.
+                <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm setup</code> adds a marketplace command to each agent: an interactive popup in Pi, OpenCode, Claude Code and Copilot CLI, a prompt command in most others. Or run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm marketplace</code> in any terminal.
               </p>
             </motion.div>
 
@@ -375,7 +380,7 @@ export function HomeView() {
               </div>
               <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Auto-Backup & 1-Command Undo</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                LiteSPM always backs up your agent&apos;s configuration before writing any change. If you ever want to rollback, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore &lt;installId&gt;</code> puts your file back to its exact previous bytes without touching manual edits.
+                LiteSPM backs up your agent&apos;s configuration before writing any change. To roll back, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore &lt;installId&gt;</code> puts your file back to its exact previous bytes without touching manual edits.
               </p>
             </motion.div>
 
@@ -392,10 +397,60 @@ export function HomeView() {
               </div>
               <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Interactive UI or CLI Flags</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                Prefer a friendly menu? Just run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm</code> for the interactive wizard. Power user? Use direct flags like <code className="font-mono text-[11.5px]">--agent</code> and <code className="font-mono text-[11.5px]">--global</code>.
+                Prefer a friendly menu? Just run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm</code> for the interactive wizard. Power user? Use direct flags like <code className="font-mono text-[11.5px]">--agent</code> and <code className="font-mono text-[11.5px]">--scope</code>.
               </p>
             </motion.div>
           </div>
+        </div>
+      </section>
+
+      {/* ------------------------ in-agent marketplace ------------------------ */}
+      <section className="border-b border-border/60 py-14" aria-labelledby="inagent-title">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
+              Without leaving your agent
+            </p>
+            <h2 id="inagent-title" className="mt-1.5 text-[clamp(1.6rem,3vw,2.2rem)] font-semibold leading-tight tracking-[-0.03em]">
+              The marketplace, one command away
+            </h2>
+            <p className="mt-3 max-w-[56ch] text-[14px] leading-relaxed text-muted-foreground">
+              <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[12px] text-brand">litespm setup</code>{" "}
+              connects an agent and installs a marketplace command inside it. Where the agent can
+              draw a view you get an interactive popup that spends no model turn; elsewhere you get
+              a prompt command and the agent&apos;s own model drives LiteSPM. It never approves an
+              install for you.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button asChild variant="outline" className="rounded-xl">
+                <NavLink to="/docs/in-agent-marketplace">How it works</NavLink>
+              </Button>
+              <Button asChild variant="ghost" className="rounded-xl text-brand hover:text-brand">
+                <NavLink to="/docs/agent-compatibility">
+                  Agent compatibility <ArrowRight className="h-4 w-4" />
+                </NavLink>
+              </Button>
+            </div>
+            <p className="mt-3 text-[11.5px] text-muted-foreground">
+              Ships in 0.6.1; npm currently serves {facts.npmVersion}.
+            </p>
+          </div>
+          <ul className="grid gap-2 sm:grid-cols-2" aria-label="Agents with an interactive popup">
+            {IN_AGENT.filter((e) => e.kind === "popup").map((e) => (
+              <li key={e.agent} className="rounded-xl border border-border/70 bg-card p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13.5px] font-semibold">{e.agent}</span>
+                  <span className="rounded-full border border-brand/30 bg-brand-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand">
+                    Popup
+                  </span>
+                </div>
+                <p className="mt-1.5 font-mono text-[11.5px] text-foreground/90">{e.invoke}</p>
+              </li>
+            ))}
+            <li className="rounded-xl border border-dashed border-border/70 bg-card/50 p-3.5 text-[12.5px] text-muted-foreground">
+              + prompt commands for Gemini CLI, Qwen Code, Kiro CLI, Cursor, Codex, Cline and more.
+            </li>
+          </ul>
         </div>
       </section>
 
@@ -661,7 +716,7 @@ export function HomeView() {
         <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
           <SectionHeading
             eyebrow="Works with your agent"
-            title={<span id="agents-title">{stats ? `${stats.hosts} hosts` : "52 hosts"}. One command.</span>}
+            title={<span id="agents-title">{stats?.hosts ?? facts.hosts} hosts. One command.</span>}
             description="Whether you build in Cursor, Claude Code, Cline, or Copilot — every agent host gets automatic configuration, pre-write backups, and a rollback ledger."
             action={
               <Button variant="outline" className="rounded-xl" onClick={() => navigate("#/agents")}>
@@ -781,7 +836,7 @@ export function HomeView() {
             {[
               {
                 q: "Why are some packages marked 'Installable' while others are 'Discovery-Only'?",
-                a: "LiteSPM operates on a zero-guesswork safety standard. To automatically inject an MCP server into your agent's config, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). For community packages that only publish a GitHub link or README without structured launch parameters, LiteSPM refuses to guess commands (such as guessing between npx, python, or uvx) that could break your agent. We index all ~69k community capabilities so you can find them and view their source code, but one-click automated setup is reserved for packages with verified launch details.",
+                a: `LiteSPM operates on a zero-guesswork safety standard. To automatically inject an MCP server into your agent's config, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). For community packages that only publish a GitHub link or README without structured launch parameters, LiteSPM refuses to guess commands (such as guessing between npx, python, or uvx) that could break your agent. We index all ${Math.floor(facts.listings / 1000)}k+ community capabilities so you can find them and view their source code, but single-command setup is reserved for packages with verified launch details.`,
               },
               {
                 q: "What does 'Discovery only' mean?",
@@ -793,7 +848,7 @@ export function HomeView() {
               },
               {
                 q: "Can LiteSPM break or overwrite my existing agent settings?",
-                a: "No. LiteSPM's JSONC and TOML parsers preserve all your existing entries, comments, and structure. It only injects the required capability entry. When you uninstall a package, only the nodes LiteSPM created are removed—all personal edits you made before or after install remain intact.",
+                a: "It is built not to. LiteSPM's JSONC and TOML parsers preserve your existing entries, comments and structure, and it only adds the capability entry. Every write is previewed and backed up first, so if something does go wrong, litespm restore puts the file back to its exact previous bytes. When you remove a package, only the nodes LiteSPM created are removed; edits you made before or after install are kept.",
               },
               {
                 q: "How do plugins with host-specific extras work?",
@@ -801,7 +856,11 @@ export function HomeView() {
               },
               {
                 q: "Which AI coding agents are supported?",
-                a: "LiteSPM supports 52 agent hosts for local stdio MCP servers (including Cursor, Claude Code, Cline, OpenAI Codex, OpenCode, Grok Build, Gemini CLI, and GitHub Copilot) and 81 targets for skills, covering terminal, IDE, and desktop environments. 47 hosts also document a native remote (URL) entry; four support local stdio only and refuse a remote install.",
+                a: `LiteSPM supports ${facts.hosts} agent hosts for local stdio MCP servers (including Cursor, Claude Code, Cline, OpenAI Codex, OpenCode, Grok Build, Gemini CLI, and GitHub Copilot) and ${facts.skillTargets} targets for skills, covering terminal, IDE, and desktop environments. ${facts.remoteHosts} hosts also document a native remote (URL) entry; the other ${facts.hosts - facts.remoteHosts} (${facts.localOnlyHostNames.join(", ")}) support local stdio only and refuse a remote install.`,
+              },
+              {
+                q: "Can I browse and install from inside my agent?",
+                a: "Yes, from the next release (0.6.1; npm currently serves 0.6.0). litespm setup installs a marketplace command into each agent. Pi, OpenCode, Claude Code and GitHub Copilot CLI get an interactive popup that needs no model turn; Gemini CLI, Qwen Code, Kiro CLI, Cursor, Augment, Roo, Factory Droid, Kilo, Cline, Grok Build, Codex and Crush get a prompt command that has the agent's model drive LiteSPM's tools. Some agents (Zed, Windsurf, Continue, Aider, Warp, OpenHands, Goose) have no extension surface for either. See Docs → Agent compatibility.",
               },
             ].map((item) => (
               <details

@@ -3,6 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import facts from "@/lib/litespm/site-facts.json";
+
+const LISTINGS = `${Math.floor(facts.listings / 1000)}k+`;
+const SHARE_DESCRIPTION = `Search ${LISTINGS} MCP servers, skills and plugins, and install them into ${facts.hosts} supported agent hosts with preview, backup and undo.`;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,8 +21,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://lite-spm-nine.vercel.app"),
   title: "LiteSPM — The package manager for AI agents",
-  description:
-    "Find MCP servers, skills and plugins once, and install them into the coding agents you use. Browse 69k+ listings across 52 agent hosts (47 remote-capable) — with publisher, source and installability stated up front.",
+  description: `Find MCP servers, skills and plugins once, and install them into the coding agents you use. Browse ${LISTINGS} listings across ${facts.hosts} agent hosts (${facts.remoteHosts} remote-capable) — with publisher, source and installability stated up front.`,
   keywords: [
     "MCP",
     "Model Context Protocol",
@@ -44,8 +47,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "LiteSPM — The package manager for AI agents",
-    description:
-      "Search 69k+ MCP servers, skills and plugins, and install them into 52 supported agent hosts with preview, backup and undo.",
+    description: SHARE_DESCRIPTION,
     siteName: "LiteSPM",
     type: "website",
     images: [
@@ -60,10 +62,10 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "LiteSPM — The package manager for AI agents",
-    description:
-      "Search 69k+ MCP servers, skills and plugins, and install them into 52 supported agent hosts with preview, backup and undo.",
+    description: SHARE_DESCRIPTION,
     images: ["/og.png"],
   },
+  alternates: { canonical: "/" },
   robots: { index: true, follow: true },
 };
 

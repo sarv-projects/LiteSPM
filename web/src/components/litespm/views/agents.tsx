@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useApp, exploreHash } from "@/lib/litespm/router";
 import { formatFull } from "@/lib/litespm/format";
+import facts from "@/lib/litespm/site-facts.json";
 import type { AgentRow, AgentStats } from "@/lib/litespm/types";
 import { BrandMark } from "../brand-mark";
 
@@ -114,8 +115,8 @@ export function AgentsView() {
               Choose your <span className="text-brand">agent.</span>
             </h1>
             <p className="mt-5 max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]">
-              LiteSPM writes each agent&apos;s own config — 52 hosts for local stdio MCP servers
-              (47 of them also accept a remote URL), 81 targets for skills. Choose the agent you use,
+              LiteSPM writes each agent&apos;s own config — {facts.hosts} hosts for local stdio MCP servers
+              ({facts.remoteHosts} of them also accept a remote URL), {facts.skillTargets} targets for skills. Choose the agent you use,
               then browse packages with clear setup details. Each profile includes sourced product
               facts and the exact config file it touches.
             </p>

@@ -51,7 +51,12 @@ export async function GET(request: NextRequest) {
     const columns: CompareColumn[] = [];
 
     for (const key of keys) {
-      const decoded = decodeURIComponent(key).trim();
+      let decoded: string;
+      try {
+        decoded = decodeURIComponent(key).trim();
+      } catch {
+        decoded = key.trim();
+      }
       const row = dataset.byKey.get(decoded) ?? dataset.byId.get(decoded);
       if (!row) continue;
       const availability = availabilityOf(row);

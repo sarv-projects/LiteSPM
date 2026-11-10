@@ -12,7 +12,9 @@ import type { Listing } from "./types";
  *   4. **skill** → installs through the content-addressed skills ledger from
  *      the source it was published in.
  *
- * The live split is computed from the rows, not hardcoded here.
+ * The live split is computed from the rows, not hardcoded here. This is the
+ * ONE web-side rule: search, facets, cards, the detail page, trending and the
+ * sitemap all call `availabilityOf`; none keeps its own copy.
  */
 export type AvailabilityId = "remote" | "local" | "source" | "plugin" | "discovery" | "unsupported";
 
@@ -80,6 +82,11 @@ export function availabilityOf(
       url?: string | null;
     },
 ): Availability {
+  // discovery_only never installs, whatever else the row carries.
+  if (item.installability === "discovery_only") {
+    return item.kind === "plugin" ? UNSUPPORTED : DISCOVERY;
+  }
+
   if (item.kind === "plugin") {
     const artifact = item.artifact;
     if (!artifact) return UNSUPPORTED;
@@ -107,7 +114,10 @@ export function availabilityOf(
     return command ? LOCAL : DISCOVERY;
   }
 
-  return item.kind === "skill" ? SOURCE : REMOTE;
+  // A skill installs from the source it was published in; without one there
+  // is nothing to copy.
+  if (item.kind === "skill") return item.skillSource?.trim() ? SOURCE : DISCOVERY;
+  return REMOTE;
 }
 
 /** Counts for a set of rows, for the one-line summary above a list. */

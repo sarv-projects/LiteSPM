@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/sarv-projects/litespm/internal/buildinfo"
 	"github.com/sarv-projects/litespm/internal/domain"
@@ -84,6 +85,42 @@ type Shim struct {
 	reader      *bufio.Reader
 	writer      io.Writer
 	writeMu     sync.Mutex
+
+	// pending delivers the daemon connection when it is still being made
+	// (a cold daemon loads the whole catalog before it listens). The MCP
+	// handshake is answered without it, so an agent never times out the
+	// bridge; the first tool call waits for it instead.
+	pending     <-chan *ipc.Client
+	pendingOnce sync.Once
+}
+
+// SetPendingClient hands the shim a daemon connection that is still being
+// established. A nil value on the channel means the connection failed and
+// the shim stays in standalone mode.
+func (s *Shim) SetPendingClient(ch <-chan *ipc.Client) {
+	s.pending = ch
+}
+
+// pendingClientWait bounds how long a tool call waits for a cold daemon.
+const pendingClientWait = 90 * time.Second
+
+func (s *Shim) awaitClient(ctx context.Context) {
+	if s.client != nil || s.pending == nil {
+		return
+	}
+	s.pendingOnce.Do(func() {
+		timer := time.NewTimer(pendingClientWait)
+		defer timer.Stop()
+		select {
+		case c := <-s.pending:
+			if c != nil {
+				c.SetIdentity("bridge", s.hostID)
+				s.client = c
+			}
+		case <-timer.C:
+		case <-ctx.Done():
+		}
+	})
 }
 
 // NewShim creates a new stdio Bridge shim.
@@ -440,6 +477,7 @@ func (s *Shim) dispatchTool(ctx context.Context, name string, args json.RawMessa
 	if !s.knownTool(name) {
 		return FormatErrorResult(domain.ErrNotFound("tool", name)), nil
 	}
+	s.awaitClient(ctx)
 	if s.client == nil {
 		// Standalone mode (no daemon connection): the shim holds no capability
 		// data, so every tool fails closed with an explicit error instead of

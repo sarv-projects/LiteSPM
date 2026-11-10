@@ -865,8 +865,15 @@ export function Assistant() {
     } catch { /* storage quota/private browsing must not break chat */ }
   }, [messages, rememberChats, mounted]);
 
+  const wasOpen = React.useRef(false);
   React.useEffect(() => {
-    if (open) window.setTimeout(() => inputRef.current?.focus(), 50);
+    if (open) {
+      window.setTimeout(() => inputRef.current?.focus(), 50);
+    } else if (wasOpen.current) {
+      // Closing returns focus to the launcher instead of dropping it on <body>.
+      document.getElementById("assistant-launcher")?.focus();
+    }
+    wasOpen.current = open;
   }, [open]);
 
   // Escape closes the panel — unless the user is mid-composition in the
@@ -874,7 +881,9 @@ export function Assistant() {
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && (e.target as HTMLElement)?.tagName !== "TEXTAREA") {
+      // Escape closes from anywhere, including the message box (where focus
+      // starts); only an active IME composition keeps its own Escape.
+      if (e.key === "Escape" && !e.isComposing) {
         setAssistant(false);
       }
     };
@@ -883,7 +892,12 @@ export function Assistant() {
   }, [open, setAssistant]);
 
   React.useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    // Smooth-scrolling on every streamed token queues overlapping animations;
+    // follow the stream instantly and only animate when idle.
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: busy ? "auto" : "smooth",
+    });
   }, [messages, busy]);
 
   /** Patch the trailing assistant bubble (the one tokens stream into). */
@@ -1143,7 +1157,7 @@ export function Assistant() {
       )}
       role="dialog"
       aria-label="Ask AI assistant"
-      aria-hidden={!open}
+      inert={!open}
     >
       <div className="flex items-center justify-between border-b border-border/60 bg-brand-soft/60 px-4 py-3">
         <div className="flex items-center gap-2">
@@ -1182,7 +1196,14 @@ export function Assistant() {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div
+        ref={scrollRef}
+        className="flex-1 space-y-4 overflow-y-auto p-4"
+        role="log"
+        aria-live="polite"
+        aria-busy={busy}
+        aria-label="Conversation"
+      >
         {messages.length === 0 && (
           <div className="space-y-3">
             <p className="text-[13px] leading-relaxed text-muted-foreground">
@@ -1308,7 +1329,7 @@ export function Assistant() {
           </div>
         )}
         {error && (
-          <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
+          <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
             {error}
           </p>
         )}
@@ -1361,6 +1382,8 @@ export function Assistant() {
       <button
         type="button"
         onClick={() => setAssistant(!open)}
+        id="assistant-launcher"
+        aria-expanded={open}
         aria-label={open ? "Close the Ask AI assistant" : "Open the Ask AI assistant"}
         className={cn(
           "fixed right-3 sm:right-4 z-40 inline-flex h-12 items-center gap-2 rounded-full border border-brand/40 bg-brand px-4 text-[13px] font-semibold text-brand-foreground shadow-lg shadow-brand/20 transition-all hover:opacity-95",

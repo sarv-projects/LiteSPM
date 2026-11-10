@@ -27,7 +27,45 @@ function isAggregator(u?: string | null): boolean {
   );
 }
 
+/**
+ * Catalog fields are third-party data and end up in `href`s. A substring test
+ * ("contains github.com") accepts `javascript:alert(1)//github.com`, so every
+ * URL leaving this module is parsed and must be https; repository links must
+ * also sit on a known git host.
+ */
+const GIT_HOSTS = new Set(["github.com", "www.github.com", "gitlab.com", "www.gitlab.com", "bitbucket.org", "www.bitbucket.org"]);
+
+function httpsUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.trim());
+    if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return null;
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
+function gitRepoUrl(raw: string | null | undefined): string | null {
+  const safe = httpsUrl(raw);
+  if (!safe) return null;
+  return GIT_HOSTS.has(new URL(safe).hostname.toLowerCase()) ? safe : null;
+}
+
 export function resolveOriginalSource(row: Listing): ResolvedSource {
+  const resolved = resolveOriginalSourceUnchecked(row);
+  const repoUrl = gitRepoUrl(resolved.repoUrl);
+  let sourceType = resolved.sourceType;
+  if (!repoUrl && resolved.repoUrl) sourceType = row.url ? "endpoint" : "website";
+  return {
+    ...resolved,
+    repoUrl,
+    cleanPublisherUrl: httpsUrl(resolved.cleanPublisherUrl),
+    sourceType,
+  };
+}
+
+function resolveOriginalSourceUnchecked(row: Listing): ResolvedSource {
   let repoUrl: string | null = null;
   let cleanPublisherUrl: string | null = row.publisher?.url || null;
   let owner: string | null = null;

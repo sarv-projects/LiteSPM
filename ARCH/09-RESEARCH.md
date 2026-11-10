@@ -68,7 +68,7 @@ Upstream specifications, client interfaces, and protocol revisions evolve rapidl
 *   **Format:** Marketplaces defined by `.grok-plugin/marketplace.json` combining distinct component kinds (commands, agents, hooks, MCP, LSP).
 *   **Pinning Requirement:** Remote plugin sources can be pinned to full 40-character commit SHAs.
 *   **Architecture Consequence:** Full Git commit SHAs are required for reproducibility; mutable branches or tags cannot serve as immutable installation targets.
-*   **In-repo status:** the pin check is `IMPLEMENTED` in the adapter (`isFullCommitSHA`, `internal/source/grok_marketplace.go:184`, `CommitSHA` at `:39`), again with test-only callers ([STATUS.md](../STATUS.md) §2). Enforcing pinning at *resolve → install* time is `DESIGNED` — the resolver consumes `ImmutableRef` values but nothing yet rejects a mutable ref ([ARCH/13](13-RESOLVER-INSTALL-ENGINE.md)).
+*   **In-repo status:** the pin check is `IMPLEMENTED` in the adapter (`isFullCommitSHA`, `internal/source/grok_marketplace.go:185`, `CommitSHA` at `:37`), again with test-only callers ([STATUS.md](../STATUS.md) §2). Enforcing pinning at *resolve → install* time is `DESIGNED` — the resolver consumes `ImmutableRef` values but nothing yet rejects a mutable ref ([ARCH/13](13-RESOLVER-INSTALL-ENGINE.md)).
 
 ---
 

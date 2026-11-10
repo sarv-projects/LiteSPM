@@ -1,32 +1,13 @@
 "use client";
 
 import * as React from "react";
-import {
-  Check,
-  Copy,
-  Download,
-  Loader2,
-  Package,
-  RefreshCw,
-  Search,
-  Terminal,
-} from "lucide-react";
+import { Check, Copy, Loader2, RefreshCw, Search, Terminal } from "lucide-react";
 
-import { useApp } from "@/lib/litespm/router";
-import type { CatalogHit, CatalogListResponse } from "@/lib/litespm/types";
-import { displayPackageName, formatFull } from "@/lib/litespm/format";
-import { shellArg } from "@/lib/litespm/shell";
-import { KindBadge } from "../primitives";
-
-type TabId = "skills" | "plugins" | "mcp" | "installed";
-
-const TABS: Array<{ id: TabId; label: string; kind?: "skill" | "plugin" | "mcp" }> = [
-  { id: "skills", label: "Skills", kind: "skill" },
-  { id: "plugins", label: "Plugins", kind: "plugin" },
-  { id: "mcp", label: "MCP Servers", kind: "mcp" },
-  { id: "installed", label: "Installed" },
-];
-
+import { exploreHash, kindForTab, type ExploreQuery, type MarketplaceTab } from "@/lib/litespm/router";
+import { displayPackageName } from "@/lib/litespm/format";
+import { cn } from "@/lib/utils";
+import { NavLink } from "../nav-link";
+import { CatalogBrowser } from "./catalog-browser";
 interface InstalledRecord {
   kind: string;
   id: string;
@@ -77,141 +58,6 @@ function InstallCommand({ command }: { command: string }) {
       >
         {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
       </button>
-    </div>
-  );
-}
-
-function ResultCard({ hit }: { hit: CatalogHit }) {
-  const navigate = useApp((s) => s.navigate);
-  return (
-    <article className="group flex h-full flex-col rounded-2xl border border-border/70 bg-card p-4 transition-colors hover:border-brand/40">
-      <div className="flex items-center justify-between gap-2">
-        <KindBadge kind={hit.kind} />
-        <span className="min-w-0 truncate text-[11px] text-muted-foreground">
-          {hit.publisher.name}
-        </span>
-      </div>
-      <h3 className="mt-2.5 truncate text-[15px] font-semibold tracking-tight">
-        {displayPackageName(hit.name)}
-      </h3>
-      <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-[12.5px] leading-relaxed text-muted-foreground">
-        {hit.summary || "No summary published."}
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] uppercase tracking-[0.06em] text-muted-foreground/80">
-        {hit.version && <span className="font-mono">v{hit.version}</span>}
-        {hit.transport && <span className="font-mono">{hit.transport}</span>}
-        {hit.installability === "discovery_only" && <span>discovery only</span>}
-      </div>
-      <InstallCommand command={`litespm install ${shellArg(hit.id)}`} />
-      <div className="mt-auto flex items-center justify-between gap-2 pt-3">
-        <button
-          type="button"
-          onClick={() => navigate(`/package/${encodeURIComponent(hit.linkKey)}`)}
-          className="inline-flex items-center gap-1 text-[12px] font-medium text-brand hover:underline"
-        >
-          <Download className="h-3.5 w-3.5" /> Details
-        </button>
-        <span className="text-[10.5px] text-muted-foreground">installable</span>
-      </div>
-    </article>
-  );
-}
-
-function CatalogTab({ kind, query }: { kind: "skill" | "plugin" | "mcp"; query: string }) {
-  const [data, setData] = React.useState<CatalogListResponse | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(false);
-  const [page, setPage] = React.useState(1);
-
-  React.useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError(false);
-    const params = new URLSearchParams({
-      kind,
-      installable: "1",
-      pageSize: "36",
-      page: String(page),
-      sort: query ? "relevance" : "rank",
-      // The panel shows cards, not filter counts: skip eight extra full-catalog
-      // facet scans so a tab switch is a page, not a multi-second wait.
-      facets: "0",
-    });
-    if (query) params.set("q", query);
-    fetch(`/api/litespm/list?${params.toString()}`, { signal: controller.signal })
-      .then((r) => {
-        if (!r.ok) throw new Error(String(r.status));
-        return r.json() as Promise<CatalogListResponse>;
-      })
-      .then((json) => {
-        setData((previous) =>
-          page > 1 && previous
-            ? { ...json, items: [...previous.items, ...json.items] }
-            : json,
-        );
-      })
-      .catch((err: unknown) => {
-        if ((err as { name?: string }).name !== "AbortError") setError(true);
-      })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [kind, query, page]);
-
-  if (loading && !data) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Searching the live catalog…
-      </div>
-    );
-  }
-  if (error && !data) {
-    return (
-      <p className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4 text-[13px] text-muted-foreground">
-        The catalog could not be loaded. Check the connection and try again.
-      </p>
-    );
-  }
-  if (!data || data.items.length === 0) {
-    return (
-      <p className="rounded-xl border border-border/70 bg-card p-6 text-center text-[13px] text-muted-foreground">
-        No installable {kind === "mcp" ? "MCP servers" : `${kind}s`} match this search.
-      </p>
-    );
-  }
-  return (
-    <div>
-      <div className="mb-3 flex items-center justify-between text-[12px] text-muted-foreground">
-        <span>
-          {formatFull(data.total)} installable {kind === "mcp" ? "MCP servers" : `${kind}s`}
-          {query ? ` matching “${query}”` : ""} · showing {formatFull(data.items.length)}
-        </span>
-        <span className="font-mono text-[10.5px]">
-          {query ? "ranked by relevance" : "ranked by catalog rank"}
-        </span>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {data.items.map((hit) => (
-          <ResultCard key={hit.id} hit={hit} />
-        ))}
-      </div>
-      {error && (
-        <p className="mt-3 text-[12px] text-amber-600 dark:text-amber-400">
-          More results could not be loaded. The {data.items.length} shown above are still valid.
-        </p>
-      )}
-      {data.page < data.pageCount && (
-        <div className="mt-5 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setPage((p) => p + 1)}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-lg border border-border/70 px-4 py-2 text-[12.5px] font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand disabled:cursor-wait disabled:opacity-60"
-          >
-            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {loading ? "Loading more…" : "Load 36 more"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -412,102 +258,67 @@ function InstalledTab() {
   );
 }
 
+const TAB_META: Array<{ id: MarketplaceTab; label: string; blurb: string }> = [
+  { id: "all", label: "All", blurb: "MCP servers, skills and plugins" },
+  { id: "mcp", label: "MCP Servers", blurb: "Tools an agent can call" },
+  { id: "skills", label: "Skills", blurb: "Reusable SKILL.md workflows" },
+  { id: "plugins", label: "Plugins", blurb: "Bundles of servers and skills" },
+  { id: "installed", label: "Installed", blurb: "What LiteSPM manages on this machine" },
+];
+
+/**
+ * The single catalog page. Tabs are the kind filter (real links, so each tab
+ * is shareable and back/forward works); search, facets and pagination are
+ * server-side in <CatalogBrowser>. `/explore` redirects here.
+ */
 export function MarketplaceView({
-  initialTab = "skills",
-  initialQuery = "",
+  tab,
+  query,
 }: {
-  initialTab?: string;
-  initialQuery?: string;
+  tab: MarketplaceTab;
+  query: ExploreQuery;
 }) {
-  const navigate = useApp((s) => s.navigate);
-  const [tab, setTab] = React.useState<TabId>(
-    TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "skills",
-  );
-  const [query, setQuery] = React.useState(initialQuery);
-  const [submitted, setSubmitted] = React.useState(initialQuery);
-  const active = TABS.find((t) => t.id === tab) ?? TABS[0]!;
-
-  React.useEffect(() => {
-    const timer = window.setTimeout(() => setSubmitted(query.trim()), 260);
-    return () => window.clearTimeout(timer);
-  }, [query]);
-
-  React.useEffect(() => {
-    const params = new URLSearchParams({ tab });
-    if (submitted) params.set("q", submitted);
-    // Keep the address bar shareable without forcing a full navigation.
-    window.history.replaceState(null, "", `/marketplace?${params.toString()}`);
-  }, [tab, submitted]);
-
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
-            LiteSPM Marketplace
-          </p>
-          <h1 className="mt-1 text-[clamp(1.6rem,3vw,2.2rem)] font-semibold tracking-tight">
-            Find it once. Install it everywhere.
-          </h1>
-          <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
-            Search the live catalog by kind, then copy the install command. The Installed tab reads
-            the local ledger when this panel is served by the LiteSPM CLI.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate("/explore")}
-          className="inline-flex items-center gap-1.5 self-start rounded-lg border border-border/70 px-3 py-2 text-[12px] font-medium text-muted-foreground hover:border-brand/40 hover:text-brand sm:self-auto"
-        >
-          <Package className="h-3.5 w-3.5" /> Advanced filters
-        </button>
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
+          LiteSPM Marketplace
+        </p>
+        <h1 className="mt-1 text-[clamp(1.6rem,3vw,2.2rem)] font-semibold tracking-tight">
+          Find it once. Install it everywhere.
+        </h1>
+        <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+          Search the live catalog, then copy the exact <code className="font-mono">litespm install</code>{" "}
+          command. The same search powers the <code className="font-mono">litespm marketplace</code>{" "}
+          command inside your agent.
+        </p>
       </div>
 
-      <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-border/70 bg-card p-3 sm:p-4">
-        <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Marketplace tabs">
-          {TABS.map((t) => (
-            <button
+      <nav aria-label="Marketplace sections" className="mt-6 flex flex-wrap items-center gap-1.5 border-b border-border/60 pb-3">
+        {TAB_META.map((t) => {
+          const active = tab === t.id;
+          return (
+            <NavLink
               key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={
-                tab === t.id
-                  ? "rounded-lg bg-brand px-3 py-1.5 text-[12.5px] font-semibold text-brand-foreground"
-                  : "rounded-lg px-3 py-1.5 text-[12.5px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-              }
+              to={t.id === "installed" ? "/marketplace?tab=installed" : exploreHash({ q: query.q, kind: kindForTab(t.id) }, t.id)}
+              aria-current={active ? "page" : undefined}
+              title={t.blurb}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors",
+                active
+                  ? "bg-brand text-brand-foreground"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+              )}
             >
               {t.label}
-            </button>
-          ))}
-        </div>
-        {tab !== "installed" && (
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={`Search ${active.label.toLowerCase()} in the live catalog…`}
-              aria-label={`Search ${active.label}`}
-              className="w-full rounded-xl border border-border/70 bg-background py-2.5 pl-9 pr-3 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:border-brand/52"
-            />
-          </label>
-        )}
-      </div>
+            </NavLink>
+          );
+        })}
+      </nav>
 
       <div className="mt-5">
-        {tab === "installed" ? (
-          <InstalledTab />
-        ) : (
-          // Remounting on kind/search is deliberate: the panel must never
-          // label last tab's rows as the new tab's results while the next
-          // request is in flight.
-          <CatalogTab key={`${active.kind}:${submitted}`} kind={active.kind!} query={submitted} />
-        )}
+        {tab === "installed" ? <InstalledTab /> : <CatalogBrowser query={query} tab={tab} />}
       </div>
     </div>
   );
 }
-
-export const MARKETPLACE_TABS = TABS;

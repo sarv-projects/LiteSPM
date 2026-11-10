@@ -17,6 +17,9 @@ export const maxDuration = 60;
 const ASSISTANT_PER_IP_MAX = 20;
 const ASSISTANT_GLOBAL_MAX = 200;
 const ASSISTANT_WINDOW_MS = 5 * 60_000;
+const HISTORY_TURNS = 12;
+const HISTORY_MESSAGE_CHARS = 2000;
+const HISTORY_TOTAL_CHARS = 8000;
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -32,17 +35,37 @@ interface SourceCitation {
   endLine: number;
 }
 
+/**
+ * Catalog text is third-party data that lands inside the system prompt. The old
+ * filter escaped only two closing tags, so a summary containing `</TOOL_RESULTS>`,
+ * a fake `<KNOWLEDGE_SOURCES>` block or a ```json widget fence passed through.
+ * Neutralize every structural character the prompt and the client widget
+ * parser rely on: angle brackets (tag boundaries), backticks (code/widget
+ * fences), control and line-break characters, and runs of whitespace.
+ */
 function untrusted(value: string, max = 300): string {
   return value
-    .replace(/[\u0000-\u001f\u007f]/g, " ")
-    .replace(/<\/(catalog_results|knowledge_sources)/gi, "<\\/$1")
+    .replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]/g, " ")
+    .replace(/</g, "‹")
+    .replace(/>/g, "›")
+    .replace(/`/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
     .slice(0, max);
+}
+
+/** What the browser may see about a completion: never key indexes or per-attempt failures. */
+function publicMeta(
+  result: { provider: string; model: string; tookMs: number },
+  rag: unknown,
+) {
+  return { provider: result.provider, model: result.model, tookMs: result.tookMs, rag };
 }
 
 function resultBlock(hits: AssistantRetrieval["hits"]): string {
   if (hits.length === 0) return "(no catalog results matched this question)";
   return hits.map((hit) =>
-    `- ${untrusted(hit.name, 160)} [${hit.kind}] — ${untrusted(capSummary(hit.summary), 300) || "(no summary)"} | publisher: ${untrusted(hit.publisher.name, 120)}${hit.publisher.verified ? " (verified)" : ""} | ${hit.installable ? "installable via `litespm install " + hit.id + "`" : "discovery-only"} | link: #/package/${encodeURIComponent(hit.linkKey)}`
+    `- ${untrusted(hit.name, 160)} [${hit.kind}] — ${untrusted(capSummary(hit.summary), 300) || "(no summary)"} | publisher: ${untrusted(hit.publisher.name, 120)}${hit.publisher.verified ? " (verified)" : ""} | ${hit.installable ? "installable via litespm install " + untrusted(hit.id, 120) + "" : "discovery-only"} | link: #/package/${encodeURIComponent(hit.linkKey)}`
   ).join("\n");
 }
 
@@ -103,14 +126,25 @@ function enforceCatalogGrounding(answer: string, hits: AssistantRetrieval["hits"
 
 function safeHistory(value: unknown): ChatMessage[] {
   if (!Array.isArray(value)) return [];
-  return value
+  const trimmed = value
     .filter((message): message is ChatMessage =>
       !!message && typeof message === "object" &&
       ((message as ChatMessage).role === "user" || (message as ChatMessage).role === "assistant") &&
       typeof (message as ChatMessage).content === "string"
     )
-    .slice(-20)
-    .map((message) => ({ role: message.role, content: message.content.slice(0, 4000) }));
+    .slice(-HISTORY_TURNS)
+    .map((message) => ({ role: message.role, content: message.content.slice(0, HISTORY_MESSAGE_CHARS) }));
+  // Cost bound: keep the newest turns whose total size fits the budget. The
+  // old cap (20 x 4000 chars) let one request carry ~80 KB of prompt.
+  const kept: ChatMessage[] = [];
+  let used = 0;
+  for (let i = trimmed.length - 1; i >= 0; i -= 1) {
+    const message = trimmed[i]!;
+    if (used + message.content.length > HISTORY_TOTAL_CHARS && kept.length > 0) break;
+    used += message.content.length;
+    kept.unshift(message);
+  }
+  return kept;
 }
 
 export async function POST(request: NextRequest) {
@@ -221,7 +255,7 @@ export async function POST(request: NextRequest) {
             if (directAnswer) {
               send({ type: "delta", text: directAnswer });
               send({ type: "done", answer: directAnswer, citations, sources,
-                meta: { provider: "local-registry", model: "host-registry", tookMs: 0, attempts: [], rag: ragMeta } });
+                meta: { provider: "local-registry", model: "host-registry", tookMs: 0, rag: ragMeta } });
               return;
             }
 
@@ -268,7 +302,7 @@ export async function POST(request: NextRequest) {
               answer: catalogGrounded.text,
               citations,
               sources,
-              meta: { provider: result.provider, keyIndex: result.keyIndex, model: result.model, tookMs: result.tookMs, attempts: result.attempts, rag: ragMeta },
+              meta: publicMeta(result, ragMeta),
             });
           } catch (error) {
             if (!request.signal.aborted) {
@@ -296,7 +330,7 @@ export async function POST(request: NextRequest) {
     if (directAnswer) {
       return NextResponse.json({
         answer: directAnswer, citations, sources,
-        meta: { provider: "local-registry", model: "host-registry", tookMs: 0, attempts: [], rag: ragMeta },
+        meta: { provider: "local-registry", model: "host-registry", tookMs: 0, rag: ragMeta },
       });
     }
     const result = await chatComplete(requestPayload);
@@ -318,7 +352,7 @@ export async function POST(request: NextRequest) {
     const answer = catalogGrounded.text;
     return NextResponse.json({
       answer, citations, sources,
-      meta: { provider: result.provider, keyIndex: result.keyIndex, model: result.model, tookMs: result.tookMs, attempts: result.attempts, rag: ragMeta },
+      meta: publicMeta(result, ragMeta),
     });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) return NextResponse.json({ error: "Request body is too large" }, { status: 413 });

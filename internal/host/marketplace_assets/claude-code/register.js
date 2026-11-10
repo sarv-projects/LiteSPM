@@ -102,12 +102,9 @@ async function refresh($) {
   say(query ? 'Searching for ' + query + '…' : 'Loading…', 'dim')
   redraw($)
   try {
-    const [hits, mine] = await Promise.all([
-      fetchDoc($, ['--query', query, '--limit', '300']),
-      fetchDoc($, ['--kind', 'installed']),
-    ])
+    const hits = await fetchDoc($, ['--query', query, '--limit', '300'])
     found = hits.rows
-    installed = mine.rows
+    installed = Array.isArray(hits.installed) ? hits.installed : hits.rows.filter((r) => r.installed)
     loaded = true
     page = 0
     if (!rowsForTab().some((r) => r.id === selectedId)) selectedId = null

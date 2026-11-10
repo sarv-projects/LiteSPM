@@ -7,15 +7,20 @@
 > operation: merging **a single `litespm` MCP entry** into one host config file,
 > atomically and comment/sibling-preserving (`STATUS.md` §1). The `HostAdapter`
 > interface has **no compile or projection method**, no instruction / skill /
-> command file is written into any host (the one exception is Pi's companion
-> extension, §3.2), and no `/marketplace` hook is registered anywhere.
-> Anything below that describes richer projection or automated slash-command
-> registration is `DESIGNED`. Cross-agent porting (`litespm copy`) is
+> command file is written into any host **by the adapters** (the in-agent
+> marketplace command is a separate registrar that runs after setup — §5 —
+> and Pi's companion extension, §3.2, is written by the Pi adapter itself).
+> Anything below that describes richer projection is `DESIGNED`. Cross-agent porting (`litespm copy`) is
 `DESIGNED` in [ARCH/38 §5](38-CLI-PRODUCT-SURFACE.md) and deliberately adds
 **no** interface method: it composes the existing reader
 (`ListServerEntriesWithValues`, `DetectPreExistingComponents`) with the
 existing writer (`InstallServerEntry`) through the canonical IR defined in
 §6 below.
+
+> **Host counts (2026-11-10).** `litespm host list` reports **52** adapters
+> (6 bespoke + 46 generic); `TestRemoteCapabilityMatrixCounts` pins **47**
+> remote-capable and 5 refused (`claude-desktop`, `codestudio`, `iflow-cli`,
+> `mux`, `zcode`).
 
 > **Config-path audit (2026-10-07).** All 46 generic bridge-target rows in
 > `internal/host/targets_data.go` were checked against official vendor
@@ -334,7 +339,7 @@ The in-agent experience is architected as an abstract UX Model mapped to host-sp
 
 ### 4.1 Portable Contract vs. Rich Host UI — and what actually resolves
 
-*   **Baseline Portable Contract:** Universal MCP does not support arbitrary GUI windows or webviews. For terminal CLI agents (`claude`, `codex`, `grok`, `opencode`), `/marketplace` means the 12 tools the stdio shim advertises in `tools/list` (`internal/bridge/shim.go:93-156`). Their real status today:
+*   **Baseline Portable Contract:** Universal MCP does not support arbitrary GUI windows or webviews. For terminal CLI agents (`claude`, `codex`, `grok`, `opencode`), `/marketplace` means the 13 tools the stdio shim advertises in `tools/list` (`internal/bridge/shim.go:112-176`, checked 2026-11-10). Their real status today:
 
 | Bridge tool | Daemon method | Status |
 |---|---|---|
@@ -343,6 +348,7 @@ The in-agent experience is architected as an abstract UX Model mapped to host-sp
 | `prepare_install` | `resolver.prepare_plan` | resolves (plan only); `allowPartial` is sealed into a plugin plan as the partial-install acknowledgement |
 | `request_install` | `install.execute` | **Completes for skills** (installs files through the skills ledger), **for MCP servers** (registers the server in each target host's config) **and for plugins with a pinned source** (fetches the committed tree and installs its portable components), behind the plan + approval gate in `install_authz.go`; a plugin with no fetchable pinned source fails closed with `LPSM-ARTIFACT-UNAVAILABLE`, and one whose extras have no adapter is refused with `LPSM-INSTALL-PARTIAL` unless the plan carries `allowPartial` (`STATUS.md` §3) |
 | `list_installed` | `tools.list` | resolves |
+| `adopt_capability` | `adopt.execute` | resolves — takes ownership of an MCP server already in a host's config without writing the host file; reversible |
 | `load_skill` | `skills.load_body` | resolves |
 | `read_skill_resource` | `skills.read_resource` | resolves |
 | `search_capabilities` | `capabilities.search` | resolves — over the capability rows `internal/discover` probed (`cmd/litespm/main.go:2089`) |
@@ -353,9 +359,9 @@ The in-agent experience is architected as an abstract UX Model mapped to host-sp
 
   A shim with no daemon connection answers every tool with
   `LPSM-IPC-DAEMON-UNREACHABLE` rather than inventing inventory
-  (`internal/bridge/shim.go:575-587`).
+  (error code at `internal/bridge/shim.go:989`).
 
-*   **Rich Host Renderer:** where an agent host supports a webview or TUI extension, that companion renders the interactive 4-tab browser:
+*   **Rich Host Renderer:** where an agent host supports a webview or TUI extension, a companion renders an interactive browser. The registrar in §5 writes such companions for Pi Agent, OpenCode, Claude Code and GitHub Copilot CLI (verified) and Amp (unverified); they render the view model from `litespm marketplace rows --json`, not the text panel below. The text layout is what `list_installed` returns in any host:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -366,7 +372,7 @@ The in-agent experience is architected as an abstract UX Model mapped to host-sp
 ```
 
   The tab counts are **not fixed copy**: `FormatInstalledPanel`
-  (`internal/bridge/shim.go:514-523`) prints `[INSTALLED (%d)]` from
+  (`internal/bridge/shim.go:897`) prints `[INSTALLED (%d)]` from
   `len(items)` of the current `tools.list` response, and prints
   `No capabilities currently installed…` when that list is empty. Any sample in
   this document showing a number is illustrative of the layout only.
@@ -392,7 +398,7 @@ The final tab provides situational visibility across the host environment:
     *   `tools.list` unions ledger installs with components each adapter reports from its own documented config file (`main.go:2337-2369`).
     *   **Scope limitation:** detection is limited to documented on-disk config files known to the adapter; in-memory sessions, cloud-managed extensions, skills directories and undocumented registries are not scanned.
     *   **Read-only observation:** external tools are never toggled or edited by the status view.
-    *   **Adopt is `DESIGNED`, not implemented.** The panel renders the note `[External / Detected] (Adopt)` (`shim.go` `FormatInstalledPanel`), but **no adopt handler, bridge tool or `InstallRecord` creation exists** — adoption needs the deployment ledger (`STATUS.md` §5). The label is a placeholder and must not be presented as a working action. The wizard no longer prints an adopt hint; its next-step line points at `/marketplace` and at its own menu (`cmd/litespm/wizard.go:551-561`).
+    *   **Adopt is implemented.** The `adopt_capability` bridge tool (`adopt.execute`) and `litespm adopt <name> --host <id>` take ownership of a server already in a host's config; the panel's label reads `[External / Detected] (adopt with adopt_capability)`. Ownership is recorded without writing the host file and is reversible (see `AGENTS.md` §3, Tab 4). `litespm skills adopt <name>` does the same for a skill already in an agent's skills tree.
 
 ```text
 FormatInstalledPanel output (format sample — the count is len(items), and
@@ -409,7 +415,7 @@ Status: ● Ready | 🟡 Needs Auth | ○ Stopped | — Unknown | [External / De
 | Status  | Kind | Name / ID       | Notes / Action                   |
 |---------|------|-----------------|----------------------------------|
 | — Unknown | MCP | **postgres-prod** | Managed                        |
-| — Unknown | MCP | **github-native** | [External / Detected] (Adopt)  |
+| — Unknown | MCP | **github-native** | [External / Detected] (adopt with adopt_capability) |
 ```
 
 Rows appear only for what `tools.list` returns: install-ledger entries (kind
@@ -419,27 +425,42 @@ which are `mcp` today (§1). Skills managed by `litespm skills add` are listed b
 
 ---
 
-## 5. Automated Slash Command (`/marketplace`) Registration — `DESIGNED`
+## 5. In-Agent Marketplace Command Registration — `WIRED` (17 hosts; popups `Verified` for 4, prompt commands for 1)
 
-**What setup actually writes:** one `litespm` MCP entry in the host config
-(§1), plus — for Pi only — `~/.pi/agent/extensions/litespm.ts` (§3.2). The
-wizard ends by **printing** next-step instructions
-(`cmd/litespm/wizard.go:551-561`), e.g. "Start <agent> and type `/marketplace` to
-browse and install capabilities".
-It writes no instruction file, no skill and no command hook, and it does not
-register `/marketplace` in any host.
+**What setup writes (2026-11-10):** the `litespm` MCP entry in the host config
+(§1) **and**, for the hosts below, one in-agent marketplace command written by
+the registrar in `internal/host/marketplace_command.go`
+(`MarketplaceCommandFor`, `InstallMarketplaceCommand`, `RemoveMarketplaceCommand`).
+It runs after a successful `litespm setup --agent <id>` / `host setup <id>`, from
+the wizard, and from the daemon's `host.apply_setup`; `litespm host remove`
+deletes it (`internal/host/remove.go`). It never fails a setup — a host without a
+popup still works through the bridge tools.
 
-The following registrations are the intended design and do not exist yet:
+*   **Ownership.** Each written file carries the marker `litespm-marketplace-command`.
+    A file at a target path without the marker is the user's: it is reported as
+    `Skipped` and never overwritten or removed. Writes are atomic (temp file + rename).
+*   **Data source.** The renderers shell out to
+    `litespm marketplace rows [--json] [--query] [--host] [--kind mcp|skill|plugin|installed] [--limit] [--installable]`
+    (`cmd/litespm/marketplace_rows.go`, schema `litespm.marketplace.rows/v1`) — the
+    locally synced catalog merged with the ledger, installable rows first. They do
+    not call the website.
+*   **Popups** (a dialog or pane in the agent): Pi Agent `/marketplace` (extension
+    overlay, `Verified`); OpenCode `/litespm-marketplace` (TUI plugin,
+    `Verified`); Claude Code `/litespm-marketplace` (mod pane via a local plugin
+    registered in `settings.json`, `Verified`); GitHub Copilot CLI (extension,
+    `Verified`); Amp (plugin via the command palette, **not verified**).
+*   **Prompt commands / skills** (text that tells the agent to call the bridge
+    tools): Gemini CLI (`Verified`); **not verified:** Qwen Code, Kiro CLI,
+    Cursor, Augment, Roo, Factory Droid, Kilo, a Cline workflow, and skills for
+    Grok Build, Codex and Crush.
+*   `Verified: false` means written against the vendor's documentation but not
+    yet run against a real install. No independent falsification pass exists.
 
-1.  **Cline:** register a custom prompt/workflow or workspace command triggering the LiteSPM MCP bridge.
-2.  **Pi Agent:** the extension exists (§3.2) and registers both `marketplace` and `litespm` — this one is shipped, not design.
-3.  **Claude Code & Codex:** install a companion bootstrap skill `litespm.skill.md` with trigger keyword `/marketplace`. `RequiresBootstrapSkill` is already declared `true` for both, and nothing consumes it.
-4.  **Grok Build:** register a companion command hook in `.grok/config.toml` (project scope).
-
-Projection of instruction/skill/command components is listed as the "to reach
-the next state" step for host adapters in `STATUS.md` §1; until then, treat any
-doc, wizard string or UI hint promising `/marketplace` registration as a
-description of the target design, not of shipped behaviour.
+Still `DESIGNED`: Claude Code/Codex bootstrap skill via `RequiresBootstrapSkill`
+(nothing consumes that field; the Codex skill above supersedes it), and the
+Grok Build companion hook in `.grok/config.toml`. Projection of
+instruction/skill/command *components from packages* remains the "next state"
+step for host adapters in `STATUS.md` §1.
 
 
 ---

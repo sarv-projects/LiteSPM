@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
+import { availabilityOf } from "@/server/litespm/availability";
 import { getDataset } from "@/server/litespm/dataset";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +35,7 @@ export async function GET() {
           category: row.category ?? "",
           publisher: row.publisher?.name ?? "",
           publisherVerified: Boolean(row.publisher?.verified),
-          installable:
-            row.installability !== undefined &&
-            row.installability !== "discovery_only" &&
-            !(row.kind === "mcp" && !row.transport) &&
-            !(row.kind === "plugin" && !(row.artifact?.pinned && row.artifact?.type === "git-tree")),
+          installable: availabilityOf(row).installable,
           views: view.views,
         };
       })

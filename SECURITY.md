@@ -29,6 +29,7 @@ stated plainly.
 | Surface | What it can do | What limits it |
 |---|---|---|
 | **Host config adapters** | Write one `litespm` entry into an agent's config file | The file is backed up first; only the `litespm` member is touched; comments, key order and formatting elsewhere survive byte-for-byte; the result is re-parsed and asserted before anything is written; every write has an inverse (`litespm host remove`) |
+| **In-agent marketplace command** | Write a small command file, or for popups a plugin/extension (JavaScript/TypeScript run by the agent itself), into the agent's own command/plugin directory when you run `litespm setup --agent <id>` | Each file carries the ownership marker `litespm-marketplace-command`; a file at the same path without it is skipped, never overwritten or deleted; `litespm host remove` deletes only marked files; the renderers only call `litespm marketplace rows`, which reads the local catalog and ledger. Several renderers are unverified against a real install of their agent (see `AGENTS.md` §3) |
 | **Bridge shim** | Proxy MCP traffic between an agent and the daemon over stdio | It holds no credentials and makes no network calls of its own |
 | **Daemon** | Supervise provider processes, enforce policy, broker secrets | Single writer to its own database; secrets go through the OS vault (Keychain / DPAPI / Secret Service), never to a config file |
 | **Skill installer** | Copy a `SKILL.md` directory into an agent's skills tree | Refuses symlinks, non-regular files, `http://`/`file:`/`ftp://` sources (https, `ssh://` and `git@` are accepted) and overwrites unless `--force`, which prints `overwrites: <path>` and records a pre-image digest and a byte-exact backup first; caps a skill at 32 MiB |
@@ -121,9 +122,9 @@ repository's release workflow can sign whatever that workflow signs. The
 trust root is therefore GitHub plus this repository's write controls. Signed releases **have**
 shipped: `v0.4.0` (2026-10-11) published a keyless bundle for every asset, and every tag before it
 published none — so the practical mitigation for those older binaries remains to build from source
-(`go build ./cmd/litespm`) or pin a commit. The currently published `v0.4.1` assets carry a
-`.sigstore.json` bundle for every binary, so installs of it are authenticated today, not only
-prospectively.
+(`go build ./cmd/litespm`) or pin a commit. The `v0.4.1` assets carry a
+`.sigstore.json` bundle for every binary (verified 2026-10-17), so installs of it are authenticated, not only
+prospectively. As of 2026-11-10 the npm registry's `latest` is `0.6.0`; its bundle was not re-verified in the 2026-11-10 documentation review.
 
 The catalog pointer is signed the same way: `scripts/deploy-pages.sh` signs
 `/v1/current.json` when a signing identity exists, and `catalog sync`

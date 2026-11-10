@@ -106,7 +106,7 @@ export function PackageView({ linkKey }: { linkKey: string }) {
         <PackageIcon className="mx-auto h-10 w-10 text-muted-foreground/40" />
         <h1 className="mt-4 text-[22px] font-semibold">Package not found</h1>
         <p className="mt-2 text-[13.5px] text-muted-foreground">
-          No catalog listing resolves to “{decodeURIComponent(linkKey)}”. It may have been renamed
+          No catalog listing resolves to “{linkKey}”. It may have been renamed
           or removed in a newer release.
         </p>
         <Button className="mt-6 rounded-xl" onClick={() => navigate(exploreHash({}))}>

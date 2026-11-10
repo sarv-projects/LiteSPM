@@ -186,6 +186,15 @@ export function getDataset(): Promise<Dataset> {
   return globalForDataset.__litespmDataset;
 }
 
+/** The published-CLI record (tiny file); callers that only need it must not load the catalog. */
+export function getCliReleases(): CliRelease[] {
+  try {
+    return readJson<CliRelease[]>("published-cli.json");
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Read only the tiny release pointer. The suggestion starters need the
  * release id to decide whether their precomputed answers are still valid, and

@@ -188,7 +188,9 @@ expect(
   (v) => (v.match(/\[catalog\] withheld the install snippet for/g) ?? []).length === 1,
 );
 
-const marketplace = readSource("src/components/litespm/views/marketplace.tsx");
+// The marketplace renders catalog rows through <PackageCard> (Explore and
+// Marketplace were merged), so the install-command surface lives there.
+const marketplace = readSource("src/components/litespm/package-card.tsx");
 const packageDetail = readSource("src/components/litespm/views/package-detail.tsx");
 expect(
   "marketplace quotes the install id",

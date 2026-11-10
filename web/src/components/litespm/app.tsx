@@ -2,31 +2,41 @@
 
 import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { MotionConfig, motion } from "framer-motion";
 import { GitCompareArrows, X } from "lucide-react";
 
-import { useApp, compareHash } from "@/lib/litespm/router";
+import dynamic from "next/dynamic";
+
+import { useApp, compareHash, type Route } from "@/lib/litespm/router";
 import { Header, AnnouncementBar } from "./header";
 import { Footer } from "./footer";
-import { CommandPalette } from "./command-palette";
-import { Assistant } from "./assistant";
 import { HomeView } from "./views/home";
 import { MarketplaceView } from "./views/marketplace";
-import { ExploreView } from "./views/explore";
-import { PackageView } from "./views/package-detail";
-import { AgentsView } from "./views/agents";
-import { AgentDetailView } from "./views/agent-detail";
-import { DocsView } from "./views/docs";
-import { PublishView } from "./views/publish";
-import { InsightsView } from "./views/insights";
-import { CompareView } from "./views/compare";
 
+/**
+ * Code splitting: the first load carries the shell, Home and Marketplace.
+ * Every other view, the Ask AI panel (60 KB of source) and the command palette
+ * are separate chunks fetched when first needed. Views still render on the
+ * server (default `ssr`), so a deep link gets its HTML in the first response.
+ */
+const viewLoading = () => <div className="min-h-[60vh]" aria-busy="true" />;
+const PackageView = dynamic(() => import("./views/package-detail").then((m) => m.PackageView), { loading: viewLoading });
+const AgentsView = dynamic(() => import("./views/agents").then((m) => m.AgentsView), { loading: viewLoading });
+const AgentDetailView = dynamic(() => import("./views/agent-detail").then((m) => m.AgentDetailView), { loading: viewLoading });
+const DocsView = dynamic(() => import("./views/docs").then((m) => m.DocsView), { loading: viewLoading });
+const PublishView = dynamic(() => import("./views/publish").then((m) => m.PublishView), { loading: viewLoading });
+const InsightsView = dynamic(() => import("./views/insights").then((m) => m.InsightsView), { loading: viewLoading });
+const CompareView = dynamic(() => import("./views/compare").then((m) => m.CompareView), { loading: viewLoading });
+const Assistant = dynamic(() => import("./assistant").then((m) => m.Assistant), { ssr: false });
+const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette), { ssr: false });
+
+/**
+ * Remount key. It must NOT include query-string state: the catalog search box
+ * lives inside the keyed subtree, so keying on the query remounted it on every
+ * debounced keystroke and dropped input focus.
+ */
 function routeKey(route: ReturnType<typeof useApp.getState>["route"]): string {
   switch (route.view) {
-    case "marketplace":
-      return `marketplace-${route.tab}-${route.q ?? ""}`;
-    case "explore":
-      return `explore-${JSON.stringify(route.query)}`;
     case "package":
       return `package-${route.key}`;
     case "agent":
@@ -40,33 +50,67 @@ function routeKey(route: ReturnType<typeof useApp.getState>["route"]): string {
   }
 }
 
-const BASE_TITLE = "LiteSPM — The package manager for AI agents";
+/** What counts as "a new page" for scroll-to-top: not a search or filter refinement. */
+function scrollKey(route: ReturnType<typeof useApp.getState>["route"]): string {
+  if (route.view === "marketplace") return `marketplace-${route.tab}-${route.query.page ?? 1}`;
+  return routeKey(route);
+}
+
+const BASE_TITLE = "LiteSPM - The package manager for AI agents";
 
 function titleFor(route: ReturnType<typeof useApp.getState>["route"]): string {
   switch (route.view) {
     case "marketplace":
-      return "Marketplace - LiteSPM";
-    case "explore":
-      return "Explore the catalog · LiteSPM";
+      return route.tab === "installed" ? "Installed - LiteSPM Marketplace" : "Marketplace - LiteSPM";
     case "package":
-      return "Package · LiteSPM";
+      return "Package - LiteSPM";
     case "agents":
-      return "Agents · LiteSPM";
+      return "Agents - LiteSPM";
     case "agent":
-      return "Agent profile · LiteSPM";
+      return "Agent profile - LiteSPM";
     case "docs":
-      return "Docs · LiteSPM";
+      return "Docs - LiteSPM";
     case "publish":
-      return "Publish · LiteSPM";
+      return "Publish - LiteSPM";
     case "insights":
-      return "Insights · LiteSPM";
+      return "Insights - LiteSPM";
     case "compare":
-      return "Compare · LiteSPM";
+      return "Compare - LiteSPM";
+    case "notfound":
+      return "Page not found - LiteSPM";
     default:
       return BASE_TITLE;
   }
 }
 
+function NotFoundView({ path }: { path: string }) {
+  const navigate = useApp((s) => s.navigate);
+  return (
+    <div className="mx-auto flex min-h-[50vh] max-w-xl flex-col items-center justify-center gap-3 px-6 text-center">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">404</p>
+      <h1 className="text-2xl font-semibold tracking-tight">We could not find that page.</h1>
+      <p className="break-all text-sm leading-relaxed text-muted-foreground">
+        <code className="font-mono">{path}</code> is not a LiteSPM page. The link may be outdated.
+      </p>
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={() => navigate("/marketplace")}
+          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground"
+        >
+          Browse the marketplace
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="rounded-lg border border-border px-4 py-2 text-sm font-medium"
+        >
+          Home
+        </button>
+      </div>
+    </div>
+  );
+}
 /** The floating compare tray — visible whenever packages are staged. */
 function CompareTray() {
   const compareKeys = useApp((s) => s.compareKeys);
@@ -106,8 +150,15 @@ function CompareTray() {
   );
 }
 
-export function LiteSPMApp() {
-  const route = useApp((s) => s.route);
+/**
+ * `initialRoute` is what the server resolved from the URL, so the first HTML
+ * already holds the right page (it used to be Home for every URL). Until the
+ * client has synced from `location`, render that; afterwards the store owns it.
+ */
+export function LiteSPMApp({ initialRoute }: { initialRoute?: Route }) {
+  const storeRoute = useApp((s) => s.route);
+  const [synced, setSynced] = React.useState(false);
+  const route = synced || !initialRoute ? storeRoute : initialRoute;
   const syncFromHash = useApp((s) => s.syncFromHash);
   const [queryClient] = React.useState(
     () =>
@@ -118,6 +169,7 @@ export function LiteSPMApp() {
 
   React.useEffect(() => {
     syncFromHash();
+    setSynced(true);
     const onLocationChange = () => syncFromHash();
     window.addEventListener("popstate", onLocationChange);
     window.addEventListener("hashchange", onLocationChange);
@@ -127,15 +179,32 @@ export function LiteSPMApp() {
     };
   }, [syncFromHash]);
 
+  const mainRef = React.useRef<HTMLElement | null>(null);
+  const [announcement, setAnnouncement] = React.useState("");
+  const previousScrollKey = React.useRef<string | null>(null);
+  const currentScrollKey = scrollKey(route);
+
   React.useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     // PackageView owns its title once the row loads; a generic overwrite here
     // would erase the server-rendered package metadata on first paint.
     if (route.view !== "package") document.title = titleFor(route);
-  }, [route]);
+
+    // A refinement of the same page (typing, facet clicks) keeps scroll and
+    // focus. A real page change scrolls to top, moves focus to <main> and
+    // announces the new page to screen readers.
+    if (previousScrollKey.current === currentScrollKey) return;
+    const first = previousScrollKey.current === null;
+    previousScrollKey.current = currentScrollKey;
+    window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+    if (!first) {
+      mainRef.current?.focus({ preventScroll: true });
+      setAnnouncement(titleFor(route).replace(" - LiteSPM", ""));
+    }
+  }, [route, currentScrollKey]);
 
   return (
     <QueryClientProvider client={queryClient}>
+      <MotionConfig reducedMotion="user">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-brand focus:px-4 focus:py-2 focus:text-[13px] focus:font-medium focus:text-brand-foreground"
@@ -147,17 +216,19 @@ export function LiteSPMApp() {
         <Header />
         <motion.main
           id="main-content"
+          ref={mainRef}
+          tabIndex={-1}
           key={routeKey(route)}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.24, ease: [0.21, 0.6, 0.35, 1] }}
-          className="flex-1"
+          className="flex-1 outline-none"
         >
           {route.view === "home" && <HomeView />}
           {route.view === "marketplace" && (
-            <MarketplaceView initialTab={route.tab} initialQuery={route.q ?? ""} />
+            <MarketplaceView tab={route.tab} query={route.query} />
           )}
-          {route.view === "explore" && <ExploreView query={route.query} />}
+          {route.view === "notfound" && <NotFoundView path={route.path} />}
           {route.view === "package" && <PackageView linkKey={route.key} />}
           {route.view === "agents" && <AgentsView />}
           {route.view === "agent" && <AgentDetailView id={route.id} />}
@@ -170,7 +241,11 @@ export function LiteSPMApp() {
         <CommandPalette />
         <Assistant />
         <CompareTray />
+        <p className="sr-only" role="status" aria-live="polite">
+          {announcement}
+        </p>
       </div>
+      </MotionConfig>
     </QueryClientProvider>
   );
 }

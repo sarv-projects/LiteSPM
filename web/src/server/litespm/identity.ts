@@ -144,14 +144,26 @@ export function hostIdsFor(
 
   if (!availabilityOf(item).installable) return NO_HOSTS;
 
-  return Array.from(
+  // For a non-plugin row the result depends only on (kind, transport, remote
+  // endpoint?) - hostsFor reads nothing else. There are a handful of such
+  // combinations across ~69k rows, so resolve each once instead of mapping
+  // 50-80 host names through resolveHostId per row (it was ~3M calls to
+  // classify an unfiltered catalog).
+  const shape = `${item.kind}|${(item.transport ?? "").toLowerCase()}|${item.url || item.hasUrl ? 1 : 0}`;
+  const cached = HOST_IDS_BY_SHAPE.get(shape);
+  if (cached) return cached;
+  const ids = Array.from(
     new Set(
       hostsFor(item)
         .map((name) => resolveHostId(name))
         .filter((id): id is string => id !== null),
     ),
   );
+  HOST_IDS_BY_SHAPE.set(shape, ids);
+  return ids;
 }
+
+const HOST_IDS_BY_SHAPE = new Map<string, string[]>();
 
 /** One host an entry page lists, with the adapter when there is one to write. */
 export interface NamedHost {

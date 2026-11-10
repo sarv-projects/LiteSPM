@@ -2,13 +2,15 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Bookmark, BookmarkCheck, GitCompareArrows, Github, ShieldCheck, Star } from "lucide-react";
+import { Bookmark, BookmarkCheck, Check, Copy, GitCompareArrows, Github, ShieldCheck, Star } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/litespm/router";
 import { displayPackageName, formatFull, formatCompact } from "@/lib/litespm/format";
 import { useWatchlist } from "@/lib/litespm/hooks";
 import type { CatalogHit } from "@/lib/litespm/types";
+import { shellArg } from "@/lib/litespm/shell";
+import { NavLink } from "./nav-link";
 import { AvailabilityBadge, KindBadge } from "./primitives";
 import { RankBadge } from "./rank-badge";
 
@@ -25,13 +27,12 @@ export function PackageCard({
   index?: number;
   compact?: boolean;
 }) {
-  const navigate = useApp((s) => s.navigate);
   const compareKeys = useApp((s) => s.compareKeys);
   const toggleCompare = useApp((s) => s.toggleCompare);
   const { isWatched, toggle } = useWatchlist();
 
-  const href = `#/package/${encodeURIComponent(hit.linkKey)}`;
-  const open = React.useCallback(() => navigate(href), [navigate, href]);
+  const href = `/package/${encodeURIComponent(hit.linkKey)}`;
+  const [copied, setCopied] = React.useState(false);
   const inCompare = compareKeys.includes(hit.linkKey);
   const watched = isWatched(hit.linkKey);
 
@@ -41,19 +42,9 @@ export function PackageCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index * 0.02, 0.25) }}
       className={cn(
-        "group relative flex cursor-pointer flex-col rounded-xl border border-border/70 bg-card p-4 transition-all hover:border-brand/40 hover:shadow-[0_2px_18px_-8px_rgba(16,185,129,0.25)]",
+        "group relative flex flex-col rounded-xl border border-border/70 bg-card p-4 transition-all hover:border-brand/40 hover:shadow-[0_2px_18px_-8px_rgba(16,185,129,0.25)]",
         compact && "p-3.5",
       )}
-      onClick={open}
-      role="link"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          open();
-        }
-      }}
-      aria-label={`${hit.name} — ${hit.kind}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
@@ -73,7 +64,7 @@ export function PackageCard({
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="relative z-10 flex shrink-0 items-center gap-1">
           {typeof hit.stars === "number" && hit.stars > 0 && (
             <span
               title={`${formatFull(hit.stars)} GitHub stars`}
@@ -131,7 +122,16 @@ export function PackageCard({
       </div>
 
       <h3 className="mt-2.5 truncate text-[15px] font-semibold tracking-tight">
-        {displayPackageName(hit.name)}
+        {/* Stretched link: the whole card is one real, keyboard-focusable
+            anchor (right-click, open in new tab, copy link all work). The
+            action buttons sit above it with `relative z-10`. */}
+        <NavLink
+          to={href}
+          className="after:absolute after:inset-0 after:content-['] focus-visible:outline-offset-4"
+        >
+          {displayPackageName(hit.name)}
+          <span className="sr-only"> — {hit.kind}</span>
+        </NavLink>
       </h3>
       <p className={cn("mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-muted-foreground")}>
         {hit.summary || "No summary published."}
@@ -151,9 +151,31 @@ export function PackageCard({
       </div>
 
       {hit.installable && (
-        <div className="mt-3 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground transition-colors group-hover:border-brand/30 group-hover:text-foreground">
-          <span className="text-brand">$</span> litespm install {shortId(hit)}
-        </div>
+        <button
+          type="button"
+          title="Copy the install command"
+          aria-label={`Copy install command for ${hit.name}`}
+          onClick={() => {
+            navigator.clipboard
+              ?.writeText(`litespm install ${shellArg(hit.id)}`)
+              .then(() => {
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 1400);
+              })
+              .catch(() => {});
+          }}
+          className="relative z-10 mt-3 flex w-full items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-left font-mono text-[11px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
+        >
+          <span className="min-w-0 truncate">
+            <span className="text-brand">$</span> litespm install {shellArg(shortId(hit))}
+          </span>
+          {copied ? (
+            <Check className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
+          ) : (
+            <Copy className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
+          )}
+          <span className="sr-only" role="status">{copied ? "Copied" : ""}</span>
+        </button>
       )}
       {!hit.installable && (
         <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2.5 text-[11.5px]">

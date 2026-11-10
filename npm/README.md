@@ -166,13 +166,17 @@ Obtaining the Sigstore trust root needs network access to
 > has no adapter for those classes. See
 > [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
 >
-> **The published package is `litespm@0.6.0` (2026-10-22).** A clean install downloads the native binary and verifies its published Sigstore signature. The live catalog currently reports release `rel-2026-11-05-03` (sequence 154), with 69,311 unique listings from 69,376 source rows. The earlier `0.4.0` sharded-catalog incident is recorded as history in [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) ?2.
-> install downloads the native binary, verifies its published Sigstore
-> signature, and syncs the live catalog — `✓ Catalog synchronization complete
-> (Release rel-2026-10-15-01, 69376 capabilities indexed)` (verified
-> 2026-10-17). The previous release, `0.4.0`, could not sync the sharded
-> catalog — it was tagged before the shard-aware client landed — and that
-> incident is recorded as history in
+> **Published versions (checked 2026-11-10).** The npm registry's `latest` is
+> `litespm@0.6.0`; this source tree's `package.json` says `0.6.1`, which is
+> **not published** (no `v0.6.1` tag exists either). A clean install of a
+> published version downloads the native binary and verifies its Sigstore
+> signature. The live catalog origin
+> (`litespm.sarveshbh-2022.workers.dev/v1/current.json`) still serves
+> `rel-2026-10-21-01` (sequence 151, 69,376 items); the `rel-2026-11-05-03`
+> (sequence 154) release in the repository has been cut but not deployed to
+> that origin. The earlier `0.4.0` sharded-catalog incident (that release was
+> tagged before the shard-aware client landed and could not sync) is recorded
+> as history in
 > [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) §2.
 
 ## Quickstart
@@ -186,19 +190,23 @@ litespm doctor             # run local health checks
 litespm self-update        # update the binary
 ```
 
-Inside a configured agent, just type:
-
-```text
-/marketplace
-```
+Inside a configured agent, just type `/marketplace` (the exact command differs
+by agent: Pi Agent `/marketplace`; OpenCode, Claude Code and GitHub Copilot CLI
+`/litespm-marketplace`; and so on). `litespm setup --agent <id>` writes that
+command next to the bridge entry, and `litespm host remove` takes it away
+again. Agents that cannot render a popup get a prompt command or skill that
+calls the bridge tools. See
+[`AGENTS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/AGENTS.md) §3
+for which agents are verified and which are not.
 
 ## Why litespm
 
 - **One bridge, zero config drift.** Each agent gets a single version-pinned
   `litespm` entry. The host adapters perform an MCP-entry merge only; they write
-  no instruction or skill files. (The Pi Agent adapter additionally writes its
-  companion extension — `<agent-dir>/extensions/litespm.ts`, a command file —
-  `internal/host/piagent.go`.)
+  no instruction or skill files. Separately from the bridge entry, setup writes
+  a small in-agent marketplace command for the agents that have a documented
+  command mechanism (ownership-marked, removed by `litespm host remove`;
+  `internal/host/marketplace_command.go`).
 - **Secrets never leave your machine.** Downstream API keys and OAuth tokens
   live in your OS vault (Windows DPAPI-protected master key, macOS Keychain,
   Linux Secret Service). Nothing is proxied through a cloud.
@@ -241,6 +249,7 @@ Inside a configured agent, just type:
 | `litespm init [name]` | Scaffold a `SKILL.md` to author a skill |
 | `litespm search <query>` | Search MCP servers, skills, and plugins |
 | `litespm install <id>` | Install a skill, MCP server, or plugin with a pinned source |
+| `litespm marketplace rows [--json] [--query q] [--host id] [--kind mcp\|skill\|plugin\|installed] [--limit n] [--installable]` | The row view model the in-agent popups render (schema `litespm.marketplace.rows/v1`) |
 | `litespm uninstall [--dry-run]` | Remove the bridge entry from every agent host config |
 | `litespm bridge stdio --host <id>` | MCP stdio bridge used by hosts |
 | `litespm host [list\|detect\|setup\|remove]` | Inspect and configure host adapters |
@@ -268,9 +277,10 @@ Inside a configured agent, just type:
 
 The bridge shim is stateless and never touches your config or database
 directly. A single local daemon owns all state and supervises provider
-processes. Injecting stored secrets into a provider's environment at launch is
-`IMPLEMENTED`, not `WIRED` yet (no production caller — see
-[`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) §1).
+processes. Stored secrets are injected into a provider's environment at launch
+(`secret:<ns>/<key>` references are resolved in `internal/discover`; an
+unresolvable reference is refused with `LPSM-SECRET-UNRESOLVED`) — `WIRED` per
+[`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) §1.
 
 ## Security
 

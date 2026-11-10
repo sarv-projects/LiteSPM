@@ -1,9 +1,46 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { cache } from "react";
+
 import { LiteSPMApp } from "@/components/litespm/app";
+import { parsePath } from "@/lib/litespm/route";
+import facts from "@/lib/litespm/site-facts.json";
 import { getPackageDetail } from "@/server/litespm/package-detail";
 
 interface Props {
   params: Promise<{ slug?: string[] }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+/** The one canonical origin; `metadataBase` in layout.tsx is the same value. */
+const ORIGIN = "https://lite-spm-nine.vercel.app";
+
+/** First path segments the app renders. Anything else is a real 404, not the home page. */
+const KNOWN_SECTIONS = new Set([
+  "marketplace",
+  "explore", // redirected to /marketplace by next.config.ts; kept so a bypassed redirect still renders
+  "package",
+  "agents",
+  "agent",
+  "docs",
+  "publish",
+  "insights",
+  "compare",
+]);
+
+// generateMetadata and the page both need the row; resolve it once per request.
+const packageDetail = cache((key: string) => getPackageDetail(key));
+
+const listings = `${Math.floor(facts.listings / 1000)}k+`;
+
+function pageMeta(title: string, description: string, path: string): Metadata {
+  return {
+    title,
+    description,
+    alternates: { canonical: `${ORIGIN}${path}` },
+    openGraph: { title, description, url: `${ORIGIN}${path}`, type: "website" },
+    twitter: { card: "summary_large_image", title, description },
+  };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -17,25 +54,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (section === "package" && slug.length > 1) {
     const key = slug.slice(1).join("/");
     try {
-      const resp = await getPackageDetail(key);
+      const resp = await packageDetail(key);
       if (resp.found && resp.detail) {
         const title = `${resp.detail.name} — LiteSPM`;
         const description =
           resp.detail.summary ||
-          `Install ${resp.detail.name} into 52 supported AI agent hosts with LiteSPM.`;
+          `Install ${resp.detail.name} into supported AI agent hosts with LiteSPM.`;
         return {
-          title,
-          description,
+          ...pageMeta(title, description, `/package/${encodeURIComponent(key)}`),
           openGraph: {
             title,
             description,
             type: "article",
-            url: `https://lite-spm-nine.vercel.app/package/${encodeURIComponent(key)}`,
-          },
-          twitter: {
-            card: "summary_large_image",
-            title,
-            description,
+            url: `${ORIGIN}/package/${encodeURIComponent(key)}`,
           },
         };
       }
@@ -46,68 +77,78 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  if (section === "marketplace") {
-    return {
-      title: "Marketplace - LiteSPM",
-      description:
-        "Search installable MCP servers, agent skills and plugins, and copy the exact litespm install command.",
-    };
+  switch (section) {
+    case "marketplace":
+    case "explore":
+      return pageMeta(
+        "Marketplace — MCP servers, skills & plugins · LiteSPM",
+        `Search ${listings} MCP servers, agent skills and plugins, then copy the exact litespm install command. One catalog, ${facts.hosts} agent hosts.`,
+        "/marketplace",
+      );
+    case "agents":
+      return pageMeta(
+        "Supported Agent Hosts · LiteSPM",
+        `${facts.hosts} agent hosts for MCP servers and ${facts.skillTargets} targets for skills, and which ones get an in-agent marketplace command.`,
+        "/agents",
+      );
+    case "agent":
+      if (slug.length > 1) {
+        return pageMeta(
+          `${slug[1]} · Supported Agent Host · LiteSPM`,
+          `Configure MCP servers and skills for ${slug[1]} with LiteSPM.`,
+          `/agent/${encodeURIComponent(slug[1]!)}`,
+        );
+      }
+      break;
+    case "insights":
+      return pageMeta(
+        "Catalog Insights & Analytics · LiteSPM",
+        "Statistics, distributions and trust metrics, measured over the same rows the marketplace serves.",
+        "/insights",
+      );
+    case "docs":
+      return pageMeta(
+        "Documentation · LiteSPM",
+        "Install, command reference, the in-agent marketplace, agent compatibility, security model and troubleshooting.",
+        slug.length > 1 ? `/docs/${encodeURIComponent(slug[1]!)}` : "/docs",
+      );
+    case "publish":
+      return pageMeta(
+        "Publish a Listing · LiteSPM",
+        "Submit your MCP server, skill, or plugin to the LiteSPM catalog.",
+        "/publish",
+      );
+    case "compare":
+      return pageMeta(
+        "Compare Packages · LiteSPM",
+        "Compare capabilities, permissions, and compatibility side by side.",
+        "/compare",
+      );
   }
 
-  if (section === "explore") {
-    return {
-      title: "Explore MCP Servers, Skills & Plugins · LiteSPM",
-      description: "Search 69k+ listings across 52 agent hosts.",
-    };
-  }
-
-  if (section === "agents") {
-    return {
-      title: "Supported Agent Hosts · LiteSPM",
-      description: "Explore 52 agent hosts supported by LiteSPM.",
-    };
-  }
-
-  if (section === "agent" && slug.length > 1) {
-    return {
-      title: `${slug[1]} · Supported Agent Host · LiteSPM`,
-      description: `Configure MCP servers and skills for ${slug[1]} with LiteSPM.`,
-    };
-  }
-
-  if (section === "insights") {
-    return {
-      title: "Catalog Insights & Analytics · LiteSPM",
-      description: "Real-time statistics, distributions, and trust metrics.",
-    };
-  }
-
-  if (section === "docs") {
-    return {
-      title: "Documentation · LiteSPM",
-      description: "Guides, tutorials, and references for the LiteSPM package manager.",
-    };
-  }
-
-  if (section === "publish") {
-    return {
-      title: "Publish a Listing · LiteSPM",
-      description: "Submit your MCP server, skill, or plugin to the LiteSPM catalog.",
-    };
-  }
-
-  if (section === "compare") {
-    return {
-      title: "Compare Packages · LiteSPM",
-      description: "Compare capabilities, permissions, and compatibility side by side.",
-    };
-  }
-
-  return {
-    title: "LiteSPM — The package manager for AI agents",
-  };
+  return { title: "Page not found · LiteSPM", robots: { index: false } };
 }
 
-export default function CatchAllPage() {
-  return <LiteSPMApp />;
+export default async function CatchAllPage({ params, searchParams }: Props) {
+  const { slug } = await params;
+  const section = slug?.[0];
+
+  // Unknown paths are a real 404 (status + not-found.tsx), not a 200 home page.
+  if (section && !KNOWN_SECTIONS.has(section)) notFound();
+  if ((section === "package" || section === "agent") && (slug?.length ?? 0) < 2) notFound();
+
+  if (section === "package" && slug && slug.length > 1) {
+    // An unknown package key is a 404 for crawlers and link-checkers too.
+    const resp = await packageDetail(slug.slice(1).join("/")).catch(() => null);
+    if (resp && !resp.found) notFound();
+  }
+
+  // Resolve the route on the server so the first response is the right page.
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries((await searchParams) ?? {})) {
+    if (typeof value === "string") query.set(key, value);
+    else if (Array.isArray(value) && value[0] !== undefined) query.set(key, value[0]);
+  }
+  const initialRoute = parsePath(`/${(slug ?? []).join("/")}`, query.toString());
+  return <LiteSPMApp initialRoute={initialRoute} />;
 }

@@ -193,8 +193,8 @@ Version-diff rendering for installed capabilities is designed and not implemente
 
 ### 2.4 The In-Agent `/marketplace` Experience
 Typing `/marketplace` in a configured agent invokes the Bridge's discovery tools. The portable
-contract is the 12 Bridge tools (`search_catalog`, `get_extension`, `prepare_install`,
-`request_install`, `list_installed`, `search_capabilities`, `describe_capability`, `load_skill`,
+contract is the 13 Bridge tools (`search_catalog`, `get_extension`, `prepare_install`,
+`request_install`, `list_installed`, `adopt_capability`, `search_capabilities`, `describe_capability`, `load_skill`,
 `read_skill_resource`, `invoke_capability`, `get_invocation`, `cancel_invocation`); rich hosts
 render the installed view as a table. Tool-by-tool state is in [STATUS.md](../STATUS.md) §4.
 
@@ -298,7 +298,7 @@ LiteSPM registers exactly one `litespm` bridge entry per host (`litespm bridge s
   │   ├── install/                                      # Atomic CAS staging + SQLite commit
   │   ├── skills/                                       # Skill loader, 81-agent installer, ledger
   │   ├── agent/                                        # ACP registry + launch-spec resolution + overrides
-  │   ├── bridge/                                       # Stdio Bridge shim (12 tools)
+  │   ├── bridge/                                       # Stdio Bridge shim (13 tools)
   │   ├── provider/                                     # Supervisor (Job Objects/watchdog) + isolation
   │   ├── policy/                                       # 17-action effect taxonomy + 5-tier engine
   │   ├── host/                                         # 6 bespoke adapters + 46 generic BridgeTargets (52 total)

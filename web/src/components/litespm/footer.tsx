@@ -5,6 +5,7 @@ import { ArrowUpRight, Github, Heart } from "lucide-react";
 import { useApp } from "@/lib/litespm/router";
 import { useWatchlist } from "@/lib/litespm/hooks";
 import { LogoMark } from "./logo";
+import { NavLink } from "./nav-link";
 
 const COLUMNS: Array<{
   title: string;
@@ -13,7 +14,8 @@ const COLUMNS: Array<{
   {
     title: "Catalog",
     links: [
-      { label: "Explore packages", hash: "/explore" },
+      { label: "Marketplace", hash: "/marketplace" },
+      { label: "Installed on this machine", hash: "/marketplace?tab=installed" },
       { label: "Browse agents", hash: "/agents" },
       { label: "Insights dashboard", hash: "/insights" },
       { label: "Compare packages", hash: "/compare" },
@@ -25,6 +27,8 @@ const COLUMNS: Array<{
       { label: "Getting started", hash: "/docs/getting-started" },
       { label: "Command reference", hash: "/docs/commands" },
       { label: "How an install works", hash: "/docs/install-flow" },
+      { label: "In-agent marketplace", hash: "/docs/in-agent-marketplace" },
+      { label: "Agent compatibility", hash: "/docs/agent-compatibility" },
       { label: "Security model", hash: "/docs/security" },
       { label: "Troubleshooting & FAQ", hash: "/docs/troubleshooting" },
     ],
@@ -91,13 +95,12 @@ export function Footer() {
                 {column.links.map((link) => (
                   <li key={link.label}>
                     {link.hash ? (
-                      <button
-                        type="button"
-                        onClick={() => navigate(link.hash!)}
+                      <NavLink
+                        to={link.hash}
                         className="text-left text-[13px] text-muted-foreground transition-colors hover:text-brand"
                       >
                         {link.label}
-                      </button>
+                      </NavLink>
                     ) : (
                       <a
                         href={link.href}
@@ -123,7 +126,7 @@ export function Footer() {
             {entries.length > 0 && (
               <button
                 type="button"
-                onClick={() => navigate("#/explore")}
+                onClick={() => navigate("/marketplace")}
                 className="mr-2 text-brand hover:underline"
               >
                 {entries.length} watched

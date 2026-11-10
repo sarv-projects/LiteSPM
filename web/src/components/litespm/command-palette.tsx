@@ -20,6 +20,7 @@ import { useApp, exploreHash } from "@/lib/litespm/router";
 import { useDebounced } from "@/lib/litespm/hooks";
 import { displayPackageName } from "@/lib/litespm/format";
 import type { CatalogListResponse } from "@/lib/litespm/types";
+import facts from "@/lib/litespm/site-facts.json";
 import { KindBadge } from "./primitives";
 
 /** Tags whose focused element owns "/" as a character, not a shortcut. */
@@ -27,11 +28,14 @@ const TEXT_FIELD_TAGS = ["INPUT", "TEXTAREA", "SELECT"];
 
 const PAGES = [
   { label: "Home", hash: "/", icon: Home, hint: "Landing page" },
-  { label: "Explore the catalog", hash: "/explore", icon: LayoutGrid, hint: "Search 69k listings" },
-  { label: "Agents directory", hash: "/agents", icon: Users, hint: "52 agent hosts" },
+  { label: "Marketplace", hash: "/marketplace", icon: LayoutGrid, hint: `Search ${Math.floor(facts.listings / 1000)}k listings` },
+  { label: "Installed on this machine", hash: "/marketplace?tab=installed", icon: Package, hint: "Local ledger" },
+  { label: "Agents directory", hash: "/agents", icon: Users, hint: `${facts.hosts} agent hosts` },
   { label: "Insights dashboard", hash: "/insights", icon: BarChart3, hint: "Catalog analytics" },
   { label: "Compare packages", hash: "/compare", icon: GitCompareArrows, hint: "Side by side" },
   { label: "Docs — getting started", hash: "/docs/getting-started", icon: BookOpen, hint: "Quickstart" },
+  { label: "Docs — in-agent marketplace", hash: "/docs/in-agent-marketplace", icon: BookOpen, hint: "/marketplace inside your agent" },
+  { label: "Docs — agent compatibility", hash: "/docs/agent-compatibility", icon: BookOpen, hint: "Which agents get a popup" },
   { label: "Publish a listing", hash: "/publish", icon: FilePlus2, hint: "Get listed" },
 ];
 
@@ -92,6 +96,18 @@ export function CommandPalette() {
 
   React.useEffect(() => setMounted(true), []);
 
+  const returnFocusTo = React.useRef<HTMLElement | null>(null);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      returnFocusTo.current = document.activeElement as HTMLElement | null;
+    } else if (returnFocusTo.current) {
+      returnFocusTo.current.focus?.();
+      returnFocusTo.current = null;
+    }
+  }, [open]);
+
   React.useEffect(() => {
     if (open) {
       setQuery("");
@@ -112,6 +128,7 @@ export function CommandPalette() {
         // "/" opens search from anywhere except a text field.
         if (
           e.key === "/" &&
+          !(e.target as HTMLElement | null)?.isContentEditable &&
           !e.metaKey &&
           !e.ctrlKey &&
           !e.altKey &&
@@ -137,7 +154,11 @@ export function CommandPalette() {
     }
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/litespm/list?q=${encodeURIComponent(q)}&pageSize=8&sort=relevance`)
+    const controller = new AbortController();
+    // facets=0: the palette shows eight rows, not filter counts.
+    fetch(`/api/litespm/list?q=${encodeURIComponent(q)}&pageSize=8&sort=relevance&facets=0`, {
+      signal: controller.signal,
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: CatalogListResponse | null) => {
         if (!cancelled) setResults(data);
@@ -150,6 +171,7 @@ export function CommandPalette() {
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [debounced]);
 
@@ -163,8 +185,15 @@ export function CommandPalette() {
       .sort((a, b) => b.score - a.score)
       .map((item) => item.page);
 
+    // With text typed, the first row is always "search the marketplace for it",
+    // so Enter does something even before (or without) any inline match.
+    const typed = query.trim();
+    const searchAll =
+      typed.length >= 2
+        ? [{ label: `Search the marketplace for “${typed}”`, hash: exploreHash({ q: typed }), icon: Search, hint: "All results, with filters" }]
+        : [];
     const items = results?.items ?? [];
-    return { pages: scoredPages, items };
+    return { pages: [...searchAll, ...scoredPages], items };
   }, [results, query]);
 
   const total = options.pages.length + options.items.length;
@@ -194,6 +223,22 @@ export function CommandPalette() {
       } else if (e.key === "Enter") {
         e.preventDefault();
         choose(cursor);
+      } else if (e.key === "Tab") {
+        // Modal: keep Tab inside the dialog.
+        const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+          "input, button:not([disabled]), [tabindex]:not([tabindex=\"-1\"])",
+        );
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
+        const active = document.activeElement;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -217,6 +262,7 @@ export function CommandPalette() {
       aria-label="Command palette"
     >
       <div
+        ref={dialogRef}
         className="w-full max-w-xl overflow-hidden rounded-2xl border border-border/70 bg-popover shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -231,7 +277,12 @@ export function CommandPalette() {
             }}
             placeholder="Search packages, or jump to a page…"
             className="h-12 min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground/70"
-            aria-label="Search"
+            aria-label="Search packages or jump to a page"
+            role="combobox"
+            aria-expanded={total > 0}
+            aria-controls="palette-listbox"
+            aria-autocomplete="list"
+            aria-activedescendant={total > 0 ? `palette-option-${cursor}` : undefined}
           />
           {loading && <Loader2 className="h-4 w-4 animate-spin text-brand" />}
           <kbd className="rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
@@ -239,7 +290,7 @@ export function CommandPalette() {
           </kbd>
         </div>
 
-        <div ref={listRef} className="max-h-[52vh] overflow-y-auto p-2" role="listbox">
+        <div ref={listRef} id="palette-listbox" className="max-h-[52vh] overflow-y-auto p-2" role="listbox" aria-label="Results">
           {options.pages.length > 0 && (
             <p className="px-2 pb-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               Pages
@@ -249,6 +300,7 @@ export function CommandPalette() {
             <button
               key={page.label}
               type="button"
+              id={`palette-option-${i}`}
               data-index={i}
               role="option"
               aria-selected={cursor === i}
@@ -277,6 +329,7 @@ export function CommandPalette() {
               <button
                 key={hit.id}
                 type="button"
+                id={`palette-option-${index}`}
                 data-index={index}
                 role="option"
                 aria-selected={cursor === index}
@@ -315,7 +368,7 @@ export function CommandPalette() {
                 }}
                 className="mt-2 text-[12.5px] font-medium text-brand hover:underline"
               >
-                Open Explore with these filters →
+                Search the marketplace with these words →
               </button>
             </div>
           )}

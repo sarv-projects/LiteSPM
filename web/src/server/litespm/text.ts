@@ -121,14 +121,37 @@ export function stem(word: string): string {
   return w;
 }
 
-/** Raw tokens for the legacy fuzzy fallback. */
+/**
+ * Raw tokens for the legacy fuzzy fallback. Splits on the same boundary the
+ * index uses (every non-alphanumeric run), so `next.js`, `google-drive` and
+ * `@scope/pkg` yield their parts instead of one fused token no field contains.
+ */
 export function tokenize(q: string): string[] {
   return q
     .toLowerCase()
-    .split(/[\s,]+/)
-    .map((t) => t.replace(/^[@#:]+/, "").replace(/[?!.;:'"`()[\]]+$/g, "").trim())
+    .split(/[^\p{L}\p{N}]+/u)
     .filter((t) => t.length > 1 && !STOP_TOKENS.has(t))
     .slice(0, 8);
+}
+
+/**
+ * Query terms through the SAME pipeline the index applies to document text
+ * (`tokenField`): split on non-alphanumerics, stem/alias, THEN drop stop
+ * tokens. The old query path dropped stop words before stemming and fused
+ * punctuation, so a term the index kept (or dropped) could disagree with the
+ * query and silently fall through to the slow full-catalog fallback.
+ */
+export function queryTokens(q: string): string[] {
+  const out: string[] = [];
+  const clipped = q.length > 256 ? q.slice(0, 256) : q;
+  for (const part of clipped.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+    if (!part || part.length < 2) continue;
+    const token = normalizeCleanWord(part);
+    if (!token || STOP_TOKENS.has(token) || out.includes(token)) continue;
+    out.push(token);
+    if (out.length >= 8) break;
+  }
+  return out;
 }
 
 /** Catalog synonyms. One group per concept; a query matches any member. */
@@ -161,7 +184,11 @@ const SYNONYM_LOOKUP = (() => {
 })();
 
 export function synonymsFor(token: string): string[] {
-  return SYNONYM_LOOKUP.get(token) ?? [token];
+  const group = SYNONYM_LOOKUP.get(token);
+  if (!group) return [token];
+  // The user's own token leads: the exact-name bonus in scoreDoc compares
+  // group[0], and it must be what was typed, not an arbitrary synonym.
+  return [token, ...group.filter((t) => t !== token)];
 }
 
 /**
@@ -170,12 +197,12 @@ export function synonymsFor(token: string): string[] {
  * letting "psql" find Postgres rows.
  */
 export function queryGroups(q: string): string[][] {
-  const tokens = tokenize(q).map(normalizeToken).filter(Boolean);
+  const tokens = queryTokens(q);
   const seen = new Set<string>();
   const groups: string[][] = [];
   for (const token of tokens) {
     const group = synonymsFor(token);
-    const key = group.join("\u0000");
+    const key = [...group].sort().join("\u0000");
     if (seen.has(key)) continue;
     seen.add(key);
     groups.push(group);

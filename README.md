@@ -1,228 +1,183 @@
+<div align="center">
+
 # LiteSPM
 
-**The package manager for AI agents.**
+**The package manager for AI coding agents.**
+
+Find MCP servers, skills and plugins once. Install them into every agent you use.
+Undo any of it with one command.
 
 [![npm](https://img.shields.io/npm/v/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![agents](https://img.shields.io/badge/agents-52-8b5cf6.svg)](#supported-agents)
+[![catalog](https://img.shields.io/badge/catalog-69k%2B%20listings-0ea5e9.svg)](https://lite-spm-nine.vercel.app/marketplace)
 
-Find MCP servers, skills and plugins once, and install them into every coding
-agent you use. LiteSPM writes each agent's own config, backs it up first, and
-keeps a ledger of what it changed so you can take it back out.
+[Marketplace](https://lite-spm-nine.vercel.app/marketplace) ·
+[Documentation](https://lite-spm-nine.vercel.app/docs) ·
+[Status](STATUS.md) ·
+[Security](SECURITY.md) ·
+[Changelog](CHANGELOG.md)
 
-**Browse the catalog:** **[litespm/Explore](https://lite-spm-nine.vercel.app/explore)**
-— search all 69,376 listings by kind, category, publisher, runtime or host,
-and copy the install command for anything you pick.
+</div>
+
+---
+
+## Install
 
 ```bash
-npm install -g litespm   # Node 22.22.2+ (the wrapper downloads the signed binary for your platform)
+npm install -g litespm
 litespm
 ```
 
-That opens the setup wizard. It finds the agents on your machine, shows the
-exact file it will touch, and asks before writing. You can skip agent
-connection and open the manager directly. From the menu, you can search
-LiteSPM's catalog or hand a GitHub repository, Git URL, skill URL, or local
-folder to the interactive skills installer. The installer discovers skills
-behind a live spinner, groups them by folder, gives every highlighted skill a
-detail pane, supports select-all and whole-group toggles, preselects detected
-agents, locks the shared `.agents/skills` destinations, previews every write,
-and asks before it copies anything. Existing destinations are offered a
-byte-exact backup rather than being overwritten silently.
+Requires Node.js 22.22.2 or later. The npm package downloads the native binary
+for your platform (Windows, macOS and Linux; x64 and arm64) and verifies its
+Sigstore signature against this repository's release workflow before anything
+runs. An unverifiable download is discarded, never installed.
 
-Every interactive LiteSPM run checks the signed release channel and installs a
-newer binary in place; a short cooldown window keeps a burst of commands to
-one check. It is silent when there is nothing to do, fails open (offline means
-the run continues), can be disabled with `LITESPM_NO_AUTO_UPDATE=1`, and only
-ever replaces the LiteSPM binary — never the state database, catalog, skills
-ledger or an agent config. A `dev` source build is never replaced by a release.
+Running `litespm` opens the setup wizard. It detects the agents on your
+machine, shows the exact change it will make to each configuration file, saves
+a backup, and writes only after you confirm.
 
-OpenCode namespaces MCP prompts by server, so its command is
-`/litespm:marketplace` (type it, press Enter to accept the completion, then
-Enter again). Qwen Code 0.14.4 does not register MCP prompts as slash commands;
-after setup, `/mcp` shows the `litespm` server and its 13 tools, and the agent
-can use them conversationally. Claude Code, Codex and the other hosts surface
-the same prompt under their own MCP/command UI.
+## What it does
+
+| | |
+|---|---|
+| **One catalog** | 69,000+ MCP servers, agent skills and plugins from the official MCP Registry, publisher repositories and community directories, each labelled with its publisher, source and whether LiteSPM can install it. |
+| **Every agent** | One command installs into Claude Code, Codex, Cursor, OpenCode, Cline, Gemini CLI, GitHub Copilot, VS Code, Zed, Pi and 42 more, in each agent's own configuration format. |
+| **A marketplace inside your agent** | `litespm setup` adds a `/litespm-marketplace` command to the agents that support one: an interactive popup in Pi, OpenCode, Claude Code and Copilot CLI, or a guided command elsewhere. |
+| **Preview, backup, undo** | Every write is planned and shown first. The previous file is backed up byte for byte. `litespm install remove` takes out only what LiteSPM wrote and keeps your own edits. |
+| **Local and private** | No account, no telemetry, no proxy. Credentials stay in your environment or the OS keychain; LiteSPM writes references, never secret values. |
 
 ## Quick start
 
 ```bash
-litespm catalog sync        # download the catalog
-litespm search postgres     # find something
-litespm install <id>        # install it
-litespm list                # see what is installed
+litespm catalog sync              # download the catalog (about 100 MB, once)
+litespm search postgres           # find something
+litespm install <id>              # plan, preview, confirm, install
+litespm list                      # what is installed, per agent
+litespm install remove <installId>
 ```
 
-## Why LiteSPM
+Install into specific agents with `--agent <id>` (repeatable), or into every
+detected agent with `--all-detected`. `--dry-run` prints the plan and stops.
 
-- **One install, every agent.** Add a server or a skill once and point it at
-  Claude Code, Claude Desktop, Codex, Cursor, Visual Studio Code, OpenCode,
-  Cline and the rest — no hand-editing five different config formats.
-- **Nothing is written without a preview.** You see the change first, and the
-  file is backed up before it is touched.
-- **Undo is a command.** `restore` puts a config back to its exact previous
-  bytes; `install remove` takes out only what LiteSPM wrote.
-- **Your machine, your keys.** No account, no telemetry, no proxy. Credentials
-  stay in the environment or the OS vault.
-- **A real catalog.** 69,376 listings, each with its publisher, source and
-  installability stated up front.
+## The marketplace inside your agent
 
-## Works with your agent
+After `litespm setup --agent <id>` (or the wizard), type the command in your
+agent:
 
-LiteSPM supports **52 agent hosts** for MCP servers and **81** targets for
-skills. The MCP set includes Claude Code, Claude Desktop, OpenAI Codex, OpenCode,
-Cline, Pi Agent, Grok Build, Cursor, Visual Studio Code, Zed, Gemini CLI,
-GitHub Copilot and AiderDesk; the
-skills set is that group plus the agents that take skills only — Windsurf and
-Warp among them.
-
-**47 of the 52** hosts can also receive a remote (URL) MCP entry, because that
-is the number whose vendor documentation publishes the exact entry object the
-host expects. The other five — Claude Desktop, CodeStudio, iFlow CLI, Mux and
-Zcode — are local-only in LiteSPM and are refused for remote entries rather than
-written in a shape the host would silently ignore.
-
-Each host has its own adapter: **six** — Claude Code, Codex, OpenCode, Cline,
-Pi Agent and Grok Build — are hand-written and know their config layout in
-detail (JSONC merging, TOML round-tripping, per-platform path discovery), and
-the other **forty-six** come from one data-driven registry generated from each
-agent's documented configuration format. A new host is therefore a registry
-entry rather than a new code path, and it gets the same plan, backup and
-ledger as the six.
-
-```bash
-litespm host list      # every supported host and the file it writes
-litespm host detect    # which of them are on this machine
-litespm setup          # connect one
-```
-
-The same command targets any of them: `--agent <host-id>`.
-
-Visual Studio Code is workspace-scoped in LiteSPM: run `litespm host setup vscode`
-from the workspace root, then install MCP entries with `--scope project --agent vscode`.
-This writes the portable Copilot `.mcp.json` format with a top-level `mcpServers`
-object. It supports stdio and HTTP (not SSE). VS Code's separate `.vscode/mcp.json`
-Local-harness format remains available but is deprecated in guided setup and is
-not written by this adapter.
-Claude Desktop supports Windows, macOS, and Linux; its Linux config path honours
-`XDG_CONFIG_HOME` (default `~/.config/Claude/claude_desktop_config.json`).
-
-## What you can install
-
-| Kind | What it is | In the current catalog |
+| Agent | Command | Experience |
 |---|---|---|
-| **MCP servers** | A service your agent calls tools on | 48,418 listings |
-| **Agent skills** | A `SKILL.md` folder of instructions | 20,320 listings |
-| **Plugins** | A publisher's bundle of skills and servers | 638 listings |
+| Pi | `/marketplace` | Popup with tabs (All, MCP servers, Skills, Plugins, Installed), search, details, Enter to add or remove |
+| OpenCode 2.x | `/litespm-marketplace` | OpenCode's own search dialog, grouped results, install and remove |
+| Claude Code 2.1.287+ | `/litespm-marketplace` | A pane with tabs, a search field, details and Install / Remove / Refresh buttons |
+| GitHub Copilot CLI | `/litespm-marketplace` | Select lists and confirmations (start Copilot with `--experimental`) |
+| Amp | Command palette: *LiteSPM: Marketplace* | Select lists and confirmations |
+| Gemini CLI, Qwen Code, Kiro, Cursor, Augment, Roo, Factory Droid, Kilo, Cline | `/litespm-marketplace` | A command that has the agent drive LiteSPM's tools for you |
+| Grok Build, Codex, Crush | `/litespm-marketplace`, `$litespm-marketplace`, palette | The same, as a user-invocable skill |
 
-55,491 unique capabilities install with one command: 25,938 remote MCP servers, 13,746
-local package-launch MCP servers, 15,482 skills and 325 pinned plugins. The
-rest are discovery-only, and `litespm search` marks which is which before you
-run anything. 1,928 directory rows gained a launch line only after an exact
-publisher-login + repository match to an MCP Registry manifest; the evidence is
-recorded under `resolvedFrom` in the dataset.
+Every surface reads one view model, `litespm marketplace rows --json`, built
+from your locally synced catalog, so nothing is fetched from the website and
+every install goes through the same plan, approval and ledger as the CLI.
+`litespm host remove <id>` removes the command together with the bridge.
 
-A plugin installs from the pinned commit its publisher ships. LiteSPM fetches
-that commit, verifies it, and installs the skills and MCP servers the plugin's
-own manifest declares. A plugin with no fetchable pinned source is refused with
-the reason instead of being half-installed.
+Which of these have been exercised against a live install, and which were
+built from the vendor's documentation only, is tracked in
+[STATUS.md](STATUS.md) and in `internal/host/marketplace_command.go`.
 
 ## How an install works
 
-1. **Plan.** Resolve the listing, the version and the target hosts.
-2. **Preview.** Show the exact file and directory changes.
-3. **Approve.** A human says yes. From an agent, a single-use token from
-   `litespm approve`.
-4. **Back up and apply.** One transaction, with the previous file preserved.
-5. **Record.** The ledger keeps what was written, so `list`, `restore` and
-   `install remove` know exactly what they own.
+1. **Resolve.** The listing, its version, and the agents it targets.
+2. **Plan.** The exact files and entries that will change, sealed with a hash.
+3. **Approve.** You confirm in the terminal. An agent can prepare a plan through
+   LiteSPM's MCP tools, but only a human can approve it.
+4. **Apply.** One transaction: backups first, then the writes, then the record.
+5. **Record.** The ledger knows what LiteSPM wrote, so `list`, `restore` and
+   `install remove` act on exactly that and nothing else.
 
-Existing entries are left alone. Removal strips only the nodes LiteSPM wrote
-and keeps anything you edited.
+Plugins install from the commit their publisher pinned. LiteSPM installs the
+MCP servers and skills a plugin declares; host-specific extras (commands,
+hooks, subagents) are reported and skipped, and only with your acknowledgement.
 
-In a terminal, `litespm install <id>` prints that plan and asks before it
-writes; `--dry-run` stops at the preview and `--yes` skips the question. A
-piped or CI run never asks, so scripts behave exactly as before.
+## Supported agents
 
-## Common commands
+**52 agents** take MCP servers and **81 targets** take skills. 47 agents can
+also receive remote (URL) MCP servers. The other five (Claude Desktop,
+CodeStudio, iFlow CLI, Mux, Zcode) do not document a remote entry, so LiteSPM
+refuses remote entries for them instead of writing something the agent would
+ignore.
 
-| Command | What it does |
+```bash
+litespm host list     # every supported agent and the file it uses
+litespm host detect   # which are on this machine
+```
+
+Six adapters (Claude Code, Codex, OpenCode, Cline, Pi, Grok Build) are
+hand-written. The rest come from one registry built from each vendor's
+documented configuration format, so adding an agent is a data entry with the
+same planning, backup and removal guarantees.
+
+## Commands
+
+| Command | Purpose |
 |---|---|
 | `litespm` | Setup and management wizard |
-| `litespm marketplace` | Open the 4-tab browser marketplace |
 | `litespm search <text>` | Search the local catalog |
-| `litespm install <id>` | Install a server, skill or plugin |
-| `litespm install remove <id>` | Remove one install |
-| `litespm list` | What is installed, by agent and kind |
-| `litespm inventory` | One stable JSON record per deployment |
-| `litespm skills add <source>` | Install skills from a repo, URL or folder |
-| `litespm skills use <src>@<skill>` | Print a skill's prompt, install nothing |
-| `litespm skills adopt <name>` | Take ownership of a skill already in an agent's tree |
-| `litespm adopt <name> --host <id>` | Take ownership of an MCP server already in a config |
-| `litespm restore <id>` | Roll a config back to its previous bytes |
+| `litespm install <id>` | Install an MCP server, skill or plugin |
+| `litespm install remove <installId>` | Remove one install |
+| `litespm list` | Installed capabilities by agent and kind |
+| `litespm marketplace` | Open the web marketplace; `marketplace rows` prints the in-agent view model |
+| `litespm skills add <source>` | Install skills from a repository, URL or folder |
+| `litespm skills use <source>@<skill>` | Print a skill's prompt without installing |
+| `litespm adopt <name> --host <id>` | Take ownership of a server already in a config |
+| `litespm restore <id>` | Put a config back to its previous bytes |
 | `litespm copy --from A --to B` | Port one agent's setup to another |
-| `litespm doctor` | Check the install and repair it |
-| `litespm audit` | Scan the published catalog and the receipt chain |
-| `litespm uninstall` | Remove LiteSPM's bridge entry from every agent config |
-| `litespm self-update` | Replace the binary with a newer signed release |
-| `litespm host list` | Every supported agent and its config file |
-| `litespm help` | The full command reference |
+| `litespm doctor` | Diagnose and repair the installation |
+| `litespm uninstall` | Remove LiteSPM's bridge from every agent |
+| `litespm self-update` | Install a newer signed release |
+| `litespm help <command>` | Full reference for any command |
 
-## Inside your agent
+Exit codes: `0` success, `1` refused or failed, `2` usage error.
 
-With a host configured, the `/marketplace` prompt in your agent reaches the
-same catalog and the same install path through the LiteSPM bridge. An agent can
-search, prepare a plan, and ask you to approve it; it cannot approve for you.
-The prompt is namespaced by the host: OpenCode v2 exposes it as
-`/litespm:marketplace`. Qwen Code 0.14.4 does not register MCP prompts as slash
-commands; `/mcp` confirms the server and the agent uses its tools
-conversationally. Other hosts list the same prompt in their own MCP/command UI.
-The bridge starts the daemon on a cold machine, so the tool path works without
-a separately started service.
+## Security
 
-The in-agent `/marketplace` is text: MCP has no portable window, so LiteSPM
-cannot make a host pop up a panel. For the windowed experience, run
-`litespm marketplace` (or pick `[7]` in the wizard) and use the page's Skills,
-Plugins, MCP Servers and Installed tabs.
+- **Signed releases.** The npm installer and `self-update` verify each binary's
+  Sigstore bundle against a signer identity pinned in code.
+- **Verified catalog.** `catalog sync` checks the pointer, manifest and every
+  shard digest, and refuses rollbacks and equivocation.
+- **Safe extraction.** Archives are bounded and confined: no traversal, links
+  or devices.
+- **Human approval.** Installs requested by an agent need a plan approved by a
+  person; approvals are single-use and bound to the plan's hash.
+- **No secret values on disk.** Environment needs are written as references in
+  each agent's own syntax.
 
-```bash
-litespm bridge stdio --host codex
-litespm marketplace
-```
-
-## Troubleshooting
-
-```bash
-litespm doctor        # the usual first stop
-litespm list --drifted  # entries changed since install
-litespm catalog sync  # refresh a stale catalog
-npm update -g litespm # update the CLI
-```
+Open issues and their status are tracked in [AUDIT.md](AUDIT.md). Report
+vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
 ## Documentation
 
-| Document | What is in it |
+| | |
 |---|---|
 | [STATUS.md](STATUS.md) | What each subsystem does today, with evidence |
-| [AGENTS.md](AGENTS.md) | Supported agents, config paths, integration guide |
+| [AGENTS.md](AGENTS.md) | Per-agent configuration paths and integration details |
 | [ARCH/](ARCH/) | Architecture and design specifications |
-| [SECURITY.md](SECURITY.md) | Security policy and threat model |
+| [AUDIT.md](AUDIT.md) · [docs/audit/](docs/audit/) | Security and product audit findings |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
-| [TODO.md](TODO.md) | Known gaps and planned work |
-
-The full catalog is browsable at
-[lite-spm-nine.vercel.app](https://lite-spm-nine.vercel.app/).
+| [TODO.md](TODO.md) | Known gaps |
 
 ## Development
 
 ```bash
-go build ./... && go test ./...
-cd web && npm ci && npm run build && npx playwright test
+go build ./... && go test ./...                 # CLI, daemon, bridge, adapters
+cd npm && npm ci && npm test                    # installer and wrapper
+cd web && npm ci && npm run lint && npm run build   # website
 ```
 
-Host integrations must match the adapter they claim to support: the tests in
-`internal/host` and `test/` are the gate, and a new host belongs in
-`internal/host/targets_data.go` or `internal/skills/agents.go` rather than in a
-new code path.
+A new agent belongs in `internal/host/targets_data.go` (MCP) or
+`internal/skills/agents.go` (skills), and an in-agent marketplace command in
+`internal/host/marketplace_command.go`. The tests in `internal/host` and
+`test/` are the gate.
 
 ## License
 

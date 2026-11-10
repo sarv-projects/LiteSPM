@@ -1,5 +1,12 @@
 # Web Frontend & UI Architecture (LiteSPM Market)
 
+> **Drift notice (2026-11-10).** This document describes the intended design (Next.js static export,
+> `output: 'export'`, `trailingSlash`, server-component route files). The deployed app in `web/` is
+> built with `output: "standalone"` (`web/next.config.ts`) and is structured differently (a client
+> shell under `web/src/components/litespm/`); the 2026-11-10 website audit
+> ([docs/WEBSITE-AUDIT-2026-11.md](../docs/WEBSITE-AUDIT-2026-11.md) §3.3) lists the differences.
+> Treat the layout details below as `DESIGNED`, not as a description of the running site.
+
 Inspired by the design of `mcpmarket.com`, LiteSPM Market is a static web application that serves as the visual discovery interface for AI agent plugins, MCP servers, and skills.
 
 ```text

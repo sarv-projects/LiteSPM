@@ -412,6 +412,13 @@ func (l *Ledger) removeScopedLocked(opts RemoveOptions) ([]RemovalOutcome, error
 			continue
 		}
 		reason := removableReason(e, opts.Force)
+		if reason == "already gone" {
+			// The directory was deleted outside LiteSPM. There is nothing left
+			// to protect, so the row is dropped; keeping it made the skill
+			// impossible to remove and left it listed forever.
+			outcomes = append(outcomes, RemovalOutcome{Entry: e, Removed: true, Reason: "already gone; record cleared"})
+			continue
+		}
 		if reason != "" {
 			outcomes = append(outcomes, RemovalOutcome{Entry: e, Removed: false, Reason: reason})
 			keep = append(keep, e) // leave it tracked so the user can inspect it

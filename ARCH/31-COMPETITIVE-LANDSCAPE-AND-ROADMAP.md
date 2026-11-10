@@ -312,7 +312,7 @@ Verdicts: **ADOPT** (build it) · **ADAPT** (build it, changed) · **DEFER** (ri
 | 13 | Canonical identity + alias graph with relationship types | ADOPT | Strongest clean-up lever. The `Listing` ID grammar is already normative (`ARCH/10`); the cross-source edge set is not modelled. |
 | 14 | Evidence Card instead of a single score | ADOPT | Reinforces `ARCH/26` §12.4. **The source analysis's "Verified by LitePSM Security Guild" wording must be rejected outright** — no such certification exists. |
 | 15 | Token cost as a first-class resource + context budget | DEFER | Real, and LiteSPM can measure it better than AgentMods because it owns the runtime. But it is analytics until §4.1 lands. |
-| 16 | Two-surface management bridge (READ / MUTATING) with plan-bound approval | ADOPT | LiteSPM's existing plan/approval architecture already exceeds AAM's `--allow-write` global switch. Mostly a matter of splitting the current 12 Bridge tools along the read/write line. |
+| 16 | Two-surface management bridge (READ / MUTATING) with plan-bound approval | ADOPT | LiteSPM's existing plan/approval architecture already exceeds AAM's `--allow-write` global switch. Mostly a matter of splitting the current 13 Bridge tools along the read/write line. |
 | 17 | Vercel `skills-lock.json` import/export | ADOPT | Verified §3.1. `internal/skills` already has atomic update, dry-run and provenance (§REMEDIATION-PLAN finding 118). Import/export is the small half. |
 | 18 | Data-driven target capability registry for all 77 agents | ADOPT | **Partly done**: `ARCH/30` + `internal/host/targets_data.go` already do this for 46 generic BridgeTargets, and `internal/skills/agents.go` is itself an 81-row data table (the four reference ids were appended 2026-10-14). Extend the same table with `instruction`/`command`/`hook` component kinds rather than building a new mechanism. |
 | 19 | Official MCP Registry as high-confidence identity source | ADOPT | Already an adapter (`internal/source/mcp_registry.go`). Upgrade is preserving its namespace-verification assertions through normalization instead of flattening them. |
@@ -375,7 +375,7 @@ New code the tree does not contain. Grouped by the defect it closes; each is ind
 | `deployment_mutations` ledger (mutation_id, install_id, host_id, scope, file_path, locator, preimage_hash, postimage_hash, owner) + migration `002` | #9, #50, #51 | `internal/state/migrations/`, `internal/deploy` |
 | Three-way reconcile (preimage / owned-write / current) with `Keep local` / `Use package` / `Detach` | #10 | `internal/deploy` |
 | `PolicyDecision.provenance` + `litespm policy explain` | #29, #28 | `internal/policy` |
-| `explain_policy` / `update_available` / `compatibility` Bridge tools; split the 12 Bridge tools into READ and MUTATING surfaces | #16 | `internal/bridge/shim.go` |
+| `explain_policy` / `update_available` / `compatibility` Bridge tools; split the 13 Bridge tools into READ and MUTATING surfaces | #16 | `internal/bridge/shim.go` |
 | Capability index / invocation registry + `invoke`/`get`/`cancel` implemented for real; provider rows persisted on install (m4) | #23, §2 of #2 | `internal/provider`, `internal/ipc` handler table |
 | Provider health states (STARTING/READY/DEGRADED/UNHEALTHY/BACKOFF/STOPPED) + circuit breaker | #25 | `internal/provider` |
 | Invocation receipt record (invocation_id, capability, package digest, schema fingerprint, provider instance, policy decision, approval id, outcome) | #27 | `internal/state` + schema |

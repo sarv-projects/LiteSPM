@@ -1,6 +1,9 @@
 # Architecture Index & Governance
 
-> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). Figures a document carries
+> **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). Re-probed 2026-11-10: the live
+> origin still serves `rel-2026-10-21-01` (sequence 151); the repository pointer is at
+> `rel-2026-11-05-03` (sequence 154), cut but not deployed to that origin. Host count today: 52
+> adapters (47 remote-capable), 81 skill targets, 13 bridge tools. Figures a document carries
 > are dated by the document that states them; the live-origin figures above are the probe of
 > 2026-10-21. A document that disagrees with [STATUS.md](../STATUS.md) is the document that is
 > wrong.

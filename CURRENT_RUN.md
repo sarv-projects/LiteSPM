@@ -1,5 +1,12 @@
 # Current Run Handover
 
+> **Historical session note (dated header added 2026-11-10).** This file is a running log of past
+> working sessions, not a status document. Current capability claims live in [STATUS.md](STATUS.md);
+> open defects and their `[FIXED]`/`[OPEN]` state live in [AUDIT.md](AUDIT.md). Figures below (host
+> counts, bridge-tool counts, release ids, "tests not run") are as of the session that wrote them:
+> today the registry has 52 host adapters (47 remote-capable), the bridge advertises 13 tools, and
+> `npm` `latest` is `0.6.0`. Entries are left as written except for factual corrections noted inline.
+
 > **How to read this file.** It is **newest-first**: the section at the top is the current state,
 > and every section below it is a dated record of what that session did. Two sections near the
 > bottom (`## Final Next Steps` and `## Active Goal`) are explicitly marked *superseded* — they are

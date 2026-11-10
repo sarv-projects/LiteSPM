@@ -15,7 +15,7 @@ history is in [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md).
 |---|---|---|---|
 | `build-release.sh` | bash | **Release** (`.github/workflows/release.yml`, on `v*` tags) | Yes — `set -euo pipefail`, `go build` aborts |
 | `deploy-pages.sh` | bash | **Manual** (catalog origin packaging before `wrangler deploy`) | Yes — `set -euo pipefail` + explicit leak audit `exit 1` |
-| `sandbox-all-agents.ps1` / `.sh` | PowerShell / bash | **Manual** — all 50 host adapters plus the real `litespm setup --all` path and bridge skill visibility | Yes — any failing Go test aborts |
+| `sandbox-all-agents.ps1` / `.sh` | PowerShell / bash | **Manual** — all 52 host adapters plus the real `litespm setup --all` path and bridge skill visibility | Yes — any failing Go test aborts |
 | `check_ci_local.sh` | bash | **Manual** — mirrors `ci.yml` stage-for-stage (`--web`, `--quick` flags) | Yes — `set -euo pipefail`, every stage names itself on failure |
 | `build_full_catalog.py` | Python | **Manual** (catalog dataset producer) | **No content assertions** — aborts if a fetch raises or a recorded snapshot fails verification (digest mismatch is refused); row/schema validation is fail-closed at release build time in Go |
 | `snapshot_store.py` | Python | **Manual** (`python3 scripts/snapshot_store.py` runs its own self-test); imported by `build_full_catalog.py` | Yes — refuses tampered/malformed snapshots, http URLs, and fabricated entries (exit 1 on self-test failure) |
@@ -158,7 +158,7 @@ network responses, so producer safety checks do not depend on upstream availabil
   excluded from `go build ./...`).
 - **Inputs.** `host.ListAdapters()` (bridge adapters) and `skills.AgentTargets()` (skill install
   targets). It fakes `HOME` to `/tmp/__litespm_home__` so no maintainer path leaks into the output.
-- **Outputs.** `web/data/hosts.json` (**50** bridge hosts) and `web/data/skill-targets.json`
+- **Outputs.** `web/data/hosts.json` (**52** bridge hosts, matching `litespm host list` as of 2026-11-10) and `web/data/skill-targets.json`
   (**81** as committed; the generator emits 81 from `skills.AgentTargets()`, and the committed file
   was regenerated on 2026-10-15 — the CI regeneration gate passes). Since 2026-10-22 each remote
   host also carries `remoteTransports`, the `RemoteEntrySpec.Transports` set the binary writes

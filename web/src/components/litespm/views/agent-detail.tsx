@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { useApp, exploreHash } from "@/lib/litespm/router";
 import { formatFull } from "@/lib/litespm/format";
 import type { AgentDetailData } from "@/lib/litespm/types";
+import { inAgentFor, inAgentNoneFor, EVIDENCE_LABEL } from "@/lib/litespm/in-agent";
 import { BrandMark } from "../brand-mark";
 import { CodeBlock } from "../code-block";
 import { InstallBar } from "../install-bar";
@@ -74,7 +75,7 @@ export function AgentDetailView({ id }: { id: string }) {
         <Cable className="mx-auto h-10 w-10 text-muted-foreground/40" />
         <h1 className="mt-4 text-[22px] font-semibold">Agent not found</h1>
         <p className="mt-2 text-[13.5px] text-muted-foreground">
-          No agent profile resolves to “{decodeURIComponent(id)}”.
+          No agent profile resolves to “{id}”.
         </p>
         <Button className="mt-6 rounded-xl" onClick={() => navigate("#/agents")}>
           <ArrowLeft className="h-4 w-4" /> Back to agents
@@ -278,11 +279,7 @@ export function AgentDetailView({ id }: { id: string }) {
                 </div>
               )}
 
-              <p className="mt-3.5 text-[12px] leading-relaxed text-muted-foreground">
-                Inside the agent, <span className="font-mono text-[11px]">/marketplace</span> then
-                reaches the same catalog through the bridge. An agent can prepare a plan; only you
-                can approve it.
-              </p>
+              <InAgentNote hostId={id} />
             </section>
           )}
 
@@ -507,6 +504,38 @@ export function AgentDetailView({ id }: { id: string }) {
           </section>
         </aside>
       </div>
+    </div>
+  );
+}
+
+/** What `litespm host setup <id>` installs inside this agent (see lib/litespm/in-agent.ts). */
+function InAgentNote({ hostId }: { hostId: string }) {
+  const entry = inAgentFor(hostId);
+  const none = inAgentNoneFor(hostId);
+  return (
+    <div className="mt-3.5 rounded-xl border border-border/60 bg-muted/20 p-3.5 text-[12px] leading-relaxed text-muted-foreground">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/80">
+        Marketplace inside this agent
+      </p>
+      {entry ? (
+        <p className="mt-1.5">
+          {entry.kind === "popup" ? "Interactive popup" : "Prompt command"}:{" "}
+          <span className="font-mono text-[11.5px] text-foreground">{entry.invoke}</span> ({entry.mechanism}).{" "}
+          {entry.kind === "popup"
+            ? "It renders in the agent and spends no model turn."
+            : "The agent's model drives LiteSPM's tools and shows you the plan."}
+          {entry.evidence !== "n/a" && ` ${EVIDENCE_LABEL[entry.evidence]}.`}
+          {entry.note ? ` ${entry.note}` : ""} Installed by{" "}
+          <span className="font-mono text-[11px]">litespm host setup {hostId}</span> from release 0.6.1; removed
+          by <span className="font-mono text-[11px]">litespm host remove {hostId}</span>.
+        </p>
+      ) : (
+        <p className="mt-1.5">
+          {none?.note ?? "This agent gets no marketplace command from LiteSPM."} The LiteSPM bridge still works:
+          use <span className="font-mono text-[11px]">litespm marketplace</span> in a terminal.
+        </p>
+      )}
+      <p className="mt-1.5">An agent can prepare a plan; only you can approve it.</p>
     </div>
   );
 }

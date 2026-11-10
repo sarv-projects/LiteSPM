@@ -136,14 +136,14 @@ async function computeInsights(): Promise<InsightsResponse> {
       label: g.label,
       blurb: g.blurb,
       value: byGoal.get(g.id) ?? 0,
-      href: `#/explore?goal=${g.id}`,
+      href: `#/marketplace?goal=${g.id}`,
     })),
     {
       id: "other" as GoalOrOther,
       label: OTHER_GOAL.label,
       blurb: OTHER_GOAL.blurb,
       value: byGoal.get("other") ?? 0,
-      href: "#/explore?goal=other",
+      href: "#/marketplace?goal=other",
     },
   ].sort((a, b) => b.value - a.value);
 
@@ -200,7 +200,7 @@ async function computeInsights(): Promise<InsightsResponse> {
         value: byKind.mcp.total,
         sub: byKind.mcp.installable,
         subLabel: "installable",
-        href: "#/explore?kind=mcp",
+        href: "#/marketplace?tab=mcp",
       },
       {
         id: "skill" as const,
@@ -208,7 +208,7 @@ async function computeInsights(): Promise<InsightsResponse> {
         value: byKind.skill.total,
         sub: byKind.skill.installable,
         subLabel: "installable",
-        href: "#/explore?kind=skill",
+        href: "#/marketplace?tab=skills",
       },
       {
         id: "plugin" as const,
@@ -216,7 +216,7 @@ async function computeInsights(): Promise<InsightsResponse> {
         value: byKind.plugin.total,
         sub: byKind.plugin.installable,
         subLabel: "installable",
-        href: "#/explore?kind=plugin",
+        href: "#/marketplace?tab=plugins",
       },
     ],
     byGoal: goalBars,

@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, BookOpen, Cable, CheckCircle2, CircleDot, HelpCircle, Lock, Package, RotateCcw, Search, ShieldCheck, Terminal, Undo2, Wrench } from "lucide-react";
+import { ArrowRight, BookOpen, Cable, Layers, CheckCircle2, CircleDot, HelpCircle, Lock, Package, RotateCcw, Search, ShieldCheck, Terminal, Undo2, Wrench } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useApp } from "@/lib/litespm/router";
 import { formatFull } from "@/lib/litespm/format";
 import { CodeBlock } from "../code-block";
 import { InstallBar } from "../install-bar";
+import { NavLink } from "../nav-link";
+import facts from "@/lib/litespm/site-facts.json";
+import { EVIDENCE_LABEL, IN_AGENT, type InAgentEntry } from "@/lib/litespm/in-agent";
 
 const SECTIONS: Array<{ id: string; label: string; icon: React.ElementType }> = [
   { id: "introduction", label: "Introduction", icon: BookOpen },
@@ -15,7 +17,8 @@ const SECTIONS: Array<{ id: string; label: string; icon: React.ElementType }> = 
   { id: "commands", label: "Command reference", icon: Wrench },
   { id: "install-flow", label: "How an install works", icon: CheckCircle2 },
   { id: "hosts", label: "Agent hosts", icon: Cable },
-  { id: "inside-agent", label: "Inside your agent", icon: CircleDot },
+  { id: "in-agent-marketplace", label: "In-agent marketplace", icon: CircleDot },
+  { id: "agent-compatibility", label: "Agent compatibility", icon: Layers },
   { id: "security", label: "Security model", icon: ShieldCheck },
   { id: "publishing", label: "Publishing to the catalog", icon: Package },
   { id: "troubleshooting", label: "Troubleshooting & FAQ", icon: HelpCircle },
@@ -50,9 +53,10 @@ const COMMANDS: Array<{ cmd: string; description: string; example?: string; grou
 
   { group: "Connect", cmd: "litespm", description: "Open the setup and management wizard. Finds agents on your machine, shows the exact file it will touch, and asks before writing." },
   { group: "Connect", cmd: "litespm setup [--agent <host-id>]", description: "Connect one agent, or use --all for every detected host. Each host is previewed and backed up separately before it is written.", example: "litespm setup --agent codex" },
-  { group: "Connect", cmd: "litespm host list|detect|setup|remove", description: "List every supported adapter and the file it writes, detect the ones on this machine, connect one, or remove LiteSPM's entry.", example: "litespm host detect" },
-  { group: "Connect", cmd: "litespm marketplace", description: "Open the four-tab browser marketplace: Skills, Plugins, MCP Servers and Installed, with live search. --no-open prints the URL instead." },
-  { group: "Connect", cmd: "litespm bridge stdio --host <id>", description: "Run the 13-tool MCP bridge a connected agent talks to. The bridge speaks stdio and forwards to the local daemon.", example: "litespm bridge stdio --host codex" },
+  { group: "Connect", cmd: "litespm host list|detect|setup|remove", description: "List every supported adapter and the file it writes, detect the ones on this machine, connect one (this also installs the agent's in-agent marketplace command), or remove LiteSPM's entry. host remove <id> removes that command too. In-agent marketplace commands ship in the repository's next release (0.6.1); npm currently serves 0.6.0.", example: "litespm host detect" },
+  { group: "Connect", cmd: "litespm marketplace", description: "Open the browser marketplace on this machine: MCP Servers, Skills, Plugins and Installed, with live search. --no-open prints the URL instead." },
+  { group: "Connect", cmd: "litespm marketplace rows --json", description: "Print the marketplace view model as JSON - the one thing every in-agent popup renders. Narrow it with --query <text>, --host <id> and --kind mcp|skill|plugin|installed (0.6.1, unreleased)." },
+  { group: "Connect", cmd: "litespm bridge stdio --host <id>", description: `Run the ${facts.bridgeTools}-tool MCP bridge a connected agent talks to. The bridge speaks stdio and forwards to the local daemon.`, example: "litespm bridge stdio --host codex" },
   { group: "Connect", cmd: "litespm daemon serve", description: "Run the single-writer background supervisor and local IPC engine in the foreground. Recovery runs before the listener binds." },
   { group: "Connect", cmd: "litespm auth login|status|logout", description: "Run the OAuth 2.0 PKCE loopback flow, report stored provider credentials, or revoke one. Tokens stay in the OS vault." },
   { group: "Connect", cmd: "litespm grant <capability-id>", description: "Grant an agent permission to invoke one discovered tool. The grant is bound to the tool's schema fingerprint; grant list and grant revoke manage existing grants." },
@@ -75,12 +79,10 @@ const INSTALL_FLAGS = [
 ];
 
 export function DocsView({ section }: { section: string }) {
-  const navigate = useApp((s) => s.navigate);
-  const active = SECTIONS.some((s) => s.id === section)
-    ? section
-    : section === "faq"
-    ? "troubleshooting"
-    : "introduction";
+  // Old ids keep working: /docs/inside-agent -> the in-agent marketplace page.
+  const alias: Record<string, string> = { faq: "troubleshooting", "inside-agent": "in-agent-marketplace" };
+  const resolved = alias[section] ?? section;
+  const active = SECTIONS.some((s) => s.id === resolved) ? resolved : "introduction";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
@@ -93,9 +95,8 @@ export function DocsView({ section }: { section: string }) {
           <ul className="mt-3 space-y-0.5">
             {SECTIONS.map((item) => (
               <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => navigate(`#/docs/${item.id}`)}
+                <NavLink
+                  to={`/docs/${item.id}`}
                   aria-current={active === item.id ? "page" : undefined}
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors",
@@ -106,7 +107,7 @@ export function DocsView({ section }: { section: string }) {
                 >
                   <item.icon className="h-3.5 w-3.5 shrink-0" />
                   {item.label}
-                </button>
+                </NavLink>
               </li>
             ))}
           </ul>
@@ -119,7 +120,8 @@ export function DocsView({ section }: { section: string }) {
           {active === "commands" && <Commands />}
           {active === "install-flow" && <InstallFlow />}
           {active === "hosts" && <Hosts />}
-          {active === "inside-agent" && <InsideAgent />}
+          {active === "in-agent-marketplace" && <InAgentMarketplace />}
+          {active === "agent-compatibility" && <AgentCompatibility />}
           {active === "security" && <Security />}
           {active === "publishing" && <Publishing />}
           {active === "troubleshooting" && <Troubleshooting />}
@@ -143,7 +145,6 @@ function P({ children }: { children: React.ReactNode }) {
 }
 
 function Introduction() {
-  const navigate = useApp((s) => s.navigate);
   const [stats, setStats] = React.useState<{ all?: number; installable?: number; hosts?: number } | null>(null);
 
   React.useEffect(() => {
@@ -159,9 +160,9 @@ function Introduction() {
       .catch(() => {});
   }, []);
 
-  const totalListings = stats?.all ? formatFull(stats.all) : "69k+";
-  const installableCount = stats?.installable ? formatFull(stats.installable) : "26k+";
-  const hostsCount = stats?.hosts ? String(stats.hosts) : "52";
+  const totalListings = formatFull(stats?.all ?? facts.listings);
+  const installableCount = stats?.installable ? formatFull(stats.installable) : "—";
+  const hostsCount = String(stats?.hosts ?? facts.hosts);
 
   return (
     <DocSection title="Introduction">
@@ -197,23 +198,16 @@ function Introduction() {
       </P>
 
       <P>
-        The catalog is browsable right here — search all listings by kind, category, publisher,
-        runtime or host, and copy the install command for anything you pick. Head to{" "}
-        <button
-          type="button"
-          onClick={() => navigate("#/explore")}
-          className="font-medium text-brand hover:underline"
-        >
-          Explore
-        </button>{" "}
+        The catalog is browsable right here — one search over every listing, with tabs for MCP
+        servers, skills, plugins and what is installed, filters for goal, host, category and
+        publisher, and a copy button for the install command. Head to the{" "}
+        <NavLink to="/marketplace" className="font-medium text-brand hover:underline">
+          marketplace
+        </NavLink>{" "}
         to start, or read the{" "}
-        <button
-          type="button"
-          onClick={() => navigate("#/docs/getting-started")}
-          className="font-medium text-brand hover:underline"
-        >
+        <NavLink to="/docs/getting-started" className="font-medium text-brand hover:underline">
           quickstart
-        </button>{" "}
+        </NavLink>{" "}
         first.
       </P>
 
@@ -271,20 +265,23 @@ litespm list                # see what is installed`}
       </P>
 
       <div className="rounded-xl border border-brand/25 bg-brand-soft/60 p-4">
-        <p className="text-[13px] font-semibold">Host prompt names</p>
+        <p className="text-[13px] font-semibold">Then open the marketplace inside your agent</p>
         <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-          Claude Code, Codex and Cline surface the prompt as{" "}
-          <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/marketplace</code>. OpenCode
-          namespaces it by server as{" "}
-          <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/litespm:marketplace</code>{" "}
-          — type it, accept the completion, then press Enter. Qwen Code 0.14.4 does not register MCP
-          prompts as slash commands: run{" "}
-          <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/mcp</code> to confirm the{" "}
-          <span className="font-mono text-[12px]">litespm</span> server and use its 13 tools
-          conversationally.
+          <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">litespm setup</code> (or{" "}
+          <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">litespm host setup &lt;id&gt;</code>)
+          connects the agent <em>and</em> installs a marketplace command for it. Pi, OpenCode, Claude
+          Code and GitHub Copilot CLI get an interactive popup; most other agents get a prompt
+          command. See{" "}
+          <NavLink to="/docs/in-agent-marketplace" className="font-medium text-brand hover:underline">
+            the in-agent marketplace
+          </NavLink>{" "}
+          and the{" "}
+          <NavLink to="/docs/agent-compatibility" className="font-medium text-brand hover:underline">
+            compatibility table
+          </NavLink>
+          .
         </p>
-      </div>
-    </DocSection>
+      </div>    </DocSection>
   );
 }
 
@@ -392,18 +389,17 @@ function InstallFlow() {
 }
 
 function Hosts() {
-  const navigate = useApp((s) => s.navigate);
   return (
     <DocSection title="Agent hosts">
       <P>
-        LiteSPM supports <strong className="text-foreground">52 agent hosts</strong> for local stdio
-        MCP servers and <strong className="text-foreground">81 targets</strong> for skills. The MCP
+        LiteSPM supports <strong className="text-foreground">{facts.hosts} agent hosts</strong> for local stdio
+        MCP servers and <strong className="text-foreground">{facts.skillTargets} targets</strong> for skills. The MCP
         set includes Claude Code, Claude Desktop, OpenAI Codex, OpenCode, Cline, Pi, Grok Build, Cursor,
         Visual Studio Code, Zed, Gemini CLI, GitHub Copilot and AiderDesk.
       </P>
       <P>
-        <strong className="text-foreground">47 of the 52</strong> hosts document a native remote (URL)
-        entry. The other five — Claude Desktop, codestudio, iflow-cli, mux and zcode — support local stdio only and
+        <strong className="text-foreground">{facts.remoteHosts} of the {facts.hosts}</strong> hosts document a native remote (URL)
+        entry. The other {facts.hosts - facts.remoteHosts} — {facts.localOnlyHostNames.join(", ")} — support local stdio only and
         refuse a remote install with <code className="font-mono text-brand">LPSM-HOST-REMOTE-UNSUPPORTED</code>.
         There is no relay: LiteSPM does not write a URL shape a host cannot read, and it does not run
         a hidden proxy process on the host&apos;s behalf.
@@ -420,49 +416,248 @@ litespm host setup <host-id>   # connect one
 litespm install <id> --agent <host>   # target any of them`}
       />
 
-      <button
-        type="button"
-        onClick={() => navigate("#/agents")}
+      <NavLink
+        to="/agents"
         className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand hover:underline"
       >
-        Browse all 52 agent profiles <ArrowRight className="h-3.5 w-3.5" />
-      </button>
+        Browse all {facts.hosts} agent profiles <ArrowRight className="h-3.5 w-3.5" />
+      </NavLink>
     </DocSection>
   );
 }
 
-function InsideAgent() {
+function C({ children }: { children: React.ReactNode }) {
+  return <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">{children}</code>;
+}
+
+const EVIDENCE_STYLE: Record<InAgentEntry["evidence"], string> = {
+  verified: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  validated: "border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-700 dark:text-emerald-400",
+  "load-verified": "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  unverified: "border-border bg-muted/50 text-muted-foreground",
+  "n/a": "",
+};
+
+function EvidenceChip({ entry }: { entry: InAgentEntry }) {
+  if (entry.evidence === "n/a") return null;
   return (
-    <DocSection title="Inside your agent">
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[10.5px] font-medium",
+        EVIDENCE_STYLE[entry.evidence],
+      )}
+    >
+      {EVIDENCE_LABEL[entry.evidence]}
+    </span>
+  );
+}
+
+function ReleaseNote() {
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
+      <p className="text-[13px] font-semibold">Availability</p>
+      <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+        In-agent marketplace commands are part of the repository&apos;s next release,{" "}
+        <strong className="text-foreground">0.6.1</strong>. The version published on npm is{" "}
+        <strong className="text-foreground">{facts.npmVersion}</strong>, which does not install them.
+        Update with <C>npm update -g litespm</C> once 0.6.1 is published.
+      </p>
+    </div>
+  );
+}
+
+function InAgentMarketplace() {
+  const popups = IN_AGENT.filter((e) => e.kind === "popup");
+  const prompts = IN_AGENT.filter((e) => e.kind === "prompt");
+  return (
+    <DocSection title="The in-agent marketplace">
       <P>
-        With a host configured, the marketplace prompt in your agent reaches the same catalog and
-        the same install path through the LiteSPM bridge. The name is host-specific:{" "}
-        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/marketplace</code> on
-        Claude Code, Codex and Cline, and{" "}
-        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/litespm:marketplace</code>{" "}
-        on OpenCode. Qwen Code 0.14.4 does not map MCP prompts to slash commands — use{" "}
-        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/mcp</code> and the tools
-        conversationally. An agent can search, prepare a plan, and ask you to approve it; it cannot
-        approve for you.
+        <C>litespm setup</C> and <C>litespm host setup &lt;id&gt;</C> do two things for an agent:
+        they register the LiteSPM bridge so the agent can call LiteSPM&apos;s {facts.bridgeTools} MCP
+        tools, and they install a <strong className="text-foreground">marketplace command</strong>{" "}
+        inside the agent, so you can browse and install without leaving it. What the command looks
+        like depends on what the agent lets an extension do.
       </P>
+      <ReleaseNote />
+
+      <h2 className="pt-2 text-[17px] font-semibold">Popups — interactive, no model turn</h2>
       <P>
-        The in-agent prompt is text: MCP has no portable window, so{" "}
-        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">/marketplace</code> cannot
-        render a popup, a panel or a live search bar inside the agent. For the windowed
-        marketplace with live search, run{" "}
-        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">litespm marketplace</code>
-        {" "}and use the page&apos;s Skills, Plugins, MCP Servers and Installed tabs.
+        A popup is a real view inside the agent: you search, move through the list and pick a row.
+        It does not spend a model turn. Every popup renders the same view model,{" "}
+        <C>litespm marketplace rows --json</C>, so they show the same thing. That command reads
+        the catalog <strong className="text-foreground">synced on your machine</strong> (refresh it
+        with <C>litespm catalog sync</C>) merged with your install ledger. It does not call this
+        website, and nothing you type in a popup is sent here; the two list the same signed release,
+        but your local copy is only as new as your last sync.
       </P>
+      <div className="space-y-2">
+        {popups.map((entry) => (
+          <div key={entry.agent} className="rounded-xl border border-border/70 bg-card p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[14px] font-semibold">{entry.agent}</p>
+              <EvidenceChip entry={entry} />
+            </div>
+            <p className="mt-1.5 font-mono text-[12.5px] text-brand">{entry.invoke}</p>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
+              Installed as: {entry.mechanism}.{entry.note ? ` ${entry.note}` : ""}
+            </p>
+          </div>
+        ))}
+      </div>
+
       <CodeBlock
-        title="run the bridge for a host"
-        code={`litespm bridge stdio --host codex`}
+        title="the view model every popup renders"
+        code={`litespm marketplace rows --json
+litespm marketplace rows --json --query postgres
+litespm marketplace rows --json --kind mcp --host claude-code
+litespm marketplace rows --json --kind installed`}
       />
       <P>
-        The agent sees one MCP server (<span className="font-mono text-[12px]">litespm</span>)
-        exposing 13 tools that resolve at runtime. Approvals still route through you: a single-use
-        token from{" "}
-        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">litespm approve</code> is
-        the only way an install proceeds from inside an agent.
+        <C>--kind</C> takes <C>mcp</C>, <C>skill</C>, <C>plugin</C> or <C>installed</C>;{" "}
+        <C>--host</C> limits rows to one agent; <C>--query</C> filters by text. The same command is
+        handy in scripts.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">Prompt commands — your agent&apos;s model drives LiteSPM</h2>
+      <P>
+        Where an agent has no way to draw a view, LiteSPM installs a prompt: a command, workflow or
+        skill file. Running it asks the agent&apos;s own model to use the LiteSPM MCP tools —
+        search, plan, show you the plan — on your behalf. That costs a model turn and the answer is
+        text, not a popup. It still cannot approve for you: an install proceeds only with a
+        single-use token from <C>litespm approve</C>.
+      </P>
+      <ul className="grid gap-1.5 sm:grid-cols-2">
+        {prompts.map((entry) => (
+          <li key={entry.agent} className="rounded-lg border border-border/60 bg-card px-3 py-2 text-[12.5px]">
+            <span className="font-medium">{entry.agent}</span>
+            <span className="text-muted-foreground"> — {entry.mechanism}</span>
+            {entry.invoke !== "prompt command" && (
+              <span className="ml-1 font-mono text-[11.5px] text-brand">{entry.invoke}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <h2 className="pt-2 text-[17px] font-semibold">Removing it</h2>
+      <P>
+        <C>litespm host remove &lt;id&gt;</C> removes the bridge entry <em>and</em> the marketplace
+        command for that agent. Anything you edited yourself is kept.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">Older MCP prompt</h2>
+      <P>
+        The bridge also publishes an MCP prompt named <C>marketplace</C>. Only agents that turn MCP
+        prompts into slash commands show it (OpenCode lists it as <C>/litespm:marketplace</C>); Qwen
+        Code 0.14.4 does not, so use <C>/mcp</C> there to confirm the <C>litespm</C> server and its{" "}
+        {facts.bridgeTools} tools. For an agent that isn&apos;t listed above, see{" "}
+        <NavLink to="/docs/agent-compatibility" className="font-medium text-brand hover:underline">
+          agent compatibility
+        </NavLink>
+        .
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">The {facts.bridgeTools} bridge tools</h2>
+      <P>
+        Whatever command you use, the agent reaches LiteSPM through one MCP server named{" "}
+        <C>litespm</C> with these tools. Only <C>request_install</C> changes your machine, and only
+        with a valid approval token; <C>adopt_capability</C> records ownership in the ledger without
+        touching your config.
+      </P>
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {[
+          ["search_catalog", "Search the catalog"],
+          ["get_extension", "Read one listing"],
+          ["prepare_install", "Build an install plan (nothing is written)"],
+          ["request_install", "Run a plan you approved"],
+          ["list_installed", "What LiteSPM owns, plus detected external items"],
+          ["load_skill", "Read an installed skill"],
+          ["read_skill_resource", "Read a file inside an installed skill"],
+          ["search_capabilities", "Find tools exposed by installed servers"],
+          ["describe_capability", "Show one tool's input schema"],
+          ["invoke_capability", "Call a granted tool"],
+          ["adopt_capability", "Take ownership of a server already in your config"],
+          ["get_invocation", "Look up an invocation by id"],
+          ["cancel_invocation", "Cancel an invocation by id"],
+        ].map(([name, what]) => (
+          <div key={name} className="rounded-lg border border-border/60 bg-card px-3 py-2">
+            <code className="font-mono text-[12px] text-brand">{name}</code>
+            <p className="text-[12px] text-muted-foreground">{what}</p>
+          </div>
+        ))}
+      </div>
+
+      <CodeBlock title="run the bridge for a host" code={`litespm bridge stdio --host codex`} />
+    </DocSection>
+  );
+}
+
+function AgentCompatibility() {
+  const rows: Array<{ title: string; blurb: string; kind: InAgentEntry["kind"] }> = [
+    { title: "Popup", blurb: "Interactive view inside the agent. No model turn.", kind: "popup" },
+    { title: "Prompt command", blurb: "A command, workflow or skill. The agent's model drives LiteSPM's MCP tools.", kind: "prompt" },
+    { title: "Not possible", blurb: "No UI extension API (or the product is gone), so LiteSPM installs no marketplace command.", kind: "none" },
+  ];
+  return (
+    <DocSection title="Agent compatibility">
+      <P>
+        Which marketplace command each agent gets. The MCP bridge itself works with all{" "}
+        {facts.hosts} registry hosts; this table is only about the in-agent marketplace command.
+        &ldquo;Verified&rdquo; means exercised end to end; &ldquo;validated&rdquo; means checked
+        against the named version&apos;s contract; &ldquo;loads&rdquo; means the agent loads the
+        extension but behaviour was not fully exercised; &ldquo;unverified&rdquo; means written from
+        documentation and not run yet.
+      </P>
+      <ReleaseNote />
+      {rows.map((group) => (
+        <section key={group.kind} aria-labelledby={`compat-${group.kind}`}>
+          <h2 id={`compat-${group.kind}`} className="pt-2 text-[17px] font-semibold">
+            {group.title}
+          </h2>
+          <p className="mt-0.5 text-[12.5px] text-muted-foreground">{group.blurb}</p>
+          <div className="mt-2.5 overflow-x-auto rounded-xl border border-border/70 bg-card">
+            <table className="w-full min-w-[34rem] text-left text-[12.5px]">
+              <caption className="sr-only">{group.title} agents</caption>
+              <thead className="border-b border-border/60 bg-muted/30 text-[10.5px] uppercase tracking-[0.08em] text-muted-foreground">
+                <tr>
+                  <th scope="col" className="px-3 py-2 font-medium">Agent</th>
+                  <th scope="col" className="px-3 py-2 font-medium">{group.kind === "none" ? "Why" : "How you open it"}</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {IN_AGENT.filter((e) => e.kind === group.kind).map((entry) => (
+                  <tr key={entry.agent} className="border-b border-border/40 last:border-0 align-top">
+                    <th scope="row" className="px-3 py-2.5 font-medium">{entry.agent}</th>
+                    <td className="px-3 py-2.5 text-muted-foreground">
+                      {group.kind === "none" ? (
+                        entry.note
+                      ) : (
+                        <>
+                          <span className="font-mono text-[12px] text-foreground">{entry.invoke}</span>
+                          <span className="block text-[11.5px]">
+                            {entry.mechanism}
+                            {entry.note ? ` · ${entry.note}` : ""}
+                          </span>
+                        </>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <EvidenceChip entry={entry} />
+                      {entry.evidence === "n/a" && group.kind !== "none" && (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+      <P>
+        An agent that isn&apos;t in this table still gets the MCP bridge and every{" "}
+        <C>litespm</C> command; it just has no marketplace command inside it. Use{" "}
+        <C>litespm marketplace</C> in a terminal, or this website.
       </P>
     </DocSection>
   );
@@ -504,7 +699,6 @@ function Security() {
 }
 
 function Publishing() {
-  const navigate = useApp((s) => s.navigate);
   return (
     <DocSection title="Publishing to the catalog">
       <P>
@@ -531,13 +725,12 @@ function Publishing() {
           </div>
         ))}
       </div>
-      <button
-        type="button"
-        onClick={() => navigate("#/publish")}
+      <NavLink
+        to="/publish"
         className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand hover:underline"
       >
         Submit your listing for review <ArrowRight className="h-3.5 w-3.5" />
-      </button>
+      </NavLink>
     </DocSection>
   );
 }
@@ -572,7 +765,7 @@ litespm catalog sync    # refresh local catalog index`}
           },
           {
             q: "A host refuses a remote (URL) install",
-            a: "47 of the 52 supported agent hosts document a native remote URL entry. Five hosts (Claude Desktop, Code Studio, iFlow CLI, Mux, and ZCode) support local stdio processes only; they refuse a remote install with LPSM-HOST-REMOTE-UNSUPPORTED. LiteSPM does not write an unsupported URL shape and does not run a hidden proxy on the host's behalf.",
+            a: `${facts.remoteHosts} of the ${facts.hosts} supported agent hosts document a native remote URL entry. ${facts.hosts - facts.remoteHosts} hosts (${facts.localOnlyHostNames.join(", ")}) support local stdio processes only; they refuse a remote install with LPSM-HOST-REMOTE-UNSUPPORTED. LiteSPM does not write an unsupported URL shape and does not run a hidden proxy on the host's behalf.`,
           },
           {
             q: "What does it mean when entries show as 'drifted'?",
@@ -580,7 +773,7 @@ litespm catalog sync    # refresh local catalog index`}
           },
           {
             q: "litespm install says unknown flag",
-            a: "Your installed CLI version is older than the flag being used. Run 'npm update -g litespm' (or 'litespm self-update') to update to the latest release. This site's command reference and install flags are checked against the version npm serves as latest, not against an unreleased build.",
+            a: "Your installed CLI version is older than the flag being used (the repository can be ahead of npm: the in-agent marketplace commands and `marketplace rows` belong to the unreleased 0.6.1). Run 'npm update -g litespm' (or 'litespm self-update') to update to the latest release. This site's command reference and install flags are checked against the version npm serves as latest, not against an unreleased build.",
           },
         ].map((item) => (
           <details key={item.q} className="group rounded-xl border border-border/70 bg-card transition-colors hover:border-border">

@@ -1,5 +1,11 @@
 # Handoff — installer UX upgrade + in-agent marketplace
 
+> **Historical session note (dated header added 2026-11-10).** This handoff was written on
+> 2026-11-06 and its "partial implementation / tests not run" status is **stale**: the in-agent
+> marketplace command registrar (`internal/host/marketplace_command.go`) and
+> `litespm marketplace rows` now exist and are described in [STATUS.md](STATUS.md) and
+> [AGENTS.md](AGENTS.md) §3; open defects are tracked in [AUDIT.md](AUDIT.md). Read the body below
+> only for the reasoning behind the decisions it records.
 **Date:** 2026-11-06  
 **Repo:** `C:\Users\Sonali\Desktop\projectwork\business_Dev\liteSPM` (branch `main`)  
 **Status:** partial implementation. `go build ./cmd/litespm` passes; tests have **not** been run.  

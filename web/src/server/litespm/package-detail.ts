@@ -104,7 +104,13 @@ export interface PackageDetailData {
 
 export async function getPackageDetail(key: string): Promise<PackageDetailResponse> {
   const dataset = await getDataset();
-  const decoded = decodeURIComponent(key).trim();
+  // A stray `%` makes decodeURIComponent throw; treat the key as already decoded.
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(key).trim();
+  } catch {
+    decoded = key.trim();
+  }
 
   const row =
     dataset.byKey.get(decoded) ??

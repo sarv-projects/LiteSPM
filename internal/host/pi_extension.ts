@@ -39,6 +39,7 @@ interface RowsDoc {
   truncated?: boolean;
   notice?: string;
   rows?: Capability[];
+  installed?: Capability[];
 }
 
 /** The parts of pi's Theme this panel uses. Structural, so the panel never
@@ -451,11 +452,9 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const query = args.trim();
       ctx.ui.notify(query === "" ? "Opening the LiteSPM marketplace…" : "Searching LiteSPM for " + query + "…", "info");
-      const [searchDoc, installedDoc] = await Promise.all([
-        readJSON<RowsDoc>(pi, ["marketplace", "rows", "--json", "--host", HOST, "--query", query, "--limit", "300"]),
-        readJSON<RowsDoc>(pi, ["marketplace", "rows", "--json", "--host", HOST, "--kind", "installed"]),
-      ]);
-      if (!searchDoc && !installedDoc) {
+      const searchDoc = await readJSON<RowsDoc>(pi, ["marketplace", "rows", "--json", "--host", HOST, "--query", query, "--limit", "300"]);
+      const installedDoc: RowsDoc | undefined = searchDoc ? { rows: searchDoc.installed } : undefined;
+      if (!searchDoc) {
         ctx.ui.notify(
           "LiteSPM did not answer. Check that it is installed (litespm --version) and up to date: npm install -g litespm",
           "warning",
