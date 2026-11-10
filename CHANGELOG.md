@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed (working tree, 2026-11-10)
 
+- Claude Code: setup registers the marketplace pane through `claude plugin marketplace add` + `plugin install`
+  when the `claude` CLI is present (the `settings.json` entries alone were not loaded: `claude plugin list`
+  showed nothing); `host remove` unregisters it.
 - `litespm bridge stdio` answers the MCP handshake immediately and connects to the daemon in the
   background; tool calls wait for it (up to 90 s). On a cold machine the daemon loads the whole catalog
   before it listens, and agents gave up on the handshake (OpenCode 2.2.6: "Request timed out").

@@ -579,20 +579,28 @@ func stripTOMLEntryNamed(content string, keyPath []string, serverName string) (s
 // installed into: that case returns Removed=false with a reason.
 func RemoveSetup(ctx context.Context, adapter HostAdapter, backupDir string) (*RemovalResult, error) {
 	plan, result, err := PlanRemoval(ctx, adapter, backupDir)
-	if err == nil {
-		// The in-agent marketplace command goes with the bridge. Only files
-		// LiteSPM marked as its own are deleted; a failure here never blocks
-		// the bridge removal itself.
+	// The in-agent marketplace command goes with the bridge. It is removed
+	// AFTER the bridge entry: unregistering it can make the agent's own CLI
+	// rewrite the very config file the removal plan was built against (Claude
+	// Code's `claude plugin uninstall` rewrites .claude.json), and the plan's
+	// stale-file guard would then, correctly, refuse. Only files LiteSPM
+	// marked as its own are deleted; a failure here never blocks the bridge.
+	removeCommand := func() {
 		if mres, merr := RemoveMarketplaceCommand(ctx, adapter.Descriptor().HostID); merr == nil && mres != nil && result != nil {
 			result.CommandRemoved = mres.Removed
 		}
 	}
-	if err != nil || plan == nil {
+	if err != nil {
 		return result, err
+	}
+	if plan == nil {
+		removeCommand()
+		return result, nil
 	}
 	if _, err := adapter.ApplySetup(ctx, plan); err != nil {
 		return nil, fmt.Errorf("applying removal to %s: %w", plan.ConfigPath, err)
 	}
+	removeCommand()
 	return result, nil
 }
 

@@ -28,9 +28,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/sarv-projects/litespm/internal/domain"
 )
@@ -499,13 +501,62 @@ func claudeMarketplaceFiles(home string, opts MarketplaceCommandOptions) ([]comm
 	}, nil
 }
 
-// claudeActivateMarketplace enables the plugin the way `claude plugin
-// marketplace add` + `claude plugin install` record it: a directory
-// marketplace in extraKnownMarketplaces and the plugin in enabledPlugins of
-// the user settings file. The splice is surgical, so the rest of the file is
-// untouched.
+// claudeActivateMarketplace enables the pane. Claude Code tracks installed
+// plugins in its own plugins/installed_plugins.json, so the settings.json
+// entries alone are not enough: `claude plugin list` reported "No plugins
+// installed" and the pane never loaded (observed with 2.1.310). When the
+// `claude` CLI is on PATH, LiteSPM therefore registers through it
+// (`plugin marketplace add` + `plugin install`, both idempotent). Without the
+// CLI it falls back to the settings.json entries those commands write, and
+// says that a restart or /plugin may be needed.
 func claudeActivateMarketplace(home string, _ []commandFile) ([]string, error) {
 	root, _ := claudeMarketplaceRoot(home)
+	if bin, err := claudeCLIPath(); err == nil {
+		steps := [][]string{
+			{"plugin", "marketplace", "add", root, "--scope", "user"},
+			{"plugin", "install", claudePluginName + "@" + claudeLocalMarketplace, "--scope", "user"},
+		}
+		ok := true
+		for _, args := range steps {
+			if out, rerr := runClaudeCLI(bin, args); rerr != nil {
+				ok = false
+				_ = out // the fallback below covers a CLI that refused
+				break
+			}
+		}
+		if ok {
+			return []string{"Registered " + claudePluginName + "@" + claudeLocalMarketplace + " with Claude Code (`claude plugin list` shows it)"}, nil
+		}
+	}
+	notes, err := claudeEnableInSettings(home, root)
+	if err == nil {
+		notes = append(notes, "The claude CLI was not available to register the pane; if /litespm-marketplace is missing, run: claude plugin install "+claudePluginName+"@"+claudeLocalMarketplace)
+	}
+	return notes, err
+}
+
+// claudeCLIPath finds the claude CLI. A variable so tests stay hermetic, and
+// it refuses inside any test binary so no test, in any package, can rewrite
+// the developer's own Claude Code state.
+var claudeCLIPath = func() (string, error) {
+	if exe := filepath.Base(os.Args[0]); strings.HasSuffix(exe, ".test") || strings.HasSuffix(exe, ".test.exe") {
+		return "", errors.New("the claude CLI is not used from a test binary")
+	}
+	return exec.LookPath("claude")
+}
+
+// runClaudeCLI runs one `claude` subcommand with a bound, inheriting the
+// environment so CLAUDE_CONFIG_DIR is honoured.
+func runClaudeCLI(bin string, args []string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Stdin = nil
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+func claudeEnableInSettings(home, root string) ([]string, error) {
 	settings := filepath.Join(claudeConfigDir(home), "settings.json")
 	raw := "{}"
 	if data, err := os.ReadFile(settings); err == nil && strings.TrimSpace(string(data)) != "" {
@@ -530,10 +581,18 @@ func claudeActivateMarketplace(home string, _ []commandFile) ([]string, error) {
 }
 
 func claudeDeactivateMarketplace(home string) ([]string, error) {
+	var notes []string
+	if bin, err := claudeCLIPath(); err == nil {
+		// Both are no-ops (non-zero exit, ignored) when nothing is registered.
+		if _, rerr := runClaudeCLI(bin, []string{"plugin", "uninstall", claudePluginName + "@" + claudeLocalMarketplace, "--scope", "user"}); rerr == nil {
+			notes = append(notes, "Unregistered "+claudePluginName+" from Claude Code")
+		}
+		_, _ = runClaudeCLI(bin, []string{"plugin", "marketplace", "remove", claudeLocalMarketplace})
+	}
 	settings := filepath.Join(claudeConfigDir(home), "settings.json")
 	data, err := os.ReadFile(settings)
 	if err != nil {
-		return nil, nil
+		return notes, nil
 	}
 	out := string(data)
 	changed := false
@@ -550,12 +609,12 @@ func claudeDeactivateMarketplace(home string) ([]string, error) {
 		}
 	}
 	if !changed {
-		return nil, nil
+		return notes, nil
 	}
 	if err := writeOwnedFile(settings, out); err != nil {
-		return nil, err
+		return notes, err
 	}
-	return []string{"Disabled the LiteSPM pane in " + settings}, nil
+	return append(notes, "Disabled the LiteSPM pane in "+settings), nil
 }
 
 // ---- prompt bodies ----------------------------------------------------------

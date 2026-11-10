@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,10 @@ import (
 func registrarHome(t *testing.T) string {
 	t.Helper()
 	home := useTempHome(t)
+	// Never call a real `claude` CLI from a test.
+	prev := claudeCLIPath
+	claudeCLIPath = func() (string, error) { return "", errors.New("no claude in tests") }
+	t.Cleanup(func() { claudeCLIPath = prev })
 	for _, k := range []string{"XDG_CONFIG_HOME", "OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG", "CLAUDE_CONFIG_DIR", "COPILOT_HOME", "PI_CODING_AGENT_DIR", "CODEX_HOME", "GROK_HOME"} {
 		t.Setenv(k, "")
 	}
