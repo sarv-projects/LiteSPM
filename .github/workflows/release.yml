@@ -20,6 +20,8 @@ jobs:
   build-and-release:
     name: Build & Publish Release
     runs-on: ubuntu-latest
+    outputs:
+      npm_published: ${{ steps.npm_publish.outputs.published }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -121,25 +123,37 @@ jobs:
           output-file: release-assets/litespm-sbom.cdx.json
           upload-artifact: false
 
-      - name: Create GitHub Release
+      # Nothing public is created until the installer tests have passed. The
+      # release is created as a DRAFT (visible only to repository writers, its
+      # tag and assets not downloadable by the public) so the assets are
+      # uploaded and inspectable, and is published at the very end of this job,
+      # after `npm publish` succeeded. A failure anywhere in between leaves a
+      # draft to inspect or delete, never a public release with a broken
+      # installer behind it.
+      - name: Create GitHub Release (draft)
+        id: gh_release
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
           generate_release_notes: true
-          draft: false
+          draft: true
           prerelease: false
 
       # The installer is what every `npm install -g litespm` runs, so the
-      # release is gated on its refusal paths. This runs after the GitHub
-      # release exists, so the cases that verify the published bundle for THIS
-      # tag run against real assets. In release mode, missing or unreachable
-      # assets are fatal rather than skips; local pre-release test runs may skip.
+      # release is gated on its refusal paths. The assets of a draft are not
+      # publicly downloadable, so the cases that verify the signed bundle for
+      # THIS tag read the assets this run just built and cosign-signed from
+      # LITESPM_TEST_RELEASE_DIR instead of fetching them: the signatures are
+      # the real keyless ones and are still checked against the real Sigstore
+      # trust root and the pinned workflow identity. In release mode, missing
+      # or unreadable assets are fatal rather than skips.
       - name: Test npm Wrapper and Installer
         working-directory: ./npm
         env:
           # A release pipeline must never publish npm after silently skipping
           # the real binary, checksum-manifest and Sigstore-bundle checks.
           LITESPM_TEST_REQUIRE_RELEASE: "1"
+          LITESPM_TEST_RELEASE_DIR: ${{ github.workspace }}/release-assets
         run: |
           npm ci --ignore-scripts
           npm test
@@ -150,9 +164,11 @@ jobs:
       - name: Stage license files for npm
         run: cp LICENSE NOTICE npm/
 
-      # Deliberately after the GitHub release: the npm postinstall fetches the
-      # v<version> assets, so publishing before they exist would ship a package
-      # whose binary download 404s.
+      # Deliberately after the (draft) GitHub release has its assets and after
+      # the installer tests: the npm postinstall fetches the v<version> assets,
+      # so publishing before they exist would ship a package whose binary
+      # download 404s. The release is made public in the step after this job's
+      # npm steps, which keeps the window between the two to seconds.
       #
       # NODE_AUTH_TOKEN is scoped to this step only: a job-level env would
       # expose the token to every preceding step (build, test, packaging).
@@ -165,6 +181,7 @@ jobs:
       # skipping, unless the release is deliberately marked npm-free with the
       # repository variable ALLOW_NPM_SKIP=true.
       - name: Publish npm package
+        id: npm_publish
         working-directory: ./npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -180,9 +197,89 @@ jobs:
           fi
           printf '//registry.npmjs.org/:_authToken=%s\n' "${NODE_AUTH_TOKEN}" > .npmrc
           npm publish --provenance --access public
+          echo "published=true" >> "${GITHUB_OUTPUT}"
 
       # The token file must not survive the job regardless of outcome:
       # a failed publish must not leave .npmrc on disk for a later step.
       - name: Remove npm auth token
         if: always()
         run: rm -f npm/.npmrc
+
+      # The last step: only now, with the installer tested and the package
+      # published, does the release become public. It runs on success() only,
+      # so a failed test or publish leaves the draft in place. GITHUB_TOKEN
+      # (contents: write) is scoped to this step; retried because losing this
+      # call after a successful npm publish would leave npm pointing at assets
+      # nobody can download.
+      - name: Publish GitHub Release (un-draft)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.gh_release.outputs.id }}
+        run: |
+          # Address the draft by its numeric id: `gh release edit <tag>` looks a
+          # release up by tag, which the API does not serve for drafts.
+          if [ -z "${RELEASE_ID}" ]; then
+            RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+              --jq ".[] | select(.draft and .tag_name == \"${GITHUB_REF_NAME}\") | .id" | head -n1)"
+          fi
+          if [ -z "${RELEASE_ID}" ]; then
+            echo "::error::No draft release found for ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          for attempt in 1 2 3 4 5; do
+            if gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+                 -F draft=false -f make_latest=true >/dev/null; then
+              echo "Release ${GITHUB_REF_NAME} is public."
+              exit 0
+            fi
+            echo "gh release edit failed (attempt ${attempt}/5); retrying in $((attempt * 5))s"
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not publish the draft release ${GITHUB_REF_NAME}. npm may already be published; publish the draft release by hand (id ${RELEASE_ID})"
+          exit 1
+
+  # Proves the thing users actually do, on the three platforms they do it on,
+  # after everything is public: `npm i -g litespm@<version>` (which runs the
+  # postinstall, downloading and Sigstore-verifying the released binary) and
+  # then `litespm --version`. The registry needs a moment to serve a fresh
+  # version, so both the lookup and the install are retried for up to ~5
+  # minutes.
+  smoke:
+    name: Smoke (${{ matrix.os }})
+    needs: build-and-release
+    if: needs.build-and-release.outputs.npm_published == 'true'
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install from npm and run
+        shell: bash
+        run: |
+          set -u
+          VERSION="${GITHUB_REF_NAME#v}"
+          deadline=$((SECONDS + 300))
+          attempt=0
+          until npm i -g "litespm@${VERSION}"; do
+            attempt=$((attempt + 1))
+            if [ "${SECONDS}" -ge "${deadline}" ]; then
+              echo "::error::litespm@${VERSION} could not be installed within 5 minutes (${attempt} attempts)"
+              exit 1
+            fi
+            echo "npm i -g litespm@${VERSION} not ready yet (attempt ${attempt}); retrying in 15s"
+            sleep 15
+          done
+          out="$(litespm --version)"
+          echo "${out}"
+          case "${out}" in
+            *"${VERSION}"*) echo "litespm ${VERSION} runs on ${RUNNER_OS}" ;;
+            *) echo "::error::'litespm --version' printed '${out}', expected it to contain ${VERSION}"; exit 1 ;;
+          esac

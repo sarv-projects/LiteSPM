@@ -107,6 +107,75 @@ jobs:
           go run scripts/gen_hosts_ts.go
           git diff --exit-code -- web/data/hosts.json web/data/skill-targets.json
 
+  # The npm package is what users install, and Windows is where its install
+  # path differs most (file locking, .cmd shims, %USERPROFILE%). This job packs
+  # the tarball exactly as `npm publish` would, installs it with
+  # --ignore-scripts (the postinstall would download the *published* binary,
+  # which does not exist for an unreleased commit), then proves the packed
+  # wrapper resolves and runs a binary built from this commit. The managed
+  # binary is placed by the repo's installer through the explicit
+  # LITESPM_ALLOW_LOCAL_DIST=1 opt-in, in a throwaway HOME.
+  npm-package-windows:
+    name: npm Package (windows-latest)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run npm Unit Tests
+        working-directory: ./npm
+        run: |
+          npm ci --ignore-scripts
+          npm test
+
+      - name: Build Windows Binary From This Commit
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $version = node -p "require('./npm/package.json').version"
+          go build -ldflags "-X main.Version=$version" -o dist/litespm-windows-amd64.exe ./cmd/litespm
+
+      - name: Pack, Install Tarball (--ignore-scripts) and Run
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sbx = Join-Path $env:RUNNER_TEMP 'litespm-sbx'
+          $home_ = Join-Path $sbx 'home'
+          $prefix = Join-Path $sbx 'prefix'
+          New-Item -ItemType Directory -Force $home_, $prefix | Out-Null
+
+          Push-Location npm
+          $tgz = (npm pack --silent | Select-Object -Last 1).Trim()
+          Pop-Location
+          npm install -g (Join-Path (Resolve-Path npm) $tgz) --ignore-scripts --prefix $prefix
+          if ($LASTEXITCODE -ne 0) { throw "npm install -g failed" }
+
+          # Never the runner's real profile.
+          $env:USERPROFILE = $home_
+          $env:HOME = $home_
+          $env:LITESPM_ALLOW_LOCAL_DIST = '1'
+          $env:LITESPM_NO_AUTO_SYNC = '1'
+
+          node npm/scripts/install-binary.js
+          if ($LASTEXITCODE -ne 0) { throw "local-dist install failed" }
+
+          $installed = Join-Path $prefix 'node_modules\litespm'
+          node (Join-Path $installed 'bin\litespm.js') --version
+          if ($LASTEXITCODE -ne 0) { throw "packed wrapper failed to run the binary" }
+          & (Join-Path $prefix 'litespm.cmd') --version
+          if ($LASTEXITCODE -ne 0) { throw "litespm.cmd shim failed" }
+
   test-go:
     name: Test Go Engine (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
