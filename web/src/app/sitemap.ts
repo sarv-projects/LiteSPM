@@ -5,6 +5,7 @@ import { getDataset } from "@/server/litespm/dataset";
 const SITE_ORIGIN = "https://lite-spm-nine.vercel.app";
 
 const DOC_SECTIONS = [
+  "introduction",
   "getting-started",
   "commands",
   "install-flow",

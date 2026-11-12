@@ -62,7 +62,7 @@ export const IN_AGENT: InAgentEntry[] = [
     invoke: "/litespm-marketplace",
     mechanism: "Mod pane",
     evidence: "validated",
-    note: "Needs Claude Code 2.1.287 or newer.",
+    note: "Needs Claude Code 2.1.287 or newer. Setup registers the pane with claude plugin marketplace add and plugin install when the claude CLI is present; host remove unregisters it. Restart Claude Code afterwards.",
   },
   {
     hostId: "github-copilot",

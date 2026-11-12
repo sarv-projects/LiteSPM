@@ -145,7 +145,7 @@ export function PublishView() {
                 </Button>
                 <Button
                   className="rounded-xl bg-brand text-brand-foreground hover:bg-brand/90"
-                  onClick={() => navigate("#/explore")}
+                  onClick={() => navigate("/marketplace")}
                 >
                   Browse the catalog
                 </Button>

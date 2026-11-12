@@ -27,10 +27,10 @@ const SECTIONS: Array<{ id: string; label: string; icon: React.ElementType }> = 
 type CommandGroup = "Discover" | "View" | "Install & manage" | "Connect" | "Recover" | "System";
 
 const COMMANDS: Array<{ cmd: string; description: string; example?: string; group: CommandGroup }> = [
-  { group: "Discover", cmd: "litespm search <text>", description: "Search the local catalog. Marks which results are installable and which are discovery-only, before you run anything.", example: "litespm search postgres" },
+  { group: "Discover", cmd: "litespm search <text>", description: "Search the local catalog through its on-disk full-text index. Marks which results are installable and which are discovery-only, before you run anything. --json prints the litespm-search/v1 document; --limit <n> caps the rows (1-500).", example: "litespm search postgres" },
   { group: "Discover", cmd: "litespm skills find [<query>]", description: "Search the local catalog index for skills. --owner <org> narrows the results to one publisher." },
   { group: "Discover", cmd: "litespm agent list|resolve <id>", description: "List the coding agents in the ACP registry with the launch strategy for this OS, or resolve one agent's executable, arguments, environment and archive digest." },
-  { group: "Discover", cmd: "litespm catalog sync", description: "Download or refresh the local catalog. The only command that touches the catalog origin; search then runs entirely offline." },
+  { group: "Discover", cmd: "litespm catalog sync", description: "Download or refresh the local catalog on demand: every digest in the pointer, manifest and listings chain is verified before the local copy is replaced. From 0.6.1 it also builds the on-disk search index from the verified files, and the catalog syncs itself (see Getting started), so you only need this command to refresh right now. Searching never touches the network." },
 
   { group: "View", cmd: "litespm list", description: "What is installed, by agent and kind. --drifted shows entries changed since install; --json is the stable machine-readable form." },
   { group: "View", cmd: "litespm inventory [mcp|skills|plugins]", description: "Emit one stable litespm.inventory/v1 record per deployment, with placement, origin, install id, config path, digests and drift state." },
@@ -51,11 +51,11 @@ const COMMANDS: Array<{ cmd: string; description: string; example?: string; grou
   { group: "Install & manage", cmd: "litespm lock", description: "Resolve litespm.yml into a deterministic litespm.lock. --check catches drift in CI; --sbom emits CycloneDX or SPDX; --verify re-checks the lock digest." },
   { group: "Install & manage", cmd: "litespm import <format> <path>", description: "Plan an import from skills-lock.json, server.json, a marketplace manifest or plugin.json into litespm.yml. Nothing is written without --apply." },
 
-  { group: "Connect", cmd: "litespm", description: "Open the setup and management wizard. Finds agents on your machine, shows the exact file it will touch, and asks before writing." },
+  { group: "Connect", cmd: "litespm", description: "Open the setup and management wizard. Finds agents on your machine, shows the exact file it will touch, and asks before writing. Its menu can update the catalog, find and install, remove, list, or connect another agent." },
   { group: "Connect", cmd: "litespm setup [--agent <host-id>]", description: "Connect one agent, or use --all for every detected host. Each host is previewed and backed up separately before it is written.", example: "litespm setup --agent codex" },
   { group: "Connect", cmd: "litespm host list|detect|setup|remove", description: "List every supported adapter and the file it writes, detect the ones on this machine, connect one (this also installs the agent's in-agent marketplace command), or remove LiteSPM's entry. host remove <id> removes that command too. In-agent marketplace commands ship in the repository's next release (0.6.1); npm currently serves 0.6.0.", example: "litespm host detect" },
   { group: "Connect", cmd: "litespm marketplace", description: "Open the browser marketplace on this machine: MCP Servers, Skills, Plugins and Installed, with live search. --no-open prints the URL instead." },
-  { group: "Connect", cmd: "litespm marketplace rows --json", description: "Print the marketplace view model as JSON - the one thing every in-agent popup renders. Narrow it with --query <text>, --host <id> and --kind mcp|skill|plugin|installed (0.6.1, unreleased)." },
+  { group: "Connect", cmd: "litespm marketplace rows --json", description: "Print the marketplace view model as JSON - the one thing every in-agent popup renders. Narrow it with --query <text>, --host <id>, --kind mcp|skill|plugin|installed, --limit <n> and --installable (0.6.1, unreleased)." },
   { group: "Connect", cmd: "litespm bridge stdio --host <id>", description: `Run the ${facts.bridgeTools}-tool MCP bridge a connected agent talks to. The bridge speaks stdio and forwards to the local daemon.`, example: "litespm bridge stdio --host codex" },
   { group: "Connect", cmd: "litespm daemon serve", description: "Run the single-writer background supervisor and local IPC engine in the foreground. Recovery runs before the listener binds." },
   { group: "Connect", cmd: "litespm auth login|status|logout", description: "Run the OAuth 2.0 PKCE loopback flow, report stored provider credentials, or revoke one. Tokens stay in the OS vault." },
@@ -75,7 +75,7 @@ const COMMANDS: Array<{ cmd: string; description: string; example?: string; grou
 const INSTALL_FLAGS = [
   "--help, -h", "--version, -v", "--scope, -s", "--workspace, -w", "--host",
   "--agent, -a", "--all-detected", "--env", "--force, -f", "--frozen",
-  "--dry-run", "--allow-partial", "--yes, -y",
+  "--dry-run", "--allow-partial",
 ];
 
 export function DocsView({ section }: { section: string }) {
@@ -251,12 +251,41 @@ function GettingStarted() {
       </P>
 
       <CodeBlock
-        title="the four commands that cover the loop"
-        code={`litespm catalog sync        # download the catalog
-litespm search postgres     # find something
+        title="the commands that cover the loop"
+        code={`litespm search postgres     # find something
 litespm install <id>        # install it
-litespm list                # see what is installed`}
+litespm list                # see what is installed
+litespm catalog sync        # optional: refresh the catalog right now`}
       />
+
+      <h2 className="pt-2 text-[17px] font-semibold">The local catalog syncs itself</h2>
+      <P>
+        You do not have to download the catalog as a separate first step. The first command that
+        needs it — bare <C>litespm</C>, <C>search</C>, <C>install</C>, <C>marketplace rows</C>,{" "}
+        <C>skills find</C> or <C>lock</C> — downloads it in the foreground and prints progress on
+        stderr. After that, a run that finds the last check older than 6 hours starts a detached{" "}
+        <C>litespm catalog sync --auto</C> and never waits for it. The check stamp, lock and log
+        (<C>catalog-autosync.json</C>, <C>catalog-sync.lock</C>, <C>catalog-sync.log</C>) live under
+        the LiteSPM data root. Set <C>LITESPM_NO_AUTO_SYNC=1</C> to turn it off (it is also off when{" "}
+        <C>CI</C> is set); <C>litespm catalog sync</C> still works on demand. Every download is
+        digest-verified, and a failed sync leaves the previous catalog in place.
+      </P>
+      <P>
+        The sync also builds a local SQLite full-text search index from the verified files, so a
+        search no longer loads the whole release. On the maintainers&apos; Linux measurements a warm
+        search went from 2.6–3.4 s at about 475 MB of memory to 0.3–0.8 s (whole process) at about
+        33 MB. The index is rebuilt whenever it does not match the catalog on disk. On Windows the
+        background sync starts without opening a console window.
+      </P>
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
+        <p className="text-[13px] font-semibold">Availability</p>
+        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+          Automatic sync and the search index are part of the repository&apos;s next release,{" "}
+          <strong className="text-foreground">0.6.1</strong>. The version on npm is{" "}
+          <strong className="text-foreground">{facts.npmVersion}</strong>, where you run{" "}
+          <C>litespm catalog sync</C> yourself before the first search.
+        </p>
+      </div>
 
       <P>
         From the menu you can also hand a GitHub repository, Git URL, skill URL or local folder to
@@ -485,8 +514,9 @@ function InAgentMarketplace() {
         A popup is a real view inside the agent: you search, move through the list and pick a row.
         It does not spend a model turn. Every popup renders the same view model,{" "}
         <C>litespm marketplace rows --json</C>, so they show the same thing. That command reads
-        the catalog <strong className="text-foreground">synced on your machine</strong> (refresh it
-        with <C>litespm catalog sync</C>) merged with your install ledger. It does not call this
+        the catalog <strong className="text-foreground">synced on your machine</strong> (kept fresh
+        by the automatic background sync, or refresh it with <C>litespm catalog sync</C>) merged
+        with your install ledger. It does not call this
         website, and nothing you type in a popup is sent here; the two list the same signed release,
         but your local copy is only as new as your last sync.
       </P>
@@ -743,10 +773,14 @@ function Troubleshooting() {
         title="diagnostics"
         code={`litespm doctor        # inspect host configs and repair connections
 litespm list --drifted  # inspect entries changed outside LiteSPM
-litespm catalog sync    # refresh local catalog index`}
+litespm catalog sync    # refresh the local catalog now (it also syncs itself)`}
       />
       <div className="mt-8 space-y-3">
         {[
+          {
+            q: "Do I need to run catalog sync myself?",
+            a: "Not from 0.6.1. The first command that needs the catalog downloads it in the foreground with progress on stderr, and later runs start a detached background sync at most every 6 hours without waiting for it. Set LITESPM_NO_AUTO_SYNC=1 (or run under CI) to disable that; 'litespm catalog sync' still works on demand. On the npm 0.6.0 release there is no automatic sync, so run 'litespm catalog sync' once before your first search. If a sync keeps failing, the background log is catalog-sync.log in the LiteSPM data root.",
+          },
           {
             q: "Why are some packages marked 'Installable' while others are 'Discovery-Only'?",
             a: "LiteSPM operates on a strict zero-guesswork safety standard. To automatically install an MCP server, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). When community packages only provide a repository link or documentation without standardized launch parameters, LiteSPM refuses to guess (such as guessing between npx, python, or uvx). These tools remain in the catalog so you can discover them and visit their source code, but one-click automated installation is paused until verified launch details exist.",

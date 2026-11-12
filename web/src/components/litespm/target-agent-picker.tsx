@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
  * Searchable target-agent picker for the install command.
  *
  * A package page can offer up to 81 valid targets (52 MCP hosts for local MCP
- * rows, the remote-capable subset for URL rows, 79 skill targets for skills),
+ * rows, the remote-capable subset for URL rows, 81 skill targets for skills),
  * so a plain select no longer fits — this combobox filters as you type and
  * keeps the "target agent" control one click wide.
  */

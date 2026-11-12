@@ -2,6 +2,9 @@
 
 A normative decision record for reshaping the public LiteSPM Market website and the catalog package model against the 2026 agent-extension ecosystem. This document is grounded in what the repository implements today; target-state contracts are labelled as targets and must not be presented as shipped behavior.
 
+> **Route note (2026-11-10).** The `/explore` page named below was merged into `/marketplace`; read every
+> `/explore` reference in this document as `/marketplace`.
+
 > **Snapshot basis:** reconciled against commit `386aebd` (2026-10-21). The §4 "v1 reality" column is
 > the site's actual code at that tree; a component path named here exists in the tree unless the row
 > says it was deleted.

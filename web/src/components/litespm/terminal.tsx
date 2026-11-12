@@ -122,6 +122,15 @@ export function TerminalHero({
   React.useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      // No typing animation: show the whole session at once.
+      setVisible(lines.length);
+      setTyped("");
+      return;
+    }
     setVisible(0);
     setTyped("");
 

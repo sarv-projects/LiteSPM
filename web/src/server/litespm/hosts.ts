@@ -156,9 +156,9 @@ export function hostPathIsHomeDerived(host: HostAdapter, os: PlatformOS): boolea
 export const SKILL_TARGETS = generatedSkillTargets;
 
 /**
- * Developer popularity and user adoption order for AI agent hosts.
- * Used to break ties in compatible counts so leaderboards reflect real-world usage
- * rather than arbitrary alphabetical sorting.
+ * Fixed editorial order for AI agent hosts, maintained by hand. It is NOT a measured
+ * usage or download ranking; the site must not describe it as one. It orders the
+ * agent leaderboard instead of an arbitrary alphabetical sort.
  */
 export const HOST_POPULARITY_RANK: readonly string[] = [
   "cursor",

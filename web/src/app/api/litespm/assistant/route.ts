@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
     // Host setup instructions must come from current user-facing CLI docs,
     // not ARCH design/roadmap sections that may describe unshipped behavior.
     const knowledge = hostSetup
-      ? retrievedKnowledge.filter((hit) => ["README.md", "npm/README.md", "STATUS.md", "SECURITY.md"].includes(hit.source))
+      ? retrievedKnowledge.filter((hit) => ["README.md", "npm/README.md", "STATUS.md", "SECURITY.md", "AGENTS.md"].includes(hit.source))
       : retrievedKnowledge;
     // Host routing is deterministic: the host registry is the source of truth,
     // so do not ask an LLM to choose or parameterize the registry lookup.

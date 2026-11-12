@@ -4,330 +4,186 @@
 
 **The package manager for AI agents.**
 
-Discover and install MCP servers, skills and plugins across Claude Code,
-Claude Desktop, Visual Studio Code, OpenAI Codex, OpenCode, Cline and 46 more
-hosts — 52 in all. 47 of them can
-also receive a remote (URL) MCP entry; the other five — Claude Desktop,
-CodeStudio, iFlow CLI, Mux and Zcode — are local-only in LiteSPM and are
-refused for remote entries rather than written in a shape the host would ignore.
-
-Visual Studio Code is workspace-scoped: run `litespm host setup vscode` from the
-workspace root and install entries with `--scope project --agent vscode`. This
-writes the portable Copilot `.mcp.json` format with `mcpServers`; it supports
-stdio and HTTP, not SSE. The separate `.vscode/mcp.json` Local-harness format
-remains available but is deprecated in guided setup and is not written here.
-
-**Browse the catalog:** **[lite-spm-nine.vercel.app](https://lite-spm-nine.vercel.app/)**
-— search all 69,376 listings and copy the install command for anything you pick.
+One verified catalog of MCP servers, agent skills and plugins, installed into
+52 coding agents: Claude Code, Codex, Cursor, OpenCode, Cline, Gemini CLI,
+GitHub Copilot, VS Code, Zed, Pi and more. Undo any of it with one command.
 
 [![npm version](https://img.shields.io/npm/v/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
-[![npm downloads](https://img.shields.io/npm/dm/litespm.svg?color=10b981)](https://www.npmjs.com/package/litespm)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/sarv-projects/LiteSPM/blob/main/LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D22.22.2-brightgreen.svg)](https://nodejs.org)
+
+[Website](https://lite-spm-nine.vercel.app) ·
+[Marketplace](https://lite-spm-nine.vercel.app/marketplace) ·
+[Docs](https://lite-spm-nine.vercel.app/docs) ·
+[GitHub](https://github.com/sarv-projects/LiteSPM) ·
+[Changelog](https://github.com/sarv-projects/LiteSPM/blob/main/CHANGELOG.md)
 
 </div>
 
 ---
 
-```console
-$ litespm
-LiteSPM can connect to 52 different agent hosts.
-This run has not changed anything yet.
-
-Which AI coding agent do you use?
-
-Found on this machine (1):
-  [1] Claude Code                    /home/you/.claude.json
-  [a] Show all 52 supported agents
-  [q] Quit
-Enter a number, an agent name, or 'a' [q]: 1
-
-Looking for Claude Code's configuration file...
-Found your existing configuration file:
-  /home/you/.claude.json
-LiteSPM will add one entry to this file. Everything else in it is left as it is, and a backup copy is saved first.
-Use this file? [Y/n]:
-
-About to make one change to /home/you/.claude.json:
-
-  +   "litespm": {
-  +     "command": "/usr/local/bin/litespm",
-  +     "args": ["bridge", "stdio", "--host", "claude-code"]
-  +   }
-
-Everything else in the file is left as it is.
-Write this change? [Y/n]:
-
-✓ Done. LiteSPM is registered with Claude Code.
-  • Backup of the previous file: …/backups/claude-code_20261014_120000_1a2b3c4d.bak
-  • File written: /home/you/.claude.json
-
-Next:
-  • Start Claude Code and type /marketplace to browse and install capabilities.
-  • Or stay here: this wizard can update the catalog, install and remove things too.
-```
-
-Setup prints **no capability count** and no advisory list: the wizard derives
-the host list from the compiled-in adapter registry (`cmd/litespm/wizard.go:154-162`)
-and the setup flow itself makes no network request. The catalog is fetched by
-the automatic catalog sync: the first run that needs it (a bare `litespm`,
-`search`, `install`) downloads it in the foreground with progress, and later runs
-start a background `catalog sync` at most every six hours without waiting for
-it — only the published pointer, manifest and shards are requested, from the
-configured origin, and nothing about you is sent. `LITESPM_NO_AUTO_SYNC=1` (or
-`CI`) turns it off, leaving the wizard's *Update the capability catalog* action
-and `litespm catalog sync` as the only network steps. `/marketplace` becomes
-available in the agent after the bridge entry lands.
-
-Stop hand-editing `~/.claude.json`, `config.toml`, and a dozen other files.
-Connect an agent **once**, then manage all of its capabilities from one local
-place.
-
 ## Install
 
 ```bash
 npm install -g litespm
+litespm
 ```
 
-`npm uninstall -g litespm` removes the npm wrapper, but npm 7 and later do not
-run package uninstall lifecycle scripts. If you also want to remove the
-versioned native binary cache, run this **before** uninstalling:
+`litespm` opens the setup wizard. It finds the agents on your machine, shows the
+exact change it will make to each configuration file, saves a backup, and writes
+only after you confirm.
 
 ```bash
-node "$(npm root -g)/litespm/scripts/uninstall-binary.js"
-npm uninstall -g litespm
+litespm search postgres              # the catalog downloads itself on first use
+litespm install <id>                 # plan → preview → approve → install
+litespm list                         # what is installed, per agent
+litespm install remove <installId>   # undo exactly that install
 ```
 
-On Windows PowerShell, use:
+You do not need to sync the catalog by hand. The first command that needs it
+downloads it with progress; later runs refresh it in the background at most
+every 6 hours and never wait. `LITESPM_NO_AUTO_SYNC=1` (or `CI`) turns that off,
+and `litespm catalog sync` syncs on demand. Searches use an on-disk SQLite FTS5
+index, so they take milliseconds.
 
-```powershell
-node "$(npm root -g)\litespm\scripts\uninstall-binary.js"
-npm uninstall -g litespm
-```
+Inside a configured agent, `litespm setup --agent <id>` adds a marketplace
+command: `/marketplace` in Pi, `/litespm-marketplace` in OpenCode, Claude Code,
+GitHub Copilot CLI and others (a popup where the agent supports one, a prompt
+command elsewhere). `litespm host remove <id>` removes it again.
 
-The cleanup script removes only the current package version's native executable
-and matching version stamp. It leaves the LiteSPM state database, backups,
-installed skills, and agent configuration entries untouched. Run `litespm
-uninstall` first to inspect remaining agent changes and the explicit per-entry
-removal commands. npm's lack of uninstall hooks is documented by npm itself:
-https://docs.npmjs.com/cli/v11/using-npm/scripts/#a-note-on-a-lack-of-npm-uninstall-scripts.
+## What you get
 
-On Linux or WSL, `bash: .../bin/litespm: Permission denied` means the installed
-command shim is missing its executable bit. This repository now preserves and
-checks that bit in the npm tarball. For an already-installed broken shim, repair
-it with `chmod +x "$(readlink -f "$(command -v litespm)")"` or reinstall after
-the fixed package version is published.
+- **69,376 catalog listings:** 48,418 MCP servers, 20,320 skills, 638 plugins.
+- **52 agent adapters, 81 skill targets;** 47 of the 52 take remote (URL) MCP
+  servers. Claude Desktop, Code Studio, iFlow CLI, Mux and ZCode do not document a
+  remote entry, so LiteSPM refuses remote entries for them.
+- **Preview, backup, undo.** Removal takes out only what LiteSPM wrote and keeps
+  your own edits.
+- **Human approval for every install.** An agent can prepare a plan; only a
+  person approves it.
+- **No account, no telemetry.** Credentials stay in your environment or the OS
+  keychain; LiteSPM writes references, never secret values.
 
-Prefer a standalone binary? Grab the release for your platform from
-[GitHub Releases](https://github.com/sarv-projects/LiteSPM/releases). The npm
-package is a thin launcher: it downloads the native binary for your OS and
-verifies its **Sigstore signature** before anything is installed or executed —
-**fail-closed**. Downloads are HTTPS-only and host-bounded (a redirect off
-GitHub's asset hosts is refused), and a truncated transfer is discarded rather
-than installed short. See
-[`SECURITY.md`](https://github.com/sarv-projects/LiteSPM/blob/main/SECURITY.md).
+Visual Studio Code is workspace-scoped: run `litespm host setup vscode` from the
+workspace root and install with `--scope project --agent vscode`. This writes the
+portable Copilot `.mcp.json` format (stdio and HTTP, not SSE).
 
-**The default is: a valid signature is required.** The installer checks the
-signature over the downloaded bytes, the certificate chain to a Fulcio CA, the
-certificate-transparency proof, and the Rekor transparency-log inclusion — then
-requires the signer to be *exactly* this repository's release workflow on the
-tag being installed:
+Plugins install their portable components (MCP servers and skills) from the
+commit their publisher pinned. A plugin with no fetchable source is refused with
+`LPSM-ARTIFACT-UNAVAILABLE`; one that declares commands, hooks, subagents or LSP
+servers installs only with `--allow-partial`. The live catalog pointer is not yet
+Sigstore-signed (it is digest-verified and rollback-protected). See
+[STATUS.md](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) for the
+current state of every subsystem.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `litespm` / `litespm setup` | Interactive setup and management wizard |
+| `litespm setup --agent <host-id>` | Connect one agent without prompts |
+| `litespm search <query>` | Search MCP servers, skills and plugins |
+| `litespm install <id>` | Install a skill, MCP server or plugin |
+| `litespm install remove <installId>` | Remove one install |
+| `litespm list` | Installed capabilities |
+| `litespm skills add\|use\|find\|list\|update\|remove` | Manage `SKILL.md` skills from a repo, URL or folder |
+| `litespm init [name]` | Scaffold a `SKILL.md` |
+| `litespm marketplace rows [--json]` | The row view model the in-agent popups render |
+| `litespm host list\|detect\|setup\|remove` | Inspect and configure agent adapters |
+| `litespm catalog sync` | Refresh the local catalog now |
+| `litespm doctor [--repair]` | Health checks and repairs |
+| `litespm uninstall [--dry-run]` | Remove the bridge entry from every agent |
+| `litespm self-update` | Update the native binary |
+
+`litespm help <command>` documents any of them.
+
+## How the installer works
+
+The npm package is a thin launcher. `postinstall` downloads the native binary for
+your OS and CPU (Windows, macOS, Linux; x64 and arm64) from
+[GitHub Releases](https://github.com/sarv-projects/LiteSPM/releases) and verifies
+its **Sigstore signature** before anything is installed or executed, fail-closed.
+Downloads are HTTPS-only and host-bounded (a redirect off GitHub's asset hosts is
+refused), and a truncated transfer is discarded. Prefer no npm? Take the binary
+directly from the releases page.
+
+**A valid signature is required by default.** The installer checks the signature
+over the downloaded bytes, the certificate chain to a Fulcio CA, the
+certificate-transparency proof and the Rekor inclusion, then requires the signer
+to be exactly this repository's release workflow on the tag being installed:
 
 ```text
 identity: https://github.com/sarv-projects/LiteSPM/.github/workflows/release.yml@refs/tags/v<version>
 issuer:   https://token.actions.githubusercontent.com
 ```
 
-A signature by anyone else is refused, because a signature that verifies
-against the wrong signer is not evidence. Every failure discards the download,
+A signature by anyone else is refused. Every failure discards the download,
 prints `INSTALL REFUSED` and exits non-zero:
 
 ```text
 [litespm] INSTALL REFUSED — refusing to install litespm-linux-amd64: signature verification failed: digest mismatch
 [litespm] The download was discarded rather than installed unverified. Nothing was written to ~/.litespm/bin/v<version>/litespm-linux-amd64.
-[litespm] Check https://github.com/sarv-projects/LiteSPM/releases/tag/v0.6.0 for litespm-linux-amd64 and its .sigstore.json bundle, then reinstall. Setting LITESPM_ALLOW_UNSIGNED_RELEASE=1 disables publisher authentication and is not a fix.
+[litespm] Check https://github.com/sarv-projects/LiteSPM/releases/tag/v<version> for litespm-linux-amd64 and its .sigstore.json bundle, then reinstall. Setting LITESPM_ALLOW_UNSIGNED_RELEASE=1 disables publisher authentication and is not a fix.
 ```
+
+Fetching the Sigstore trust root needs network access to
+`tuf-repo-cdn.sigstore.dev` on first use; it is then cached.
+
+### Installer environment variables
 
 | Variable | Effect |
 |---|---|
-| `LITESPM_ALLOW_UNSIGNED_RELEASE=1` | **Explicit opt-out.** Falls back to SHA-256-only verification only for releases that publish no bundle at all (tags before `v0.4.0`). It does not bypass verification of a bundle that exists but cannot be fetched or verified. It prints a warning. A checksum from the same release proves integrity, not publisher identity. |
-| `LITESPM_RELEASE_REPO=<owner>/<name>` or `https://<host>/<path>` | Install from a mirror. A mirror can replace the binary *and* its signature together, so it is refused unless you also state the signer you expect it to present. |
-| `LITESPM_TRUST_IDENTITY` / `LITESPM_TRUST_ISSUER` | Required with `LITESPM_RELEASE_REPO`: the exact certificate identity and OIDC issuer the mirror must present. Ignored when installing from the pinned repository — the identity there is fixed in the installer, because a trust anchor an environment variable can move is not an anchor. |
-| `LITESPM_ALLOW_LOCAL_DIST=1` | Use a `dist/` build in the checkout instead of the published release. Developer convenience; no checksum or signature is verified, and the installer says so. |
+| `LITESPM_ALLOW_UNSIGNED_RELEASE=1` | **Explicit opt-out.** SHA-256-only verification, only for releases that publish no bundle at all (tags before `v0.4.0`). A bundle that exists but cannot be fetched or verified is still fatal. Prints a warning. |
+| `LITESPM_RELEASE_REPO=<owner>/<name>` or `https://<host>/<path>` | Install from a mirror. Refused unless you also state the signer you expect. |
+| `LITESPM_TRUST_IDENTITY` / `LITESPM_TRUST_ISSUER` | Required with `LITESPM_RELEASE_REPO`: the exact certificate identity and OIDC issuer the mirror must present. Ignored for the pinned repository. |
+| `LITESPM_ALLOW_LOCAL_DIST=1` | Use a `dist/` build in the checkout instead of the published release. No checksum or signature is verified, and the installer says so. |
 
-Obtaining the Sigstore trust root needs network access to
-`tuf-repo-cdn.sigstore.dev` on first use; it is then cached (Linux
-`~/.local/share/sigstore-js`, macOS `~/Library/Application Support/sigstore-js`).
-
-> **Honest status.** The catalog is live end-to-end: skills install from it
-> (`litespm install <skill-id>` fetches the source and writes the skill files),
-> MCP servers install by registering their published launch descriptor in each
-> configured agent's config, and a plugin that publishes a **pinned git tree**
-> installs its own portable components — its MCP servers are registered and its
-> skills are copied into the target host's skills tree. A plugin that publishes
-> no fetchable pinned source (248 of the 638 published rows) fails closed with
-> `LPSM-ARTIFACT-UNAVAILABLE`, and a plugin that declares commands, hooks,
-> subagents or LSP servers installs only with `--allow-partial`, because LiteSPM
-> has no adapter for those classes. See
-> [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
->
-> **Published versions (checked 2026-11-10).** The npm registry's `latest` is
-> `litespm@0.6.0`; this source tree's `package.json` says `0.6.1`, which is
-> **not published** (no `v0.6.1` tag exists either). A clean install of a
-> published version downloads the native binary and verifies its Sigstore
-> signature. The live catalog origin
-> (`litespm.sarveshbh-2022.workers.dev/v1/current.json`) still serves
-> `rel-2026-10-21-01` (sequence 151, 69,376 items); the `rel-2026-11-05-03`
-> (sequence 154) release in the repository has been cut but not deployed to
-> that origin. The earlier `0.4.0` sharded-catalog incident (that release was
-> tagged before the shard-aware client landed and could not sync) is recorded
-> as history in
-> [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) §2.
-
-## Quickstart
-
-```bash
-litespm                    # interactive setup and management wizard
-litespm search postgres    # search the federated catalog
-litespm install <id>       # install a skill, MCP server, or plugin with a pinned source
-litespm host list          # show supported agents
-litespm doctor             # run local health checks
-litespm self-update        # update the binary
-```
-
-Inside a configured agent, just type `/marketplace` (the exact command differs
-by agent: Pi Agent `/marketplace`; OpenCode, Claude Code and GitHub Copilot CLI
-`/litespm-marketplace`; and so on). `litespm setup --agent <id>` writes that
-command next to the bridge entry, and `litespm host remove` takes it away
-again. Agents that cannot render a popup get a prompt command or skill that
-calls the bridge tools. See
-[`AGENTS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/AGENTS.md) §3
-for which agents are verified and which are not.
-
-## Why litespm
-
-- **One bridge, zero config drift.** Each agent gets a single version-pinned
-  `litespm` entry. The host adapters perform an MCP-entry merge only; they write
-  no instruction or skill files. Separately from the bridge entry, setup writes
-  a small in-agent marketplace command for the agents that have a documented
-  command mechanism (ownership-marked, removed by `litespm host remove`;
-  `internal/host/marketplace_command.go`).
-- **Secrets never leave your machine.** Downstream API keys and OAuth tokens
-  live in your OS vault (Windows DPAPI-protected master key, macOS Keychain,
-  Linux Secret Service). Nothing is proxied through a cloud.
-- **Hardened extraction.** Archive handling rejects path traversal, absolute
-  paths, symlinks, device files, case-fold collisions, and oversize payloads,
-  and unpacks into a content-addressed store.
-- **Approval before every write.** Effectful actions need an explicit,
-  cryptographically bound approval. Skills, MCP servers and plugins with a pinned
-  source install for real, each gated by a plan plus a human approval. A plugin
-  with no fetchable source is refused with `LPSM-ARTIFACT-UNAVAILABLE`, and one
-  whose extra components cannot be installed is refused with
-  `LPSM-INSTALL-PARTIAL` unless `--allow-partial` accepts the loss. See
-  [`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md).
-- **Drift-bound approvals.** The check half is real: the installed server is
-  re-probed before every call and one whose schema fingerprint no longer matches
-  what was discovered is refused, and the policy engine runs before the server is
-  spawned. The grant half is wired: `litespm grant <capabilityId>` writes one
-  `capability_grants` row per capability and `internal/policy` Tier 3 reads it
-  before an effectful invocation. What no code path produces yet is the automatic
-  invalidation state — `grant revoke` sets `revoked`, but nothing flips a grant to
-  `changed` when a re-probe sees a new fingerprint (see the status note above).
-
-## Supported hosts
-
-| Agent | Interface | Config | Windows | macOS | Linux |
-|---|---|:--:|:--:|:--:|:--:|
-| **Claude Code** | CLI | `~/.claude.json` | ✓ | ✓ | ✓ |
-| **OpenAI Codex** | CLI | `~/.codex/config.toml` | ✓ | ✓ | ✓ |
-| **OpenCode** | CLI | `opencode.json` | ✓ | ✓ | ✓ |
-| **Cline** | VS Code | `cline_mcp_settings.json` | ✓ | ✓ | ✓ |
-| **Pi Agent** | Terminal | `~/.pi/agent/mcp.json` | ✓ | ✓ | ✓ |
-| **Grok Build** | Terminal | `~/.grok/config.toml` | ✓ | ✓ | ✓ |
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `litespm` / `litespm setup` | Interactive setup and capability-management wizard |
-| `litespm setup --agent <host-id>` | Connect one agent without prompts (same write path as `host setup`) |
-| `litespm init [name]` | Scaffold a `SKILL.md` to author a skill |
-| `litespm search <query>` | Search MCP servers, skills, and plugins |
-| `litespm install <id>` | Install a skill, MCP server, or plugin with a pinned source |
-| `litespm marketplace rows [--json] [--query q] [--host id] [--kind mcp\|skill\|plugin\|installed] [--limit n] [--installable]` | The row view model the in-agent popups render (schema `litespm.marketplace.rows/v1`) |
-| `litespm uninstall [--dry-run]` | Remove the bridge entry from every agent host config |
-| `litespm bridge stdio --host <id>` | MCP stdio bridge used by hosts |
-| `litespm host [list\|detect\|setup\|remove]` | Inspect and configure host adapters |
-| `litespm agent [list\|resolve <id>]` | List ACP agents / resolve a launch spec |
-| `litespm skills [add\|use\|find\|list\|update\|remove]` | Install, print (`use`, installs nothing), search (`find`) and manage `SKILL.md` skills |
-| `litespm doctor [--repair] [--yes]` | Health checks and repairs |
-| `litespm catalog sync` | Refresh the local catalog cache from the published release |
-| `litespm daemon serve` | Start the background supervisor and IPC engine |
-| `litespm self-update [--force]` | Update the native binary |
-
-## How it works
-
-```text
-  Claude · Codex · OpenCode · Cline · Pi · Grok
-                     │  stdio (MCP)
-                     ▼
-             litespm bridge shim
-                     │  local IPC (OS-level ACLs)
-                     ▼
-              litespm daemon  ──  SQLite (WAL) · policy · secret vault
-                     │
-                     ▼
-        MCP servers · skills · plugins
-```
-
-The bridge shim is stateless and never touches your config or database
-directly. A single local daemon owns all state and supervises provider
-processes. Stored secrets are injected into a provider's environment at launch
-(`secret:<ns>/<key>` references are resolved in `internal/discover`; an
-unresolvable reference is refused with `LPSM-SECRET-UNRESOLVED`) — `WIRED` per
-[`STATUS.md`](https://github.com/sarv-projects/LiteSPM/blob/main/STATUS.md) §1.
-
-## Security
-
-- Local IPC restricted to your OS user (Named Pipe DACL / Unix socket `0600`).
-- Credentials stored only in the OS vault — never in the database or logs.
-- Archive extraction is bounded and rejects traversal, absolute paths,
-  symlinks, device files, and case-fold collisions.
-- Capability approvals bind to a tool's schema fingerprint: the server is
-  re-probed before each call and a changed schema is refused; grants are recorded
-  by `litespm grant` and enforced by the policy engine before the server is
-  spawned. Automatic re-invalidation to `changed` on drift is not implemented
-  (see the status note above).
+Runtime variables (`LITESPM_NO_AUTO_SYNC`, `LITESPM_DATA_ROOT`,
+`LITESPM_REQUIRE_CATALOG_SIGNATURE`, and others) are listed in the
+[main README](https://github.com/sarv-projects/LiteSPM#configuration).
 
 ### Installing a local build
 
-`npm install` installs the published binary for this package version. If a
-checkout has a stale `dist/` binary it is ignored, deliberately: the postinstall
-used to prefer it and stamp the install `"local"`, so the stale build was
-reinstalled forever and the pinned release never arrived.
-
-To install a binary you built yourself (for example while testing a change
-before publishing a release), opt in explicitly:
+`npm install` installs the published binary for this package version; a stale
+`dist/` binary in a checkout is ignored on purpose. To install a binary you built
+yourself, opt in explicitly:
 
 ```bash
 LITESPM_ALLOW_LOCAL_DIST=1 npm install -g litespm
 ```
 
-That path verifies neither a checksum nor a signature, because a local build has
-no published digest and no release bundle. The installer says so when it takes
-that path.
+### Uninstalling
+
+`npm uninstall -g litespm` removes the wrapper, but npm 7+ does not run package
+uninstall scripts. To also remove the versioned native binary cache, run this
+**before** uninstalling:
+
+```bash
+node "$(npm root -g)/litespm/scripts/uninstall-binary.js"
+npm uninstall -g litespm
+```
+
+On Windows PowerShell:
+
+```powershell
+node "$(npm root -g)\litespm\scripts\uninstall-binary.js"
+npm uninstall -g litespm
+```
+
+The cleanup script removes only the current version's native executable and
+version stamp. It leaves the LiteSPM state database, backups, installed skills and
+agent configuration entries untouched; run `litespm uninstall` first to see and
+remove the agent entries.
+
+On Linux or WSL, `Permission denied` on `bin/litespm` means the command shim lost
+its executable bit. Repair it with
+`chmod +x "$(readlink -f "$(command -v litespm)")"` or reinstall.
 
 ## Requirements
 
-- Node.js ≥ 22.22.2 (for the npm launcher — the Sigstore verification libraries it uses
-  require it), or a supported native binary.
+- Node.js 22.22.2 or later (the Sigstore verification libraries need it), or a
+  standalone native binary.
 - Windows 10+, macOS 12+, or a modern Linux distribution.
-
-## Links
-
-- **Repository:** https://github.com/sarv-projects/LiteSPM
-- **Issues:** https://github.com/sarv-projects/LiteSPM/issues
-- **Catalog API:** https://litespm.sarveshbh-2022.workers.dev/v1/current.json
 
 ## License
 

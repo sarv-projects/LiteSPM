@@ -50,20 +50,12 @@ export const metadata: Metadata = {
     description: SHARE_DESCRIPTION,
     siteName: "LiteSPM",
     type: "website",
-    images: [
-      {
-        url: "/og.png",
-        width: 1200,
-        height: 630,
-        alt: "LiteSPM — The package manager for AI agents",
-      },
-    ],
+    // The image comes from app/opengraph-image.tsx (generated from site facts).
   },
   twitter: {
     card: "summary_large_image",
     title: "LiteSPM — The package manager for AI agents",
     description: SHARE_DESCRIPTION,
-    images: ["/og.png"],
   },
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },

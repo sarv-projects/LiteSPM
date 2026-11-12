@@ -10,6 +10,8 @@ const candidates = [
   "README.md",
   "SECURITY.md",
   "STATUS.md",
+  "AGENTS.md",
+  "CHANGELOG.md",
   "npm/README.md",
   ...fs.existsSync(path.join(repoRoot, "ARCH"))
     ? fs.readdirSync(path.join(repoRoot, "ARCH"))
@@ -95,7 +97,18 @@ const all = [];
 for (const relative of [...new Set(candidates)]) {
   const file = path.join(repoRoot, relative);
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) continue;
-  const markdown = fs.readFileSync(file, "utf8");
+  let markdown = fs.readFileSync(file, "utf8");
+  if (relative === "CHANGELOG.md") {
+    // Only the [Unreleased] section: it records what the next release adds
+    // (and so what npm does not have yet). Released sections are history, ~1,000
+    // lines of it, and would crowd out the current product docs.
+    const start = markdown.search(/^## \[Unreleased\]/m);
+    if (start < 0) continue;
+    const rest = markdown.slice(start + 1);
+    const next = rest.search(/^## \[/m);
+    markdown = "# Changelog: unreleased changes (next release, not yet on npm)\n\n" +
+      markdown.slice(start, next < 0 ? undefined : start + 1 + next);
+  }
   all.push(...chunksFor(relative.replace(/\\/g, "/"), markdown));
 }
 const embeddingKey = process.env.EMBEDDING_API_KEY;

@@ -100,7 +100,7 @@ function rerank(query: string[], hit: KnowledgeHit): number {
   const title = new Set(terms(hit.title + " " + hit.section));
   const overlap = query.filter((token) => title.has(token)).length;
   const exactHeading = overlap / Math.max(1, query.length);
-  const sourceBoost = /^(README|SECURITY|STATUS|ARCH\/)/i.test(hit.source) ? 0.04 : 0;
+  const sourceBoost = /^(README|SECURITY|STATUS|AGENTS|ARCH\/)/i.test(hit.source) ? 0.04 : 0;
   return hit.score + exactHeading * 0.12 + sourceBoost;
 }
 

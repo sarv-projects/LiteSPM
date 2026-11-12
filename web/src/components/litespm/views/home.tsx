@@ -124,7 +124,7 @@ export function HomeView() {
     {
       icon: Cable,
       title: "Install everywhere",
-      body: `One command writes the entry into every agent you target: Cursor, GitHub Copilot, Cline, Claude Code, Codex and ${stats ? stats.hosts - 5 : 45} more.`,
+      body: `One command writes the entry into every agent you target: Cursor, GitHub Copilot, Cline, Claude Code, Codex and ${(stats?.hosts ?? facts.hosts) - 5} more.`,
     },
     {
       icon: Undo2,
@@ -177,23 +177,38 @@ export function HomeView() {
               transition={{ delay: 0.1 }}
               className="mt-5 max-w-[52ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]"
             >
-              Stop manually configuring your AI agents. Discover, install, and manage MCP servers,
-              skills, and plugins across {stats?.hosts ?? facts.hosts} agent hosts — with previews, automatic backups, and one-command rollback.
+              Stop hand-editing agent configs. Discover, install, and manage MCP servers, skills,
+              and plugins across {stats?.hosts ?? facts.hosts} agent hosts from one verified
+              catalog — with previews, automatic backups, and one-command rollback. No account, no
+              telemetry.
             </motion.p>
 
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="mt-7 flex flex-wrap items-center gap-3"
+              className="mt-7 max-w-md"
+            >
+              <InstallBar command="npm install -g litespm" label="npm" />
+              <p className="mt-2 text-[11.5px] text-muted-foreground">
+                Then run <code className="font-mono text-foreground/90">litespm</code> — the
+                catalog downloads itself on first use.
+              </p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mt-6 flex flex-wrap items-center gap-3"
             >
               <Button
                 asChild
                 size="lg"
                 className="h-11 rounded-xl bg-brand px-5 text-[14.5px] font-semibold text-brand-foreground hover:bg-brand/90 transition-transform active:scale-[0.98]"
               >
-                <NavLink to="/docs/getting-started">
-                  Get started <ArrowRight className="h-4 w-4" />
+                <NavLink to="/marketplace">
+                  Browse the marketplace <ArrowRight className="h-4 w-4" />
                 </NavLink>
               </Button>
               <Button
@@ -202,7 +217,7 @@ export function HomeView() {
                 variant="outline"
                 className="h-11 rounded-xl px-5 text-[14.5px] transition-transform active:scale-[0.98]"
               >
-                <NavLink to="/marketplace">Browse the marketplace</NavLink>
+                <NavLink to="/docs/getting-started">Read the quickstart</NavLink>
               </Button>
               <button
                 type="button"
@@ -213,15 +228,6 @@ export function HomeView() {
               </button>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="mt-8"
-            >
-              <InstallBar command="npm install -g litespm" label="npm" />
-            </motion.div>
-
             <motion.dl
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -230,7 +236,7 @@ export function HomeView() {
             >
               <div
                 className="flex cursor-pointer flex-col transition-opacity hover:opacity-85"
-                title={counts ? `${formatFull(counts.all)} total catalog listings (${stats ? formatFull(stats.installable) : "26k"} installable + ${counts ? formatFull(counts.all - (stats?.installable ?? 0)) : "42k"} discovery-only)` : "Listings"}
+                title={counts ? `${formatFull(counts.all)} total catalog listings (${stats ? formatFull(stats.installable) : "…"} installable + ${formatFull(counts.all - (stats?.installable ?? 0))} discovery-only)` : "Listings"}
                 onClick={() => navigate(exploreHash({}))}
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
@@ -256,7 +262,7 @@ export function HomeView() {
               </div>
               <div
                 className="flex cursor-pointer flex-col transition-opacity hover:opacity-85"
-                title={`${stats ? formatFull(stats.installable) : "26k+"} verified installable capabilities (click to view)`}
+                title={`${stats ? formatFull(stats.installable) : "Verified"} installable capabilities (click to view)`}
                 onClick={() => navigate(exploreHash({ installable: "1" }))}
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-brand">
@@ -310,7 +316,7 @@ export function HomeView() {
               onClick={() => navigate("#/agents")}
               className="text-[12px] font-semibold text-brand hover:underline"
             >
-              +{stats ? Math.max(stats.hosts - 9, 0) : 41} more →
+              +{Math.max((stats?.hosts ?? facts.hosts) - 9, 0)} more →
             </button>
           </div>
         </div>
@@ -361,9 +367,9 @@ export function HomeView() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">One-Time Install</h3>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Local, fast, always current</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                Set it up once with <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">npm i -g litespm</code>. From then on, all your AI agents share the same clean tool discovery and automatic host wiring.
+                <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">npm install -g litespm</code>, then run it. From 0.6.1 the catalog downloads itself on first use and refreshes in the background at most every 6 hours, and search runs on a local SQLite full-text index: milliseconds, around 30 MB of memory.
               </p>
             </motion.div>
 
@@ -757,7 +763,7 @@ export function HomeView() {
               className="group flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-card/50 p-4 text-center transition-all hover:border-brand/40"
             >
               <span className="font-mono text-[20px] font-semibold text-brand">
-                {stats ? `+${Math.max(stats.hosts - 8, 42)}` : "+42"}
+                {`+${Math.max((stats?.hosts ?? facts.hosts) - 8, 0)}`}
               </span>
               <span className="mt-1 text-[12px] text-muted-foreground">
                 more hosts, every one the same command
@@ -834,6 +840,10 @@ export function HomeView() {
 
           <div className="mt-10 space-y-3">
             {[
+              {
+                q: "Do I need to sync the catalog myself?",
+                a: `Not from 0.6.1 on (npm currently serves ${facts.npmVersion}, where you run litespm catalog sync once first). The first run that needs the catalog downloads it in the foreground; later runs start a background sync at most every 6 hours. Downloads are digest-verified, and search runs against a local SQLite full-text index built from that verified download. Set LITESPM_NO_AUTO_SYNC=1 (or run in CI) to turn automatic sync off; litespm catalog sync still works on demand.`,
+              },
               {
                 q: "Why are some packages marked 'Installable' while others are 'Discovery-Only'?",
                 a: `LiteSPM operates on a zero-guesswork safety standard. To automatically inject an MCP server into your agent's config, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). For community packages that only publish a GitHub link or README without structured launch parameters, LiteSPM refuses to guess commands (such as guessing between npx, python, or uvx) that could break your agent. We index all ${Math.floor(facts.listings / 1000)}k+ community capabilities so you can find them and view their source code, but single-command setup is reserved for packages with verified launch details.`,

@@ -135,9 +135,10 @@ assistant.tsx (client, portal)  --POST NDJSON-->  /api/litespm/assistant
                                                     -> src/server/llm/gateway.ts (key pool, cooldowns, failover)
 ```
 
-- Knowledge: `scripts/build-assistant-knowledge.mjs` chunks repository docs into
-  `src/server/litespm/generated/assistant-knowledge.json`; retrieval is lexical + local
-  feature vectors, hybrid-semantic when `EMBEDDING_*` is set.
+- Knowledge: `scripts/build-assistant-knowledge.mjs` chunks repository docs (`README.md`,
+  `SECURITY.md`, `STATUS.md`, `AGENTS.md`, `npm/README.md`, the `[Unreleased]` section of
+  `CHANGELOG.md`, `ARCH/*.md`) into `src/server/litespm/generated/assistant-knowledge.json`;
+  retrieval is lexical + local feature vectors, hybrid-semantic when `EMBEDDING_*` is set.
 - LLM gateway: Groq (default), Gemini, NVIDIA NIM, OpenRouter, generic OpenAI-compatible,
   optional Z.AI; ordered by `LLM_PROVIDER_ORDER`; per-key cooldown with backoff;
   20 s per attempt, 15 s time-to-first-token, 20 s idle. **No key is shipped in source.**

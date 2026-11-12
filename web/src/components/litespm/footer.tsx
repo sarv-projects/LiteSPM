@@ -12,25 +12,33 @@ const COLUMNS: Array<{
   links: Array<{ label: string; hash?: string; href?: string }>;
 }> = [
   {
-    title: "Catalog",
+    title: "Product",
     links: [
       { label: "Marketplace", hash: "/marketplace" },
       { label: "Installed on this machine", hash: "/marketplace?tab=installed" },
-      { label: "Browse agents", hash: "/agents" },
-      { label: "Insights dashboard", hash: "/insights" },
+      { label: "Supported agents", hash: "/agents" },
       { label: "Compare packages", hash: "/compare" },
+      { label: "Publish a listing", hash: "/publish" },
     ],
   },
   {
-    title: "Documentation",
+    title: "Docs",
     links: [
       { label: "Getting started", hash: "/docs/getting-started" },
       { label: "Command reference", hash: "/docs/commands" },
       { label: "How an install works", hash: "/docs/install-flow" },
       { label: "In-agent marketplace", hash: "/docs/in-agent-marketplace" },
       { label: "Agent compatibility", hash: "/docs/agent-compatibility" },
+    ],
+  },
+  {
+    title: "Resources",
+    links: [
       { label: "Security model", hash: "/docs/security" },
       { label: "Troubleshooting & FAQ", hash: "/docs/troubleshooting" },
+      { label: "Insights dashboard", hash: "/insights" },
+      { label: "Architecture notes", href: "https://github.com/sarv-projects/LiteSPM/tree/main/ARCH" },
+      { label: "Changelog", href: "https://github.com/sarv-projects/LiteSPM/blob/main/CHANGELOG.md" },
     ],
   },
   {
@@ -38,21 +46,20 @@ const COLUMNS: Array<{
     links: [
       { label: "GitHub repository", href: "https://github.com/sarv-projects/LiteSPM" },
       { label: "npm package", href: "https://www.npmjs.com/package/litespm" },
-      { label: "Publish a listing", hash: "/publish" },
-      { label: "Architecture", href: "https://github.com/sarv-projects/LiteSPM/tree/main/ARCH" },
+      { label: "Report an issue", href: "https://github.com/sarv-projects/LiteSPM/issues" },
+      { label: "Apache-2.0 license", href: "https://github.com/sarv-projects/LiteSPM/blob/main/LICENSE" },
     ],
   },
 ];
-
 export function Footer() {
   const navigate = useApp((s) => s.navigate);
   const { entries } = useWatchlist();
 
   return (
     <footer className="mt-auto border-t border-border/60 bg-card/40">
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
-          <div>
+      <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+        <div className="grid gap-8 sm:grid-cols-2 md:gap-10 md:grid-cols-[1.5fr_repeat(4,1fr)]">
+          <div className="sm:col-span-2 md:col-span-1">
             <div className="flex items-center gap-2">
               <span className="text-brand">
                 <LogoMark className="h-5 w-5" />
@@ -119,9 +126,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col gap-3 border-t border-border/50 pt-6 text-[12px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            © 2026 LiteSPM · Open source package manager for AI agents · Apache-2.0
-          </p>
+          <p>&copy; 2026 LiteSPM &middot; Open source &middot; Licensed under Apache-2.0</p>
           <p className="flex items-center gap-1.5">
             {entries.length > 0 && (
               <button
@@ -132,8 +137,7 @@ export function Footer() {
                 {entries.length} watched
               </button>
             )}
-            Built with <Heart className="h-3 w-3 text-brand" aria-hidden="true" /> for agents
-            everywhere
+            No account &middot; no telemetry <Heart className="h-3 w-3 text-brand" aria-hidden="true" />
           </p>
         </div>
       </div>
