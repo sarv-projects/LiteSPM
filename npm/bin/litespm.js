@@ -89,7 +89,15 @@ function main() {
         // stdout. `litespm bridge stdio` speaks JSON-RPC on stdout: an MCP host
         // that launches the shim before the binary exists would otherwise read
         // "[litespm] Installing ..." as a malformed protocol frame.
-        const result = spawnSync(process.execPath, [installScript], { stdio: ["inherit", 2, "inherit"] });
+        // LITESPM_INSTALL_MODE=lazy tells the installer this is the first-run
+        // path: a network failure must exit non-zero here (we are about to run
+        // the binary), unlike npm's postinstall where it must not break the
+        // install. The installer has already explained the cause on stderr.
+        console.error(`[litespm] The native binary for v${VERSION} is not installed yet; downloading it now (first run).`);
+        const result = spawnSync(process.execPath, [installScript], {
+          stdio: ["inherit", 2, "inherit"],
+          env: { ...process.env, LITESPM_INSTALL_MODE: "lazy" },
+        });
         const failure = installerResultError(result);
         if (failure) {
           console.error(failure);
@@ -107,7 +115,7 @@ function main() {
 
   if (!binaryPath) {
     console.error(`[litespm] Error: Native binary not found for ${process.platform}/${process.arch}.`);
-    console.error(`[litespm] Please download ${getBinaryName()} from https://github.com/sarv-projects/LiteSPM/releases/tag/v${VERSION}`);
+    console.error(`[litespm] Run \`litespm\` again once you are online, or download ${getBinaryName()} from https://github.com/sarv-projects/LiteSPM/releases/tag/v${VERSION}`);
     process.exit(1);
   }
 
@@ -160,7 +168,7 @@ function installerResultError(result) {
     if (result.signal) {
       return `[litespm] Binary installer stopped by signal ${result.signal}.`;
     }
-    return `[litespm] Binary installer failed with exit code ${result.status ?? 1}.`;
+    return `[litespm] Binary installer failed with exit code ${result.status ?? 1}; the native binary is not installed. Fix the problem above (network, proxy, permissions) and run \`litespm\` again.`;
   }
   return null;
 }

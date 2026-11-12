@@ -11,7 +11,7 @@
     "start": "node .next/standalone/server.js",
     "test:hardening": "node scripts/test-hardening.mjs",
     "test:host-paths": "bun scripts/test-host-paths.ts",
-    "lint": "eslint . && node scripts/check-no-embedded-secrets.mjs && node scripts/check-web-truth.mjs && node scripts/check-assistant-product.mjs && node scripts/check-web-hardening.mjs",
+    "lint": "eslint . && node scripts/check-no-embedded-secrets.mjs && node scripts/check-web-truth.mjs && node scripts/check-assistant-product.mjs && node scripts/check-web-hardening.mjs && node scripts/check-installable-first.mjs && node scripts/check-bundles.mjs",
     "type-check": "prisma generate && tsc --noEmit",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",

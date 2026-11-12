@@ -59,10 +59,14 @@ const ACRONYMS: Record<string, string> = {
   Html: "HTML", Rag: "RAG", Ocr: "OCR", Jwt: "JWT", Oauth: "OAuth", Graphql: "GraphQL", Devops: "DevOps",
 };
 
-/** Strip the io.github.account/ prefix the MCP registry puts in names. */
+/**
+ * Strip the reverse-DNS namespace the MCP registry puts in names
+ * ("io.github.account/x", "com.vercel/vercel-mcp") and fix acronym casing.
+ */
 export function displayPackageName(name: string): string {
   return name
     .replace(/^io\.github\.[^/]+\//i, "")
+    .replace(/^(?:[a-z0-9-]+\.)+[a-z0-9-]+\/(?=\S)/i, "")
     .replace(/\b[A-Z][a-z]+\b/g, (w) => ACRONYMS[w] ?? w);
 }
 
@@ -94,4 +98,4 @@ export const RANK_TIER_META: Record<RankTier, { label: string; className: string
 
 /** The transparent scoring explanation, shown as a tooltip. */
 export const RANK_EXPLAINER =
-  "LiteSPM Score (0–100) — an editorial reputation model: recognition of the tool in the agent ecosystem (0–35 — official MCP references, top-vendor servers, Anthropic's official skills), vendor authority — first-party publishers like Microsoft, Anthropic or Supabase (0–18), proven installability — tested beats verified beats claimed (0–15), record completeness (0–12), description substance (0–5), and GitHub stars when a source publishes them (0–15, log scale). Exactly sums to 100. Spam and parse-artifact records are penalized.";
+  "LiteSPM Score (0–100) — an editorial reputation model: recognition of the tool in the agent ecosystem (0–35 — official MCP references, top-vendor servers, Anthropic's official skills), vendor authority — first-party publishers like Microsoft, Anthropic or Supabase (0–18), proven installability — tested beats verified beats claimed (0–15), record completeness (0–12), description substance (0–5), and GitHub stars when a source publishes them (0–15, log scale). Exactly sums to 100. Spam and parse-artifact records are penalized. Result lists put installable listings first, then discovery-only ones, each in score order.";

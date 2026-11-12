@@ -39,6 +39,7 @@ import (
 	"github.com/sarv-projects/litespm/internal/host"
 	"github.com/sarv-projects/litespm/internal/ipc"
 	"github.com/sarv-projects/litespm/internal/policy"
+	"github.com/sarv-projects/litespm/internal/resolver"
 	"github.com/sarv-projects/litespm/internal/state"
 )
 
@@ -418,7 +419,7 @@ func runApprove(args []string) {
 // It writes to w so the exact bytes can be pinned by a golden test.
 func writeApprovalPrompt(w io.Writer, plan *domain.InstallPlan) {
 	fmt.Fprintf(w, "  listing : %s\n", plan.Request.ListingID)
-	fmt.Fprintf(w, "  version : %s\n", firstNonEmpty(plan.Resolved.Version, plan.Request.RequestedVersion, "latest"))
+	fmt.Fprintf(w, "  version : %s\n", approvalVersionLabel(firstNonEmpty(plan.Resolved.Version, plan.Request.RequestedVersion, "latest")))
 	fmt.Fprintf(w, "  scope   : %s\n", plan.Request.TargetScope)
 	// A project install writes into one project: the approver must see which,
 	// because the workspace is what the approval binds (it is inside the plan
@@ -431,7 +432,7 @@ func writeApprovalPrompt(w io.Writer, plan *domain.InstallPlan) {
 	var printedOptions bool
 	var printedArtifact bool
 	for _, change := range plan.HostChanges {
-		fmt.Fprintf(w, "  target  : %s -> %s (%s)\n", change.HostID, change.ConfigPath, change.EntryKey)
+		fmt.Fprint(w, approvalTargetLine(change))
 		// A plugin's plan seals the pinned artifact instead of a launch
 		// line: the entry names come out of the plugin's own manifest, which
 		// lives inside the pinned tree, so the commit is what the approver
@@ -478,6 +479,25 @@ func writeApprovalPrompt(w io.Writer, plan *domain.InstallPlan) {
 		}
 	}
 	fmt.Fprintf(w, "  expires : %s\n", plan.ExpiresAt.UTC().Format(time.RFC3339))
+}
+
+// approvalVersionLabel turns the resolver's internal "discovery" marker (the
+// version segment of a listing that publishes no release version) into words a
+// person can read. Every other version prints as it is.
+func approvalVersionLabel(v string) string {
+	if v == resolver.ImplicitVersion {
+		return "unversioned (the catalog publishes no release version for this listing)"
+	}
+	return v
+}
+
+// approvalTargetLine is the `target` row. A skill write has no config entry
+// key, and an empty "()" says nothing, so it is dropped.
+func approvalTargetLine(change domain.HostChange) string {
+	if change.EntryKey == "" {
+		return fmt.Sprintf("  target  : %s -> %s\n", change.HostID, change.ConfigPath)
+	}
+	return fmt.Sprintf("  target  : %s -> %s (%s)\n", change.HostID, change.ConfigPath, change.EntryKey)
 }
 
 func firstNonEmpty(vals ...string) string {

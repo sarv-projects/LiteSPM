@@ -20,6 +20,22 @@ const targets = read("skill-targets.json");
 const release = read("release.json");
 const cli = read("published-cli.json");
 
+// Unique listings: rows left after exact-duplicate removal. This is the same
+// identity rule as listingIdentity()/uniqueListings() in
+// src/server/litespm/discovery.ts, which is what the site serves and counts.
+function listingIdentity(item) {
+  if (item.discoveryKey) return item.discoveryKey;
+  const m = /^https:\/\/github\.com\/([^/]+)\/([^/]+)/.exec(item.artifact?.repo ?? "");
+  if (!m) return item.id;
+  const url = `https://github.com/${m[1]}/${m[2].replace(/\.git$/, "")}`;
+  const artifact = item.artifact;
+  const p = String(artifact?.path ?? "").replace(/^\.\//, "").replace(/^\/+|\/+$/g, "");
+  const revision = artifact?.sha || artifact?.ref || item.version || "";
+  return [item.kind, url.toLowerCase(), p, revision, item.name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "")].join("|");
+}
+const seen = new Set();
+for (const row of read("catalog.json")) seen.add(listingIdentity(row));
+
 const remote = hosts.filter((h) => h.remote === true);
 const localOnly = hosts.filter((h) => h.remote !== true);
 
@@ -29,7 +45,11 @@ const facts = {
   localOnlyHosts: localOnly.map((h) => h.id).sort(),
   localOnlyHostNames: localOnly.map((h) => h.name).sort(),
   skillTargets: targets.length,
-  listings: release.itemCount,
+  // catalogRows: rows in the release file (before dedupe). listings: unique
+  // listings after dedupe, the figure the site headlines. Rounded "Nk+" copy
+  // reads `listings`; the live exact figure comes from server/litespm/counts.ts.
+  catalogRows: release.itemCount,
+  listings: seen.size,
   mcpServers: release.mcpServersCount,
   skills: release.agentSkillsCount,
   plugins: release.pluginsCount,
@@ -49,4 +69,4 @@ try {
   prev = readFileSync(out, "utf8");
 } catch {}
 if (prev !== next) writeFileSync(out, next);
-console.log(`site-facts: ${facts.hosts} hosts (${facts.remoteHosts} remote), ${facts.skillTargets} skill targets, ${facts.listings} listings, npm ${facts.npmVersion}`);
+console.log(`site-facts: ${facts.hosts} hosts (${facts.remoteHosts} remote), ${facts.skillTargets} skill targets, ${facts.listings} unique listings (${facts.catalogRows} catalog rows), npm ${facts.npmVersion}`);

@@ -291,7 +291,11 @@ export function MarketplaceView({
           Search the live catalog, then copy the exact <code className="font-mono">litespm install</code>{" "}
           command. Inside your agent, <code className="font-mono">litespm setup</code> adds a{" "}
           <code className="font-mono">/litespm-marketplace</code> command that browses your locally
-          synced copy of this catalog.
+          synced copy of this catalog.{" "}
+          <NavLink to="/docs/methodology" className="whitespace-nowrap font-medium text-brand hover:underline">
+            How we rank
+          </NavLink>
+          : installable listings come first, and nothing here is a download count.
         </p>
       </div>
 

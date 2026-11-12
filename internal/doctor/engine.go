@@ -172,7 +172,7 @@ func (e *Engine) checkDirectories() CheckResult {
 		{"RUNTIME_ROOT", e.paths.RuntimeRoot},
 	}
 
-	var missing []string
+	var missing, notYet []string
 	for _, root := range roots {
 		if root.path == "" {
 			continue
@@ -180,7 +180,16 @@ func (e *Engine) checkDirectories() CheckResult {
 		info, err := os.Stat(root.path)
 		switch {
 		case os.IsNotExist(err):
-			missing = append(missing, fmt.Sprintf("%s (%s does not exist)", root.label, root.path))
+			// DATA_ROOT holds the state database, which this very run opens,
+			// so a missing DATA_ROOT means something removed it: a fault.
+			// CONFIG_ROOT and RUNTIME_ROOT are created on demand (first
+			// install, first daemon start), so on a pristine machine their
+			// absence is the expected state, not a failure.
+			if root.label == "DATA_ROOT" {
+				missing = append(missing, fmt.Sprintf("%s (%s does not exist)", root.label, root.path))
+			} else {
+				notYet = append(notYet, fmt.Sprintf("%s (%s)", root.label, root.path))
+			}
 		case err != nil:
 			return CheckResult{
 				ID:             "check_dirs",
@@ -208,6 +217,16 @@ func (e *Engine) checkDirectories() CheckResult {
 			Message:        fmt.Sprintf("%d required director%s missing: %s", len(missing), plural(len(missing)), strings.Join(missing, "; ")),
 			Recommendation: "Run `litespm doctor --repair` to create the hierarchy, or start the daemon once.",
 			Details:        map[string]any{"missing": missing},
+		}
+	}
+
+	if len(notYet) > 0 {
+		return CheckResult{
+			ID:      "check_dirs",
+			Name:    "Directory Permissions & Structure",
+			Status:  StatusPass,
+			Message: fmt.Sprintf("DATA_ROOT verified (read-only check) in %s; not created yet, will be created on first use: %s", e.paths.DataRoot, strings.Join(notYet, "; ")),
+			Details: map[string]any{"createdOnFirstUse": notYet},
 		}
 	}
 

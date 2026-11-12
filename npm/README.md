@@ -137,10 +137,60 @@ Fetching the Sigstore trust root needs network access to
 | `LITESPM_RELEASE_REPO=<owner>/<name>` or `https://<host>/<path>` | Install from a mirror. Refused unless you also state the signer you expect. |
 | `LITESPM_TRUST_IDENTITY` / `LITESPM_TRUST_ISSUER` | Required with `LITESPM_RELEASE_REPO`: the exact certificate identity and OIDC issuer the mirror must present. Ignored for the pinned repository. |
 | `LITESPM_ALLOW_LOCAL_DIST=1` | Use a `dist/` build in the checkout instead of the published release. No checksum or signature is verified, and the installer says so. |
+| `HTTPS_PROXY` / `https_proxy`, `npm_config_https_proxy`, `npm_config_proxy`, `HTTP_PROXY` / `http_proxy` | Download through an HTTP(S) proxy (first one set wins, in that order). `http://user:password@host:port` sends Basic proxy credentials; they are never printed. `socks://` proxies are not supported. See [Behind a proxy](#behind-a-proxy). |
+| `NO_PROXY` / `no_proxy`, `npm_config_noproxy` | Comma-separated hosts that bypass the proxy: `example.com` (and its subdomains), `.example.com`, `*` for everything, optional `:port`. |
+| `NODE_USE_ENV_PROXY=1` | Set by the installer itself (see below) so Node's built-in `fetch`, used for the Sigstore trust root, honours the proxy. You do not need to set it. |
+| `LITESPM_DEBUG=1` | Adds maintainer-oriented hints to failure messages. |
+| `LITESPM_RETRY_BASE_MS` | Test hook: the first retry delay in milliseconds (default `1000`; retries wait about 1x, 3x and 9x that). |
 
 Runtime variables (`LITESPM_NO_AUTO_SYNC`, `LITESPM_DATA_ROOT`,
 `LITESPM_REQUIRE_CATALOG_SIGNATURE`, and others) are listed in the
 [main README](https://github.com/sarv-projects/LiteSPM#configuration).
+
+### Behind a proxy
+
+The installer opens an HTTP `CONNECT` tunnel through the proxy named by the
+variables above and negotiates TLS with `github.com` through it, so certificate
+checks, the HTTPS-only rule and the redirect-host allowlist are unchanged; the
+proxy only ever sees `host:port`. It prints one line naming the proxy host (never
+the credentials):
+
+```text
+[litespm] Using proxy proxy.corp.example:3128 (from HTTPS_PROXY) for downloads.
+```
+
+The Sigstore trust root (`tuf-repo-cdn.sigstore.dev`) is fetched by Node's
+built-in `fetch`, which ignores proxy variables unless `NODE_USE_ENV_PROXY=1` is
+set when Node starts. When a proxy applies, the installer therefore re-runs
+itself once with that variable and your proxy settings exported (Node 22.21+, which
+this package requires). `undici` is not importable from Node without adding a
+dependency, so no in-process dispatcher is installed. What cannot be done:
+`socks://` proxies, PAC files and `NTLM`/`Negotiate` proxy authentication are not
+supported; if your proxy needs them, download the binary from the releases page
+or use a local forwarder such as `cntlm` that exposes a plain HTTP proxy.
+
+### If the download fails
+
+- **Transient network failure** (reset, timeout, DNS, HTTP 408/429/5xx): the
+  download is retried up to 4 times with exponential backoff and jitter (about 1s,
+  3s, 9s). If it still fails, `npm install -g litespm` **succeeds** (exit 0) with a
+  notice, because nothing unverified was installed; the binary is downloaded the
+  first time you run `litespm`, which exits non-zero if it still cannot.
+- **Integrity failure** (bad signature, wrong signer, digest mismatch, unexpected
+  redirect, missing signature bundle): never retried, nothing is installed, and the
+  install exits 1 with `INSTALL REFUSED`.
+- **Release not found** (HTTP 404/410): the release for this version has not been
+  published yet or was withdrawn. Not retried; the install exits 1. Install an
+  earlier version (`npm view litespm versions`, then `npm i -g litespm@<version>`)
+  or try again later.
+- **Windows: file in use.** If a running `litespm` (for example its background
+  daemon) holds the binary, the install is retried briefly and then fails with a
+  message saying so; close it and reinstall.
+
+npm hides a lifecycle script's output on success, so the progress lines (a bar on
+a terminal, otherwise at most four milestone lines) and the closing
+`✓ litespm <version> installed (signature verified)` appear on stderr but npm may
+not show them. Use `npm install -g litespm --foreground-scripts` to see them.
 
 ### Installing a local build
 
@@ -154,26 +204,42 @@ LITESPM_ALLOW_LOCAL_DIST=1 npm install -g litespm
 
 ### Uninstalling
 
-`npm uninstall -g litespm` removes the wrapper, but npm 7+ does not run package
-uninstall scripts. To also remove the versioned native binary cache, run this
-**before** uninstalling:
+npm 7+ does not run package uninstall scripts, so `npm uninstall -g litespm`
+removes the wrapper but **leaves the native binary** in `~/.litespm/bin`. Clean up
+explicitly. Optionally run `litespm uninstall --dry-run`, then `litespm uninstall`,
+first: it removes LiteSPM's bridge entry from every agent configuration it wrote
+(with a backup). It does not delete the binary, servers or skills you installed
+(`litespm install remove <installId>` and `litespm skills remove` do that).
+
+macOS / Linux:
 
 ```bash
-node "$(npm root -g)/litespm/scripts/uninstall-binary.js"
+litespm uninstall                                           # optional: agent entries
+node "$(npm root -g)/litespm/scripts/uninstall-binary.js"  # this version's binary
 npm uninstall -g litespm
+rm -rf ~/.litespm/bin                                       # all versions (optional)
 ```
 
-On Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
+litespm uninstall                                           # optional: agent entries
 node "$(npm root -g)\litespm\scripts\uninstall-binary.js"
 npm uninstall -g litespm
+Remove-Item -Recurse -Force "$env:USERPROFILE\.litespm\bin" # all versions (optional)
 ```
 
-The cleanup script removes only the current version's native executable and
-version stamp. It leaves the LiteSPM state database, backups, installed skills and
-agent configuration entries untouched; run `litespm uninstall` first to see and
-remove the agent entries.
+Windows cmd.exe:
+
+```bat
+npm uninstall -g litespm
+rmdir /s /q "%USERPROFILE%\.litespm\bin"
+```
+
+Windows cannot delete a running executable: stop any running `litespm` (including
+its background daemon) first. Only `~/.litespm/bin` is the installer's; the rest of
+`~/.litespm` is LiteSPM's own state and is left alone. `uninstall-binary.js` removes
+only the current version's executable and version stamp.
 
 On Linux or WSL, `Permission denied` on `bin/litespm` means the command shim lost
 its executable bit. Repair it with

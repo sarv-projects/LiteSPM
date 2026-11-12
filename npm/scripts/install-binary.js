@@ -5,6 +5,10 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const https = require("https");
+const http = require("http");
+const net = require("net");
+const tls = require("tls");
+const { spawnSync } = require("child_process");
 const { getBinaryName } = require("../bin/litespm.js");
 
 const VERSION = require("../package.json").version;
@@ -183,16 +187,219 @@ function signatureRequired(env = process.env) {
 }
 
 function ensureDir(dir) {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch (err) {
+    throw describeFsError(err, dir);
   }
 }
 
+/**
+ * Turn a raw filesystem error on the install location into something a person
+ * can act on. ENOTDIR / EACCES on the home directory otherwise surface as
+ * "ENOTDIR: not a directory, mkdir 'C:\\Users\\x\\.litespm\\bin\\v1'".
+ */
+function describeFsError(err, target) {
+  if (!err || !err.code || err.statusCode !== undefined || err.filesystem) return err;
+  // A socket-level EACCES/EPERM (firewall, proxy) is a network fault, not a file one.
+  if (["connect", "getaddrinfo", "read", "write"].includes(err.syscall) && !err.path) return err;
+  const hints = {
+    ENOTDIR:
+      `a path component of ${target} is a file, not a directory (is ~/.litespm or ~/.litespm/bin a regular file?). ` +
+      `Move or delete that file and reinstall`,
+    EACCES:
+      `permission denied writing ${target}. Fix the ownership/permissions of your home directory ` +
+      `(do not use sudo for \`npm i -g\`; configure an npm prefix you own) and reinstall`,
+    EPERM:
+      `operation not permitted writing ${target}. Check the permissions of your home directory and any ` +
+      `security software that guards it, then reinstall`,
+    EROFS: `${target} is on a read-only filesystem. Set HOME/USERPROFILE to a writable location and reinstall`,
+    ENOSPC: `no space left on the device holding ${target}. Free some disk space and reinstall`,
+    EEXIST: `${target} already exists and is not a directory. Move or delete it and reinstall`,
+  };
+  if (!hints[err.code]) return err;
+  const out = new Error(`cannot prepare the install location: ${hints[err.code]} (${err.code})`);
+  out.code = err.code;
+  out.filesystem = true;
+  return out;
+}
+
+/**
+ * SHA-256 of a file, hashed in fixed-size chunks so a large binary is never
+ * held in memory a second time just to be digested. The digest is identical
+ * to hashing the whole buffer; only the memory profile differs.
+ */
 function computeFileSHA256(filePath) {
   const hash = crypto.createHash("sha256");
-  const data = fs.readFileSync(filePath);
-  hash.update(data);
+  const fd = fs.openSync(filePath, "r");
+  try {
+    const chunk = Buffer.allocUnsafe(1 << 20);
+    for (;;) {
+      const n = fs.readSync(fd, chunk, 0, chunk.length, null);
+      if (n === 0) break;
+      hash.update(chunk.subarray(0, n));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
   return hash.digest("hex");
+}
+
+/**
+ * A temp file name that cannot collide with a concurrent installer (two
+ * `npm i -g` runs, or a postinstall racing the lazy installer): pid plus
+ * random bytes, not a millisecond timestamp.
+ */
+function tempPathFor(targetPath) {
+  return `${targetPath}.tmp.${process.pid}.${crypto.randomBytes(6).toString("hex")}`;
+}
+
+// ---------------------------------------------------------------------------
+// Failure taxonomy and retry
+//
+// Three kinds of failure need three different responses, so they are told
+// apart explicitly instead of by "did it have an HTTP status":
+//
+//   integrity  - a signature, digest, redirect or scheme refusal. Never
+//                retried; the postinstall exits 1.
+//   network    - a transient transport fault (reset, timeout, DNS, 408/429/5xx).
+//                Retried with backoff; if it persists the postinstall exits 0
+//                (nothing unverified was installed) and the first run of
+//                `litespm` finishes the job.
+//   other      - a missing release (404), a filesystem problem, bad config.
+//                Not retried; exit 1.
+// ---------------------------------------------------------------------------
+
+const TRANSIENT_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ECONNREFUSED",
+  "EAI_AGAIN",
+  "ENOTFOUND",
+  "EPIPE",
+  "ECONNABORTED",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "UND_ERR_SOCKET",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+]);
+
+const TRANSIENT_MESSAGE = /socket hang up|\btimeout\b|timed out|download aborted|download was truncated|fetch failed|network (?:error|socket)|premature close|ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|ENOTFOUND/i;
+
+function transientStatus(status) {
+  return status === 408 || status === 429 || (status >= 500 && status <= 599);
+}
+
+/** Walk an error and its `cause` chain (bounded) looking for a predicate match. */
+function someInChain(err, pred) {
+  const seen = new Set();
+  for (let e = err, i = 0; e && typeof e === "object" && !seen.has(e) && i < 6; i++) {
+    seen.add(e);
+    if (pred(e)) return true;
+    e = e.cause || (Array.isArray(e.errors) ? e.errors[0] : undefined);
+  }
+  return false;
+}
+
+/**
+ * Is this a transient transport fault worth retrying (and, once retries are
+ * spent, worth deferring to first run)? Integrity refusals are never transient.
+ */
+function isTransientError(err) {
+  if (!err) return false;
+  if (err.unverified || err.refusal || err.filesystem || err.trustConfig) return false;
+  return someInChain(err, (e) => {
+    if (e.unverified || e.refusal) return false;
+    if (e.proxyStatus !== undefined) return transientStatus(e.proxyStatus);
+    if (e.statusCode !== undefined) return transientStatus(e.statusCode);
+    if (e.code && TRANSIENT_ERROR_CODES.has(e.code)) return true;
+    return typeof e.message === "string" && TRANSIENT_MESSAGE.test(e.message);
+  });
+}
+
+/** Deterministic delay for 1-based `attempt`: 1s, 3s, 9s ... with +/-20% jitter. */
+function backoffDelayMs(attempt, random = Math.random, baseMs = Number(process.env.LITESPM_RETRY_BASE_MS) || 1000) {
+  const nominal = baseMs * Math.pow(3, Math.max(attempt, 1) - 1);
+  return Math.round(nominal * (0.8 + 0.4 * random()));
+}
+
+const MAX_ATTEMPTS = 4;
+
+/**
+ * Run `fn` up to `attempts` times, sleeping with exponential backoff between
+ * attempts, retrying only errors `isRetryable` accepts. The last error is
+ * rethrown unchanged.
+ */
+async function withRetry(fn, options = {}) {
+  const attempts = options.attempts || MAX_ATTEMPTS;
+  const isRetryable = options.isRetryable || isTransientError;
+  const sleep = options.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const delayFor = options.delayFor || ((attempt) => backoffDelayMs(attempt));
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn(attempt);
+    } catch (err) {
+      if (attempt >= attempts || !isRetryable(err)) throw err;
+      const waitMs = delayFor(attempt);
+      if (options.onRetry) options.onRetry(err, attempt, attempts, waitMs);
+      await sleep(waitMs);
+    }
+  }
+}
+
+/** Classify a finished-and-failed install for reporting and the exit code. */
+function classifyInstallFailure(err) {
+  if (!err) return "none";
+  if (err.trustConfig || (err.unverified && !err.network)) return "integrity";
+  if (err.refusal) return "integrity";
+  if (err.filesystem || err.locked) return "filesystem";
+  if (err.network) return "network";
+  if (err.statusCode === 404 || err.statusCode === 410) return "unavailable";
+  if (isTransientError(err)) return "network";
+  return "other";
+}
+
+/**
+ * The postinstall exit code. A transient network failure must not break
+ * `npm i -g` (exit 0: the lazy installer finishes on first run); everything
+ * else, and every failure in the on-demand (lazy) run, stays non-zero.
+ */
+function exitCodeForFailure(err, options = {}) {
+  if (options.lazy) return 1;
+  return classifyInstallFailure(err) === "network" ? 0 : 1;
+}
+
+/** Retry a promise-returning rename-like step on Windows file-lock errors. */
+async function renameWithRetry(from, to, options = {}) {
+  const platform = options.platform || process.platform;
+  const rename = options.rename || fs.renameSync;
+  const sleep = options.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const attempts = options.attempts || 5;
+  const lockCodes = ["EPERM", "EBUSY", "EACCES"];
+  for (let attempt = 1; ; attempt++) {
+    try {
+      rename(from, to);
+      return;
+    } catch (err) {
+      const locked = platform === "win32" && lockCodes.includes(err && err.code);
+      if (!locked) throw describeFsError(err, to);
+      if (attempt >= attempts) {
+        const out = new Error(
+          `could not replace ${to} (${err.code}): the file is in use. A running litespm (for example its ` +
+            `background daemon, or an agent that launched the bridge) is holding it. Close it and run ` +
+            `\`npm i -g litespm\` again`
+        );
+        out.code = err.code;
+        out.locked = true;
+        throw out;
+      }
+      await sleep(100 * Math.pow(2, attempt - 1));
+    }
+  }
 }
 
 /** Attach the HTTP status to an error so callers can tell 404 from a network fault. */
@@ -259,6 +466,23 @@ function fetchText(url, redirects = 0, policy = null) {
   });
 }
 
+/** fetchText with the same bounded, jittered backoff as the binary download. */
+function fetchTextWithRetry(url, redirects = 0, policy = null) {
+  return withRetry(() => fetchText(url, redirects, policy), {
+    isRetryable: isTransientError,
+    onRetry: (err, attempt, attempts, waitMs) =>
+      console.error(
+        `[litespm] Fetch of ${new URL(url).pathname.split("/").pop()} failed (${err.message}); retry ${attempt}/${attempts - 1} in ${Math.round(waitMs / 100) / 10}s.`
+      ),
+  });
+}
+
+/** Is any proxy variable set? (Only used to decide whether to suggest one.) */
+function hasProxyConfigured(env = process.env) {
+  return Boolean(
+    firstEnv(env, ["https_proxy", "HTTPS_PROXY", "npm_config_https_proxy", "npm_config_proxy", "http_proxy", "HTTP_PROXY"])
+  );
+}
 /** Extract the SHA-256 hex digest for `binName` from a `sha256sum` style listing. */
 function checksumFor(sumsText, binName) {
   for (const line of String(sumsText).split(/\r?\n/)) {
@@ -275,6 +499,267 @@ function checksumFor(sumsText, binName) {
 // binary is written and makes `npm install` look hung (it ends in SIGINT).
 const agent = new https.Agent({ keepAlive: false });
 
+// ---------------------------------------------------------------------------
+// Proxy support (no dependencies)
+//
+// Corporate networks reach github.com only through an HTTP(S) proxy. Node's
+// https.get ignores HTTPS_PROXY, so the installer opens an HTTP CONNECT tunnel
+// itself and runs TLS to the ORIGIN through it: the proxy sees only the
+// host:port, never the bytes, and certificate validation is unchanged (the
+// origin's certificate is checked against the origin's name, not the proxy's).
+// The HTTPS-only and redirect-host rules apply to the target URL exactly as
+// before; the proxy is just the transport.
+// ---------------------------------------------------------------------------
+
+/** First non-empty value among the named variables, with the name that set it. */
+function firstEnv(env, names) {
+  for (const name of names) {
+    const value = env[name];
+    if (typeof value === "string" && value.trim() !== "") {
+      return { name, value: value.trim() };
+    }
+  }
+  return null;
+}
+
+/**
+ * Parse a proxy setting ("http://user:pw@host:3128", "host:3128") into the
+ * pieces the tunnel needs. Credentials are kept ONLY in `authHeader`; `display`
+ * is what may be printed. Throws for a scheme the installer cannot tunnel.
+ */
+function parseProxyUrl(raw) {
+  let text = String(raw).trim();
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) text = `http://${text}`;
+  let url;
+  try {
+    url = new URL(text);
+  } catch (e) {
+    throw new Error("the configured proxy is not a valid URL");
+  }
+  const protocol = url.protocol.toLowerCase();
+  if (protocol !== "http:" && protocol !== "https:") {
+    throw new Error(
+      `the configured proxy uses "${protocol}//", which the installer cannot tunnel through ` +
+        `(only http:// and https:// proxies are supported)`
+    );
+  }
+  if (!url.hostname) throw new Error("the configured proxy has no host");
+  const port = Number(url.port) || (protocol === "https:" ? 443 : 80);
+  let authHeader = null;
+  if (url.username || url.password) {
+    const decode = (s) => {
+      try {
+        return decodeURIComponent(s);
+      } catch (e) {
+        return s;
+      }
+    };
+    authHeader = `Basic ${Buffer.from(`${decode(url.username)}:${decode(url.password)}`).toString("base64")}`;
+  }
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  return {
+    protocol,
+    hostname,
+    port,
+    authHeader,
+    key: `${protocol}//${hostname}:${port}|${authHeader || ""}`,
+    display: `${hostname.includes(":") ? `[${hostname}]` : hostname}:${port}`,
+  };
+}
+
+/**
+ * NO_PROXY matching: a comma/space separated list of hosts. `*` matches
+ * everything; `example.com` and `.example.com` (or `*.example.com`) match the
+ * domain and its subdomains; an entry may carry a `:port`.
+ */
+function shouldBypassProxy(hostname, port, noProxy) {
+  const list = String(noProxy || "")
+    .split(/[,\s]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.length === 0) return false;
+  const host = String(hostname).toLowerCase().replace(/^\[|\]$/g, "");
+  for (let entry of list) {
+    if (entry === "*") return true;
+    let entryPort = null;
+    const m = entry.match(/^(.*?):(\d+)$/);
+    if (m && !entry.includes("]") && entry.indexOf(":") === entry.lastIndexOf(":")) {
+      entry = m[1];
+      entryPort = Number(m[2]);
+    }
+    if (entryPort !== null && Number(port) !== entryPort) continue;
+    entry = entry.replace(/^\*?\./, "");
+    if (!entry) continue;
+    if (host === entry || host.endsWith(`.${entry}`)) return true;
+  }
+  return false;
+}
+
+/**
+ * Which proxy (if any) carries a request to `url`. Returns null (direct) or
+ * { proxy, source }. Precedence: https_proxy, HTTPS_PROXY,
+ * npm_config_https_proxy, npm_config_proxy, http_proxy, HTTP_PROXY. A proxy
+ * that cannot be used throws rather than silently going direct.
+ */
+function proxyForUrl(url, env = process.env) {
+  const target = new URL(url);
+  const port = Number(target.port) || 443;
+  const noProxy = firstEnv(env, ["no_proxy", "NO_PROXY", "npm_config_noproxy"]);
+  if (noProxy && shouldBypassProxy(target.hostname, port, noProxy.value)) return null;
+  const found = firstEnv(env, [
+    "https_proxy",
+    "HTTPS_PROXY",
+    "npm_config_https_proxy",
+    "npm_config_proxy",
+    "http_proxy",
+    "HTTP_PROXY",
+  ]);
+  if (!found) return null;
+  try {
+    return { proxy: parseProxyUrl(found.value), source: found.name };
+  } catch (err) {
+    throw new Error(`${found.name}: ${err.message}`);
+  }
+}
+
+/**
+ * An https.Agent that reaches the origin through an HTTP CONNECT tunnel. TLS is
+ * negotiated with the origin over the tunnelled socket, with SNI and
+ * certificate checks for the origin's host name.
+ */
+class ProxyTunnelAgent extends https.Agent {
+  constructor(proxy, options = {}) {
+    super({ keepAlive: false, ...options });
+    this.proxy = proxy;
+  }
+
+  createConnection(options, callback) {
+    const proxy = this.proxy;
+    const host = options.host || options.hostname;
+    const port = options.port || 443;
+    let settled = false;
+    const finish = (err, socket) => {
+      if (settled) {
+        if (socket) socket.destroy();
+        return;
+      }
+      settled = true;
+      callback(err, socket);
+    };
+    const headers = { Host: `${host}:${port}` };
+    if (proxy.authHeader) headers["Proxy-Authorization"] = proxy.authHeader;
+    const transport = proxy.protocol === "https:" ? https : http;
+    const req = transport.request({
+      host: proxy.hostname,
+      port: proxy.port,
+      method: "CONNECT",
+      path: `${host}:${port}`,
+      headers,
+      agent: false,
+      timeout: REQUEST_TIMEOUT_MS,
+    });
+    req.once("connect", (res, socket) => {
+      if (res.statusCode !== 200) {
+        socket.destroy();
+        const hint =
+          res.statusCode === 407
+            ? " (proxy authentication failed: put user:password in the proxy URL, e.g. http://user:password@host:port)"
+            : "";
+        const err = new Error(
+          `the proxy ${proxy.display} refused the CONNECT tunnel to ${host}:${port} with HTTP ${res.statusCode}${hint}`
+        );
+        err.proxyStatus = res.statusCode;
+        finish(err);
+        return;
+      }
+      const tlsOptions = { ...options };
+      for (const k of ["host", "hostname", "port", "path", "agent", "timeout"]) delete tlsOptions[k];
+      tlsOptions.socket = socket;
+      tlsOptions.servername = options.servername || (net.isIP(host) ? undefined : host);
+      let secure;
+      try {
+        secure = tls.connect(tlsOptions);
+      } catch (err) {
+        socket.destroy();
+        finish(err);
+        return;
+      }
+      finish(null, secure);
+    });
+    req.once("timeout", () => req.destroy(new Error(`the proxy ${proxy.display} did not answer the CONNECT in time (timeout)`)));
+    req.once("error", (err) => {
+      if (!/^(could not reach|the proxy)/.test(err.message)) {
+        err.message = `could not reach the proxy ${proxy.display}: ${err.message}`;
+      }
+      finish(err);
+    });
+    req.end();
+  }
+}
+
+const tunnelAgents = new Map();
+let proxyAnnounced = false;
+
+/** The agent for one request: a tunnel when a proxy applies, else the direct agent. */
+function agentFor(url, env = process.env) {
+  const chosen = proxyForUrl(url, env);
+  if (!chosen) return agent;
+  if (!proxyAnnounced) {
+    proxyAnnounced = true;
+    // Host and port only. The credentials in the proxy URL are never printed.
+    console.error(`[litespm] Using proxy ${chosen.proxy.display} (from ${chosen.source}) for downloads.`);
+  }
+  let tunnel = tunnelAgents.get(chosen.proxy.key);
+  if (!tunnel) {
+    tunnel = new ProxyTunnelAgent(chosen.proxy);
+    tunnelAgents.set(chosen.proxy.key, tunnel);
+  }
+  return tunnel;
+}
+
+function destroyAgents() {
+  agent.destroy();
+  for (const a of tunnelAgents.values()) a.destroy();
+}
+
+/**
+ * Node's built-in fetch() (used by @sigstore/tuf to fetch the Sigstore trust
+ * root) ignores proxy variables unless NODE_USE_ENV_PROXY=1 is set at process
+ * start (Node >= 22.21 / 24). That cannot be switched on from inside a running
+ * process, and there is no importable undici to install a dispatcher, so when
+ * a proxy applies the installer re-runs itself once with it enabled and the
+ * resolved proxy exported under the names Node reads.
+ */
+function envForProxiedChild(env = process.env) {
+  if (env.NODE_USE_ENV_PROXY === "1" || env.LITESPM_PROXY_REEXEC === "1") return null;
+  let chosen = null;
+  for (const probe of ["https://github.com/", "https://tuf-repo-cdn.sigstore.dev/"]) {
+    const c = proxyForUrl(probe, env);
+    if (c) {
+      chosen = firstEnv(env, [
+        "https_proxy", "HTTPS_PROXY", "npm_config_https_proxy", "npm_config_proxy", "http_proxy", "HTTP_PROXY",
+      ]);
+      break;
+    }
+  }
+  if (!chosen) return null;
+  const noProxy = firstEnv(env, ["no_proxy", "NO_PROXY", "npm_config_noproxy"]);
+  const child = {
+    ...env,
+    NODE_USE_ENV_PROXY: "1",
+    LITESPM_PROXY_REEXEC: "1",
+    HTTPS_PROXY: chosen.value,
+    https_proxy: chosen.value,
+    HTTP_PROXY: chosen.value,
+    http_proxy: chosen.value,
+  };
+  if (noProxy) {
+    child.NO_PROXY = noProxy.value;
+    child.no_proxy = noProxy.value;
+  }
+  return child;
+}
+
 // Guard against a stalled transfer: an npm lifecycle script must never hang.
 const REQUEST_TIMEOUT_MS = 120000;
 
@@ -287,6 +772,13 @@ const REQUEST_TIMEOUT_MS = 120000;
 const MAX_TEXT_BYTES = 1 << 20;
 const MAX_BINARY_BYTES = 256 << 20;
 const MAX_REDIRECTS = 5;
+
+/** An error that is a deliberate refusal (never retried, exit code 1). */
+function refusal(message) {
+  const err = new Error(message);
+  err.refusal = true;
+  return err;
+}
 
 /**
  * Refuse anything that is not plain HTTPS.
@@ -302,10 +794,10 @@ function assertHTTPS(url) {
   try {
     parsed = new URL(url);
   } catch (e) {
-    throw new Error(`malformed URL: ${url}`);
+    throw refusal(`malformed URL: ${url}`);
   }
   if (parsed.protocol !== "https:") {
-    throw new Error(`refusing non-HTTPS URL (${parsed.protocol}//): ${url}`);
+    throw refusal(`refusing non-HTTPS URL (${parsed.protocol}//): ${url}`);
   }
   return url;
 }
@@ -336,7 +828,7 @@ function assertAllowedRedirect(url, policy) {
     (h) => hostname === h || host === h || hostname.endsWith(`.${h}`)
   );
   if (!ok) {
-    throw new Error(
+    throw refusal(
       `refusing redirect to unexpected host "${host}" (expected ${[...allowed].join(", ")}); ` +
         `if this is a legitimate mirror, point LITESPM_RELEASE_REPO at the final host`
     );
@@ -345,7 +837,8 @@ function assertAllowedRedirect(url, policy) {
 }
 
 function request(url) {
-  return https.get(assertHTTPS(url), { agent, timeout: REQUEST_TIMEOUT_MS });
+  assertHTTPS(url);
+  return https.get(url, { agent: agentFor(url), timeout: REQUEST_TIMEOUT_MS });
 }
 
 /** Resolve a redirect Location against the current URL, keeping HTTPS mandatory. */
@@ -399,21 +892,50 @@ function formatEta(seconds) {
   return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
 }
 
-function makeDownloadProgress(label) {
-  const startedAt = Date.now();
+/**
+ * Download progress, on STDERR. npm hides a lifecycle script's stdout, so
+ * progress written there is never seen; stderr is the channel a user (and
+ * `npm i -g --foreground-scripts`) can actually read, and it keeps the MCP
+ * shim's stdout clean.
+ *
+ * - TTY stderr: a redrawn bar with rate and ETA.
+ * - Anything else (pipe, CI, TERM=dumb): at most four milestone lines
+ *   (25/50/75/100%) with MB counts, so logs stay short.
+ *
+ * Returns a callback (bytes, total) with an `.end(bytes)` method that emits the
+ * closing line when the total was unknown.
+ */
+function makeDownloadProgress(label, options = {}) {
+  const stream = options.stream || process.stderr;
+  const interactive =
+    options.tty !== undefined ? options.tty : Boolean(stream.isTTY) && process.env.TERM !== "dumb";
+  const columns = options.columns || stream.columns || 80;
+  const now = options.now || Date.now;
+  const startedAt = now();
   let lastAt = 0;
-  return (bytes, total) => {
-    // A pipe, CI and TERM=dumb get no animation at all; the plain "Downloading"
-    // and "Verified" lines are the whole story there.
-    if (!process.stdout.isTTY || process.env.TERM === "dumb") return;
-    const now = Date.now();
+  let milestone = 0;
+  let finished = false;
+
+  const mb = (n) => `${(n / (1024 * 1024)).toFixed(1)} MB`;
+
+  const update = (bytes, total) => {
     const known = Number.isFinite(total) && total > 0;
     const complete = known && bytes >= total;
-    if (!complete && now - lastAt < 100) return;
-    lastAt = now;
-    const elapsed = Math.max((now - startedAt) / 1000, 0.001);
+    if (!interactive) {
+      if (!known) return;
+      const pct = Math.floor((bytes / total) * 100);
+      while (milestone < 4 && pct >= (milestone + 1) * 25) {
+        milestone += 1;
+        stream.write(`[litespm] ${label} ${milestone * 25}% (${mb(Math.min(bytes, total))} of ${mb(total)})\n`);
+      }
+      if (complete) finished = true;
+      return;
+    }
+    const t = now();
+    if (!complete && t - lastAt < 100) return;
+    lastAt = t;
+    const elapsed = Math.max((t - startedAt) / 1000, 0.001);
     const rate = bytes / elapsed;
-    const columns = process.stdout.columns || 80;
     const parts = [];
     if (known) {
       const ratio = Math.max(0, Math.min(1, bytes / total));
@@ -438,20 +960,32 @@ function makeDownloadProgress(label) {
     }
     const line = `${prefix}${bar}${text}`.slice(0, Math.max(columns - 1, 20));
     if (complete) {
-      process.stdout.write(
-        `\r\x1b[K[litespm] ✓ Downloaded ${formatBytes(bytes)} in ${elapsed.toFixed(1)}s (${formatRate(rate)})\n`
-      );
+      finished = true;
+      stream.write(`\r\x1b[K[litespm] ✓ Downloaded ${formatBytes(bytes)} in ${elapsed.toFixed(1)}s (${formatRate(rate)})\n`);
     } else {
-      process.stdout.write(`\r\x1b[K${line}`);
+      stream.write(`\r\x1b[K${line}`);
     }
   };
+
+  update.end = (bytes) => {
+    if (finished) return;
+    finished = true;
+    if (interactive) {
+      stream.write(`\r\x1b[K[litespm] ✓ Downloaded ${formatBytes(bytes)}\n`);
+    } else {
+      stream.write(`[litespm] ${label} 100% (${mb(bytes)})\n`);
+    }
+  };
+  return update;
 }
-function downloadFile(url, targetPath, redirects = 0, policy = null, onProgress = null) {  return new Promise((resolve, reject) => {
+function downloadFile(url, targetPath, redirects = 0, policy = null, onProgress = null) {
+  return new Promise((resolve, reject) => {
     if (redirects > MAX_REDIRECTS) {
       reject(new Error("too many redirects"));
       return;
     }
     let settled = false;
+    let totalBytes = 0;
     const done = (err) => {
       if (settled) return;
       settled = true;
@@ -463,7 +997,7 @@ function downloadFile(url, targetPath, redirects = 0, policy = null, onProgress 
         }
         reject(err);
       } else {
-        resolve();
+        resolve(totalBytes);
       }
     };
 
@@ -530,6 +1064,7 @@ function downloadFile(url, targetPath, redirects = 0, policy = null, onProgress 
       const file = fs.createWriteStream(targetPath);
       file.on("close", () => {
         const reason = incompleteTransferReason(bytes, expectedBytes, MAX_BINARY_BYTES);
+        totalBytes = bytes;
         done(reason ? new Error(reason) : undefined);
       });
       file.on("error", done);
@@ -748,12 +1283,26 @@ async function verifyBundleAgainstPolicy(bundleText, artifactBytes, policy) {
   // trust root is a refusal, never a bypass.
   let trustedRoot;
   try {
-    trustedRoot = await sigstore.getTrustedRoot();
+    // Only a transport fault is retried; a TUF verification failure is not.
+    trustedRoot = await withRetry(() => sigstore.getTrustedRoot(), {
+      isRetryable: isTransientError,
+      onRetry: (err, attempt, attempts, waitMs) =>
+        console.error(
+          `[litespm] Fetching the Sigstore trust root failed (${err.message}); retry ${attempt}/${attempts - 1} in ${Math.round(waitMs / 100) / 10}s.`
+        ),
+    });
   } catch (err) {
-    throw new Error(
+    const wrapped = new Error(
       `the Sigstore trust root could not be obtained (${err.message}); ` +
-        `this install needs network access to tuf-repo-cdn.sigstore.dev on first use`
+        `this install needs network access to tuf-repo-cdn.sigstore.dev on first use` +
+        (hasProxyConfigured()
+          ? ""
+          : `. Behind a proxy? Set HTTPS_PROXY=http://host:port`)
     );
+    wrapped.cause = err;
+    // A refused/forged root is an integrity fault; an unreachable one is not.
+    if (isTransientError(err)) wrapped.network = true;
+    throw wrapped;
   }
 
   const verifier = new sigstore.Verifier(sigstore.toTrustMaterial(trustedRoot), {
@@ -807,8 +1356,8 @@ async function verifyBundleAgainstPolicy(bundleText, artifactBytes, policy) {
  * whose manifest disagrees with its own signed artifact is malformed and must
  * not install.
  */
-async function verifyDownloadedBinary(binaryPath, binName, releaseBase, policy = null, getText = fetchText) {
-  const fail = (reason) => {
+async function verifyDownloadedBinary(binaryPath, binName, releaseBase, policy = null, getText = fetchTextWithRetry) {
+  const fail = (reason, cause) => {
     try {
       fs.unlinkSync(binaryPath);
     } catch (e) {
@@ -818,6 +1367,7 @@ async function verifyDownloadedBinary(binaryPath, binName, releaseBase, policy =
     // Distinguishes "we could not prove these bytes" from "there were no
     // bytes", because the two demand different operator responses.
     err.unverified = true;
+    if (cause && (cause.network || isTransientError(cause))) err.network = true;
     throw err;
   };
 
@@ -825,7 +1375,7 @@ async function verifyDownloadedBinary(binaryPath, binName, releaseBase, policy =
   try {
     sums = await getText(`${releaseBase}/SHA256SUMS.txt`, 0, policy);
   } catch (err) {
-    fail(`the checksum manifest could not be fetched (${err.message})`);
+    fail(`the checksum manifest could not be fetched (${err.message})`, err);
   }
 
   const expected = checksumFor(sums, binName);
@@ -855,7 +1405,7 @@ function assertVerifiedDigest(binaryPath, binName, expected) {
     err.unverified = true;
     throw err;
   }
-  console.log(`[litespm] Verified SHA-256 checksum for ${binName}`);
+  console.error(`[litespm] Verified SHA-256 checksum for ${binName}`);
   return actual;
 }
 
@@ -884,9 +1434,9 @@ async function verifyReleaseArtifact(binaryPath, binName, releaseBase, options =
   // Injectable purely so the refusal paths can be driven from tests without
   // standing up TLS. Production always uses the real fetcher, which is
   // HTTPS-only and redirect-bounded; nothing here relaxes either.
-  const getText = options.fetchText || fetchText;
+  const getText = options.fetchText || fetchTextWithRetry;
 
-  const discard = (reason) => {
+  const discard = (reason, cause) => {
     try {
       fs.unlinkSync(binaryPath);
     } catch (e) {
@@ -894,6 +1444,10 @@ async function verifyReleaseArtifact(binaryPath, binName, releaseBase, options =
     }
     const err = new Error(`refusing to install ${binName}: ${reason}`);
     err.unverified = true;
+    // A fetch that never completed is a network fault, not a verdict on the
+    // bytes: nothing unverified is installed either way, but the postinstall
+    // must not treat "the network dropped" like "the signature is forged".
+    if (cause && (cause.network || isTransientError(cause))) err.network = true;
     throw err;
   };
 
@@ -907,14 +1461,15 @@ async function verifyReleaseArtifact(binaryPath, binName, releaseBase, options =
     if (err.statusCode === 404) {
       bundleMissing = true;
     } else if (requireSignature) {
-      discard(`the release's signature bundle could not be fetched (${err.message})`);
+      discard(`the release's signature bundle could not be fetched (${err.message})`, err);
     } else {
       // Opt-out set, but we could not even learn whether a bundle exists.
       // Falling back here would silently downgrade an unknown state to
       // checksum-only, so it refuses instead.
       discard(
         `the release's signature bundle could not be fetched (${err.message}); ` +
-          `LITESPM_ALLOW_UNSIGNED_RELEASE=1 falls back only when a release publishes no bundle at all`
+          `LITESPM_ALLOW_UNSIGNED_RELEASE=1 falls back only when a release publishes no bundle at all`,
+        err
       );
     }
   }
@@ -928,61 +1483,62 @@ async function verifyReleaseArtifact(binaryPath, binName, releaseBase, options =
           `v0.4.0, re-run with LITESPM_ALLOW_UNSIGNED_RELEASE=1`
       );
     }
-    console.warn(
+    console.error(
       `[litespm] WARNING: this release publishes no Sigstore signature bundle, and ` +
         `LITESPM_ALLOW_UNSIGNED_RELEASE=1 was set. Falling back to checksum-only verification.`
     );
-    console.warn(
+    console.error(
       `[litespm] WARNING: a checksum travels in the same release as the binary, so it proves the ` +
         `download was not corrupted — it does NOT prove who published it.`
     );
   } else {
     try {
       const signer = await verifyBundleAgainstPolicy(bundleText, artifactBytes, policy);
-      console.log(
+      console.error(
         `[litespm] Verified Sigstore signature for ${binName}\n` +
           `[litespm]   signer: ${signer.identity.subjectAlternativeName}\n` +
           `[litespm]   issuer: ${signer.identity.extensions.issuer}`
       );
     } catch (err) {
-      discard(err.message);
+      discard(err.message, err.network ? err : null);
     }
   }
 
   await verifyDownloadedBinary(binaryPath, binName, releaseBase, policy, getText);
+  return { signed: !bundleMissing };
 }
 
 /**
- * Download with bounded retries for transient transport failures. A 4xx, an
- * integrity refusal, or the final attempt is not retried: those are decisions,
- * not flakiness. The caller still discards the file on every failure, so a
- * retry can never leave partial bytes behind.
+ * Download with bounded retries for transient transport failures: up to
+ * MAX_ATTEMPTS tries with exponential backoff and jitter (~1s, 3s, 9s). A 4xx
+ * other than 408/429, a redirect/scheme refusal, an integrity refusal or the
+ * final attempt is not retried: those are decisions, not flakiness. The file
+ * is discarded on every failure, so a retry can never leave partial bytes
+ * behind.
  */
-async function downloadWithRetry(url, targetPath, policy, attempts = 3) {
-  const progress = makeDownloadProgress("Downloading");
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      await downloadFile(url, targetPath, 0, policy, progress);
-      return;
-    } catch (err) {
-      const status = err && err.statusCode;
-      const transient =
-        !err || (!err.unverified && (!status || status >= 500) && attempt < attempts);
-      if (!transient) throw err;
-      const waitMs = 400 * attempt;
-      console.warn(
-        `[litespm] Download attempt ${attempt}/${attempts} failed (${err.message}); retrying in ${waitMs}ms.`
-      );
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
+async function downloadWithRetry(url, targetPath, policy, options = {}) {
+  const progress = options.progress || makeDownloadProgress("Downloading");
+  const bytes = await withRetry(
+    () => downloadFile(url, targetPath, 0, policy, progress),
+    {
+      attempts: options.attempts || MAX_ATTEMPTS,
+      sleep: options.sleep,
+      delayFor: options.delayFor,
+      isRetryable: isTransientError,
+      onRetry: (err, attempt, attempts, waitMs) =>
+        console.error(
+          `[litespm] Download attempt ${attempt}/${attempts} failed (${err.message}); retrying in ${Math.round(waitMs / 100) / 10}s.`
+        ),
     }
-  }
+  );
+  if (progress && typeof progress.end === "function") progress.end(bytes || 0);
+  return bytes;
 }
 
 async function installBinary() {
   const binName = getBinaryName();
-  console.log(`[litespm] Installing LiteSPM v${VERSION} for ${binName}`);
+  console.error(`[litespm] Installing LiteSPM v${VERSION} for ${binName}`);
   const targetDir = path.join(os.homedir(), ".litespm", "bin", `v${VERSION}`);
-  ensureDir(targetDir);
   const targetPath = path.join(targetDir, binName);
   const stampPath = `${targetPath}.version`;
 
@@ -992,22 +1548,23 @@ async function installBinary() {
   try {
     policy = resolveTrustPolicy(process.env);
   } catch (err) {
-    console.error(`[litespm] INSTALL REFUSED — ${err.message}`);
+    err.context = { targetPath };
     throw err;
   }
+  ensureDir(targetDir);
   if (policy.isMirror) {
-    console.warn(
+    console.error(
       `[litespm] WARNING: installing from the mirror ${policy.repo} (${policy.releaseBase}), ` +
         `trusting signer ${policy.identity} (issuer ${policy.issuer}).`
     );
   } else if (String(process.env.LITESPM_TRUST_IDENTITY || "").trim()) {
-    console.log(
+    console.error(
       `[litespm] Note: LITESPM_TRUST_IDENTITY is ignored because LITESPM_RELEASE_REPO names the ` +
         `pinned repository; the identity is fixed in the installer.`
     );
   }
   if (!signatureRequired(process.env)) {
-    console.warn(
+    console.error(
       `[litespm] WARNING: LITESPM_ALLOW_UNSIGNED_RELEASE=1 is set. A release that publishes no ` +
         `signature will be accepted on its SHA-256 checksum alone.`
     );
@@ -1026,7 +1583,7 @@ async function installBinary() {
     if (installed === VERSION) {
       return;
     }
-    console.log(
+    console.error(
       `[litespm] Updating ${binName} ${installed || "(unknown)"} -> ${VERSION}`
     );
   }
@@ -1044,14 +1601,14 @@ async function installBinary() {
       fs.chmodSync(targetPath, 0o755);
     }
     fs.writeFileSync(stampPath, `${VERSION}-local\n`);
-    console.log(
+    console.error(
       `[litespm] Using the LOCAL build at ${localDist} (LITESPM_ALLOW_LOCAL_DIST=1). ` +
         `It is not the published v${VERSION} binary and its checksum and signature are not verified.`
     );
     return;
   }
   if (fs.existsSync(localDist)) {
-    console.log(
+    console.error(
       `[litespm] Ignoring the local build at ${localDist}; installing the published ` +
         `v${VERSION} binary. Set LITESPM_ALLOW_LOCAL_DIST=1 to use it deliberately.`
     );
@@ -1060,8 +1617,8 @@ async function installBinary() {
   // 3. Fallback: Download pre-compiled release binary from GitHub Releases
   const releaseBase = policy.releaseBase;
   const releaseUrl = `${releaseBase}/${binName}`;
-  console.log(`[litespm] Downloading native binary from the release: ${releaseUrl}...`);
-  const tempTarget = `${targetPath}.tmp.${Date.now()}`;
+  console.error(`[litespm] Downloading native binary from the release: ${releaseUrl}...`);
+  const tempTarget = tempPathFor(targetPath);
   try {
     await downloadWithRetry(releaseUrl, tempTarget, policy);
 
@@ -1072,20 +1629,19 @@ async function installBinary() {
     // unreadable manifest or a digest mismatch all leave no binary behind.
     // Proceeding on a warning would mean the one artifact we execute is the one
     // artifact we could not check.
-    await verifyReleaseArtifact(tempTarget, binName, releaseBase, { policy });
+    const verdict = await verifyReleaseArtifact(tempTarget, binName, releaseBase, { policy });
 
-    fs.renameSync(tempTarget, targetPath);
+    await renameWithRetry(tempTarget, targetPath);
     if (process.platform !== "win32") {
       fs.chmodSync(targetPath, 0o755);
     }
     fs.writeFileSync(stampPath, `${VERSION}\n`);
-    if (process.stdout.isTTY && process.env.TERM !== "dumb") {
-      console.log(`[litespm] ✓ Installed ${binName} (checksum and signature verified)`);
-      console.log(`[litespm]   ${targetPath}`);
-      console.log("[litespm]   Next: run `litespm` to connect your agents.");
-    } else {
-      console.log(`[litespm] Successfully downloaded and installed ${binName} to ${targetPath}`);
-    }
+    // stderr, not stdout: npm hides a lifecycle script's stdout.
+    const how = verdict && verdict.signed === false ? "checksum verified, UNSIGNED" : "signature verified";
+    console.error(
+      `[litespm] ✓ litespm ${VERSION} installed (${how}) — run \`litespm\` to connect your agents`
+    );
+    console.error(`[litespm]   ${targetPath}`);
   } catch (err) {
     // A partial artifact must never survive a refusal, whatever the failure.
     try {
@@ -1093,51 +1649,130 @@ async function installBinary() {
     } catch (e) {
       /* best effort */
     }
-    if (err && err.unverified) {
-      // No binary was installed and nothing unverified will run. This is a
-      // release-integrity failure, not a network one, so it must not read like
-      // a transient notice.
-      console.warn(`[litespm] INSTALL REFUSED — ${err.message}`);
-      console.warn(
-        `[litespm] The download was discarded rather than installed unverified. ` +
-          `Nothing was written to ${targetPath}.`
-      );
-      console.warn(
-        `[litespm] Check ${releaseBase} for ${binName} and its ${BUNDLE_SUFFIX} bundle, then ` +
-          `reinstall. Setting LITESPM_ALLOW_UNSIGNED_RELEASE=1 disables publisher ` +
-          `authentication and is not a fix.`
-      );
-    } else {
-      console.warn(`[litespm] Notice: could not download the native binary (${err.message}).`);
-      console.warn(`[litespm] Expected release asset: ${releaseUrl}`);
-      console.warn(
-        `[litespm] If that release does not exist yet, push the v${VERSION} tag and let its ` +
-          `release publish before installing from npm.`
-      );
+    // And neither may an empty versioned directory (rmdir only removes an
+    // empty one, so a working install of the same version is never touched).
+    try {
+      fs.rmdirSync(targetDir);
+    } catch (e) {
+      /* not empty, or already gone */
     }
-    // Fail closed: a postinstall that cannot prove its binary must fail the
-    // install (non-zero exit) rather than succeed silently. The wrapper
-    // re-attempts the download on first invocation, so a transient network
-    // failure is recoverable by retrying the install.
+    // Reporting happens once, in reportInstallFailure(), from the entry point.
+    err.context = { targetPath, releaseBase, releaseUrl, binName };
     throw err;
   }
 }
 
-if (require.main === module) {
-  installBinary()
-    .then(() => {
-      // Release the pooled sockets and exit explicitly: an npm lifecycle
-      // script must not linger waiting for keep-alive timeouts.
-      agent.destroy();
-      process.exit(0);
-    })
-    .catch((err) => {
-      console.error(`[litespm] Postinstall failed: ${err.message}`);
-      agent.destroy();
-      process.exit(1);
-    });
+/**
+ * Print ONE explanation of a failed install and return the exit code.
+ *
+ * The old flow printed "INSTALL REFUSED ..." in the catch and then
+ * "Postinstall failed: <same message>" from the entry point. This is the only
+ * place that prints now.
+ */
+function reportInstallFailure(err, options = {}) {
+  const lazy = Boolean(options.lazy);
+  const kind = classifyInstallFailure(err);
+  const ctx = (err && err.context) || {};
+  const say = (line) => console.error(`[litespm] ${line}`);
+  const debug = process.env.LITESPM_DEBUG === "1";
+  const message = err && err.message ? err.message : String(err);
+
+  if (kind === "integrity") {
+    say(`INSTALL REFUSED — ${message}`);
+    if (ctx.targetPath) {
+      say(
+        `The download was discarded rather than installed unverified. Nothing was written to ${ctx.targetPath}.`
+      );
+    }
+    if (ctx.releaseBase) {
+      say(
+        `Check ${ctx.releaseBase} for ${ctx.binName} and its ${BUNDLE_SUFFIX} bundle, then ` +
+          `reinstall. Setting LITESPM_ALLOW_UNSIGNED_RELEASE=1 disables publisher ` +
+          `authentication and is not a fix.`
+      );
+    }
+  } else if (kind === "network") {
+    if (lazy) {
+      say(`Could not download the native binary (${message}).`);
+      say("Check your network connection and proxy settings (HTTPS_PROXY / NO_PROXY), then run `litespm` again.");
+    } else {
+      say(`Notice: could not download the native binary now (${message}).`);
+      say("It will be downloaded the first time you run `litespm`. The npm install itself succeeded.");
+    }
+    if (!hasProxyConfigured()) {
+      say("Behind a corporate proxy? Set HTTPS_PROXY=http://host:port (and NO_PROXY for hosts to skip), then retry.");
+    }
+    if (ctx.releaseUrl) say(`Expected release asset: ${ctx.releaseUrl}`);
+  } else if (kind === "unavailable") {
+    say(`The LiteSPM v${VERSION} download is not available (${message}).`);
+    say(
+      `The v${VERSION} release has probably not been published yet, or was withdrawn. ` +
+        `Install the previous version with \`npm i -g litespm@<version>\` (see \`npm view litespm versions\`), or try again later.`
+    );
+    if (ctx.releaseUrl) say(`Expected release asset: ${ctx.releaseUrl}`);
+    if (debug) {
+      say(`[debug] maintainers: push the v${VERSION} tag and let release.yml publish the release before \`npm publish\`.`);
+    }
+  } else {
+    say(`Postinstall failed: ${message}`);
+  }
+  return exitCodeForFailure(err, { lazy });
 }
 
+/** Write pending stderr, then exit: process.exit() can truncate piped output on Windows. */
+function exitAfterFlush(code) {
+  let done = false;
+  const go = () => {
+    if (done) return;
+    done = true;
+    process.exit(code);
+  };
+  try {
+    process.stderr.write("", go);
+  } catch (e) {
+    go();
+  }
+  setTimeout(go, 500).unref();
+}
+
+if (require.main === module) {
+  // `litespm` itself launches this script on first run with LITESPM_INSTALL_MODE=lazy;
+  // there a network failure must be a non-zero exit, because the caller is about
+  // to run the binary. From npm's postinstall it must not break `npm i -g`.
+  const lazy = process.env.LITESPM_INSTALL_MODE === "lazy";
+
+  // Node's built-in fetch (used for the Sigstore trust root) only honours a
+  // proxy when NODE_USE_ENV_PROXY=1 at process start. Re-run once with it set.
+  let childEnv = null;
+  try {
+    childEnv = envForProxiedChild(process.env);
+  } catch (err) {
+    process.exitCode = reportInstallFailure(err, { lazy });
+    exitAfterFlush(process.exitCode);
+    childEnv = undefined;
+  }
+  if (childEnv) {
+    const res = spawnSync(process.execPath, ["--disable-warning=UNDICI-EHPA", __filename, ...process.argv.slice(2)], {
+      stdio: "inherit",
+      env: childEnv,
+    });
+    process.exit(res.status === null ? 1 : res.status);
+  } else if (childEnv === null) {
+    installBinary()
+      .then(() => {
+        // Release the pooled sockets and exit explicitly: an npm lifecycle
+        // script must not linger waiting for keep-alive timeouts.
+        destroyAgents();
+        exitAfterFlush(0);
+      })
+      .catch((rawErr) => {
+        const err = describeFsError(rawErr, (rawErr && rawErr.path) || "the LiteSPM install directory");
+        const code = reportInstallFailure(err, { lazy });
+        destroyAgents();
+        exitAfterFlush(code);
+      });
+  }
+}
 module.exports = {
   installBinary,
   computeFileSHA256,
@@ -1159,7 +1794,26 @@ module.exports = {
   resolveRedirect,
   downloadFile,
   fetchText,
+  fetchTextWithRetry,
   agent,
+  ProxyTunnelAgent,
+  agentFor,
+  parseProxyUrl,
+  shouldBypassProxy,
+  proxyForUrl,
+  envForProxiedChild,
+  isTransientError,
+  backoffDelayMs,
+  withRetry,
+  classifyInstallFailure,
+  exitCodeForFailure,
+  reportInstallFailure,
+  renameWithRetry,
+  tempPathFor,
+  describeFsError,
+  makeDownloadProgress,
+  downloadWithRetry,
+  MAX_ATTEMPTS,
   DEFAULT_RELEASE_REPO,
   RELEASE_WORKFLOW_FILE,
   DEFAULT_OIDC_ISSUER,

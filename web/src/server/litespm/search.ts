@@ -14,7 +14,8 @@ import { HOSTS, SKILL_TARGETS, HOST_ALIASES } from "./hosts";
 import { resolveHostId, hostIdsFor } from "./identity";
 import { classifyListing } from "./taxonomy";
 import { getCliReleases, getCompactDataset, getDataset } from "./dataset";
-import { dedupeKey, nameTiebreakBucket } from "./ranking";
+import { dedupeKey, installableFirst, nameTiebreakBucket } from "./ranking";
+import { getCatalogCounts } from "./counts";
 import { resolveOriginalSource } from "./source-resolver";
 import { candidateRowIds, expandGroups, getSearchIndex, queryGroups, scoreDoc } from "./bm25";
 import { tokenize } from "./text";
@@ -643,14 +644,17 @@ function computeSearch(
     (b.row.rankScore ?? 0) - (a.row.rankScore ?? 0) ||
     nameTiebreakBucket(a.row.name) - nameTiebreakBucket(b.row.name) ||
     a.row.name.localeCompare(b.row.name);
-  const sorted = result.pool;
+  let sorted = result.pool;
   switch (sort) {
     case "relevance":
       // Ties on text relevance fall to the quality score, not the alphabet.
       sorted.sort((a, b) => b.rel - a.rel || byRank(a, b));
+      // Installable rows lead; discovery-only rows follow in the same order.
+      sorted = installableFirst(sorted, (s) => isInstallable(s.row));
       break;
     case "rank":
       sorted.sort(byRank);
+      sorted = installableFirst(sorted, (s) => isInstallable(s.row));
       break;
     case "publisher":
       sorted.sort(
@@ -745,7 +749,6 @@ export async function catalogStats() {
   };
   const cli = getCliReleases();
 
-  let installable = 0;
   let withEndpoint = 0;
   const byKind = { mcp: 0, skill: 0, plugin: 0 };
   const byGoal = new Map<string, number>();
@@ -757,7 +760,6 @@ export async function catalogStats() {
   for (const row of rows) {
     byKind[row.kind] += 1;
     const m = metaFor(row);
-    if (m.installable) installable += 1;
     if (row.url) withEndpoint += 1;
     byGoal.set(m.goal, (byGoal.get(m.goal) ?? 0) + 1);
     const category = row.category?.trim();
@@ -767,14 +769,19 @@ export async function catalogStats() {
     if (row.publisher?.name) publishers.add(row.publisher.name.trim().toLowerCase());
   }
 
+  const counts = await getCatalogCounts();
+
   return {
     telemetry: dataset.telemetry,
     release: dataset.release,
     cli,
-    uniqueTotal: rows.length,
-    rawTotal: dataset.telemetry.itemCount,
+    uniqueTotal: counts.uniqueListings,
+    // Rows in the release file before dedupe. This used to echo
+    // telemetry.itemCount, which is the post-dedupe length.
+    rawTotal: counts.catalogRows,
+    counts,
     byKind,
-    installable,
+    installable: counts.installable,
     withEndpoint,
     publishers: publishers.size,
     categories: byCategory.size,

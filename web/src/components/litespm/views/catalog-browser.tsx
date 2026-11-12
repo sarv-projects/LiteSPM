@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -30,6 +31,7 @@ import {
 import { useDebounced } from "@/lib/litespm/hooks";
 import { formatFull } from "@/lib/litespm/format";
 import type { CatalogFacets, CatalogListResponse } from "@/lib/litespm/types";
+import { NavLink } from "../nav-link";
 import { PackageCard } from "../package-card";
 import { FilterPill } from "../primitives";
 import { RankExplainer } from "../rank-badge";
@@ -206,7 +208,7 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
     : loading && !data
       ? "Searching the catalog…"
       : data
-        ? `${formatFull(data.total)} listing${data.total === 1 ? "" : "s"}${query.q ? ` for “${query.q}”` : ""} · page ${formatFull(page)} of ${formatFull(pageCount)}`
+        ? `${formatFull(data.total)} distinct tool${data.total === 1 ? "" : "s"}${query.q ? ` for “${query.q}”` : ""} · page ${formatFull(page)} of ${formatFull(pageCount)}`
         : "";
 
   return (
@@ -275,13 +277,22 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <FilterPill
-          active={Boolean(query.installable)}
-          onClick={() => setParam("installable", query.installable ? undefined : "1")}
-          title="Only listings litespm install can complete"
+        <label
+          className={cn(
+            "inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+            query.installable
+              ? "border-brand/60 bg-brand-soft text-brand"
+              : "border-border/80 bg-card text-foreground hover:border-brand/40",
+          )}
+          title="Only listings that litespm install can complete. Discovery-only listings are hidden."
         >
+          <Switch
+            checked={Boolean(query.installable)}
+            onCheckedChange={(on) => setParam("installable", on ? "1" : undefined)}
+            aria-label="Installable only"
+          />
           Installable only
-        </FilterPill>
+        </label>
         {query.host && (
           <FilterPill active onClick={() => setParam("host", undefined)} title="Remove the host filter">
             Host: {query.host} <X className="h-3 w-3" aria-hidden="true" />
@@ -297,8 +308,21 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
             Clear filters ({activeCount})
           </button>
         )}
-        <p className="ml-auto text-[12px] text-muted-foreground" role="status" aria-live="polite">
+        <p
+          className="ml-auto text-right text-[12px] text-muted-foreground"
+          role="status"
+          aria-live="polite"
+          title="Listings with the same name from different publishers (or as both an MCP server and a skill) are merged into one result, so this is lower than the number of listings in the catalog."
+        >
           {status}
+          {data && !failed && (
+            <span className="block text-[11px] text-muted-foreground/80">
+              (same-name listings from different publishers are merged){" "}
+              <NavLink to="/docs/methodology" className="underline underline-offset-2 hover:text-foreground">
+                Why?
+              </NavLink>
+            </span>
+          )}
         </p>
       </div>
 

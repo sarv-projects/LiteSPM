@@ -11,6 +11,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (working tree, 2026-11-12)
+
+- **Product pages render on the server** (the HTML holds the page, not a skeleton) and show the
+  listing's **README / SKILL.md fetched live from GitHub** (`/api/litespm/source/<key>`; https
+  github.com only, 512 KB cap, no raw HTML, images only from GitHub hosts, cached 6 h). A Quick
+  stats rail adds stars, forks, license and last commit when the deployment sets `GITHUB_TOKEN`.
+  Install is one card with **CLI / Manual config / Prompt** tabs; MCP pages add "Check that it works".
+- **Bundles** (`/bundles`): 11 curated working sets (42 items, every one present and installable,
+  checked by `scripts/check-bundles.mjs` in `npm run lint`), with one-click copy of the install
+  commands for a chosen agent.
+- **How we rank and label** (`/docs/methodology`): the score components, installability levels,
+  what "Not inspected" means, why there are no download counts, and where every count comes from.
+- `litespm search` shows an install-status column, lists installable results first, and takes
+  `--installable` (the `--json` order is unchanged without it).
+- npm installer: **proxy support** (`HTTPS_PROXY`/`HTTP_PROXY`/npm proxy config, `NO_PROXY`, basic
+  auth; no new dependency), exponential backoff with jitter (4 attempts), progress on stderr.
+
+### Changed (working tree, 2026-11-12)
+
+- Site search puts installable listings first for relevance and score sorts; an installable twin
+  wins the duplicate collapse.
+- One number system: "listings" means unique listings (69,311) on the banner, hero and docs; the
+  marketplace total is labelled "distinct tools" (same-name listings merged); `rawTotal` is the real
+  pre-dedupe row count.
+- A transient network failure during `npm i -g litespm` no longer fails the install: the binary is
+  fetched on first run. Integrity refusals still fail.
+- Release workflow: the GitHub release is created as a draft, the installer is tested against this
+  run's signed assets, npm is published, and only then is the release made public; a smoke job
+  installs from npm on Linux, Windows and macOS. CI installs the packed tarball on Windows.
+
+### Fixed (working tree, 2026-11-12)
+
+- Install errors read as one sentence with a `Try:` hint instead of `details: map[…]`; dry runs say
+  "Planning (dry run)" and no longer print `version : discovery` or empty `()`.
+- An unknown command suggests the closest one (`serch` → `search`) instead of dumping all help.
+- `doctor` no longer reports FAIL on a fresh machine for directories created on first use.
+- Registry names lose their reverse-DNS prefix (`com.vercel/vercel-mcp` → `vercel-mcp`).
+
 ### Added (working tree, 2026-11-10)
 
 - **In-agent marketplace command.** `litespm setup --agent <id>`, `host setup <id>`, the wizard and the

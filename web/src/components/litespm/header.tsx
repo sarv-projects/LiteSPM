@@ -14,6 +14,7 @@ import { NavLink } from "./nav-link";
 
 const NAV: Array<{ label: string; hash: string; match: Route["view"][] }> = [
   { label: "Marketplace", hash: "/marketplace", match: ["marketplace", "package"] },
+  { label: "Bundles", hash: "/bundles", match: ["bundles"] },
   { label: "Agents", hash: "/agents", match: ["agents", "agent"] },
   { label: "Insights", hash: "/insights", match: ["insights"] },
   { label: "Docs", hash: "/docs", match: ["docs"] },
@@ -78,7 +79,7 @@ export function AnnouncementBar() {
           <p className="min-w-0 truncate">
             Catalog release{" "}
             <span className="font-mono font-semibold text-brand">{stats.release.releaseId}</span> —{" "}
-            {formatFull(stats.release.itemCount)} listings, {stats.hosts} agent hosts.{" "}
+            {formatFull(stats.counts?.uniqueListings ?? stats.uniqueTotal)} listings, {stats.hosts} agent hosts.{" "}
             <button
               type="button"
               onClick={() => useApp.getState().navigate("/insights")}

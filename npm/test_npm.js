@@ -473,7 +473,531 @@ check("[adversarial] malformed bundles are refused before anything is trusted", 
   }
 });
 
+// ===========================================================================
+// W3: proxy, retry, exit-code policy, progress, robustness.
+// ===========================================================================
+async function w3Cases() {
+  const inst = require("./scripts/install-binary.js");
+  const http = require("http");
+  const https = require("https");
+  const noSleep = () => Promise.resolve();
+
+  // ------------------------------------------------------------- proxy parsing
+  check("[proxy] a proxy URL is parsed; credentials never reach the display string", () => {
+    const p = inst.parseProxyUrl("http://alice:s3cr%40t@proxy.corp.example:3128");
+    assert.strictEqual(p.hostname, "proxy.corp.example");
+    assert.strictEqual(p.port, 3128);
+    assert.strictEqual(p.display, "proxy.corp.example:3128");
+    assert(!/alice|s3cr/.test(p.display) && !/alice|s3cr/.test(p.key.replace(/\|.*/, "")));
+    assert.strictEqual(
+      p.authHeader,
+      `Basic ${Buffer.from("alice:s3cr@t").toString("base64")}`,
+      "percent-escapes in the userinfo must be decoded before Basic encoding"
+    );
+  });
+
+  check("[proxy] a scheme-less proxy is http, ports default, other schemes are refused", () => {
+    assert.strictEqual(inst.parseProxyUrl("proxy:8080").protocol, "http:");
+    assert.strictEqual(inst.parseProxyUrl("http://proxy").port, 80);
+    assert.strictEqual(inst.parseProxyUrl("https://proxy").port, 443);
+    assert.strictEqual(inst.parseProxyUrl("http://proxy").authHeader, null);
+    assert.throws(() => inst.parseProxyUrl("socks5://proxy:1080"), /cannot tunnel/);
+  });
+
+  check("[proxy] variable precedence and NO_PROXY decide the route", () => {
+    const url = "https://github.com/sarv-projects/LiteSPM/releases/download/v1/x";
+    assert.strictEqual(inst.proxyForUrl(url, {}), null);
+    assert.strictEqual(inst.proxyForUrl(url, { HTTP_PROXY: "http://a:1" }).proxy.display, "a:1");
+    assert.strictEqual(
+      inst.proxyForUrl(url, { HTTP_PROXY: "http://a:1", HTTPS_PROXY: "http://b:2" }).proxy.display,
+      "b:2"
+    );
+    assert.strictEqual(inst.proxyForUrl(url, { npm_config_https_proxy: "http://c:3" }).source, "npm_config_https_proxy");
+    assert.strictEqual(inst.proxyForUrl(url, { npm_config_proxy: "http://d:4" }).proxy.display, "d:4");
+    assert.strictEqual(inst.proxyForUrl(url, { HTTPS_PROXY: "   " }), null, "blank values are ignored");
+    assert.strictEqual(inst.proxyForUrl(url, { HTTPS_PROXY: "http://b:2", NO_PROXY: "github.com" }), null);
+    assert.throws(() => inst.proxyForUrl(url, { HTTPS_PROXY: "socks5://x:1" }), /HTTPS_PROXY/);
+  });
+
+  check("[proxy] NO_PROXY matching: *, leading dots, subdomains, ports, case", () => {
+    const by = inst.shouldBypassProxy;
+    assert(by("github.com", 443, "*"));
+    assert(by("github.com", 443, "github.com"));
+    assert(by("objects.github.com", 443, "github.com"), "a bare domain covers subdomains");
+    assert(by("objects.github.com", 443, ".github.com"));
+    assert(by("github.com", 443, ".github.com"), "a leading-dot domain also covers the apex");
+    assert(by("objects.github.com", 443, "*.github.com"));
+    assert(by("GitHub.COM", 443, "foo.org, GITHUB.com"));
+    assert(by("a.b.example.com", 443, "x.test example.com"));
+    assert(!by("notgithub.com", 443, "github.com"), "suffix match must respect the label boundary");
+    assert(!by("github.com", 443, ""));
+    assert(!by("github.com", 443, undefined));
+    assert(by("github.com", 443, "github.com:443"));
+    assert(!by("github.com", 443, "github.com:8443"));
+    assert(by("127.0.0.1", 443, "localhost,127.0.0.1"));
+  });
+
+  check("[proxy] the re-exec environment enables Node's env proxy for the Sigstore fetch", () => {
+    assert.strictEqual(inst.envForProxiedChild({}), null, "no proxy, no re-exec");
+    const env = inst.envForProxiedChild({ npm_config_https_proxy: "http://u:p@h:9", NO_PROXY: "x.test" });
+    assert.strictEqual(env.NODE_USE_ENV_PROXY, "1");
+    assert.strictEqual(env.HTTPS_PROXY, "http://u:p@h:9");
+    assert.strictEqual(env.https_proxy, "http://u:p@h:9");
+    assert.strictEqual(env.NO_PROXY, "x.test");
+    assert.strictEqual(inst.envForProxiedChild({ ...env }), null, "never re-exec twice");
+    assert.strictEqual(inst.envForProxiedChild({ NODE_USE_ENV_PROXY: "1", HTTPS_PROXY: "http://h:9" }), null);
+    assert.strictEqual(
+      inst.envForProxiedChild({ HTTPS_PROXY: "http://h:9", NO_PROXY: "*" }),
+      null,
+      "NO_PROXY=* means nothing is proxied, so there is nothing to enable"
+    );
+  });
+
+  // --------------------------------------------------- the CONNECT tunnel itself
+  async function withConnectProxy(handler, fn) {
+    const seen = [];
+    const server = http.createServer((req, res) => res.writeHead(400).end());
+    server.on("connect", (req, socket) => {
+      seen.push({ url: req.url, auth: req.headers["proxy-authorization"], host: req.headers.host });
+      handler(req, socket);
+    });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      await fn(server.address().port, seen);
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  }
+  const getVia = (agent, target) =>
+    new Promise((resolve, reject) => {
+      https.get(target, { agent, timeout: 5000 }, (res) => resolve(res)).on("error", reject);
+    });
+
+  await checkAsync("[proxy] https goes through a CONNECT tunnel with Basic auth and the target host", async () => {
+    await withConnectProxy(
+      (req, socket) => {
+        socket.end("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n");
+      },
+      async (port, seen) => {
+        const agent = new inst.ProxyTunnelAgent(inst.parseProxyUrl(`http://bob:hunter2@127.0.0.1:${port}`));
+        await assert.rejects(getVia(agent, "https://github.com/x"), (err) => {
+          assert.strictEqual(err.proxyStatus, 403);
+          assert(!/hunter2|bob/.test(err.message), `credentials leaked into the error: ${err.message}`);
+          return true;
+        });
+        agent.destroy();
+        assert.strictEqual(seen.length, 1);
+        assert.strictEqual(seen[0].url, "github.com:443");
+        assert.strictEqual(seen[0].auth, `Basic ${Buffer.from("bob:hunter2").toString("base64")}`);
+      }
+    );
+  });
+
+  await checkAsync("[proxy] a 407 names the fix; a 502 is retryable, a 403/407 is not", async () => {
+    await withConnectProxy(
+      (req, socket) => socket.end("HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n"),
+      async (port) => {
+        const agent = new inst.ProxyTunnelAgent(inst.parseProxyUrl(`http://127.0.0.1:${port}`));
+        const err = await getVia(agent, "https://github.com/x").then(() => null, (e) => e);
+        agent.destroy();
+        assert(err && /user:password/.test(err.message), err && err.message);
+        assert.strictEqual(inst.isTransientError(err), false);
+      }
+    );
+    await withConnectProxy(
+      (req, socket) => socket.end("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n"),
+      async (port) => {
+        const agent = new inst.ProxyTunnelAgent(inst.parseProxyUrl(`http://127.0.0.1:${port}`));
+        const err = await getVia(agent, "https://github.com/x").then(() => null, (e) => e);
+        agent.destroy();
+        assert.strictEqual(inst.isTransientError(err), true);
+      }
+    );
+  });
+
+  await checkAsync("[proxy] a dead proxy is reported by name and is a retryable network fault", async () => {
+    const agent = new inst.ProxyTunnelAgent(inst.parseProxyUrl("http://u:pw@127.0.0.1:9"));
+    const err = await getVia(agent, "https://github.com/x").then(() => null, (e) => e);
+    agent.destroy();
+    assert(err, "the request must fail");
+    assert(/proxy 127\.0\.0\.1:9/.test(err.message), err.message);
+    assert(!/pw/.test(err.message));
+    assert.strictEqual(inst.isTransientError(err), true, err.code || err.message);
+  });
+
+  await checkAsync("[proxy] the HTTPS-only rule still applies on the proxied path", async () => {
+    assert.throws(() => inst.assertHTTPS("http://github.com/x"), (e) => e.refusal === true);
+    assert.strictEqual(inst.isTransientError(Object.assign(new Error("x"), { refusal: true })), false);
+    assert.throws(
+      () => inst.assertAllowedRedirect("https://evil.example/x", inst.resolveTrustPolicy({})),
+      (e) => e.refusal === true && /unexpected host/.test(e.message)
+    );
+  });
+
+  // -------------------------------------------------------------- retry policy
+  check("[retry] the classifier retries transport faults and 408/429/5xx only", () => {
+    const t = inst.isTransientError;
+    for (const code of ["ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "EAI_AGAIN", "ENOTFOUND"]) {
+      assert(t(Object.assign(new Error("x"), { code })), code);
+    }
+    assert(t(new Error("socket hang up")));
+    assert(t(new Error("download timeout")));
+    assert(t(new Error("download was truncated: got 1 bytes, the origin declared 2")));
+    assert(t(new TypeError("fetch failed", { cause: Object.assign(new Error("c"), { code: "ECONNRESET" }) })));
+    for (const s of [408, 429, 500, 502, 503, 504]) {
+      assert(t(Object.assign(new Error(`HTTP ${s}`), { statusCode: s })), String(s));
+    }
+    for (const s of [400, 401, 403, 404, 410]) {
+      assert(!t(Object.assign(new Error(`HTTP ${s}`), { statusCode: s })), String(s));
+    }
+    assert(!t(null));
+    assert(!t(new Error("download exceeds the 268435456 byte limit")));
+    assert(!t(new Error("too many redirects")));
+  });
+
+  check("[retry] an integrity failure is never retried, whatever its message says", () => {
+    const t = inst.isTransientError;
+    assert(!t(Object.assign(new Error("checksum mismatch ... timeout"), { unverified: true })));
+    assert(!t(Object.assign(new Error("signature verification failed"), { unverified: true })));
+    assert(!t(Object.assign(new Error("ECONNRESET"), { refusal: true })));
+    assert(!t(Object.assign(new Error("refusing"), { trustConfig: true })));
+    assert(!t(Object.assign(new Error("EACCES"), { filesystem: true })));
+  });
+
+  check("[retry] backoff is ~1s, 3s, 9s with bounded jitter", () => {
+    const lo = [1, 2, 3].map((a) => inst.backoffDelayMs(a, () => 0, 1000));
+    const hi = [1, 2, 3].map((a) => inst.backoffDelayMs(a, () => 1, 1000));
+    assert.deepStrictEqual(lo, [800, 2400, 7200]);
+    assert.deepStrictEqual(hi, [1200, 3600, 10800]);
+    assert.strictEqual(inst.MAX_ATTEMPTS, 4);
+  });
+
+  await checkAsync("[retry] withRetry makes 4 attempts for a transient fault and rethrows the last", async () => {
+    let calls = 0;
+    const waits = [];
+    await assert.rejects(
+      inst.withRetry(
+        async () => {
+          calls += 1;
+          throw Object.assign(new Error(`reset ${calls}`), { code: "ECONNRESET" });
+        },
+        { sleep: async (ms) => waits.push(ms), delayFor: (a) => 1000 * 3 ** (a - 1) }
+      ),
+      /reset 4/
+    );
+    assert.strictEqual(calls, 4);
+    assert.deepStrictEqual(waits, [1000, 3000, 9000]);
+  });
+
+  await checkAsync("[retry] withRetry stops at once on an integrity or 404 failure, succeeds after a blip", async () => {
+    let calls = 0;
+    await assert.rejects(
+      inst.withRetry(async () => {
+        calls += 1;
+        throw Object.assign(new Error("digest mismatch"), { unverified: true });
+      }, { sleep: noSleep }),
+      /digest mismatch/
+    );
+    assert.strictEqual(calls, 1);
+    calls = 0;
+    await assert.rejects(
+      inst.withRetry(async () => {
+        calls += 1;
+        throw Object.assign(new Error("HTTP 404"), { statusCode: 404 });
+      }, { sleep: noSleep }),
+      /404/
+    );
+    assert.strictEqual(calls, 1);
+    calls = 0;
+    const value = await inst.withRetry(async () => {
+      calls += 1;
+      if (calls < 3) throw Object.assign(new Error("HTTP 503"), { statusCode: 503 });
+      return "ok";
+    }, { sleep: noSleep });
+    assert.strictEqual(value, "ok");
+    assert.strictEqual(calls, 3);
+  });
+
+  // ------------------------------------------------- exit-code policy (postinstall)
+  check("[exit] a network failure exits 0 from postinstall, 1 from the on-demand run", () => {
+    const net = Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
+    assert.strictEqual(inst.classifyInstallFailure(net), "network");
+    assert.strictEqual(inst.exitCodeForFailure(net), 0);
+    assert.strictEqual(inst.exitCodeForFailure(net, { lazy: true }), 1);
+    const gateway = Object.assign(new Error("HTTP 503"), { statusCode: 503 });
+    assert.strictEqual(inst.exitCodeForFailure(gateway), 0);
+    // A fetch of the signature bundle that never completed is network-class...
+    const bundleFetch = Object.assign(new Error("refusing to install x: the bundle could not be fetched (ECONNRESET)"), {
+      unverified: true,
+      network: true,
+    });
+    assert.strictEqual(inst.exitCodeForFailure(bundleFetch), 0);
+  });
+
+  check("[exit] integrity, redirect, missing release, config and filesystem failures exit 1", () => {
+    const cases = {
+      integrity: Object.assign(new Error("signature verification failed"), { unverified: true }),
+      integrity2: Object.assign(new Error("checksum mismatch"), { unverified: true }),
+      redirect: Object.assign(new Error("refusing redirect to unexpected host"), { refusal: true }),
+      mirror: Object.assign(new Error("mirror is not a trust anchor"), { trustConfig: true }),
+      missing: Object.assign(new Error("Download failed with status HTTP 404"), { statusCode: 404 }),
+      forbidden: Object.assign(new Error("HTTP 403"), { statusCode: 403 }),
+      fs: Object.assign(new Error("cannot prepare"), { filesystem: true }),
+      locked: Object.assign(new Error("in use"), { locked: true }),
+      plain: new Error("something else"),
+    };
+    for (const [name, err] of Object.entries(cases)) {
+      assert.strictEqual(inst.exitCodeForFailure(err), 1, name);
+      assert.notStrictEqual(inst.classifyInstallFailure(err), "network", name);
+    }
+    assert.strictEqual(inst.classifyInstallFailure(cases.missing), "unavailable");
+  });
+
+  const runInstallerChild = (env, extraEnv = {}) =>
+    new Promise((resolve) => {
+      const home = tempDir("litespm-w3-home-");
+      const child = spawn(process.execPath, [path.join(__dirname, "scripts", "install-binary.js")], {
+        cwd: __dirname,
+        env: {
+          ...process.env,
+          HOME: home,
+          USERPROFILE: home,
+          LITESPM_RETRY_BASE_MS: "5",
+          LITESPM_ALLOW_UNSIGNED_RELEASE: "",
+          LITESPM_ALLOW_LOCAL_DIST: "",
+          LITESPM_RELEASE_REPO: "",
+          HTTPS_PROXY: "",
+          HTTP_PROXY: "",
+          https_proxy: "",
+          http_proxy: "",
+          npm_config_https_proxy: "",
+          npm_config_proxy: "",
+          ...env,
+          ...extraEnv,
+        },
+      });
+      let out = "";
+      child.stdout.on("data", (d) => (out += d));
+      child.stderr.on("data", (d) => (out += d));
+      child.on("close", (status) => {
+        const left = fs.existsSync(path.join(home, ".litespm", "bin", `v${VERSION}`));
+        fs.rmSync(home, { recursive: true, force: true });
+        resolve({ status, out, leftDir: left });
+      });
+    });
+
+  await checkAsync("[exit] end to end: a dead proxy is used, retried, and postinstall still exits 0", async () => {
+    const res = await runInstallerChild({ HTTPS_PROXY: "http://sekret:pw@127.0.0.1:9" });
+    assert.strictEqual(res.status, 0, `exit ${res.status}:\n${res.out}`);
+    assert(/Using proxy 127\.0\.0\.1:9 /.test(res.out), `no proxy line:\n${res.out}`);
+    assert.strictEqual((res.out.match(/Using proxy/g) || []).length, 1, "the proxy line prints once");
+    assert(!/sekret|pw@|:pw/.test(res.out), `credentials leaked:\n${res.out}`);
+    assert(/Download attempt 3\/4 failed/.test(res.out), `no retries reported:\n${res.out}`);
+    assert(!/Download attempt 4\/4/.test(res.out), "only 3 retries follow the first attempt");
+    assert(/downloaded the first time you run `litespm`/.test(res.out), `no first-run notice:\n${res.out}`);
+    assert(!/Postinstall failed/.test(res.out) && !/INSTALL REFUSED/.test(res.out), res.out);
+    assert(!res.leftDir, "the empty versioned directory must be removed after a failed install");
+  });
+
+  await checkAsync("[exit] end to end: the on-demand run exits 1 on the same failure", async () => {
+    const res = await runInstallerChild(
+      { HTTPS_PROXY: "http://127.0.0.1:9" },
+      { LITESPM_INSTALL_MODE: "lazy" }
+    );
+    assert.strictEqual(res.status, 1, `exit ${res.status}:\n${res.out}`);
+    assert(/run `litespm` again/.test(res.out), res.out);
+  });
+
+  await checkAsync("[exit] end to end: a refused mirror exits 1 and reports once", async () => {
+    const res = await runInstallerChild({ LITESPM_RELEASE_REPO: "evil/mirror" });
+    assert.strictEqual(res.status, 1, res.out);
+    assert.strictEqual((res.out.match(/INSTALL REFUSED/g) || []).length, 1, res.out);
+    assert(!/Postinstall failed/.test(res.out), `the refusal was printed twice:\n${res.out}`);
+    assert(!res.leftDir);
+  });
+
+  await checkAsync("[exit] end to end: an unusable proxy setting exits 1 with the variable named", async () => {
+    const res = await runInstallerChild({ HTTPS_PROXY: "socks5://127.0.0.1:1080" });
+    assert.strictEqual(res.status, 1, res.out);
+    assert(/https?_proxy: .*cannot tunnel/i.test(res.out), res.out);
+  });
+
+  check("[exit] a missing release reads as a user message; maintainer wording needs LITESPM_DEBUG", () => {
+    const err = Object.assign(new Error("Download failed with status HTTP 404"), {
+      statusCode: 404,
+      context: { releaseUrl: "https://example.test/asset" },
+    });
+    const run = (debug) => {
+      const lines = [];
+      const real = console.error;
+      const realDebug = process.env.LITESPM_DEBUG;
+      console.error = (m) => lines.push(String(m));
+      if (debug) process.env.LITESPM_DEBUG = "1";
+      else delete process.env.LITESPM_DEBUG;
+      let code;
+      try {
+        code = inst.reportInstallFailure(err);
+      } finally {
+        console.error = real;
+        if (realDebug === undefined) delete process.env.LITESPM_DEBUG;
+        else process.env.LITESPM_DEBUG = realDebug;
+      }
+      return { code, text: lines.join("\n") };
+    };
+    const plain = run(false);
+    assert.strictEqual(plain.code, 1);
+    assert(/not been published yet|withdrawn/.test(plain.text) && /npm i -g litespm@/.test(plain.text), plain.text);
+    assert(!/push the v/.test(plain.text), `maintainer wording leaked:\n${plain.text}`);
+    assert(/push the v/.test(run(true).text), "the maintainer hint belongs behind LITESPM_DEBUG=1");
+  });
+
+  // ------------------------------------------------------------------- progress
+  check("[progress] a non-TTY stream gets at most four milestone lines, then the end line is silent", () => {
+    const lines = [];
+    const stream = { write: (s) => lines.push(s) };
+    const p = inst.makeDownloadProgress("Downloading", { stream, tty: false });
+    const total = 40 * 1024 * 1024;
+    for (let sent = 0; sent < total; ) {
+      sent = Math.min(total, sent + 64 * 1024);
+      p(sent, total);
+    }
+    p.end(total);
+    assert.strictEqual(lines.length, 4, lines.join(""));
+    assert(/25% \(10\.0 MB of 40\.0 MB\)/.test(lines[0]), lines[0]);
+    assert(/100% \(40\.0 MB of 40\.0 MB\)/.test(lines[3]), lines[3]);
+    assert(lines.every((l) => !l.includes("\r") && l.endsWith("\n")));
+  });
+
+  check("[progress] an unknown length prints one closing line; a TTY redraws on the given stream", () => {
+    const lines = [];
+    const p = inst.makeDownloadProgress("Downloading", { stream: { write: (s) => lines.push(s) }, tty: false });
+    p(1000, null);
+    p.end(5 * 1024 * 1024);
+    assert.strictEqual(lines.length, 1);
+    assert(/100% \(5\.0 MB\)/.test(lines[0]));
+    const tty = [];
+    const q = inst.makeDownloadProgress("Downloading", { stream: { write: (s) => tty.push(s), columns: 80 }, tty: true, columns: 80 });
+    q(512, 1024);
+    q(1024, 1024);
+    assert(tty.some((l) => l.includes("\r")), "a TTY gets carriage-return redraws");
+    assert(/Downloaded/.test(tty[tty.length - 1]));
+  });
+
+  // ----------------------------------------------------------------- robustness
+  check("[robust] temp file names are unique per call and carry the pid", () => {
+    const base = path.join(os.tmpdir(), "litespm-x");
+    const names = new Set();
+    for (let i = 0; i < 2000; i++) names.add(inst.tempPathFor(base));
+    assert.strictEqual(names.size, 2000, "two installers in the same millisecond must not collide");
+    for (const n of names) {
+      assert(n.startsWith(`${base}.tmp.${process.pid}.`), n);
+      assert(/\.tmp\.\d+\.[0-9a-f]{12}$/.test(n), n);
+    }
+  });
+
+  await checkAsync("[robust] a Windows file lock is retried with backoff, then explained", async () => {
+    const eperm = () => Object.assign(new Error("EPERM: operation not permitted"), { code: "EPERM" });
+    let calls = 0;
+    const waits = [];
+    await inst.renameWithRetry("a", "b", {
+      platform: "win32",
+      rename: () => {
+        calls += 1;
+        if (calls < 3) throw eperm();
+      },
+      sleep: async (ms) => waits.push(ms),
+    });
+    assert.strictEqual(calls, 3);
+    assert.deepStrictEqual(waits, [100, 200]);
+
+    calls = 0;
+    const err = await inst
+      .renameWithRetry("a", "C:\\x\\litespm.exe", {
+        platform: "win32",
+        rename: () => {
+          calls += 1;
+          throw Object.assign(new Error("EBUSY"), { code: "EBUSY" });
+        },
+        sleep: noSleep,
+      })
+      .then(() => null, (e) => e);
+    assert.strictEqual(calls, 5, "five attempts");
+    assert(err && err.locked === true && /in use/.test(err.message) && /daemon/.test(err.message), err && err.message);
+    assert.strictEqual(inst.exitCodeForFailure(err), 1);
+
+    calls = 0;
+    await assert.rejects(
+      inst.renameWithRetry("a", "b", {
+        platform: "linux",
+        rename: () => {
+          calls += 1;
+          throw eperm();
+        },
+        sleep: noSleep,
+      }),
+      /EPERM|permission|not permitted/i
+    );
+    assert.strictEqual(calls, 1, "off Windows a lock error is not retried");
+  });
+
+  check("[robust] ENOTDIR / EACCES on the home directory become an actionable message", () => {
+    const a = inst.describeFsError(Object.assign(new Error("ENOTDIR: not a directory, mkdir"), { code: "ENOTDIR" }), "~/.litespm/bin/v1");
+    assert(/is a file, not a directory/.test(a.message) && a.filesystem === true, a.message);
+    const b = inst.describeFsError(Object.assign(new Error("EACCES"), { code: "EACCES", syscall: "mkdir", path: "/x" }), "/x");
+    assert(/permission denied/.test(b.message) && /sudo/.test(b.message), b.message);
+    const net = Object.assign(new Error("connect EACCES"), { code: "EACCES", syscall: "connect" });
+    assert.strictEqual(inst.describeFsError(net, "x"), net, "a socket EACCES is not a file problem");
+    assert.strictEqual(inst.exitCodeForFailure(a), 1);
+  });
+
+  check("[robust] the chunked hash equals the whole-buffer hash (including >1 MiB and empty files)", () => {
+    const dir = tempDir("litespm-hash-");
+    try {
+      for (const size of [0, 1, (1 << 20) - 1, 1 << 20, (1 << 20) + 7, 3 * (1 << 20) + 11]) {
+        const file = path.join(dir, `f${size}`);
+        const data = crypto.randomBytes(size);
+        fs.writeFileSync(file, data);
+        assert.strictEqual(
+          computeFileSHA256(file),
+          crypto.createHash("sha256").update(data).digest("hex"),
+          `size ${size}`
+        );
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  await checkAsync("[shim] the first-run installer is told it is lazy, and its failure fails the shim", async () => {
+    const pkg = tempDir("litespm-shim-lazy-");
+    const home = tempDir("litespm-shim-lazy-home-");
+    try {
+      fs.mkdirSync(path.join(pkg, "bin"), { recursive: true });
+      fs.mkdirSync(path.join(pkg, "scripts"), { recursive: true });
+      fs.copyFileSync(path.join(__dirname, "bin", "litespm.js"), path.join(pkg, "bin", "litespm.js"));
+      fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "x", version: "9.9.9" }));
+      fs.writeFileSync(
+        path.join(pkg, "scripts", "install-binary.js"),
+        'console.error("MODE=" + process.env.LITESPM_INSTALL_MODE); process.exit(1);'
+      );
+      const res = spawnSync(process.execPath, [path.join(pkg, "bin", "litespm.js")], {
+        encoding: "utf8",
+        env: { ...process.env, HOME: home, USERPROFILE: home },
+      });
+      assert.strictEqual(res.stdout, "");
+      assert.match(res.stderr, /MODE=lazy/);
+      assert.match(res.stderr, /downloading it now/);
+      assert.match(res.stderr, /exit code 1; the native binary is not installed/);
+      assert.strictEqual(res.status, 1);
+    } finally {
+      fs.rmSync(pkg, { recursive: true, force: true });
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+}
+
 async function main() {
+  await w3Cases();
   const binName = getBinaryName();
   const tmp = tempDir("litespm-npm-test-");
   const binaryPath = path.join(tmp, binName);
@@ -868,13 +1392,31 @@ async function realArtifactCases(tmp, binName) {
   }
 
   const base = (v) => `https://github.com/${DEFAULT_RELEASE_REPO}/releases/download/v${v}`;
+  // LITESPM_TEST_RELEASE_DIR points at the release-assets directory the
+  // release workflow has just built and cosign-signed. The release is still a
+  // DRAFT at this point (draft assets are not publicly downloadable), so the
+  // assets of THIS version are read from disk: the signatures are the real
+  // keyless ones, and verification still runs against the real Sigstore trust
+  // root. Other versions (the wrong-identity case) are still fetched publicly.
+  const localDir = process.env.LITESPM_TEST_RELEASE_DIR || "";
+  const assetText = async (version, name) =>
+    localDir && version === VERSION
+      ? fs.readFileSync(path.join(localDir, name), "utf8")
+      : fetchText(`${base(version)}/${name}`);
+  const assetFile = async (version, name, filename) => {
+    if (!(localDir && version === VERSION)) return fetchFixture(`${base(version)}/${name}`, filename);
+    fs.mkdirSync(FIXTURE_DIR, { recursive: true });
+    const dest = path.join(FIXTURE_DIR, filename);
+    fs.copyFileSync(path.join(localDir, name), dest);
+    return dest;
+  };
   let bundleText;
   let binaryPath;
   let sumsText;
   try {
-    bundleText = await fetchText(`${base(VERSION)}/${binName}${BUNDLE_SUFFIX}`);
-    binaryPath = await fetchFixture(`${base(VERSION)}/${binName}`, `v${VERSION}-${binName}`);
-    sumsText = await fetchText(`${base(VERSION)}/SHA256SUMS.txt`);
+    bundleText = await assetText(VERSION, `${binName}${BUNDLE_SUFFIX}`);
+    binaryPath = await assetFile(VERSION, binName, `v${VERSION}-${binName}`);
+    sumsText = await assetText(VERSION, "SHA256SUMS.txt");
   } catch (err) {
     if (process.env.LITESPM_TEST_REQUIRE_RELEASE === "1") {
       throw new Error(`required real release fixtures are unavailable (${err.message})`);
@@ -947,7 +1489,7 @@ async function realArtifactCases(tmp, binName) {
       // certificate is genuine, the signature is genuine, the transparency-log
       // entry is genuine — it is simply not over these bytes.
       const other = binName.includes("darwin") ? "litespm-linux-amd64" : "litespm-darwin-amd64";
-      const otherBundle = await fetchText(`${base(VERSION)}/${other}${BUNDLE_SUFFIX}`);
+      const otherBundle = await assetText(VERSION, `${other}${BUNDLE_SUFFIX}`);
       await verifyBundleAgainstPolicy(
         otherBundle,
         fs.readFileSync(binaryPath),
@@ -970,11 +1512,8 @@ async function realArtifactCases(tmp, binName) {
       // signer is wrong — which is exactly what "any valid signature" would
       // have accepted.
       const otherVersion = "0.4.0";
-      const otherBundle = await fetchText(`${base(otherVersion)}/${binName}${BUNDLE_SUFFIX}`);
-      const otherBinary = await fetchFixture(
-        `${base(otherVersion)}/${binName}`,
-        `v${otherVersion}-${binName}`
-      );
+      const otherBundle = await assetText(otherVersion, `${binName}${BUNDLE_SUFFIX}`);
+      const otherBinary = await assetFile(otherVersion, binName, `v${otherVersion}-${binName}`);
       const policy = resolveTrustPolicy({});
       assert.strictEqual(policy.identity, PINNED_IDENTITY);
       await verifyBundleAgainstPolicy(otherBundle, fs.readFileSync(otherBinary), policy);

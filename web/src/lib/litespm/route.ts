@@ -29,6 +29,7 @@ export type Route =
   | { view: "docs"; section: string }
   | { view: "publish" }
   | { view: "insights" }
+  | { view: "bundles" }
   | { view: "compare"; keys: string[] };
 
 /**
@@ -159,6 +160,10 @@ export function parsePath(fullPath: string, searchStr: string = ""): Route {
 
   if (parts[0] === "publish") {
     return { view: "publish" };
+  }
+
+  if (parts[0] === "bundles") {
+    return { view: "bundles" };
   }
 
   if (parts[0] === "insights") {

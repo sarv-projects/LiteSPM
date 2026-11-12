@@ -167,6 +167,9 @@ export function RankExplainer({ className }: { className?: string }) {
         className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-[min(340px,85vw)] -translate-x-1/2 rounded-lg border border-border/70 bg-popover p-3 text-left text-[11.5px] leading-relaxed text-popover-foreground shadow-xl group-hover:block group-focus:block"
       >
         {RANK_EXPLAINER}
+        <span className="mt-1.5 block font-medium text-foreground">
+          Full method: Docs, “How we rank and label” (/docs/methodology).
+        </span>
       </span>
     </span>
   );

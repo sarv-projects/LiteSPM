@@ -4,7 +4,9 @@ import { cache } from "react";
 
 import { LiteSPMApp } from "@/components/litespm/app";
 import { parsePath } from "@/lib/litespm/route";
+import { displayPackageName } from "@/lib/litespm/format";
 import facts from "@/lib/litespm/site-facts.json";
+import type { PackageDetailData } from "@/lib/litespm/types";
 import { getPackageDetail } from "@/server/litespm/package-detail";
 
 interface Props {
@@ -25,6 +27,7 @@ const KNOWN_SECTIONS = new Set([
   "docs",
   "publish",
   "insights",
+  "bundles",
   "compare",
 ]);
 
@@ -56,7 +59,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     try {
       const resp = await packageDetail(key);
       if (resp.found && resp.detail) {
-        const title = `${resp.detail.name} — LiteSPM`;
+        const title = `${displayPackageName(resp.detail.name)} — LiteSPM`;
         const description =
           resp.detail.summary ||
           `Install ${resp.detail.name} into supported AI agent hosts with LiteSPM.`;
@@ -109,8 +112,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     case "docs":
       return pageMeta(
         "Documentation · LiteSPM",
-        "Install, command reference, the in-agent marketplace, agent compatibility, security model and troubleshooting.",
+        "Install, command reference, the in-agent marketplace, agent compatibility, security model, how we rank and label listings, and troubleshooting.",
         slug.length > 1 ? `/docs/${encodeURIComponent(slug[1]!)}` : "/docs",
+      );
+    case "bundles":
+      return pageMeta(
+        "Bundles — curated MCP servers and skills · LiteSPM",
+        "Curated sets of MCP servers and skills for common jobs, each with a difficulty level and one litespm install command per item. Every item is installable.",
+        "/bundles",
       );
     case "publish":
       return pageMeta(
@@ -137,10 +146,17 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
   if (section && !KNOWN_SECTIONS.has(section)) notFound();
   if ((section === "package" || section === "agent") && (slug?.length ?? 0) < 2) notFound();
 
+  let packageInitial: PackageDetailData | undefined;
   if (section === "package" && slug && slug.length > 1) {
     // An unknown package key is a 404 for crawlers and link-checkers too.
     const resp = await packageDetail(slug.slice(1).join("/")).catch(() => null);
     if (resp && !resp.found) notFound();
+    // Hand the row to the client so the first HTML holds the page itself,
+    // not a skeleton waiting for /api/litespm/package. The JSON round trip
+    // hands over exactly what that API route would have serialized.
+    if (resp?.found && resp.detail) {
+      packageInitial = JSON.parse(JSON.stringify(resp.detail)) as PackageDetailData;
+    }
   }
 
   // Resolve the route on the server so the first response is the right page.
@@ -150,5 +166,5 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
     else if (Array.isArray(value) && value[0] !== undefined) query.set(key, value[0]);
   }
   const initialRoute = parsePath(`/${(slug ?? []).join("/")}`, query.toString());
-  return <LiteSPMApp initialRoute={initialRoute} />;
+  return <LiteSPMApp initialRoute={initialRoute} initialPackage={packageInitial} />;
 }

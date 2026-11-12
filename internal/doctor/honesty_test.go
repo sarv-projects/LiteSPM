@@ -213,6 +213,25 @@ func TestDoctor_DirectoriesCheckIsReadOnly(t *testing.T) {
 	}
 }
 
+// A pristine machine has no CONFIG_ROOT or RUNTIME_ROOT yet: LiteSPM creates
+// them on first use, so their absence must not fail the check.
+func TestDoctor_LazyRootsMissingIsNotAFailure(t *testing.T) {
+	engine, _, paths := newTestEngine(t)
+	for _, p := range []string{paths.ConfigRoot, paths.RuntimeRoot} {
+		if p == "" || p == paths.DataRoot || strings.HasPrefix(paths.DataRoot, p) {
+			t.Skipf("root %q overlaps DATA_ROOT in this layout", p)
+		}
+		_ = os.RemoveAll(p)
+	}
+	got := engine.checkDirectories()
+	if got.Status != StatusPass {
+		t.Fatalf("lazy roots missing: expected pass, got %s (%s)", got.Status, got.Message)
+	}
+	if !strings.Contains(got.Message, "first use") {
+		t.Errorf("message should say they are created on first use: %q", got.Message)
+	}
+}
+
 // The database check must read journal_mode back rather than asserting WAL in
 // the pass message.
 func TestDoctor_DBCheckMeasuresJournalMode(t *testing.T) {

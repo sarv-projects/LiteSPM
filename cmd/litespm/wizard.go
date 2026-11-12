@@ -1585,7 +1585,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		agents, aerr := skillAgentsFromPlan(grant.Plan)
 		if aerr != nil {
 			grant.refund(grantCtx, db)
-			fmt.Fprintf(w.out, "Install failed: %v\n", aerr)
+			printInstallFailure(w.out, aerr)
 			fmt.Fprintln(w.out, "Nothing was changed.")
 			return nil
 		}
@@ -1593,7 +1593,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 			listing, versionOrLatest(""), scope, agents, grant.Plan)
 		if ierr != nil {
 			grant.refund(grantCtx, db)
-			fmt.Fprintf(w.out, "Install failed: %v\n", ierr)
+			printInstallFailure(w.out, ierr)
 			fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 			return nil
 		}
@@ -1614,7 +1614,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		pluginBinding, berr := pluginInstallBindingFromPlan(grantCtx, grant.Plan, listing, scope)
 		if berr != nil {
 			grant.refund(grantCtx, db)
-			fmt.Fprintf(w.out, "Install failed: %v\n", berr)
+			printInstallFailure(w.out, berr)
 			fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 			return nil
 		}
@@ -1646,14 +1646,14 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 				partialPlan, pberr := pluginInstallBindingFromPlan(partialCtx, partialGrant.Plan, listing, scope)
 				if pberr != nil {
 					partialGrant.refund(partialCtx, db)
-					fmt.Fprintf(w.out, "Install failed: %v\n", pberr)
+					printInstallFailure(w.out, pberr)
 					fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 					return nil
 				}
 				outcome, ierr = installPluginFromListing(partialCtx, db, w.paths.DataRoot, listing, partialGrant.Version, scope, projectRoot, partialPlan)
 				if ierr != nil {
 					partialGrant.refund(partialCtx, db)
-					fmt.Fprintf(w.out, "Install failed: %v\n", ierr)
+					printInstallFailure(w.out, ierr)
 					fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 					return nil
 				}
@@ -1661,7 +1661,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 				return nil
 			}
 			grant.refund(grantCtx, db)
-			fmt.Fprintf(w.out, "Install failed: %v\n", ierr)
+			printInstallFailure(w.out, ierr)
 			fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 			return nil
 		}
@@ -1672,7 +1672,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 	plannedBinding, berr := mcpInstallBindingFromPlan(grantCtx, grant.Plan, listing, scope)
 	if berr != nil {
 		grant.refund(grantCtx, db)
-		fmt.Fprintf(w.out, "Install failed: %v\n", berr)
+		printInstallFailure(w.out, berr)
 		fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 		return nil
 	}
@@ -1680,7 +1680,7 @@ func (w *Wizard) actionFindAndInstall(ctx context.Context, db *state.DB) error {
 		plannedBinding.Hosts, plannedBinding.Force, plannedBinding.Runtime, plannedBinding.EnvNames)
 	if ierr != nil {
 		grant.refund(grantCtx, db)
-		fmt.Fprintf(w.out, "Install failed: %v\n", ierr)
+		printInstallFailure(w.out, ierr)
 		fmt.Fprintln(w.out, "Nothing was left behind: any partial write was rolled back.")
 		return nil
 	}

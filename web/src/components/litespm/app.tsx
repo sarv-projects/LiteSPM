@@ -8,6 +8,7 @@ import { GitCompareArrows, X } from "lucide-react";
 import dynamic from "next/dynamic";
 
 import { useApp, compareHash, type Route } from "@/lib/litespm/router";
+import type { PackageDetailData } from "@/lib/litespm/types";
 import { Header, AnnouncementBar } from "./header";
 import { Footer } from "./footer";
 import { HomeView } from "./views/home";
@@ -26,6 +27,7 @@ const AgentDetailView = dynamic(() => import("./views/agent-detail").then((m) =>
 const DocsView = dynamic(() => import("./views/docs").then((m) => m.DocsView), { loading: viewLoading });
 const PublishView = dynamic(() => import("./views/publish").then((m) => m.PublishView), { loading: viewLoading });
 const InsightsView = dynamic(() => import("./views/insights").then((m) => m.InsightsView), { loading: viewLoading });
+const BundlesView = dynamic(() => import("./views/bundles").then((m) => m.BundlesView), { loading: viewLoading });
 const CompareView = dynamic(() => import("./views/compare").then((m) => m.CompareView), { loading: viewLoading });
 const Assistant = dynamic(() => import("./assistant").then((m) => m.Assistant), { ssr: false });
 const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette), { ssr: false });
@@ -74,6 +76,8 @@ function titleFor(route: ReturnType<typeof useApp.getState>["route"]): string {
       return "Publish - LiteSPM";
     case "insights":
       return "Insights - LiteSPM";
+    case "bundles":
+      return "Bundles - LiteSPM";
     case "compare":
       return "Compare - LiteSPM";
     case "notfound":
@@ -155,7 +159,14 @@ function CompareTray() {
  * already holds the right page (it used to be Home for every URL). Until the
  * client has synced from `location`, render that; afterwards the store owns it.
  */
-export function LiteSPMApp({ initialRoute }: { initialRoute?: Route }) {
+export function LiteSPMApp({
+  initialRoute,
+  initialPackage,
+}: {
+  initialRoute?: Route;
+  /** The package row the server already resolved for a /package/<key> URL. */
+  initialPackage?: PackageDetailData;
+}) {
   const storeRoute = useApp((s) => s.route);
   const [synced, setSynced] = React.useState(false);
   const route = synced || !initialRoute ? storeRoute : initialRoute;
@@ -229,12 +240,21 @@ export function LiteSPMApp({ initialRoute }: { initialRoute?: Route }) {
             <MarketplaceView tab={route.tab} query={route.query} />
           )}
           {route.view === "notfound" && <NotFoundView path={route.path} />}
-          {route.view === "package" && <PackageView linkKey={route.key} />}
+          {route.view === "package" && (
+            <PackageView
+              linkKey={route.key}
+              // Only for the URL the server resolved; later in-app navigation fetches.
+              initial={
+                initialRoute?.view === "package" && initialRoute.key === route.key ? initialPackage : undefined
+              }
+            />
+          )}
           {route.view === "agents" && <AgentsView />}
           {route.view === "agent" && <AgentDetailView id={route.id} />}
           {route.view === "docs" && <DocsView section={route.section} />}
           {route.view === "publish" && <PublishView />}
           {route.view === "insights" && <InsightsView />}
+          {route.view === "bundles" && <BundlesView />}
           {route.view === "compare" && <CompareView keys={route.keys} />}
         </motion.main>
         <Footer />

@@ -49,14 +49,37 @@ import { InstallBar } from "../install-bar";
 import { AvailabilityBadge, FactRow, KindBadge } from "../primitives";
 import { RankBadge, RankExplainer } from "../rank-badge";
 import { TargetAgentPicker } from "../target-agent-picker";
+import { CheckItWorks, InstallSection } from "./package-install";
+import {
+  SourceDocSection,
+  relativeTime,
+  useSourceDocs,
+  type SourceDocsState,
+} from "./package-source-docs";
 
-export function PackageView({ linkKey }: { linkKey: string }) {
+export function PackageView({ linkKey, initial }: { linkKey: string; initial?: PackageDetailData }) {
   const navigate = useApp((s) => s.navigate);
-  const [data, setData] = React.useState<PackageDetailData | null>(null);
-  const [state, setState] = React.useState<"loading" | "found" | "missing">("loading");
+  const [data, setData] = React.useState<PackageDetailData | null>(initial ?? null);
+  const [state, setState] = React.useState<"loading" | "found" | "missing">(initial ? "found" : "loading");
 
   React.useEffect(() => {
     let cancelled = false;
+    const onFound = (detail: PackageDetailData) => {
+      document.title = `${displayPackageName(detail.name)} — LiteSPM`;
+      recordView({ linkKey: detail.linkKey, name: detail.name, kind: detail.kind });
+      fetch("/api/litespm/view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ linkKey: detail.linkKey, kind: detail.kind, name: detail.name }),
+      }).catch(() => {});
+    };
+    // The server already rendered this row: record the view, skip the fetch.
+    if (initial) {
+      setData(initial);
+      setState("found");
+      onFound(initial);
+      return;
+    }
     setState("loading");
     fetch(`/api/litespm/package/${encodeURIComponent(linkKey)}`)
       .then((r) => (r.status === 404 ? null : r.json()))
@@ -65,21 +88,7 @@ export function PackageView({ linkKey }: { linkKey: string }) {
         if (response?.found && response.detail) {
           setData(response.detail);
           setState("found");
-          document.title = `${displayPackageName(response.detail.name)} — LiteSPM`;
-          recordView({
-            linkKey: response.detail.linkKey,
-            name: response.detail.name,
-            kind: response.detail.kind,
-          });
-          fetch("/api/litespm/view", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              linkKey: response.detail.linkKey,
-              kind: response.detail.kind,
-              name: response.detail.name,
-            }),
-          }).catch(() => {});
+          onFound(response.detail);
         } else {
           setState("missing");
         }
@@ -88,7 +97,7 @@ export function PackageView({ linkKey }: { linkKey: string }) {
     return () => {
       cancelled = true;
     };
-  }, [linkKey]);
+  }, [linkKey, initial]);
 
   if (state === "loading") {
     return (
@@ -129,7 +138,10 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
     ? "claude-code"
     : (data.installTargets[0]?.id ?? "claude-code");
   const [host, setHost] = React.useState<string>(defaultHost);
-  const [selectedHostId, setSelectedHostId] = React.useState<string>("claude-code");
+  // null follows the CLI tab's target agent; a pick in the Manual tab overrides it.
+  const [selectedHostId, setSelectedHostId] = React.useState<string | null>(null);
+  const sourceDocs = useSourceDocs(data.linkKey);
+  const [showAllHosts, setShowAllHosts] = React.useState(false);
   React.useEffect(() => setHost(defaultHost), [defaultHost]);
 
   const watched = isWatched(data.linkKey);
@@ -333,103 +345,32 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
         </div>
       )}
 
-      {/* Installation Panel */}
-      <div className="mt-7 rounded-2xl border border-border/70 bg-card p-5">
-        {data.installable ? (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="flex items-center gap-2 text-[15px] font-semibold">
-                <Terminal className="h-4 w-4 text-brand" /> Install
-              </h2>
-              <div className="flex flex-wrap items-center gap-2.5">
-                {cursorInstallUri && (
-                  <a
-                    href={cursorInstallUri}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand/40 bg-brand-soft px-3 text-[12px] font-semibold text-brand transition-colors hover:bg-brand/20 shadow-xs"
-                    title="Install directly into Cursor with 1-click URI protocol handler"
-                  >
-                    <Zap className="h-3.5 w-3.5 fill-current" />
-                    <span>Install in Cursor</span>
-                  </a>
-                )}
-                <label className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                  Target agent
-                  <TargetAgentPicker
-                    targets={data.installTargets}
-                    value={host}
-                    onChange={setHost}
-                    kindLabel={targetKindLabel}
-                  />
-                </label>
-              </div>
-            </div>
-            <div className="mt-3.5">
-              <InstallBar command={installCommand!} />
-            </div>
-            <p className="mt-2.5 text-[12px] leading-relaxed text-muted-foreground">
-              Writes <span className="font-mono text-[11px]">{host}</span>&apos;s own config —
-              previewed, backed up, and recorded in the ledger. Works with{" "}
-              {data.installTargets.length} {targetKindLabel}
-              {data.kind === "mcp" && data.availability.id === "remote"
-                ? ` (remote entries are accepted by ${data.installTargets.length} hosts)`
-                : ""}
-            </p>
-            {data.kind === "mcp" && data.availability.id === "local" && data.command && (
-              <p className="mt-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 font-mono text-[11.5px] text-muted-foreground">
-                Local launch: {[data.command, ...(data.args ?? [])].join(" ")}
-              </p>
-            )}
-            {data.installHint && data.installHint.trim() !== installCommand?.trim() && (
-              <p className="mt-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 font-mono text-[11.5px] text-muted-foreground">
-                <span className="font-sans text-muted-foreground/80">Or straight from the source repository: </span>
-                {data.installHint}
-              </p>
-            )}
-          </>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              <h2 className="text-[15px] font-semibold text-foreground">
-                {data.kind === "plugin" && data.pluginSpec?.pinningStatus === "unpinned"
-                  ? "Installation Paused: Version-Pinned Source Required"
-                  : "Installation Not Available"}
-              </h2>
-            </div>
-            <p className="text-[13px] leading-relaxed text-muted-foreground">
-              {data.availability.plain}
-              {data.kind === "plugin" && data.pluginSpec?.pinningStatus === "unpinned"
-                ? " LiteSPM refuses an unpinned branch ref or local directory rather than installing content that can change under the approval."
-                : ""}
-            </p>
+      <div className="mt-7 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="min-w-0 space-y-6">
+      <InstallSection
+        data={data}
+        host={host}
+        setHost={setHost}
+        installCommand={installCommand}
+        cursorInstallUri={cursorInstallUri}
+        targetKindLabel={targetKindLabel}
+        selectedHostId={selectedHostId}
+        setSelectedHostId={setSelectedHostId}
+      />
 
-            {data.pluginSpec?.remediation?.isBlocked && (
-              <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4 text-[12px] leading-relaxed">
-                <p className="font-semibold text-foreground">
-                  {data.pluginSpec.remediation.isBlocked
-                    ? "This plugin cannot be installed yet"
-                    : "How to install this plugin"}
-                </p>
-                <p className="mt-1 text-muted-foreground">{data.pluginSpec.remediation.reason}</p>
-                {data.pluginSpec.remediation.userCliBypass && (
-                  <div className="mt-2">
-                    <InstallBar command={data.pluginSpec.remediation.userCliBypass} />
-                  </div>
-                )}
-                <div className="mt-3 text-[11.5px] text-muted-foreground">
-                  <strong>For package maintainers:</strong> {data.pluginSpec.remediation.publisherAction}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <SourceDocSection
+        state={sourceDocs}
+        kind={data.kind}
+        fallbackSourceUrl={data.skillSource ?? data.repoUrl ?? null}
+      />
+
+      <CheckItWorks data={data} host={host} />
 
       {/* =========================================================================
           TYPE-SPECIFIC SECTION 1: MCP SERVER EXPERIENCE
           ========================================================================= */}
       {data.kind === "mcp" && data.mcpSpec && (
-        <div className="mt-8 space-y-6">
+        <div className="space-y-6">
           {/* Permissions & Scopes Card */}
           <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="perms-title">
             <div className="flex items-center justify-between">
@@ -507,23 +448,24 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                 </div>
               </div>
             ) : (
-              <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand">
-                    <Shield className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-[13px] font-semibold text-foreground">
-                      Dynamic Runtime Permission Model
-                    </h3>
-                    <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                      This MCP server advertises capabilities dynamically during the MCP protocol handshake. Permission scopes and tool executions are inspected and approved by your agent host (e.g. Cursor, Claude Code, Cline) at runtime when individual actions are requested.
-                    </p>
-                  </div>
+              <div className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+                <p>
+                  This server advertises its tools dynamically during the MCP handshake (<code className="font-mono text-brand">tools/list</code>),
+                  so the catalog declares no tool list. Your agent host shows each tool and asks for approval
+                  at runtime.
+                </p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <span className="rounded bg-muted/80 px-2 py-0.5 font-mono text-[11px] text-foreground/80">
+                    Transport: {data.transport || (data.command ? "stdio" : "unknown")}
+                  </span>
+                  {data.url && (
+                    <span className="max-w-full truncate rounded bg-muted/80 px-2 py-0.5 font-mono text-[11px] text-foreground/80">
+                      Endpoint: {data.url}
+                    </span>
+                  )}
                 </div>
               </div>
-            )}
-          </section>
+            )}          </section>
 
           {/* Connection & Required Env Vars */}
           {data.mcpSpec.envVars.length > 0 && (
@@ -567,14 +509,13 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             </section>
           )}
 
-          {/* Functions & Tools Catalog */}
+          {/* Functions & Tools Catalog: only when the catalog declares tools */}
+          {data.mcpSpec.hasDeclaredTools && data.mcpSpec.functions.length > 0 && (
           <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="tools-title">
             <h2 id="tools-title" className="flex items-center gap-2 text-[15px] font-semibold">
-              <Code2 className="h-4 w-4 text-brand" /> Tools & Capabilities {data.mcpSpec.hasDeclaredTools ? `(${data.mcpSpec.functions.length})` : ""}
+              <Code2 className="h-4 w-4 text-brand" /> Tools & Capabilities ({data.mcpSpec.functions.length})
             </h2>
-            {data.mcpSpec.hasDeclaredTools && data.mcpSpec.functions.length > 0 ? (
-              <>
-                <p className="mt-1 text-[12.5px] text-muted-foreground">
+            <>                <p className="mt-1 text-[12.5px] text-muted-foreground">
                   Declared inventory of MCP tools exposed to your agent:
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -606,131 +547,6 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                   ))}
                 </div>
               </>
-            ) : (
-              <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-4">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 rounded-lg bg-brand/10 p-2 text-brand">
-                    <Terminal className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-[13px] font-semibold text-foreground">
-                      Runtime Tool Discovery (MCP Protocol)
-                    </h3>
-                    <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                      This server exposes its tools dynamically via the Model Context Protocol (<code className="font-mono text-brand">tools/list</code>). Tool schemas, parameter definitions, and descriptions are inspected automatically when your agent connects.
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px] text-muted-foreground">
-                      <span className="font-mono text-[11px] rounded bg-muted/80 px-2 py-0.5 text-foreground/80">
-                        Transport: {data.transport || (data.command ? "stdio" : "unknown")}
-                      </span>
-                      {data.url && (
-                        <span className="font-mono text-[11px] rounded bg-muted/80 px-2 py-0.5 text-foreground/80 truncate max-w-[340px]">
-                          Endpoint: {data.url}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* Host Configuration Preview */}
-          {data.mcpSpec.hostConfigs.length > 0 && (
-          <section className="rounded-2xl border border-border/80 bg-card p-5" aria-labelledby="hostconfig-title">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 id="hostconfig-title" className="flex items-center gap-2 text-[15px] font-semibold">
-                  <Server className="h-4 w-4 text-brand" /> Host Configuration Preview
-                </h2>
-                <p className="mt-1 text-[12.5px] text-muted-foreground">
-                  Local entries are shown in the host&apos;s own shape. Remote entries are generated by
-                  the host adapter at install time; this page does not guess the URL spelling.
-                </p>
-              </div>
-
-              {/* Dropdown with the hosts this row can target */}
-              <div className="relative shrink-0">
-                <select
-                  id="host-config-selector"
-                  aria-label="Target agent host configuration"
-                  value={selectedHostId}
-                  onChange={(e) => setSelectedHostId(e.target.value)}
-                  className="h-9 w-full sm:w-[260px] appearance-none rounded-lg border border-border/80 bg-card px-3 pr-8 text-[12px] font-medium text-foreground outline-none transition-colors hover:border-brand/50 focus:border-brand cursor-pointer"
-                >
-                  <optgroup label="Popular Hosts">
-                    {data.mcpSpec.hostConfigs.slice(0, 6).map((h) => (
-                      <option key={`pop-${h.id}`} value={h.id}>
-                        {h.name} ({h.format.toUpperCase()})
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label={`Compatible Hosts (${data.mcpSpec.hostConfigs.length})`}>
-                    {data.mcpSpec.hostConfigs.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.name} — {h.configPath}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              </div>
-            </div>
-
-            {/* Quick-select pills */}
-            <div className="mt-4 flex flex-wrap items-center gap-1.5 border-b border-border/60 pb-3">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-1">
-                Quick select:
-              </span>
-              {data.mcpSpec.hostConfigs.slice(0, 6).map((h) => {
-                const isActive = (selectedHostId || data.mcpSpec?.hostConfigs[0]?.id) === h.id;
-                return (
-                  <button
-                    key={h.id}
-                    type="button"
-                    onClick={() => setSelectedHostId(h.id)}
-                    className={`rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
-                      isActive
-                        ? "bg-brand-soft text-brand border border-brand/40"
-                        : "bg-muted/40 text-muted-foreground hover:bg-muted/80 hover:text-foreground border border-border/52"
-                    }`}
-                  >
-                    {h.name.replace(/ \(.*\)/, "").replace(/ CLI$/, "")}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Snippet box */}
-            {(() => {
-              const active =
-                data.mcpSpec.hostConfigs.find((h) => h.id === selectedHostId) ??
-                data.mcpSpec.hostConfigs[0];
-              if (!active) return null;
-              return (
-                <div className="mt-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-b-0 border-border/80 bg-muted/50 px-3.5 py-2 text-[12px]">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-foreground/90">{active.name}</span>
-                      <span className="text-muted-foreground">·</span>
-                      <code className="rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-                        {active.configPath}
-                      </code>
-                      <span className="rounded bg-brand-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-brand">
-                        {active.format}
-                      </span>
-                    </div>
-                    <CopyButton value={active.snippet} label="Copy snippet" />
-                  </div>
-
-                  <div className="relative rounded-b-xl border border-border/80 bg-muted/30 p-4 font-mono text-[11.5px]">
-                    <pre className="overflow-x-auto leading-relaxed text-foreground/90">
-                      {active.snippet}
-                    </pre>
-                  </div>
-                </div>
-              );
-            })()}
           </section>
           )}
         </div>
@@ -740,119 +556,107 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
           TYPE-SPECIFIC SECTION 2: SKILL EXPERIENCE
           ========================================================================= */}
       {data.kind === "skill" && data.skillSpec && (
-        <div className="mt-8 space-y-6">
-          {/* Interactive SKILL.md Inspector */}
-          <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="skill-title">
-            <div className="flex items-center justify-between">
-              <h2 id="skill-title" className="flex items-center gap-2 text-[15px] font-semibold">
-                <FileCode className="h-4 w-4 text-brand" /> Skill Specification & Instructions
-              </h2>
-              <span className="font-mono text-[11px] text-muted-foreground">
-                {data.skillSpec.versionFallback}
-              </span>
-            </div>
-            <p className="mt-1 text-[12.5px] text-muted-foreground">
-              Portable agent workflow. Inspect triggers, skip constraints, and instructions:
-            </p>
-
-            <Tabs defaultValue="triggers" className="mt-4">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1 bg-muted/40">
-                <TabsTrigger value="triggers" className="text-[12px]">Trigger Rules</TabsTrigger>
-                <TabsTrigger value="skips" className="text-[12px]">Skip Rules</TabsTrigger>
-                <TabsTrigger value="instructions" className="text-[12px]">Instructions</TabsTrigger>
-                <TabsTrigger value="files" className="text-[12px]">File Structure</TabsTrigger>
-              </TabsList>
-
-              {/* Triggers */}
-              <TabsContent value="triggers" className="mt-3">
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-4">
-                  <p className="flex items-center gap-2 text-[13px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <Zap className="h-4 w-4" /> Activation Conditions (When to read this skill)
-                  </p>
-                  <ul className="mt-2.5 space-y-2 text-[12.5px] leading-relaxed text-foreground/90">
-                    {data.skillSpec.triggerRules.length === 0 ? (
-                      <li className="text-muted-foreground">
-                        The publisher did not publish trigger rules for this skill. LiteSPM will not
-                        invent activation conditions; read the skill body before relying on it.
-                      </li>
-                    ) : (
-                      data.skillSpec.triggerRules.map((rule, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                          <span>{rule}</span>
-                        </li>
-                      ))
-                    )}
-                  </ul>
+        <div className="space-y-6">
+          {/* Catalog-declared skill rules. Tabs with nothing to show are not rendered. */}
+          {(() => {
+            const spec = data.skillSpec!;
+            const tabs: Array<{ id: string; label: string }> = [];
+            if (spec.triggerRules.length > 0) tabs.push({ id: "triggers", label: "Trigger Rules" });
+            if (spec.skipRules.length > 0) tabs.push({ id: "skips", label: "Skip Rules" });
+            if (spec.instructions.trim()) tabs.push({ id: "instructions", label: "Instructions" });
+            if (spec.fileTree.length > 0) tabs.push({ id: "files", label: "File Structure" });
+            if (tabs.length === 0) {
+              return (
+                <p className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3 text-[12.5px] leading-relaxed text-muted-foreground">
+                  The catalog publishes no trigger rules, skip rules, instruction body or file
+                  inventory for this skill, and LiteSPM does not invent them. The SKILL.md above is
+                  read live from the source.
+                </p>
+              );
+            }
+            return (
+              <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="skill-title">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 id="skill-title" className="flex items-center gap-2 text-[15px] font-semibold">
+                    <FileCode className="h-4 w-4 text-brand" /> Skill rules from the catalog
+                  </h2>
+                  <span className="font-mono text-[11px] text-muted-foreground">{spec.versionFallback}</span>
                 </div>
-              </TabsContent>
+                <Tabs defaultValue={tabs[0].id} className="mt-3">
+                  <TabsList className="h-auto w-full flex-wrap justify-start bg-muted/40 p-1">
+                    {tabs.map((t) => (
+                      <TabsTrigger key={t.id} value={t.id} className="flex-none px-3 text-[12px]">
+                        {t.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
 
-              {/* Skips */}
-              <TabsContent value="skips" className="mt-3">
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-4">
-                  <p className="flex items-center gap-2 text-[13px] font-semibold text-amber-600 dark:text-amber-400">
-                    <AlertTriangle className="h-4 w-4" /> Skip Rules (When agent should avoid triggering)
-                  </p>
-                  <ul className="mt-2.5 space-y-2 text-[12.5px] leading-relaxed text-foreground/90">
-                    {data.skillSpec.skipRules.length === 0 ? (
-                      <li className="text-muted-foreground">
-                        The publisher did not publish skip rules for this skill. LiteSPM will not
-                        invent them.
-                      </li>
-                    ) : (
-                      data.skillSpec.skipRules.map((rule, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                          <span>{rule}</span>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-              </TabsContent>
+                  {spec.triggerRules.length > 0 && (
+                    <TabsContent value="triggers" className="mt-2">
+                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-4">
+                        <p className="flex items-center gap-2 text-[13px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          <Zap className="h-4 w-4" /> Activation conditions (when to read this skill)
+                        </p>
+                        <ul className="mt-2.5 space-y-2 text-[12.5px] leading-relaxed text-foreground/90">
+                          {spec.triggerRules.map((rule, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                              <span>{rule}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </TabsContent>
+                  )}
 
-              {/* Instructions */}
-              <TabsContent value="instructions" className="mt-3">
-                <div className="relative rounded-xl border border-border/70 bg-muted/30 p-4 font-mono text-[12px] leading-relaxed text-foreground/90">
-                  <div className="absolute right-3 top-3">
-                    <CopyButton value={data.skillSpec.instructions} label="Copy prompt" />
-                  </div>
-                  <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap pr-16">
-                    {data.skillSpec.instructions ||
-                      "The catalog does not publish this skill's instruction body. Install it with `litespm skills add` and read SKILL.md before use."}
-                  </pre>
-                </div>
-              </TabsContent>
+                  {spec.skipRules.length > 0 && (
+                    <TabsContent value="skips" className="mt-2">
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-4">
+                        <p className="flex items-center gap-2 text-[13px] font-semibold text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="h-4 w-4" /> Skip rules (when the agent should avoid triggering)
+                        </p>
+                        <ul className="mt-2.5 space-y-2 text-[12.5px] leading-relaxed text-foreground/90">
+                          {spec.skipRules.map((rule, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                              <span>{rule}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </TabsContent>
+                  )}
 
-              {/* File Structure */}
-              <TabsContent value="files" className="mt-3">
-                <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
-                  <p className="flex items-center gap-2 text-[13px] font-semibold">
-                    <FolderTree className="h-4 w-4 text-brand" /> Skill Directory Layout
-                  </p>
-                  <div className="mt-3 space-y-2">
-                    {data.skillSpec.fileTree.length === 0 ? (
-                      <p className="text-[12px] text-muted-foreground">
-                        The catalog does not publish a file inventory for this skill. The installed
-                        tree is whatever its source repository contains.
-                      </p>
-                    ) : (
-                      data.skillSpec.fileTree.map((item) => (
-                        <div
-                          key={item.path}
-                          className="flex items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2 text-[12px]"
-                        >
-                          <span className="font-mono font-medium text-brand">{item.path}</span>
-                          <span className="text-muted-foreground">{item.description}</span>
+                  {spec.instructions.trim() && (
+                    <TabsContent value="instructions" className="mt-2">
+                      <div className="relative rounded-xl border border-border/70 bg-muted/30 p-4 font-mono text-[12px] leading-relaxed text-foreground/90">
+                        <div className="absolute right-3 top-3">
+                          <CopyButton value={spec.instructions} label="Copy prompt" />
                         </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </section>
+                        <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap pr-16">{spec.instructions}</pre>
+                      </div>
+                    </TabsContent>
+                  )}
 
+                  {spec.fileTree.length > 0 && (
+                    <TabsContent value="files" className="mt-2">
+                      <div className="space-y-2 rounded-xl border border-border/70 bg-muted/20 p-4">
+                        {spec.fileTree.map((item) => (
+                          <div
+                            key={item.path}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-card px-3 py-2 text-[12px]"
+                          >
+                            <span className="font-mono font-medium text-brand">{item.path}</span>
+                            <span className="text-muted-foreground">{item.description}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+                  )}
+                </Tabs>
+              </section>
+            );
+          })()}
           {/* Security & Execution Boundary */}
           <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="skillsec-title">
             <h2 id="skillsec-title" className="flex items-center gap-2 text-[15px] font-semibold">
@@ -861,6 +665,13 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             <p className="mt-1 text-[12.5px] text-muted-foreground">
               {data.skillSpec.security.summary}
             </p>
+            {data.skillSpec.security.scripts === "unknown" &&
+            data.skillSpec.security.network === "unknown" &&
+            data.skillSpec.security.credentials === "unknown" ? (
+              <p className="mt-2 text-[12px] text-muted-foreground">
+                Scripts, network access and credential use were not inspected for this skill.
+              </p>
+            ) : (
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-[12px]">
                 <p className="text-muted-foreground">Executable Scripts</p>
@@ -893,6 +704,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                 </p>
               </div>
             </div>
+            )}
           </section>
         </div>
       )}
@@ -901,7 +713,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
           TYPE-SPECIFIC SECTION 3: PLUGIN EXPERIENCE
           ========================================================================= */}
       {data.kind === "plugin" && data.pluginSpec && (
-        <div className="mt-8 space-y-6">
+        <div className="space-y-6">
           {/* Manifest Breakdown */}
           <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="plugman-title">
             <div className="flex items-center justify-between">
@@ -992,9 +804,8 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
         </div>
       )}
 
-      {/* Facts grid & Technical details fallback */}
-      <div className="mt-7 grid gap-5 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-7">
+      {/* Try prompts & related */}
+      <div className="min-w-0 space-y-6">
           {/* Try prompts */}
           {data.prompts.length > 0 && (
             <section aria-labelledby="try-title">
@@ -1035,13 +846,13 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
               <p className="mt-1 text-[12.5px] text-muted-foreground">
                 Matched on shared vocabulary, kind, goal and category.
               </p>
-              <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2.5 sm:grid-cols-2">
                 {data.related.map((rel) => (
                   <button
                     key={rel.id}
                     type="button"
                     onClick={() => navigate(`#/package/${encodeURIComponent(rel.linkKey)}`)}
-                    className="group rounded-xl border border-border/70 bg-card p-3.5 text-left transition-colors hover:border-brand/40"
+                    className="group min-w-0 rounded-xl border border-border/70 bg-card p-3.5 text-left transition-colors hover:border-brand/40"
                   >
                     <div className="flex items-center gap-2">
                       <KindBadge kind={rel.kind} />
@@ -1060,22 +871,11 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
           )}
         </div>
 
+      </div>
+
         {/* Sidebar */}
-        <aside className="space-y-5">
-          <section className="rounded-2xl border border-border/70 bg-card p-5">
-            <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-              Package Overview
-            </h2>
-            <dl className="mt-2">
-              <FactRow label="Kind">{kindLabel(data.kind)}</FactRow>
-              <FactRow label="Category">{data.category || "General"}</FactRow>
-              <FactRow label="Goal">{data.goalLabel}</FactRow>
-              <FactRow label="Score">
-                <span className="font-mono font-semibold text-brand">{data.rankScore}/100</span>
-              </FactRow>
-              <FactRow label="Installability">{installabilityLabel(data.installability)}</FactRow>
-            </dl>
-          </section>
+        <aside className="min-w-0 space-y-5">
+          <QuickStats data={data} versionDisplay={versionDisplay} sourceDocs={sourceDocs} />
 
           {/* Genuine Upstream Source & Repository */}
           {(data.repoUrl || data.artifact?.repo || data.url || data.publisher.url) && (
@@ -1114,20 +914,6 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                       : "Official Upstream"}
                   </span>
                 </FactRow>
-                {data.artifact?.ref && (
-                  <FactRow label="Branch / Ref">
-                    <span className="font-mono text-[11px]">{data.artifact.ref}</span>
-                  </FactRow>
-                )}
-                {data.artifact?.pinned !== undefined && (
-                  <FactRow label="Pinning State">
-                    {data.artifact.pinned ? (
-                      <span className="font-medium text-brand">Version Pinned (Immutable)</span>
-                    ) : (
-                      <span className="font-medium text-amber-500">Unpinned Branch Ref</span>
-                    )}
-                  </FactRow>
-                )}
                 {data.artifact?.sha && (
                   <FactRow label="Commit">
                     <code className="font-mono text-[10.5px]">{data.artifact.sha.slice(0, 10)}…</code>
@@ -1164,6 +950,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
           )}
 
           {/* Compatible Hosts */}
+          {data.installTargets.length > 0 && (
           <section className="rounded-2xl border border-border/70 bg-card p-5">
             <h2 className="flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               <Cable className="h-3.5 w-3.5" /> Works with
@@ -1182,7 +969,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                 : "No verified launch line is recorded, so no host target is claimed."}
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {data.installTargets.slice(0, 16).map((target) => (
+              {(showAllHosts ? data.installTargets : data.installTargets.slice(0, 12)).map((target) => (
                 <span
                   key={target.id}
                   className="rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-[11px] text-muted-foreground"
@@ -1190,13 +977,19 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                   {target.name}
                 </span>
               ))}
-              {data.installTargets.length > 16 && (
-                <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                  +{data.installTargets.length - 16} more
-                </span>
+              {data.installTargets.length > 12 && (
+                <button
+                  type="button"
+                  aria-expanded={showAllHosts}
+                  onClick={() => setShowAllHosts((v) => !v)}
+                  className="rounded-md border border-brand/30 bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand hover:bg-brand/20"
+                >
+                  {showAllHosts ? "Show fewer" : `+${data.installTargets.length - 12} more`}
+                </button>
               )}
             </div>
           </section>
+          )}
         </aside>
       </div>
     </div>
@@ -1248,5 +1041,70 @@ function PackageSummary({ text }: { text: string | null | undefined }) {
         </button>
       )}
     </div>
+  );
+}
+
+/** Right-rail facts: live repository stats when the server has them, plus catalog facts. Unknowns are hidden. */
+function QuickStats({
+  data,
+  versionDisplay,
+  sourceDocs,
+}: {
+  data: PackageDetailData;
+  versionDisplay: string | null;
+  sourceDocs: SourceDocsState;
+}) {
+  const live = sourceDocs.status === "done" ? sourceDocs.data : null;
+  const repo = live?.repo;
+  const nf = new Intl.NumberFormat("en-US");
+  const updatedIso = live?.lastCommitAt ?? repo?.pushedAt ?? null;
+  const updatedLabel = live?.lastCommitAt ? "Last commit" : "Last push";
+  const pinning =
+    data.artifact?.pinned === undefined
+      ? null
+      : data.artifact.pinned
+        ? "Pinned to a commit"
+        : "Unpinned branch ref";
+  const ref = data.artifact?.ref && data.artifact.ref !== "HEAD" ? data.artifact.ref : null;
+  const stars = repo?.stars ?? data.stars;
+
+  return (
+    <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="stats-title">
+      <h2 id="stats-title" className="text-[13px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+        Quick stats
+      </h2>
+      <dl className="mt-2">
+        {stars != null && <FactRow label="Stars">{nf.format(stars)}</FactRow>}
+        {repo?.forks != null && <FactRow label="Forks">{nf.format(repo.forks)}</FactRow>}
+        {repo?.license && <FactRow label="License">{repo.license}</FactRow>}
+        {repo?.language && <FactRow label="Language">{repo.language}</FactRow>}
+        {updatedIso && relativeTime(updatedIso) && (
+          <FactRow label={updatedLabel}>
+            <time dateTime={updatedIso} title={new Date(updatedIso).toUTCString()}>
+              Updated {relativeTime(updatedIso)}
+            </time>
+          </FactRow>
+        )}
+        <FactRow label="Kind">{kindLabel(data.kind)}</FactRow>
+        {data.category && <FactRow label="Category">{data.category}</FactRow>}
+        {versionDisplay && <FactRow label="Version">{versionDisplay}</FactRow>}
+        {ref && <FactRow label="Ref"><span className="font-mono text-[11px]">{ref}</span></FactRow>}
+        <FactRow label="Installable">{installabilityLabel(data.installability)}</FactRow>
+        {pinning && <FactRow label="Pinning">{pinning}</FactRow>}
+        <FactRow label="Score">
+          <span className="font-mono font-semibold text-brand">{data.rankScore}/100</span>
+        </FactRow>
+      </dl>
+      {live?.sourceUrl && (
+        <a
+          href={live.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-brand hover:underline"
+        >
+          <Github className="h-3.5 w-3.5" /> View source <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
+    </section>
   );
 }

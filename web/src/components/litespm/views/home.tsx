@@ -42,6 +42,7 @@ import { NavLink } from "../nav-link";
 import { TerminalHero } from "../terminal";
 import { KindBadge, SectionHeading } from "../primitives";
 import { RankBadge, RankExplainer } from "../rank-badge";
+import { PopularBundles } from "./bundles";
 
 const GOAL_LABELS: Record<string, string> = {
   coding: "Coding & Development",
@@ -137,7 +138,10 @@ export function HomeView() {
       .catch(() => {});
   }, []);
 
-  const counts = stats?.telemetry.counts;
+  // One number system (server/litespm/counts.ts): "listings" = unique listings.
+  const counts = stats
+    ? { ...stats.telemetry.counts, all: stats.counts?.uniqueListings ?? stats.telemetry.counts.all }
+    : undefined;
   const cliVersion = Array.isArray(stats?.cli)
     ? stats.cli[0]?.version
     : ((stats?.cli as unknown as { version?: string })?.version ?? null);
@@ -260,7 +264,7 @@ export function HomeView() {
             >
               <div
                 className="flex cursor-pointer flex-col transition-opacity hover:opacity-85"
-                title={counts ? `${formatFull(counts.all)} catalog listings (${stats ? formatFull(stats.installable) : "…"} installable)` : "Listings"}
+                title={counts ? `${formatFull(counts.all)} unique listings (${stats ? formatFull(stats.installable) : "…"} installable). ${stats?.counts ? formatFull(stats.counts.catalogRows) : "…"} raw catalog rows before exact duplicates are removed.` : "Listings"}
                 onClick={() => navigate(exploreHash({}))}
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
@@ -602,6 +606,8 @@ export function HomeView() {
           ))}
         </div>
       </section>
+
+      <PopularBundles />
 
       {/* --------------------------- featured shelf --------------------------- */}
       <section className="border-y border-border/60 bg-card/30" aria-labelledby="featured-title">

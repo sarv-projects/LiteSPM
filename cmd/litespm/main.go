@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -121,7 +122,7 @@ func main() {
 	case "search":
 		opts, queryErr := searchQueryArgs(os.Args[2:])
 		if queryErr != nil {
-			fmt.Fprintf(os.Stderr, "Usage error: %v\n", queryErr)
+			fmt.Fprintf(os.Stderr, "Usage error: %v\n%s\n", queryErr, searchSynopsis)
 			os.Exit(2)
 		}
 		runSearch(opts)
@@ -265,11 +266,11 @@ func main() {
 		runHelp(os.Args[2:])
 
 	default:
-		fmt.Printf("Unknown command: %s\n\n", command)
-		printUsage()
-		// An unknown command is a usage error (ARCH/20): the shipped list is
-		// printed above, and the exit code says the invocation itself was
-		// wrong rather than that some operation failed.
+		// An unknown command is a usage error (ARCH/20): say what was wrong,
+		// offer the nearest command, and point at help instead of printing the
+		// whole page. The exit code says the invocation itself was wrong
+		// rather than that some operation failed.
+		fmt.Fprint(os.Stderr, unknownCommandMessage(command))
 		os.Exit(2)
 	}
 }
@@ -278,6 +279,66 @@ func main() {
 // and `litespm help` can never disagree (ARCH/38 §3.2).
 func printUsage() {
 	renderDefaultHelp(os.Stdout)
+}
+
+// unknownCommandMessage is the stderr text for an unrecognised top-level
+// command: a one-line refusal, a "Did you mean" when a known command is within
+// edit distance 2, and the pointer to help.
+func unknownCommandMessage(command string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Unknown command %q.", command)
+	if guess := nearestCommand(command); guess != "" {
+		fmt.Fprintf(&b, " Did you mean %q?", guess)
+	}
+	b.WriteString("\nRun `litespm help` to see every command.\n")
+	return b.String()
+}
+
+// nearestCommand returns the known command closest to s by Levenshtein
+// distance, or "" when none is within 2. Ties break alphabetically so the
+// suggestion is deterministic.
+func nearestCommand(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" || strings.HasPrefix(s, "-") {
+		return ""
+	}
+	names := make([]string, 0, len(helpCatalog))
+	for name := range helpCatalog {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	best, bestDist := "", 3
+	for _, name := range names {
+		if strings.HasPrefix(name, "-") {
+			continue
+		}
+		if d := levenshtein(s, name); d < bestDist {
+			best, bestDist = name, d
+		}
+	}
+	return best
+}
+
+// levenshtein is the classic edit distance over runes.
+func levenshtein(a, b string) int {
+	ra, rb := []rune(a), []rune(b)
+	prev := make([]int, len(rb)+1)
+	cur := make([]int, len(rb)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(ra); i++ {
+		cur[0] = i
+		for j := 1; j <= len(rb); j++ {
+			cost := 1
+			if ra[i-1] == rb[j-1] {
+				cost = 0
+			}
+			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+		}
+		prev, cur = cur, prev
+	}
+	return prev[len(rb)]
 }
 
 // defaultUpdateDownloadLimit bounds the binary download when the configuration
@@ -1356,6 +1417,132 @@ type searchOptions struct {
 	// limit bounds the result set. The default matches the table's historical
 	// 25; a caller that filters client-side asks for more in one call.
 	limit int
+	// installable keeps only rows `litespm install` accepts (the same
+	// predicate `marketplace rows --installable` uses), in the table and in
+	// --json alike.
+	installable bool
+}
+
+// searchCandidateCap is how many ranked rows runSearch pulls from the catalog
+// when it has to reorder or filter by installability: the limit is applied
+// after that step, so a page of installable rows is not starved by a run of
+// listing-only rows ranked above them.
+const searchCandidateCap = 500
+
+// searchSynopsis is the short usage shown with a search usage error.
+const searchSynopsis = "Usage: litespm search <query> [--installable] [--json] [--limit <n>]"
+
+// partitionInstallable is a stable partition: installable rows first, each
+// band keeping the catalog's relevance order. It does not touch the input.
+func partitionInstallable(results []*catalog.SearchResult) []*catalog.SearchResult {
+	out := make([]*catalog.SearchResult, 0, len(results))
+	for _, r := range results {
+		if r.Listing.IsInstallable() {
+			out = append(out, r)
+		}
+	}
+	for _, r := range results {
+		if !r.Listing.IsInstallable() {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// filterInstallable keeps the installable rows, in order.
+func filterInstallable(results []*catalog.SearchResult) []*catalog.SearchResult {
+	out := make([]*catalog.SearchResult, 0, len(results))
+	for _, r := range results {
+		if r.Listing.IsInstallable() {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// searchGlyphsUnicode decides whether the install-status column may use ✓/–.
+// getenv is injected for tests. ASCII is the answer under NO_COLOR, TERM=dumb,
+// a non-UTF-8 locale, and on Windows outside a terminal known to render
+// UTF-8 (Windows Terminal, VS Code), where redirected output is usually in a
+// legacy code page.
+func searchGlyphsUnicode(getenv func(string) string, goos string) bool {
+	if _, set := lookupNonEmpty(getenv, "NO_COLOR"); set {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(getenv("TERM")), "dumb") {
+		return false
+	}
+	for _, key := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
+		if v, ok := lookupNonEmpty(getenv, key); ok {
+			lv := strings.ToLower(v)
+			return strings.Contains(lv, "utf-8") || strings.Contains(lv, "utf8")
+		}
+	}
+	if goos == "windows" {
+		_, wt := lookupNonEmpty(getenv, "WT_SESSION")
+		_, vs := lookupNonEmpty(getenv, "TERM_PROGRAM")
+		return wt || vs
+	}
+	return false
+}
+
+func lookupNonEmpty(getenv func(string) string, key string) (string, bool) {
+	v := strings.TrimSpace(getenv(key))
+	return v, v != ""
+}
+
+// searchStatusLabel is the install-status cell for one row.
+func searchStatusLabel(l *domain.Listing, unicode bool) string {
+	switch {
+	case l.IsInstallable() && unicode:
+		return "✓ installable"
+	case l.IsInstallable():
+		return "+ installable"
+	case unicode:
+		return "– listing only"
+	default:
+		return "- listing only"
+	}
+}
+
+// writeSearchTable renders the human result table. Rows are already in final
+// order. The full id stays on its own line: it is the only string
+// `litespm install` accepts, so it is printed whole.
+func writeSearchTable(w io.Writer, results []*catalog.SearchResult, unicode bool) {
+	installable := 0
+	for _, r := range results {
+		if r.Listing.IsInstallable() {
+			installable++
+		}
+	}
+	fmt.Fprintf(w, "Found %d capabilities (%d installable):\n\n", len(results), installable)
+	fmt.Fprintf(w, "%-32s %-8s %-16s %-15s %s\n", "NAME / ID", "KIND", "PUBLISHER", "STATUS", "SUMMARY")
+	fmt.Fprintln(w, strings.Repeat("-", 96))
+	for _, res := range results {
+		publisher := res.Listing.PublisherClaim.Name
+		if publisher == "" {
+			publisher = "community"
+		}
+		fmt.Fprintf(w, "%-32s %-8s %-16s %-15s %s\n", truncate(res.Listing.Name, 32),
+			strings.ToUpper(string(res.Listing.Kind)), truncate(publisher, 16),
+			searchStatusLabel(res.Listing, unicode), truncate(res.Listing.Summary, 40))
+		fmt.Fprintf(w, "  %s\n", res.Listing.ID)
+	}
+	if installable < len(results) {
+		fmt.Fprintln(w, "\nlisting only = searchable metadata; `litespm install` refuses it. Add --installable to hide those rows.")
+	}
+}
+
+// writeSearchHint is what a bare `litespm search` prints instead of dumping
+// the whole index alphabetically.
+func writeSearchHint(w io.Writer) {
+	fmt.Fprintln(w, "Tell me what to search for.")
+	fmt.Fprintln(w, searchSynopsis)
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Try:")
+	fmt.Fprintln(w, "  litespm search github")
+	fmt.Fprintln(w, "  litespm search postgres --installable")
+	fmt.Fprintln(w, "  litespm marketplace          # browse everything in the browser")
 }
 
 // searchQueryArgs turns the words after `search` into a query, and honours the
@@ -1376,6 +1563,8 @@ func searchQueryArgs(args []string) (searchOptions, error) {
 		switch arg {
 		case "--json":
 			opts.json = true
+		case "--installable":
+			opts.installable = true
 		case "--limit":
 			if len(rest) == 0 {
 				return opts, fmt.Errorf("--limit needs a number between 1 and 500")
@@ -1389,7 +1578,7 @@ func searchQueryArgs(args []string) (searchOptions, error) {
 			opts.limit = n
 		default:
 			if strings.HasPrefix(arg, "--") {
-				return opts, fmt.Errorf("search takes --json and --limit (got %q)", arg)
+				return opts, fmt.Errorf("search takes --installable, --json and --limit (got %q)", arg)
 			}
 			words = append(words, arg)
 		}
@@ -1423,6 +1612,13 @@ type searchDocument struct {
 }
 
 func runSearch(opts searchOptions) {
+	// A bare `litespm search` used to dump the index alphabetically. For a
+	// person that is noise; say what to type instead. --json keeps answering
+	// an empty query (a client such as the Pi panel may rely on it).
+	if !opts.json && strings.TrimSpace(opts.query) == "" {
+		writeSearchHint(os.Stdout)
+		return
+	}
 	paths, err := config.ResolvePlatformPaths()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal: failed to resolve platform paths: %v\n", err)
@@ -1433,7 +1629,24 @@ func runSearch(opts searchOptions) {
 	regURL := registryURLOf(cfg)
 
 	catClient := catalog.NewClientWithTimeout(regURL, paths.DataRoot, catalogTimeoutOf(cfg), nil)
-	results := catClient.Search(opts.query, catalog.SearchOptions{Limit: opts.limit})
+
+	// --json keeps the catalog's own order and cut unless --installable asks
+	// for a filter. The human table reorders (installable first), so both
+	// that and the filter need the wider candidate set before the limit.
+	var results []*catalog.SearchResult
+	if opts.json && !opts.installable {
+		results = catClient.Search(opts.query, catalog.SearchOptions{Limit: opts.limit})
+	} else {
+		results = catClient.Search(opts.query, catalog.SearchOptions{Limit: searchCandidateCap})
+		if opts.installable {
+			results = filterInstallable(results)
+		} else if !opts.json {
+			results = partitionInstallable(results)
+		}
+		if len(results) > opts.limit {
+			results = results[:opts.limit]
+		}
+	}
 
 	if opts.json {
 		doc := searchDocument{
@@ -1476,32 +1689,13 @@ func runSearch(opts searchOptions) {
 			return
 		}
 		fmt.Printf("No capabilities found matching %q.\n", opts.query)
+		if opts.installable {
+			fmt.Println("Only installable rows were requested; try again without --installable to see listing-only matches.")
+		}
 		return
 	}
 
-	fmt.Printf("Found %d capabilities matching %q:\n\n", len(results), opts.query)
-	fmt.Printf("%-32s %-8s %-16s %s\n", "NAME / ID", "KIND", "PUBLISHER", "SUMMARY")
-	fmt.Println(strings.Repeat("-", 80))
-	for _, res := range results {
-		publisher := res.Listing.PublisherClaim.Name
-		if publisher == "" {
-			publisher = "community"
-		}
-		summary := res.Listing.Summary
-		if len(summary) > 40 {
-			summary = summary[:37] + "..."
-		}
-		fmt.Printf("%-32s %-8s %-16s %s\n", res.Listing.Name, strings.ToUpper(string(res.Listing.Kind)), publisher, summary)
-		// The listing id is the ONLY string `litespm install` accepts: lookup
-		// is an exact map match against the local index (c.index.Get), with no
-		// prefix, alias or fuzzy fallback, and a miss is "listing X is not in
-		// the local catalog index". The header promised this column and the row
-		// never printed it, so the only way to discover an installable id was
-		// `--json` or the website — a discover step whose output the install
-		// step could not consume. Printed whole and untruncated: a shortened id
-		// would be something the user cannot paste.
-		fmt.Printf("  %s\n", res.Listing.ID)
-	}
+	writeSearchTable(os.Stdout, results, searchGlyphsUnicode(os.Getenv, runtime.GOOS))
 }
 
 // installFlags holds the parsed command line for `litespm install`.
@@ -1805,7 +1999,13 @@ func runInstall(args []string) {
 	catClient := catalog.NewClientWithTimeout(regURL, paths.DataRoot, catalogTimeoutOf(cfg), nil)
 
 	if terminalUIAvailable(os.Stdin, os.Stdout) {
-		fmt.Printf("%s\n  %s\n", uiCompactHeader("install"), uiDim.Render(flags.listingID))
+		subtitle := "install"
+		if flags.dryRun {
+			subtitle = "install (dry run)"
+		}
+		fmt.Printf("%s\n  %s\n", uiCompactHeader(subtitle), uiDim.Render(flags.listingID))
+	} else if flags.dryRun {
+		fmt.Printf("Planning (dry run) %s...\n", flags.listingID)
 	} else {
 		fmt.Printf("Resolving and installing %s...\n", flags.listingID)
 	}
@@ -1825,7 +2025,7 @@ func runInstall(args []string) {
 	// (no fetch path), not the provenance wording below.
 	if refusal := installKindRefusal(listing); refusal != nil {
 		auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", refusal.Error())
-		fmt.Fprintf(os.Stderr, "Install failed: %v\n", refusal)
+		printInstallFailure(os.Stderr, refusal)
 		os.Exit(1)
 	}
 
@@ -1845,7 +2045,7 @@ func runInstall(args []string) {
 	if !listing.IsInstallable() {
 		detail := "this listing is discovery-only metadata with no proven artifact"
 		auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", detail)
-		fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrNotInstallable(listing.ID, detail))
+		printInstallFailure(os.Stderr, domain.ErrNotInstallable(listing.ID, detail))
 		os.Exit(1)
 	}
 
@@ -1871,7 +2071,7 @@ func runInstall(args []string) {
 			// what would be executed" refusal the plan stage makes, and it
 			// happens before any approval exists.
 			auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", runtimeErr.Error())
-			fmt.Fprintf(os.Stderr, "Install failed: %v\n", domain.ErrArtifactUnavailable(flags.listingID, runtimeErr.Error()))
+			printInstallFailure(os.Stderr, domain.ErrArtifactUnavailable(flags.listingID, runtimeErr.Error()))
 			os.Exit(1)
 		}
 		// --agent and --host both name a target host for these kinds.
@@ -1962,7 +2162,7 @@ func runInstall(args []string) {
 			// The gate refused before any effect; it is still a refusal, and the
 			// agent path audits this same point. No approval was consumed.
 			auditCLIInstall(ctx, db, flags.listingID, "", "deny", "refused", gerr.Error())
-			fmt.Fprintf(os.Stderr, "Install failed: %v\n", gerr)
+			printInstallFailure(os.Stderr, gerr)
 			os.Exit(1)
 		}
 		grant = g
@@ -1988,7 +2188,7 @@ func runInstall(args []string) {
 		// The CLI path is the primary install path, so it audits exactly like the
 		// agent path: a refusal that lands no row is a refusal nobody can see.
 		auditCLIInstall(ctx, db, flags.listingID, approvalID, "deny", "refused", err.Error())
-		fmt.Fprintf(os.Stderr, "Install failed: %v\n", err)
+		printInstallFailure(os.Stderr, err)
 		os.Exit(1)
 	}
 
@@ -2062,7 +2262,7 @@ func runInstall(args []string) {
 	unsupported := domain.ErrArtifactUnavailable(flags.listingID,
 		fmt.Sprintf("kind %q is marked install-wired but no install path handles it; refusing rather than half-installing", listing.Kind))
 	auditCLIInstall(ctx, db, flags.listingID, approvalID, "deny", "refused", unsupported.Error())
-	fmt.Fprintf(os.Stderr, "Install failed: %v\n", unsupported)
+	printInstallFailure(os.Stderr, unsupported)
 	os.Exit(1)
 }
 

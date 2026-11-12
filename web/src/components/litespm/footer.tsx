@@ -15,6 +15,7 @@ const COLUMNS: Array<{
     title: "Product",
     links: [
       { label: "Marketplace", hash: "/marketplace" },
+      { label: "Bundles", hash: "/bundles" },
       { label: "Installed on this machine", hash: "/marketplace?tab=installed" },
       { label: "Supported agents", hash: "/agents" },
       { label: "Compare packages", hash: "/compare" },
@@ -34,6 +35,7 @@ const COLUMNS: Array<{
   {
     title: "Resources",
     links: [
+      { label: "How we rank and label", hash: "/docs/methodology" },
       { label: "Security model", hash: "/docs/security" },
       { label: "Troubleshooting & FAQ", hash: "/docs/troubleshooting" },
       { label: "Insights dashboard", hash: "/insights" },

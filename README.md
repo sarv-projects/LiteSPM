@@ -17,6 +17,7 @@ Install into 52 coding agents. Undo any of it with one command.
 
 [Website](https://lite-spm-nine.vercel.app) ·
 [Marketplace](https://lite-spm-nine.vercel.app/marketplace) ·
+[Bundles](https://lite-spm-nine.vercel.app/bundles) ·
 [Docs](https://lite-spm-nine.vercel.app/docs) ·
 [Status](STATUS.md) ·
 [Changelog](CHANGELOG.md)
@@ -70,6 +71,7 @@ standalone binary? Take one from
 | **Fast, self-updating catalog** | The catalog syncs itself and is searched through an on-disk SQLite FTS5 index: milliseconds per query at about 30 MB of memory, instead of loading roughly 100 MB. |
 | **Verified supply chain** | Sigstore-verified binaries; a digest-verified catalog that refuses rollbacks and equivocation. |
 | **Local and private** | Credentials stay in your environment or the OS keychain. LiteSPM writes references, never secret values. |
+| **Curated bundles** | Ready-made working sets (web dev, office documents, databases, payments and more) on the [Bundles](https://lite-spm-nine.vercel.app/bundles) page. Every item is checked to be installable, and [How we rank and label](https://lite-spm-nine.vercel.app/docs/methodology) explains every score and count. |
 | **A skills manager too** | `litespm skills add/use/find/list/update/remove` works from a GitHub repo, URL or local folder. |
 
 ## Supported agents
@@ -196,6 +198,7 @@ Environment variables LiteSPM reads:
 | Variable | Effect |
 |---|---|
 | `LITESPM_NO_AUTO_SYNC=1` | Turn off automatic catalog sync (also off when `CI` is set); `litespm catalog sync` still works |
+| `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` | Proxy for the npm installer's downloads (npm's own proxy config is honoured too) |
 | `LITESPM_NO_AUTO_UPDATE=1` | Turn off the automatic update check |
 | `LITESPM_NO_DAEMON_AUTOSTART=1` | Do not start the daemon on demand from the bridge |
 | `LITESPM_DATA_ROOT` / `LITESPM_CONFIG_ROOT` / `LITESPM_RUNTIME_ROOT` | Relocate the data, config and runtime directories |

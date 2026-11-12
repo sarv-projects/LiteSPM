@@ -65,12 +65,13 @@ func buildHelpCatalog() map[string]commandHelp {
 			Group:     "DISCOVER",
 			Purpose:   "Search the local catalog index.",
 			Synopsis: []string{
-				"litespm search <query> [--json] [--limit <n>]",
+				"litespm search <query> [--installable] [--json] [--limit <n>]",
 			},
 			Does: []string{
-				"Searches the index that `litespm catalog sync` writes and prints up to 25 matches with id, kind, publisher and summary.",
-				"`--json` prints a `litespm-search/v1` document instead of the table: id, kind, publisher, summary, version and installability per row, plus `indexCount`. The Pi `/marketplace` panel reads this form.",
-				"`--limit <n>` sets the cap between 1 and 500.",
+				"Searches the index that `litespm catalog sync` writes and prints up to 25 matches with id, kind, publisher, install status and summary. Rows `litespm install` accepts (`✓ installable`) are listed before listing-only rows (`– listing only`); relevance order holds within each group.",
+				"`--installable` keeps only installable rows, in the table and in `--json`.",
+				"`--json` prints a `litespm-search/v1` document instead of the table: id, kind, publisher, summary, version and installability per row, plus `indexCount`, in the catalog's own order. The Pi `/marketplace` panel reads this form.",
+				"`--limit <n>` sets the cap between 1 and 500. With no query the table form prints a short usage hint instead of the whole index.",
 			},
 			DoesNot: []string{
 				"Does not search the network. An empty index is reported as empty, with the sync hint.",
@@ -79,7 +80,7 @@ func buildHelpCatalog() map[string]commandHelp {
 			},
 			Examples: []string{
 				"litespm search github",
-				"litespm search postgres",
+				"litespm search postgres --installable",
 				"litespm search github --json --limit 200",
 				"litespm catalog sync   # sync now instead of waiting for the automatic one",
 			},

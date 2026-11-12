@@ -1,0 +1,147 @@
+{
+  "_comment": "Curated bundles. Editorial: the title, blurb, audience and difficulty are our own words; every item is a catalog listing id. `scripts/check-bundles.mjs` (part of `npm run lint`) fails when an id is missing from the catalog or `litespm install` cannot complete it, so nothing here can quietly go stale. `litespm install` takes exactly one id per command, so a bundle installs as one command per line.",
+  "schema": 1,
+  "bundles": [
+    {
+      "id": "full-stack-web-dev",
+      "title": "Full-stack web dev",
+      "blurb": "Manage the repo, drive a real browser to test what you build, look up current library docs, and deploy, all from the agent.",
+      "difficulty": "Intermediate",
+      "audience": "Web developers shipping an app",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "mcp:builtin:mcp-registry:com.vercel-vercel-mcp"
+      ]
+    },
+    {
+      "id": "office-documents",
+      "title": "Office documents",
+      "blurb": "Anthropic's official document skills: read and produce PDFs, Word documents, spreadsheets and slide decks.",
+      "difficulty": "Beginner",
+      "audience": "Anyone who works with documents",
+      "items": [
+        "skill:anthropics:pdf",
+        "skill:anthropics:docx",
+        "skill:anthropics:xlsx",
+        "skill:anthropics:pptx"
+      ]
+    },
+    {
+      "id": "databases",
+      "title": "Databases",
+      "blurb": "Hosted Postgres from Supabase and Neon, plus vendor skills for Neon Postgres and MongoDB schema and query work.",
+      "difficulty": "Intermediate",
+      "audience": "Developers building on Postgres or MongoDB",
+      "items": [
+        "mcp:builtin:mcp-registry:com.supabase-mcp",
+        "mcp:builtin:mcp-registry:com.neon-mcp",
+        "skill:neondatabase:neon-postgres",
+        "skill:mongodb:mongodb-schema-design",
+        "skill:mongodb:mongodb-query-optimizer"
+      ]
+    },
+    {
+      "id": "docs-grounded-coding",
+      "title": "Docs-grounded coding",
+      "blurb": "Stop the agent guessing at APIs: current library documentation from Context7, plus web search from Brave.",
+      "difficulty": "Beginner",
+      "audience": "Anyone coding with an agent",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "skill:upstash:context7-mcp",
+        "mcp:builtin:mcp-registry:io.github.brave-brave-search-mcp-server"
+      ]
+    },
+    {
+      "id": "browser-testing",
+      "title": "Browser testing and QA",
+      "blurb": "Playwright MCP to drive a browser, and Playwright skills that explore a site and generate tests.",
+      "difficulty": "Intermediate",
+      "audience": "Developers and QA writing end-to-end tests",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp",
+        "skill:github:playwright-explore-website",
+        "skill:github:playwright-generate-test",
+        "skill:microsoft:playwright-cli"
+      ]
+    },
+    {
+      "id": "error-monitoring",
+      "title": "Errors and observability",
+      "blurb": "Pull real production errors from Sentry and metrics from Grafana, then let the agent trace and fix them.",
+      "difficulty": "Intermediate",
+      "audience": "Developers on call for a running service",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp",
+        "skill:getsentry:sentry-debug-issue",
+        "skill:getsentry:sentry-fix-stack-traces",
+        "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana"
+      ]
+    },
+    {
+      "id": "design-to-code",
+      "title": "Design to code",
+      "blurb": "Read Figma files from the agent and turn them into components, with Playwright to check the result in a browser.",
+      "difficulty": "Intermediate",
+      "audience": "Front-end developers working from Figma",
+      "items": [
+        "mcp:builtin:mcp-registry:com.figma.mcp-mcp",
+        "skill:figma:figma-design-to-code",
+        "skill:figma:figma-code-connect",
+        "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp"
+      ]
+    },
+    {
+      "id": "project-tracking",
+      "title": "Project tracking",
+      "blurb": "Work with the trackers and wikis a team already uses: Linear issues, Notion pages and Atlassian (Jira and Confluence).",
+      "difficulty": "Beginner",
+      "audience": "Teams managing work in Linear, Notion or Jira",
+      "items": [
+        "mcp:builtin:mcp-registry:app.linear-linear",
+        "mcp:builtin:mcp-registry:com.notion-mcp",
+        "mcp:builtin:mcp-registry:com.atlassian-atlassian-mcp-server"
+      ]
+    },
+    {
+      "id": "payments",
+      "title": "Payments with Stripe",
+      "blurb": "Stripe's own MCP server plus its best-practices and documentation skills for building a checkout.",
+      "difficulty": "Intermediate",
+      "audience": "Developers integrating Stripe payments",
+      "items": [
+        "mcp:builtin:mcp-registry:com.stripe-mcp",
+        "skill:stripe:stripe-best-practices",
+        "skill:stripe:stripe-docs"
+      ]
+    },
+    {
+      "id": "cloud-infrastructure",
+      "title": "Cloud and infrastructure",
+      "blurb": "Cloudflare's MCP server, Docker build and Compose guidance, and HashiCorp's Terraform policy skill.",
+      "difficulty": "Advanced",
+      "audience": "Engineers who run their own infrastructure",
+      "items": [
+        "mcp:builtin:mcp-registry:com.cloudflare.mcp-mcp",
+        "skill:docker:docker-build-strategies",
+        "skill:docker:docker-compose-patterns",
+        "skill:hashicorp:terraform-policy"
+      ]
+    },
+    {
+      "id": "build-your-own-mcp",
+      "title": "Build your own MCP server",
+      "blurb": "Anthropic's skill for designing an MCP server, the Claude API reference, current docs from Context7, and GitHub to publish it.",
+      "difficulty": "Advanced",
+      "audience": "Developers writing MCP servers or Claude integrations",
+      "items": [
+        "skill:anthropics:build-mcp-server",
+        "skill:anthropics:claude-api",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
+      ]
+    }
+  ]
+}

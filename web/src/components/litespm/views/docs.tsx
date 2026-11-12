@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, BookOpen, Cable, Layers, CheckCircle2, CircleDot, HelpCircle, Lock, Package, RotateCcw, Search, ShieldCheck, Terminal, Undo2, Wrench } from "lucide-react";
+import { ArrowRight, BookOpen, Cable, Layers, CheckCircle2, CircleDot, HelpCircle, Lock, Package, RotateCcw, Scale, Search, ShieldCheck, Terminal, Undo2, Wrench } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { formatFull } from "@/lib/litespm/format";
@@ -10,6 +10,7 @@ import { InstallBar } from "../install-bar";
 import { NavLink } from "../nav-link";
 import facts from "@/lib/litespm/site-facts.json";
 import { EVIDENCE_LABEL, IN_AGENT, type InAgentEntry } from "@/lib/litespm/in-agent";
+import type { CatalogStatsResponse } from "@/lib/litespm/types";
 
 const SECTIONS: Array<{ id: string; label: string; icon: React.ElementType }> = [
   { id: "introduction", label: "Introduction", icon: BookOpen },
@@ -20,6 +21,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: React.ElementType }> = 
   { id: "in-agent-marketplace", label: "In-agent marketplace", icon: CircleDot },
   { id: "agent-compatibility", label: "Agent compatibility", icon: Layers },
   { id: "security", label: "Security model", icon: ShieldCheck },
+  { id: "methodology", label: "How we rank and label", icon: Scale },
   { id: "publishing", label: "Publishing to the catalog", icon: Package },
   { id: "troubleshooting", label: "Troubleshooting & FAQ", icon: HelpCircle },
 ];
@@ -123,6 +125,7 @@ export function DocsView({ section }: { section: string }) {
           {active === "in-agent-marketplace" && <InAgentMarketplace />}
           {active === "agent-compatibility" && <AgentCompatibility />}
           {active === "security" && <Security />}
+          {active === "methodology" && <Methodology />}
           {active === "publishing" && <Publishing />}
           {active === "troubleshooting" && <Troubleshooting />}
         </div>
@@ -150,9 +153,10 @@ function Introduction() {
   React.useEffect(() => {
     fetch("/api/litespm/stats")
       .then((r) => r.json())
-      .then((data: { telemetry?: { counts?: { all?: number } }; installable?: number; hosts?: number }) => {
+      .then((data: Partial<CatalogStatsResponse>) => {
         setStats({
-          all: data.telemetry?.counts?.all,
+          // The headline figure: unique listings (see "How we rank and label").
+          all: data.counts?.uniqueListings,
           installable: data.installable,
           hosts: data.hosts,
         });
@@ -175,7 +179,7 @@ function Introduction() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { value: totalListings, label: "listings in the catalog" },
+          { value: totalListings, label: "unique listings" },
           { value: hostsCount, label: "agent hosts for MCP" },
           { value: installableCount, label: "one-command installs" },
         ].map((stat) => (
@@ -187,6 +191,15 @@ function Introduction() {
           </div>
         ))}
       </div>
+
+      <P>
+        &quot;Listings&quot; always means unique listings: catalog rows left after exact duplicates are
+        removed. The marketplace result count is lower, because it merges same-name listings; the{" "}
+        <NavLink to="/docs/methodology" className="font-medium text-brand hover:underline">
+          counts explained
+        </NavLink>{" "}
+        page says where each number comes from.
+      </P>
 
       <P>
         Three kinds of capability can be installed: <strong className="text-foreground">MCP
@@ -819,6 +832,235 @@ litespm catalog sync    # refresh the local catalog now (it also syncs itself)`}
           </details>
         ))}
       </div>
+    </DocSection>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+/* How we rank and label                                                    */
+/* ------------------------------------------------------------------------ */
+
+/** Max points per LiteSPM Score component. scripts/check-installable-first.mjs
+ *  compares these to rankScoreBreakdown() in server/litespm/ranking.ts. */
+const SCORE_PARTS: Array<{ part: string; max: number; how: string }> = [
+  { part: "Editorial recognition", max: 35, how: "The tool is a known flagship of the agent ecosystem (official MCP reference servers, top-vendor servers, Anthropic's official skills): 35. A notable second tier or a re-publication of a flagship name by another publisher: 22. A first-party namespace such as @microsoft/… or io.github.supabase/…: 12." },
+  { part: "Vendor authority", max: 18, how: "A tier-1 ecosystem vendor publisher or namespace: 14. A tier-2 recognised vendor: 8. A verified publisher adds 4, capped at 18." },
+  { part: "Proven installability", max: 15, how: "litespm_tested 15, runtime_verified 12, metadata_verified 7, discovery_only 2." },
+  { part: "Record quality", max: 12, how: "Endpoint URL 3, tool schemas 3, README 2, executable command 2, version 2." },
+  { part: "Description substance", max: 5, how: "120+ characters 5, 60+ 4, 25+ 2, 10+ 1." },
+  { part: "GitHub stars", max: 15, how: "Log scale, only when a source publishes stars." },
+];
+
+const SOURCE_NOTE: Record<string, string> = {
+  "builtin:mcp-registry": "Official MCP Registry API",
+  "feed:skills-sh": "skills.sh directory",
+  "feed:punkpeye-awesome-mcp-servers": "awesome-mcp-servers list",
+  "feed:mcpmarket-com": "MCP Market directory",
+  "feed:voltagent-awesome-agent-skills": "awesome-agent-skills list",
+  "feed:mcpservers-org": "MCPServers.org directory",
+  "feed:modelcontextprotocol-servers": "modelcontextprotocol/servers list",
+  "git:claude-plugins-official": "Claude Code plugins directory (vendor marketplace)",
+  "git:knowledge-work-plugins": "Knowledge Work plugins (vendor marketplace)",
+  "git:cursor-plugins": "Cursor plugins (vendor marketplace)",
+  "git:openai-plugins": "OpenAI Codex plugins (vendor marketplace)",
+  "git:xai-plugin-marketplace": "xAI plugin marketplace (vendor marketplace)",
+  "git:anthropics-skills": "Anthropic Agent Skills (vendor marketplace)",
+};
+
+const LEVELS: Array<{ id: string; label: string; meaning: string }> = [
+  { id: "litespm_tested", label: "LiteSPM tested", meaning: "Covered by a LiteSPM acceptance record." },
+  { id: "runtime_verified", label: "Runtime verified", meaning: "The launch line was observed to start." },
+  { id: "metadata_verified", label: "Metadata verified", meaning: "An upstream manifest supplied the version and the launch or source data (command and args for a local server, an endpoint for a remote one). Nothing was run." },
+  { id: "discovery_only", label: "Discovery only", meaning: "Searchable metadata with no proven artifact. LiteSPM will not try to install it." },
+];
+
+function Methodology() {
+  const [stats, setStats] = React.useState<CatalogStatsResponse | null>(null);
+  React.useEffect(() => {
+    fetch("/api/litespm/stats")
+      .then((r) => r.json())
+      .then((data: CatalogStatsResponse) => setStats(data))
+      .catch(() => {});
+  }, []);
+
+  const counts = stats?.counts;
+  const n = (value: number | undefined) => (value === undefined ? "…" : formatFull(value));
+  const levelCount = (id: string) => counts?.byInstallability?.[id] ?? 0;
+
+  return (
+    <DocSection title="How we rank and label">
+      <P>
+        Every figure and label on this site is derived from the catalog rows themselves or from a
+        rule written down here. This page says what each signal means, where it comes from, and
+        what LiteSPM does not show.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">Order of results</h2>
+      <P>
+        Search and &quot;Top ranked&quot; put <strong className="text-foreground">installable
+        listings first</strong>, then discovery-only listings, each group in score order (for a
+        text search, text relevance first and score second). A discovery-only listing is never
+        hidden by this, it just comes after the listings LiteSPM can install. The{" "}
+        <strong className="text-foreground">Installable only</strong> switch removes them. Sorting
+        by name, kind or publisher is left exactly as chosen.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">The LiteSPM Score (0 to 100)</h2>
+      <P>
+        An editorial reputation score computed from each row&apos;s own fields. It measures
+        recognition and trustworthiness of the tool, not popularity.
+      </P>
+      <div className="overflow-x-auto rounded-xl border border-border/70">
+        <table className="w-full min-w-[34rem] text-left text-[12.5px]">
+          <thead className="border-b border-border/60 bg-muted/30 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 font-medium">Component</th>
+              <th className="px-3 py-2 font-medium">Max</th>
+              <th className="px-3 py-2 font-medium">How points are earned</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SCORE_PARTS.map((row) => (
+              <tr key={row.part} className="border-b border-border/40 align-top last:border-0">
+                <td className="px-3 py-2 font-medium">{row.part}</td>
+                <td className="px-3 py-2 font-mono tabular-nums">{row.max}</td>
+                <td className="px-3 py-2 text-muted-foreground">{row.how}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <P>
+        The maximums add up to exactly 100. A junk penalty of 40 to 45 points applies to records
+        that are parse artifacts rather than tools (names that start with a symbol, HTTP-header
+        fragments, a bare &quot;@word&quot;). Ties are broken by name, with artifact names last.
+        Fields the catalog does not publish earn nothing: in this release no row carries a GitHub
+        star count and none carries a README, so those components are zero for every listing
+        rather than estimated.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">Installability levels</h2>
+      <P>
+        Each listing carries one level, and it is provenance, not a feature flag. Counts below are
+        unique listings in this release.
+      </P>
+      <ul className="space-y-2">
+        {LEVELS.map((level) => (
+          <li key={level.id} className="rounded-xl border border-border/70 bg-card px-4 py-3">
+            <p className="flex flex-wrap items-baseline gap-2 text-[13px] font-semibold">
+              {level.label} <C>{level.id}</C>
+              <span className="ml-auto font-mono text-[12px] font-normal tabular-nums text-muted-foreground">
+                {n(counts ? levelCount(level.id) : undefined)}
+              </span>
+            </p>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{level.meaning}</p>
+          </li>
+        ))}
+      </ul>
+      <P>
+        The level is not the same as &quot;installable&quot;. A listing is{" "}
+        <strong className="text-foreground">installable</strong> only when LiteSPM can build an
+        install plan for it: it is not discovery-only, and a local MCP server has a published
+        command, a remote one has an endpoint, a skill has a source to copy from, and a plugin has
+        a pinned git commit to fetch. The &quot;Installable only&quot; switch, the hero count and
+        the bundles all use that one rule. Today {n(counts?.installable)} of {n(counts?.uniqueListings)}{" "}
+        unique listings qualify and {n(counts?.discoveryOnly)} do not.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">What &quot;Not inspected&quot; means</h2>
+      <P>
+        For a skill, the detail page shows whether it carries scripts, makes network calls or
+        needs credentials. LiteSPM reads the catalog&apos;s declarative metadata, not the
+        skill&apos;s files, so those fields say &quot;Not inspected&quot; unless the publisher
+        declared otherwise. It is the absence of an audit, not a clean bill of health: review the
+        source before you use a skill.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold" id="counts">Where each count comes from</h2>
+      <P>Three different numbers describe the size of the catalog. They answer different questions.</P>
+      <ul className="space-y-2">
+        <li className="rounded-xl border border-border/70 bg-card px-4 py-3 text-[12.5px] leading-relaxed text-muted-foreground">
+          <strong className="font-mono text-[14px] text-foreground">{n(counts?.catalogRows)}</strong>{" "}
+          <strong className="text-foreground">catalog rows</strong>: every row in the release file,
+          before any merging. This is the release&apos;s own item count.
+        </li>
+        <li className="rounded-xl border border-border/70 bg-card px-4 py-3 text-[12.5px] leading-relaxed text-muted-foreground">
+          <strong className="font-mono text-[14px] text-foreground">{n(counts?.uniqueListings)}</strong>{" "}
+          <strong className="text-foreground">unique listings</strong>: rows left after exact
+          duplicates are removed. This is what the banner, the home page and the introduction call
+          &quot;listings&quot;.
+        </li>
+        <li className="rounded-xl border border-border/70 bg-card px-4 py-3 text-[12.5px] leading-relaxed text-muted-foreground">
+          <strong className="font-mono text-[14px] text-foreground">{n(counts?.distinctTools)}</strong>{" "}
+          <strong className="text-foreground">distinct tools</strong>: distinct names after
+          lower-casing and dropping punctuation. Search results show this one, because it merges
+          same-name listings.
+        </li>
+      </ul>
+
+      <h2 className="pt-2 text-[17px] font-semibold">How duplicates are merged</h2>
+      <P>
+        Two steps. First, <strong className="text-foreground">exact duplicates</strong> are
+        removed: rows with the same source identity (the same kind, repository, path, revision and
+        name, or the same discovery key) count once. Second, search{" "}
+        <strong className="text-foreground">collapses same-name listings</strong>: one tool
+        published by several publishers, or as both an MCP server and a skill, appears as one
+        result, and every listing keeps its own page. The result that stays is the first in the
+        current order, so an installable listing wins over a discovery-only one of the same name,
+        and otherwise the higher score wins.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">Where the catalog comes from</h2>
+      <P>
+        Release {stats?.release?.releaseId ?? "…"} is built from these sources and nothing else.
+        Counts are unique listings per source.
+      </P>
+      <div className="overflow-x-auto rounded-xl border border-border/70">
+        <table className="w-full min-w-[30rem] text-left text-[12.5px]">
+          <thead className="border-b border-border/60 bg-muted/30 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 font-medium">Source</th>
+              <th className="px-3 py-2 font-medium">Id</th>
+              <th className="px-3 py-2 text-right font-medium">Listings</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(stats?.sources ?? []).map(([id, count]) => (
+              <tr key={id} className="border-b border-border/40 last:border-0">
+                <td className="px-3 py-2">{SOURCE_NOTE[id] ?? id}</td>
+                <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">{id}</td>
+                <td className="px-3 py-2 text-right font-mono tabular-nums">{formatFull(count)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <P>
+        A <strong className="text-foreground">verified publisher</strong> badge means the publisher
+        identity came from the vendor&apos;s own manifest (the registry or a vendor plugin
+        marketplace). A publisher taken from a list or directory entry is a claim and carries no
+        badge. A listing reaches metadata verified only when a manifest or source record supplies
+        its launch or source data.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">What we deliberately do not show</h2>
+      <P>
+        There are <strong className="text-foreground">no download or install counts</strong>.
+        LiteSPM has no telemetry, by design, so it has nothing to count, and no upstream source
+        publishes a count we could repeat honestly. There are no star counts for the same reason,
+        and no health lights: LiteSPM does not check whether an installed server is running. A
+        number that is not on this site is a number we do not have.
+      </P>
+
+      <h2 className="pt-2 text-[17px] font-semibold">Reporting a wrong listing</h2>
+      <P>
+        If a listing&apos;s name, publisher, level or launch line is wrong, use the{" "}
+        <NavLink to="/publish" className="font-medium text-brand hover:underline">
+          publish and feedback form
+        </NavLink>{" "}
+        and choose &quot;A listing&apos;s data is wrong&quot;. If you publish the package, the same
+        form is the way to get a record fixed.
+      </P>
     </DocSection>
   );
 }

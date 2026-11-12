@@ -343,3 +343,19 @@ export function nameTiebreakBucket(name: string): number {
 export function dedupeKey(row: { name: string }): string {
   return row.name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 }
+
+/**
+ * Stable partition: rows that `LiteSPM install` can complete come first, rows
+ * that are discovery-only follow, and the existing order is preserved inside
+ * each half. Applied after the relevance and rank sorts so a discovery-only
+ * row never outranks an installable one for the same query - it is still in
+ * the results, just after them. Because the duplicate collapse keeps the first
+ * row it meets per name, this is also what makes an installable twin win over
+ * a discovery-only twin of the same name.
+ */
+export function installableFirst<T>(items: T[], isInstallable: (item: T) => boolean): T[] {
+  const lead: T[] = [];
+  const rest: T[] = [];
+  for (const item of items) (isInstallable(item) ? lead : rest).push(item);
+  return lead.length === 0 || rest.length === 0 ? items : lead.concat(rest);
+}

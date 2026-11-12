@@ -299,7 +299,18 @@ export interface CatalogStatsResponse {
   };
   cli: Array<{ version: string; publishedAt?: string; notes?: string; installFlags?: string[] }>;
   uniqueTotal: number;
+  /** Rows in the release file before dedupe (not the post-dedupe length). */
   rawTotal: number;
+  /** The one set of catalog numbers; see server/litespm/counts.ts. */
+  counts: {
+    catalogRows: number;
+    uniqueListings: number;
+    distinctTools: number;
+    installable: number;
+    discoveryOnly: number;
+    byKind: { mcp: number; skill: number; plugin: number };
+    byInstallability: Record<string, number>;
+  };
   byKind: { mcp: number; skill: number; plugin: number };
   installable: number;
   withEndpoint: number;
@@ -464,4 +475,34 @@ export interface AssistantMeta {
     sources: number;
     embeddedChunks: number;
   };
+}
+
+export type BundleDifficulty = "Beginner" | "Intermediate" | "Advanced";
+
+export interface BundleItem {
+  id: string;
+  linkKey: string;
+  name: string;
+  kind: CatalogKind;
+  publisher: string;
+  verified: boolean;
+  summary: string;
+  installable: boolean;
+  availability: string;
+  /** Agent host ids this item can be configured for. */
+  hostIds: string[];
+}
+
+export interface BundleData {
+  id: string;
+  title: string;
+  blurb: string;
+  difficulty: BundleDifficulty;
+  audience: string;
+  items: BundleItem[];
+}
+
+export interface BundlesResponse {
+  bundles: BundleData[];
+  agents: Array<{ id: string; name: string }>;
 }
