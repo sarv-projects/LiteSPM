@@ -81,7 +81,7 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm search github",
 				"litespm search postgres",
 				"litespm search github --json --limit 200",
-				"litespm catalog sync   # fill the index first if it is empty",
+				"litespm catalog sync   # sync now instead of waiting for the automatic one",
 			},
 			SeeAlso: []string{"install", "catalog", "list"},
 		},
@@ -141,7 +141,8 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm catalog build [--dataset <file>] [--out <dir>] [--release-id <id>]",
 			},
 			Does: []string{
-				"`sync` fetches the release pointer, manifest and listings, verifies every digest, and replaces the local index only when the whole chain checks out.",
+				"`sync` fetches the release pointer, manifest and listings, verifies every digest, and replaces the local index only when the whole chain checks out. It then builds the on-disk search index from those verified files.",
+				"Runs on its own: the first command that needs the catalog downloads it, and later runs start a background sync at most every 6 hours without waiting. Set LITESPM_NO_AUTO_SYNC=1 to turn that off.",
 				"`build` compiles a dataset into the static /v1 tree the site serves. `--verify` checks a tree against its pointer.",
 			},
 			DoesNot: []string{

@@ -302,7 +302,7 @@ func buildMarketplaceRows(cat marketplaceSearcher, records []inventoryRecord, op
 		if opts.kind != "" {
 			kind = domain.ListingKind(opts.kind)
 		}
-		results := cat.Search(opts.query, catalog.SearchOptions{Kind: kind, Limit: searchLimit})
+		results := cat.Search(opts.query, catalog.SearchOptions{Kind: kind, Limit: searchLimit, Summary: true})
 		for _, res := range results {
 			if res == nil || res.Listing == nil {
 				continue

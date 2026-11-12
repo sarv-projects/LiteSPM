@@ -50,7 +50,7 @@ import (
 
 // diskIndexSchema is bumped whenever the table layout or the scoring changes;
 // an index with another value is rebuilt.
-const diskIndexSchema = 2 // 2: documents stored gzip-compressed
+const diskIndexSchema = 4 // 2: gzip documents; 3: summary column; 4: hay column
 
 const fieldSep = "\x1f"
 
@@ -199,6 +199,8 @@ func writeDiskIndex(cacheDir, path string, current *catalogbuild.CurrentPointer,
 			lsummary TEXT NOT NULL, lcats TEXT NOT NULL, lkws TEXT NOT NULL,
 			cats_exact TEXT NOT NULL,
 			verify TEXT NOT NULL,
+			summary BLOB NOT NULL,
+			hay TEXT NOT NULL,
 			doc BLOB NOT NULL)`,
 		`CREATE TABLE versions(listing_id TEXT NOT NULL, version TEXT NOT NULL, doc BLOB NOT NULL, PRIMARY KEY(listing_id, version)) WITHOUT ROWID`,
 	} {
@@ -210,7 +212,7 @@ func writeDiskIndex(cacheDir, path string, current *catalogbuild.CurrentPointer,
 	if err != nil {
 		return err
 	}
-	insL, err := tx.Prepare(`INSERT OR REPLACE INTO listings(id, kind, status, name, lid, lname, ltitle, lsummary, lcats, lkws, cats_exact, verify, doc) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	insL, err := tx.Prepare(`INSERT OR REPLACE INTO listings(id, kind, status, name, lid, lname, ltitle, lsummary, lcats, lkws, cats_exact, verify, summary, hay, doc) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -224,12 +226,19 @@ func writeDiskIndex(cacheDir, path string, current *catalogbuild.CurrentPointer,
 			_ = tx.Rollback()
 			return err
 		}
+		sum, err := json.Marshal(summaryOf(l))
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		cats := lowerAll(l.Categories)
 		if _, err := insL.Exec(l.ID, string(l.Kind), string(l.Status), l.Name,
 			strings.ToLower(l.ID), strings.ToLower(l.Name), strings.ToLower(l.Title), strings.ToLower(l.Summary),
 			strings.Join(cats, fieldSep), strings.Join(lowerAll(l.Keywords), fieldSep),
 			fieldSep+strings.Join(cats, fieldSep)+fieldSep,
-			l.VerificationSummary.Level, doc); err != nil {
+			l.VerificationSummary.Level, sum,
+			strings.Join([]string{strings.ToLower(l.Name), strings.ToLower(l.Title), strings.ToLower(l.Summary),
+				strings.Join(cats, fieldSep), strings.Join(lowerAll(l.Keywords), fieldSep)}, fieldSep), doc); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
@@ -334,6 +343,13 @@ func lowerAll(values []string) []string {
 }
 
 // search is SearchIndex.Search over the disk index.
+//
+// SQL only finds candidates (the trigram index when every token can use it)
+// and returns the short lowercased columns; the score is computed in Go with
+// exactly the in-memory rules, and only the rows that make the cut have their
+// document decoded. Decoding and SQL-side scoring were the cost: "github"
+// matches 26,864 rows, and scoring them in SQL then decoding 4,000 documents
+// took 1.7 s, where this takes a fraction of that.
 func (d *diskIndex) search(query string, opts SearchOptions) ([]*SearchResult, error) {
 	queryNorm := strings.ToLower(strings.TrimSpace(query))
 	tokens := tokenize(queryNorm)
@@ -357,11 +373,21 @@ func (d *diskIndex) search(query string, opts SearchOptions) ([]*SearchResult, e
 		args = append(args, fieldSep+strings.ToLower(opts.Category)+fieldSep)
 	}
 
-	var q string
 	if len(tokens) == 0 {
-		q = `SELECT id, doc FROM listings WHERE ` + strings.Join(where, " AND ") + ` ORDER BY name, id LIMIT ?`
-		args = append(args, limit)
-		listings, err := d.queryListings(q, args)
+		if opts.Summary {
+			q := `SELECT id, summary FROM listings WHERE ` + strings.Join(where, " AND ") + ` ORDER BY name, id LIMIT ?`
+			listings, err := d.querySummaries(q, append(args, limit))
+			if err != nil {
+				return nil, err
+			}
+			out := make([]*SearchResult, 0, len(listings))
+			for _, l := range listings {
+				out = append(out, &SearchResult{Listing: l, Score: 1.0})
+			}
+			return out, nil
+		}
+		q := `SELECT id, doc FROM listings WHERE ` + strings.Join(where, " AND ") + ` ORDER BY name, id LIMIT ?`
+		listings, err := d.queryListings(q, append(args, limit))
 		if err != nil {
 			return nil, err
 		}
@@ -372,10 +398,11 @@ func (d *diskIndex) search(query string, opts SearchOptions) ([]*SearchResult, e
 		return out, nil
 	}
 
-	// Candidates: every token of 3+ characters can use the trigram index.
-	// The match is an OR, because a listing scores when any token matches.
-	// A token shorter than 3 cannot, so the candidates are then every row
-	// (still cheap: the score below only reads short lowercased columns).
+	// A listing scores when ANY token is a substring of a scored field, so
+	// the candidate set is an OR over the tokens. The trigram index answers
+	// that for 3+ character tokens; a shorter token cannot use it, so the
+	// candidates are then every row with the filters (still one pass over
+	// short columns, never a document decode).
 	useFTS := true
 	var terms []string
 	for _, tok := range tokens {
@@ -388,46 +415,235 @@ func (d *diskIndex) search(query string, opts SearchOptions) ([]*SearchResult, e
 	if useFTS {
 		where = append(where, "rid IN (SELECT rowid FROM fts WHERE fts MATCH ?)")
 		args = append(args, strings.Join(terms, " OR "))
+	} else {
+		// No trigram for a token under 3 characters. A row can only score
+		// through an exact id/name match or a token inside name, title,
+		// summary, categories or keywords, and `hay` is exactly those
+		// fields joined, so this prefilter keeps every scoring row while
+		// letting SQLite discard the rest without returning them.
+		var ors []string
+		for _, tok := range tokens {
+			ors = append(ors, "instr(hay, ?) > 0")
+			args = append(args, tok)
+		}
+		ors = append(ors, "lid = ?", "lname = ?")
+		args = append(args, queryNorm, queryNorm)
+		where = append(where, "("+strings.Join(ors, " OR ")+")")
 	}
-
-	// The score, term for term the same as scoreListing.
-	var parts []string
-	var scoreArgs []any
-	parts = append(parts, "(CASE WHEN lid = ? THEN 100 ELSE 0 END)")
-	scoreArgs = append(scoreArgs, queryNorm)
-	parts = append(parts, "(CASE WHEN lname = ? THEN 50 WHEN substr(lname, 1, length(?)) = ? THEN 25 ELSE 0 END)")
-	scoreArgs = append(scoreArgs, queryNorm, queryNorm, queryNorm)
-	for _, tok := range tokens {
-		parts = append(parts, "((instr(lname, ?) > 0) * 10 + (instr(ltitle, ?) > 0) * 8 + (instr(lsummary, ?) > 0) * 4 + (instr(lcats, ?) > 0) * 6 + (instr(lkws, ?) > 0) * 5)")
-		scoreArgs = append(scoreArgs, tok, tok, tok, tok, tok)
-	}
-	base := strings.Join(parts, " + ")
-	inner := `SELECT rid, name, id, ` + base + ` AS base, verify FROM listings WHERE ` + strings.Join(where, " AND ")
-	ranked := `SELECT rid, name, id, base + (CASE WHEN base > 0 THEN (CASE verify WHEN 'security_audited' THEN 10 WHEN 'signature_verified' THEN 5 ELSE 0 END) ELSE 0 END) AS score
-		FROM (` + inner + `) WHERE base > 0 ORDER BY score DESC, name, id LIMIT ?`
-	q = `SELECT l.id, l.doc FROM (` + ranked + `) s JOIN listings l ON l.rid = s.rid ORDER BY s.score DESC, s.name, s.id`
-	allArgs := append(append(scoreArgs, args...), limit)
-	listings, err := d.queryListings(q, allArgs)
+	q := `SELECT rid, id, name, lid, lname, ltitle, lsummary, lcats, lkws, verify FROM listings WHERE ` + strings.Join(where, " AND ")
+	rows, err := d.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*SearchResult, 0, len(listings))
-	for _, l := range listings {
+	type cand struct {
+		rid      int64
+		id, name string
+		score    float64
+	}
+	var cands []cand
+	for rows.Next() {
+		var rid int64
+		var id, name, lid, lname, ltitle, lsummary, lcats, lkws, verify string
+		if err := rows.Scan(&rid, &id, &name, &lid, &lname, &ltitle, &lsummary, &lcats, &lkws, &verify); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		score := scoreColumns(queryNorm, tokens, lid, lname, ltitle, lsummary, lcats, lkws, verify)
+		if score > 0 {
+			cands = append(cands, cand{rid: rid, id: id, name: name, score: score})
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].score == cands[j].score {
+			if cands[i].name == cands[j].name {
+				return cands[i].id < cands[j].id
+			}
+			return cands[i].name < cands[j].name
+		}
+		return cands[i].score > cands[j].score
+	})
+	if len(cands) > limit {
+		cands = cands[:limit]
+	}
+	rids := make([]int64, len(cands))
+	for i, c := range cands {
+		rids[i] = c.rid
+	}
+	byRID, err := d.getManyByRID(rids, opts.Summary)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*SearchResult, 0, len(cands))
+	for _, c := range cands {
+		l := byRID[c.rid]
+		if l == nil {
+			continue
+		}
+		// Re-score from the document so MatchedFields is exactly what the
+		// in-memory path reports.
 		score, matched := scoreListing(l, queryNorm, tokens)
 		out = append(out, &SearchResult{Listing: l, Score: score, MatchedFields: matched})
 	}
-	// Re-sort with the in-memory comparator, so a float/int edge can never
-	// reorder results between the two paths.
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Score == out[j].Score {
-			if out[i].Listing.Name == out[j].Listing.Name {
-				return out[i].Listing.ID < out[j].Listing.ID
-			}
-			return out[i].Listing.Name < out[j].Listing.Name
-		}
-		return out[i].Score > out[j].Score
-	})
 	return out, nil
+}
+
+// getManyByRID fetches many rows in a few queries (one per 500 ids) instead
+// of one query each: fetching 4,000 rows one by one was most of a large
+// search's cost.
+func (d *diskIndex) getManyByRID(rids []int64, summary bool) (map[int64]*domain.Listing, error) {
+	col := "doc"
+	if summary {
+		col = "summary"
+	}
+	out := make(map[int64]*domain.Listing, len(rids))
+	const chunk = 500
+	for start := 0; start < len(rids); start += chunk {
+		end := start + chunk
+		if end > len(rids) {
+			end = len(rids)
+		}
+		part := rids[start:end]
+		args := make([]any, len(part))
+		for i, r := range part {
+			args[i] = r
+		}
+		q := `SELECT rid, ` + col + ` FROM listings WHERE rid IN (?` + strings.Repeat(",?", len(part)-1) + `)`
+		rows, err := d.db.Query(q, args...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var rid int64
+			var doc []byte
+			if err := rows.Scan(&rid, &doc); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			var l domain.Listing
+			if summary {
+				err = json.Unmarshal(doc, &l)
+			} else {
+				err = unpackDoc(doc, &l)
+			}
+			if err != nil {
+				rows.Close()
+				return nil, err
+			}
+			out[rid] = &l
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// scoreColumns is scoreListing over the index's lowercased columns. It must
+// stay rule-for-rule identical (TestDiskIndexMatchesInMemorySearch pins it).
+func scoreColumns(queryNorm string, tokens []string, lid, lname, ltitle, lsummary, lcats, lkws, verify string) float64 {
+	var score float64
+	if lid == queryNorm {
+		score += 100
+	}
+	if lname == queryNorm {
+		score += 50
+	} else if strings.HasPrefix(lname, queryNorm) {
+		score += 25
+	}
+	for _, tok := range tokens {
+		if strings.Contains(lname, tok) {
+			score += 10
+		}
+		if ltitle != "" && strings.Contains(ltitle, tok) {
+			score += 8
+		}
+		if lsummary != "" && strings.Contains(lsummary, tok) {
+			score += 4
+		}
+		if anyFieldContains(lcats, tok) {
+			score += 6
+		}
+		if anyFieldContains(lkws, tok) {
+			score += 5
+		}
+	}
+	if score > 0 {
+		switch verify {
+		case "security_audited":
+			score += 10
+		case "signature_verified":
+			score += 5
+		}
+	}
+	return score
+}
+
+// anyFieldContains reports whether one of the fieldSep-joined values contains
+// tok. A plain Contains over the joined string would let a match span two
+// values, which the in-memory per-value loop never does.
+func anyFieldContains(joined, tok string) bool {
+	if joined == "" {
+		return false
+	}
+	for _, v := range strings.Split(joined, fieldSep) {
+		if strings.Contains(v, tok) {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *diskIndex) getByRID(rid int64, summary bool) (*domain.Listing, bool, error) {
+	col := "doc"
+	if summary {
+		col = "summary"
+	}
+	var doc []byte
+	err := d.db.QueryRow(`SELECT `+col+` FROM listings WHERE rid = ?`, rid).Scan(&doc)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	var l domain.Listing
+	if summary {
+		err = json.Unmarshal(doc, &l)
+	} else {
+		err = unpackDoc(doc, &l)
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &l, true, nil
+}
+
+// summaryOf is the part of a listing a list row needs. scoreListing reads
+// only fields kept here (name, title, summary, id, categories, keywords,
+// verification level), so a summary scores exactly like the full listing.
+func summaryOf(l *domain.Listing) *domain.Listing {
+	s := &domain.Listing{
+		ID:             l.ID,
+		Kind:           l.Kind,
+		Name:           l.Name,
+		Title:          l.Title,
+		Summary:        l.Summary,
+		Categories:     l.Categories,
+		Keywords:       l.Keywords,
+		PublisherClaim: l.PublisherClaim,
+		Status:         l.Status,
+		Installability: l.Installability,
+	}
+	s.VerificationSummary.Level = l.VerificationSummary.Level
+	if len(l.Versions) > 0 {
+		s.Versions = l.Versions[:1]
+	}
+	return s
 }
 
 func (d *diskIndex) queryListings(q string, args []any) ([]*domain.Listing, error) {
@@ -669,4 +885,26 @@ func unpackDoc(doc []byte, v any) error {
 	}
 	defer zr.Close()
 	return json.NewDecoder(io.LimitReader(zr, 16<<20)).Decode(v)
+}
+
+func (d *diskIndex) querySummaries(q string, args []any) ([]*domain.Listing, error) {
+	rows, err := d.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*domain.Listing
+	for rows.Next() {
+		var id string
+		var doc []byte
+		if err := rows.Scan(&id, &doc); err != nil {
+			return nil, err
+		}
+		var l domain.Listing
+		if err := json.Unmarshal(doc, &l); err != nil {
+			return nil, fmt.Errorf("catalog index row %s: %w", id, err)
+		}
+		out = append(out, &l)
+	}
+	return out, rows.Err()
 }

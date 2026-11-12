@@ -69,9 +69,14 @@ Next:
 
 Setup prints **no capability count** and no advisory list: the wizard derives
 the host list from the compiled-in adapter registry (`cmd/litespm/wizard.go:154-162`)
-and the setup flow makes no network request. The one step that touches the
-network is the wizard's *Update the capability catalog* action — an explicit,
-confirmed `catalog sync` that names the origin first. `/marketplace` becomes
+and the setup flow itself makes no network request. The catalog is fetched by
+the automatic catalog sync: the first run that needs it (a bare `litespm`,
+`search`, `install`) downloads it in the foreground with progress, and later runs
+start a background `catalog sync` at most every six hours without waiting for
+it — only the published pointer, manifest and shards are requested, from the
+configured origin, and nothing about you is sent. `LITESPM_NO_AUTO_SYNC=1` (or
+`CI`) turns it off, leaving the wizard's *Update the capability catalog* action
+and `litespm catalog sync` as the only network steps. `/marketplace` becomes
 available in the agent after the bridge entry lands.
 
 Stop hand-editing `~/.claude.json`, `config.toml`, and a dozen other files.

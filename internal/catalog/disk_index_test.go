@@ -102,6 +102,14 @@ func TestDiskIndexMatchesInMemorySearch(t *testing.T) {
 		{`quote"inside`, SearchOptions{}},
 	}
 	for _, tc := range cases {
+		// Summary mode must rank exactly like full mode.
+		sumOpts := tc.opts
+		sumOpts.Summary = true
+		if s, err := disk.search(tc.q, sumOpts); err != nil {
+			t.Fatalf("summary %q: %v", tc.q, err)
+		} else if full, _ := disk.search(tc.q, tc.opts); ids(s) != ids(full) {
+			t.Fatalf("summary %q ranks %s, full ranks %s", tc.q, ids(s), ids(full))
+		}
 		want := mem.Search(tc.q, tc.opts)
 		got, err := disk.search(tc.q, tc.opts)
 		if err != nil {

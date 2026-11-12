@@ -115,3 +115,23 @@ func TestAutoSyncIsOffInTests(t *testing.T) {
 		t.Fatal("auto-sync must be disabled in a test binary")
 	}
 }
+
+// The helper processes rewrite os.Args[0] to "litespm" before calling main;
+// the guard must still see the test binary, or the child re-executes the test
+// binary as `catalog sync --auto` and runs the whole suite again, detached.
+func TestAutoSyncIsOffWhenArgsZeroIsRewritten(t *testing.T) {
+	saved := os.Args
+	t.Cleanup(func() { os.Args = saved })
+	os.Args = append([]string{"litespm"}, saved[1:]...)
+	if !autoSyncDisabled() {
+		t.Fatal("auto-sync ran in a test binary whose os.Args[0] was rewritten")
+	}
+	for name, want := range map[string]bool{
+		"litespm.test": true, `C:\x\litespm.test.exe`: true, "LITESPM.TEST.EXE": true,
+		"litespm": false, `C:\x\litespm.exe`: false, "my.test.dir/litespm": false,
+	} {
+		if got := isTestBinaryName(name); got != want {
+			t.Errorf("isTestBinaryName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

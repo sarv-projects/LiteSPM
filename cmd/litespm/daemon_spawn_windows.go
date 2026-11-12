@@ -14,7 +14,6 @@ import (
 
 const (
 	createNewProcessGroup = 0x00000200
-	detachedProcess       = 0x00000008
 	createNoWindow        = 0x08000000
 )
 
@@ -45,8 +44,13 @@ func spawnDetached(paths *config.PlatformPaths, exe string, args []string, logPa
 	cmd.Stdin = nil
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
+	// CREATE_NO_WINDOW gives the child a hidden console that its own console
+	// children (git, a helper litespm) inherit. DETACHED_PROCESS must not be
+	// added: Windows then ignores CREATE_NO_WINDOW, the child has no console,
+	// and every console program it starts opens a visible window.
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: detachedProcess | createNewProcessGroup | createNoWindow,
+		CreationFlags: createNewProcessGroup | createNoWindow,
+		HideWindow:    true,
 	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start %s: %w", strings.Join(args, " "), err)

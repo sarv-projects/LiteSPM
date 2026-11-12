@@ -16,6 +16,11 @@ type SearchOptions struct {
 	Category string
 	Limit    int
 	Status   domain.ListingStatus
+	// Summary asks for listings that carry only what a list row shows (id,
+	// name, title, summary, kind, status, publisher, installability, the
+	// newest version and the categories/keywords). The on-disk index then
+	// never decodes a full document; the in-memory index ignores it.
+	Summary bool
 }
 
 // SearchResult wraps a matched listing with relevance score.

@@ -23,7 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (schema `litespm.marketplace.rows/v1`): the view model the popups render. Installable rows lead every
   search; an empty query starts from the same twelve curated picks as the website's home page
   (`web/data/featured.json`, kept equal by a test); every document carries an `installed` array, so a
-  popup needs one call (each call loads the catalog) instead of two.
+  popup needs one call instead of two.
+- **On-disk catalog search index.** `catalog sync` now also builds an SQLite FTS5 (trigram) index,
+  `<DataRoot>/v1/index/catalog-<release>-<digest>-s<schema>.sqlite`, from the shards it has just
+  digest-verified. `search`, `marketplace rows`, the bridge and the daemon query it instead of
+  decoding the ~100 MB release: warm searches went from 2.6–3.4 s at ~475 MB RSS to 0.3–0.8 s
+  process total at ~33 MB on Linux (selective queries are 10–20 ms in-process). The index only narrows
+  candidates; scoring is the in-memory `scoreListing` rules, and a parity test holds the ranking equal.
+  The index records the manifest digest and every cache file's size and mtime and is opened read-only;
+  any mismatch falls back to a verified full load and rebuilds it. A long-lived daemon re-reads
+  `current.json` at most every 30 s and switches to a new release's index.
+- **Automatic catalog sync.** Any `litespm` run starts a detached `litespm catalog sync --auto` when the
+  last check is older than 6 hours (stamp `catalog-autosync.json`, lock `catalog-sync.lock`, log
+  `catalog-sync.log` under DataRoot) — the command you ran never waits for it. A first run that needs
+  the catalog downloads it in the foreground with progress on stderr; a popup with no terminal starts
+  the background sync and says so. Off with `LITESPM_NO_AUTO_SYNC=1`, and under `CI`.
 - The Pi popup gained tabs (All, MCP servers, Skills, Plugins, Installed), publisher column, paging, and
   refuses Enter on rows LiteSPM cannot install (it shows the reason instead of a raw error).
 - Website: `/explore` and `/marketplace` merged into one `/marketplace` page with server-side, paged
@@ -32,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed (working tree, 2026-11-10)
 
+- Windows: detached children (the daemon, the background catalog sync) are started with
+  `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW` and no longer `DETACHED_PROCESS`. With
+  `DETACHED_PROCESS` the child had no console, so every console program it started (`git`, a helper
+  `litespm`) opened a visible window.
+- The "never from a test binary" guard on daemon autostart and auto-sync also checks `os.Executable()`;
+  test helpers rewrite `os.Args[0]`, and a helper re-executed the test binary as `catalog sync --auto`,
+  which re-ran the suite detached (`TestAutoSyncIsOffWhenArgsZeroIsRewritten`).
 - Claude Code: setup registers the marketplace pane through `claude plugin marketplace add` + `plugin install`
   when the `claude` CLI is present (the `settings.json` entries alone were not loaded: `claude plugin list`
   showed nothing); `host remove` unregisters it.

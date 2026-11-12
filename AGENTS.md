@@ -124,11 +124,15 @@ action it offers delegates to the same shared implementation the CLI uses.
     setup step is an **MCP-entry merge only**: no instruction, skill, or command file is written
     into the host by it.
 6.  **The "What next" menu** (reachable after a fresh setup and on every later bare `litespm` run):
-    *   `[1] Update the capability catalog` — the one step that touches the network, and an explicit
-        opt-in that says what it fetches and installs nothing. A failure prints `✗ Could not update
+    *   `[1] Update the capability catalog` — an explicit, on-demand sync that says what it fetches
+        and installs nothing. A failure prints `✗ Could not update
         the catalog: …` and names `litespm catalog sync` (and the `npm install -g litespm` update
         path when the local index is still empty); a failure never prints a success line. The
-        wizard performs no other HTTP at setup time.
+        setup merge itself performs no HTTP. Separately, the **automatic catalog sync**
+        (`cmd/litespm/auto_sync.go`) runs before the wizard: with no cached catalog it downloads one
+        in the foreground with progress on stderr, and otherwise it starts a detached
+        `catalog sync --auto` at most every 6 h without waiting. `LITESPM_NO_AUTO_SYNC=1` or `CI`
+        turns it off, leaving `[1]` as the wizard's only network step.
     *   `[2] Find and install a capability` — searches the local index and installs through the
         **same plan → approval → policy gate** as `litespm install`: `authorizeHumanInstall`, then
         `installSkillFromListing` (skills) or `installMCPFromListing` (MCP servers). There is no	        wizard-only installer; plugin listings go through the same gate (a pinned source installs its

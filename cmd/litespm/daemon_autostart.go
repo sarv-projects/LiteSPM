@@ -69,11 +69,22 @@ func daemonAutostartAllowed() bool {
 	if truthyEnv("LITESPM_NO_DAEMON_AUTOSTART") {
 		return false
 	}
-	// A test binary must never leave a daemon behind.
-	if strings.HasSuffix(os.Args[0], ".test") || strings.Contains(os.Args[0], ".test.exe") {
+	// A test binary must never leave a daemon (or a background sync) behind.
+	// Helper processes rewrite os.Args[0] to "litespm" before calling main,
+	// so the executable itself is checked too: re-executing a test binary
+	// with `catalog sync --auto` would run the whole suite again, detached.
+	if isTestBinaryName(os.Args[0]) {
+		return false
+	}
+	if exe, err := os.Executable(); err == nil && isTestBinaryName(exe) {
 		return false
 	}
 	return true
+}
+
+func isTestBinaryName(p string) bool {
+	base := strings.ToLower(filepath.Base(p))
+	return strings.HasSuffix(base, ".test") || strings.HasSuffix(base, ".test.exe")
 }
 
 func daemonLogPath(paths *config.PlatformPaths) string {

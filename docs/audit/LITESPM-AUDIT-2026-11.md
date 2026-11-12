@@ -14,9 +14,10 @@ Conventions: **V** = verified by me (read / ran / fetched). **V-d** = verified b
 >   (`internal/host/marketplace_command.go`) installs popups for Pi, OpenCode, Claude Code, Copilot CLI
 >   and Amp and prompt commands for 12 more; Pi and OpenCode were driven end to end in the real agents
 >   (see STATUS.md). The bootstrap-skill claims are replaced by what the registrar actually writes.
-> - **F-03** (search cost): partly addressed. Popups now make one `marketplace rows` call instead of
->   two; each call still loads the full catalog (~1.6 s, ~500 MB on Linux). A resident index (daemon
->   or a compact on-disk search index) is still the fix.
+> - **F-03** (search cost): addressed 2026-11-10. `search`, `marketplace rows`, the bridge and the
+>   daemon query an on-disk SQLite FTS5 index built from the verified shards
+>   (`internal/catalog/disk_index.go`): warm `search` ~0.3–0.8 s at ~33 MB on Linux, from 2.6–3.4 s at
+>   ~475 MB. Broad queries remain bounded by the candidate scan (0.2–0.5 s).
 > - **F-11** (three "installable" rules): the website now uses one rule (`availabilityOf()`); the Go
 >   `IsInstallable` comparison remains open.
 > - **F-10** (site shows commands the CLI rejects): the site's commands and counts are now derived from

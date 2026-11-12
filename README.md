@@ -51,12 +51,17 @@ a backup, and writes only after you confirm.
 ## Quick start
 
 ```bash
-litespm catalog sync              # download the catalog (about 100 MB, once)
-litespm search postgres           # find something
+litespm search postgres           # first run downloads the catalog (about 100 MB, once)
 litespm install <id>              # plan, preview, confirm, install
 litespm list                      # what is installed, per agent
 litespm install remove <installId>
 ```
+
+The catalog keeps itself current: at most every six hours a `litespm` run starts
+a background `catalog sync` and never waits for it (`LITESPM_NO_AUTO_SYNC=1`
+turns that off; `litespm catalog sync` still syncs on demand). Searches read a
+local SQLite full-text index built from the verified download, so they take
+milliseconds and a few tens of MB rather than loading the whole catalog.
 
 Install into specific agents with `--agent <id>` (repeatable), or into every
 detected agent with `--all-detected`. `--dry-run` prints the plan and stops.
