@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/skills"
+	"golang.org/x/term"
 )
 
 const litespmBanner = `
@@ -59,12 +60,14 @@ Hosts with no dedicated dir (cline, pi-agent) share the universal
 unverified until a real audit source exists.`)
 }
 
+// isTerminal reports whether f is an interactive terminal, by asking the OS
+// (GetConsoleMode on Windows, an ioctl elsewhere). A file-mode check is not
+// enough: the null device is a character device too.
 func isTerminal(f *os.File) bool {
-	fi, err := f.Stat()
-	if err != nil {
+	if f == nil {
 		return false
 	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(f.Fd()))
 }
 
 func runSkillsAddForm(out *bufio.Writer, fields ...huh.Field) error {

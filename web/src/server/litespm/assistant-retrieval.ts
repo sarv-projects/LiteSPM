@@ -19,6 +19,7 @@ import { HOSTS, HOST_ALIASES } from "./hosts";
 import { resolveHostId } from "./identity";
 import { queryGroups } from "./bm25";
 import { searchCatalog, tokenize, type CatalogHit } from "./search";
+import { displayPackageName } from "../../lib/litespm/format";
 import type { ListingKind } from "./types";
 
 export interface AssistantIntent {
@@ -105,7 +106,7 @@ const FILLER = new Set([
   "compare", "comparison", "difference", "differences", "versus", "vs",
   "better", "today", "now", "current", "currently", "week", "month", "year",
   "day", "time", "this", "right", "one", "help", "helps", "helpful",
-  "assist", "assists", "assistant",
+  "assist", "assists", "assistant", "litespm", "lite", "spm", "into", "onto", "inside", "within", "from", "add", "connect", "setup",
 ]);
 
 function keywordTokens(question: string): string[] {
@@ -137,10 +138,31 @@ function querySet(question: string): string[] {
   return [...new Set(out)].slice(0, 2);
 }
 
+/** Remove agent-host names ("Claude Code", "cursor") so they are not search terms. */
+let hostMentionPattern: RegExp | null = null;
+export function stripHostMentions(question: string): string {
+  if (!hostMentionPattern) {
+    const names = new Set<string>();
+    for (const host of HOSTS) {
+      names.add(host.name.toLowerCase());
+      names.add(host.id.toLowerCase());
+      names.add(host.name.toLowerCase().replace(/\s*\(.*?\)\s*/g, " ").trim());
+    }
+    for (const alias of Object.keys(HOST_ALIASES)) names.add(alias.toLowerCase());
+    const escaped = [...names]
+      .filter((name) => name.length >= 3)
+      .sort((a, b) => b.length - a.length)
+      .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    hostMentionPattern = new RegExp(`(?<![a-z0-9])(?:${escaped.join("|")})(?![a-z0-9])`, "gi");
+  }
+  return question.replace(hostMentionPattern, " ").replace(/\s+/g, " ").trim();
+}
+
 async function searchKind(
   q: string,
   kind: ListingKind | undefined,
   intent: AssistantIntent,
+  options: { sort: "relevance" | "rank"; any?: boolean; pageSize: number },
 ): Promise<CatalogHit[]> {
   const result = await searchCatalog({
     q,
@@ -150,27 +172,132 @@ async function searchKind(
     // browser and database rows in coding, and a hard filter would hide the
     // exact match the user asked for.
     installable: intent.wantsInstallable && !intent.comparison ? "1" : undefined,
-    pageSize: 8,
-    sort: "relevance",
+    pageSize: options.pageSize,
+    sort: options.sort,
+    match: options.any ? "any" : undefined,
     facets: false,
     compact: true,
   });
   return result.items;
 }
 
+/** Collapse the same tool published several times ("Browserbase" x4). */
+function familyKey(hit: CatalogHit): string {
+  const core = normalizeName(displayPackageName(hit.name)).replace(/mcp|server/g, "");
+  return `${hit.kind}:${core || hit.linkKey}`;
+}
+
+/**
+ * Concept words and the tool names that mean them. A row that says
+ * "Playwright" is a browser-testing row even though neither word appears;
+ * without this, coverage dropped Microsoft's Playwright MCP for
+ * "browser testing" and an obscure row that repeats the words won.
+ */
+const CONCEPT_SYNONYMS: Record<string, string[]> = {
+  browser: ["playwright", "puppeteer", "chrome", "chromium", "selenium", "browserbase", "web"],
+  testing: ["test", "tests", "e2e", "qa", "playwright", "selenium"],
+  test: ["testing", "e2e", "qa", "playwright"],
+  database: ["postgres", "postgresql", "sql", "mysql", "sqlite", "mongodb", "db", "supabase", "neon"],
+  db: ["database", "postgres", "sql"],
+  postgres: ["postgresql", "neon", "supabase", "pg"],
+  docs: ["documentation", "context7", "reference"],
+  documentation: ["docs", "context7"],
+  repo: ["github", "gitlab", "git", "repository"],
+  git: ["github", "gitlab", "repository"],
+  design: ["figma", "ui", "ux"],
+  payments: ["stripe", "billing", "payment"],
+  monitoring: ["sentry", "grafana", "observability", "errors"],
+  search: ["brave", "exa", "tavily", "web"],
+  scraping: ["firecrawl", "crawl", "scrape", "browser"],
+};
+
+function conceptCovered(token: string, text: Set<string>): boolean {
+  if (text.has(token)) return true;
+  return (CONCEPT_SYNONYMS[token] ?? []).some((alt) => text.has(alt));
+}
+
+/** First-party signal: strong site rank, or the publisher is the brand in the name. */
+export function looksFirstParty(hit: CatalogHit): boolean {
+  if ((hit.rankScore ?? 0) >= 60) return true;
+  const core = normalizeName(hit.publisher.name.split(/[./]/).filter(Boolean).pop() ?? "");
+  return core.length >= 4 && normalizeName(displayPackageName(hit.name)).includes(core);
+}
+
+/**
+ * Rank candidates the way the site does (installable first, then quality),
+ * with text relevance as the gate rather than the whole signal. Pure lexical
+ * similarity put "Vibe Test" (rank 19) above Microsoft's Playwright MCP (65)
+ * for "browser testing".
+ */
+export function scoreCandidates(
+  question: string,
+  lists: CatalogHit[][],
+  intent: AssistantIntent,
+  focus = "",
+): CatalogHit[] {
+  const tokens = [...new Set([...keywordTokens(stripHostMentions(question)), ...tokenize(focus)])];
+  const fused = new Map<string, { hit: CatalogHit; rrf: number }>();
+  for (const list of lists) {
+    list.forEach((hit, rank) => {
+      const key = hit.linkKey || hit.id;
+      const rrf = 1 / (60 + rank + 1);
+      const current = fused.get(key);
+      if (current) current.rrf += rrf;
+      else fused.set(key, { hit, rrf });
+    });
+  }
+  const scored = [...fused.values()].map(({ hit, rrf }) => {
+    // displayPackageName drops reverse-DNS namespaces ("io.github.x/"), which would
+    // otherwise make every GitHub-hosted registry row "match" the word github.
+    const text = new Set(tokenize(`${displayPackageName(hit.name)} ${hit.slug} ${hit.summary} ${hit.category}`));
+    const nameText = new Set(tokenize(`${displayPackageName(hit.name)} ${hit.slug}`));
+    const coverage = tokens.length ? tokens.filter((t) => conceptCovered(t, text)).length / tokens.length : 0.5;
+    const nameCoverage = tokens.length ? tokens.filter((t) => conceptCovered(t, nameText)).length / tokens.length : 0;
+    const score =
+      rrf * 1.5 +
+      0.12 * coverage +
+      0.05 * nameCoverage +
+      // Quality counts in proportion to how well the row matches the words asked:
+      // a rank-61 row that mentions one of four terms must not beat a rank-19
+      // row that matches all four, but rank still beats a lexical coin-toss.
+      0.5 * (Math.min(100, hit.rankScore ?? 0) / 100) * (0.35 + 0.65 * coverage) +
+      (hit.installable ? 0.08 : -0.05) +
+      (looksFirstParty(hit) ? 0.04 : 0) +
+      (hit.publisher.verified ? 0.01 : 0) +
+      boost(hit, question, intent);
+    return { hit, score, coverage };
+  });
+  scored.sort(
+    (a, b) =>
+      b.score - a.score ||
+      Number(b.hit.installable) - Number(a.hit.installable) ||
+      (b.hit.rankScore ?? 0) - (a.hit.rankScore ?? 0) ||
+      a.hit.name.localeCompare(b.hit.name),
+  );
+  // Drop rows that match none of the asked words unless that would leave fewer than five.
+  const relevant = tokens.length ? scored.filter((entry) => entry.coverage > 0) : scored;
+  const pool = relevant.length >= 5 || relevant.length === scored.length
+    ? relevant
+    : [...relevant, ...scored.filter((entry) => entry.coverage === 0)];
+  const seen = new Set<string>();
+  const out: CatalogHit[] = [];
+  for (const { hit } of pool) {
+    const key = familyKey(hit);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(hit);
+  }
+  return out;
+}
+
+/** Small, explicit nudges on top of quality: kind match, goal match, exact name. */
 function boost(hit: CatalogHit, question: string, intent: AssistantIntent): number {
   let score = 0;
-  if (hit.installable) score += 0.03;
-  else score -= 0.02;
-  if (hit.publisher.verified) score += 0.01;
-  if (intent.goal && hit.goal === intent.goal) score += 0.02;
+  if (intent.goal && hit.goal === intent.goal) score += 0.01;
   if (intent.kind && hit.kind === intent.kind) score += 0.03;
-  const name = normalizeName(hit.name);
-  const q = normalizeName(question.replace(QUERY_WORDS, " "));
-  if (q && (name === q || name.includes(q) || q.includes(name))) score += 0.05;
-  // rankScore is a 0-100 quality score; use it only as a tiebreak, never as
-  // the primary signal (it is not usage data).
-  score += (hit.rankScore ?? 0) / 10_000;
+  const name = normalizeName(displayPackageName(hit.name));
+  const q = normalizeName(stripHostMentions(question).replace(QUERY_WORDS, " "));
+  if (q && name && (name === q || name.includes(q) || q.includes(name))) score += 0.05;
   return score;
 }
 
@@ -182,62 +309,47 @@ export interface AssistantRetrieval {
 
 /**
  * Retrieve the 8 rows the answer may cite. The caller renders the first 4 as
- * cards before the LLM starts writing.
+ * cards before the LLM starts writing. All catalog scans run concurrently.
  */
 export async function retrieveAssistant(question: string): Promise<AssistantRetrieval> {
   const intent = parseAssistantIntent(question);
-  const queries = querySet(question);
-  const lists: CatalogHit[][] = [];
+  const core = stripHostMentions(question) || question;
+  const queries = querySet(core);
+  // One kind-free sweep when the kind is unstated. Per-kind sweeps cost ~1 s
+  // for every kind with zero matches (the catalog falls back to a slow scan),
+  // and the site's own search is kind-free too.
+  const kinds: Array<ListingKind | undefined> = [intent.kind];
+  const jobs: Array<Promise<CatalogHit[]>> = [];
 
   for (const [queryIndex, q] of queries.entries()) {
-    if (intent.kind) {
-      lists.push(await searchKind(q, intent.kind, intent));
-      continue;
+    if (queryIndex === 0) {
+      for (const kind of kinds) {
+        // Text-relevance pass, then a quality-ordered pass over the same family
+        // so a flagship that misses one query word still enters the pool.
+        jobs.push(searchKind(q, kind, intent, { sort: "relevance", pageSize: kind ? 8 : 12 }));
+        // (Not match:"any": that scan costs 1-2 s. The single-term rank pass below does the same job in ~100 ms.)
+        jobs.push(searchKind(q, kind, intent, { sort: "rank", pageSize: 12 }));
+      }
+    } else {
+      jobs.push(searchKind(q, intent.kind, intent, { sort: "rank", pageSize: 12 }));
     }
-    if (queryIndex > 0) {
-      // Only the focus query needs the per-kind sweep. Running three kinds
-      // for every variant made a comparison question do nine catalog scans;
-      // one general pass for the supporting variants is enough.
-      const general = await searchCatalog({
-        q,
-        installable: intent.wantsInstallable && !intent.comparison ? "1" : undefined,
-        pageSize: 8,
-        sort: "relevance",
-        facets: false,
-        compact: true,
-      });
-      lists.push(general.items);
-      continue;
-    }
-    // Separately retrieve each kind so a mixed question gets mixed evidence.
-    lists.push(await searchKind(q, "mcp", intent));
-    lists.push(await searchKind(q, "skill", intent));
-    lists.push(await searchKind(q, "plugin", intent));
   }
+  const lists = await Promise.all(jobs);
 
   // If strict intent filters produced nothing, retry the two best queries
   // without the kind/installability/goal constraints. Honest fallback beats an
   // empty answer.
   if (!lists.some((list) => list.length > 0)) {
-    for (const q of queries.slice(0, 2)) {
-      const fallback = await searchCatalog({
-        q,
-        pageSize: 8,
-        sort: "relevance",
-        facets: false,
-        compact: true,
-      });
-      lists.push(fallback.items);
-    }
+    const fallback = await Promise.all(queries.slice(0, 2).map((q) =>
+      searchCatalog({ q, pageSize: 8, sort: "relevance", facets: false, compact: true }).then((r) => r.items)));
+    lists.push(...fallback);
   }
 
-  // Long natural-language questions often have no row containing every term
-  // ("autonomous coding" finds no skill whose text says both). A partial-match
-  // pass recovers those without lowering precision for short, exact queries.
+  // Long natural-language questions often have no row containing every term.
   const totalSoFar = lists.reduce((sum, list) => sum + list.length, 0);
-  if (queryGroups(question).length > 1 && totalSoFar < 3) {
+  if (queryGroups(core).length > 1 && totalSoFar < 3) {
     const relaxed = await searchCatalog({
-      q: queries[0] ?? question,
+      q: queries[0] ?? core,
       kind: intent.kind,
       match: "any",
       pageSize: 12,
@@ -248,32 +360,8 @@ export async function retrieveAssistant(question: string): Promise<AssistantRetr
     lists.push(relaxed.items);
   }
 
-  const fused = new Map<string, { hit: CatalogHit; score: number }>();
-  for (const list of lists) {
-    list.forEach((hit, rank) => {
-      const key = hit.linkKey || hit.id;
-      const rrf = 1 / (60 + rank + 1);
-      const current = fused.get(key);
-      if (current) current.score += rrf;
-      else fused.set(key, { hit, score: rrf });
-    });
-  }
-
-  const ranked = [...fused.values()]
-    .map((entry) => ({
-      ...entry,
-      score: entry.score + boost(entry.hit, question, intent),
-    }))
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        Number(b.hit.installable) - Number(a.hit.installable) ||
-        (b.hit.rankScore ?? 0) - (a.hit.rankScore ?? 0) ||
-        a.hit.name.localeCompare(b.hit.name),
-    );
-
   return {
-    hits: ranked.slice(0, 8).map((entry) => entry.hit),
+    hits: scoreCandidates(question, lists, intent, queries[0]).slice(0, 8),
     intent,
     queries,
   };

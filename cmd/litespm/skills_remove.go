@@ -194,8 +194,7 @@ func runSkillsList(args []string) {
 
 	fmt.Printf("Skills managed by this tool (%d director%s):\n\n",
 		len(filtered), pluralY(len(filtered)))
-	fmt.Printf("%-24s %-16s %-9s %-9s %s\n", "SKILL", "HOST", "SCOPE", "ORIGIN", "DIRECTORY")
-	fmt.Println(repeat("-", 88))
+	tableRows := make([][]string, 0, len(filtered))
 	for _, e := range filtered {
 		// An adopted skill was not installed by this tool. Saying so is the
 		// difference between "LiteSPM put this here" and "LiteSPM manages
@@ -205,8 +204,9 @@ func runSkillsList(args []string) {
 		if e.Source == skills.AdoptedSource {
 			origin = "adopted"
 		}
-		fmt.Printf("%-24s %-16s %-9s %-9s %s\n", e.SkillName, e.HostLabel, e.Scope, origin, e.DestDir)
+		tableRows = append(tableRows, []string{e.SkillName, e.HostLabel, string(e.Scope), origin, e.DestDir})
 	}
+	writeTable(os.Stdout, "", []string{"SKILL", "HOST", "SCOPE", "ORIGIN", "DIRECTORY"}, tableRows)
 	fmt.Println()
 	fmt.Println("Remove with: litespm skills remove <name>  or  litespm skills remove --all")
 }

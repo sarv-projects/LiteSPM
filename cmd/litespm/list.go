@@ -1156,11 +1156,13 @@ func renderAgentRoster(ctx context.Context, w io.Writer, report *inventoryReport
 		return
 	}
 
-	fmt.Fprintf(w, "  %-16s %-44s %-11s %s\n", "AGENT", "CONFIG FILE", "BRIDGE", "DEPLOYMENTS")
+	rosterCells := make([][]string, 0, len(rows))
 	for _, row := range rows {
-		fmt.Fprintf(w, "  %-16s %-44s %-11s %d\n",
-			row.hostID, truncateRunes(row.configPath, 44), row.bridge, row.deployments)
+		rosterCells = append(rosterCells, []string{
+			row.hostID, truncateRunes(row.configPath, 44), row.bridge, fmt.Sprintf("%d", row.deployments)})
 	}
+	rosterHeader := []string{"AGENT", "CONFIG FILE", "BRIDGE", "DEPLOYMENTS"}
+	writeTableNoRule(w, "  ", rosterHeader, rosterCells)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Deployments counts the records `litespm list` shows for that agent;")
 	fmt.Fprintln(w, "run `litespm list --agent <id>` for the rows themselves.")

@@ -59,15 +59,31 @@ const ACRONYMS: Record<string, string> = {
   Html: "HTML", Rag: "RAG", Ocr: "OCR", Jwt: "JWT", Oauth: "OAuth", Graphql: "GraphQL", Devops: "DevOps",
 };
 
+/** A name that says nothing on its own once the namespace is gone. */
+const GENERIC_NAME = /^(mcp|mcp[-_ ]?server|server|remote[-_ ]?mcp|api|official)$/i;
+
+/** "com.cloudflare.mcp" → "Cloudflare", "io.github.acme" → "Acme". */
+function brandOf(namespace: string): string {
+  const parts = namespace.split(".").filter((p) => !/^(com|io|ai|dev|net|org|app|co|mcp|github|www)$/i.test(p));
+  const word = parts[0] ?? namespace;
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
 /**
  * Strip the reverse-DNS namespace the MCP registry puts in names
  * ("io.github.account/x", "com.vercel/vercel-mcp") and fix acronym casing.
+ * When what remains is generic ("com.notion/mcp"), the brand is kept:
+ * "Notion MCP", not "mcp".
  */
 export function displayPackageName(name: string): string {
-  return name
-    .replace(/^io\.github\.[^/]+\//i, "")
-    .replace(/^(?:[a-z0-9-]+\.)+[a-z0-9-]+\/(?=\S)/i, "")
-    .replace(/\b[A-Z][a-z]+\b/g, (w) => ACRONYMS[w] ?? w);
+  let out = name.replace(/^io\.github\.[^/]+\//i, "");
+  const ns = out.match(/^((?:[a-z0-9-]+\.)+[a-z0-9-]+)\/(\S.*)$/i);
+  if (ns) {
+    const rest = ns[2].trim();
+    const pretty = rest.toLowerCase().replace(/[-_]+/g, " ").replace(/\bmcp\b/g, "MCP").replace(/\b[a-z]/g, (c) => c.toUpperCase());
+    out = GENERIC_NAME.test(rest) ? `${brandOf(ns[1])} ${pretty}` : rest;
+  }
+  return out.replace(/\b[A-Z][a-z]+\b/g, (w) => ACRONYMS[w] ?? w);
 }
 
 export type RankTier = "top" | "strong" | "solid";

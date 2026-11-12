@@ -196,14 +196,14 @@ export function TerminalHero({
       aria-label="LiteSPM interactive terminal session"
     >
       {/* Terminal Titlebar */}
-      <div className="flex flex-wrap items-center justify-between border-b border-white/[0.08] bg-white/[0.03] px-4 py-2.5 backdrop-blur-sm">
+      <div className="flex items-center justify-between gap-2 border-b border-white/[0.08] bg-white/[0.03] px-3 py-2.5 backdrop-blur-sm sm:px-4">
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5" aria-hidden="true">
             <span className="h-3 w-3 rounded-full bg-rose-500/80 transition-opacity hover:opacity-100" />
             <span className="h-3 w-3 rounded-full bg-amber-500/80 transition-opacity hover:opacity-100" />
             <span className="h-3 w-3 rounded-full bg-emerald-500/80 transition-opacity hover:opacity-100" />
           </span>
-          <span className="ml-2 inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-white/52">
+          <span className="ml-2 hidden items-center gap-1.5 font-mono text-[11px] font-medium text-white/52 sm:inline-flex">
             <Terminal className="h-3 w-3 text-brand" /> litespm — terminal
           </span>
         </div>
@@ -220,7 +220,7 @@ export function TerminalHero({
                 setScenario(id);
                 setRunKey((k) => k + 1);
               }}
-              className={`relative rounded-lg px-2 py-0.5 font-mono text-[10.5px] transition-colors ${
+              className={`relative whitespace-nowrap rounded-lg px-1.5 py-0.5 font-mono text-[10px] transition-colors sm:px-2 sm:text-[10.5px] ${
                 scenario === id ? "font-semibold text-emerald-300" : "text-white/40 hover:text-white/80"
               }`}
             >
@@ -239,7 +239,7 @@ export function TerminalHero({
             type="button"
             onClick={() => setRunKey((k) => k + 1)}
             title="Replay terminal animation"
-            className="ml-1 rounded-md p-1 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/80"
+            className="ml-1 hidden rounded-md p-1 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/80 sm:inline-flex"
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
@@ -247,7 +247,7 @@ export function TerminalHero({
             type="button"
             onClick={copySession}
             title="Copy entire session to clipboard"
-            className="rounded-md p-1 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/80"
+            className="hidden rounded-md p-1 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/80 sm:inline-flex"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
@@ -256,7 +256,7 @@ export function TerminalHero({
 
       {/* Terminal Viewport: fixed height, newest line at the bottom like a real
           terminal, so the hero never shifts while the session plays. */}
-      <div className="flex h-[318px] flex-col justify-end overflow-hidden px-4 py-3 font-mono text-[11.5px] leading-[1.75] sm:text-[12px]">
+      <div className="flex h-[236px] flex-col justify-end overflow-hidden px-3 py-3 font-mono text-[10.5px] leading-[1.7] sm:h-[318px] sm:px-4 sm:text-[12px] sm:leading-[1.75]">
         {lines.slice(0, visible).map((line, i) => (
           <p key={`${runKey}-${scenario}-${i}`} className={`term-line whitespace-pre ${LINE_STYLES[line.kind]}`}>
             {line.kind === "cmd" && <span className="mr-2 font-bold text-emerald-400">$</span>}

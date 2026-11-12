@@ -716,6 +716,17 @@ func runSetup(args []string) {
 		fmt.Fprintln(os.Stderr, "Run `litespm host list` to see the host ids.")
 		os.Exit(1)
 	}
+	// The wizard's questions are written to stdout. With stdout redirected to a
+	// file or pipe they would be invisible while the process waited on the
+	// keyboard — a hang with no explanation. Say so instead of starting.
+	if !isTerminal(os.Stdout) {
+		fmt.Fprintln(os.Stderr, "litespm setup draws its questions on the terminal, but its output is redirected,")
+		fmt.Fprintln(os.Stderr, "so you would not see them. Run `litespm` without redirecting its output, or")
+		fmt.Fprintln(os.Stderr, "name the agent instead — the command then runs without prompts:")
+		fmt.Fprintln(os.Stderr, "    litespm setup --agent <host-id>")
+		fmt.Fprintln(os.Stderr, "Run `litespm host list` to see the host ids.")
+		os.Exit(1)
+	}
 
 	runInteractiveWizard()
 }
@@ -960,34 +971,12 @@ func runHostCommand(args []string) {
 
 	switch sub {
 	case "list":
-		adapters := host.ListAdapters()
-		fmt.Printf("Registered Agent Host Adapters (%d):\n\n", len(adapters))
-		fmt.Printf("%-14s %-20s %-10s %s\n", "HOST ID", "DISPLAY NAME", "FORMAT", "CONFIG FILE")
-		fmt.Println(strings.Repeat("-", 70))
-		for _, a := range adapters {
-			d := a.Descriptor()
-			fmt.Printf("%-14s %-20s %-10s %s\n", d.HostID, d.DisplayName, d.ConfigFormat, d.DefaultConfigFileName)
-		}
+		renderHostList(ctx, os.Stdout)
 
 	case "detect":
-		fmt.Println("Scanning for installed agent configurations...")
-		verifs, err := host.DetectInstalledHosts(ctx)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Detection error: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("%-14s %-12s %-12s %s\n", "HOST ID", "CONFIG FILE", "BRIDGE", "CONFIG PATH")
-		fmt.Println(strings.Repeat("-", 80))
-		for _, v := range verifs {
-			fileStatus := "missing"
-			if v.Configured {
-				fileStatus = "found"
-			}
-			bridgeStatus := "not linked"
-			if v.Registered {
-				bridgeStatus = "connected"
-			}
-			fmt.Printf("%-14s %-12s %-12s %s\n", v.HostID, fileStatus, bridgeStatus, v.ConfigPath)
+		cwd, _ := os.Getwd()
+		if code := renderHostDetect(ctx, os.Stdout, cwd); code != 0 {
+			os.Exit(code)
 		}
 
 	case "setup":

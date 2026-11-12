@@ -358,20 +358,14 @@ func pathContains(parent, child string) bool {
 }
 
 // stdinIsTerminal reports whether stdin can actually answer an interactive
-// prompt. It is deliberately stricter than isTerminal (skills_add.go):
-// os/exec hands a child with no stdin the null device, which IS a character
-// device but answers every read with EOF, so a prompt that trusted
-// ModeCharDevice alone would present a picker nobody can answer. The null
-// device is detected explicitly and refused.
+// prompt. It asks the OS (GetConsoleMode on Windows, termios elsewhere), so the
+// null device os/exec hands a child with no stdin — a character device that
+// answers every read with EOF — is correctly refused. The previous check
+// compared stdin to os.DevNull with os.SameFile, and on Windows a console
+// handle and NUL both carry no file id, so a real PowerShell console was
+// treated as "no terminal" and `litespm` refused to start the wizard.
 func stdinIsTerminal() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
-		return false
-	}
-	if devNull, err := os.Stat(os.DevNull); err == nil && os.SameFile(fi, devNull) {
-		return false
-	}
-	return true
+	return isTerminal(os.Stdin)
 }
 
 // skillUpdateGroup is one fetched source plus every ledger entry that resolves

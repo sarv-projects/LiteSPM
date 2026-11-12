@@ -4,7 +4,10 @@ import { hasValidKnowledgeCitations, knowledgeCorpusStats, retrieveKnowledge } f
 import { ASSISTANT_FUNCTION_TOOLS, assistantToolForQuestion, executeAssistantFunction, executeAssistantTool, isHostSetupQuestion, isRemoteHostQuestion } from "../src/server/litespm/assistant-tools";
 import { HOSTS } from "../src/server/litespm/hosts";
 import { buildHostSetupAnswer, buildRemoteHostAnswer } from "../src/server/litespm/assistant-host-answers";
-import { chatCompleteWithTools, resetLlmPool } from "../src/server/llm/gateway";
+import { chatComplete, chatCompleteWithTools, resetLlmPool } from "../src/server/llm/gateway";
+import { retrieveAssistant } from "../src/server/litespm/assistant-retrieval";
+import { ensureInstallCommands, installCommandFor, llmFailureMessage, followUpSuggestions } from "../src/server/litespm/assistant-answer";
+import { displayPackageName } from "../src/lib/litespm/format";
 import { embedTexts } from "../src/server/litespm/assistant-embeddings";
 
 const history = [
@@ -63,6 +66,9 @@ const retrievalEvaluation = [
   { query: "npm package install usage and uninstall cleanup", expected: "npm/README.md" },
   { query: "CLI command surface litespm init list search install remove update verify doctor", expected: "ARCH/38-CLI-PRODUCT-SURFACE.md" },
   { query: "release bundle signatures cosign self update verification", expected: "ARCH/22-PLATFORM-RELEASE-MIGRATIONS.md" },
+  { query: "What is the difference between installable and discovery-only?", expected: "site/faq.md" },
+  { query: "How are listings ranked and what is the LiteSPM score?", expected: "site/faq.md" },
+  { query: "Why does litespm say it needs an interactive terminal?", expected: "site/faq.md" },
 ];
 let reciprocalRankSum = 0;
 for (const testCase of retrievalEvaluation) {
@@ -72,6 +78,7 @@ for (const testCase of retrievalEvaluation) {
   reciprocalRankSum += 1 / (rank + 1);
 }
 const retrievalMrr = reciprocalRankSum / retrievalEvaluation.length;
+assert.ok(retrievalMrr >= 0.733, `retrieval MRR regressed below the 0.733 baseline: ${retrievalMrr.toFixed(3)}`);
 assert.ok(retrievalMrr >= 0.2, `retrieval MRR too low: ${retrievalMrr.toFixed(3)}`);
 
 assert.equal(assistantToolForQuestion("What hosts does LiteSPM support?")?.name, "hosts.list");
@@ -161,10 +168,158 @@ try {
   else process.env.EMBEDDING_API_KEY = previousEmbeddingKey;
 }
 
+
+// ---------------------------------------------------------------------------
+// Regression: routing decisions (no LLM involved)
+// ---------------------------------------------------------------------------
+// 1. "Install <named capability> into <agent>" is a CATALOG question. It used to
+//    hit the host-setup shortcut, which answered "this does not install a
+//    separate third-party MCP package" - the opposite of the question.
+const installIntoAgent = [
+  "How do I install a postgres MCP server into Claude Code?",
+  "Install the GitHub MCP server in Cursor",
+  "add playwright to cline",
+  "I want a skill for pdf in codex",
+  "Install a plugin into OpenCode",
+];
+for (const question of installIntoAgent) {
+  assert.equal(isHostSetupQuestion(question), false, `host-setup shortcut must not fire for: ${question}`);
+  assert.equal(assistantToolForQuestion(question), null, `host registry tool must not be selected for: ${question}`);
+  assert.equal(routeAssistantIntent(question).mode, "catalog", `must route to catalog search: ${question}`);
+}
+// ...while genuine "connect LiteSPM to <agent>" questions keep the shortcut.
+for (const question of [
+  "Connect LiteSPM to Claude Code",
+  "How do I set up Claude Code with LiteSPM?",
+  "How do I install LiteSPM into OpenCode and register its MCP bridge?",
+  "How do I connect LiteSPM's MCP bridge to Cursor?",
+  "How do I connect GitHub Copilot CLI?",
+]) {
+  assert.equal(isHostSetupQuestion(question), true, `genuine bridge setup must still be a host-setup question: ${question}`);
+}
+// 2. Definitions of the site's own vocabulary route to documentation, never to general knowledge.
+for (const question of [
+  "What is the difference between installable and discovery-only?",
+  "What does Discovery only mean?",
+  "How are listings ranked?",
+  "What is the LiteSPM score?",
+]) {
+  const routed = routeAssistantIntent(question);
+  assert.equal(routed.mode, "knowledge", `site vocabulary must be answered from the docs: ${question}`);
+}
+assert.ok(assistantSystemPrompt().includes("I don't know") || assistantSystemPrompt().includes("doesn't say"), "prompt must prefer admitting a gap over inventing");
+assert.ok(assistantSystemPrompt().includes("Installing a capability"), "prompt must carry the install-recommendation rules");
+
+// ---------------------------------------------------------------------------
+// Regression: the FAQ / methodology text is in the corpus and retrievable
+// ---------------------------------------------------------------------------
+assert.ok(knowledgeCorpusStats().sourcePaths.includes("site/faq.md"), "FAQ and methodology text must be part of the knowledge corpus");
+for (const question of [
+  "What is the difference between installable and discovery-only?",
+  "Why are some packages marked Installable while others are Discovery-Only?",
+  "How are listings ranked? What is the LiteSPM score?",
+]) {
+  const hits = await retrieveKnowledge(question, 7);
+  assert.ok(hits.slice(0, 3).some((hit) => hit.source === "site/faq.md"), `site/faq.md must rank in the top 3 for: ${question}`);
+}
+const definition = (await retrieveKnowledge("What is the difference between installable and discovery-only?", 3))
+  .map((hit) => hit.text).join("\n");
+assert.ok(/verified source or launch line|install plan/i.test(definition), "retrieved evidence must carry the real definition");
+
+// ---------------------------------------------------------------------------
+// Regression: catalog recommendations follow the site's ordering
+// ---------------------------------------------------------------------------
+const browser = await retrieveAssistant("Recommend an MCP server for browser testing");
+assert.ok(browser.hits.length >= 3, "browser testing must find catalog rows");
+assert.ok(browser.hits.slice(0, 3).some((hit) => hit.installable && (hit.rankScore ?? 0) >= 60),
+  "a high-ranked installable server (Playwright, Browserbase) must appear in the top 3");
+assert.ok((browser.hits[0]?.rankScore ?? 0) >= 40, `an obscure low-rank row must not lead (got ${browser.hits[0]?.name} @ ${browser.hits[0]?.rankScore})`);
+assert.ok(browser.hits.slice(0, 4).every((hit) => hit.installable), "installable rows lead the recommendation");
+
+const postgres = await retrieveAssistant("How do I install a postgres MCP server into Claude Code?");
+assert.equal(postgres.intent.host, "claude-code");
+assert.ok(!postgres.queries.some((q) => /claude/i.test(q)), `host names must not become search terms: ${postgres.queries.join(" | ")}`);
+assert.ok(postgres.hits.length >= 3 && postgres.hits.slice(0, 3).every((hit) => /postgres|neon|sql/i.test(`${hit.name} ${hit.summary}`)), "postgres install must retrieve postgres servers");
+assert.ok(postgres.hits.slice(0, 4).some((hit) => (hit.rankScore ?? 0) >= 50), "a vendor-grade postgres server must be near the top");
+const top = postgres.hits[0]!;
+assert.equal(installCommandFor(top, "claude-code"), `litespm install ${top.id} --agent claude-code`);
+assert.ok(!/^io\.github\./i.test(displayPackageName("io.github.hubertgajewski/playwright-report-mcp")), "display names must drop registry namespaces");
+assert.equal(installCommandFor({ id: "x:y", linkKey: "y", name: "y", installable: false }, "cursor"), null, "discovery-only rows have no install command");
+
+// The deterministic backstop adds the exact command for a package the answer names but forgot to command.
+const sample = postgres.hits.slice(0, 2);
+const named = ensureInstallCommands(`Try ${displayPackageName(sample[0]!.name)} first.`, sample, "claude-code");
+assert.ok(named.includes(`litespm install ${sample[0]!.id} --agent claude-code`), "install command must be appended");
+assert.ok(named.includes(`#/package/${encodeURIComponent(sample[0]!.linkKey)}`), "details link must be appended");
+assert.equal(ensureInstallCommands("No packages mentioned here.", sample, "claude-code"), "No packages mentioned here.");
+assert.equal(ensureInstallCommands(named, sample, "claude-code"), named, "backstop is idempotent");
+assert.ok(followUpSuggestions("catalog", sample, "Claude Code CLI").length >= 2 && followUpSuggestions("catalog", sample).length <= 3, "follow-up chips: 2-3 questions");
+assert.deepEqual(followUpSuggestions("conversation", []), []);
+
+// ---------------------------------------------------------------------------
+// Regression: gateway fails over across keys; friendly retry on rate limits
+// ---------------------------------------------------------------------------
+{
+  const keys = ["LLM_PROVIDER_ORDER", "GROQ_API_KEY", "GROQ_API_KEY_1", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_MODELS"];
+  const saved = new Map(keys.map((key) => [key, process.env[key]]));
+  const realFetch = globalThis.fetch;
+  const resetHealth = () => { delete (globalThis as { __litespmLlmHealth?: unknown }).__litespmLlmHealth; resetLlmPool(); };
+  try {
+    for (const key of keys) delete process.env[key];
+    process.env.LLM_PROVIDER_ORDER = "groq";
+    process.env.GROQ_API_KEY_1 = "unit-key-1";
+    process.env.GROQ_API_KEY_2 = "unit-key-2";
+    process.env.GROQ_API_KEY_3 = "unit-key-3";
+    process.env.GROQ_MODELS = "model-a";
+    const ok = () => new Response(JSON.stringify({ choices: [{ message: { content: "pong" } }] }), { status: 200 });
+
+    // Keys 1 and 2 are rate limited; key 3 answers. The request must succeed.
+    resetHealth();
+    const seen: string[] = [];
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      const auth = String((init?.headers as Record<string, string>)?.Authorization ?? "");
+      seen.push(auth);
+      return auth.endsWith("unit-key-3") ? ok() : new Response("{}", { status: 429, headers: { "retry-after": "7" } });
+    }) as typeof fetch;
+    const failover = await chatComplete({ system: "s", messages: [{ role: "user", content: "ping" }] });
+    assert.equal(failover.ok, true, "a 429 on two keys must fail over to the third");
+    assert.ok(new Set(seen).size >= 1 && seen[seen.length - 1]!.endsWith("unit-key-3"));
+
+    // Every key rate limited: a retry time is reported (it used to be 0 -> "could not reach any provider").
+    resetHealth();
+    globalThis.fetch = (async () => new Response("{}", { status: 429, headers: { "retry-after": "7" } })) as typeof fetch;
+    const exhausted = await chatComplete({ system: "s", messages: [{ role: "user", content: "ping" }] });
+    assert.equal(exhausted.ok, false);
+    assert.ok(!exhausted.ok && exhausted.retryInMs > 0, "fresh 429s on every key must produce a retry time");
+    const friendly = llmFailureMessage(exhausted as { retryInMs: number; attempts: Array<{ outcome: string }> });
+    assert.ok(/busy|rate limited/i.test(friendly.message) && /\d+s/.test(friendly.message), `friendly retry message expected, got: ${friendly.message}`);
+    assert.equal(friendly.retryable, true);
+
+    // Cooldown is per model: a 429 for model-a must not block model-b on the same key.
+    process.env.GROQ_MODELS = "model-a,model-b";
+    process.env.GROQ_API_KEY_2 = "";
+    process.env.GROQ_API_KEY_3 = "";
+    resetHealth();
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { model?: string };
+      return body.model === "model-a" ? new Response("{}", { status: 429 }) : ok();
+    }) as typeof fetch;
+    const perModel = await chatComplete({ system: "s", messages: [{ role: "user", content: "ping" }] });
+    assert.equal(perModel.ok, true, "a rate-limited model must not take the key's other models down with it");
+  } finally {
+    globalThis.fetch = realFetch;
+    for (const key of keys) {
+      const value = saved.get(key);
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    delete (globalThis as { __litespmLlmHealth?: unknown }).__litespmLlmHealth;
+    resetLlmPool();
+  }
+}
 console.log(JSON.stringify({
   status: "passed",
   corpus: stats,
-  intentCases: 7,
+  intentCases: 7 + installIntoAgent.length + 9,
   retrievalCases: retrievalEvaluation.length + 2,
   retrievalMrr: Number(retrievalMrr.toFixed(3)),
   toolCases: 11,

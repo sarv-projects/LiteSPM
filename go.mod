@@ -10,6 +10,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.9.3
 	github.com/sigstore/sigstore-go v1.3.0
 	golang.org/x/sys v0.48.0
+	golang.org/x/term v0.45.0
 	modernc.org/sqlite v1.60.1
 )
 
@@ -98,7 +99,6 @@ require (
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260523011958-0a33c5d7ca68 // indirect

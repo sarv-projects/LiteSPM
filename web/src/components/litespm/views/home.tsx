@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { animate, motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
+  BadgeCheck,
   Bookmark,
   Cable,
   CheckCircle2,
@@ -18,7 +19,6 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
-  Star,
   Terminal,
   Trophy,
   Undo2,
@@ -68,28 +68,17 @@ const MARQUEE_AGENTS = [
   "Junie", "Augment", "Qwen Code", "Crush", "Droid", "Tabnine CLI", "Devin", "OpenHands",
 ];
 
-/** Count-up animation for the hero stats: 0 → value on first view. */
+/**
+ * Hero stat. It used to count up from 0 when scrolled into view, so anyone
+ * scrolling past (or a screenshot) saw a wrong number such as 69,148. The real
+ * value is shown at once; the block's own rise-in is the only motion.
+ */
 function CountUp({ value, format }: { value: number; format: (n: number) => string }) {
-  const ref = React.useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-20px" });
-  const [display, setDisplay] = React.useState(0);
-
-  React.useEffect(() => {
-    if (!inView) return;
-    const controls = animate(0, value, {
-      duration: 1.1,
-      ease: [0.16, 1, 0.3, 1],
-      onUpdate: (v) => setDisplay(Math.round(v)),
-    });
-    return () => controls.stop();
-  }, [inView, value]);
-
-  return <span ref={ref}>{format(display)}</span>;
+  return <span className="tabular-nums">{format(value)}</span>;
 }
 
 export function HomeView() {
   const navigate = useApp((s) => s.navigate);
-  const setAssistant = useApp((s) => s.setAssistant);
   const [stats, setStats] = React.useState<CatalogStatsResponse | null>(null);
   const [featured, setFeatured] = React.useState<FeaturedResponse | null>(null);
   const [trending, setTrending] = React.useState<TrendingItem[]>([]);
@@ -779,8 +768,7 @@ export function HomeView() {
               { name: "Claude Code", detail: "Terminal CLI · MCP + skills", id: "claude-code" },
               { name: "OpenAI Codex", detail: "Terminal CLI · MCP + skills", id: "codex" },
               { name: "Gemini CLI", detail: "Terminal CLI · MCP + skills", id: "gemini-cli" },
-              { name: "Zed", detail: "Editor · MCP", id: "zed" },
-              { name: "OpenCode", detail: "Open source · MCP + skills", id: "opencode" },
+             { name: "OpenCode", detail: "Open source · MCP + skills", id: "opencode" },
             ].map((agent) => (
               <button
                 key={agent.id}
@@ -804,7 +792,7 @@ export function HomeView() {
               className="group flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-card/50 p-4 text-center transition-all hover:border-brand/40"
             >
               <span className="font-mono text-[20px] font-semibold text-brand">
-                {`+${Math.max((stats?.hosts ?? facts.hosts) - 8, 0)}`}
+                {`+${Math.max((stats?.hosts ?? facts.hosts) - 7, 0)}`}
               </span>
               <span className="mt-1 text-[12px] text-muted-foreground">
                 more hosts, every one the same command
@@ -838,7 +826,7 @@ export function HomeView() {
               body: "litespm install remove strips only the nodes LiteSPM wrote. Your own manual edits are left untouched.",
             },
             {
-              icon: Star,
+              icon: BadgeCheck,
               title: "Verified capabilities",
               body: "Installable packages include verified repository sources or active transport endpoints.",
             },
@@ -970,10 +958,10 @@ export function HomeView() {
               </Button>
               <Button
                 variant="outline"
-                className="h-10 rounded-xl px-4 text-brand border-brand/30 hover:bg-brand-soft"
-                onClick={() => setAssistant(true)}
+                className="h-10 flex-1 rounded-xl px-4"
+                onClick={() => navigate("#/bundles")}
               >
-                <Sparkles className="h-4 w-4" /> Ask AI
+                Browse bundles <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </div>

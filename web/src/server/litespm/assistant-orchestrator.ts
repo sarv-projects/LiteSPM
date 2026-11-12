@@ -15,12 +15,32 @@ export interface RoutedIntent {
 
 type Turn = { role: "user" | "assistant"; content: string };
 
+const SITE_VOCABULARY = /\b(installable|installability|discovery[- ]only|not inspected|litespm score|rank(?:ing|ed|s)?|score|methodology|metadata[- ]verified|runtime[- ]verified|litespm[_ ]tested|drifted|allow-partial|duplicates?|distinct tools|unique listings|catalog rows|badge|labels?)\b/i;
+const DEFINITIONAL = /\b(what is|what's|what are|what does|what do|difference|differ|meaning|mean|means|why (?:are|is|do|does|some)|how (?:is|are|do|does|did)\b[^?]*\b(?:rank|ranked|score|scored|label|labeled|calculated|computed|sorted|ordered|merged))\b/i;
 const CATALOG_TERMS = /\b(mcp|servers?|skills?|plugins?|packages?|marketplace|agent hosts?|installable|install into|compatible with)\b/i;
 const CATALOG_ACTIONS = /\b(find|search|recommend|suggest|compare|install|discover|show me|which)\b/i;
 const PRODUCT_TERMS = /\b(litespm|lite spm|cli|command|commands|setup|host list|host detect|restore|rollback|ledger|backup|security|architecture|api|configuration|config|marketplace|release|license|open source)\b/i;
 const GREETING = /^(?:hi|hello|hey|hiya|good morning|good afternoon|good evening|yo|sup)[!. ,]*$/i;
 const IDENTITY = /\b(who are you|what are you|your name|who am i talking to|introduce yourself)\b/i;
 const SOCIAL = /^(?:thanks|thank you|thx|okay|ok|cool|great|got it|nice|bye|goodbye)[!. ,]*$/i;
+
+/**
+ * Capability nouns and well-known product names. A question that names one of
+ * these AND asks to install/find/use it is about the CATALOG, even when it also
+ * names an agent host ("install a postgres MCP server into Claude Code").
+ */
+const CAPABILITY_NOUNS = /\b(mcp servers?|servers?|skills?|plugins?|packages?|connectors?)\b/i;
+const PRODUCT_NAMES = /\b(postgres|postgresql|mysql|sqlite|mongodb|redis|supabase|neon|github|gitlab|playwright|puppeteer|browserbase|firecrawl|slack|notion|stripe|figma|jira|linear|sentry|docker|kubernetes|context7|filesystem|brave|tavily|exa|vercel|cloudflare|aws|azure)\b/i;
+const INSTALL_VERBS = /\b(install|add|get|find|search|recommend|suggest|looking for|need|want|best|good|top|try|use|using|set ?up|connect|enable)\b/i;
+// "LiteSPM's MCP bridge/server" is the product itself, not a third-party capability.
+const LITESPM_SELF = /\b(?:lite\s?spm['’]?s?\s+(?:mcp\s+)?(?:bridge|server)|(?:the\s+|its\s+|your\s+)?mcp\s+bridge|bridge)\b/gi;
+
+/** True when the question names a third-party capability to find or install. */
+export function namesCapabilityToInstall(question: string): boolean {
+  const q = question.toLowerCase().replace(/github copilot( cli)?/g, " copilot ").replace(LITESPM_SELF, " litespm ").replace(/\s+/g, " ");
+  if (!INSTALL_VERBS.test(q)) return false;
+  return CAPABILITY_NOUNS.test(q) || PRODUCT_NAMES.test(q);
+}
 
 function lastUserTurn(turns: Turn[]): Turn | undefined {
   return [...turns].reverse().find((turn) => turn.role === "user" && turn.content.trim());
@@ -40,6 +60,19 @@ export function routeAssistantIntent(question: string, history: Turn[] = []): Ro
     return { mode: "conversation", reason: "social-or-identity", query };
   }
 
+  // Definitions of the site's own vocabulary ("installable vs discovery-only",
+  // the LiteSPM Score, installability levels) are answered from the FAQ and
+  // methodology text, never from general knowledge.
+  if (SITE_VOCABULARY.test(normalized) && DEFINITIONAL.test(normalized)) {
+    return { mode: "knowledge", reason: "site-definition", query };
+  }
+  // A question that names something to install is a catalog question even if
+  // it also names an agent host. Checked before everything else so a host
+  // mention can never turn "install a postgres MCP server into Claude Code"
+  // into a LiteSPM-bridge setup answer.
+  if (namesCapabilityToInstall(normalized)) {
+    return { mode: "catalog", reason: "catalog-install-capability", query };
+  }
   const catalogShaped = CATALOG_TERMS.test(normalized) &&
     (CATALOG_ACTIONS.test(normalized) || /\b(postgres|postgresql|github|cursor|claude code|codex|cline|opencode|gemini cli)\b/i.test(normalized));
   if (catalogShaped) return { mode: "catalog", reason: "catalog-discovery", query };
@@ -74,7 +107,9 @@ CAPABILITIES
 - LiteSPM knowledge: use the supplied KNOWLEDGE SOURCES when present. Cite factual claims with [S1], [S2] identifiers only. If the sources do not establish a fact, say so.
 - Catalog discovery: use only the supplied CATALOG RESULTS for package names, publishers, ids, installability and links. Never invent a listing or installation command.
 - Host registry questions: use supplied TOOL_RESULTS as the authoritative, exhaustive registry for supported host IDs, configuration paths, MCP entry shape, remote URL support and exact transport names. Never answer host or transport questions from catalog listings or memory. If a registry result is present, do not contradict it.
-- Host setup questions: use BOTH TOOL_RESULTS for the selected host adapter and KNOWLEDGE SOURCES for the actual LiteSPM CLI setup workflow. Give the verified command 'litespm host setup <host-id>' (or the documented 'litespm setup --agent <host-id>' equivalent) only when the sources support it. Explain that this registers the LiteSPM bridge; it does not install a separate third-party MCP package. Never invent a host-specific config path or manual JSON/TOML snippet when the registry or docs do not establish it. Cite implementation instructions with [S#].
+- Host setup questions: use BOTH TOOL_RESULTS for the selected host adapter and KNOWLEDGE SOURCES for the actual LiteSPM CLI setup workflow. Give the verified command 'litespm host setup <host-id>' (or the documented 'litespm setup --agent <host-id>' equivalent) only when the sources support it. Explain that this registers the LiteSPM bridge; it does not install a separate third-party MCP package. Never invent a host-specific config path or manual JSON/TOML snippet when the registry or docs do not establish it. Cite implementation instructions with [S#]. Use this ONLY when the person asks how to connect LiteSPM itself to an agent; if they ask to install a named MCP server, skill, plugin or product (for example "a postgres MCP server into Claude Code"), that is a catalog question, not a host setup question.
+- Installing a capability: recommend only CATALOG RESULTS, best first as listed (the list is already ordered installable-first by the site's own ranking). For each recommended item give its display name exactly as listed, its link exactly as listed, and its exact install command exactly as listed (it already includes --agent <host-id> when the person named an agent). Say plainly when an item is discovery-only: LiteSPM cannot install it. 'litespm install' writes the capability straight into the agent's own config file; the LiteSPM bridge is NOT required for that and is NOT a prerequisite, so never present 'litespm setup'/'host setup' as a step before installing. You may add, at most once and at the end, that 'litespm setup --agent <host-id>' is optional and adds an in-agent marketplace. Do not describe what the install does internally beyond what the sources state (for example, do not claim it also sets up the LiteSPM bridge). Do not rank by your own taste or recommend an obscure item over a higher-ranked one without saying why.
+- LiteSPM-specific questions (what installable or discovery-only means, how ranking or scoring works, what a label means, how a command behaves): answer ONLY from the supplied KNOWLEDGE SOURCES and cite them with [S#]. If the sources do not state something, say "The LiteSPM documentation I have doesn't say" rather than guessing a reason. Never invent explanations, release plans, or motives.
 - When the user asks for a comparison, distinguish verified catalog facts from your own evaluation.
 - If the user asks for an action that cannot be executed in this website, explain the exact safe next step. Never claim to have installed or modified a local agent.
 

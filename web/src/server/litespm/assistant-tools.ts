@@ -9,6 +9,7 @@
 import { HOSTS, HOST_ALIASES, SKILL_TARGETS, resolveHost } from "./hosts";
 import { retrieveAssistant } from "./assistant-retrieval";
 import { retrieveKnowledge } from "./assistant-knowledge";
+import { namesCapabilityToInstall } from "./assistant-orchestrator";
 import type { LlmFunctionTool } from "../llm/types";
 
 export type AssistantToolName =
@@ -118,6 +119,10 @@ function mentionedHost(question: string) {
 export function isHostSetupQuestion(question: string): boolean {
   const asksSetup = /\b(set ?up|connect|register|configure|configuration|install|integrate|add)\b/i.test(question);
   if (!asksSetup) return false;
+  // "Install a postgres MCP server into Claude Code" names a capability to
+  // install. It is a catalog question; the bridge-setup shortcut explains the
+  // opposite ("this does not install a separate MCP package").
+  if (namesCapabilityToInstall(question)) return false;
   return /\b(bridge|litespm|lite spm|mcp|agent|host|coding tool)\b/i.test(question) || !!mentionedHost(question);
 }
 
@@ -128,6 +133,9 @@ export function isRemoteHostQuestion(question: string): boolean {
 
 export function assistantToolForQuestion(question: string): { name: AssistantToolName; args: Record<string, unknown> } | null {
   const normalized = question.toLowerCase().replace(/\s+/g, " ").trim();
+  // A named capability to install is answered from the catalog, never from the
+  // host registry, even when an agent host is mentioned.
+  if (namesCapabilityToInstall(normalized) && !isRemoteHostQuestion(normalized)) return null;
   const host = mentionedHost(normalized);
   const asksForHostInventory = /\b(list|show|which|what|all|supported|support|compatible|remote|http|sse|transport|url)\b/i.test(normalized);
   const hostInventoryQuestion = asksForHostInventory &&

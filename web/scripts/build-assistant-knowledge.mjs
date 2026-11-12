@@ -93,9 +93,20 @@ function chunksFor(source, markdown) {
   }
   return result;
 }
+// Curated website text that lives only in React components (FAQ answers, the
+// ranking methodology). web/data/assistant/*.md is the citable copy; it is cited
+// as "site/<name>.md". Keep it in step with views/home.tsx and views/docs.tsx.
+const siteDir = path.join(webRoot, "data", "assistant");
+const siteSources = fs.existsSync(siteDir)
+  ? fs.readdirSync(siteDir).filter((name) => name.endsWith(".md")).sort()
+      .map((name) => ({ file: path.join(siteDir, name), source: "site/" + name }))
+  : [];
 const all = [];
-for (const relative of [...new Set(candidates)]) {
-  const file = path.join(repoRoot, relative);
+const sourceList = [
+  ...[...new Set(candidates)].map((relative) => ({ file: path.join(repoRoot, relative), source: relative.replace(/\\/g, "/"), relative })),
+  ...siteSources,
+];
+for (const { file, source, relative } of sourceList) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) continue;
   let markdown = fs.readFileSync(file, "utf8");
   if (relative === "CHANGELOG.md") {
@@ -109,7 +120,7 @@ for (const relative of [...new Set(candidates)]) {
     markdown = "# Changelog: unreleased changes (next release, not yet on npm)\n\n" +
       markdown.slice(start, next < 0 ? undefined : start + 1 + next);
   }
-  all.push(...chunksFor(relative.replace(/\\/g, "/"), markdown));
+  all.push(...chunksFor(source, markdown));
 }
 const embeddingKey = process.env.EMBEDDING_API_KEY;
 if (embeddingKey) {

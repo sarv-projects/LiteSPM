@@ -110,6 +110,9 @@ expect("greetings use general conversation", routeAssistantIntent("Hi!").mode, (
 expect("identity questions use general conversation", routeAssistantIntent("Hi, who are you?").mode, (a) => a === "conversation");
 expect("general technical questions are not catalog searches", routeAssistantIntent("Explain vector databases").mode, (a) => a === "conversation");
 expect("LiteSPM product questions use documentation RAG", routeAssistantIntent("What is LiteSPM?").mode, (a) => a === "knowledge");
+expect("installing a named MCP server into an agent is a catalog question, not bridge setup", routeAssistantIntent("How do I install a postgres MCP server into Claude Code?").mode, (a) => a === "catalog");
+expect("the site's own vocabulary is answered from documentation", routeAssistantIntent("What is the difference between installable and discovery-only?").mode, (a) => a === "knowledge");
+expect("the prompt separates bridge setup from installing a capability", assistantSystemPrompt(), (a) => a.includes("catalog question, not a host setup question") && a.includes("exact install command"));
 expect("product security questions use documentation RAG", routeAssistantIntent("Explain LiteSPM security and rollback").mode, (a) => a === "knowledge");
 expect("catalog recommendations use catalog retrieval", routeAssistantIntent("Recommend PostgreSQL MCP servers for database administration").mode, (a) => a === "catalog");
 expect("social acknowledgements do not trigger retrieval", routeAssistantIntent("Thanks!").mode, (a) => a === "conversation");

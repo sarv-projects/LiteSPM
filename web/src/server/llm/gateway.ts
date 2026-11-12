@@ -324,7 +324,10 @@ function healthMap(): Map<string, CredentialHealth> {
 }
 
 function healthKey(c: LlmCredential): string {
-  return `${c.provider}#${c.keyIndex ?? 0}`;
+  // Per model: Groq (and others) rate-limit per key AND per model, so a 429 on one
+  // model must not sideline the same key's other models, and a rejected model
+  // name must not cool the key for the working model.
+  return `${c.provider}#${c.keyIndex ?? 0}#${c.model}`;
 }
 
 function cooldownFor(outcome: LlmAdapterError["outcome"], retryAfterMs?: number): number {
@@ -333,8 +336,11 @@ function cooldownFor(outcome: LlmAdapterError["outcome"], retryAfterMs?: number)
     case "rate_limited":
       return BASE_COOLDOWN_MS;
     case "auth":
-    case "bad_request":
       return MAX_COOLDOWN_MS;
+    case "bad_request":
+      // One oversized or malformed prompt says nothing about the key; sidelining
+      // it for ten minutes would turn a single bad request into an outage.
+      return BASE_COOLDOWN_MS;
     case "server":
     case "network":
     case "empty":
@@ -342,6 +348,21 @@ function cooldownFor(outcome: LlmAdapterError["outcome"], retryAfterMs?: number)
     default:
       return BASE_COOLDOWN_MS;
   }
+}
+
+/**
+ * Milliseconds until the first credential is usable again. Credentials that
+ * failed DURING this request (a fresh 429 on every key) are cooling too, but
+ * were never "skipped", so reading only the skipped ones reported 0 and the
+ * visitor saw "could not reach any provider" instead of "retry in 30 s".
+ */
+function retryAfterMs(pool: LlmCredential[], skippedEarliest: number): number {
+  let earliest = skippedEarliest;
+  for (const credential of pool) {
+    const until = healthMap().get(healthKey(credential))?.cooldownUntil ?? 0;
+    if (until > Date.now()) earliest = Math.min(earliest, until);
+  }
+  return Number.isFinite(earliest) ? Math.max(earliest - Date.now(), 0) : 0;
 }
 
 function markFailure(c: LlmCredential, outcome: LlmAdapterError["outcome"], detail: string, retryAfterMs?: number): void {
@@ -455,9 +476,7 @@ export async function chatComplete(request: LlmChatRequest): Promise<LlmChatResu
     }
   }
 
-  const retryInMs = Number.isFinite(earliestCooldown)
-    ? Math.max(earliestCooldown - Date.now(), 0)
-    : 0;
+  const retryInMs = retryAfterMs(pool, earliestCooldown);
   const tried = attempts.length > 0;
   return {
     ok: false,
@@ -582,9 +601,7 @@ export async function chatCompleteStream(
     }
   }
 
-  const retryInMs = Number.isFinite(earliestCooldown)
-    ? Math.max(earliestCooldown - Date.now(), 0)
-    : 0;
+  const retryInMs = retryAfterMs(pool, earliestCooldown);
   const tried = attempts.length > 0;
   return {
     ok: false,
@@ -717,6 +734,6 @@ export async function chatCompleteWithTools(request: LlmChatRequest): Promise<Ll
       ? `All ${pool.length} tool-capable LLM credential(s) failed.`
       : `All ${pool.length} tool-capable LLM credential(s) are cooling down.`,
     attempts,
-    retryInMs: Number.isFinite(earliestCooldown) ? Math.max(earliestCooldown - Date.now(), 0) : 0,
+    retryInMs: retryAfterMs(pool, earliestCooldown),
   };
 }

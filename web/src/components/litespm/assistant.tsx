@@ -55,6 +55,8 @@ interface ChatMessage {
   streamError?: string;
   /** Retrieval cards rendered before the model's prose. */
   preview?: boolean;
+  /** Short follow-up questions offered after the answer. */
+  suggestions?: string[];
 }
 
 type StreamEvent =
@@ -62,8 +64,8 @@ type StreamEvent =
   | { type: "status"; text: string }
   | { type: "cards"; keys: string[]; citations?: AssistantCitation[] }
   | { type: "sources"; sources: AssistantSource[] }
-  | { type: "done"; answer: string; citations?: AssistantCitation[]; sources?: AssistantSource[]; meta?: AssistantMeta }
-  | { type: "error"; message: string };
+  | { type: "done"; answer: string; citations?: AssistantCitation[]; sources?: AssistantSource[]; suggestions?: string[]; meta?: AssistantMeta }
+  | { type: "error"; message: string; retryable?: boolean };
 
 const SUGGESTIONS = [
   "Hi! What can you help me with?",
@@ -836,6 +838,7 @@ export function Assistant() {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
+  const lastQuestionRef = React.useRef("");
 
   React.useEffect(() => {
     setMounted(true);
@@ -916,17 +919,18 @@ export function Assistant() {
   }, []);
 
   const send = React.useCallback(
-    async (text: string) => {
+    async (text: string, options?: { retry?: boolean }) => {
       const question = text.trim();
       if (!question || busy) return;
       setError(null);
       setInput("");
+      lastQuestionRef.current = question;
       // Retrieval previews are UI-only; never send their JSON back as
-      // assistant conversation history.
-      const history = [
-        ...messages.filter((message) => !message.preview),
-        { role: "user" as const, content: question },
-      ];
+      // assistant conversation history. A retry replaces the unanswered turn
+      // instead of stacking a duplicate question.
+      let prior = messages.filter((message) => !message.preview);
+      if (options?.retry && prior[prior.length - 1]?.role === "user") prior = prior.slice(0, -1);
+      const history = [...prior, { role: "user" as const, content: question }];
       setMessages(history);
       setBusy(true);
       setWaitingFirstToken(true);
@@ -1015,6 +1019,7 @@ export function Assistant() {
                       content: event.answer,
                       citations: event.citations,
                       sources: event.sources ?? streamSources,
+                      suggestions: event.suggestions,
                       meta: event.meta,
                       streaming: false,
                     }
@@ -1028,6 +1033,7 @@ export function Assistant() {
                 content: event.answer,
                 citations: event.citations,
                 sources: event.sources ?? streamSources,
+                suggestions: event.suggestions,
                 meta: event.meta,
               },
             ];
@@ -1082,6 +1088,7 @@ export function Assistant() {
             answer?: string;
             citations?: AssistantCitation[];
             sources?: AssistantSource[];
+            suggestions?: string[];
             meta?: AssistantMeta;
             error?: string;
           };
@@ -1091,7 +1098,7 @@ export function Assistant() {
           }
           setMessages([
             ...history,
-            { role: "assistant", content: data.answer, citations: data.citations, sources: data.sources, meta: data.meta },
+            { role: "assistant", content: data.answer, citations: data.citations, sources: data.sources, suggestions: data.suggestions, meta: data.meta },
           ]);
           return;
         }
@@ -1328,10 +1335,37 @@ export function Assistant() {
             {statusText ?? "Searching the catalog…"}
           </div>
         )}
+        {!busy && !error && messages.length > 0 && (() => {
+          const last = messages[messages.length - 1];
+          if (last?.role !== "assistant" || !last.suggestions?.length) return null;
+          return (
+            <div className="flex flex-wrap gap-1.5" aria-label="Suggested follow-up questions">
+              {last.suggestions.slice(0, 3).map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => send(suggestion)}
+                  className="rounded-full border border-border/70 bg-card px-3 py-1 text-left text-[11.5px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
         {error && (
-          <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
-            {error}
-          </p>
+          <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
+            <p>{error}</p>
+            {lastQuestionRef.current && !busy && (
+              <button
+                type="button"
+                onClick={() => send(lastQuestionRef.current, { retry: true })}
+                className="shrink-0 rounded-md border border-destructive/40 px-2 py-0.5 text-[11.5px] font-medium hover:bg-destructive/10"
+              >
+                Try again
+              </button>
+            )}
+          </div>
         )}
       </div>
 

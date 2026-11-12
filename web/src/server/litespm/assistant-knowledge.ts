@@ -100,8 +100,13 @@ function rerank(query: string[], hit: KnowledgeHit): number {
   const title = new Set(terms(hit.title + " " + hit.section));
   const overlap = query.filter((token) => title.has(token)).length;
   const exactHeading = overlap / Math.max(1, query.length);
-  const sourceBoost = /^(README|SECURITY|STATUS|AGENTS|ARCH\/)/i.test(hit.source) ? 0.04 : 0;
-  return hit.score + exactHeading * 0.12 + sourceBoost;
+  // A query that names the document ("npm package ...", "security policy ...")
+  // is asking for it; the file path is a strong, cheap relevance signal.
+  const path = new Set(terms(hit.source.replace(/\.md$/i, "").replace(/[/_]/g, " ")));
+  const pathOverlap = query.filter((token) => path.has(token)).length;
+  const pathBoost = Math.min(1, pathOverlap / Math.max(1, Math.min(query.length, 3))) * 0.09;
+  const sourceBoost = /^(README|SECURITY|STATUS|AGENTS|ARCH\/|site\/)/i.test(hit.source) ? 0.04 : 0;
+  return hit.score + exactHeading * 0.12 + sourceBoost + pathBoost;
 }
 
 export async function retrieveKnowledge(query: string, limit = 6): Promise<KnowledgeHit[]> {
@@ -126,11 +131,12 @@ export async function retrieveKnowledge(query: string, limit = 6): Promise<Knowl
       embeddingUsed: Boolean(embedded?.[0] && chunk.embedding?.length),
     };
   });
-  return scored
+  const ranked = scored
     .filter((hit) => hit.lexicalScore > 0.02 || hit.vectorScore > 0.08)
     .map((hit) => ({ ...hit, score: rerank(tokens, hit) }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(1, Math.min(12, limit)));
+    .slice(0, 24);
+  return ranked.slice(0, Math.max(1, Math.min(12, limit)));
 }
 
 export function knowledgeContext(hits: KnowledgeHit[]): string {
