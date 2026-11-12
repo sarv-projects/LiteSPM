@@ -58,6 +58,15 @@ const GOAL_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+const HERO_WORDS = ["The", "package", "manager", "for", "AI", "agents."];
+
+// Every name here is an MCP host in web/data/hosts.json.
+const MARQUEE_AGENTS = [
+  "Claude Code", "Cursor", "GitHub Copilot", "OpenAI Codex", "Gemini CLI", "Cline", "OpenCode",
+  "Zed", "VS Code", "Antigravity", "Pi", "Grok Build", "Kiro CLI", "Amp", "Roo Code", "Kilo Code",
+  "Junie", "Augment", "Qwen Code", "Crush", "Droid", "Tabnine CLI", "Devin", "OpenHands",
+];
+
 /** Count-up animation for the hero stats: 0 → value on first view. */
 function CountUp({ value, format }: { value: number; format: (n: number) => string }) {
   const ref = React.useRef<HTMLSpanElement>(null);
@@ -86,6 +95,24 @@ export function HomeView() {
   const [topMcp, setTopMcp] = React.useState<CatalogHit[]>([]);
   const [topSkills, setTopSkills] = React.useState<CatalogHit[]>([]);
   const { entries: recent } = useRecentlyViewed();
+
+  // Pointer spotlight: write CSS variables straight to the element (one rAF
+  // per frame, no React state), so moving the mouse never re-renders the page.
+  const heroRef = React.useRef<HTMLElement>(null);
+  const pointerFrame = React.useRef(0);
+  const onHeroPointer = React.useCallback((e: React.PointerEvent<HTMLElement>) => {
+    if (e.pointerType !== "mouse") return;
+    const el = heroRef.current;
+    if (!el) return;
+    const { clientX, clientY } = e;
+    cancelAnimationFrame(pointerFrame.current);
+    pointerFrame.current = requestAnimationFrame(() => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty("--mx", `${clientX - r.left}px`);
+      el.style.setProperty("--my", `${clientY - r.top}px`);
+    });
+  }, []);
+  React.useEffect(() => () => cancelAnimationFrame(pointerFrame.current), []);
 
   React.useEffect(() => {
     fetch("/api/litespm/stats")
@@ -136,76 +163,82 @@ export function HomeView() {
   return (
     <div className="flex flex-col">
       {/* ------------------------------- hero ------------------------------- */}
-      <section className="relative overflow-hidden border-b border-border/60">
-        <div aria-hidden="true" className="hero-grid pointer-events-none absolute inset-0" />
-        <motion.div
-          aria-hidden="true"
-          animate={{
-            scale: [1, 1.08, 1],
-            opacity: [0.07, 0.13, 0.07],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          className="pointer-events-none absolute -top-40 left-1/2 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-brand blur-3xl"
-        />
+      <section
+        ref={heroRef}
+        onPointerMove={onHeroPointer}
+        className="relative overflow-hidden border-b border-border/60"
+      >
+        {/* Background: masked grid, two drifting aurora fields and a soft
+            spotlight that follows the pointer. All transform/opacity only. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+          <div className="hero-grid absolute inset-0" />
+          <div className="aurora aurora-a -top-48 left-[8%] h-[460px] w-[620px] bg-brand/[0.16]" />
+          <div className="aurora aurora-b -top-24 right-[-6%] h-[420px] w-[560px] bg-cyan-400/[0.09]" />
+          <div className="hero-spotlight absolute inset-0" />
+        </div>
+
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-24">
-          <div>
-            <motion.p
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand-soft px-3 py-1 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-brand"
+          <div className="min-w-0">
+            <p
+              className="rise-block inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand-soft px-3 py-1 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-brand"
+              style={{ "--d": "0ms" } as React.CSSProperties}
             >
-              <Sparkles className="h-3.5 w-3.5" />
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
+              </span>
               {cliVersion ? `v${cliVersion.replace(/^v/, "")} on npm` : "on npm"} ·{" "}
               {`${stats?.hosts ?? facts.hosts} agent hosts`}
-            </motion.p>
-            <motion.h1
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
-              className="mt-5 text-[clamp(2.5rem,5.6vw,4.3rem)] font-semibold leading-[1.02] tracking-[-0.045em]"
-            >
-              The package manager for AI agent capabilities.{" "}
-              <span className="text-brand">Install once, use everywhere.</span>
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="mt-5 max-w-[52ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]"
-            >
-              Stop hand-editing agent configs. Discover, install, and manage MCP servers, skills,
-              and plugins across {stats?.hosts ?? facts.hosts} agent hosts from one verified
-              catalog — with previews, automatic backups, and one-command rollback. No account, no
-              telemetry.
-            </motion.p>
+            </p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              className="mt-7 max-w-md"
+            <h1 className="mt-5 text-[clamp(2.6rem,6vw,4.6rem)] font-semibold leading-[1.0] tracking-[-0.045em]">
+              <span className="sr-only">The package manager for AI agents. Install once, use everywhere.</span>
+              <span aria-hidden="true">
+                {HERO_WORDS.map((word, i) => (
+                  <React.Fragment key={word + i}>
+                    <span className="rise-word" style={{ "--i": i } as React.CSSProperties}>
+                      {word}
+                    </span>{" "}
+                  </React.Fragment>
+                ))}
+                <br />
+                <span
+                  className="rise-word text-sheen pb-[0.08em]"
+                  style={{ "--i": HERO_WORDS.length + 1 } as React.CSSProperties}
+                >
+                  Install once, use everywhere.
+                </span>
+              </span>
+            </h1>
+
+            <p
+              className="rise-block mt-6 max-w-[54ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
+              style={{ "--d": "520ms" } as React.CSSProperties}
+            >
+              Discover, install and manage MCP servers, skills and plugins across{" "}
+              {stats?.hosts ?? facts.hosts} agent hosts, without manual config editing. Every change
+              is previewed, backed up and reversible with one command. No account, no telemetry.
+            </p>
+
+            <div
+              className="rise-block mt-7 max-w-md"
+              style={{ "--d": "620ms" } as React.CSSProperties}
             >
               <InstallBar command="npm install -g litespm" label="npm" />
               <p className="mt-2 text-[11.5px] text-muted-foreground">
-                Then run <code className="font-mono text-foreground/90">litespm</code> — the
-                catalog downloads itself on first use.
+                Then run <code className="font-mono text-foreground/90">litespm</code> to connect
+                your agents.
               </p>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="mt-6 flex flex-wrap items-center gap-3"
+            <div
+              className="rise-block mt-6 flex flex-wrap items-center gap-3"
+              style={{ "--d": "720ms" } as React.CSSProperties}
             >
               <Button
                 asChild
                 size="lg"
-                className="h-11 rounded-xl bg-brand px-5 text-[14.5px] font-semibold text-brand-foreground hover:bg-brand/90 transition-transform active:scale-[0.98]"
+                className="btn-shine h-11 rounded-xl bg-brand px-5 text-[14.5px] font-semibold text-brand-foreground shadow-[0_8px_30px_-8px_var(--brand)] transition-transform hover:bg-brand/90 active:scale-[0.98]"
               >
                 <NavLink to="/marketplace">
                   Browse the marketplace <ArrowRight className="h-4 w-4" />
@@ -219,42 +252,29 @@ export function HomeView() {
               >
                 <NavLink to="/docs/getting-started">Read the quickstart</NavLink>
               </Button>
-              <button
-                type="button"
-                onClick={() => setAssistant(true)}
-                className="hidden h-11 items-center gap-2 rounded-xl px-3 text-[14px] font-medium text-brand transition-colors hover:bg-brand-soft sm:inline-flex"
-              >
-                <Sparkles className="h-4 w-4" /> Ask AI
-              </button>
-            </motion.div>
+            </div>
 
-            <motion.dl
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              className="mt-8 grid max-w-lg grid-cols-3 gap-3"
+            <dl
+              className="rise-block mt-9 grid max-w-lg grid-cols-3 gap-3 border-t border-border/50 pt-6"
+              style={{ "--d": "820ms" } as React.CSSProperties}
             >
               <div
                 className="flex cursor-pointer flex-col transition-opacity hover:opacity-85"
-                title={counts ? `${formatFull(counts.all)} total catalog listings (${stats ? formatFull(stats.installable) : "…"} installable + ${formatFull(counts.all - (stats?.installable ?? 0))} discovery-only)` : "Listings"}
+                title={counts ? `${formatFull(counts.all)} catalog listings (${stats ? formatFull(stats.installable) : "…"} installable)` : "Listings"}
                 onClick={() => navigate(exploreHash({}))}
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
-                  Total listings
-                  <span className="block text-[10px] text-muted-foreground/60">
-                    MCP, skills & plugins
-                  </span>
+                  Listings
+                  <span className="block text-[10px] text-muted-foreground/60">MCP, skills & plugins</span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
-                  {counts ? <CountUp value={counts.all} format={(n) => formatFull(n).replace(/,/g, " ")} /> : "…"}
+                  {counts ? <CountUp value={counts.all} format={(n) => formatFull(n)} /> : "…"}
                 </dd>
               </div>
-              <div className="flex flex-col" title="Agent hosts supported for MCP servers + skills">
+              <div className="flex flex-col" title="Agent hosts LiteSPM can configure">
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Agent hosts
-                  <span className="block text-[10px] text-muted-foreground/60">
-                    CLI, IDE & terminal
-                  </span>
+                  <span className="block text-[10px] text-muted-foreground/60">CLI, IDE & desktop</span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
                   {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : String(facts.hosts)}
@@ -262,63 +282,75 @@ export function HomeView() {
               </div>
               <div
                 className="flex cursor-pointer flex-col transition-opacity hover:opacity-85"
-                title={`${stats ? formatFull(stats.installable) : "Verified"} installable capabilities (click to view)`}
+                title={`${stats ? formatFull(stats.installable) : "…"} listings LiteSPM can install`}
                 onClick={() => navigate(exploreHash({ installable: "1" }))}
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-brand">
                   Installable →
-                  <span className="block text-[10px] text-muted-foreground/60">
-                    Ready to install
-                  </span>
+                  <span className="block text-[10px] text-muted-foreground/60">One command each</span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
-                  {stats ? (
-                    <CountUp value={stats.installable} format={(n) => formatFull(n).replace(/,/g, " ")} />
-                  ) : (
-                    "…"
-                  )}
+                  {stats ? <CountUp value={stats.installable} format={(n) => formatFull(n)} /> : "…"}
                 </dd>
               </div>
-            </motion.dl>
+            </dl>
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.5, ease: [0.21, 0.6, 0.35, 1] }}
-          >
-            <TerminalHero hostsCount={stats?.hosts ?? facts.hosts} />
-            <p className="mt-3 text-center text-[11px] text-muted-foreground/80">
-              Interactive CLI walkthrough: search, preview, install with backup, and ledger tracking.
-            </p>
-          </motion.div>
+          <div className="rise-block relative min-w-0" style={{ "--d": "300ms" } as React.CSSProperties}>
+            {/* Floating callouts: decorative, hidden from assistive tech. */}
+            <div
+              aria-hidden="true"
+              className="float-y absolute -left-8 -top-7 z-10 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/90 px-3 py-2 text-[11.5px] shadow-xl backdrop-blur lg:flex"
+            >
+              <ShieldCheck className="h-3.5 w-3.5 text-brand" />
+              <span className="font-medium">Backup saved</span>
+              <span className="font-mono text-muted-foreground">~/.claude.json</span>
+            </div>
+            <div
+              aria-hidden="true"
+              className="float-y absolute -right-7 top-[44%] z-10 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/90 px-3 py-2 text-[11.5px] shadow-xl backdrop-blur lg:flex"
+              style={{ animationDelay: "-3s" }}
+            >
+              <Undo2 className="h-3.5 w-3.5 text-brand" />
+              <span className="font-medium">Undo with one command</span>
+            </div>
+
+            <div className="glow-frame shadow-[0_30px_90px_-30px_rgba(16,185,129,0.35)]">
+              <TerminalHero framed hostsCount={stats?.hosts ?? facts.hosts} />
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ----------------------------- social proof / ecosystem bar ----------------------------- */}
-      <section className="border-b border-border/60 bg-card/40 py-5" aria-label="Supported Agents Ecosystem">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 sm:px-6">
-          <p className="text-[12px] font-medium text-muted-foreground shrink-0">
-            Works out of the box with your favorite agent:
+      {/* ----------------------------- agents marquee ----------------------------- */}
+      <section className="border-b border-border/60 bg-card/40 py-5" aria-label="Supported agents">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 sm:flex-row sm:items-center sm:gap-6 sm:px-6">
+          <p className="shrink-0 text-[12px] font-medium text-muted-foreground">
+            Works with the agents you already use
           </p>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-[12px] font-medium text-foreground/80">
-            {["Cursor", "GitHub Copilot", "Cline", "Claude Code", "OpenAI Codex", "Gemini CLI", "Zed", "Devin", "OpenHands"].map((name) => (
-              <span
-                key={name}
-                className="inline-flex items-center rounded-lg border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground/90 transition-all hover:border-brand/50 hover:bg-brand-soft/30 hover:scale-[1.03]"
-              >
-                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500/80" />
-                {name}
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={() => navigate("#/agents")}
-              className="text-[12px] font-semibold text-brand hover:underline"
-            >
-              +{Math.max((stats?.hosts ?? facts.hosts) - 9, 0)} more →
-            </button>
+          <div className="marquee min-w-0 flex-1 overflow-hidden">
+            <ul className="marquee-track gap-2.5">
+              {[0, 1].map((copy) =>
+                MARQUEE_AGENTS.map((name) => (
+                  <li
+                    key={`${copy}-${name}`}
+                    aria-hidden={copy === 1 ? true : undefined}
+                    className={`${copy === 1 ? "marquee-dup " : ""}inline-flex shrink-0 items-center rounded-lg border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground/90`}
+                  >
+                    <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500/80" />
+                    {name}
+                  </li>
+                )),
+              )}
+            </ul>
           </div>
+          <button
+            type="button"
+            onClick={() => navigate("#/agents")}
+            className="shrink-0 text-left text-[12px] font-semibold text-brand hover:underline"
+          >
+            All {stats?.hosts ?? facts.hosts} agents →
+          </button>
         </div>
       </section>
 
@@ -330,11 +362,11 @@ export function HomeView() {
               <Sparkles className="h-4 w-4" /> Why LiteSPM?
             </p>
             <h2 id="why-title" className="mt-2 text-[clamp(1.9rem,3.8vw,2.7rem)] font-semibold leading-tight tracking-[-0.035em]">
-              Never manually configure an AI agent again. <br className="hidden sm:inline" />
-              <span className="text-brand">Install once, and forget.</span>
+              Every agent has its own config. <br className="hidden sm:inline" />
+              <span className="text-brand">One workflow covers them all.</span>
             </h2>
             <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-              Tired of hunting down endpoints, writing JSON configs by hand, and copy-pasting the same settings into Cursor, GitHub Copilot, Cline, Claude Code, and Codex? LiteSPM gives your agents a unified app store.
+              Every agent keeps its own configuration file in its own format, and every server ships its own setup steps. LiteSPM knows all of them: it writes the exact entry each agent expects, keeps a backup of the file, and records what it wrote so it can take it out again.
             </p>
           </div>
 
@@ -384,7 +416,7 @@ export function HomeView() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Auto-Backup & 1-Command Undo</h3>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Automatic backup, one-command undo</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 LiteSPM backs up your agent&apos;s configuration before writing any change. To roll back, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore &lt;installId&gt;</code> puts your file back to its exact previous bytes without touching manual edits.
               </p>
@@ -401,9 +433,9 @@ export function HomeView() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <Terminal className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Interactive UI or CLI Flags</h3>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Guided wizard or plain flags</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                Prefer a friendly menu? Just run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm</code> for the interactive wizard. Power user? Use direct flags like <code className="font-mono text-[11.5px]">--agent</code> and <code className="font-mono text-[11.5px]">--scope</code>.
+                Prefer a guided flow? Run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm</code> for the interactive wizard. Scripting it? Use flags such as <code className="font-mono text-[11.5px]">--agent</code> and <code className="font-mono text-[11.5px]">--scope</code>.
               </p>
             </motion.div>
           </div>
@@ -513,6 +545,9 @@ export function HomeView() {
             <div className="mt-8 flex flex-wrap gap-2">
               {stats.goalCounts
                 .filter(([goal]) => GOAL_LABELS[goal])
+                // "Other" is the catch-all bucket: it is the largest, and it
+                // must not lead a "start from a goal" row.
+                .sort(([a], [b]) => Number(a === "other") - Number(b === "other"))
                 .slice(0, 11)
                 .map(([goal, count], i) => (
                   <motion.button
@@ -776,7 +811,7 @@ export function HomeView() {
       {/* ----------------------------- trust row ----------------------------- */}
       <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="trust-title">
         <SectionHeading
-          eyebrow="Why agents trust it"
+          eyebrow="Why developers trust it"
           title={<span id="trust-title">Your machine, your keys.</span>}
         />
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -811,7 +846,7 @@ export function HomeView() {
         </div>
         {stats?.release && (
           <p className="mt-6 text-[11.5px] text-muted-foreground/75">
-            Catalog release v{stats.release.releaseId} · Updated {formatDate(stats.release.createdAt)} ·{" "}
+            Catalog release {stats.release.releaseId} · Updated {formatDate(stats.release.createdAt)} ·{" "}
             <button
               type="button"
               onClick={() => navigate("#/insights")}
@@ -870,7 +905,7 @@ export function HomeView() {
               },
               {
                 q: "Can I browse and install from inside my agent?",
-                a: "Yes, from the next release (0.6.1; npm currently serves 0.6.0). litespm setup installs a marketplace command into each agent. Pi, OpenCode, Claude Code and GitHub Copilot CLI get an interactive popup that needs no model turn; Gemini CLI, Qwen Code, Kiro CLI, Cursor, Augment, Roo, Factory Droid, Kilo, Cline, Grok Build, Codex and Crush get a prompt command that has the agent's model drive LiteSPM's tools. Some agents (Zed, Windsurf, Continue, Aider, Warp, OpenHands, Goose) have no extension surface for either. See Docs → Agent compatibility.",
+                a: `Yes, from the next release (0.6.1; npm currently serves ${facts.npmVersion}). litespm setup installs a marketplace command into each agent. Pi, OpenCode, Claude Code and GitHub Copilot CLI get an interactive popup that needs no model turn; Gemini CLI, Qwen Code, Kiro CLI, Cursor, Augment, Roo, Factory Droid, Kilo, Cline, Grok Build, Codex and Crush get a prompt command that has the agent's model drive LiteSPM's tools. Some agents (Zed, Windsurf, Continue, Aider, Warp, OpenHands, Goose) have no extension surface for either. See Docs → Agent compatibility.`,
               },
             ].map((item) => (
               <details
@@ -913,7 +948,7 @@ export function HomeView() {
               Point your agent at the whole catalog.
             </h2>
             <p className="mt-1.5 max-w-[54ch] text-[13.5px] text-muted-foreground">
-              Install LiteSPM once and <span className="font-mono text-[12.5px]">/marketplace</span>{" "}
+              Install LiteSPM once and <span className="font-mono text-[12.5px]">/litespm-marketplace</span>{" "}
               inside a connected agent reaches the same catalog through the bridge.
             </p>
           </div>

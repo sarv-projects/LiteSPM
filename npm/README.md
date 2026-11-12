@@ -40,7 +40,7 @@ litespm list                         # what is installed, per agent
 litespm install remove <installId>   # undo exactly that install
 ```
 
-You do not need to sync the catalog by hand. The first command that needs it
+You do not need to sync the catalog manually. The first command that needs it
 downloads it with progress; later runs refresh it in the background at most
 every 6 hours and never wait. `LITESPM_NO_AUTO_SYNC=1` (or `CI`) turns that off,
 and `litespm catalog sync` syncs on demand. Searches use an on-disk SQLite FTS5

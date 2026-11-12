@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, Info, Sparkles, Star } from "lucide-react";
+import { CheckCircle2, Gauge, Info, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { RANK_TIER_META, RANK_EXPLAINER, rankTierOf } from "@/lib/litespm/format";
@@ -39,7 +39,7 @@ export function RankBadge({
         className,
       )}
     >
-      <Star className={size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3"} aria-hidden="true" />
+      <Gauge className={size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3"} aria-hidden="true" />
       {score}
     </span>
   );

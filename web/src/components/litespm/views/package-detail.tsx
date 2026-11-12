@@ -110,7 +110,7 @@ export function PackageView({ linkKey }: { linkKey: string }) {
           or removed in a newer release.
         </p>
         <Button className="mt-6 rounded-xl" onClick={() => navigate(exploreHash({}))}>
-          <ArrowLeft className="h-4 w-4" /> Back to Explore
+          <ArrowLeft className="h-4 w-4" /> Back to the marketplace
         </Button>
       </div>
     );
@@ -168,7 +168,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
         onClick={() => navigate(exploreHash({}))}
         className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-brand"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Explore
+        <ArrowLeft className="h-3.5 w-3.5" /> Marketplace
       </button>
 
       {/* Header */}
@@ -310,9 +310,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
         </div>
       </div>
 
-      <p className="mt-5 max-w-[76ch] text-[14.5px] leading-relaxed text-muted-foreground">
-        {data.summary || "The publisher did not publish a summary for this listing."}
-      </p>
+      <PackageSummary text={data.summary} />
 
       {/* Also available as — the same tool under other kinds or publishers */}
       {data.alsoAvailable.length > 0 && (
@@ -370,7 +368,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             </div>
             <p className="mt-2.5 text-[12px] leading-relaxed text-muted-foreground">
               Writes <span className="font-mono text-[11px]">{host}</span>&apos;s own config —
-              previewed, backed up, and recorded in the ledger. Compatible across all{" "}
+              previewed, backed up, and recorded in the ledger. Works with{" "}
               {data.installTargets.length} {targetKindLabel}
               {data.kind === "mcp" && data.availability.id === "remote"
                 ? ` (remote entries are accepted by ${data.installTargets.length} hosts)`
@@ -381,9 +379,10 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                 Local launch: {[data.command, ...(data.args ?? [])].join(" ")}
               </p>
             )}
-            {data.installHint && (
+            {data.installHint && data.installHint.trim() !== installCommand?.trim() && (
               <p className="mt-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 font-mono text-[11.5px] text-muted-foreground">
-                Publisher hint: {data.installHint}
+                <span className="font-sans text-muted-foreground/80">Or straight from the source repository: </span>
+                {data.installHint}
               </p>
             )}
           </>
@@ -1210,4 +1209,44 @@ function cnButton(active: boolean): string {
       ? "border-brand/50 bg-brand-soft text-brand"
       : "border-border/70 bg-background text-muted-foreground hover:border-brand/40 hover:text-foreground"
   }`;
+}
+
+/**
+ * A listing's summary, led by its first sentence. Skill descriptions are
+ * written for a model to match against ("TRIGGER — … SKIP only when …"), so
+ * a long one is cut at the first sentence or trigger marker and the rest sits
+ * behind "Show full description" instead of filling the page.
+ */
+function PackageSummary({ text }: { text: string | null | undefined }) {
+  const [open, setOpen] = React.useState(false);
+  const full = (text ?? "").trim();
+  if (!full) {
+    return (
+      <p className="mt-5 max-w-[76ch] text-[14.5px] leading-relaxed text-muted-foreground">
+        The publisher did not publish a summary for this listing.
+      </p>
+    );
+  }
+  const marker = full.search(/\b(TRIGGER|SKIP|Use (this|when)|MUST)\b/);
+  const sentence = full.search(/[.!?](\s|$)/);
+  let cut = -1;
+  if (marker > 40) cut = marker;
+  if (sentence > 40 && (cut === -1 || sentence + 1 < cut)) cut = sentence + 1;
+  const lead = cut > 0 && full.length > 260 ? full.slice(0, cut).trim().replace(/[\s—–-]+$/, "") : full;
+  const truncated = lead.length < full.length;
+  return (
+    <div className="mt-5 max-w-[76ch] text-[14.5px] leading-relaxed text-muted-foreground">
+      <p>{open || !truncated ? full : lead}</p>
+      {truncated && (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="mt-1.5 text-[12.5px] font-medium text-brand hover:underline"
+        >
+          {open ? "Show less" : "Show full description"}
+        </button>
+      )}
+    </div>
+  );
 }

@@ -188,6 +188,161 @@
   animation: cursor-blink 1.1s step-end infinite;
 }
 
+/* ------------------------------------------------------------------ */
+/* Landing motion. Everything here animates transform/opacity only, so */
+/* it stays on the compositor, and runs from CSS so the hero animates  */
+/* before hydration (no LCP delay waiting for JS).                     */
+/* ------------------------------------------------------------------ */
+
+/* Word-by-word rise for the hero headline. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translate3d(0, 0.45em, 0); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+.rise-word {
+  display: inline-block;
+  opacity: 0;
+  animation: rise-in 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 70ms + 60ms);
+  will-change: transform, opacity;
+}
+.rise-block {
+  opacity: 0;
+  animation: rise-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+/* A slow light sweep across the accent line. */
+@keyframes sheen {
+  from { background-position: 200% 50%; }
+  to { background-position: -200% 50%; }
+}
+.text-sheen {
+  background-image: linear-gradient(
+    100deg,
+    var(--brand) 0%,
+    var(--brand) 38%,
+    color-mix(in oklch, var(--brand) 35%, white) 50%,
+    var(--brand) 62%,
+    var(--brand) 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sheen 7s linear infinite;
+}
+
+/* Drifting aurora behind the hero. */
+@keyframes aurora-a {
+  0%, 100% { transform: translate3d(-8%, -4%, 0) scale(1); }
+  50% { transform: translate3d(10%, 6%, 0) scale(1.15); }
+}
+@keyframes aurora-b {
+  0%, 100% { transform: translate3d(6%, 8%, 0) scale(1.1); }
+  50% { transform: translate3d(-10%, -6%, 0) scale(0.95); }
+}
+.aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  will-change: transform;
+  pointer-events: none;
+}
+.aurora-a { animation: aurora-a 18s ease-in-out infinite; }
+.aurora-b { animation: aurora-b 22s ease-in-out infinite; }
+
+/* Pointer spotlight: --mx/--my are set from JS on pointer move. */
+.hero-spotlight {
+  background: radial-gradient(
+    560px circle at var(--mx, 70%) var(--my, 30%),
+    color-mix(in oklch, var(--brand) 12%, transparent),
+    transparent 60%
+  );
+  transition: opacity 0.4s ease;
+}
+
+/* Rotating light around the terminal frame. */
+@property --spin {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes border-spin {
+  to { --spin: 360deg; }
+}
+.glow-frame {
+  position: relative;
+  border-radius: 1.1rem;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--spin),
+    transparent 0deg,
+    color-mix(in oklch, var(--brand) 85%, transparent) 60deg,
+    transparent 140deg,
+    transparent 220deg,
+    color-mix(in oklch, var(--brand) 40%, transparent) 290deg,
+    transparent 360deg
+  );
+  animation: border-spin 8s linear infinite;
+}
+
+/* Gentle float for the hero callouts. */
+@keyframes float-y {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -8px, 0); }
+}
+.float-y { animation: float-y 6s ease-in-out infinite; }
+
+/* Terminal lines arrive instead of popping. */
+@keyframes term-line {
+  from { opacity: 0; transform: translate3d(-6px, 0, 0); }
+  to { opacity: 1; transform: none; }
+}
+.term-line { animation: term-line 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Agent marquee. */
+@keyframes marquee {
+  to { transform: translate3d(-50%, 0, 0); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 48s linear infinite;
+}
+.marquee:hover .marquee-track,
+.marquee:focus-within .marquee-track {
+  animation-play-state: paused;
+}
+.marquee {
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+/* Primary button shine on hover. */
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.35) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-shine:hover::after { transform: translateX(120%); }
+
+/* A word that both rises in and carries the sheen needs both animations in
+   one declaration; two classes setting `animation` would override each other
+   and leave the word at opacity 0. */
+.rise-word.text-sheen {
+  animation:
+    rise-in 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+    sheen 7s linear 1.2s infinite;
+  animation-delay: calc(var(--i, 0) * 70ms + 60ms), 1.2s;
+}
+
 /* Keyboard focus must be visible on every theme, on every control. */
 :where(a, button, input, select, textarea, summary, [role="tab"], [tabindex]):focus-visible {
   outline: 2px solid var(--brand);
@@ -207,6 +362,28 @@
     scroll-behavior: auto !important;
   }
   .cursor-blink {
+    animation: none;
+  }
+  /* Content that animates in must still end up visible. */
+  .rise-word,
+  .rise-block,
+  .rise-word.text-sheen {
+    opacity: 1;
+    animation: none;
+  }
+  .marquee-track {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+  }
+  .marquee-dup {
+    display: none;
+  }
+  .glow-frame,
+  .text-sheen,
+  .aurora-a,
+  .aurora-b,
+  .float-y {
     animation: none;
   }
 }

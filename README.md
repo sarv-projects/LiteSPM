@@ -29,8 +29,8 @@ Install into 52 coding agents. Undo any of it with one command.
 
 Every AI coding agent keeps its own configuration file in its own format, and
 every MCP server, skill and plugin ships its own install instructions. Setting
-up three agents means hand-editing three files, and nothing tells you what to
-undo later.
+up three agents means manually editing three config files, and nothing records
+what to undo later.
 
 LiteSPM is one CLI that knows all of those formats. You pick a capability from
 a single catalog, see the exact change it will make, approve it, and it is

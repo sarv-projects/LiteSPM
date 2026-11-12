@@ -51,9 +51,19 @@ export function kindColor(kind: string): string {
   return "slate";
 }
 
+/** Words the catalog's title-casing mangles ("Claude Api", "Neon Ai Gateway"). */
+const ACRONYMS: Record<string, string> = {
+  Api: "API", Apis: "APIs", Ai: "AI", Mcp: "MCP", Llm: "LLM", Llms: "LLMs", Sdk: "SDK", Cli: "CLI",
+  Ui: "UI", Ux: "UX", Pdf: "PDF", Docx: "DOCX", Xlsx: "XLSX", Pptx: "PPTX", Csv: "CSV", Json: "JSON",
+  Sql: "SQL", Url: "URL", Http: "HTTP", Seo: "SEO", Aws: "AWS", Gcp: "GCP", Ide: "IDE", Css: "CSS",
+  Html: "HTML", Rag: "RAG", Ocr: "OCR", Jwt: "JWT", Oauth: "OAuth", Graphql: "GraphQL", Devops: "DevOps",
+};
+
 /** Strip the io.github.account/ prefix the MCP registry puts in names. */
 export function displayPackageName(name: string): string {
-  return name.replace(/^io\.github\.[^/]+\//i, "");
+  return name
+    .replace(/^io\.github\.[^/]+\//i, "")
+    .replace(/\b[A-Z][a-z]+\b/g, (w) => ACRONYMS[w] ?? w);
 }
 
 export type RankTier = "top" | "strong" | "solid";
