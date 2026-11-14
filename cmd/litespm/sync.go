@@ -169,15 +169,26 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 	// Phase 1: Self-Update / Binary Upgrade Check
 	// -------------------------------------------------------------
 	if !opts.skipUpdate && Version != "dev" && Version != "" {
-		if !opts.jsonOut {
-			fmt.Fprintf(out, "%s Checking for LiteSPM updates…\n", uiDim.Render("│"))
-		}
 		upgrader := update.NewUpdater(update.DefaultReleaseManifestURL)
-		checkCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
-		status, info, checkErr := upgrader.CheckForUpdate(checkCtx, Version)
-		cancel()
+		type updateCheckResult struct {
+			status *update.UpdateStatus
+			info   *update.ReleaseInfo
+		}
+		var checkRes updateCheckResult
+		_, checkErr := runWithSpinner(ctx, os.Stdin, out, "Checking for LiteSPM updates", func() (bool, error) {
+			checkCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+			defer cancel()
+			s, inf, err := upgrader.CheckForUpdate(checkCtx, Version)
+			if err != nil {
+				return false, err
+			}
+			checkRes = updateCheckResult{status: s, info: inf}
+			return true, nil
+		})
 
-		if checkErr == nil && status != nil && status.UpdateAvailable && info != nil {
+		if checkErr == nil && checkRes.status != nil && checkRes.status.UpdateAvailable && checkRes.info != nil {
+			status := checkRes.status
+			info := checkRes.info
 			report.LatestVersion = status.LatestVersion
 			if opts.dryRun {
 				report.Details = append(report.Details, fmt.Sprintf("Update available: LiteSPM %s → %s", Version, status.LatestVersion))
@@ -189,20 +200,24 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 				binName := update.TargetBinaryName()
 				downloadURL, checksum, relErr := releaseDownloadTarget(info, binName)
 				if relErr == nil {
-					dlCtx, dlCancel := context.WithTimeout(ctx, 30*time.Second)
-					payload, dlErr := downloadUpdatePayload(dlCtx, nil, downloadURL, int64(defaultUpdateDownloadLimit))
-					dlCancel()
-					if dlErr == nil {
+					_, applyErr := runWithSpinner(ctx, os.Stdin, out, fmt.Sprintf("Downloading and verifying LiteSPM %s", status.LatestVersion), func() (bool, error) {
+						dlCtx, dlCancel := context.WithTimeout(ctx, 30*time.Second)
+						defer dlCancel()
+						payload, dlErr := downloadUpdatePayload(dlCtx, nil, downloadURL, int64(defaultUpdateDownloadLimit))
+						if dlErr != nil {
+							return false, dlErr
+						}
 						verifyErr := verifyDownloadedUpdate(ctx, upgrader, info, binName, payload, paths.StagingPath())
-						if verifyErr == nil {
-							applyErr := upgrader.ApplyUpdate(ctx, payload, checksum, execPath, cacheDir)
-							if applyErr == nil {
-								report.Upgraded = true
-								report.Details = append(report.Details, fmt.Sprintf("Upgraded LiteSPM to %s", status.LatestVersion))
-								if !opts.jsonOut {
-									fmt.Fprintf(out, "%s  upgraded LiteSPM: %s → %s\n", uiGreenS.Render("✓"), Version, status.LatestVersion)
-								}
-							}
+						if verifyErr != nil {
+							return false, verifyErr
+						}
+						return true, upgrader.ApplyUpdate(ctx, payload, checksum, execPath, cacheDir)
+					})
+					if applyErr == nil {
+						report.Upgraded = true
+						report.Details = append(report.Details, fmt.Sprintf("Upgraded LiteSPM to %s", status.LatestVersion))
+						if !opts.jsonOut {
+							fmt.Fprintf(out, "%s  upgraded LiteSPM: %s → %s\n", uiGreenS.Render("✓"), Version, status.LatestVersion)
 						}
 					}
 				}
@@ -220,9 +235,6 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 	// Phase 2: Catalog Sync
 	// -------------------------------------------------------------
 	if !opts.skipCatalog {
-		if !opts.jsonOut {
-			fmt.Fprintf(out, "%s Syncing capability catalog…\n", uiDim.Render("│"))
-		}
 		if opts.dryRun {
 			report.Details = append(report.Details, "Would check and download latest catalog index")
 			if !opts.jsonOut {
@@ -230,7 +242,9 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 			}
 		} else {
 			client := catalog.NewClientWithTimeout(registryURLOf(cfg), paths.DataRoot, catalogSyncTimeout(cfg), nil)
-			syncRes, syncErr := client.Sync(ctx)
+			syncRes, syncErr := runWithSpinner(ctx, os.Stdin, out, "Syncing capability catalog", func() (*catalog.SyncResult, error) {
+				return client.Sync(ctx)
+			})
 			if syncErr != nil {
 				report.Errors = append(report.Errors, fmt.Sprintf("catalog sync: %v", syncErr))
 				if !opts.jsonOut {
@@ -253,10 +267,13 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 	// -------------------------------------------------------------
 	var detectedHostIDs []string
 	if !opts.skipAgents {
-		if !opts.jsonOut {
-			fmt.Fprintf(out, "%s Scanning AI coding agent configurations…\n", uiDim.Render("│"))
+		type scanResult struct {
+			adapters []host.HostAdapter
 		}
-		adapters := host.ListAdapters()
+		scanRes, _ := runWithSpinner(ctx, os.Stdin, out, "Scanning AI coding agent configurations", func() (*scanResult, error) {
+			return &scanResult{adapters: host.ListAdapters()}, nil
+		})
+		adapters := scanRes.adapters
 		for _, adapter := range adapters {
 			desc := adapter.Descriptor()
 			cfgPath, detErr := adapter.DetectConfig(ctx, domain.ScopeUser)
@@ -322,75 +339,74 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 	// Phase 4: Skills & Ledger Reconcile Across Agents
 	// -------------------------------------------------------------
 	if !opts.skipSkills {
-		if !opts.jsonOut {
-			fmt.Fprintf(out, "%s Reconciling skills across detected agent trees…\n", uiDim.Render("│"))
-		}
 		homeDir, _ := os.UserHomeDir()
 		projectDir, _ := os.Getwd()
 
 		ledger, lErr := skills.OpenLedger(skills.LedgerPath(paths.DataRoot))
 		if lErr == nil {
-			entries, _ := ledger.All()
-			installedSkillsByName := make(map[string]skills.LedgerEntry)
-			for _, e := range entries {
-				if e.SkillName != "" && e.DestDir != "" {
-					if _, statErr := os.Stat(filepath.Join(e.DestDir, "SKILL.md")); statErr == nil {
-						installedSkillsByName[e.SkillName] = e
-					}
-				}
+			type skillsRecResult struct {
+				installedCount int
+				newEntries     []skills.LedgerEntry
 			}
 
-			// For each detected agent, check if each installed skill exists in its skills dir
-			reconciledCount := 0
-			var newLedgerEntries []skills.LedgerEntry
-
-			for _, hostID := range detectedHostIDs {
-				agentTarget, ok := skills.LookupAgent(hostID)
-				if !ok {
-					continue
-				}
-				targetDir, targetOk := skills.AgentSkillDir(agentTarget.ID, "global", projectDir, homeDir)
-				if !targetOk || targetDir == "" {
-					continue
-				}
-
-				for skillName, entry := range installedSkillsByName {
-					skillDest := filepath.Join(targetDir, skillName)
-					if _, existsErr := os.Stat(filepath.Join(skillDest, "SKILL.md")); existsErr == nil {
-						continue // already present
-					}
-
-					// Skill is missing from this detected agent's skills tree!
-					if opts.dryRun {
-						report.Details = append(report.Details, fmt.Sprintf("Would cross-sync skill %q to %s (%s)", skillName, agentTarget.DisplayName, skillDest))
-						continue
-					}
-
-					if copyErr := skills.CopySkillDir(entry.DestDir, skillDest); copyErr == nil {
-						reconciledCount++
-						newLedgerEntries = append(newLedgerEntries, skills.LedgerEntry{
-							SkillName:   skillName,
-							AgentID:     agentTarget.ID,
-							HostLabel:   agentTarget.DisplayName,
-							DestDir:     skillDest,
-							Source:      entry.Source,
-							Scope:       "global",
-							InstalledAt: time.Now(),
-						})
-						if !opts.jsonOut {
-							fmt.Fprintf(out, "%s  cross-synced skill %s → %s\n", uiGreenS.Render("✓"), skillName, agentTarget.DisplayName)
+			recRes, _ := runWithSpinner(ctx, os.Stdin, out, "Reconciling skills across detected agent trees", func() (*skillsRecResult, error) {
+				entries, _ := ledger.All()
+				installedSkillsByName := make(map[string]skills.LedgerEntry)
+				for _, e := range entries {
+					if e.SkillName != "" && e.DestDir != "" {
+						if _, statErr := os.Stat(filepath.Join(e.DestDir, "SKILL.md")); statErr == nil {
+							installedSkillsByName[e.SkillName] = e
 						}
 					}
 				}
-			}
 
-			if len(newLedgerEntries) > 0 {
-				_ = ledger.Add(newLedgerEntries)
+				var newLedgerEntries []skills.LedgerEntry
+				for _, hostID := range detectedHostIDs {
+					agentTarget, ok := skills.LookupAgent(hostID)
+					if !ok {
+						continue
+					}
+					targetDir, targetOk := skills.AgentSkillDir(agentTarget.ID, "global", projectDir, homeDir)
+					if !targetOk || targetDir == "" {
+						continue
+					}
+
+					for skillName, entry := range installedSkillsByName {
+						skillDest := filepath.Join(targetDir, skillName)
+						if _, existsErr := os.Stat(filepath.Join(skillDest, "SKILL.md")); existsErr == nil {
+							continue // already present
+						}
+
+						if !opts.dryRun {
+							if copyErr := skills.CopySkillDir(entry.DestDir, skillDest); copyErr == nil {
+								newLedgerEntries = append(newLedgerEntries, skills.LedgerEntry{
+									SkillName:   skillName,
+									AgentID:     agentTarget.ID,
+									HostLabel:   agentTarget.DisplayName,
+									DestDir:     skillDest,
+									Source:      entry.Source,
+									Scope:       "global",
+									InstalledAt: time.Now(),
+								})
+							}
+						}
+					}
+				}
+				return &skillsRecResult{
+					installedCount: len(installedSkillsByName),
+					newEntries:     newLedgerEntries,
+				}, nil
+			})
+
+			if recRes != nil {
+				if len(recRes.newEntries) > 0 {
+					_ = ledger.Add(recRes.newEntries)
+				}
+				report.SkillsReconciled = recRes.installedCount
 			}
-			report.SkillsReconciled = len(installedSkillsByName)
 			if !opts.jsonOut {
 				fmt.Fprintf(out, "%s  skills: %d active skills reconciled across %d agents\n",
-					uiGreenS.Render("✓"), len(installedSkillsByName), len(detectedHostIDs))
+					uiGreenS.Render("✓"), report.SkillsReconciled, len(detectedHostIDs))
 			}
 		}
 	}
