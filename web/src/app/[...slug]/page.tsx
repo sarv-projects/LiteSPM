@@ -166,5 +166,39 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
     else if (Array.isArray(value) && value[0] !== undefined) query.set(key, value[0]);
   }
   const initialRoute = parsePath(`/${(slug ?? []).join("/")}`, query.toString());
-  return <LiteSPMApp initialRoute={initialRoute} initialPackage={packageInitial} />;
+
+  // Generate structured schema JSON-LD for packages or guides
+  let jsonLd: Record<string, unknown> | null = null;
+  if (section === "package" && packageInitial) {
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: packageInitial.name,
+      description: packageInitial.summary,
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Cross-platform (Windows, macOS, Linux)",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+      publisher: {
+        "@type": "Organization",
+        name: packageInitial.publisher.name,
+        url: packageInitial.publisher.url || undefined,
+      },
+    };
+  }
+
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      <LiteSPMApp initialRoute={initialRoute} initialPackage={packageInitial} />
+    </>
+  );
 }

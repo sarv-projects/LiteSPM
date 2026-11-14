@@ -1,0 +1,33 @@
+# LiteSPM — The Package Manager for AI Agents
+
+> LiteSPM connects once to your AI agent host (Claude Code, Cursor, Windsurf, OpenCode, Codex, Grok Build, Cline, etc.), enabling you to discover, install, update, and manage MCP servers, agent skills, and plugins across 52 agent hosts.
+
+- Website: https://lite-spm-nine.vercel.app/
+- Catalog Registry: 69,000+ packages across Model Context Protocol (MCP), Agent Skills (SKILL.md), and multi-component Plugins.
+- Supported Hosts: 52 Agent hosts (Claude Code, Cursor, Windsurf, Cline, OpenCode, Grok Build, Pi Agent, Codex, etc.).
+
+## Quick Start (CLI)
+
+```bash
+npm install -g litespm
+litespm setup
+litespm search <query>
+litespm install <package-id>
+litespm list
+```
+
+## Quick Start (Cursor / IDEs)
+
+Cursor users can install MCP servers directly via deep link:
+`cursor://anysphere.cursor-mcp/install?name=<name>&command=...`
+
+## Core Concepts
+
+- **MCP Servers**: Tools and data resources implementing the standard Model Context Protocol over stdio or Streamable HTTP.
+- **Agent Skills**: Portable task workflows defined via `SKILL.md` (compatible with agentskills.io).
+- **Plugins**: Multi-component packages delivering MCP servers, skills, and configuration hooks.
+- **Fail-Closed Security**: Plans, user approval gates, Sigstore verified binaries, and zero unvetted daemon prerequisites.
+
+## API & Plaintext Access
+- Raw Package Markdown: `GET /api/litespm/package/:key/raw`
+- Catalog Search API: `GET /api/litespm/list?q=:query`

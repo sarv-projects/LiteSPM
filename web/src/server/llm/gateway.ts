@@ -54,9 +54,9 @@ import type {
 
 const MAX_KEYS_PER_PROVIDER = 12;
 const PER_ATTEMPT_TIMEOUT_MS = 20_000;
-const BASE_COOLDOWN_MS = 30_000;
+const BASE_COOLDOWN_MS = 15_000;
 const SERVER_ERROR_COOLDOWN_MS = 15_000;
-const MAX_COOLDOWN_MS = 10 * 60_000;
+const MAX_COOLDOWN_MS = 2 * 60_000;
 /** Streaming: ceiling on time-to-first-token. */
 const STREAM_TTFT_TIMEOUT_MS = 15_000;
 /** Streaming: ceiling on the gap between chunks once started. */

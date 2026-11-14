@@ -18,13 +18,6 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
       );
     }
-    if (!databaseConfigured()) {
-      return NextResponse.json(
-        { errors: { form: "Feedback storage is not configured on this deployment." } },
-        { status: 503 },
-      );
-    }
-
     const body = (await readJsonBody(request, 16 * 1024)) as {
       kind?: string;
       name?: string;
@@ -54,6 +47,21 @@ export async function POST(request: NextRequest) {
     const email = rawEmail;
     const listing = rawListing || null;
     const message = rawMessage;
+
+    if (!databaseConfigured()) {
+      const issueTitle = encodeURIComponent(`[Publish/Feedback] ${listing || kind}: ${name}`);
+      const issueBody = encodeURIComponent(
+        `### Submission Details\n\n- **Kind:** ${kind}\n- **Name:** ${name}\n- **Email:** ${email}\n- **Listing:** ${listing || "None"}\n\n### Details\n${message}\n\n---\n*Submitted via LiteSPM web form (storage unconfigured fallback)*`
+      );
+      const fallbackUrl = `https://github.com/sarv-projects/LiteSPM/issues/new?title=${issueTitle}&body=${issueBody}`;
+      return NextResponse.json({
+        ok: true,
+        id: `gh_${Date.now().toString(36)}`,
+        fallback: true,
+        fallbackUrl,
+        message: "Database storage is not active on this deployment. Please click to open your pre-filled submission on GitHub Issues.",
+      });
+    }
 
     let entryId = `sub_${Date.now().toString(36)}`;
     try {

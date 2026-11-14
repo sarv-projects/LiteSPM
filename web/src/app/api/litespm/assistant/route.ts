@@ -97,6 +97,14 @@ function enforceKnowledgeCitations(answer: string, hits: KnowledgeHit[]): { text
   const references = knowledgeCitations(hits).slice(0, 5).map((source) =>
     `- [${source.id}] **${source.title}** — ${source.section} (${source.source}, lines ${source.startLine}-${source.endLine})`
   );
+  // If the answer already contains substantive text (>= 40 chars), preserve the answer
+  // and append the references rather than discarding the whole response.
+  if (answer && answer.trim().length >= 40) {
+    return {
+      text: `${answer.trim()}\n\n---\n**Documentation references:**\n${references.join("\n")}`,
+      replaced: false,
+    };
+  }
   return {
     text: "I found relevant LiteSPM documentation, but I couldn't produce an answer with valid source citations. Rather than guess about implementation details, here are the exact sections to consult:\n\n" + references.join("\n"),
     replaced: true,

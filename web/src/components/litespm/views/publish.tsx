@@ -51,6 +51,8 @@ export function PublishView() {
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [state, setState] = React.useState<"idle" | "sending" | "sent">("idle");
 
+  const [fallbackUrl, setFallbackUrl] = React.useState<string | null>(null);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -61,8 +63,16 @@ export function PublishView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind, name, email, listing, message }),
       });
-      const data = (await response.json()) as { ok?: boolean; errors?: Record<string, string> };
+      const data = (await response.json()) as {
+        ok?: boolean;
+        errors?: Record<string, string>;
+        fallback?: boolean;
+        fallbackUrl?: string;
+      };
       if (response.ok && data.ok) {
+        if (data.fallback && data.fallbackUrl) {
+          setFallbackUrl(data.fallbackUrl);
+        }
         setState("sent");
       } else {
         setErrors(data.errors ?? { form: "Something went wrong — please try again." });
@@ -126,12 +136,25 @@ export function PublishView() {
               className="mt-6 rounded-xl border border-brand/30 bg-brand-soft/70 p-6 text-center"
             >
               <CheckCircle2 className="mx-auto h-8 w-8 text-brand" />
-              <p className="mt-3 text-[15px] font-semibold">Received — thank you.</p>
+              <p className="mt-3 text-[15px] font-semibold">
+                {fallbackUrl ? "Submission prepared for GitHub" : "Received — thank you."}
+              </p>
               <p className="mx-auto mt-1.5 max-w-[42ch] text-[13px] leading-relaxed text-muted-foreground">
-                Your submission is recorded. If it asks for a listing, it will be reviewed against
-                the publisher&apos;s own published record before anything changes.
+                {fallbackUrl
+                  ? "Database storage is currently inactive on this deployment. Please click below to post your pre-filled submission on GitHub Issues."
+                  : "Your submission is recorded. If it asks for a listing, it will be reviewed against the publisher's own published record before anything changes."}
               </p>
               <div className="mt-5 flex flex-wrap justify-center gap-3">
+                {fallbackUrl && (
+                  <a
+                    href={fallbackUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center justify-center rounded-xl bg-brand px-4 text-[13px] font-semibold text-brand-foreground hover:bg-brand/90"
+                  >
+                    Post to GitHub Issues →
+                  </a>
+                )}
                 <Button
                   variant="outline"
                   className="rounded-xl"
@@ -139,6 +162,7 @@ export function PublishView() {
                     setState("idle");
                     setMessage("");
                     setListing("");
+                    setFallbackUrl(null);
                   }}
                 >
                   Submit another

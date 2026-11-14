@@ -20,6 +20,9 @@ import (
 	"syscall"
 	"time"
 
+	// Imported for its init side effect: it stops bubbletea's init from
+	// spending 5 s on a terminal background-colour query (see its doc.go).
+	_ "github.com/a-litespm/termguard"
 	"github.com/sarv-projects/litespm/internal/agent"
 	"github.com/sarv-projects/litespm/internal/bridge"
 	"github.com/sarv-projects/litespm/internal/catalog"

@@ -163,8 +163,11 @@ export function Header() {
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setPalette(true)}
-            className="hidden h-9 items-center gap-2 rounded-lg border border-border/70 bg-card pl-3 pr-2 text-[13px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground sm:flex"
+            onClick={(e) => {
+              e.preventDefault();
+              setPalette(true);
+            }}
+            className="hidden h-9 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card pl-3 pr-2 text-[13px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground sm:flex"
           >
             <Search className="h-3.5 w-3.5" />
             <span className="w-28 text-left lg:w-40">Search catalog…</span>
@@ -174,9 +177,12 @@ export function Header() {
           </button>
           <button
             type="button"
-            onClick={() => setPalette(true)}
+            onClick={(e) => {
+              e.preventDefault();
+              setPalette(true);
+            }}
             aria-label="Search catalog"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand sm:hidden"
+            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand sm:hidden"
           >
             <Search className="h-4 w-4" />
           </button>

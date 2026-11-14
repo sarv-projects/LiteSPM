@@ -127,7 +127,7 @@ export function BundleCard({
           </span>
         </div>
         <p className="mt-2 text-[11.5px] text-muted-foreground">
-          {forAgent.length} command{forAgent.length === 1 ? "" : "s"}, one per line (
+          {`${forAgent.length} ${forAgent.length === 1 ? "command" : "commands"}, one per line`} (
           <code className="font-mono">litespm install</code> takes one id at a time)
           {skipped > 0 ? `. ${skipped} item${skipped === 1 ? "" : "s"} left out: that agent cannot receive ${skipped === 1 ? "it" : "them"}.` : "."}
         </p>
