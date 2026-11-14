@@ -102,6 +102,11 @@ func main() {
 	case "setup":
 		runSetup(os.Args[2:])
 
+	case "sync":
+		if code := runSync(os.Args[2:]); code != 0 {
+			os.Exit(code)
+		}
+
 	case "init":
 		if code := runSkillsInit(os.Args[2:]); code != 0 {
 			os.Exit(code)

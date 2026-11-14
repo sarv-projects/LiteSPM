@@ -123,6 +123,9 @@ func (w *Wizard) Run(ctx context.Context) error {
 			return nil
 		}
 	} else {
+		if newly := w.autoConnectUnconfiguredHosts(ctx); len(newly) > 0 {
+			configured, _ = w.configuredHosts(ctx)
+		}
 		w.printConfiguredSummary(configured)
 	}
 
@@ -246,6 +249,44 @@ func (w *Wizard) printConfiguredSummary(configured []host.HostVerification) {
 		len(names), plural(len(names)), strings.Join(shown, ", "), extra)
 	fmt.Fprintln(w.out, "Nothing was changed. Run `litespm host detect` to see every configuration path.")
 	fmt.Fprintln(w.out, "")
+}
+
+// autoConnectUnconfiguredHosts scans for installed agent configuration files
+// on this machine and automatically registers the LiteSPM bridge and in-agent
+// commands for any newly installed agents without requiring manual prompts.
+func (w *Wizard) autoConnectUnconfiguredHosts(ctx context.Context) []string {
+	adapters := host.ListAdapters()
+	var newlyConnected []string
+	for _, adapter := range adapters {
+		cfgPath, detErr := adapter.DetectConfig(ctx, domain.ScopeUser)
+		if detErr != nil || cfgPath == "" {
+			continue
+		}
+		if _, statErr := os.Stat(cfgPath); statErr != nil {
+			continue
+		}
+		verification, vErr := adapter.VerifySetup(ctx)
+		if vErr != nil || verification == nil || verification.Registered {
+			continue
+		}
+
+		plan, pErr := adapter.PlanSetup(ctx, w.binary, w.paths.BackupsPath())
+		if pErr != nil {
+			continue
+		}
+		result, aErr := adapter.ApplySetup(ctx, plan)
+		if aErr != nil {
+			continue
+		}
+		installMarketplaceCommand(ctx, io.Discard, adapter.Descriptor().HostID, w.binary)
+		newlyConnected = append(newlyConnected, adapter.Descriptor().DisplayName)
+		if terminalUIAvailable(w.in, w.out) {
+			uiOK(w.out, "Auto-connected newly detected agent: %s (%s)", adapter.Descriptor().DisplayName, result.ConfigPath)
+		} else {
+			fmt.Fprintf(w.out, "✓ Auto-connected newly detected agent: %s (%s)\n", adapter.Descriptor().DisplayName, result.ConfigPath)
+		}
+	}
+	return newlyConnected
 }
 
 // runSetup runs agent selection → configuration resolution → bridge write.
@@ -983,6 +1024,8 @@ func (w *Wizard) actionMenuItems() []promptItem {
 		catalogDetail = "The local catalog is empty, so searching finds nothing yet. Download the published list of MCP servers, skills and plugins. It installs nothing."
 	}
 	return []promptItem{
+		{ID: "s", Label: "Sync & cross-update everything", Hint: "auto-detect, update agents, catalog & skills", Group: "Sync",
+			Detail: "One-click complete synchronization: upgrades binary if newer release exists, syncs catalog, cross-updates JSON/TOML configs for all detected agents, and reconciles installed skills across agent directories."},
 		{ID: "1", Label: "Update catalog", Hint: catalogHint, Detail: catalogDetail, Group: "Catalog"},
 		{ID: "2", Label: "Find and install", Hint: "search the local catalog", Group: "Catalog",
 			Detail: "Search the catalog this machine already has, preview a row, and install it through the same plan and approval gate `litespm install` uses."},
@@ -1076,8 +1119,9 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 			fmt.Fprintln(w.out, "  [8] Run doctor & diagnostics (check and repair system health)")
 			fmt.Fprintln(w.out, "  [9] Run security audit (verify trust and fail-closed policies)")
 			fmt.Fprintln(w.out, "  [10] Detect agent hosts on this machine")
+			fmt.Fprintln(w.out, "  [s] Sync & cross-update everything (agents, configs, catalog & skills)")
 			fmt.Fprintln(w.out, "  [q] Finish")
-			fmt.Fprint(w.out, "Enter choice [1-10, q]: ")
+			fmt.Fprint(w.out, "Enter choice [s, 1-10, q]: ")
 			line, err := w.readLine()
 			if err != nil {
 				return err
@@ -1087,6 +1131,9 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 
 		var actionErr error
 		switch choice {
+		case "s", "S", "sync":
+			fmt.Fprintln(w.out, "")
+			_, actionErr = executeSync(ctx, w.out, syncOptions{yes: true})
 		case "1":
 			actionErr = w.actionSyncCatalog(ctx)
 		case "2":
@@ -1114,7 +1161,7 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 		case "q", "Q":
 			return nil
 		default:
-			fmt.Fprintln(w.out, "Please enter 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 or q.")
+			fmt.Fprintln(w.out, "Please enter s, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 or q.")
 		}
 		if actionErr != nil {
 			return actionErr

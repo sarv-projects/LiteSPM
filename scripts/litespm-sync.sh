@@ -39,17 +39,9 @@ elif ! command -v "$LITESPM_BIN" &>/dev/null; then
   exit 1
 fi
 
-# Step 1: Connect / repair all detected agent hosts
-echo -e "${CYAN}• Step 1/3: Synchronizing agent host configurations...${RESET}"
-"$LITESPM_BIN" setup --all || true
-
-# Step 2: Sync latest capability catalog
-echo -e "${CYAN}• Step 2/3: Refreshing capability catalog...${RESET}"
-"$LITESPM_BIN" catalog sync || true
-
-# Step 3: Update all installed skills
-echo -e "${CYAN}• Step 3/3: Updating installed skills across agents...${RESET}"
-"$LITESPM_BIN" skills update -y || true
+# Execute unified sync
+echo -e "${CYAN}• Executing unified agent, config, and capability sync...${RESET}"
+"$LITESPM_BIN" sync --yes || true
 
 echo -e "\n${BOLD}${GREEN}✓ Auto-sync complete!${RESET}"
-echo -e "${DIM}All detected agents are connected and their skills are up to date.${RESET}\n"
+echo -e "${DIM}All detected agents, configs, and skills are synchronized.${RESET}\n"

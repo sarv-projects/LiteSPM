@@ -31,16 +31,10 @@ if (-not $LiteSPMBin) {
     exit 1
 }
 
-Write-Host "• Step 1/3: Synchronizing agent host configurations..." -ForegroundColor Cyan
-& $LiteSPMBin setup --all
-
-Write-Host "• Step 2/3: Refreshing capability catalog..." -ForegroundColor Cyan
-& $LiteSPMBin catalog sync
-
-Write-Host "• Step 3/3: Updating installed skills across agents..." -ForegroundColor Cyan
-& $LiteSPMBin skills update -y
+Write-Host "• Executing unified agent, config, and capability sync..." -ForegroundColor Cyan
+& $LiteSPMBin sync --yes
 
 Write-Host ""
 Write-Host "✓ Auto-sync complete!" -ForegroundColor Green
-Write-Host "All detected agents are connected and their skills are up to date." -ForegroundColor DarkGray
+Write-Host "All detected agents, configs, and skills are synchronized." -ForegroundColor DarkGray
 Write-Host ""

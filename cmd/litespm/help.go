@@ -48,7 +48,7 @@ type helpGroup struct {
 var helpGroups = []helpGroup{
 	{"DISCOVER", []string{"marketplace", "search", "agent", "catalog"}},
 	{"VIEW", []string{"list", "inventory"}},
-	{"MANAGE", []string{"install", "copy", "lock", "skills", "grant", "approve", "adopt"}},
+	{"MANAGE", []string{"install", "sync", "copy", "lock", "skills", "grant", "approve", "adopt"}},
 	{"RECOVER", []string{"restore", "doctor", "audit", "uninstall"}},
 	{"CONFIGURE", []string{"setup", "host", "daemon", "bridge", "auth"}},
 	{"SYSTEM", []string{"self-update", "version", "capabilities", "invoke"}},
@@ -243,6 +243,30 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm install remove <installId>",
 			},
 			SeeAlso: []string{"restore", "lock", "skills", "list"},
+		},
+		{
+			Canonical: "sync",
+			Group:     "MANAGE",
+			Purpose:   "Synchronize all AI coding agents, configurations, catalog, and skills.",
+			Synopsis: []string{
+				"litespm sync [--dry-run] [--yes] [--json]",
+			},
+			Does: []string{
+				"Checks the release manifest and upgrades the LiteSPM binary with Sigstore verification when a newer version exists.",
+				"Downloads and indexes the latest capability catalog without prompting.",
+				"Scans the machine for all 52 supported agents, detects config files (JSON, TOML, JSONC), and auto-wires any newly installed agents with the LiteSPM bridge and in-agent marketplace commands.",
+				"Cross-syncs installed skills into each detected agent's skills directory and reconciles the skills ledger.",
+			},
+			DoesNot: []string{
+				"Does not delete user configurations or existing native MCP servers.",
+				"Does not require flags or prompts; runs fully hands-free by default.",
+			},
+			Examples: []string{
+				"litespm sync",
+				"litespm sync --dry-run",
+				"litespm sync --json",
+			},
+			SeeAlso: []string{"setup", "skills", "catalog", "self-update"},
 		},
 		{
 			Canonical: "copy",

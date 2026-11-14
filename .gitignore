@@ -3,6 +3,7 @@
 /litespm.exe
 dist/
 *.exe
+*.exe~
 *.dll
 *.so
 *.dylib

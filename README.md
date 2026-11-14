@@ -86,12 +86,32 @@ litespm install remove <installId>
 
 ---
 
-## 🔄 Hands-Free Automation & Background Sync
+## 🔄 Hands-Free Automation & Unified Sync (`litespm sync`)
 
-Never memorize flags or manually re-sync configuration files. LiteSPM provides automated scripts for zero-friction synchronization:
+Never memorize flags or manually re-sync configuration files. LiteSPM provides unified cross-agent synchronization natively on launch and via command:
 
-### 1-Click Automated Sync Script
-Runs a complete 3-in-1 synchronization (detects & wires any new agent, pulls the latest catalog release, and updates all installed skills):
+### 1. Unified Sync Command (`litespm sync`)
+Run a complete hands-free synchronization across your entire developer environment in one go:
+
+```bash
+# Fully automated zero-interaction sync
+litespm sync
+
+# Preview changes without modifying files
+litespm sync --dry-run
+```
+
+**What `litespm sync` does automatically:**
+1. **Self-Update / Upgrade Check**: Checks the release manifest and verifies/upgrades LiteSPM with Sigstore cosign signatures when a newer release exists.
+2. **Catalog Sync**: Downloads, verifies, and indexes the latest published capabilities catalog.
+3. **Agent Config Cross-Update**: Scans this machine for all supported agents (Cursor, Claude Code, OpenCode, Codex, Cline, Pi, Grok, Zed, etc.), detects configuration files (JSON, TOML, JSONC), and auto-wires any newly installed agents with the LiteSPM bridge and in-agent commands.
+4. **Skills & Capabilities Reconcile**: Cross-syncs installed skills into each detected agent's skills directory and reconciles the skills ledger.
+
+### 2. Just-in-Time (JIT) Auto-Connect on Launch
+Whenever you run `litespm`, it automatically detects newly installed agents on your machine and connects them immediately without requiring manual configuration prompts.
+
+### 3. Automated Scripts & Background Schedulers
+For headless or automated environments:
 
 ```bash
 # Linux / macOS
@@ -101,17 +121,9 @@ Runs a complete 3-in-1 synchronization (detects & wires any new agent, pulls the
 powershell -ExecutionPolicy Bypass -File .\scripts\litespm-sync.ps1
 ```
 
-### Set-and-Forget Background Scheduler (Every 6 Hours)
-Automate synchronization so your coding agents and skills stay continuously fresh in the background:
-
-* **Linux / macOS (Cron):**
-  ```bash
-  ./scripts/install-cron-sync.sh
-  ```
-* **Windows (Task Scheduler):**
-  ```powershell
-  powershell -ExecutionPolicy Bypass -File .\scripts\install-task-sync.ps1
-  ```
+Set-and-forget background schedulers (every 6 hours):
+* **Linux / macOS (Cron):** `./scripts/install-cron-sync.sh`
+* **Windows (Task Scheduler):** `powershell -ExecutionPolicy Bypass -File .\scripts\install-task-sync.ps1`
 
 ---
 
