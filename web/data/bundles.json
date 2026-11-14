@@ -142,6 +142,31 @@
         "mcp:builtin:mcp-registry:io.github.upstash-context7",
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
       ]
+    },
+    {
+      "id": "vibe-coding-frontend",
+      "title": "Vibe coding & rapid frontend",
+      "blurb": "Prompt and ship animated UI components, animated slides and interactive blocks into your React/Next.js apps without writing boilerplate.",
+      "difficulty": "Beginner",
+      "audience": "Vibe coders, solo founders and indie hackers building fast",
+      "items": [
+        "mcp:builtin:mcp-registry:dev.uiarc-arc",
+        "mcp:builtin:mcp-registry:app.goshipyard-shipyard",
+        "mcp:builtin:mcp-registry:io.github.BuilderIO-agent-native-slides"
+      ]
+    },
+    {
+      "id": "designer-3d-visual-assets",
+      "title": "Designers & 3D visual assets",
+      "blurb": "Figma design integration, real-world website visual inspiration galleries, CC0 3D models and game assets, plus PBR materials.",
+      "difficulty": "Intermediate",
+      "audience": "Designers, 3D artists, and creative technologists",
+      "items": [
+        "mcp:builtin:mcp-registry:com.figma.mcp-mcp",
+        "mcp:builtin:mcp-registry:gallery.a1-a1-gallery",
+        "mcp:builtin:mcp-registry:dev.3dassets-catalogue",
+        "mcp:builtin:mcp-registry:com.3dtexel-mcp"
+      ]
     }
   ]
 }

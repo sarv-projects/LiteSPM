@@ -945,6 +945,12 @@ func (w *Wizard) actionMenuItems() []promptItem {
 			Detail: "Opens the same interactive installer as `litespm skills add`, with discovery and per-agent approval."},
 		{ID: "7", Label: "Open the browser marketplace", Hint: "Skills, Plugins, MCP, Installed", Group: "Agents",
 			Detail: "Open the four-tab marketplace page in the default browser. The Installed tab reads this machine when the page is served locally."},
+		{ID: "8", Label: "Doctor & Diagnostics", Hint: "check system health and auto-repair", Group: "Manage",
+			Detail: "Run system diagnostics: checks SQLite DB, sockets, agent configuration integrity, Sigstore trust roots, and repairs issues."},
+		{ID: "9", Label: "Audit security & trust", Hint: "fail-closed policy checks", Group: "Manage",
+			Detail: "Perform a security audit of installed skills, MCP tools, permissions, and credential stores."},
+		{ID: "10", Label: "Detect & list agent hosts", Hint: "scan for 52 supported agents", Group: "Agents",
+			Detail: "Scan local filesystem for installed agent configs (Claude, Cursor, Windsurf, Cline, OpenCode, Codex, etc.)."},
 		{ID: "q", Label: "Finish", Group: "Session", Detail: "Close the manager. Nothing more is changed."},
 	}
 }
@@ -1016,8 +1022,11 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 			fmt.Fprintln(w.out, "  [5] Set up or repair an agent connection")
 			fmt.Fprintln(w.out, "  [6] Install skills from GitHub, a URL, or a folder")
 			fmt.Fprintln(w.out, "  [7] Open the browser marketplace (Skills, Plugins, MCP, Installed)")
+			fmt.Fprintln(w.out, "  [8] Run doctor & diagnostics (check and repair system health)")
+			fmt.Fprintln(w.out, "  [9] Run security audit (verify trust and fail-closed policies)")
+			fmt.Fprintln(w.out, "  [10] Detect agent hosts on this machine")
 			fmt.Fprintln(w.out, "  [q] Finish")
-			fmt.Fprint(w.out, "Enter choice [1-7, q]: ")
+			fmt.Fprint(w.out, "Enter choice [1-10, q]: ")
 			line, err := w.readLine()
 			if err != nil {
 				return err
@@ -1045,15 +1054,51 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 			actionErr = w.actionInstallSkillFromSource(ctx)
 		case "7":
 			actionErr = w.actionOpenMarketplace()
+		case "8":
+			actionErr = w.actionRunDoctor(ctx)
+		case "9":
+			actionErr = w.actionRunAudit(ctx)
+		case "10":
+			actionErr = w.actionDetectAgents(ctx)
 		case "q", "Q":
 			return nil
 		default:
-			fmt.Fprintln(w.out, "Please enter 1, 2, 3, 4, 5, 6, 7 or q.")
+			fmt.Fprintln(w.out, "Please enter 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 or q.")
 		}
 		if actionErr != nil {
 			return actionErr
 		}
 	}
+}
+
+func (w *Wizard) actionRunDoctor(ctx context.Context) error {
+	fmt.Fprintln(w.out, "\nRunning LiteSPM Doctor & System Diagnostics...")
+	cmd := exec.CommandContext(ctx, w.binary, "doctor")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = w.out
+	cmd.Stderr = w.out
+	_ = cmd.Run()
+	return nil
+}
+
+func (w *Wizard) actionRunAudit(ctx context.Context) error {
+	fmt.Fprintln(w.out, "\nRunning LiteSPM Security & Policy Audit...")
+	cmd := exec.CommandContext(ctx, w.binary, "audit")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = w.out
+	cmd.Stderr = w.out
+	_ = cmd.Run()
+	return nil
+}
+
+func (w *Wizard) actionDetectAgents(ctx context.Context) error {
+	fmt.Fprintln(w.out, "\nScanning this machine for supported AI agent hosts...")
+	cmd := exec.CommandContext(ctx, w.binary, "host", "detect")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = w.out
+	cmd.Stderr = w.out
+	_ = cmd.Run()
+	return nil
 }
 
 // actionOpenMarketplace is the wizard's door to the browser surface. It opens

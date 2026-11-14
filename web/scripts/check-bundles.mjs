@@ -46,8 +46,8 @@ const byId = new Map(uniqueListings(catalog.map(normalizeListing)).map((row) => 
 const file = JSON.parse(readFileSync(path.join(webRoot, "data", "bundles.json"), "utf8"));
 const bundles = Array.isArray(file.bundles) ? file.bundles : [];
 
-if (bundles.length < 8 || bundles.length > 12) {
-  fail(`expected 8-12 bundles, found ${bundles.length}`);
+if (bundles.length < 8 || bundles.length > 16) {
+  fail(`expected 8-16 bundles, found ${bundles.length}`);
 }
 
 const seenBundleIds = new Set();
