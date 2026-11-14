@@ -872,3 +872,52 @@ func TestWizard_EOFStopsInsideHarnessActions(t *testing.T) {
 		}
 	})
 }
+
+// TestWizard_EndToEndInteractiveFlowAndMarketplaceCommands tests the full
+// interactive wizard flow: agent configuration, marketplace popup/command installation,
+// diagnostic health check via menu action 8, and host detect via menu action 10.
+func TestWizard_EndToEndInteractiveFlowAndMarketplaceCommands(t *testing.T) {
+	ctx := context.Background()
+	_ = hermeticWizardHome(t)
+	paths := tempWizardPaths(t)
+
+	// Step 1: Run wizard interactively to configure pi-agent
+	// Input: "pi-agent" -> "y" (confirm path) -> "y" (confirm write bridge) -> "8" (doctor) -> "10" (detect) -> "q" (quit)
+	probe, _ := newTestWizard(t, "", paths)
+	idx := wizardRowIndex(t, probe, "pi-agent", false)
+	input := fmt.Sprintf("a\n%d\ny\ny\n8\n10\nq\n", idx)
+
+	w, out := newTestWizard(t, input, paths)
+	if err := w.Run(ctx); err != nil {
+		t.Fatalf("wizard run failed: %v", err)
+	}
+	outStr := out.String()
+
+	// Verify agent configuration succeeded
+	if !strings.Contains(outStr, "Successfully configured") && !strings.Contains(outStr, "Connected") {
+		t.Errorf("expected configuration success message in output:\n%s", outStr)
+	}
+
+	// Verify in-agent marketplace popup command was advertised and installed
+	if !strings.Contains(outStr, "/marketplace") {
+		t.Errorf("expected /marketplace command advertisement in output:\n%s", outStr)
+	}
+
+	// Verify pi-agent extension file was created on disk
+	piExt := (&host.PiAgentAdapter{}).ExtensionPath()
+	if extData, err := os.ReadFile(piExt); err != nil {
+		t.Errorf("pi-agent marketplace extension was not written to %s: %v", piExt, err)
+	} else if !strings.Contains(string(extData), host.MarketplaceCommandMarker) {
+		t.Errorf("pi-agent extension missing marker: %s", string(extData))
+	}
+
+	// Verify menu action 8 (Diagnostic health check) executed
+	if !strings.Contains(outStr, "LiteSPM Diagnostic Health Report") {
+		t.Errorf("expected Doctor output from menu option 8:\n%s", outStr)
+	}
+
+	// Verify menu action 10 (Detect installed agent hosts) executed
+	if !strings.Contains(outStr, "Scanning for installed agent configurations") {
+		t.Errorf("expected Host Detect output from menu option 10:\n%s", outStr)
+	}
+}

@@ -38,8 +38,11 @@ import (
 	"github.com/sarv-projects/litespm/internal/catalog"
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/deployment"
+	"github.com/sarv-projects/litespm/internal/doctor"
 	"github.com/sarv-projects/litespm/internal/domain"
 	"github.com/sarv-projects/litespm/internal/host"
+	"github.com/sarv-projects/litespm/internal/scan"
+	"github.com/sarv-projects/litespm/internal/secrets"
 	"github.com/sarv-projects/litespm/internal/skills"
 	"github.com/sarv-projects/litespm/internal/state"
 )
@@ -1073,31 +1076,82 @@ func (w *Wizard) runActionMenu(ctx context.Context) error {
 
 func (w *Wizard) actionRunDoctor(ctx context.Context) error {
 	fmt.Fprintln(w.out, "\nRunning LiteSPM Doctor & System Diagnostics...")
-	cmd := exec.CommandContext(ctx, w.binary, "doctor")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = w.out
-	cmd.Stderr = w.out
-	_ = cmd.Run()
+	var db *state.DB
+	if pdb, err := state.Open(w.paths.StateDBPath()); err == nil {
+		db = pdb
+		defer db.Close()
+	}
+	secretStore, _ := secrets.OpenSecretStore()
+	eng := doctor.NewEngine(w.paths, db, secretStore)
+	report := eng.RunChecks(ctx)
+	if terminalUIAvailable(w.in, w.out) {
+		printDoctorReportTTY(w.out, report)
+	} else {
+		fmt.Fprintln(w.out, "\nLiteSPM Diagnostic Health Report")
+		fmt.Fprintln(w.out, strings.Repeat("=", 60))
+		for _, c := range report.Checks {
+			var statusIcon string
+			switch c.Status {
+			case doctor.StatusPass:
+				statusIcon = "✓ [PASS]"
+			case doctor.StatusWarn:
+				statusIcon = "⚠ [WARN]"
+			case doctor.StatusFail:
+				statusIcon = "✗ [FAIL]"
+			}
+			fmt.Fprintf(w.out, "%-9s %-32s: %s\n", statusIcon, c.Name, c.Message)
+			if c.DurationMs > 0 {
+				fmt.Fprintf(w.out, "          · %s\n", doctorDuration(c.DurationMs))
+			}
+			if c.Recommendation != "" {
+				fmt.Fprintf(w.out, "          ➜ Recommendation: %s\n", c.Recommendation)
+			}
+		}
+		fmt.Fprintln(w.out, strings.Repeat("-", 60))
+		fmt.Fprintf(w.out, "Summary: %d Passed, %d Warnings, %d Failures (Overall: %s) in %d ms\n",
+			report.PassedCount, report.WarnCount, report.FailCount, report.OverallStatus, report.DurationMs)
+	}
 	return nil
 }
 
 func (w *Wizard) actionRunAudit(ctx context.Context) error {
 	fmt.Fprintln(w.out, "\nRunning LiteSPM Security & Policy Audit...")
-	cmd := exec.CommandContext(ctx, w.binary, "audit")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = w.out
-	cmd.Stderr = w.out
-	_ = cmd.Run()
+	rows, source, err := auditCatalogueRows(ctx, w.paths, "")
+	if err != nil {
+		fmt.Fprintf(w.out, "read the catalogue: %v\n", err)
+		return nil
+	}
+	findings := scan.ScanRows(rows)
+	if chainErr := auditReceiptChain(w.paths); chainErr != nil {
+		findings = append(findings, scan.Finding{
+			Rule:      "receipt-chain-broken",
+			Severity:  scan.SeverityError,
+			ListingID: "",
+			Message:   chainErr.Error(),
+		})
+	}
+	counts := scan.Counts(findings)
+	fmt.Fprintf(w.out, "Audited %d row(s) from %s\n", len(rows), source)
+	if len(findings) == 0 {
+		fmt.Fprintln(w.out, "Nothing that must not ship was found.")
+	} else {
+		for _, f := range findings {
+			where := f.ListingID
+			if where == "" {
+				where = "the local ledger"
+			}
+			fmt.Fprintf(w.out, "  [%s] %s: %s\n     %s\n", strings.ToUpper(string(f.Severity)), f.Rule, where, f.Message)
+		}
+		fmt.Fprintf(w.out, "\n%d error(s), %d warning(s), %d note(s) across %d rule(s).\n",
+			counts[scan.SeverityError], counts[scan.SeverityWarning], counts[scan.SeverityNote], len(scan.Rules))
+	}
 	return nil
 }
 
 func (w *Wizard) actionDetectAgents(ctx context.Context) error {
 	fmt.Fprintln(w.out, "\nScanning this machine for supported AI agent hosts...")
-	cmd := exec.CommandContext(ctx, w.binary, "host", "detect")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = w.out
-	cmd.Stderr = w.out
-	_ = cmd.Run()
+	cwd, _ := os.Getwd()
+	renderHostDetect(ctx, w.out, cwd)
 	return nil
 }
 

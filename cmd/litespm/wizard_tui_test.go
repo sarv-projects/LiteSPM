@@ -45,7 +45,7 @@ func TestWizardActionMenuItemsCoverEveryNumberedAction(t *testing.T) {
 		}
 		byID[item.ID] = item
 	}
-	for _, id := range []string{"1", "2", "3", "4", "5", "6", "7", "q"} {
+	for _, id := range []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "q"} {
 		item, ok := byID[id]
 		if !ok {
 			t.Fatalf("the prompt menu has no row for action %q", id)
@@ -54,10 +54,16 @@ func TestWizardActionMenuItemsCoverEveryNumberedAction(t *testing.T) {
 			t.Errorf("menu row %q is not grouped", id)
 		}
 	}
-	if len(items) != 8 {
-		t.Errorf("the menu has %d rows, want 8", len(items))
+	if len(items) != 11 {
+		t.Errorf("the menu has %d rows, want 11", len(items))
 	}
-	for id, want := range map[string]string{"6": "skill", "7": "marketplace"} {
+	for id, want := range map[string]string{
+		"6":  "skill",
+		"7":  "marketplace",
+		"8":  "diagnostic",
+		"9":  "security",
+		"10": "detect",
+	} {
 		if !strings.Contains(strings.ToLower(byID[id].Label), want) {
 			t.Errorf("row %q does not advertise %q: %q", id, want, byID[id].Label)
 		}
