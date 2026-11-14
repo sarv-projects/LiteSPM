@@ -119,9 +119,9 @@ export function PublishView() {
         ))}
       </div>
 
-      <div className="mt-12 grid gap-8 lg:grid-cols-[1fr_360px]">
+      <div className="mt-12 grid min-w-0 gap-8 lg:grid-cols-[1fr_360px]">
         {/* Form */}
-        <section className="rounded-2xl border border-border/70 bg-card p-6" aria-labelledby="form-title">
+        <section className="min-w-0 rounded-2xl border border-border/70 bg-card p-4 sm:p-6" aria-labelledby="form-title">
           <h2 id="form-title" className="flex items-center gap-2 text-[17px] font-semibold">
             <MessageSquare className="h-4 w-4 text-brand" /> Submit a listing or a correction
           </h2>
@@ -141,7 +141,7 @@ export function PublishView() {
               </p>
               <p className="mx-auto mt-1.5 max-w-[42ch] text-[13px] leading-relaxed text-muted-foreground">
                 {fallbackUrl
-                  ? "Database storage is currently inactive on this deployment. Please click below to post your pre-filled submission on GitHub Issues."
+                  ? "Database storage is currently inactive on this deployment. Click below to post your submission on GitHub Issues (your email has been omitted for privacy)."
                   : "Your submission is recorded. If it asks for a listing, it will be reviewed against the publisher's own published record before anything changes."}
               </p>
               <div className="mt-5 flex flex-wrap justify-center gap-3">
@@ -231,7 +231,7 @@ export function PublishView() {
 
               <div>
                 <Label htmlFor="feedback-listing" className="text-[12.5px]">
-                  Listing reference <span className="text-muted-foreground/60">(optional)</span>
+                  Listing reference <span className="text-muted-foreground/80">(optional)</span>
                 </Label>
                 <Input
                   id="feedback-listing"
@@ -292,7 +292,7 @@ export function PublishView() {
         </section>
 
         {/* Side notes */}
-        <aside className="space-y-5">
+        <aside className="min-w-0 space-y-5">
           <section className="rounded-2xl border border-border/70 bg-card p-5">
             <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               By kind

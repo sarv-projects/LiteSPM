@@ -406,7 +406,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                       </li>
                     ))}
                     {data.mcpSpec.permissions.read.length === 0 && (
-                      <li className="italic text-muted-foreground/60">No read tools declared</li>
+                      <li className="italic text-muted-foreground/85">No read tools declared</li>
                     )}
                   </ul>
                 </div>
@@ -424,7 +424,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                       </li>
                     ))}
                     {data.mcpSpec.permissions.write.length === 0 && (
-                      <li className="italic text-muted-foreground/60">No state-modifying operations</li>
+                      <li className="italic text-muted-foreground/85">No state-modifying operations</li>
                     )}
                   </ul>
                 </div>
@@ -442,7 +442,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                       </li>
                     ))}
                     {data.mcpSpec.permissions.destructive.length === 0 && (
-                      <li className="italic text-muted-foreground/60">Zero destructive actions</li>
+                      <li className="italic text-muted-foreground/85">Zero destructive actions</li>
                     )}
                   </ul>
                 </div>

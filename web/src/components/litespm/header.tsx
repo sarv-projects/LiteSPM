@@ -139,7 +139,7 @@ export function Header() {
           <Logo />
         </NavLink>
 
-        <nav aria-label="Primary" className="ml-2 hidden items-center gap-0.5 md:flex">
+        <nav aria-label="Primary" className="ml-2 hidden items-center gap-0.5 xl:flex">
           {NAV.map((item) => {
             const active = item.match.includes(route.view);
             return (
@@ -167,7 +167,7 @@ export function Header() {
               e.preventDefault();
               setPalette(true);
             }}
-            className="hidden h-9 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card pl-3 pr-2 text-[13px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground sm:flex"
+            className="hidden h-9 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card pl-3 pr-2 text-[13px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground lg:flex"
           >
             <Search className="h-3.5 w-3.5" />
             <span className="w-28 text-left lg:w-40">Search catalog…</span>
@@ -182,7 +182,7 @@ export function Header() {
               setPalette(true);
             }}
             aria-label="Search catalog"
-            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand sm:hidden"
+            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand lg:hidden"
           >
             <Search className="h-4 w-4" />
           </button>
@@ -222,7 +222,7 @@ export function Header() {
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground md:hidden"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground xl:hidden"
           >
             {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
@@ -230,7 +230,7 @@ export function Header() {
       </div>
 
       {mobileOpen && (
-        <nav aria-label="Mobile" className="border-t border-border/60 bg-background md:hidden">
+        <nav aria-label="Mobile" className="border-t border-border/60 bg-background xl:hidden">
           <div className="mx-auto grid max-w-6xl gap-1 px-4 py-3">
             {NAV.map((item) => (
               <NavLink

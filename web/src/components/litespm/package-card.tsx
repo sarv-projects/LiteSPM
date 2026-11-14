@@ -42,11 +42,11 @@ export function PackageCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index * 0.02, 0.25) }}
       className={cn(
-        "group relative flex flex-col rounded-xl border border-border/70 bg-card p-4 transition-all hover:border-brand/40 hover:shadow-[0_2px_18px_-8px_rgba(16,185,129,0.25)]",
+        "group relative flex flex-col min-w-0 max-w-full overflow-hidden rounded-xl border border-border/70 bg-card p-4 transition-all hover:border-brand/40 hover:shadow-[0_2px_18px_-8px_rgba(16,185,129,0.25)]",
         compact && "p-3.5",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <KindBadge kind={hit.kind} />
           {hit.publisher.verified && (
@@ -64,7 +64,7 @@ export function PackageCard({
             </span>
           )}
         </div>
-        <div className="relative z-10 flex shrink-0 items-center gap-1">
+        <div className="relative z-10 flex flex-wrap items-center gap-1 sm:shrink-0 ml-auto">
           {typeof hit.stars === "number" && hit.stars > 0 && (
             <span
               title={`${formatFull(hit.stars)} GitHub stars`}
@@ -167,7 +167,7 @@ export function PackageCard({
           className="relative z-10 mt-3 flex w-full items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-left font-mono text-[11px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
         >
           <span className="min-w-0 truncate">
-            <span className="text-brand">$</span> litespm install {shellArg(shortId(hit))}
+            <span className="text-brand">$</span> litespm install {shellArg(hit.id)}
           </span>
           {copied ? (
             <Check className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />

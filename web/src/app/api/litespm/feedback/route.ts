@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     if (!databaseConfigured()) {
       const issueTitle = encodeURIComponent(`[Publish/Feedback] ${listing || kind}: ${name}`);
       const issueBody = encodeURIComponent(
-        `### Submission Details\n\n- **Kind:** ${kind}\n- **Name:** ${name}\n- **Email:** ${email}\n- **Listing:** ${listing || "None"}\n\n### Details\n${message}\n\n---\n*Submitted via LiteSPM web form (storage unconfigured fallback)*`
+        `### Submission Details\n\n- **Kind:** ${kind}\n- **Name:** ${name}\n- **Contact Email:** [Redacted for privacy — public GitHub Issue]\n- **Listing:** ${listing || "None"}\n\n### Details\n${message}\n\n---\n*Submitted via LiteSPM web form (storage unconfigured fallback)*`
       );
       const fallbackUrl = `https://github.com/sarv-projects/LiteSPM/issues/new?title=${issueTitle}&body=${issueBody}`;
       return NextResponse.json({

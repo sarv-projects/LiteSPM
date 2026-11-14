@@ -20,55 +20,62 @@ const DOC_SECTIONS = [
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = SITE_ORIGIN;
-  const now = new Date();
+  let releaseDate = new Date("2026-11-05T00:00:00Z");
+
+  try {
+    const ds = await getDataset();
+    if (ds.release?.createdAt) {
+      releaseDate = new Date(ds.release.createdAt);
+    }
+  } catch {}
 
   // Core primary routes
   const routes: MetadataRoute.Sitemap = [
     {
       url: `${baseUrl}/`,
-      lastModified: now,
+      lastModified: releaseDate,
       changeFrequency: "daily",
       priority: 1.0,
     },
     {
       url: `${baseUrl}/marketplace`,
-      lastModified: now,
+      lastModified: releaseDate,
       changeFrequency: "daily",
       priority: 0.9,
     },
     {
       url: `${baseUrl}/bundles`,
-      lastModified: now,
+      lastModified: releaseDate,
       changeFrequency: "weekly",
       priority: 0.8,
     },
     {
       url: `${baseUrl}/agents`,
-      lastModified: now,
+      lastModified: releaseDate,
       changeFrequency: "weekly",
       priority: 0.8,
     },
     {
       url: `${baseUrl}/docs`,
-      lastModified: now,
+      lastModified: releaseDate,
       changeFrequency: "weekly",
       priority: 0.8,
     },
     {
       url: `${baseUrl}/insights`,
-      lastModified: now,
+      lastModified: releaseDate,
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
       url: `${baseUrl}/compare`,
-      lastModified: now,
+      lastModified: releaseDate,
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
       url: `${baseUrl}/publish`,
-      lastModified: now,
+      lastModified: releaseDate,
       changeFrequency: "monthly",
       priority: 0.5,
     },
@@ -78,7 +85,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const id of DOC_SECTIONS) {
     routes.push({
       url: `${baseUrl}/docs/${id}`,
-      lastModified: now,
+      lastModified: releaseDate,
       changeFrequency: "weekly",
       priority: 0.6,
     });
@@ -91,7 +98,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const host of dataset.hosts) {
       routes.push({
         url: `${baseUrl}/agent/${encodeURIComponent(host.id)}`,
-        lastModified: now,
+        lastModified: releaseDate,
         changeFrequency: "weekly",
         priority: 0.7,
       });
@@ -107,7 +114,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const pkg of topPackages) {
       routes.push({
         url: `${baseUrl}/package/${encodeURIComponent(pkg.linkKey || pkg.slug || pkg.id)}`,
-        lastModified: now,
+        lastModified: releaseDate,
         changeFrequency: "weekly",
         priority: 0.6,
       });

@@ -13,9 +13,10 @@ import { Header, AnnouncementBar } from "./header";
 import { Footer } from "./footer";
 import { HomeView } from "./views/home";
 import { MarketplaceView } from "./views/marketplace";
+import { DocsView } from "./views/docs";
 
 /**
- * Code splitting: the first load carries the shell, Home and Marketplace.
+ * Code splitting: the first load carries the shell, Home, Marketplace and Docs.
  * Every other view, the Ask AI panel (60 KB of source) and the command palette
  * are separate chunks fetched when first needed. Views still render on the
  * server (default `ssr`), so a deep link gets its HTML in the first response.
@@ -24,7 +25,6 @@ const viewLoading = () => <div className="min-h-[60vh]" aria-busy="true" />;
 const PackageView = dynamic(() => import("./views/package-detail").then((m) => m.PackageView), { loading: viewLoading });
 const AgentsView = dynamic(() => import("./views/agents").then((m) => m.AgentsView), { loading: viewLoading });
 const AgentDetailView = dynamic(() => import("./views/agent-detail").then((m) => m.AgentDetailView), { loading: viewLoading });
-const DocsView = dynamic(() => import("./views/docs").then((m) => m.DocsView), { loading: viewLoading });
 const PublishView = dynamic(() => import("./views/publish").then((m) => m.PublishView), { loading: viewLoading });
 const InsightsView = dynamic(() => import("./views/insights").then((m) => m.InsightsView), { loading: viewLoading });
 const BundlesView = dynamic(() => import("./views/bundles").then((m) => m.BundlesView), { loading: viewLoading });
@@ -230,9 +230,9 @@ export function LiteSPMApp({
           ref={mainRef}
           tabIndex={-1}
           key={routeKey(route)}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.24, ease: [0.21, 0.6, 0.35, 1] }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.15 }}
           className="flex-1 outline-none"
         >
           {route.view === "home" && <HomeView />}

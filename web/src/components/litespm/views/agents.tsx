@@ -525,7 +525,7 @@ export function AgentCard({ agent }: { agent: AgentRow }) {
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               aria-label={`${agent.name} website`}
-              className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:text-brand"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-muted/60 hover:text-brand focus-visible:outline-2 focus-visible:outline-brand"
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
@@ -551,7 +551,7 @@ export function AgentCard({ agent }: { agent: AgentRow }) {
 
       {agent.topCategories.length > 0 && (
         <p className="mt-2 truncate text-[11px] text-muted-foreground/80" title={`Popular with ${agent.name}: ${agent.topCategories.join(", ")}`}>
-          <span className="font-medium text-muted-foreground/60">Popular:</span>{" "}
+          <span className="font-medium text-muted-foreground/85">Popular:</span>{" "}
           {agent.topCategories.join(" · ")}
         </p>
       )}
@@ -638,7 +638,7 @@ export function AgentCard({ agent }: { agent: AgentRow }) {
       )}
 
       <div className="mt-auto flex items-center justify-between border-t border-border/60 pt-3">
-        <span className="truncate font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground/60">
+        <span className="truncate font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground/85">
           {domain ?? agent.slug}
         </span>
         <span className="ml-2 inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-muted-foreground transition-colors group-hover:text-brand">

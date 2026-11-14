@@ -46,6 +46,7 @@ export function TargetAgentPicker({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label={`Select target agent (currently ${selected ? selected.name : "none"})`}
           className="h-8 w-[210px] justify-between rounded-lg px-2.5 text-[12px] font-normal"
         >
           <span className="truncate">{selected ? selected.name : "Select agent"}</span>

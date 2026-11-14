@@ -24,6 +24,7 @@ source-snapshots/
 # CLI acceptance / scratch output. Throwaway run directories, never repo content.
 tmp-cli-sandbox-*/
 tmp-catalog-*/
+tmp-vercel-skills/
 
 # Agent-harness session state (goals, locks, per-session scratch).
 .opencode/

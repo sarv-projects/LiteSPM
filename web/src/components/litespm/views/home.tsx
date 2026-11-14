@@ -258,7 +258,7 @@ export function HomeView() {
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Listings
-                  <span className="block text-[10px] text-muted-foreground/60">MCP, skills & plugins</span>
+                  <span className="block text-[10px] text-muted-foreground/85">MCP, skills & plugins</span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
                   {counts ? <CountUp value={counts.all} format={(n) => formatFull(n)} /> : "…"}
@@ -267,7 +267,7 @@ export function HomeView() {
               <div className="flex flex-col" title="Agent hosts LiteSPM can configure">
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Agent hosts
-                  <span className="block text-[10px] text-muted-foreground/60">CLI, IDE & desktop</span>
+                  <span className="block text-[10px] text-muted-foreground/85">CLI, IDE & desktop</span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
                   {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : String(facts.hosts)}
@@ -280,7 +280,7 @@ export function HomeView() {
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-brand">
                   Installable →
-                  <span className="block text-[10px] text-muted-foreground/60">One command each</span>
+                  <span className="block text-[10px] text-muted-foreground/85">One command each</span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
                   {stats ? <CountUp value={stats.installable} format={(n) => formatFull(n)} /> : "…"}
@@ -702,7 +702,7 @@ export function HomeView() {
                         onClick={() => navigate(`#/package/${encodeURIComponent(item.linkKey)}`)}
                         className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card px-3.5 py-2.5 text-left transition-colors hover:border-brand/40"
                       >
-                        <span className="w-5 shrink-0 text-center font-mono text-[12px] font-semibold text-muted-foreground/60">
+                        <span className="w-5 shrink-0 text-center font-mono text-[12px] font-semibold text-muted-foreground/80">
                           {i + 1}
                         </span>
                         <KindBadge kind={item.kind} />
@@ -732,7 +732,7 @@ export function HomeView() {
                         onClick={() => navigate(`#/package/${encodeURIComponent(entry.linkKey)}`)}
                         className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card px-3.5 py-2.5 text-left transition-colors hover:border-brand/40"
                       >
-                        <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                        <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
                         <KindBadge kind={entry.kind} />
                         <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">
                           {displayPackageName(entry.name)}

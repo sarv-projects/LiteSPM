@@ -430,23 +430,59 @@ func (w *Wizard) promptAgentSelection(ctx context.Context) (host.HostAdapter, er
 }
 
 func (w *Wizard) promptAgentSelectionText(rows, detected []agentMenuRow) (host.HostAdapter, error) {
-	fmt.Fprintln(w.out, "Which AI coding agent do you use?")
 	fmt.Fprintln(w.out, "")
-	if len(detected) > 0 {
-		fmt.Fprintf(w.out, "Found on this machine (%d):\n", len(detected))
-		w.printAgentRows(detected)
-		fmt.Fprintf(w.out, "  [a] Show all %d supported agents\n", len(rows))
-	} else {
-		fmt.Fprintln(w.out, "No agent configuration file was found on this machine yet.")
-		fmt.Fprintf(w.out, "  [a] Show all %d supported agents\n", len(rows))
+	fmt.Fprintln(w.out, "◆ Connect AI Coding Agents")
+	fmt.Fprintln(w.out, "│ LiteSPM bridges discovery, skills and MCP servers across your agents.")
+	fmt.Fprintln(w.out, "│")
+
+	popularIDs := []string{
+		"claude-code",
+		"cursor",
+		"opencode",
+		"codex",
+		"cline",
+		"pi-agent",
+		"grok-build",
+		"github-copilot",
 	}
-	fmt.Fprintln(w.out, "  [s] Continue without connecting an agent")
-	fmt.Fprintln(w.out, "  [q] Quit")
-	fmt.Fprintln(w.out, "")
+
+	var popular []agentMenuRow
+	for _, id := range popularIDs {
+		for _, r := range rows {
+			if r.descriptor.HostID == id {
+				popular = append(popular, r)
+				break
+			}
+		}
+	}
 
 	showAll := false
+	pool := detected
+
+	if len(detected) > 0 {
+		fmt.Fprintf(w.out, "│ Found on this machine (%d):\n", len(detected))
+		w.printAgentRows(detected)
+		fmt.Fprintln(w.out, "│")
+		fmt.Fprintf(w.out, "│   [a] Show all %d supported agents\n", len(rows))
+	} else {
+		pool = popular
+		fmt.Fprintln(w.out, "│ No agent configuration file was found on this machine yet.")
+		fmt.Fprintln(w.out, "│ Select from popular agents below, type any agent name, or view all:")
+		fmt.Fprintln(w.out, "│")
+		w.printAgentRows(popular)
+		fmt.Fprintln(w.out, "│")
+		fmt.Fprintf(w.out, "│   [a] Show all %d supported agents\n", len(rows))
+	}
+	fmt.Fprintln(w.out, "│   [s] Continue without connecting an agent")
+	fmt.Fprintln(w.out, "│   [q] Quit")
+	fmt.Fprintln(w.out, "│")
+
 	for {
-		fmt.Fprint(w.out, "Enter a number, an agent name, or 'a' [q]: ")
+		promptHint := fmt.Sprintf("Enter a number (1-%d), an agent name, or 'a' [q]: ", len(pool))
+		if showAll {
+			promptHint = fmt.Sprintf("Enter a number (1-%d), an agent name, or 'q' [q]: ", len(pool))
+		}
+		fmt.Fprint(w.out, promptHint)
 		line, err := w.readLine()
 		if err != nil {
 			return nil, err
@@ -460,15 +496,12 @@ func (w *Wizard) promptAgentSelectionText(rows, detected []agentMenuRow) (host.H
 		if strings.EqualFold(line, "a") {
 			if !showAll {
 				showAll = true
+				pool = rows
 				fmt.Fprintf(w.out, "\nAll %d supported agents:\n", len(rows))
 				w.printAgentRows(rows)
 				fmt.Fprintln(w.out, "")
 			}
 			continue
-		}
-		pool := detected
-		if showAll {
-			pool = rows
 		}
 		if n, nerr := strconv.Atoi(line); nerr == nil {
 			if n >= 1 && n <= len(pool) {
@@ -477,12 +510,27 @@ func (w *Wizard) promptAgentSelectionText(rows, detected []agentMenuRow) (host.H
 			fmt.Fprintf(w.out, "There is no agent %d in the list shown. Enter 'a' to see all %d supported agents.\n", n, len(rows))
 			continue
 		}
+		// Try exact match on ID or DisplayName across all supported agents
 		for _, r := range rows {
 			if strings.EqualFold(r.descriptor.HostID, line) || strings.EqualFold(r.descriptor.DisplayName, line) {
 				return r.adapter, nil
 			}
 		}
-		fmt.Fprintln(w.out, "Not recognised. Enter the number next to your agent, its name, or 'a' for the full list.")
+		// Try fuzzy substring/prefix match on HostID or DisplayName
+		cleanLine := strings.ToLower(strings.TrimSpace(line))
+		var matches []agentMenuRow
+		for _, r := range rows {
+			id := strings.ToLower(r.descriptor.HostID)
+			name := strings.ToLower(r.descriptor.DisplayName)
+			if strings.Contains(id, cleanLine) || strings.Contains(name, cleanLine) {
+				matches = append(matches, r)
+			}
+		}
+		if len(matches) == 1 {
+			return matches[0].adapter, nil
+		}
+
+		fmt.Fprintf(w.out, "Not recognised. Enter the number next to your agent (1-%d), its name, or 'a' for the full list.\n", len(pool))
 	}
 }
 

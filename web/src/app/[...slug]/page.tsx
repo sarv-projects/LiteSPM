@@ -8,6 +8,7 @@ import { displayPackageName } from "@/lib/litespm/format";
 import facts from "@/lib/litespm/site-facts.json";
 import type { PackageDetailData } from "@/lib/litespm/types";
 import { getPackageDetail } from "@/server/litespm/package-detail";
+import { HOSTS } from "@/server/litespm/hosts";
 
 interface Props {
   params: Promise<{ slug?: string[] }>;
@@ -35,6 +36,53 @@ const KNOWN_SECTIONS = new Set([
 const packageDetail = cache((key: string) => getPackageDetail(key));
 
 const listings = `${Math.floor(facts.listings / 1000)}k+`;
+
+export const DOC_SECTIONS_META: Record<string, { title: string; description: string }> = {
+  introduction: {
+    title: "Introduction · LiteSPM Documentation",
+    description: "Overview of LiteSPM, the package manager for AI agents, and how it connects to agent hosts.",
+  },
+  "getting-started": {
+    title: "Getting Started · LiteSPM Documentation",
+    description: "Install LiteSPM via npm, configure your first agent host, and verify your environment.",
+  },
+  commands: {
+    title: "Command Reference · LiteSPM Documentation",
+    description: "Complete CLI reference for litespm search, install, skills, adopt, host, and bridge commands.",
+  },
+  "install-flow": {
+    title: "How an Install Works · LiteSPM Documentation",
+    description: "Learn how LiteSPM plans, previews, approves, backs up, and records every capability install.",
+  },
+  hosts: {
+    title: "Supported Agent Hosts · LiteSPM Documentation",
+    description: "Configuration formats, default paths, and integration mechanics for 52 AI agent hosts.",
+  },
+  "in-agent-marketplace": {
+    title: "In-Agent Marketplace · LiteSPM Documentation",
+    description: "Using /marketplace inside Pi Agent, OpenCode, Claude Code, Grok Build, Cursor, and Cline.",
+  },
+  "agent-compatibility": {
+    title: "Agent Compatibility Matrix · LiteSPM Documentation",
+    description: "Detailed breakdown of popup commands, prompt bridges, and unsupported agent environments.",
+  },
+  security: {
+    title: "Security Model · LiteSPM Documentation",
+    description: "Cryptographic SHA-256 validation, human approval gates, zero telemetry, and rollback ledgers.",
+  },
+  methodology: {
+    title: "Ranking & Quality Methodology · LiteSPM Documentation",
+    description: "How LiteSPM scores, normalizes, and labels listings, publishers, and verified metadata.",
+  },
+  publishing: {
+    title: "Publishing to the Catalog · LiteSPM Documentation",
+    description: "Guidelines and schema requirements for listing MCP servers, skills, and plugins in LiteSPM.",
+  },
+  troubleshooting: {
+    title: "Troubleshooting & FAQ · LiteSPM Documentation",
+    description: "Solutions for common agent connection issues, bridge timeouts, and ledger recovery.",
+  },
+};
 
 function pageMeta(title: string, description: string, path: string): Metadata {
   return {
@@ -96,10 +144,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       );
     case "agent":
       if (slug.length > 1) {
+        const hostId = slug[1]!;
+        const host = HOSTS.find((h) => h.id === hostId || h.id.toLowerCase() === hostId.toLowerCase());
+        if (!host) {
+          return { title: "Agent not found · LiteSPM", robots: { index: false } };
+        }
         return pageMeta(
-          `${slug[1]} · Supported Agent Host · LiteSPM`,
-          `Configure MCP servers and skills for ${slug[1]} with LiteSPM.`,
-          `/agent/${encodeURIComponent(slug[1]!)}`,
+          `${host.name} · Supported Agent Host · LiteSPM`,
+          `Configure MCP servers and skills for ${host.name} (${host.kind.toUpperCase()} config) with LiteSPM.`,
+          `/agent/${encodeURIComponent(host.id)}`,
         );
       }
       break;
@@ -109,12 +162,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         "Statistics, distributions and trust metrics, measured over the same rows the marketplace serves.",
         "/insights",
       );
-    case "docs":
+    case "docs": {
+      const docSlug = slug.length > 1 ? slug[1]! : "introduction";
+      const docMeta = DOC_SECTIONS_META[docSlug];
+      if (!docMeta) {
+        return { title: "Documentation not found · LiteSPM", robots: { index: false } };
+      }
       return pageMeta(
-        "Documentation · LiteSPM",
-        "Install, command reference, the in-agent marketplace, agent compatibility, security model, how we rank and label listings, and troubleshooting.",
-        slug.length > 1 ? `/docs/${encodeURIComponent(slug[1]!)}` : "/docs",
+        docMeta.title,
+        docMeta.description,
+        slug.length > 1 ? `/docs/${encodeURIComponent(docSlug)}` : "/docs",
       );
+    }
     case "bundles":
       return pageMeta(
         "Bundles — curated MCP servers and skills · LiteSPM",
@@ -145,6 +204,19 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
   // Unknown paths are a real 404 (status + not-found.tsx), not a 200 home page.
   if (section && !KNOWN_SECTIONS.has(section)) notFound();
   if ((section === "package" || section === "agent") && (slug?.length ?? 0) < 2) notFound();
+
+  // Validate agent hosts against the canonical HOSTS registry
+  if (section === "agent" && slug && slug.length > 1) {
+    const hostId = slug[1]!;
+    const hostExists = HOSTS.some((h) => h.id === hostId || h.id.toLowerCase() === hostId.toLowerCase());
+    if (!hostExists) notFound();
+  }
+
+  // Validate docs section slugs against the known documentation registry
+  if (section === "docs" && slug && slug.length > 1) {
+    const docSlug = slug[1]!;
+    if (!DOC_SECTIONS_META[docSlug]) notFound();
+  }
 
   let packageInitial: PackageDetailData | undefined;
   if (section === "package" && slug && slug.length > 1) {
@@ -195,7 +267,9 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
       {jsonLd && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+          }}
         />
       )}
       <LiteSPMApp initialRoute={initialRoute} initialPackage={packageInitial} />

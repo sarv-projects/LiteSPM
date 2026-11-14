@@ -258,7 +258,7 @@ export function rankScoreBreakdown(row: Listing): RankScoreBreakdown {
   } else if (recognition >= 22) {
     recReason = "Recognized notable implementation";
   } else if (recognition >= 12) {
-    recReason = "Verified first-party namespace";
+    recReason = "Recognized namespace pattern (curated ecosystem match)";
   }
   if (recognition > 22 && norm(stripNamespace(row.name)).includes("fork")) {
     recognition = 22;
