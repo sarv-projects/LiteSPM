@@ -167,6 +167,58 @@
         "mcp:builtin:mcp-registry:dev.3dassets-catalogue",
         "mcp:builtin:mcp-registry:com.3dtexel-mcp"
       ]
+    },
+    {
+      "id": "security-and-appsec",
+      "title": "Application security & vulnerability audit",
+      "blurb": "Proactively audit source code, inspect GitHub Actions CI workflows for supply chain risks, analyze vulnerability surface, and enforce secure coding standards.",
+      "difficulty": "Advanced",
+      "audience": "Security engineers, AppSec leads, and developers hardening code",
+      "items": [
+        "skill:getsentry:security-review",
+        "skill:anthropics:claude-security",
+        "skill:getsentry:gha-security-review",
+        "mcp:builtin:mcp-registry:io.github.Mikehzp-agentvuln"
+      ]
+    },
+    {
+      "id": "tech-lead-and-architecture",
+      "title": "Technical architect & code health",
+      "blurb": "System architecture reviews, structural decision-making, automated bug discovery, and deep code reviews with clear rationale before merging.",
+      "difficulty": "Advanced",
+      "audience": "Tech leads, software architects, and engineering managers",
+      "items": [
+        "skill:getsentry:architecture-review",
+        "skill:getsentry:code-review",
+        "skill:getsentry:find-bugs",
+        "skill:anthropics:architecture"
+      ]
+    },
+    {
+      "id": "backend-distributed-systems",
+      "title": "Distributed backend & caching",
+      "blurb": "Build high-throughput backends: Redis caching and rate-limiting, vector search indexing, Neon Postgres egress optimization, and Kafka event streaming stacks.",
+      "difficulty": "Intermediate",
+      "audience": "Backend engineers building scalable APIs and distributed systems",
+      "items": [
+        "skill:upstash:upstash-redis-js",
+        "skill:upstash:upstash-vector-js",
+        "skill:neondatabase:neon-postgres-egress-optimizer",
+        "mcp:builtin:mcp-registry:ai.getvda-postgres-kafka-prometheus-stack-generator"
+      ]
+    },
+    {
+      "id": "mobile-app-development",
+      "title": "Mobile apps & device testing",
+      "blurb": "Build and test native mobile apps: Callstack device automation, Android ADB emulator controls, hosted iOS simulator execution, and Cocoa crash snapshot analysis.",
+      "difficulty": "Intermediate",
+      "audience": "Mobile engineers, React Native devs, iOS and Android teams",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.callstack-agent-device",
+        "mcp:builtin:mcp-registry:io.github.iksnerd-adb-mcp",
+        "mcp:builtin:mcp-registry:so.agentcloud-ios-simulator",
+        "skill:getsentry:sentry-snapshots-cocoa"
+      ]
     }
   ]
 }
