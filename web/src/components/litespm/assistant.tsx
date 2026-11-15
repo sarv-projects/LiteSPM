@@ -744,8 +744,8 @@ function safeExternalHref(href: string): string | null {
 }
 
 function renderInline(text: string, onOpenLink: (href: string) => void): React.ReactNode[] {
-  // Pattern: [label](href) or `code` or **bold** or *italic*
-  const pattern = /\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  // Pattern: [label](href) or `code` or **bold** or *italic* or [S#] citation
+  const pattern = /\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*|\[S(\d+)\]/g;
   const parts: React.ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -814,6 +814,17 @@ function renderInline(text: string, onOpenLink: (href: string) => void): React.R
         <em key={key++} className="italic text-foreground/90">
           {match[5]}
         </em>,
+      );
+    } else if (match[6] !== undefined) {
+      // [S#] Documentation source citation
+      parts.push(
+        <span
+          key={key++}
+          className="inline-flex items-center mx-0.5 px-1.5 py-0.2 rounded-md bg-brand/10 text-brand font-mono font-semibold text-[10.5px] border border-brand/20 align-baseline cursor-default select-none shadow-2xs"
+          title={`Documentation source S${match[6]}`}
+        >
+          S{match[6]}
+        </span>,
       );
     }
     last = pattern.lastIndex;
@@ -1132,7 +1143,7 @@ export function Assistant() {
           }
         }
         patchLast({ streaming: false });
-      } catch {
+      } catch (err: unknown) {
         clearTimeout(timeoutId);
         if (controller.signal.aborted) {
           if (!hasReceivedFirstToken) {
@@ -1141,7 +1152,10 @@ export function Assistant() {
             patchLast({ streaming: false });
           }
         } else {
-          setError("Network error — please try again.");
+          const isAbort = err instanceof Error && (err.name === "AbortError" || err.message?.includes("aborted"));
+          if (!isAbort) {
+            setError("Network error — please try again.");
+          }
         }
       } finally {
         clearTimeout(timeoutId);
@@ -1291,13 +1305,37 @@ export function Assistant() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {message.sources.slice(0, 6).map((source) => (
-                      <span key={source.id} title={`${source.section} · lines ${source.startLine}-${source.endLine}`} className="inline-flex max-w-full items-center gap-1 rounded-lg border border-border/70 bg-muted/50 px-2 py-1 text-[10.5px] text-muted-foreground">
-                        <span className="font-semibold text-brand">{source.id}</span>
-                        <span className="truncate">{source.source}</span>
-                        <span className="shrink-0 opacity-70">L{source.startLine}–{source.endLine}</span>
-                      </span>
-                    ))}
+                    {message.sources.slice(0, 6).map((source) => {
+                      const isRepoFile = !source.source.startsWith("site/");
+                      const githubUrl = isRepoFile
+                        ? `https://github.com/sarv-projects/LiteSPM/blob/main/${source.source}#L${source.startLine}`
+                        : null;
+                      return githubUrl ? (
+                        <a
+                          key={source.id}
+                          href={githubUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`${source.section} · lines ${source.startLine}-${source.endLine} (open source on GitHub)`}
+                          className="inline-flex max-w-full items-center gap-1 rounded-lg border border-border/70 bg-muted/50 px-2 py-1 text-[10.5px] text-muted-foreground hover:text-brand hover:border-brand/40 transition-colors"
+                        >
+                          <span className="font-semibold text-brand">{source.id}</span>
+                          <span className="truncate">{source.source}</span>
+                          <span className="shrink-0 opacity-70">L{source.startLine}–{source.endLine}</span>
+                          <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                        </a>
+                      ) : (
+                        <span
+                          key={source.id}
+                          title={`${source.section} · lines ${source.startLine}-${source.endLine}`}
+                          className="inline-flex max-w-full items-center gap-1 rounded-lg border border-border/70 bg-muted/50 px-2 py-1 text-[10.5px] text-muted-foreground"
+                        >
+                          <span className="font-semibold text-brand">{source.id}</span>
+                          <span className="truncate">{source.source}</span>
+                          <span className="shrink-0 opacity-70">L{source.startLine}–{source.endLine}</span>
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}

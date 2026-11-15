@@ -20,6 +20,8 @@ assert.equal(routeAssistantIntent("Hi, who are you?").mode, "conversation");
 assert.equal(routeAssistantIntent("hello").mode, "conversation");
 assert.equal(routeAssistantIntent("Explain how vector databases work").mode, "conversation");
 assert.equal(routeAssistantIntent("What is LiteSPM?").mode, "knowledge");
+assert.equal(routeAssistantIntent("What is the difference between skills use and skills add?").mode, "knowledge");
+assert.equal(routeAssistantIntent("What does skills adopt do?").mode, "knowledge");
 assert.equal(routeAssistantIntent("Explain LiteSPM's security and rollback model").mode, "knowledge");
 assert.equal(routeAssistantIntent("Recommend PostgreSQL MCP servers for database administration").mode, "catalog");
 assert.equal(routeAssistantIntent("How does it handle rollback?", history).mode, "knowledge");

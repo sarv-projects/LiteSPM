@@ -34,10 +34,15 @@ const PRODUCT_NAMES = /\b(postgres|postgresql|mysql|sqlite|mongodb|redis|supabas
 const INSTALL_VERBS = /\b(install|add|get|find|search|recommend|suggest|looking for|need|want|best|good|top|try|use|using|set ?up|connect|enable)\b/i;
 // "LiteSPM's MCP bridge/server" is the product itself, not a third-party capability.
 const LITESPM_SELF = /\b(?:lite\s?spm['’]?s?\s+(?:mcp\s+)?(?:bridge|server)|(?:the\s+|its\s+|your\s+)?mcp\s+bridge|bridge)\b/gi;
+const CLI_COMMAND_PATTERN = /\b(?:skills?\s+(?:add|use|find|list|ls|update|remove|rm|adopt)|litespm\s+(?:init|skills|host|catalog|bridge|setup|install|doctor|verify|detect))\b/i;
 
 /** True when the question names a third-party capability to find or install. */
 export function namesCapabilityToInstall(question: string): boolean {
   const q = question.toLowerCase().replace(/github copilot( cli)?/g, " copilot ").replace(LITESPM_SELF, " litespm ").replace(/\s+/g, " ");
+  // If the user is asking what a CLI command does or the difference between commands, that's product knowledge, not an install request.
+  if (CLI_COMMAND_PATTERN.test(q) && (DEFINITIONAL.test(q) || /\b(difference|differ|what (?:does|is|do)|how (?:does|do)|explain|meaning)\b/i.test(q))) {
+    return false;
+  }
   if (!INSTALL_VERBS.test(q)) return false;
   return CAPABILITY_NOUNS.test(q) || PRODUCT_NAMES.test(q);
 }
@@ -65,6 +70,11 @@ export function routeAssistantIntent(question: string, history: Turn[] = []): Ro
   // methodology text, never from general knowledge.
   if (SITE_VOCABULARY.test(normalized) && DEFINITIONAL.test(normalized)) {
     return { mode: "knowledge", reason: "site-definition", query };
+  }
+
+  // CLI command definitions and usage questions (e.g. "What does skills use do?", "Difference between skills use and skills add")
+  if (CLI_COMMAND_PATTERN.test(normalized) && (DEFINITIONAL.test(normalized) || /\b(difference|differ|what|how|meaning|explain|why)\b/i.test(normalized))) {
+    return { mode: "knowledge", reason: "cli-command-knowledge", query };
   }
   // A question that names something to install is a catalog question even if
   // it also names an agent host. Checked before everything else so a host
