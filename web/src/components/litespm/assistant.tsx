@@ -1177,16 +1177,16 @@ export function Assistant() {
         open ? "pointer-events-auto h-[min(620px,calc(100dvh-4.5rem))] sm:h-[min(640px,calc(100vh-6rem))]" : "pointer-events-none h-0 border-0",
       )}
       role="dialog"
-      aria-label="Ask AI assistant"
+      aria-label="liteAI assistant"
       inert={!open}
     >
       <div className="flex items-center justify-between border-b border-border/60 bg-brand-soft/60 px-4 py-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-brand" aria-hidden="true" />
           <div>
-            <p className="text-[13.5px] font-semibold leading-tight">Ask AI</p>
+            <p className="text-[13.5px] font-semibold leading-tight">liteAI</p>
             <p className="text-[11px] leading-tight text-muted-foreground">
-              General chat · documentation RAG · live catalog
+              Intelligent agent assistant · documentation RAG · live catalog
             </p>
           </div>
         </div>
@@ -1216,6 +1216,17 @@ export function Assistant() {
         </button>
         </div>
       </div>
+
+      {busy && (
+        <div className="relative h-[2px] w-full overflow-hidden bg-brand/10">
+          <motion.div
+            className="h-full rounded-full bg-linear-to-r from-transparent via-brand to-transparent"
+            initial={{ x: "-100%", width: "50%" }}
+            animate={{ x: "220%" }}
+            transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+          />
+        </div>
+      )}
 
       <div
         ref={scrollRef}
@@ -1260,10 +1271,17 @@ export function Assistant() {
               ) : (
                 <>
                   {message.content.length === 0 && message.streaming ? (
-                    <div className="flex items-center gap-1.5 py-1" aria-label="The assistant is thinking">
-                      <span className="h-1.5 w-1.5 animate-bounce motion-reduce:animate-none rounded-full bg-brand [animation-delay:0ms]" />
-                      <span className="h-1.5 w-1.5 animate-bounce motion-reduce:animate-none rounded-full bg-brand [animation-delay:150ms]" />
-                      <span className="h-1.5 w-1.5 animate-bounce motion-reduce:animate-none rounded-full bg-brand [animation-delay:300ms]" />
+                    <div className="flex items-center gap-2.5 py-1 px-0.5" aria-label="liteAI is thinking">
+                      <div className="relative flex h-4 w-4 shrink-0 items-center justify-center">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/40 opacity-75" />
+                        <Sparkles className="h-3.5 w-3.5 text-brand animate-pulse" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[12px] font-medium text-foreground">liteAI is processing…</span>
+                        <span className="text-[10px] text-muted-foreground animate-pulse">
+                          {statusText ?? "Synthesizing answer & verifying citations"}
+                        </span>
+                      </div>
                     </div>
                   ) : (
                     <div>
@@ -1368,9 +1386,24 @@ export function Assistant() {
         ))}
 
         {busy && waitingFirstToken && (
-          <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none text-brand" />
-            {statusText ?? "Searching the catalog…"}
+          <div className="flex items-center gap-3 rounded-xl border border-brand/20 bg-brand/5 p-3 text-[12.5px] shadow-2xs">
+            <div className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/30 opacity-75" />
+              <Loader2 className="h-4 w-4 animate-spin text-brand" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-medium text-foreground">
+                  {statusText ?? "liteAI is analyzing…"}
+                </span>
+                <span className="shrink-0 rounded bg-brand/10 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-brand animate-pulse">
+                  ACTIVE
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Retrieving verified evidence and synthesizing answer…
+              </p>
+            </div>
           </div>
         )}
         {!busy && !error && messages.length > 0 && (() => {
@@ -1456,7 +1489,7 @@ export function Assistant() {
         onClick={() => setAssistant(!open)}
         id="assistant-launcher"
         aria-expanded={open}
-        aria-label={open ? "Close the Ask AI assistant" : "Open the Ask AI assistant"}
+        aria-label={open ? "Close the liteAI assistant" : "Open the liteAI assistant"}
         className={cn(
           "fixed right-3 sm:right-4 z-40 inline-flex h-12 items-center gap-2 rounded-full border border-brand/40 bg-brand px-4 text-[13px] font-semibold text-brand-foreground shadow-lg shadow-brand/20 transition-all hover:opacity-95",
           compareActive ? "bottom-20 sm:bottom-4" : "bottom-3 sm:bottom-4",
@@ -1464,7 +1497,7 @@ export function Assistant() {
         )}
       >
         <Sparkles className="h-4 w-4" aria-hidden="true" />
-        Ask AI
+        liteAI
         {messages.length === 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
             <span className="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-brand-foreground opacity-60" />

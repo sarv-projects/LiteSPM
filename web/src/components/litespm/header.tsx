@@ -211,7 +211,7 @@ export function Header() {
             onClick={() => setAssistant(true)}
           >
             <Sparkles className="h-3.5 w-3.5 text-brand" />
-            Ask AI
+            liteAI
           </Button>
 
           <div className="shrink-0">
@@ -275,7 +275,7 @@ export function Header() {
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[14px] font-medium text-brand hover:bg-brand-soft"
             >
               <Sparkles className="h-4 w-4" />
-              Ask AI
+              liteAI
             </button>
             <a
               href="https://github.com/sarv-projects/LiteSPM"
