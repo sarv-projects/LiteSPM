@@ -3,6 +3,31 @@
   "schema": 1,
   "bundles": [
     {
+      "id": "agent-engineering-superpowers",
+      "title": "Agent Engineering Superpowers",
+      "blurb": "The complete official Superpowers development methodology: systematic planning, test-driven development, rigorous debugging, subagent orchestration, worktrees, code reviews, and verification before completion.",
+      "difficulty": "Intermediate",
+      "audience": "Developers wanting a disciplined, autonomous agent workflow",
+      "items": [
+        "skill:obra:using-superpowers",
+        "skill:obra:brainstorming",
+        "skill:obra:writing-plans",
+        "skill:obra:executing-plans",
+        "skill:obra:test-driven-development",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion",
+        "skill:obra:subagent-driven-development",
+        "skill:obra:using-git-worktrees",
+        "skill:obra:dispatching-parallel-agents",
+        "skill:obra:requesting-code-review",
+        "skill:obra:receiving-code-review",
+        "skill:obra:finishing-a-development-branch",
+        "skill:obra:writing-skills",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7"
+      ]
+    },
+    {
       "id": "full-stack-web-dev",
       "title": "Full-stack web dev",
       "blurb": "Manage the repo, drive a real browser to test what you build, look up current library docs, and deploy, all from the agent.",
@@ -12,7 +37,13 @@
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
         "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp",
         "mcp:builtin:mcp-registry:io.github.upstash-context7",
-        "mcp:builtin:mcp-registry:com.vercel-vercel-mcp"
+        "mcp:builtin:mcp-registry:com.vercel-vercel-mcp",
+        "mcp:builtin:mcp-registry:io.github.ChromeDevTools-chrome-devtools-mcp",
+        "skill:microsoft:playwright-cli",
+        "skill:vercel:building-components",
+        "skill:obra:test-driven-development",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -25,7 +56,11 @@
         "skill:anthropics:pdf",
         "skill:anthropics:docx",
         "skill:anthropics:xlsx",
-        "skill:anthropics:pptx"
+        "skill:anthropics:pptx",
+        "skill:anthropics:brand-guidelines",
+        "skill:anthropics:canvas-design",
+        "skill:anthropics:theme-factory",
+        "skill:anthropics:web-artifacts-builder"
       ]
     },
     {
@@ -39,7 +74,10 @@
         "mcp:builtin:mcp-registry:com.neon-mcp",
         "skill:neondatabase:neon-postgres",
         "skill:mongodb:mongodb-schema-design",
-        "skill:mongodb:mongodb-query-optimizer"
+        "skill:mongodb:mongodb-query-optimizer",
+        "mcp:builtin:mcp-registry:io.prisma-mcp",
+        "skill:mongodb:mongodb-connection",
+        "skill:mongodb:mongodb-search-and-ai"
       ]
     },
     {
@@ -51,7 +89,10 @@
       "items": [
         "mcp:builtin:mcp-registry:io.github.upstash-context7",
         "skill:upstash:context7-mcp",
-        "mcp:builtin:mcp-registry:io.github.brave-brave-search-mcp-server"
+        "mcp:builtin:mcp-registry:io.github.brave-brave-search-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.firecrawl-firecrawl-mcp-server",
+        "skill:obra:brainstorming",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -64,7 +105,12 @@
         "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp",
         "skill:github:playwright-explore-website",
         "skill:github:playwright-generate-test",
-        "skill:microsoft:playwright-cli"
+        "skill:microsoft:playwright-cli",
+        "mcp:builtin:mcp-registry:io.github.ChromeDevTools-chrome-devtools-mcp",
+        "skill:anthropics:webapp-testing",
+        "skill:obra:test-driven-development",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -77,7 +123,10 @@
         "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp",
         "skill:getsentry:sentry-debug-issue",
         "skill:getsentry:sentry-fix-stack-traces",
-        "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana"
+        "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -90,7 +139,10 @@
         "mcp:builtin:mcp-registry:com.figma.mcp-mcp",
         "skill:figma:figma-design-to-code",
         "skill:figma:figma-code-connect",
-        "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp"
+        "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp",
+        "mcp:builtin:mcp-registry:io.github.ChromeDevTools-chrome-devtools-mcp",
+        "skill:anthropics:canvas-design",
+        "skill:vercel:building-components"
       ]
     },
     {
@@ -102,7 +154,13 @@
       "items": [
         "mcp:builtin:mcp-registry:app.linear-linear",
         "mcp:builtin:mcp-registry:com.notion-mcp",
-        "mcp:builtin:mcp-registry:com.atlassian-atlassian-mcp-server"
+        "mcp:builtin:mcp-registry:com.atlassian-atlassian-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:obra:writing-plans",
+        "skill:obra:executing-plans",
+        "skill:obra:subagent-driven-development",
+        "skill:obra:requesting-code-review",
+        "skill:obra:finishing-a-development-branch"
       ]
     },
     {
@@ -114,7 +172,11 @@
       "items": [
         "mcp:builtin:mcp-registry:com.stripe-mcp",
         "skill:stripe:stripe-best-practices",
-        "skill:stripe:stripe-docs"
+        "skill:stripe:stripe-docs",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp",
+        "skill:obra:test-driven-development",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -127,7 +189,12 @@
         "mcp:builtin:mcp-registry:com.cloudflare.mcp-mcp",
         "skill:docker:docker-build-strategies",
         "skill:docker:docker-compose-patterns",
-        "skill:hashicorp:terraform-policy"
+        "skill:hashicorp:terraform-policy",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana",
+        "skill:semgrep:code-security",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -140,7 +207,13 @@
         "skill:anthropics:build-mcp-server",
         "skill:anthropics:claude-api",
         "mcp:builtin:mcp-registry:io.github.upstash-context7",
-        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:anthropics:skill-creator",
+        "skill:semgrep:code-security",
+        "skill:obra:brainstorming",
+        "skill:obra:writing-plans",
+        "skill:obra:test-driven-development",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -152,7 +225,13 @@
       "items": [
         "mcp:builtin:mcp-registry:dev.uiarc-arc",
         "mcp:builtin:mcp-registry:app.goshipyard-shipyard",
-        "mcp:builtin:mcp-registry:io.github.BuilderIO-agent-native-slides"
+        "mcp:builtin:mcp-registry:io.github.BuilderIO-agent-native-slides",
+        "mcp:builtin:mcp-registry:gallery.a1-a1-gallery",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "skill:anthropics:canvas-design",
+        "skill:vercel:building-components",
+        "skill:obra:brainstorming",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -165,7 +244,11 @@
         "mcp:builtin:mcp-registry:com.figma.mcp-mcp",
         "mcp:builtin:mcp-registry:gallery.a1-a1-gallery",
         "mcp:builtin:mcp-registry:dev.3dassets-catalogue",
-        "mcp:builtin:mcp-registry:com.3dtexel-mcp"
+        "mcp:builtin:mcp-registry:com.3dtexel-mcp",
+        "skill:anthropics:canvas-design",
+        "skill:anthropics:theme-factory",
+        "skill:anthropics:brand-guidelines",
+        "skill:anthropics:algorithmic-art"
       ]
     },
     {
@@ -178,7 +261,13 @@
         "skill:getsentry:security-review",
         "skill:anthropics:claude-security",
         "skill:getsentry:gha-security-review",
-        "mcp:builtin:mcp-registry:io.github.Mikehzp-agentvuln"
+        "mcp:builtin:mcp-registry:io.github.Mikehzp-agentvuln",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:semgrep:code-security",
+        "skill:semgrep:llm-security",
+        "skill:anthropics:threat-model",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -191,7 +280,17 @@
         "skill:getsentry:architecture-review",
         "skill:getsentry:code-review",
         "skill:getsentry:find-bugs",
-        "skill:anthropics:architecture"
+        "skill:anthropics:architecture",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "skill:obra:brainstorming",
+        "skill:obra:writing-plans",
+        "skill:obra:executing-plans",
+        "skill:obra:subagent-driven-development",
+        "skill:obra:using-git-worktrees",
+        "skill:obra:requesting-code-review",
+        "skill:obra:receiving-code-review",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -204,7 +303,15 @@
         "skill:upstash:upstash-redis-js",
         "skill:upstash:upstash-vector-js",
         "skill:neondatabase:neon-postgres-egress-optimizer",
-        "mcp:builtin:mcp-registry:ai.getvda-postgres-kafka-prometheus-stack-generator"
+        "mcp:builtin:mcp-registry:ai.getvda-postgres-kafka-prometheus-stack-generator",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:com.neon-mcp",
+        "skill:neondatabase:neon-postgres",
+        "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana",
+        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp",
+        "skill:obra:test-driven-development",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion"
       ]
     },
     {
@@ -217,7 +324,30 @@
         "mcp:builtin:mcp-registry:io.github.callstack-agent-device",
         "mcp:builtin:mcp-registry:io.github.iksnerd-adb-mcp",
         "mcp:builtin:mcp-registry:so.agentcloud-ios-simulator",
-        "skill:getsentry:sentry-snapshots-cocoa"
+        "skill:getsentry:sentry-snapshots-cocoa",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:callstackincubator:create-react-native-library",
+        "skill:callstackincubator:assess-react-native-migration",
+        "skill:obra:test-driven-development",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion"
+      ]
+    },
+    {
+      "id": "ai-agents-and-sdk",
+      "title": "AI Agents & SDK Development",
+      "blurb": "Build autonomous multi-agent systems and LLM integrations with Vercel and Anthropic developer tools, skill creation workflows, documentation lookup, and full test-driven verification.",
+      "difficulty": "Advanced",
+      "audience": "Engineers developing AI agents, tools and custom workflows",
+      "items": [
+        "skill:vercel:build-agents",
+        "skill:anthropics:claude-api",
+        "skill:anthropics:skill-creator",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:obra:test-driven-development",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion"
       ]
     }
   ]
