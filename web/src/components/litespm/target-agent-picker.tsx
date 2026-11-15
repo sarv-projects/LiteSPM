@@ -37,6 +37,17 @@ export function TargetAgentPicker({
   const [open, setOpen] = React.useState(false);
   const selected = targets.find((t) => t.id === value) ?? targets[0];
 
+  React.useEffect(() => {
+    if (!value && typeof window !== "undefined") {
+      try {
+        const saved = window.localStorage.getItem("litespm_preferred_agent");
+        if (saved && targets.some((t) => t.id === saved)) {
+          onChange(saved);
+        }
+      } catch {}
+    }
+  }, [targets, value, onChange]);
+
   if (targets.length === 0) return null;
 
   return (
@@ -71,6 +82,11 @@ export function TargetAgentPicker({
                   onSelect={() => {
                     onChange(target.id);
                     setOpen(false);
+                    try {
+                      if (typeof window !== "undefined") {
+                        window.localStorage.setItem("litespm_preferred_agent", target.id);
+                      }
+                    } catch {}
                   }}
                   className="text-[12.5px]"
                 >

@@ -108,8 +108,8 @@ export function CompareView({ keys }: { keys: string[] }) {
       </div>
 
       {/* Search to add */}
-      <div className="mt-5 max-w-xl">
-        <label className="relative flex h-10 items-center gap-2.5 rounded-xl border border-border/80 bg-card px-3.5">
+      <div className="relative z-30 mt-5 max-w-xl">
+        <label className="relative flex h-10 items-center gap-2.5 rounded-xl border border-border/80 bg-card px-3.5 focus-within:border-brand/60">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="sr-only">Search packages to compare</span>
           <input
@@ -122,7 +122,7 @@ export function CompareView({ keys }: { keys: string[] }) {
           {searching && <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" />}
         </label>
         {suggestions && suggestions.items.length > 0 && (
-          <div className="mt-2 overflow-hidden rounded-xl border border-border/70 bg-popover shadow-lg">
+          <div className="absolute left-0 z-50 mt-2 max-h-80 w-full overflow-y-auto rounded-xl border border-border/70 bg-popover shadow-xl">
             {suggestions.items.map((hit) => (
               <button
                 key={hit.id}

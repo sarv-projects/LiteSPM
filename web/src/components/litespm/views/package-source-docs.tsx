@@ -267,6 +267,21 @@ export function sourceLabel(source: SourceDocsLocation): string {
   return `${source.owner}/${source.repo}@${shortRef(source.ref)}${source.path ? `/${source.path}` : ""}`;
 }
 
+function cleanRawMarkdown(raw: string): string {
+  if (!raw) return "";
+  return raw
+    // Strip HTML comments
+    .replace(/<!--[\s\S]*?-->/g, "")
+    // Convert <img> tags to markdown images: <img src="url" alt="text" ...> -> ![text](url)
+    .replace(/<img\s+[^>]*src=["']([^"']+)["'][^>]*alt=["']([^"']*)["'][^>]*\/?>/gi, "![$2]($1)")
+    .replace(/<img\s+[^>]*alt=["']([^"']*)["'][^>]*src=["']([^"']+)["'][^>]*\/?>/gi, "![$1]($2)")
+    .replace(/<img\s+[^>]*src=["']([^"']+)["'][^>]*\/?>/gi, "![]($1)")
+    // Strip unparsed container tags (div, p, center, etc.) while preserving contents
+    .replace(/<\/?(?:div|p|span|header|footer|center|section|article)\b[^>]*>/gi, "\n")
+    // Normalize excessive newlines
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 const COLLAPSED_PX = 520;
 
 export function SourceDocSection({
@@ -284,7 +299,8 @@ export function SourceDocSection({
   const bodyRef = React.useRef<HTMLDivElement>(null);
 
   const data = state.status === "done" ? state.data : null;
-  const markdown = data?.found ? (data.markdown ?? "") : "";
+  const rawMarkdown = data?.found ? (data.markdown ?? "") : "";
+  const markdown = React.useMemo(() => cleanRawMarkdown(rawMarkdown), [rawMarkdown]);
 
   const components = React.useMemo(
     () => buildComponents(data?.source, data?.sourceUrl),

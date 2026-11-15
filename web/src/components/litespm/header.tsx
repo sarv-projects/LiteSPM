@@ -132,6 +132,23 @@ export function Header() {
 
   React.useEffect(() => setMobileOpen(false), [route]);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        e.key === "/" &&
+        target &&
+        !["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) &&
+        !target.isContentEditable
+      ) {
+        e.preventDefault();
+        setPalette(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [setPalette]);
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">

@@ -59,7 +59,7 @@ const GOAL_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const HERO_WORDS = ["Stop", "configuring.", "Start", "building."];
+const HERO_WORDS = ["The", "Universal", "Package", "Manager"];
 
 // Every name here is an MCP host in web/data/hosts.json.
 const MARQUEE_AGENTS = [
@@ -185,7 +185,7 @@ export function HomeView() {
             </p>
 
             <h1 className="mt-5 text-[clamp(2.6rem,6vw,4.6rem)] font-semibold leading-[1.0] tracking-[-0.045em]">
-              <span className="sr-only">Stop configuring. Start building. The package manager for AI coding agents.</span>
+              <span className="sr-only">The Universal Package Manager for AI Coding Agents.</span>
               <span aria-hidden="true">
                 {HERO_WORDS.map((word, i) => (
                   <React.Fragment key={word + i}>
@@ -199,7 +199,7 @@ export function HomeView() {
                   className="rise-word text-sheen pb-[0.08em]"
                   style={{ "--i": HERO_WORDS.length + 1 } as React.CSSProperties}
                 >
-                  The package manager for AI coding agents.
+                  for AI Coding Agents.
                 </span>
               </span>
             </h1>
@@ -208,9 +208,9 @@ export function HomeView() {
               className="rise-block mt-6 max-w-[54ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
               style={{ "--d": "520ms" } as React.CSSProperties}
             >
-              Discover, install and manage MCP servers, skills and plugins across{" "}
-              {stats?.hosts ?? facts.hosts} AI coding agents. Preview changes, preserve your
-              settings, and undo installations when needed. One CLI. Multiple agents. Reversible changes.
+              Install MCP servers, agent skills, and workflow bundles across Cursor, Claude Code,
+              Cline, OpenCode, and {stats?.hosts ?? facts.hosts} AI agents with a single command.
+              Preview changes, preserve your settings, and undo installations cleanly. Complete local audit control.
             </p>
 
             <div
