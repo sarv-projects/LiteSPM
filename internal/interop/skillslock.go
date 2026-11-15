@@ -6,9 +6,9 @@ package interop
 // src/local-lock.ts for the project file, src/skill-lock.ts for the global
 // file, and the vercel-labs skills documentation — retrieved 2026-10-07):
 //
-//	project lock (v1):  {"version":1, "skills": { "<name>": {
+//	project lock (v1 & v2):  {"version":1 or 2, "skills": { "<name>": {
 //	  "source", "sourceType", "computedHash", optional "sourceUrl",
-//	  "ref", "skillPath", "subagents", "wellKnownDigest" }}}
+//	  "ref", "skillPath", "subagents", "wellKnownDigest", "author", ... }}}
 //	global lock (v3):   same map with "skillFolderHash", "installedAt",
 //	  "updatedAt", optional "pluginName"/"sourceBaseUrl" instead of
 //	  "computedHash".
@@ -32,7 +32,7 @@ var skillsLockRootKeys = map[string]bool{
 	"dismissed": true, "lastSelectedAgents": true,
 }
 
-// Known entry keys across versions 1 and 3. Unknown keys are reported as
+// Known entry keys across versions 1, 2 and 3. Unknown keys are reported as
 // warnings rather than dropped (vendor formats grow fields between
 // releases), but every known field is type-checked strictly.
 var skillsLockEntryKeys = map[string]bool{
@@ -40,6 +40,7 @@ var skillsLockEntryKeys = map[string]bool{
 	"skillPath": true, "computedHash": true, "wellKnownDigest": true,
 	"subagents": true, "pluginName": true, "sourceBaseUrl": true,
 	"skillFolderHash": true, "installedAt": true, "updatedAt": true,
+	"author": true, "description": true, "version": true, "packageSource": true,
 }
 
 // ParseSkillsLock normalizes a skills-lock.json (project v1) or
@@ -64,9 +65,9 @@ func ParseSkillsLock(data []byte) (*Doc, error) {
 	if err := decodeStrict(rawVersion, &version); err != nil {
 		return nil, errorf(ErrCodeSchema, "version: %s", errDetail(err))
 	}
-	if version != 1 && version != 3 {
+	if version != 1 && version != 2 && version != 3 {
 		return nil, errorf(ErrCodeSchema,
-			"unsupported skills-lock version %d (supported: 1 project lock, 3 global lock; refusing to guess at other versions)", version)
+			"unsupported skills-lock version %d (supported: 1 and 2 project lock, 3 global lock; refusing to guess at other versions)", version)
 	}
 	if version == 3 {
 		doc.Warnings = append(doc.Warnings,
@@ -206,7 +207,7 @@ func parseSkillsLockEntry(name string, raw json.RawMessage, version int) (*Entry
 	}
 	// The remaining optional strings exist only to type-check them: an
 	// entry whose installedAt is a number fails, an unknown key warns.
-	for _, key := range []string{"sourceUrl", "sourceBaseUrl", "installedAt", "updatedAt"} {
+	for _, key := range []string{"sourceUrl", "sourceBaseUrl", "installedAt", "updatedAt", "author", "description", "version", "packageSource"} {
 		if _, err := str(key); err != nil {
 			return nil, false, err
 		}

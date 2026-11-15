@@ -123,6 +123,34 @@ func TestSkillsLockHappyPath(t *testing.T) {
 	}
 }
 
+func TestSkillsLockV2(t *testing.T) {
+	doc, err := ParseSkillsLock(fixture(t, "skills-lock-v2.json"))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(doc.Entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(doc.Entries))
+	}
+	byID := map[string]Entry{}
+	for _, e := range doc.Entries {
+		byID[e.ID] = e
+	}
+	front, ok := byID["skill:git:vercel-labs-agent-skills:frontend-design"]
+	if !ok {
+		t.Fatalf("missing frontend-design entry in v2 lock")
+	}
+	if front.Constraint != "main" {
+		t.Errorf("frontend-design constraint = %q, want main", front.Constraint)
+	}
+	find, ok := byID["skill:git:vercel-labs-skills:find-skills"]
+	if !ok {
+		t.Fatalf("missing find-skills entry in v2 lock")
+	}
+	if find.Kind != "skill" {
+		t.Errorf("kind = %q, want skill", find.Kind)
+	}
+}
+
 func TestSkillsLockGlobalV3(t *testing.T) {
 	doc, err := ParseSkillsLock(fixture(t, "skills-lock-v3.json"))
 	if err != nil {
@@ -158,7 +186,7 @@ func TestSkillsLockRejectsMaliciousAndMalformed(t *testing.T) {
 	}{
 		{"traversal in skill name", fixture(t, "skills-lock-traversal.json"), ErrCodeUnsafe},
 		{"deep nesting", fixture(t, "skills-lock-deep.json"), ErrCodeSyntax},
-		{"unsupported version", []byte(`{"version":2,"skills":{}}`), ErrCodeSchema},
+		{"unsupported version", []byte(`{"version":4,"skills":{}}`), ErrCodeSchema},
 		{"version wrong type", []byte(`{"version":"1","skills":{}}`), ErrCodeSchema},
 		{"missing version", []byte(`{"skills":{}}`), ErrCodeSchema},
 		{"missing skills", []byte(`{"version":1}`), ErrCodeSchema},

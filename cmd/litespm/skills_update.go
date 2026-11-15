@@ -22,6 +22,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -885,16 +886,44 @@ func fetchSkillSourceTree(src skills.SkillSource) (root string, cleanup func(), 
 	// does it: GIT_LFS_SKIP_SMUDGE covers an installed git-lfs, and emptying
 	// the filter.lfs.* config kills the filter even when git-lfs is absent,
 	// where a repo with LFS content and a broken filter fails checkout.
+	token := strings.TrimSpace(os.Getenv("GITHUB_TOKEN"))
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("GH_TOKEN"))
+	}
+	gitArgs := args
+	if token != "" && strings.Contains(src.CloneURL, "github.com") {
+		authHeader := "AUTHORIZATION: basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token))
+		gitArgs = append([]string{"-c", "http.https://github.com/.extraHeader=" + authHeader}, args...)
+	}
+
 	cloneCtx, cancel := context.WithTimeout(context.Background(), gitCloneTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(cloneCtx, "git", args...)
+	cmd := exec.CommandContext(cloneCtx, "git", gitArgs...)
 	cmd.Env = append(os.Environ(), gitCloneEnv...)
 	if out, cloneErr := cmd.CombinedOutput(); cloneErr != nil {
+		// Fallback to gh repo clone if git clone failed and gh CLI is available for github.com
+		if src.RepoPath != "" && strings.Contains(src.CloneURL, "github.com") {
+			_ = os.RemoveAll(tmp)
+			_ = os.MkdirAll(tmp, 0o755)
+			ghArgs := []string{"repo", "clone", src.RepoPath, tmp, "--", "--depth", "1"}
+			if strings.TrimSpace(src.Pin) != "" {
+				ghArgs = append(ghArgs, "--branch", src.Pin)
+			}
+			ghCmd := exec.CommandContext(cloneCtx, "gh", ghArgs...)
+			if _, ghErr := ghCmd.CombinedOutput(); ghErr == nil {
+				return tmp, cleanup, nil
+			}
+		}
+
 		cleanup()
 		if cloneCtx.Err() == context.DeadlineExceeded {
 			return "", nil, fmt.Errorf("cloning %s timed out after %s; the remote did not respond in time (raise it with SKILLS_GIT_TIMEOUT)", src.Display, gitCloneTimeout)
 		}
-		return "", nil, fmt.Errorf("failed to clone %s: %v\n%s", src.Display, cloneErr, strings.TrimSpace(string(out)))
+		errStr := strings.TrimSpace(string(out))
+		if token != "" {
+			errStr = strings.ReplaceAll(errStr, token, "[REDACTED]")
+		}
+		return "", nil, fmt.Errorf("failed to clone %s: %v\n%s", src.Display, cloneErr, errStr)
 	}
 	return tmp, cleanup, nil
 }

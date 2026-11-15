@@ -348,6 +348,41 @@
         "skill:obra:systematic-debugging",
         "skill:obra:verification-before-completion"
       ]
+    },
+    {
+      "id": "leaderboard-discovery-alignment",
+      "title": "AI Planning & Interactive Clarification",
+      "blurb": "The most popular agent skills worldwide: find and load skills interactively, grill specs with docs, align design decisions, and explore web apps autonomously.",
+      "difficulty": "Beginner",
+      "audience": "Developers who want their agents to ask the right questions, explore APIs, and avoid assumptions",
+      "items": [
+        "skill:vercel-labs:find-skills",
+        "skill:mattpocock:grill-me",
+        "skill:mattpocock:grill-with-docs",
+        "skill:vercel-labs:agent-browser",
+        "skill:designed-by-ai:design-mobile-apps",
+        "skill:mattpocock:codebase-design",
+        "skill:mattpocock:domain-modeling",
+        "skill:mattpocock:implement-spec",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
+      ]
+    },
+    {
+      "id": "programmatic-video-motion",
+      "title": "Programmatic Video & Motion UI",
+      "blurb": "Render dynamic videos, keyframe transitions, and generative motion graphics using Remotion and React Three Fiber directly from agent prompts.",
+      "difficulty": "Intermediate",
+      "audience": "Developers and creators automating video rendering, canvas motion, and dynamic social clips",
+      "items": [
+        "skill:vercel-labs:remotion",
+        "skill:vercel-labs:remotion-best-practices",
+        "skill:vercel-labs:react-three-fiber",
+        "skill:vercel-labs:create-remotion-geist",
+        "skill:anthropics:canvas-design",
+        "skill:anthropics:algorithmic-art",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
+      ]
     }
   ]
 }

@@ -144,6 +144,38 @@ func TestPlanInstall(t *testing.T) {
 	}
 }
 
+func TestPlanInstallWithRename(t *testing.T) {
+	root := t.TempDir()
+	writeSkillTree(t, root, "frontend-design", "frontend-design", "Design pages")
+	found, err := DiscoverSkills(root)
+	if err != nil || len(found) != 1 {
+		t.Fatalf("discover failed: %v %d", err, len(found))
+	}
+	home := useTempHome(t)
+	project := t.TempDir()
+
+	ops, err := PlanInstallWithRename(found, []string{"claude-code"}, "project", project, home, "my-custom-ui")
+	if err != nil {
+		t.Fatalf("plan with rename failed: %v", err)
+	}
+	if len(ops) != 1 {
+		t.Fatalf("expected 1 op, got %d", len(ops))
+	}
+	if ops[0].SkillName != "my-custom-ui" {
+		t.Errorf("expected SkillName my-custom-ui, got %q", ops[0].SkillName)
+	}
+	expectedDst := filepath.Join(project, ".claude", "skills", "my-custom-ui")
+	if ops[0].ToDir != expectedDst {
+		t.Errorf("expected ToDir %q, got %q", expectedDst, ops[0].ToDir)
+	}
+
+	// Refuses invalid alias name
+	_, err = PlanInstallWithRename(found, []string{"claude-code"}, "project", project, home, "Bad Name!@#")
+	if err == nil {
+		t.Fatalf("expected error on invalid rename alias, got nil")
+	}
+}
+
 func TestCopySkillDir(t *testing.T) {
 	src := t.TempDir()
 	writeSkillTree(t, src, "s", "s", "d")

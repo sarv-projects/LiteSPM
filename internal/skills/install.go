@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -715,9 +716,136 @@ func discoverSkills(root string, o DiscoveryOptions) ([]DiscoveredSkill, error) 
 	if len(out) == 0 {
 		// The standard locations found nothing: retry without the depth bound
 		// before reporting an empty result.
-		return walkSkills(root, 0)
+		out, werr = walkSkills(root, 0)
+		if werr != nil {
+			return nil, werr
+		}
+	}
+
+	// Also discover skills explicitly declared in a Claude Plugin manifest
+	// (.claude-plugin/plugin.json, .claude-plugin/marketplace.json, plugin.json).
+	pluginSkills := discoverClaudePluginSkills(root)
+	if len(pluginSkills) > 0 {
+		seen := map[string]bool{}
+		for _, s := range out {
+			seen[filepath.Clean(s.Dir)] = true
+		}
+		for _, ps := range pluginSkills {
+			cleanDir := filepath.Clean(ps.Dir)
+			if !seen[cleanDir] {
+				seen[cleanDir] = true
+				out = append(out, ps)
+			}
+		}
 	}
 	return out, nil
+}
+
+// discoverClaudePluginSkills extracts skill directories declared in Claude Code
+// plugin manifests (.claude-plugin/plugin.json, .claude-plugin/marketplace.json,
+// plugin.json) while enforcing path containment within root.
+func discoverClaudePluginSkills(root string) []DiscoveredSkill {
+	manifestCandidates := []string{
+		filepath.Join(root, ".claude-plugin", "plugin.json"),
+		filepath.Join(root, ".claude-plugin", "marketplace.json"),
+		filepath.Join(root, "plugin.json"),
+	}
+	var manifestPath string
+	for _, cand := range manifestCandidates {
+		if fi, err := os.Stat(cand); err == nil && !fi.IsDir() {
+			manifestPath = cand
+			break
+		}
+	}
+	if manifestPath == "" {
+		return nil
+	}
+
+	data, err := os.ReadFile(manifestPath)
+	if err != nil || len(data) > 8<<20 { // 8 MiB bound
+		return nil
+	}
+
+	var rootObj map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rootObj); err != nil {
+		return nil
+	}
+
+	rawSkills, ok := rootObj["skills"]
+	if !ok {
+		return nil
+	}
+
+	var paths []string
+	var single string
+	var list []string
+	var byName map[string]string
+	switch {
+	case json.Unmarshal(rawSkills, &single) == nil:
+		paths = []string{single}
+	case json.Unmarshal(rawSkills, &list) == nil:
+		paths = list
+	case json.Unmarshal(rawSkills, &byName) == nil:
+		for _, p := range byName {
+			paths = append(paths, p)
+		}
+	}
+
+	rootClean := filepath.Clean(root)
+	var out []DiscoveredSkill
+	seen := map[string]bool{}
+
+	checkDir := func(d string) {
+		dClean := filepath.Clean(d)
+		if seen[dClean] {
+			return
+		}
+		// Containment check: must stay within root
+		rel, err := filepath.Rel(rootClean, dClean)
+		if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+			return
+		}
+		if sk, ok := skillAt(dClean); ok {
+			sk.Rel = rel
+			seen[dClean] = true
+			out = append(out, sk)
+		}
+	}
+
+	for _, p := range paths {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		target := filepath.Join(rootClean, filepath.FromSlash(p))
+		fi, err := os.Stat(target)
+		if err != nil {
+			continue
+		}
+		if fi.IsDir() {
+			if _, statErr := os.Stat(filepath.Join(target, "SKILL.md")); statErr == nil {
+				checkDir(target)
+			} else if _, statErr := os.Stat(filepath.Join(target, "skill.md")); statErr == nil {
+				checkDir(target)
+			} else {
+				// Container directory: check immediate children
+				entries, rerr := os.ReadDir(target)
+				if rerr == nil {
+					for _, entry := range entries {
+						if entry.IsDir() {
+							child := filepath.Join(target, entry.Name())
+							if _, childErr := os.Stat(filepath.Join(child, "SKILL.md")); childErr == nil {
+								checkDir(child)
+							} else if _, childErr := os.Stat(filepath.Join(child, "skill.md")); childErr == nil {
+								checkDir(child)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return out
 }
 
 // walkSkills collects valid skill directories under root, excluding root
@@ -831,12 +959,34 @@ type InstallOp struct {
 // the universal `.agents/skills` tree) collapse to a single write, so a second
 // copy never collides with the first.
 func PlanInstall(skills []DiscoveredSkill, agents []string, scope, projectRoot, home string) []InstallOp {
+	ops, _ := PlanInstallWithRename(skills, agents, scope, projectRoot, home, "")
+	return ops
+}
+
+// PlanInstallWithRename is PlanInstall with an optional rename alias.
+// If rename is non-empty, exactly one skill must be provided, and its target directory
+// name is set to the sanitized rename alias.
+func PlanInstallWithRename(skills []DiscoveredSkill, agents []string, scope, projectRoot, home, rename string) ([]InstallOp, error) {
+	if rename != "" {
+		if len(skills) > 1 {
+			return nil, fmt.Errorf("cannot rename multiple skills: select a single skill with --skill when using --rename")
+		}
+		cleanName, err := SanitizeSkillName(rename)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rename alias %q: %w", rename, err)
+		}
+		rename = cleanName
+	}
 	var ops []InstallOp
 	seenDest := map[string]bool{}
 	for _, sk := range skills {
-		name, err := SanitizeSkillName(sk.Pkg.Name)
-		if err != nil {
-			continue
+		name := rename
+		if name == "" {
+			var err error
+			name, err = SanitizeSkillName(sk.Pkg.Name)
+			if err != nil {
+				continue
+			}
 		}
 		for _, ag := range agents {
 			dir, ok := AgentSkillDir(ag, scope, projectRoot, home)
@@ -856,7 +1006,7 @@ func PlanInstall(skills []DiscoveredSkill, agents []string, scope, projectRoot, 
 			})
 		}
 	}
-	return ops
+	return ops, nil
 }
 
 // CopySkillDir copies a skill directory tree to dst. Symlinks are refused

@@ -46,6 +46,8 @@ Flags:
   --full-depth              Scan the whole tree, ignoring the depth bound and
                             junk-directory skips (for a repo layout that does
                             not follow the skills/<name> convention)
+  --rename <name>           Install the skill under a different name (alias; single skill only)
+  --as <name>               Alias for --rename
   --force, -f               Overwrite an existing destination (keeps a backup)
   --json                    Machine-readable summary on stdout
 
@@ -85,6 +87,7 @@ type skillsAddOptions struct {
 	source     string
 	skills     []string
 	agents     []string
+	rename     string
 	global     bool
 	scope      string
 	scopeGiven bool
@@ -142,6 +145,12 @@ func parseSkillsAddArgs(args []string) (skillsAddOptions, error) {
 			opts.yes = true
 		case "--force", "-f":
 			opts.force = true
+		case "--rename", "--as":
+			v, err := next()
+			if err != nil {
+				return opts, err
+			}
+			opts.rename = strings.TrimSpace(v)
 		case "--full-depth":
 			// The reference CLI bounds its scan to a known list of skill
 			// container directories and offers this flag to escape it. Our
@@ -606,7 +615,16 @@ func runSkillsAdd(args []string) {
 		}
 	}
 
-	ops := skills.PlanInstall(selected, agents, opts.scope, project, home)
+	if opts.rename != "" && len(selected) > 1 {
+		fmt.Fprintf(os.Stderr, "Error: cannot use --rename / --as when installing multiple skills (%d selected; use --skill <name> to pick one).\n", len(selected))
+		os.Exit(1)
+	}
+
+	ops, planErr := skills.PlanInstallWithRename(selected, agents, opts.scope, project, home, opts.rename)
+	if planErr != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", planErr)
+		os.Exit(1)
+	}
 	if len(ops) == 0 {
 		fmt.Fprintln(os.Stderr, "Error: nothing to install.")
 		os.Exit(1)

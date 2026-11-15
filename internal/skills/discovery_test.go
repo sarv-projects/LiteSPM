@@ -166,3 +166,28 @@ func TestDiscoverSkillsMissingRoot(t *testing.T) {
 		t.Fatal("a missing source root should be an error")
 	}
 }
+
+func TestDiscoverSkillsClaudePluginManifest(t *testing.T) {
+	root := t.TempDir()
+	// Set up .claude-plugin/plugin.json pointing to custom/skills/reviewer
+	pluginDir := filepath.Join(root, ".claude-plugin")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := []byte(`{
+		"name": "my-claude-plugin",
+		"skills": ["custom/skills/reviewer"]
+	}`)
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.json"), manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeSkillTree(t, root, "custom/skills/reviewer", "reviewer", "Claude plugin review skill")
+
+	found, err := DiscoverSkills(root)
+	if err != nil {
+		t.Fatalf("discover failed: %v", err)
+	}
+	if len(found) != 1 || found[0].Pkg.Name != "reviewer" {
+		t.Fatalf("expected reviewer skill discovered via claude plugin manifest, got %+v", found)
+	}
+}
