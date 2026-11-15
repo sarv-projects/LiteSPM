@@ -66,7 +66,7 @@ export function RankBadge({
               <Sparkles className="h-4 w-4 text-brand" />
               <span>LiteSPM Score Breakdown</span>
             </div>
-            <p className="text-[11px] text-muted-foreground">Editorial reputation out of 100</p>
+            <p className="text-[11px] text-muted-foreground">Quality, maintenance & installability score (out of 100)</p>
           </div>
           <div className="text-right">
             <span className="font-mono text-[16px] font-bold text-brand">{score}</span>

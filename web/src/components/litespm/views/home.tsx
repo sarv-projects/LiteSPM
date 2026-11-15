@@ -59,7 +59,7 @@ const GOAL_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const HERO_WORDS = ["The", "package", "manager", "for", "AI", "agents."];
+const HERO_WORDS = ["Stop", "configuring.", "Start", "building."];
 
 // Every name here is an MCP host in web/data/hosts.json.
 const MARQUEE_AGENTS = [
@@ -185,7 +185,7 @@ export function HomeView() {
             </p>
 
             <h1 className="mt-5 text-[clamp(2.6rem,6vw,4.6rem)] font-semibold leading-[1.0] tracking-[-0.045em]">
-              <span className="sr-only">The package manager for AI agents. Install once, use everywhere.</span>
+              <span className="sr-only">Stop configuring. Start building. The package manager for AI coding agents.</span>
               <span aria-hidden="true">
                 {HERO_WORDS.map((word, i) => (
                   <React.Fragment key={word + i}>
@@ -199,7 +199,7 @@ export function HomeView() {
                   className="rise-word text-sheen pb-[0.08em]"
                   style={{ "--i": HERO_WORDS.length + 1 } as React.CSSProperties}
                 >
-                  Install once, use everywhere.
+                  The package manager for AI coding agents.
                 </span>
               </span>
             </h1>
@@ -209,8 +209,8 @@ export function HomeView() {
               style={{ "--d": "520ms" } as React.CSSProperties}
             >
               Discover, install and manage MCP servers, skills and plugins across{" "}
-              {stats?.hosts ?? facts.hosts} agent hosts, without manual config editing. Every change
-              is previewed, backed up and reversible with one command. No account, no telemetry.
+              {stats?.hosts ?? facts.hosts} AI coding agents. Preview changes, preserve your
+              settings, and undo installations when needed. One CLI. Multiple agents. Reversible changes.
             </p>
 
             <div
@@ -494,13 +494,12 @@ export function HomeView() {
               <RankExplainer />
             </p>
             <h2 id="top-title" className="mt-1 text-[26px] font-semibold tracking-tight sm:text-[30px]">
-              The tools the ecosystem actually trusts
+              Top-ranked developer tools
             </h2>
             <p className="mt-1 max-w-[64ch] text-[13px] text-muted-foreground">
-              An editorial reputation model, not a metadata contest: the official reference
-              servers and skills, first-party vendor tools, and verified installability rank
-              first. Spam and parse-artifact records are heavily penalized; duplicates are
-              collapsed, so one tool never takes two slots.
+              A transparent ranking model based on publisher verification, active maintenance, and
+              installability. Official reference tools, first-party vendors, and pinned sources rank
+              first. Independent security audits are stated separately when recorded.
             </p>
           </div>
           <Button

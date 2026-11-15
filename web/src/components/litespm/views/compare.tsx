@@ -17,6 +17,7 @@ const SEARCHABLE_COUNT = 6;
 export function CompareView({ keys }: { keys: string[] }) {
   const navigate = useApp((s) => s.navigate);
   const compareKeys = useApp((s) => s.compareKeys);
+  const [diffOnly, setDiffOnly] = React.useState(false);
   const [columns, setColumns] = React.useState<CompareColumn[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [suggestions, setSuggestions] = React.useState<CatalogListResponse | null>(null);
@@ -169,6 +170,22 @@ export function CompareView({ keys }: { keys: string[] }) {
         </div>
       )}
 
+      {/* Control bar */}
+      {!loading && columns.length > 1 && (
+        <div className="mt-6 flex items-center justify-between">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-[12.5px] font-medium text-muted-foreground hover:text-foreground">
+            <input
+              type="checkbox"
+              checked={diffOnly}
+              onChange={(e) => setDiffOnly(e.target.checked)}
+              className="rounded border-border accent-brand"
+            />
+            <span>Show differences only</span>
+          </label>
+          <span className="text-[12px] text-muted-foreground">{columns.length} of 4 packages compared</span>
+        </div>
+      )}
+
       {/* Table */}
       {!loading && columns.length > 0 && (
         <motion.div
@@ -235,7 +252,7 @@ export function CompareView({ keys }: { keys: string[] }) {
                   ),
                 )}
               </CompareRow>
-              <CompareRow label="Score">
+              <CompareRow label="Score" diffOnly={diffOnly} values={columns.map((c) => c.rankScore)}>
                 {columns.map((column) => (
                   <div key={column.linkKey} className="flex items-center gap-1.5">
                     <RankBadge score={column.rankScore} size="sm" />
@@ -245,7 +262,7 @@ export function CompareView({ keys }: { keys: string[] }) {
                   </div>
                 ))}
               </CompareRow>
-              <CompareRow label="Type Spec">
+              <CompareRow label="Type Spec" diffOnly={diffOnly} values={columns.map((c) => c.typeSpecificHint)}>
                 {columns.map((column) => (
                   <span
                     key={column.linkKey}
@@ -255,7 +272,7 @@ export function CompareView({ keys }: { keys: string[] }) {
                   </span>
                 ))}
               </CompareRow>
-              <CompareRow label="Availability">
+              <CompareRow label="Availability" diffOnly={diffOnly} values={columns.map((c) => c.availabilityLabel)}>
                 {columns.map((column) => (
                   <AvailabilityBadge
                     key={column.linkKey}
@@ -264,7 +281,7 @@ export function CompareView({ keys }: { keys: string[] }) {
                   />
                 ))}
               </CompareRow>
-              <CompareRow label="Publisher">
+              <CompareRow label="Publisher" diffOnly={diffOnly} values={columns.map((c) => c.publisher)}>
                 {columns.map((column) => (
                   <span key={column.linkKey} className="flex items-center gap-1.5 text-[12.5px]">
                     {column.publisherVerified && (
@@ -274,38 +291,28 @@ export function CompareView({ keys }: { keys: string[] }) {
                   </span>
                 ))}
               </CompareRow>
-              <CompareRow label="Summary">
-                {columns.map((column) => (
-                  <p
-                    key={column.linkKey}
-                    className="line-clamp-4 text-[12px] leading-relaxed text-muted-foreground"
-                  >
-                    {column.summary || "—"}
-                  </p>
-                ))}
-              </CompareRow>
-              <CompareRow label="Goal">
+              <CompareRow label="Goal" diffOnly={diffOnly} values={columns.map((c) => c.goalLabel)}>
                 {columns.map((column) => (
                   <span key={column.linkKey} className="text-[12.5px]">
                     {column.goalLabel || "—"}
                   </span>
                 ))}
               </CompareRow>
-              <CompareRow label="Category">
+              <CompareRow label="Category" diffOnly={diffOnly} values={columns.map((c) => c.category)}>
                 {columns.map((column) => (
                   <span key={column.linkKey} className="text-[12.5px]">
                     {column.category || "—"}
                   </span>
                 ))}
               </CompareRow>
-              <CompareRow label="Transport">
+              <CompareRow label="Transport" diffOnly={diffOnly} values={columns.map((c) => c.transport)}>
                 {columns.map((column) => (
                   <code key={column.linkKey} className="font-mono text-[11.5px]">
                     {column.transport ?? "—"}
                   </code>
                 ))}
               </CompareRow>
-              <CompareRow label="Runtime">
+              <CompareRow label="Runtime" diffOnly={diffOnly} values={columns.map((c) => c.runtime)}>
                 {columns.map((column) => (
                   <code key={column.linkKey} className="font-mono text-[11.5px]">
                     {column.runtime ?? "—"}
@@ -384,9 +391,24 @@ export function CompareView({ keys }: { keys: string[] }) {
   );
 }
 
-function CompareRow({ label, children }: { label: string; children: React.ReactNode }) {
+function CompareRow({
+  label,
+  children,
+  diffOnly,
+  values,
+}: {
+  label: string;
+  children: React.ReactNode;
+  diffOnly?: boolean;
+  values?: any[];
+}) {
+  if (diffOnly && values && values.length > 1) {
+    const first = JSON.stringify(values[0]);
+    const allSame = values.every((v) => JSON.stringify(v) === first);
+    if (allSame) return null;
+  }
   return (
-    <tr className="border-b border-border/40 last:border-0">
+    <tr className="border-b border-border/40 last:border-0 hover:bg-muted/10">
       <th
         scope="row"
         className="px-4 py-3 text-left align-top text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"

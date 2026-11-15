@@ -213,6 +213,32 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
 
   return (
     <div>
+      {/* Task-oriented search suggestions */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-[12.5px]">
+        <span className="text-muted-foreground font-medium text-[12px]">What do you want your agent to do?</span>
+        {[
+          { label: "🐙 GitHub & Issues", q: "github" },
+          { label: "🌐 Web Browsing & Scraping", q: "browser puppeteer" },
+          { label: "🗄️ Database & SQL", q: "postgres sqlite sql" },
+          { label: "☁️ Cloud & Containers", q: "docker kubernetes aws" },
+          { label: "⚡ Terminal & Scripts", q: "bash python shell" },
+        ].map((task) => (
+          <button
+            key={task.q}
+            type="button"
+            onClick={() => setParam("q", task.q)}
+            className={cn(
+              "rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium transition-colors hover:border-brand/50 hover:bg-muted/40",
+              query.q === task.q
+                ? "border-brand bg-brand-soft text-brand font-semibold"
+                : "border-border/70 bg-card text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {task.label}
+          </button>
+        ))}
+      </div>
+
       {/* Search + sort */}
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative flex h-11 min-w-[14rem] flex-1 items-center gap-2.5 rounded-xl border border-border/80 bg-card px-3.5 focus-within:border-brand/60">
