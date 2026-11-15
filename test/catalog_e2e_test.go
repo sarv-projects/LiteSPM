@@ -11,6 +11,7 @@ import (
 
 	"github.com/sarv-projects/litespm/internal/catalog"
 	"github.com/sarv-projects/litespm/internal/catalogbuild"
+	"github.com/sarv-projects/litespm/internal/domain"
 )
 
 // TestCatalogRelease_EndToEnd is the catalog gate as an automated test: the
@@ -61,7 +62,7 @@ func TestCatalogRelease_EndToEnd(t *testing.T) {
 		for _, l := range testListings {
 			testListingIDs[l.ID] = true
 		}
-		var filteredVersions []resolver.ListingVersionMetadata
+		var filteredVersions []*domain.VersionRecord
 		for _, v := range testVersions {
 			if testListingIDs[v.ListingID] {
 				filteredVersions = append(filteredVersions, v)
