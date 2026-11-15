@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sarv-projects/litespm/internal/binding"
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/deployment"
@@ -144,6 +145,7 @@ type listFlags struct {
 	project  string // project directory, "" when unset
 	global   bool
 	jsonOut  bool
+	plain    bool
 	showHelp bool
 }
 
@@ -167,6 +169,7 @@ Flags:
   --project <dir>          only project-scope rows for that directory
   --global                 only user-scope rows
   --kind <kind>            the same kind filter as the positional word
+  --plain                  force plain text output with no terminal styling or animation
   --json                   machine-readable inventory (stable schema)
   --help, -h               show this help text
 
@@ -202,6 +205,8 @@ func parseListFlags(args []string) (listFlags, error) {
 			return f, nil
 		case "--json":
 			f.jsonOut = true
+		case "--plain":
+			f.plain = true
 		case "--managed":
 			f.managed = true
 		case "--observed":
@@ -335,7 +340,14 @@ func runListTo(out, errOut io.Writer, args []string, asInventory bool) int {
 	}
 	defer func() { _ = db.Close() }()
 
-	report, err := gatherInventory(ctx, db, paths.DataRoot, fl)
+	var report *inventoryReport
+	if !asInventory && !fl.jsonOut && !fl.plain && isTerminalWriter(out) {
+		report, err = runWithSpinner(ctx, os.Stdin, out, "Inspecting registered agent configurations and capability state...", func() (*inventoryReport, error) {
+			return gatherInventory(ctx, db, paths.DataRoot, fl)
+		})
+	} else {
+		report, err = gatherInventory(ctx, db, paths.DataRoot, fl)
+	}
 	if err != nil {
 		fmt.Fprintf(errOut, "list: %v\n", err)
 		return 1
@@ -1003,9 +1015,30 @@ func countLine(counts inventoryCounts, fl listFlags) string {
 
 // ---- human output --------------------------------------------------------
 
+func isTerminalWriter(w io.Writer) bool {
+	if uiTermDumb() || os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	return isTerminal(f)
+}
+
 // renderList prints the overview: counts, rows grouped by agent and kind, and
-// the vocabulary the states come from.
+// the vocabulary the states come from. On an interactive terminal, it renders
+// modern styled cards, color-coded badges and progressive row animation;
+// on pipes, files and tests, it outputs clean POSIX plain text.
 func renderList(w io.Writer, report *inventoryReport, fl listFlags) {
+	if !fl.plain && isTerminalWriter(w) {
+		renderListTerminal(w, report, fl)
+		return
+	}
+	renderListPlain(w, report, fl)
+}
+
+func renderListPlain(w io.Writer, report *inventoryReport, fl listFlags) {
 	fmt.Fprintln(w, "LiteSPM setup overview")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, countLine(report.Counts, fl))
@@ -1054,6 +1087,334 @@ func renderList(w io.Writer, report *inventoryReport, fl listFlags) {
 	fmt.Fprintln(w, "  drifted   changed since LiteSPM wrote it; reported, never repaired here")
 	fmt.Fprintln(w, "  broken    recorded by LiteSPM but missing where it was written")
 	fmt.Fprintln(w, "  —         the recorded data cannot answer; shown, never guessed")
+}
+
+func renderHeaderCard(w io.Writer, report *inventoryReport, fl listFlags) {
+	width := uiWidth(w)
+	cardWidth := width - 4
+	if cardWidth > 96 {
+		cardWidth = 96
+	}
+	if cardWidth < 50 {
+		cardWidth = 50
+	}
+
+	title := uiAccentS.Bold(true).Render("◆ LiteSPM") + uiDim.Render("  ·  Capabilities & Deployment Overview")
+
+	metric1 := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#a6e3a1")).Render(fmt.Sprintf("%d unique capabilities", report.Counts.UniqueCapabilities))
+	metric2 := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#89b4fa")).Render(fmt.Sprintf("%d deployments across agents", report.Counts.Deployments))
+
+	metrics := metric1 + uiDim.Render("  ·  ") + metric2
+	if report.Counts.Unplaced > 0 {
+		metrics += uiDim.Render("  ·  ") + uiDim.Render(fmt.Sprintf("%d unplaced", report.Counts.Unplaced))
+	}
+	if fl.anyFilterActive() {
+		metrics += " " + uiYellowS.Render("(filtered)")
+	}
+
+	content := title + "\n" + metrics
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#45475a")).
+		Padding(0, 1).
+		Width(cardWidth).
+		Render(content)
+
+	fmt.Fprintln(w, box)
+	fmt.Fprintln(w)
+}
+
+func renderFooterCard(w io.Writer, counts inventoryCounts) {
+	width := uiWidth(w)
+	cardWidth := width - 4
+	if cardWidth > 96 {
+		cardWidth = 96
+	}
+	if cardWidth < 50 {
+		cardWidth = 50
+	}
+
+	mBadge := lipgloss.NewStyle().Foreground(lipgloss.Color("#a6e3a1")).Render(fmt.Sprintf("● %d managed", counts.Managed))
+	oBadge := lipgloss.NewStyle().Foreground(lipgloss.Color("#f9e2af")).Render(fmt.Sprintf("○ %d observed", counts.Observed))
+	aBadge := lipgloss.NewStyle().Foreground(lipgloss.Color("#cba6f7")).Render(fmt.Sprintf("◈ %d adopted", counts.Adopted))
+	dBadge := lipgloss.NewStyle().Foreground(lipgloss.Color("#fab387")).Render(fmt.Sprintf("▲ %d drifted", counts.Drifted))
+	bBadge := lipgloss.NewStyle().Foreground(lipgloss.Color("#f38ba8")).Render(fmt.Sprintf("✗ %d broken", counts.Broken))
+
+	summary := strings.Join([]string{mBadge, oBadge, aBadge, dBadge, bBadge}, uiDim.Render("   "))
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#45475a")).
+		Padding(0, 1).
+		Width(cardWidth).
+		Render(summary)
+
+	fmt.Fprintln(w, box)
+	fmt.Fprintf(w, "  %s\n\n", uiDim.Render("Run 'litespm list --help' for flags and filters · 'litespm list agents' for host roster"))
+}
+
+func formatAgentDistribution(agents []string, maxDisplay int) string {
+	n := len(agents)
+	if n == 0 {
+		return uiDim.Render("—")
+	}
+	if n == 1 {
+		return uiDim.Render("1 agent   ") + lipgloss.NewStyle().Foreground(lipgloss.Color("#bac2de")).Render(agents[0])
+	}
+	if n == 2 {
+		return uiDim.Render("2 agents  ") + lipgloss.NewStyle().Foreground(lipgloss.Color("#bac2de")).Render(strings.Join(agents, ", "))
+	}
+
+	countBadge := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#89b4fa")).
+		Render(fmt.Sprintf("%-9s", fmt.Sprintf("%d agents", n)))
+
+	if maxDisplay <= 0 {
+		maxDisplay = 3
+	}
+	if maxDisplay > n {
+		maxDisplay = n
+	}
+	shown := agents[:maxDisplay]
+	rem := n - maxDisplay
+
+	var sb strings.Builder
+	sb.WriteString(countBadge)
+	sb.WriteString(" ")
+	sb.WriteString(uiDim.Render("("))
+	sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#bac2de")).Render(strings.Join(shown, ", ")))
+	if rem > 0 {
+		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#a6adc8")).Render(fmt.Sprintf(" +%d more", rem)))
+	}
+	sb.WriteString(uiDim.Render(")"))
+	return sb.String()
+}
+
+func renderListTerminal(w io.Writer, report *inventoryReport, fl listFlags) {
+	renderHeaderCard(w, report, fl)
+
+	if len(report.Records) == 0 {
+		emptyBox := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#45475a")).
+			Padding(1, 2).
+			Render("Nothing recorded yet: no installs, deployments or agent-config entries matched.\n\n" +
+				uiDim.Render("• Run ") + uiAccentS.Render("litespm host detect") + uiDim.Render(" to see which agents this machine has\n") +
+				uiDim.Render("• Run ") + uiAccentS.Render("litespm catalog sync") + uiDim.Render(" then ") + uiAccentS.Render("litespm search <term>") + uiDim.Render(" to find capabilities\n") +
+				uiDim.Render("• Run ") + uiAccentS.Render("litespm list") + uiDim.Render(" again to view deployment status"))
+		fmt.Fprintln(w, emptyBox)
+		fmt.Fprintln(w)
+		return
+	}
+
+	if fl.agent != "" {
+		renderListByAgentTerminal(w, report.Records)
+	} else {
+		var managedRows []inventoryRecord
+		var observedRows []inventoryRecord
+		for _, rec := range report.Records {
+			if rec.State == stateObserved {
+				observedRows = append(observedRows, rec)
+			} else {
+				managedRows = append(managedRows, rec)
+			}
+		}
+
+		if len(managedRows) > 0 {
+			renderListByAgentTerminal(w, managedRows)
+		}
+		if len(observedRows) > 0 {
+			renderGroupedObservedTerminal(w, observedRows)
+		}
+	}
+
+	renderFooterCard(w, report.Counts)
+	if len(report.Warnings) > 0 {
+		fmt.Fprintf(w, "  %s\n\n", uiYellowS.Render(fmt.Sprintf("! Read warnings: %d source(s) could not be read — details were printed on stderr.", len(report.Warnings))))
+	}
+}
+
+func padRight(s string, width int) string {
+	w := lipgloss.Width(s)
+	if w >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-w)
+}
+
+func renderGroupedObservedTerminal(w io.Writer, rows []inventoryRecord) {
+	groups := map[string]*observedGroup{}
+	var names []string
+	for _, rec := range rows {
+		key := rec.Kind + ":" + rec.Name
+		if g, exists := groups[key]; exists {
+			hasAgent := false
+			for _, a := range g.agents {
+				if a == rec.Agent {
+					hasAgent = true
+					break
+				}
+			}
+			if !hasAgent && rec.Agent != "" {
+				g.agents = append(g.agents, rec.Agent)
+			}
+		} else {
+			names = append(names, key)
+			var ags []string
+			if rec.Agent != "" {
+				ags = append(ags, rec.Agent)
+			}
+			groups[key] = &observedGroup{
+				kind:   rec.Kind,
+				name:   rec.Name,
+				scope:  rec.Scope,
+				agents: ags,
+			}
+		}
+	}
+
+	sort.Strings(names)
+
+	title := uiYellowS.Bold(true).Render("◆") + " " +
+		lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#cdd6f4")).Render("DETECTED CAPABILITIES") + " " +
+		uiDim.Render("(grouped across agents, read-only)")
+	fmt.Fprintln(w, title)
+
+	hdrStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#a6adc8")).Bold(true)
+	fmt.Fprintf(w, "  %s  %s  %s  %s  %s\n",
+		padRight(hdrStyle.Render("KIND"), 6),
+		padRight(hdrStyle.Render("NAME"), 23),
+		padRight(hdrStyle.Render("STATE"), 12),
+		padRight(hdrStyle.Render("SCOPE"), 7),
+		hdrStyle.Render("FOUND IN AGENTS"))
+
+	termW := uiWidth(w)
+	maxAgents := 3
+	if termW >= 115 {
+		maxAgents = 5
+	} else if termW >= 95 {
+		maxAgents = 4
+	}
+
+	for _, key := range names {
+		g := groups[key]
+		sort.Strings(g.agents)
+
+		var kindPill string
+		switch strings.ToLower(g.kind) {
+		case "mcp":
+			kindPill = lipgloss.NewStyle().Foreground(lipgloss.Color("#89dceb")).Bold(true).Render("mcp")
+		case "skill":
+			kindPill = lipgloss.NewStyle().Foreground(lipgloss.Color("#a6e3a1")).Bold(true).Render("skill")
+		case "plugin":
+			kindPill = lipgloss.NewStyle().Foreground(lipgloss.Color("#cba6f7")).Bold(true).Render("plugin")
+		default:
+			kindPill = uiDim.Render(g.kind)
+		}
+
+		nameStyled := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#cdd6f4")).Render(truncateRunes(g.name, 23))
+		stateStyled := lipgloss.NewStyle().Foreground(lipgloss.Color("#f9e2af")).Render("○ observed")
+		scopeStyled := uiDim.Render(scopeDash(g.scope))
+		agentsFormatted := formatAgentDistribution(g.agents, maxAgents)
+
+		fmt.Fprintf(w, "  %s  %s  %s  %s  %s\n",
+			padRight(kindPill, 6),
+			padRight(nameStyled, 23),
+			padRight(stateStyled, 12),
+			padRight(scopeStyled, 7),
+			agentsFormatted)
+
+		time.Sleep(10 * time.Millisecond)
+	}
+	fmt.Fprintln(w)
+}
+
+func renderListByAgentTerminal(w io.Writer, records []inventoryRecord) {
+	byAgent := map[string][]inventoryRecord{}
+	agents := []string{}
+	for _, rec := range records {
+		if _, seen := byAgent[rec.Agent]; !seen {
+			agents = append(agents, rec.Agent)
+		}
+		byAgent[rec.Agent] = append(byAgent[rec.Agent], rec)
+	}
+	sort.Slice(agents, func(i, j int) bool {
+		if agents[i] == "" {
+			return false
+		}
+		if agents[j] == "" {
+			return true
+		}
+		return agents[i] < agents[j]
+	})
+
+	hdrStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#a6adc8")).Bold(true)
+
+	for _, agent := range agents {
+		rows := byAgent[agent]
+		titleName := agent
+		if titleName == "" {
+			titleName = "NO RECORDED AGENT"
+		}
+		agentTitle := uiAccentS.Bold(true).Render("◆") + " " +
+			lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#cdd6f4")).Render("AGENT "+titleName) + " " +
+			uiDim.Render(fmt.Sprintf("(%d)", len(rows)))
+		fmt.Fprintln(w, agentTitle)
+
+		fmt.Fprintf(w, "  %s  %s  %s  %s  %s\n",
+			padRight(hdrStyle.Render("KIND"), 6),
+			padRight(hdrStyle.Render("NAME"), 23),
+			padRight(hdrStyle.Render("STATE"), 12),
+			padRight(hdrStyle.Render("SCOPE"), 7),
+			hdrStyle.Render("ID / DETAIL"))
+
+		for _, rec := range rows {
+			var kindPill string
+			switch strings.ToLower(rec.Kind) {
+			case "mcp":
+				kindPill = lipgloss.NewStyle().Foreground(lipgloss.Color("#89dceb")).Bold(true).Render("mcp")
+			case "skill":
+				kindPill = lipgloss.NewStyle().Foreground(lipgloss.Color("#a6e3a1")).Bold(true).Render("skill")
+			case "plugin":
+				kindPill = lipgloss.NewStyle().Foreground(lipgloss.Color("#cba6f7")).Bold(true).Render("plugin")
+			default:
+				kindPill = uiDim.Render(rec.KindDash())
+			}
+
+			nameStyled := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#cdd6f4")).Render(truncateRunes(rec.Name, 23))
+
+			var stateStyled string
+			switch rec.State {
+			case stateManaged:
+				stateStyled = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#a6e3a1")).Render("● managed")
+			case stateAdopted:
+				stateStyled = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#cba6f7")).Render("◈ adopted")
+			case stateDrifted:
+				stateStyled = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#fab387")).Render("▲ drifted")
+			case stateBroken:
+				stateStyled = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#f38ba8")).Render("✗ broken")
+			default:
+				stateStyled = renderStatusPill(rec.StateDash())
+			}
+
+			cell := rec.ID
+			if rec.Detail != "" {
+				cell = rec.ID + " — " + rec.Detail
+			}
+
+			fmt.Fprintf(w, "  %s  %s  %s  %s  %s\n",
+				padRight(kindPill, 6),
+				padRight(nameStyled, 23),
+				padRight(stateStyled, 12),
+				padRight(uiDim.Render(scopeDash(rec.Scope)), 7),
+				lipgloss.NewStyle().Foreground(lipgloss.Color("#bac2de")).Render(truncateRunes(cell, 56)))
+
+			time.Sleep(10 * time.Millisecond)
+		}
+		fmt.Fprintln(w)
+	}
 }
 
 func renderListByAgent(w io.Writer, records []inventoryRecord) {
