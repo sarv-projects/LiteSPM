@@ -1,6 +1,7 @@
 # Binaries and executables
 /litespm
 /litespm.exe
+/litespm-linux
 dist/
 *.exe
 *.exe~

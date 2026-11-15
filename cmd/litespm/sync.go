@@ -116,10 +116,14 @@ func runSync(args []string) int {
 		return 2
 	}
 
-	report, err := executeSync(context.Background(), os.Stdout, opts)
+	return runSyncWithOptions(context.Background(), os.Stdout, opts)
+}
+
+func runSyncWithOptions(ctx context.Context, out io.Writer, opts syncOptions) int {
+	report, err := executeSync(ctx, out, opts)
 	if err != nil {
 		if opts.jsonOut {
-			_ = json.NewEncoder(os.Stdout).Encode(map[string]any{
+			_ = json.NewEncoder(out).Encode(map[string]any{
 				"error": err.Error(),
 			})
 		} else {
@@ -129,7 +133,7 @@ func runSync(args []string) int {
 	}
 
 	if opts.jsonOut {
-		_ = json.NewEncoder(os.Stdout).Encode(report)
+		_ = json.NewEncoder(out).Encode(report)
 	}
 	return 0
 }
@@ -200,6 +204,7 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 				binName := update.TargetBinaryName()
 				downloadURL, checksum, relErr := releaseDownloadTarget(info, binName)
 				if relErr == nil {
+					var updatePayload []byte
 					_, applyErr := runWithSpinner(ctx, os.Stdin, out, fmt.Sprintf("Downloading and verifying LiteSPM %s", status.LatestVersion), func() (bool, error) {
 						dlCtx, dlCancel := context.WithTimeout(ctx, 30*time.Second)
 						defer dlCancel()
@@ -211,6 +216,7 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 						if verifyErr != nil {
 							return false, verifyErr
 						}
+						updatePayload = payload
 						return true, upgrader.ApplyUpdate(ctx, payload, checksum, execPath, cacheDir)
 					})
 					if applyErr == nil {
@@ -218,6 +224,22 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 						report.Details = append(report.Details, fmt.Sprintf("Upgraded LiteSPM to %s", status.LatestVersion))
 						if !opts.jsonOut {
 							fmt.Fprintf(out, "%s  upgraded LiteSPM: %s → %s\n", uiGreenS.Render("✓"), Version, status.LatestVersion)
+						}
+
+						// Sibling binary synchronization: if ~/.local/bin or ~/.litespm/bin exists,
+						// update them in lockstep so PATH shadowing never recurs.
+						if home, _ := os.UserHomeDir(); home != "" && len(updatePayload) > 0 {
+							for _, sibling := range []string{
+								filepath.Join(home, ".local", "bin", "litespm"),
+								filepath.Join(home, ".litespm", "bin", "litespm-linux-amd64"),
+								filepath.Join(home, ".litespm", "bin", status.LatestVersion, "litespm-linux-amd64"),
+							} {
+								if sibling != execPath {
+									if _, statErr := os.Stat(sibling); statErr == nil {
+										_ = upgrader.ApplyUpdate(ctx, updatePayload, checksum, sibling, cacheDir)
+									}
+								}
+							}
 						}
 					}
 				}
@@ -290,6 +312,7 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 			verification, vErr := adapter.VerifySetup(ctx)
 			if vErr == nil && verification != nil && verification.Registered {
 				report.AgentsConfigured++
+				installMarketplaceCommand(ctx, io.Discard, desc.HostID, execPath)
 				continue
 			}
 

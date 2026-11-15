@@ -79,6 +79,9 @@ type Wizard struct {
 	// Tests inject the database they assert against; nil means opening
 	// paths.StateDBPath().
 	openState func() (*state.DB, error)
+	// autoSyncDisabled skips the startup auto-sync. Tests set it to true so they
+	// assert strictly on the menu prompts without network or agent configuration.
+	autoSyncDisabled bool
 }
 
 // NewWizard initializes an interactive wizard.
@@ -103,17 +106,32 @@ func NewWizard(in io.Reader, out io.Writer, paths *config.PlatformPaths) *Wizard
 // second bare `litespm` run is a management session, not a silent rewrite.
 func (w *Wizard) Run(ctx context.Context) error {
 	configured, err := w.configuredHosts(ctx)
-	// The wordmark is for the first run only; a machine that is already set up
-	// gets the one-line header, so a management session does not open with six
-	// rows of banner every time.
-	w.printBanner(err != nil || len(configured) == 0)
-	w.printRuntimeSummary()
 	if err != nil {
 		fmt.Fprintf(w.out, "Could not check for existing LiteSPM setups: %v\n", err)
 		configured = nil
 	}
 
+	if !w.autoSyncDisabled && !autoSyncDisabled() {
+		opts := syncOptions{yes: true}
+		_, _ = executeSync(ctx, w.out, opts)
+		configured, _ = w.configuredHosts(ctx)
+	} else {
+		// The wordmark is for the first run only; a machine that is already set up
+		// gets the one-line header, so a management session does not open with six
+		// rows of banner every time.
+		w.printBanner(err != nil || len(configured) == 0)
+		w.printRuntimeSummary()
+		if len(configured) > 0 {
+			if newly := w.autoConnectUnconfiguredHosts(ctx); len(newly) > 0 {
+				configured, _ = w.configuredHosts(ctx)
+			}
+			w.printConfiguredSummary(configured)
+		}
+	}
+
 	if len(configured) == 0 {
+		w.printBanner(true)
+		w.printRuntimeSummary()
 		cancelled, serr := w.runSetup(ctx)
 		if serr != nil {
 			return w.finishInput(serr)
@@ -122,11 +140,6 @@ func (w *Wizard) Run(ctx context.Context) error {
 			fmt.Fprintln(w.out, "\nSetup cancelled.")
 			return nil
 		}
-	} else {
-		if newly := w.autoConnectUnconfiguredHosts(ctx); len(newly) > 0 {
-			configured, _ = w.configuredHosts(ctx)
-		}
-		w.printConfiguredSummary(configured)
 	}
 
 	return w.finishInput(w.runActionMenu(ctx))

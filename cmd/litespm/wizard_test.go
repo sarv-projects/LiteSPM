@@ -62,6 +62,7 @@ func newTestWizard(t *testing.T, in string, paths *config.PlatformPaths) (*Wizar
 	var out bytes.Buffer
 	w := NewWizard(strings.NewReader(in), &out, paths)
 	w.registeredHosts = func(context.Context) ([]host.HostVerification, error) { return nil, nil }
+	w.autoSyncDisabled = true
 	return w, &out
 }
 
