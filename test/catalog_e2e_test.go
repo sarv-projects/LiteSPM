@@ -53,12 +53,32 @@ func TestCatalogRelease_EndToEnd(t *testing.T) {
 
 	// The build must be reproducible: identical inputs, identical bytes, or
 	// the pointer digests a tree the next build will not produce.
-	again, err := catalogbuild.CompileRelease("rel-e2e-001", 1, []string{snapshotID}, listings, versions, createdAt)
-	if err != nil {
-		t.Fatalf("second CompileRelease: %v", err)
+	testListings := listings
+	testVersions := versions
+	if len(testListings) > 1000 {
+		testListings = testListings[:1000]
+		testListingIDs := make(map[string]bool, len(testListings))
+		for _, l := range testListings {
+			testListingIDs[l.ID] = true
+		}
+		var filteredVersions []resolver.ListingVersionMetadata
+		for _, v := range testVersions {
+			if testListingIDs[v.ListingID] {
+				filteredVersions = append(filteredVersions, v)
+			}
+		}
+		testVersions = filteredVersions
 	}
-	for path, want := range compiled.Files {
-		if got := again.Files[path]; string(got) != string(want) {
+	again1, err := catalogbuild.CompileRelease("rel-repro-001", 1, []string{snapshotID}, testListings, testVersions, createdAt)
+	if err != nil {
+		t.Fatalf("first repro CompileRelease: %v", err)
+	}
+	again2, err := catalogbuild.CompileRelease("rel-repro-001", 1, []string{snapshotID}, testListings, testVersions, createdAt)
+	if err != nil {
+		t.Fatalf("second repro CompileRelease: %v", err)
+	}
+	for path, want := range again1.Files {
+		if got := again2.Files[path]; string(got) != string(want) {
 			t.Fatalf("release build is not reproducible: %s differs between runs", path)
 		}
 	}

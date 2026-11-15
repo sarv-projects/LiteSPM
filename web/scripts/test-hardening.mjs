@@ -50,7 +50,7 @@ await assert.rejects(
 );
 await assert.rejects(readJsonBody(request(["{"]), 16), SyntaxError);
 
-const routerSource = read("../src/lib/litespm/router.ts");
+const routerSource = read("../src/lib/litespm/router.ts") + "\n" + read("../src/lib/litespm/route.ts");
 assert.match(routerSource, /if \(hash\.startsWith\("#\/"\)\)/);
 assert.doesNotMatch(routerSource, /hash && \(hash\.startsWith\("#\/"\) \|\| hash\.startsWith\("#"\)\)/);
 assert.match(routerSource, /if \(target\.startsWith\("#\/"\)\) return target\.slice\(1\)/);

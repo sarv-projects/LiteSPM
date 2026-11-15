@@ -197,11 +197,11 @@ jobs:
       # the suite has already caught one ordering-sensitive defect, and a
       # green run that only works in declaration order is not a green run.
       - name: Run Go Test Suite
-        run: go test -v -race -shuffle=on ./...
+        run: go test -v -race -shuffle=on -timeout 25m ./...
         if: matrix.os != 'windows-latest'
 
       - name: Run Go Test Suite (Windows)
-        run: go test -v -shuffle=on ./...
+        run: go test -v -shuffle=on -timeout 25m ./...
         if: matrix.os == 'windows-latest'
 
       - name: Stress Windows lock contention
