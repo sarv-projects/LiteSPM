@@ -160,7 +160,7 @@ export function Header() {
           })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={(e) => {
@@ -169,8 +169,8 @@ export function Header() {
             }}
             className="hidden h-9 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card pl-3 pr-2 text-[13px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground lg:flex"
           >
-            <Search className="h-3.5 w-3.5" />
-            <span className="w-28 text-left lg:w-40">Search catalog…</span>
+            <Search className="h-3.5 w-3.5 shrink-0" />
+            <span className="w-24 text-left xl:w-36">Search catalog…</span>
             <kbd className="pointer-events-none rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] font-semibold">
               ⌘K
             </kbd>
@@ -182,7 +182,7 @@ export function Header() {
               setPalette(true);
             }}
             aria-label="Search catalog"
-            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand lg:hidden"
+            className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand lg:hidden"
           >
             <Search className="h-4 w-4" />
           </button>
@@ -190,28 +190,30 @@ export function Header() {
           <Button
             size="sm"
             variant="outline"
-            className="hidden h-9 gap-1.5 rounded-lg px-3 text-[12.5px] sm:inline-flex"
+            className="hidden h-9 shrink-0 gap-1.5 rounded-lg px-3 text-[12.5px] sm:inline-flex"
             onClick={() => setAssistant(true)}
           >
             <Sparkles className="h-3.5 w-3.5 text-brand" />
             Ask AI
           </Button>
 
-          <ThemeToggle />
+          <div className="shrink-0">
+            <ThemeToggle />
+          </div>
 
           <a
             href="https://github.com/sarv-projects/LiteSPM"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="LiteSPM on GitHub"
-            className="hidden h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand sm:inline-flex"
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand sm:inline-flex"
           >
             <Github className="h-4 w-4" />
           </a>
 
           <Button
             size="sm"
-            className="h-9 rounded-lg bg-brand px-3.5 text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90"
+            className="h-9 shrink-0 rounded-lg bg-brand px-3.5 text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90"
             onClick={() => navigate("/docs/getting-started")}
           >
             Get started
@@ -222,7 +224,7 @@ export function Header() {
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground xl:hidden"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground xl:hidden"
           >
             {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>

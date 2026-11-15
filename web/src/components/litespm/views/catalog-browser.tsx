@@ -203,12 +203,26 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
 
   const page = data?.page ?? 1;
   const pageCount = data?.pageCount ?? 1;
+  const isUnfiltered =
+    !query.q &&
+    !query.goal &&
+    !query.category &&
+    !query.publisher &&
+    !query.installability &&
+    !query.transport &&
+    !query.host &&
+    !query.installable;
+
   const status = failed
     ? "The catalog could not be searched."
     : loading && !data
       ? "Searching the catalog…"
       : data
-        ? `${formatFull(data.total)} distinct tool${data.total === 1 ? "" : "s"}${query.q ? ` for “${query.q}”` : ""} · page ${formatFull(page)} of ${formatFull(pageCount)}`
+        ? `${formatFull(data.total)} distinct tool${data.total === 1 ? "" : "s"}${
+            isUnfiltered && tab === "all"
+              ? ` (from ${formatFull(data.uniqueListings ?? 69311)} unique catalog listings)`
+              : ""
+          }${query.q ? ` for “${query.q}”` : ""} · page ${formatFull(page)} of ${formatFull(pageCount)}`
         : "";
 
   return (

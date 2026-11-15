@@ -11,18 +11,31 @@ import { InstallBar } from "../install-bar";
 import { TargetAgentPicker } from "../target-agent-picker";
 
 function repoSlug(url: string): string {
-  return url
+  const clean = url
     .replace(/^https:\/\/(www\.)?github\.com\//, "")
     .replace(/^https:\/\/(www\.)?gitlab\.com\//, "gitlab/")
     .replace(/\.git$/, "");
+  const parts = clean.split("/");
+  return parts.slice(0, 2).join("/");
+}
+
+function cleanGitRepoUrl(url: string): string {
+  if (!url) return "";
+  const githubMatch = /^(https:\/\/(?:www\.)?github\.com\/[^/]+\/[^/]+)/i.exec(url);
+  if (githubMatch) return `${githubMatch[1]}.git`;
+  const gitlabMatch = /^(https:\/\/(?:www\.)?gitlab\.com\/[^/]+\/[^/]+)/i.exec(url);
+  if (gitlabMatch) return `${gitlabMatch[1]}.git`;
+  return `${url.replace(/\.git$/, "")}.git`;
 }
 
 /** Directory inside the repository that holds the skill, when the data names one. */
 function skillDir(data: PackageDetailData): string {
   const fromArtifact = data.artifact?.path?.replace(/^\/+|\/+$/g, "");
   if (fromArtifact) return fromArtifact;
-  const m = /^https:\/\/github\.com\/[^/]+\/[^/]+\/(?:tree|blob)\/[^/]+\/(.+?)\/?$/.exec(data.skillSource ?? "");
-  return m ? decodeURIComponent(m[1]) : "";
+  const m = /^https:\/\/(?:www\.)?github\.com\/[^/]+\/[^/]+\/(?:tree|blob)\/[^/]+\/(.+?)\/?$/.exec(data.skillSource ?? "");
+  if (m) return decodeURIComponent(m[1]);
+  const repoM = /^https:\/\/(?:www\.)?github\.com\/[^/]+\/[^/]+\/(?:tree|blob)\/[^/]+\/(.+?)\/?$/.exec(data.repoUrl ?? "");
+  return repoM ? decodeURIComponent(repoM[1]) : "";
 }
 
 export function InstallSection({
@@ -250,9 +263,9 @@ export function InstallSection({
                         ):
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
                           <code className="min-w-0 truncate rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-foreground">
-                            git clone {repo.replace(/\.git$/, "")}.git
+                            git clone {cleanGitRepoUrl(repo)}
                           </code>
-                          <CopyButton value={`git clone ${repo.replace(/\.git$/, "")}.git`} />
+                          <CopyButton value={`git clone ${cleanGitRepoUrl(repo)}`} />
                         </div>
                       </>
                     ) : data.skillSource ? (

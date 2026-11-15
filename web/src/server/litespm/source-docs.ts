@@ -18,7 +18,7 @@ import type {
   SourceDocsResponse,
 } from "@/lib/litespm/source-docs-types";
 
-const FETCH_TIMEOUT_MS = 10_000;
+const FETCH_TIMEOUT_MS = 2_500;
 const MAX_BYTES = 512 * 1024;
 const CACHE_MAX = 500;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;

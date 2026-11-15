@@ -52,6 +52,7 @@ export interface CatalogFacets {
 
 export interface CatalogListResponse {
   total: number;
+  uniqueListings?: number;
   page: number;
   pageSize: number;
   pageCount: number;

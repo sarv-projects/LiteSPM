@@ -138,8 +138,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
   body {
     @apply bg-background text-foreground;
+    overflow-x: clip;
+    max-width: 100vw;
   }
 }
 

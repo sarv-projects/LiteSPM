@@ -54,7 +54,15 @@ export function kindForTab(tab: string): string | undefined {
 /** decodeURIComponent throws on a stray `%`; a malformed link must not crash the app. */
 export function safeDecode(value: string): string {
   try {
-    return decodeURIComponent(value);
+    let current = value;
+    // Decode iteratively until stable to resolve double-encoding (e.g. %253A -> %3A -> :)
+    for (let i = 0; i < 3; i++) {
+      if (!current.includes("%")) break;
+      const decoded = decodeURIComponent(current);
+      if (decoded === current) break;
+      current = decoded;
+    }
+    return current;
   } catch {
     return value;
   }
@@ -108,6 +116,10 @@ export function parsePath(fullPath: string, searchStr: string = ""): Route {
 
   if (parts.length === 0 || parts[0] === "") {
     return { view: "home" };
+  }
+
+  if (parts[0] === "installed") {
+    return { view: "marketplace", tab: "installed", query: {} };
   }
 
   if (parts[0] === "marketplace" || parts[0] === "explore") {

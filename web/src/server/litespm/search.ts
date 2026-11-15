@@ -89,6 +89,7 @@ export interface CatalogFacets {
 
 export interface CatalogListResponse {
   total: number;
+  uniqueListings?: number;
   page: number;
   pageSize: number;
   pageCount: number;
@@ -636,7 +637,15 @@ function computeSearch(
   // hit projection entirely.
   if (facetsOnly) {
     const total = result.poolKeys.size;
-    return { total, page: 1, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)), items: [], facets };
+    return {
+      total,
+      uniqueListings: rows.length,
+      page: 1,
+      pageSize,
+      pageCount: Math.max(1, Math.ceil(total / pageSize)),
+      items: [],
+      facets,
+    };
   }
 
   const sort = query.sort ?? (groups.length > 0 ? "relevance" : "rank");
@@ -728,7 +737,15 @@ function computeSearch(
     };
   }
 
-  return { total, page, pageSize, pageCount, items: pageRows.map(toHit), facets };
+  return {
+    total,
+    uniqueListings: rows.length,
+    page,
+    pageSize,
+    pageCount,
+    items: pageRows.map(toHit),
+    facets,
+  };
 }
 
 export async function catalogStats() {

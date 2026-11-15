@@ -22,6 +22,7 @@ const ORIGIN = "https://lite-spm-nine.vercel.app";
 const KNOWN_SECTIONS = new Set([
   "marketplace",
   "explore", // redirected to /marketplace by next.config.ts; kept so a bypassed redirect still renders
+  "installed", // redirected to /marketplace?tab=installed
   "package",
   "agents",
   "agent",
@@ -111,13 +112,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         const description =
           resp.detail.summary ||
           `Install ${resp.detail.name} into supported AI agent hosts with LiteSPM.`;
+        const canonicalPath = `/package/${encodeURIComponent(key).replace(/%3A/g, ":")}`;
         return {
-          ...pageMeta(title, description, `/package/${encodeURIComponent(key)}`),
+          ...pageMeta(title, description, canonicalPath),
           openGraph: {
             title,
             description,
             type: "article",
-            url: `${ORIGIN}/package/${encodeURIComponent(key)}`,
+            url: `${ORIGIN}${canonicalPath}`,
           },
         };
       }

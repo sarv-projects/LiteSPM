@@ -2,8 +2,15 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, Copy, Layers, Loader2 } from "lucide-react";
+import { ArrowRight, Check, Copy, Info, Key, Layers, Loader2, Sparkles, Terminal, Wrench } from "lucide-react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { displayPackageName } from "@/lib/litespm/format";
 import { shellArg } from "@/lib/litespm/shell";
@@ -48,6 +55,7 @@ export function BundleCard({
 }) {
   const [agent, setAgent] = React.useState("");
   const [copied, setCopied] = React.useState(false);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   const targets = React.useMemo(() => [ANY_AGENT, ...agents], [agents]);
   const installable = bundle.items.filter((item) => item.installable);
@@ -72,67 +80,169 @@ export function BundleCard({
   };
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      className="flex h-full flex-col rounded-2xl border border-border/70 bg-card p-5"
-      aria-labelledby={`bundle-${bundle.id}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h3 id={`bundle-${bundle.id}`} className="text-[16px] font-semibold tracking-tight">
-          {bundle.title}
-        </h3>
-        <DifficultyPill level={bundle.difficulty} />
-      </div>
-      <p className="mt-1 text-[11.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
-        For: {bundle.audience}
-      </p>
-      <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{bundle.blurb}</p>
-
-      <ul className="mt-4 flex flex-wrap gap-1.5" aria-label={`Items in ${bundle.title}`}>
-        {bundle.items.map((item) => (
-          <li key={item.id}>
-            <NavLink
-              to={`/package/${encodeURIComponent(item.linkKey)}`}
-              title={`${item.name} by ${item.publisher || "unknown publisher"}: ${item.summary}`}
-              className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2 py-1 text-[12px] font-medium transition-colors hover:border-brand/50 hover:text-brand"
-            >
-              <KindBadge kind={item.kind} />
-              <span className="truncate">{displayPackageName(item.name)}</span>
-              {item.publisher && !compact && (
-                <span className="hidden truncate text-[10.5px] font-normal text-muted-foreground sm:inline">
-                  {item.publisher}
-                </span>
-              )}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-auto pt-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <TargetAgentPicker targets={targets} value={agent} onChange={setAgent} kindLabel="agents" />
+    <>
+      <motion.article
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="flex h-full flex-col rounded-2xl border border-border/70 bg-card p-5"
+        aria-labelledby={`bundle-${bundle.id}`}
+      >
+        <div className="flex items-start justify-between gap-3">
           <button
             type="button"
-            onClick={copy}
-            disabled={!commands}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+            onClick={() => setDetailsOpen(true)}
+            className="text-left font-semibold tracking-tight text-[16px] text-foreground hover:text-brand hover:underline transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+            title="Inspect bundle workflow and prerequisite details"
           >
-            {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-            {copied ? "Copied" : "Copy install commands"}
+            {bundle.title}
           </button>
-          <span className="sr-only" role="status">
-            {copied ? "Install commands copied" : ""}
-          </span>
+          <DifficultyPill level={bundle.difficulty} />
         </div>
-        <p className="mt-2 text-[11.5px] text-muted-foreground">
-          {`${forAgent.length} ${forAgent.length === 1 ? "command" : "commands"}, one per line`} (
-          <code className="font-mono">litespm install</code> takes one id at a time)
-          {skipped > 0 ? `. ${skipped} item${skipped === 1 ? "" : "s"} left out: that agent cannot receive ${skipped === 1 ? "it" : "them"}.` : "."}
+        <p className="mt-1 text-[11.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
+          For: {bundle.audience}
         </p>
-      </div>
-    </motion.article>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{bundle.blurb}</p>
+
+        <ul className="mt-4 flex flex-wrap gap-1.5" aria-label={`Items in ${bundle.title}`}>
+          {bundle.items.map((item) => (
+            <li key={item.id}>
+              <NavLink
+                to={`/package/${encodeURIComponent(item.linkKey)}`}
+                title={`${item.name} by ${item.publisher || "unknown publisher"}: ${item.summary}`}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2 py-1 text-[12px] font-medium transition-colors hover:border-brand/50 hover:text-brand"
+              >
+                <KindBadge kind={item.kind} />
+                <span className="truncate">{displayPackageName(item.name)}</span>
+                {item.publisher && !compact && (
+                  <span className="hidden truncate text-[10.5px] font-normal text-muted-foreground sm:inline">
+                    {item.publisher}
+                  </span>
+                )}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-auto pt-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <TargetAgentPicker targets={targets} value={agent} onChange={setAgent} kindLabel="agents" />
+            <button
+              type="button"
+              onClick={copy}
+              disabled={!commands}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+              {copied ? "Copied" : "Copy install commands"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDetailsOpen(true)}
+              className="inline-flex h-8 items-center gap-1 rounded-lg border border-border/70 bg-background px-2.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground"
+            >
+              <Info className="h-3.5 w-3.5" /> Details
+            </button>
+            <span className="sr-only" role="status">
+              {copied ? "Install commands copied" : ""}
+            </span>
+          </div>
+          <p className="mt-2 text-[11.5px] text-muted-foreground">
+            {`${forAgent.length} ${forAgent.length === 1 ? "command" : "commands"}, one per line`} (
+            <code className="font-mono">litespm install</code> takes one id at a time)
+            {skipped > 0 ? `. ${skipped} item${skipped === 1 ? "" : "s"} left out: that agent cannot receive ${skipped === 1 ? "it" : "them"}.` : "."}
+          </p>
+        </div>
+      </motion.article>
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-3 pr-6">
+              <DialogTitle className="text-[18px] font-bold tracking-tight">
+                {bundle.title}
+              </DialogTitle>
+              <DifficultyPill level={bundle.difficulty} />
+            </div>
+            <DialogDescription className="text-[13px] text-muted-foreground mt-1">
+              Target Audience: {bundle.audience}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <p className="text-[13.5px] leading-relaxed text-foreground/90">
+              {bundle.blurb}
+            </p>
+
+            <div className="rounded-xl border border-border/70 bg-muted/30 p-3.5 space-y-2 text-[12px]">
+              <div className="flex items-center gap-2 font-semibold text-foreground">
+                <Wrench className="h-3.5 w-3.5 text-brand" /> Prerequisites & Environment
+              </div>
+              <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+                <li>Runtime: Node.js 18+ (or Python uv where needed for native Python MCPs)</li>
+                <li>LiteSPM CLI: <code className="font-mono text-foreground">npm install -g litespm</code></li>
+                <li>Common secrets: <code className="font-mono text-foreground">GITHUB_TOKEN</code> if interacting with GitHub repositories; service API tokens when configuring external database or monitoring tools.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-[13px] font-semibold text-foreground mb-2 flex items-center justify-between">
+                <span>Included Capabilities ({bundle.items.length})</span>
+                <span className="text-[11.5px] font-normal text-muted-foreground">All installable via LiteSPM</span>
+              </h4>
+              <ul className="space-y-2">
+                {bundle.items.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex flex-col gap-1 rounded-xl border border-border/60 bg-card p-3 text-[12.5px]"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <KindBadge kind={item.kind} />
+                        <span className="font-semibold text-foreground truncate">
+                          {displayPackageName(item.name)}
+                        </span>
+                      </div>
+                      <NavLink
+                        to={`/package/${encodeURIComponent(item.linkKey)}`}
+                        className="text-[11.5px] font-medium text-brand hover:underline shrink-0"
+                      >
+                        View package →
+                      </NavLink>
+                    </div>
+                    {item.summary && (
+                      <p className="text-[11.5px] text-muted-foreground leading-relaxed line-clamp-2">
+                        {item.summary}
+                      </p>
+                    )}
+                    {item.publisher && (
+                      <span className="text-[10.5px] font-mono text-muted-foreground/80">
+                        publisher: {item.publisher}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="pt-2 border-t border-border/60">
+              <div className="flex flex-wrap items-center gap-2">
+                <TargetAgentPicker targets={targets} value={agent} onChange={setAgent} kindLabel="agents" />
+                <button
+                  type="button"
+                  onClick={copy}
+                  disabled={!commands}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {copied ? "Copied" : "Copy install commands"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

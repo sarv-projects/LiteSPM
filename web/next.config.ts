@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/explore", destination: "/marketplace", permanent: true },
       { source: "/agents/:id", destination: "/agent/:id", permanent: true },
+      { source: "/installed", destination: "/marketplace?tab=installed", permanent: true },
     ];
   },
   // Baseline response headers. A full CSP is deliberately not set here: Next
