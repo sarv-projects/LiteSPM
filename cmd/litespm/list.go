@@ -933,12 +933,22 @@ func sortRecords(records []inventoryRecord) {
 	})
 }
 
+func canonicalCapabilityKey(rec inventoryRecord) string {
+	if strings.HasPrefix(rec.ID, "observed:") {
+		return rec.Kind + ":" + rec.Name
+	}
+	if rec.ID != "" {
+		return rec.ID
+	}
+	return rec.Kind + ":" + rec.Name
+}
+
 // countRecords computes the §4 counts over exactly the records shown.
 func countRecords(records []inventoryRecord) inventoryCounts {
 	var counts inventoryCounts
 	unique := map[string]bool{}
 	for _, rec := range records {
-		unique[rec.ID] = true
+		unique[canonicalCapabilityKey(rec)] = true
 		switch rec.State {
 		case stateManaged:
 			counts.Managed++
@@ -1010,9 +1020,46 @@ func renderList(w io.Writer, report *inventoryReport, fl listFlags) {
 		return
 	}
 
+	if fl.agent != "" {
+		renderListByAgent(w, report.Records)
+	} else {
+		var managedRows []inventoryRecord
+		var observedRows []inventoryRecord
+		for _, rec := range report.Records {
+			if rec.State == stateObserved {
+				observedRows = append(observedRows, rec)
+			} else {
+				managedRows = append(managedRows, rec)
+			}
+		}
+
+		if len(managedRows) > 0 {
+			renderListByAgent(w, managedRows)
+		}
+		if len(observedRows) > 0 {
+			renderGroupedObserved(w, observedRows)
+		}
+	}
+
+	fmt.Fprintf(w, "State: %d managed · %d observed · %d adopted · %d drifted · %d broken · %d not knowable\n",
+		report.Counts.Managed, report.Counts.Observed, report.Counts.Adopted,
+		report.Counts.Drifted, report.Counts.Broken, report.Counts.Unknown)
+	if len(report.Warnings) > 0 {
+		fmt.Fprintf(w, "Read warnings: %d source(s) could not be read — details were printed on stderr.\n", len(report.Warnings))
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "  managed   LiteSPM controls it; install remove / restore can undo it")
+	fmt.Fprintln(w, "  observed  found in an agent's own config; read-only, never edited or removed")
+	fmt.Fprintln(w, "  adopted   taken from another agent with `copy`; managed now, origin recorded")
+	fmt.Fprintln(w, "  drifted   changed since LiteSPM wrote it; reported, never repaired here")
+	fmt.Fprintln(w, "  broken    recorded by LiteSPM but missing where it was written")
+	fmt.Fprintln(w, "  —         the recorded data cannot answer; shown, never guessed")
+}
+
+func renderListByAgent(w io.Writer, records []inventoryRecord) {
 	byAgent := map[string][]inventoryRecord{}
 	agents := []string{}
-	for _, rec := range report.Records {
+	for _, rec := range records {
 		if _, seen := byAgent[rec.Agent]; !seen {
 			agents = append(agents, rec.Agent)
 		}
@@ -1047,20 +1094,61 @@ func renderList(w io.Writer, report *inventoryReport, fl listFlags) {
 		}
 		fmt.Fprintln(w)
 	}
+}
 
-	fmt.Fprintf(w, "State: %d managed · %d observed · %d adopted · %d drifted · %d broken · %d not knowable\n",
-		report.Counts.Managed, report.Counts.Observed, report.Counts.Adopted,
-		report.Counts.Drifted, report.Counts.Broken, report.Counts.Unknown)
-	if len(report.Warnings) > 0 {
-		fmt.Fprintf(w, "Read warnings: %d source(s) could not be read — details were printed on stderr.\n", len(report.Warnings))
+type observedGroup struct {
+	kind   string
+	name   string
+	scope  string
+	agents []string
+}
+
+func renderGroupedObserved(w io.Writer, rows []inventoryRecord) {
+	groups := map[string]*observedGroup{}
+	var names []string
+	for _, rec := range rows {
+		key := rec.Kind + ":" + rec.Name
+		if g, exists := groups[key]; exists {
+			hasAgent := false
+			for _, a := range g.agents {
+				if a == rec.Agent {
+					hasAgent = true
+					break
+				}
+			}
+			if !hasAgent && rec.Agent != "" {
+				g.agents = append(g.agents, rec.Agent)
+			}
+		} else {
+			names = append(names, key)
+			var ags []string
+			if rec.Agent != "" {
+				ags = append(ags, rec.Agent)
+			}
+			groups[key] = &observedGroup{
+				kind:   rec.Kind,
+				name:   rec.Name,
+				scope:  rec.Scope,
+				agents: ags,
+			}
+		}
+	}
+
+	sort.Strings(names)
+
+	fmt.Fprintf(w, "DETECTED CAPABILITIES (grouped across agents, read-only)\n")
+	fmt.Fprintf(w, "  %-7s %-22s %-9s %-7s %s\n", "KIND", "NAME", "STATE", "SCOPE", "FOUND IN AGENTS")
+	for _, key := range names {
+		g := groups[key]
+		sort.Strings(g.agents)
+		agentList := strings.Join(g.agents, ", ")
+		if len(g.agents) > 1 {
+			agentList = fmt.Sprintf("%s (%d)", agentList, len(g.agents))
+		}
+		fmt.Fprintf(w, "  %-7s %-22s %-9s %-7s %s\n",
+			g.kind, truncateRunes(g.name, 22), "observed", scopeDash(g.scope), truncateRunes(agentList, 64))
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "  managed   LiteSPM controls it; install remove / restore can undo it")
-	fmt.Fprintln(w, "  observed  found in an agent's own config; read-only, never edited or removed")
-	fmt.Fprintln(w, "  adopted   taken from another agent with `copy`; managed now, origin recorded")
-	fmt.Fprintln(w, "  drifted   changed since LiteSPM wrote it; reported, never repaired here")
-	fmt.Fprintln(w, "  broken    recorded by LiteSPM but missing where it was written")
-	fmt.Fprintln(w, "  —         the recorded data cannot answer; shown, never guessed")
 }
 
 // KindDash / StateDash / scopeDash keep an unknown cell visibly empty instead
