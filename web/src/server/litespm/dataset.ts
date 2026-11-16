@@ -85,15 +85,24 @@ function linkKeyFor(row: Listing, slugCounts: Map<string, number>): string {
   return collisions > 1 ? row.id : row.slug;
 }
 
+export function isParseArtifactOrJunk(name?: string): boolean {
+  if (!name) return true;
+  const trimmed = name.trim();
+  if (/,\s*(?:value|numbers)\s*discarded/i.test(trimmed)) return true;
+  if (/^[:*]/.test(trimmed)) return true;
+  return false;
+}
+
 async function load(): Promise<Dataset> {
   const raw = readJson<Listing[]>("catalog.json");
+  const filtered = raw.filter((r) => !isParseArtifactOrJunk(r.name));
   const hosts = readJson<HostRow[]>("hosts.json");
   const skillTargets = readJson<SkillTargetRow[]>("skill-targets.json");
   const release = readJson<ReleaseManifest>("release.json");
   const featured = readJson<FeaturedShelf>("featured.json");
   const cli = readJson<CliRelease[]>("published-cli.json");
 
-  const unique = uniqueListings(raw.map(normalizeListing));
+  const unique = uniqueListings(filtered.map(normalizeListing));
 
   // linkKey: the slug where it is unambiguous, the namespaced id otherwise
   // (`withLinkKeys` in the upstream lib/catalog.ts). Stamped onto the rows

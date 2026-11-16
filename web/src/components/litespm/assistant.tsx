@@ -543,6 +543,53 @@ function DynamicWidgetOrCode({
   return <CodeBlockSnippet code={content} lang={lang} />;
 }
 
+function ThinkingState({ statusText }: { statusText?: string | null }) {
+  const [step, setStep] = React.useState(0);
+  const steps = [
+    "Consulting 69,376 catalog listings…",
+    "Searching local architecture & host specs…",
+    "Synthesizing verified citations & commands…",
+  ];
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setStep((prev) => (prev + 1) % steps.length);
+    }, 1400);
+    return () => clearInterval(timer);
+  }, [steps.length]);
+
+  return (
+    <div className="space-y-3 py-1.5 px-0.5" aria-label="liteAI is thinking">
+      <div className="flex items-center gap-2.5">
+        <div className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/35 opacity-75" />
+          <span className="absolute inline-flex h-3.5 w-3.5 rounded-full bg-brand/20 animate-pulse" />
+          <Sparkles className="relative h-3.5 w-3.5 text-brand" />
+        </div>
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[12.5px] font-medium text-foreground">liteAI is analyzing…</span>
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand animate-bounce" style={{ animationDelay: "0ms" }} />
+              <span className="h-1.5 w-1.5 rounded-full bg-brand animate-bounce" style={{ animationDelay: "150ms" }} />
+              <span className="h-1.5 w-1.5 rounded-full bg-brand animate-bounce" style={{ animationDelay: "300ms" }} />
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground transition-all duration-300">
+            {statusText ?? steps[step]}
+          </span>
+        </div>
+      </div>
+
+      {/* Shimmer Wave Skeleton */}
+      <div className="space-y-2 pt-0.5">
+        <div className="h-2 w-4/5 rounded-full bg-gradient-to-r from-muted/60 via-brand/25 to-muted/60 bg-[length:200%_100%] animate-pulse" />
+        <div className="h-2 w-3/5 rounded-full bg-gradient-to-r from-muted/50 via-brand/20 to-muted/50 bg-[length:200%_100%] animate-pulse" style={{ animationDelay: "200ms" }} />
+      </div>
+    </div>
+  );
+}
+
 /** Render the assistant's rich markdown answer: tables, code, bold, links, lists. */
 function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: string) => void }) {
   const blocks = parseMarkdownBlocks(text);
@@ -1271,18 +1318,7 @@ export function Assistant() {
               ) : (
                 <>
                   {message.content.length === 0 && message.streaming ? (
-                    <div className="flex items-center gap-2.5 py-1 px-0.5" aria-label="liteAI is thinking">
-                      <div className="relative flex h-4 w-4 shrink-0 items-center justify-center">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/40 opacity-75" />
-                        <Sparkles className="h-3.5 w-3.5 text-brand animate-pulse" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[12px] font-medium text-foreground">liteAI is processing…</span>
-                        <span className="text-[10px] text-muted-foreground animate-pulse">
-                          {statusText ?? "Synthesizing answer & verifying citations"}
-                        </span>
-                      </div>
-                    </div>
+                    <ThinkingState statusText={statusText} />
                   ) : (
                     <div>
                       <RichAnswer

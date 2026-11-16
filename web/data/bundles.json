@@ -40,10 +40,7 @@
         "mcp:builtin:mcp-registry:com.vercel-vercel-mcp",
         "mcp:builtin:mcp-registry:io.github.ChromeDevTools-chrome-devtools-mcp",
         "skill:microsoft:playwright-cli",
-        "skill:vercel:building-components",
-        "skill:obra:test-driven-development",
-        "skill:obra:systematic-debugging",
-        "skill:obra:verification-before-completion"
+        "skill:vercel:building-components"
       ]
     },
     {
@@ -90,9 +87,7 @@
         "mcp:builtin:mcp-registry:io.github.upstash-context7",
         "skill:upstash:context7-mcp",
         "mcp:builtin:mcp-registry:io.github.brave-brave-search-mcp-server",
-        "mcp:builtin:mcp-registry:io.github.firecrawl-firecrawl-mcp-server",
-        "skill:obra:brainstorming",
-        "skill:obra:verification-before-completion"
+        "mcp:builtin:mcp-registry:io.github.firecrawl-firecrawl-mcp-server"
       ]
     },
     {
@@ -107,10 +102,7 @@
         "skill:github:playwright-generate-test",
         "skill:microsoft:playwright-cli",
         "mcp:builtin:mcp-registry:io.github.ChromeDevTools-chrome-devtools-mcp",
-        "skill:anthropics:webapp-testing",
-        "skill:obra:test-driven-development",
-        "skill:obra:systematic-debugging",
-        "skill:obra:verification-before-completion"
+        "skill:anthropics:webapp-testing"
       ]
     },
     {
@@ -124,9 +116,7 @@
         "skill:getsentry:sentry-debug-issue",
         "skill:getsentry:sentry-fix-stack-traces",
         "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana",
-        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
-        "skill:obra:systematic-debugging",
-        "skill:obra:verification-before-completion"
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
       ]
     },
     {
@@ -157,10 +147,7 @@
         "mcp:builtin:mcp-registry:com.atlassian-atlassian-mcp-server",
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
         "skill:obra:writing-plans",
-        "skill:obra:executing-plans",
-        "skill:obra:subagent-driven-development",
-        "skill:obra:requesting-code-review",
-        "skill:obra:finishing-a-development-branch"
+        "skill:obra:executing-plans"
       ]
     },
     {
@@ -174,9 +161,7 @@
         "skill:stripe:stripe-best-practices",
         "skill:stripe:stripe-docs",
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
-        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp",
-        "skill:obra:test-driven-development",
-        "skill:obra:verification-before-completion"
+        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp"
       ]
     },
     {
@@ -192,9 +177,7 @@
         "skill:hashicorp:terraform-policy",
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
         "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana",
-        "skill:semgrep:code-security",
-        "skill:obra:systematic-debugging",
-        "skill:obra:verification-before-completion"
+        "skill:semgrep:code-security"
       ]
     },
     {
@@ -209,11 +192,7 @@
         "mcp:builtin:mcp-registry:io.github.upstash-context7",
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
         "skill:anthropics:skill-creator",
-        "skill:semgrep:code-security",
-        "skill:obra:brainstorming",
-        "skill:obra:writing-plans",
-        "skill:obra:test-driven-development",
-        "skill:obra:verification-before-completion"
+        "skill:semgrep:code-security"
       ]
     },
     {
@@ -229,9 +208,7 @@
         "mcp:builtin:mcp-registry:gallery.a1-a1-gallery",
         "mcp:builtin:mcp-registry:io.github.upstash-context7",
         "skill:anthropics:canvas-design",
-        "skill:vercel:building-components",
-        "skill:obra:brainstorming",
-        "skill:obra:verification-before-completion"
+        "skill:vercel:building-components"
       ]
     },
     {
@@ -264,9 +241,7 @@
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
         "skill:semgrep:code-security",
         "skill:semgrep:llm-security",
-        "skill:anthropics:threat-model",
-        "skill:obra:systematic-debugging",
-        "skill:obra:verification-before-completion"
+        "skill:anthropics:threat-model"
       ]
     },
     {
@@ -281,15 +256,7 @@
         "skill:getsentry:find-bugs",
         "skill:anthropics:architecture",
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
-        "mcp:builtin:mcp-registry:io.github.upstash-context7",
-        "skill:obra:brainstorming",
-        "skill:obra:writing-plans",
-        "skill:obra:executing-plans",
-        "skill:obra:subagent-driven-development",
-        "skill:obra:using-git-worktrees",
-        "skill:obra:requesting-code-review",
-        "skill:obra:receiving-code-review",
-        "skill:obra:verification-before-completion"
+        "mcp:builtin:mcp-registry:io.github.upstash-context7"
       ]
     },
     {
@@ -307,10 +274,7 @@
         "mcp:builtin:mcp-registry:com.neon-mcp",
         "skill:neondatabase:neon-postgres",
         "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana",
-        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp",
-        "skill:obra:test-driven-development",
-        "skill:obra:systematic-debugging",
-        "skill:obra:verification-before-completion"
+        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp"
       ]
     },
     {
@@ -326,10 +290,7 @@
         "skill:getsentry:sentry-snapshots-cocoa",
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
         "skill:callstackincubator:create-react-native-library",
-        "skill:callstackincubator:assess-react-native-migration",
-        "skill:obra:test-driven-development",
-        "skill:obra:systematic-debugging",
-        "skill:obra:verification-before-completion"
+        "skill:callstackincubator:assess-react-native-migration"
       ]
     },
     {
@@ -343,10 +304,7 @@
         "skill:anthropics:claude-api",
         "skill:anthropics:skill-creator",
         "mcp:builtin:mcp-registry:io.github.upstash-context7",
-        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
-        "skill:obra:test-driven-development",
-        "skill:obra:systematic-debugging",
-        "skill:obra:verification-before-completion"
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
       ]
     },
     {

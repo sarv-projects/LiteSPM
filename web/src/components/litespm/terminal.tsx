@@ -72,8 +72,8 @@ const SCENARIOS: Record<
 
 const LINE_STYLES: Record<ScriptLine["kind"], string> = {
   cmd: "text-[oklch(0.95_0.01_163)] font-semibold",
-  // Same size and letter-spacing as the rows, so the columns line up.
-  header: "text-white/38 font-medium",
+  // Same size and letter-spacing as the rows, with >=4.5:1 WCAG AA contrast.
+  header: "text-white/75 font-medium",
   out: "text-[oklch(0.82_0.02_163)]",
   ok: "text-emerald-400 font-medium",
   dim: "text-[oklch(0.60_0.02_163)]",

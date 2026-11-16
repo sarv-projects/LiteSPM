@@ -59,7 +59,7 @@ const GOAL_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const HERO_WORDS = ["The", "Universal", "Package", "Manager"];
+const HERO_WORDS = ["Install", "AI", "tools", "once."];
 
 // Every name here is an MCP host in web/data/hosts.json.
 const MARQUEE_AGENTS = [
@@ -184,8 +184,8 @@ export function HomeView() {
               {`${stats?.hosts ?? facts.hosts} agent hosts`}
             </p>
 
-            <h1 className="mt-5 text-[clamp(2.6rem,6vw,4.6rem)] font-semibold leading-[1.0] tracking-[-0.045em]">
-              <span className="sr-only">The Universal Package Manager for AI Coding Agents.</span>
+            <h1 className="mt-5 text-[clamp(2.4rem,5.5vw,4.4rem)] font-semibold leading-[1.0] tracking-[-0.045em]">
+              <span className="sr-only">Install AI tools once. Undo them in one command.</span>
               <span aria-hidden="true">
                 {HERO_WORDS.map((word, i) => (
                   <React.Fragment key={word + i}>
@@ -199,7 +199,7 @@ export function HomeView() {
                   className="rise-word text-sheen pb-[0.08em]"
                   style={{ "--i": HERO_WORDS.length + 1 } as React.CSSProperties}
                 >
-                  for AI Coding Agents.
+                  Undo them in one command.
                 </span>
               </span>
             </h1>
@@ -208,9 +208,7 @@ export function HomeView() {
               className="rise-block mt-6 max-w-[54ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
               style={{ "--d": "520ms" } as React.CSSProperties}
             >
-              Install MCP servers, agent skills, and workflow bundles across Cursor, Claude Code,
-              Cline, OpenCode, and {stats?.hosts ?? facts.hosts} AI agents with a single command.
-              Preview changes, preserve your settings, and undo installations cleanly. Complete local audit control.
+              Every agent has its own config. LiteSPM writes the right entry into each of your {stats?.hosts ?? facts.hosts} agents — MCP servers, skills, and plugins — previews the diff, backs up the file, and rolls back byte-for-byte when you change your mind.
             </p>
 
             <div
@@ -312,6 +310,44 @@ export function HomeView() {
               <TerminalHero framed hostsCount={stats?.hosts ?? facts.hosts} />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ----------------------------- trust strip ----------------------------- */}
+      <section className="border-b border-border/60 bg-muted/20 py-3.5" aria-label="Security and safety guarantees">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 text-[12px] sm:px-6">
+          <NavLink
+            to="/docs/install-flow"
+            className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-brand"
+          >
+            <Eye className="h-4 w-4 text-brand" />
+            <span className="font-medium text-foreground">Preview before write</span>
+            <span className="hidden text-muted-foreground/80 md:inline">— Inspect every config diff</span>
+          </NavLink>
+          <NavLink
+            to="/docs/security"
+            className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-brand"
+          >
+            <ShieldCheck className="h-4 w-4 text-brand" />
+            <span className="font-medium text-foreground">Automatic CAS backup</span>
+            <span className="hidden text-muted-foreground/80 md:inline">— Pre-image digest verification</span>
+          </NavLink>
+          <NavLink
+            to="/docs/install-flow"
+            className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-brand"
+          >
+            <RotateCcw className="h-4 w-4 text-brand" />
+            <span className="font-medium text-foreground">Byte-exact undo</span>
+            <span className="hidden text-muted-foreground/80 md:inline">— Reversible in one command</span>
+          </NavLink>
+          <NavLink
+            to="/docs/security"
+            className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-brand"
+          >
+            <BadgeCheck className="h-4 w-4 text-brand" />
+            <span className="font-medium text-foreground">Sigstore-signed releases</span>
+            <span className="hidden text-muted-foreground/80 md:inline">— Keyless GitHub OIDC provenance</span>
+          </NavLink>
         </div>
       </section>
 

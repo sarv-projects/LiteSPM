@@ -3723,6 +3723,24 @@ def build_full_catalog(refresh=False, skip_sources=frozenset(), only_source=None
         sample = ", ".join(sorted(duplicate_ids)[:10])
         raise ValueError(f"catalog contains {len(duplicate_ids)} duplicate listing id(s): {sample}")
 
+    # LPSM-F03: Quarantine parse artifacts and junk records.
+    # Scraped parser-test entries such as ':authority host:port shape, value discarded'
+    # or records containing ', value discarded' / ', numbers discarded' must not pollute the catalog.
+    def is_junk_or_parse_artifact(item):
+        name = (item.get("name") or "").strip()
+        if not name:
+            return True
+        if re.search(r",\s*(?:value|numbers)\s*discarded", name, re.IGNORECASE):
+            return True
+        if re.match(r"^[:*]", name):
+            return True
+        return False
+
+    quarantined = [x for x in items if is_junk_or_parse_artifact(x)]
+    if quarantined:
+        print(f"  Quarantined {len(quarantined)} parse-artifact / junk row(s) (LPSM-F03)")
+        items = [x for x in items if not is_junk_or_parse_artifact(x)]
+
     # Directory feeds carry a repository link but no launch line. A directory
     # row is promoted only when its publisher login and repository slug match a
     # registry row exactly, and that row publishes both a version and a launch
