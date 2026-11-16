@@ -299,12 +299,20 @@ export function MarketplaceView({
         </p>
       </div>
 
-      <nav aria-label="Marketplace sections" className="mt-6 flex flex-wrap items-center gap-1.5 border-b border-border/60 pb-3">
+      <nav
+        role="tablist"
+        aria-label="Marketplace sections"
+        className="mt-6 flex flex-wrap items-center gap-1.5 border-b border-border/60 pb-3"
+      >
         {TAB_META.map((t) => {
           const active = tab === t.id;
           return (
             <NavLink
               key={t.id}
+              role="tab"
+              id={`tab-${t.id}`}
+              aria-selected={active}
+              aria-controls={`tabpanel-${t.id}`}
               to={t.id === "installed" ? "/marketplace?tab=installed" : exploreHash({ q: query.q, kind: kindForTab(t.id) }, t.id)}
               aria-current={active ? "page" : undefined}
               title={t.blurb}
@@ -321,7 +329,12 @@ export function MarketplaceView({
         })}
       </nav>
 
-      <div className="mt-5">
+      <div
+        role="tabpanel"
+        id={`tabpanel-${tab}`}
+        aria-labelledby={`tab-${tab}`}
+        className="mt-5"
+      >
         {tab === "installed" ? <InstalledTab /> : <CatalogBrowser query={query} tab={tab} />}
       </div>
     </div>

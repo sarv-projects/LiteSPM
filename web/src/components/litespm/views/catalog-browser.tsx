@@ -260,6 +260,8 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
           <span className="sr-only">Search {TAB_NOUN[tab]}</span>
           <input
             type="search"
+            id="catalog-search-input"
+            aria-label={`Search ${TAB_NOUN[tab]}`}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             maxLength={200}

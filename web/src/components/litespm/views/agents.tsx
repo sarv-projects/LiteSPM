@@ -166,6 +166,8 @@ export function AgentsView() {
             <span className="sr-only">Search agent profiles</span>
             <input
               type="search"
+              id="agents-search-input"
+              aria-label="Search agent profiles"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search agents…"

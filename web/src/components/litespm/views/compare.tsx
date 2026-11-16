@@ -113,6 +113,8 @@ export function CompareView({ keys }: { keys: string[] }) {
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="sr-only">Search packages to compare</span>
           <input
+            id="compare-search-input"
+            aria-label="Search packages to add to comparison"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search packages to add…"

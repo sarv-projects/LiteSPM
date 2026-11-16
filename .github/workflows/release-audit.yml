@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: '22'
       - name: Build CLI
-        run: go build -o dist/litespm ./cmd/litespm
+        run: CGO_ENABLED=0 go build -o dist/litespm ./cmd/litespm
       - name: Test source resolution and real local installation
         run: |
           go test ./internal/skills ./cmd/litespm

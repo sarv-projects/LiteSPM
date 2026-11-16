@@ -44,8 +44,8 @@ export function AvailabilityBadge({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] font-medium",
         installable
-          ? "border-brand/35 bg-brand-soft text-brand"
-          : "border-border/70 bg-muted/50 text-muted-foreground",
+          ? "border-brand/35 bg-brand-soft text-brand dark:text-emerald-400"
+          : "border-border/80 bg-muted/60 text-foreground/85 dark:text-neutral-200",
         className,
       )}
     >

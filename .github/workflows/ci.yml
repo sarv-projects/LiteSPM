@@ -144,6 +144,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           $version = node -p "require('./npm/package.json').version"
+          $env:CGO_ENABLED = '0'
           go build -ldflags "-X main.Version=$version" -o dist/litespm-windows-amd64.exe ./cmd/litespm
 
       - name: Pack, Install Tarball (--ignore-scripts) and Run
