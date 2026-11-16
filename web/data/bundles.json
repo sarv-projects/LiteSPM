@@ -295,7 +295,7 @@
     {
       "id": "backend-distributed-systems",
       "title": "Distributed backend & caching",
-      "blurb": "Build high-throughput backends: Redis caching and rate-limiting, vector search indexing, Neon Postgres egress optimization, and Kafka event streaming stacks.",
+      "blurb": "Build high-throughput backends: Redis caching and rate-limiting, Upstash vector search indexing, and Neon Postgres egress optimization.",
       "difficulty": "Intermediate",
       "audience": "Backend engineers building scalable APIs and distributed systems",
       "items": [

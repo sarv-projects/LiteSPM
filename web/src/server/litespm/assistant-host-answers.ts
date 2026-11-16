@@ -7,7 +7,37 @@ export function buildHostSetupAnswer(
   toolResult: AssistantToolResult | null,
   hits: KnowledgeHit[],
 ): string | null {
-  if (!toolResult?.ok || toolResult.name !== "hosts.inspect") return null;
+  if (!toolResult?.ok) return null;
+
+  if (toolResult.name === "hosts.list") {
+    return [
+      "To connect LiteSPM's MCP bridge to an AI agent host, run:",
+      "",
+      fence + "bash",
+      "litespm host setup <host-id>",
+      fence,
+      "",
+      "Or run the interactive setup wizard, which auto-detects your installed coding tools:",
+      "",
+      fence + "bash",
+      "litespm setup",
+      fence,
+      "",
+      "**Common host IDs:**",
+      "- `claude-code` – Claude Code CLI",
+      "- `cursor` – Cursor",
+      "- `cline` – Cline (VS Code Extension)",
+      "- `codex` – OpenAI Codex CLI",
+      "- `opencode` – OpenCode CLI",
+      "- `pi-agent` – Pi Agent",
+      "- `grok-build` – Grok Build",
+      "- `zed` – Zed Editor",
+      "",
+      "Run `litespm host list` in your terminal to see all 52 supported host adapters and their exact config paths.",
+    ].join("\n");
+  }
+
+  if (toolResult.name !== "hosts.inspect") return null;
   const host = toolResult.data as {
     id: string;
     name: string;

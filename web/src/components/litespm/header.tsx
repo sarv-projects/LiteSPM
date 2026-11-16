@@ -134,6 +134,11 @@ export function Header() {
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && mobileOpen) {
+        e.preventDefault();
+        setMobileOpen(false);
+        return;
+      }
       const target = e.target as HTMLElement | null;
       if (
         e.key === "/" &&
@@ -147,7 +152,7 @@ export function Header() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [setPalette]);
+  }, [setPalette, mobileOpen]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
