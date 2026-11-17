@@ -494,6 +494,26 @@ func stripJSONComments(s string) string {
 	return b.String()
 }
 
+// ParseJSONC parses a JSON/JSONC host config into a generic map. It tolerates
+// comments and trailing commas, matching what the surgical merge writer
+// accepts. Consumers that diff a config against its backup (such as restore)
+// must use this rather than strict json.Unmarshal: the writer preserves the
+// user's comments, so the diff guard must read the same dialect it writes.
+func ParseJSONC(raw []byte) (map[string]any, error) {
+	text := stripTrailingCommas(stripJSONComments(string(raw)))
+	if strings.TrimSpace(text) == "" {
+		return map[string]any{}, nil
+	}
+	var root map[string]any
+	if err := json.Unmarshal([]byte(text), &root); err != nil {
+		return nil, err
+	}
+	if root == nil {
+		root = map[string]any{}
+	}
+	return root, nil
+}
+
 // parseConfigJSON parses a host config, tolerating comments and trailing commas
 // when the target declares that the format allows them (JSONC).
 func parseConfigJSON(t BridgeTarget, raw []byte) (map[string]any, error) {

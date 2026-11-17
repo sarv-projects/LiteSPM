@@ -160,7 +160,7 @@ export function CompareView({ keys }: { keys: string[] }) {
             packages.
           </p>
           <Button className="mt-5 rounded-xl" variant="outline" onClick={() => navigate(exploreHash({}))}>
-            Go to Explore <ArrowRight className="h-4 w-4" />
+            Go to Marketplace <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       )}

@@ -45,7 +45,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -602,12 +601,13 @@ func parseJSONDoc(data []byte, what string) (map[string]any, error) {
 	if len(strings.TrimSpace(string(data))) == 0 {
 		return map[string]any{}, nil
 	}
-	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
-		return nil, fmt.Errorf("%s is not parseable JSON (%v); refusing to compare", what, err)
-	}
-	if m == nil {
-		m = map[string]any{}
+	// The surgical installer writes JSONC (it preserves the user's comments and
+	// key order), so the diff guard must parse the same dialect. Strict
+	// json.Unmarshal here made byte-exact restore refuse on configs the
+	// installer itself wrote successfully.
+	m, err := host.ParseJSONC(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s is not parseable JSON/JSONC (%v); refusing to compare", what, err)
 	}
 	return m, nil
 }

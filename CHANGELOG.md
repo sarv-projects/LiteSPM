@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   github.com only, 512 KB cap, no raw HTML, images only from GitHub hosts, cached 6 h). A Quick
   stats rail adds stars, forks, license and last commit when the deployment sets `GITHUB_TOKEN`.
   Install is one card with **CLI / Manual config / Prompt** tabs; MCP pages add "Check that it works".
-- **Bundles** (`/bundles`): 11 curated working sets (42 items, every one present and installable,
+- **Bundles** (`/bundles`): 21 curated working sets (151 items, every one present and installable,
   checked by `scripts/check-bundles.mjs` in `npm run lint`), with one-click copy of the install
   commands for a chosen agent.
 - **How we rank and label** (`/docs/methodology`): the score components, installability levels,

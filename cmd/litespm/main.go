@@ -171,6 +171,11 @@ func main() {
 		if len(os.Args) >= 3 {
 			switch os.Args[2] {
 			case "sync":
+				if hasFlag(os.Args[3:], "--help") || hasFlag(os.Args[3:], "-h") {
+					fmt.Println("Usage: litespm catalog sync [--auto]")
+					fmt.Println("Download and verify the catalog. --auto is the quiet background form used by auto-sync.")
+					return
+				}
 				if hasFlag(os.Args[3:], "--auto") {
 					os.Exit(runAutoSync())
 				}
@@ -682,6 +687,8 @@ func runSetup(args []string) {
 			return
 		case "--all", "-a":
 			allDetected = true
+		case "--yes", "-y":
+			// Accept and skip here; used by applyHostSetup below via hasFlag.
 		case "--agent":
 			if i+1 >= len(args) {
 				setupUsageError("--agent requires a host id")
@@ -699,18 +706,23 @@ func runSetup(args []string) {
 		}
 	}
 
+	var setupArgs []string
+	if len(os.Args) > 2 {
+		setupArgs = os.Args[2:]
+	}
+	autoYes := hasFlag(setupArgs, "--yes") || hasFlag(setupArgs, "-y") || hasFlag(args, "--yes") || hasFlag(args, "-y")
 	if allDetected {
 		if agentID != "" {
 			setupUsageError("cannot combine --all with --agent")
 		}
-		if code := applyAllDetectedSetup(context.Background()); code != 0 {
+		if code := applyAllDetectedSetup(context.Background(), autoYes); code != 0 {
 			os.Exit(code)
 		}
 		return
 	}
 
 	if agentID != "" {
-		if code := applyHostSetup(context.Background(), agentID); code != 0 {
+		if code := applyHostSetup(context.Background(), agentID, autoYes); code != 0 {
 			os.Exit(code)
 		}
 		return
@@ -772,7 +784,37 @@ func resolveRequestedBinaryPath(requested, self string) (string, error) {
 // `litespm setup --agent <host-id>`, so the two forms cannot drift apart. It
 // returns the exit code rather than exiting, so callers keep the ARCH/20
 // convention (0 success, 1 failed) without a second implementation.
-func applyHostSetup(ctx context.Context, hostID string) int {
+// previewHostPlan shows exactly what a setup will write before it writes it.
+// The difference between "preview the change" and "write the change" must be
+// visible for every path that touches a user's agent config.
+func previewHostPlan(plan *host.HostChangePlan) {
+	fmt.Fprintf(os.Stdout, "Config file: %s\n", plan.ConfigPath)
+	lines, hidden := changePreview(plan.OriginalContent, plan.ProposedContent, 24)
+	if len(lines) > 0 {
+		fmt.Fprintln(os.Stdout, renderDiffPreview(lines, hidden))
+	}
+	if plan.BackupPath != "" {
+		fmt.Fprintf(os.Stdout, "Backup: %s\n", plan.BackupPath)
+	}
+}
+
+// confirmHostWrite gates a host-config write on an explicit human confirmation.
+// A terminal asks with the safe default of "no". A non-interactive caller must
+// pass --yes after reviewing the printed plan; refusing there is deliberate —
+// this tool edits other programs' config files.
+func confirmHostWrite(plan *host.HostChangePlan, yes bool) bool {
+	previewHostPlan(plan)
+	if yes {
+		return true
+	}
+	if !terminalUIAvailable(os.Stdin, os.Stdout) {
+		fmt.Fprintln(os.Stderr, "Refusing to change an agent config without confirmation in a non-interactive session. Review the plan above and re-run with --yes.")
+		return false
+	}
+	return askApply(os.Stdout, "Write this change?")
+}
+
+func applyHostSetup(ctx context.Context, hostID string, yes bool) int {
 	adapter, err := host.GetAdapter(hostID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -784,6 +826,10 @@ func applyHostSetup(ctx context.Context, hostID string) int {
 	plan, err := adapter.PlanSetup(ctx, execPath, paths.BackupsPath())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to plan setup: %v\n", err)
+		return 1
+	}
+	if !confirmHostWrite(plan, yes) {
+		fmt.Println("Nothing was written: the change was not confirmed.")
 		return 1
 	}
 
@@ -819,7 +865,7 @@ func applyHostSetup(ctx context.Context, hostID string) int {
 
 // applyAllDetectedSetup scans this machine for all detected agent configuration
 // files and registers the LiteSPM bridge with each of them in one operation.
-func applyAllDetectedSetup(ctx context.Context) int {
+func applyAllDetectedSetup(ctx context.Context, yes bool) int {
 	adapters := host.ListAdapters()
 	configured := 0
 	failed := 0
@@ -860,6 +906,12 @@ func applyAllDetectedSetup(ctx context.Context) int {
 			continue
 		}
 
+		fmt.Printf("\n%s:\n", desc.DisplayName)
+		if !confirmHostWrite(plan, yes) {
+			fmt.Println("  Skipped — the change was not confirmed.")
+			skipped++
+			continue
+		}
 		result, aErr := adapter.ApplySetup(ctx, plan)
 		if aErr != nil {
 			failed++
@@ -992,7 +1044,7 @@ func runHostCommand(args []string) {
 			fmt.Println("Usage: litespm host setup <host-id>")
 			os.Exit(2)
 		}
-		if code := applyHostSetup(ctx, args[1]); code != 0 {
+		if code := applyHostSetup(ctx, args[1], hasFlag(args[2:], "--yes") || hasFlag(args[2:], "-y")); code != 0 {
 			os.Exit(code)
 		}
 

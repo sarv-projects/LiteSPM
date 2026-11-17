@@ -33,8 +33,17 @@ function listingIdentity(item) {
   const revision = artifact?.sha || artifact?.ref || item.version || "";
   return [item.kind, url.toLowerCase(), p, revision, item.name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "")].join("|");
 }
+// Match dataset.ts:isParseArtifactOrJunk so the static fallback count agrees
+// with the live counts.ts and insights.ts figures.
+function isJunk(name) {
+  if (!name) return true;
+  const t = name.trim();
+  return /,\s*(?:value|numbers)\s*discarded/i.test(t) || /^[:*]/.test(t);
+}
 const seen = new Set();
-for (const row of read("catalog.json")) seen.add(listingIdentity(row));
+for (const row of read("catalog.json")) {
+  if (!isJunk(row.name)) seen.add(listingIdentity(row));
+}
 
 const remote = hosts.filter((h) => h.remote === true);
 const localOnly = hosts.filter((h) => h.remote !== true);

@@ -19,7 +19,7 @@
  */
 
 import { availabilityOf } from "./availability";
-import { getCompactDataset } from "./dataset";
+import { getCompactDataset, isParseArtifactOrJunk } from "./dataset";
 import { dedupeKey } from "./ranking";
 
 export interface CatalogCounts {
@@ -42,7 +42,11 @@ if (process.env.NODE_ENV !== "production" && globalForCounts.__litespmCatalogCou
 }
 
 async function compute(): Promise<CatalogCounts> {
-  const dataset = await getCompactDataset();
+  const compact = await getCompactDataset();
+  // The compact search file predates the junk filter in dataset.ts, so it
+  // carries parse-artifact rows that the full dataset drops. Filter here too
+  // so every surface counts the same real listings as the insights page.
+  const dataset = { ...compact, rows: compact.rows.filter((row) => !isParseArtifactOrJunk(row.name)) };
   const names = new Set<string>();
   const byKind = { mcp: 0, skill: 0, plugin: 0 };
   const byInstallability: Record<string, number> = {};

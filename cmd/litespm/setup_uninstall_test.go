@@ -301,11 +301,11 @@ func TestSetupAgentWritesTheSameResultAsHostSetup(t *testing.T) {
 	homeA := t.TempDir()
 	homeB := t.TempDir()
 
-	outA, errA, codeA := setupCLI(t, homeA, "host", "setup", "codex")
+	outA, errA, codeA := setupCLI(t, homeA, "host", "setup", "codex", "--yes")
 	if codeA != 0 {
 		t.Fatalf("host setup exit = %d\nstderr:\n%s", codeA, errA)
 	}
-	outB, errB, codeB := setupCLI(t, homeB, "setup", "--agent", "codex")
+	outB, errB, codeB := setupCLI(t, homeB, "setup", "--agent", "codex", "--yes")
 	if codeB != 0 {
 		t.Fatalf("setup --agent exit = %d\nstderr:\n%s", codeB, errB)
 	}

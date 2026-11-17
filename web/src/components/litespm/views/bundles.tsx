@@ -179,7 +179,7 @@ export function BundleCard({
                 <Wrench className="h-3.5 w-3.5 text-brand" /> Prerequisites & Environment
               </div>
               <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
-                <li>Runtime: Node.js 20+ (recommended Node 22+) (or Python uv where needed for native Python MCPs)</li>
+                <li>Runtime: Node.js 22.22.2+ (or Python uv where needed for native Python MCPs)</li>
                 <li>LiteSPM CLI: <code className="font-mono text-foreground">npm install -g litespm</code></li>
                 <li>Common secrets: <code className="font-mono text-foreground">GITHUB_TOKEN</code> if interacting with GitHub repositories; service API tokens when configuring external database or monitoring tools.</li>
               </ul>

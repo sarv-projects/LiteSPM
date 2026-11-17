@@ -63,7 +63,7 @@ func TestSandboxAllAgentsSetupAll(t *testing.T) {
 		t.Fatal("sandbox did not seed a user-scope config for any adapter")
 	}
 
-	if code := applyAllDetectedSetup(ctx); code != 0 {
+	if code := applyAllDetectedSetup(ctx, true); code != 0 {
 		t.Fatalf("litespm setup --all returned exit code %d", code)
 	}
 
