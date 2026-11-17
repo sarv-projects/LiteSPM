@@ -61,6 +61,16 @@ const GOAL_LABELS: Record<string, string> = {
 
 const HERO_WORDS = ["Install", "AI", "tools", "once."];
 
+type ExploreTab = "ranked" | "goals" | "bundles" | "featured" | "trending";
+
+const EXPLORE_TABS: Array<{ id: ExploreTab; label: string; icon: React.ElementType }> = [
+  { id: "ranked", label: "Ranked", icon: Trophy },
+  { id: "goals", label: "By goal", icon: Sparkles },
+  { id: "bundles", label: "Bundles", icon: Package },
+  { id: "featured", label: "Featured", icon: Bookmark },
+  { id: "trending", label: "Trending", icon: Flame },
+];
+
 // Every name here is an MCP host in web/data/hosts.json.
 const MARQUEE_AGENTS = [
   "Claude Code", "Cursor", "GitHub Copilot", "OpenAI Codex", "Gemini CLI", "Cline", "OpenCode",
@@ -84,6 +94,7 @@ export function HomeView() {
   const [trending, setTrending] = React.useState<TrendingItem[]>([]);
   const [topMcp, setTopMcp] = React.useState<CatalogHit[]>([]);
   const [topSkills, setTopSkills] = React.useState<CatalogHit[]>([]);
+  const [exploreTab, setExploreTab] = React.useState<ExploreTab>("ranked");
   const { entries: recent } = useRecentlyViewed();
 
   // Pointer spotlight: write CSS variables straight to the element (one rAF
@@ -521,83 +532,178 @@ export function HomeView() {
         </div>
       </section>
 
-      {/* --------------------------- top ranked rails --------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="top-title">
+      {/* --------------------------- explore (tabs) --------------------------- */}
+      <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="explore-title">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
-              <Trophy className="h-3.5 w-3.5" /> Ranked by the LiteSPM score
-              <RankExplainer />
-            </p>
-            <h2 id="top-title" className="mt-1 text-[26px] font-semibold tracking-tight sm:text-[30px]">
-              Top-ranked developer tools
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">One catalog, four ways in</p>
+            <h2 id="explore-title" className="mt-1 text-[26px] font-semibold tracking-tight sm:text-[30px]">
+              Explore the catalog
             </h2>
             <p className="mt-1 max-w-[64ch] text-[13px] text-muted-foreground">
-              A transparent ranking model based on publisher verification, active maintenance, and
-              installability. Official reference tools, first-party vendors, and pinned sources rank
-              first. Independent security audits are stated separately when recorded.
+              Pick a view: a transparent score, a task, a curated bundle, or what people open on
+              this deployment. Every view leads to the same copyable install command.
             </p>
           </div>
-          <Button
-            variant="outline"
-            className="rounded-xl"
-            onClick={() => navigate(exploreHash({ sort: "rank", installable: "1" }))}
-          >
-            View the full ranking <ArrowRight className="h-4 w-4" />
+          <Button variant="outline" className="rounded-xl" onClick={() => navigate(exploreHash({ installable: "1" }))}>
+            Open full marketplace <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <TopRail
-            title="Top MCP servers"
-            href={exploreHash({ sort: "rank", kind: "mcp", installable: "1" })}
-            items={topMcp}
-          />
-          <TopRail
-            title="Top agent skills"
-            href={exploreHash({ sort: "rank", kind: "skill", installable: "1" })}
-            items={topSkills}
-          />
+        <div role="tablist" aria-label="Explore views" className="mt-6 flex flex-wrap gap-2 border-b border-border/60 pb-3">
+          {EXPLORE_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={exploreTab === tab.id}
+              onClick={() => setExploreTab(tab.id)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${exploreTab === tab.id ? "bg-brand-soft text-brand" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}
+            >
+              <tab.icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div role="tabpanel" className="mt-6">
+          {exploreTab === "ranked" && (
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                  <Trophy className="h-3.5 w-3.5 text-brand" /> Ranked by the LiteSPM score
+                  <RankExplainer />
+                </p>
+                <button type="button" onClick={() => navigate(exploreHash({ sort: "rank", installable: "1" }))} className="inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline">
+                  Full ranking <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="mt-4 grid gap-6 lg:grid-cols-2">
+                <TopRail title="Top MCP servers" href={exploreHash({ sort: "rank", kind: "mcp", installable: "1" })} items={topMcp} />
+                <TopRail title="Top agent skills" href={exploreHash({ sort: "rank", kind: "skill", installable: "1" })} items={topSkills} />
+              </div>
+            </div>
+          )}
+
+          {exploreTab === "goals" && stats && stats.goalCounts.length > 0 && (
+            <div>
+              <p className="text-[12px] text-muted-foreground">The editorial taxonomy groups listings by what you are building. Pick a goal to filter the marketplace.</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {stats.goalCounts
+                  .filter(([goal]) => GOAL_LABELS[goal])
+                  .sort(([a], [b]) => Number(a === "other") - Number(b === "other"))
+                  .slice(0, 11)
+                  .map(([goal, count]) => (
+                    <button
+                      key={goal}
+                      type="button"
+                      onClick={() => navigate(exploreHash({ goal, sort: "rank" }))}
+                      className="group inline-flex items-center gap-2 rounded-full border border-border/70 bg-card px-4 py-2 text-[13px] font-medium text-foreground/90 transition-all hover:border-brand/40 hover:bg-brand-soft hover:text-brand"
+                    >
+                      {GOAL_LABELS[goal]}
+                      <span className="rounded-full bg-muted/60 px-1.5 py-px font-mono text-[10.5px] text-muted-foreground group-hover:bg-brand/10 group-hover:text-brand/80">
+                        {formatFull(count)}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {exploreTab === "bundles" && (
+            <div>
+              <p className="text-[12px] text-muted-foreground">Curated sets of installable MCP servers and skills for one job. One copyable command per item.</p>
+              <div className="mt-4"><PopularBundles embedded /></div>
+            </div>
+          )}
+
+          {exploreTab === "featured" && (
+            <div>
+              <p className="text-[12px] text-muted-foreground">Hand-picked collections from the current catalog release.</p>
+              {featured
+                ? featured.groups.map((group) => {
+                    const entries = featured.entries.filter((e) => e.group === group.id);
+                    return (
+                      <div key={group.id} className="mt-6">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <h3 className="text-[16px] font-semibold tracking-tight">{group.title}</h3>
+                          <button type="button" onClick={() => navigate(group.viewAllHref)} className="inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline">
+                            {group.viewAllLabel} <ChevronRight className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <p className="mt-0.5 max-w-[64ch] text-[12.5px] text-muted-foreground">{group.blurb}</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {entries.map((entry) => (
+                            <button
+                              key={entry.id}
+                              type="button"
+                              onClick={() => navigate(`#/package/${encodeURIComponent(entry.linkKey)}`)}
+                              className="group flex flex-col rounded-xl border border-border/70 bg-card p-4 text-left transition-all hover:border-brand/40 hover:shadow-[0_2px_18px_-8px_rgba(16,185,129,0.25)]"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <KindBadge kind={entry.kind} />
+                              </div>
+                              <h4 className="mt-2.5 truncate text-[14.5px] font-semibold tracking-tight">{displayPackageName(entry.name)}</h4>
+                              <p className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-muted-foreground">{entry.useCase ?? entry.summary}</p>
+                              <span className="mt-3 inline-flex items-center gap-1 text-[11.5px] font-medium text-muted-foreground transition-colors group-hover:text-brand">
+                                View package <ArrowRight className="h-3 w-3" />
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })
+                : <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[140px] animate-pulse rounded-xl border border-border/50 bg-muted/30" />)}</div>}
+            </div>
+          )}
+
+          {exploreTab === "trending" && (
+            <div>
+              <p className="text-[12px] text-muted-foreground">View counts are recorded by this deployment as packages are opened — not imported, not estimated.</p>
+              {(trending.length > 0 || recent.length > 0) ? (
+                <div className={`mt-4 grid gap-6 ${trending.length > 0 && recent.length > 0 ? "lg:grid-cols-2" : "grid-cols-1"}`}>
+                  {trending.length > 0 && (
+                    <div>
+                      <h3 className="flex items-center gap-2 text-[14px] font-semibold"><Flame className="h-4 w-4 text-brand" /> Most opened</h3>
+                      <ul className="mt-3 space-y-2">
+                        {trending.slice(0, 6).map((item, i) => (
+                          <li key={item.linkKey}>
+                            <button type="button" onClick={() => navigate(`#/package/${encodeURIComponent(item.linkKey)}`)} className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card px-3.5 py-2.5 text-left transition-colors hover:border-brand/40">
+                              <span className="w-5 shrink-0 text-center font-mono text-[12px] font-semibold text-muted-foreground/80">{i + 1}</span>
+                              <KindBadge kind={item.kind} />
+                              <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">{displayPackageName(item.name)}</span>
+                              <span className="flex shrink-0 items-center gap-1 font-mono text-[11.5px] text-muted-foreground"><Eye className="h-3 w-3" />{item.views}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {recent.length > 0 && (
+                    <div>
+                      <h3 className="flex items-center gap-2 text-[14px] font-semibold"><History className="h-4 w-4 text-brand" /> Your recent views</h3>
+                      <ul className="mt-3 space-y-2">
+                        {recent.slice(0, 6).map((entry) => (
+                          <li key={entry.linkKey}>
+                            <button type="button" onClick={() => navigate(`#/package/${encodeURIComponent(entry.linkKey)}`)} className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card px-3.5 py-2.5 text-left transition-colors hover:border-brand/40">
+                              <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                              <KindBadge kind={entry.kind} />
+                              <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">{displayPackageName(entry.name)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-4 rounded-xl border border-border/60 bg-card px-4 py-6 text-center text-[13px] text-muted-foreground">No views recorded on this deployment yet. Open a package to see it here.</p>
+              )}
+            </div>
+          )}
         </div>
       </section>
-
-      {/* --------------------------- browse by goal --------------------------- */}
-      {stats && stats.goalCounts.length > 0 && (
-        <section className="border-y border-border/60 bg-card/30" aria-labelledby="goals-title">
-          <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
-            <SectionHeading
-              eyebrow="Browse by what you're building"
-              title={<span id="goals-title">Start from a goal</span>}
-              description="The editorial taxonomy groups all listings by the task you're trying to get done — pick one and explore narrows to it."
-            />
-            <div className="mt-8 flex flex-wrap gap-2">
-              {stats.goalCounts
-                .filter(([goal]) => GOAL_LABELS[goal])
-                // "Other" is the catch-all bucket: it is the largest, and it
-                // must not lead a "start from a goal" row.
-                .sort(([a], [b]) => Number(a === "other") - Number(b === "other"))
-                .slice(0, 11)
-                .map(([goal, count], i) => (
-                  <motion.button
-                    key={goal}
-                    type="button"
-                    initial={{ opacity: 0, scale: 0.94 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: Math.min(i * 0.03, 0.25) }}
-                    onClick={() => navigate(exploreHash({ goal, sort: "rank" }))}
-                    className="group inline-flex items-center gap-2 rounded-full border border-border/70 bg-card px-4 py-2 text-[13px] font-medium text-foreground/90 transition-all hover:border-brand/40 hover:bg-brand-soft hover:text-brand"
-                  >
-                    {GOAL_LABELS[goal]}
-                    <span className="rounded-full bg-muted/60 px-1.5 py-px font-mono text-[10.5px] text-muted-foreground group-hover:bg-brand/10 group-hover:text-brand/80">
-                      {formatFull(count)}
-                    </span>
-                  </motion.button>
-                ))}
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* ------------------------------ steps ------------------------------ */}
       <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="how-title">
@@ -631,339 +737,91 @@ export function HomeView() {
         </div>
       </section>
 
-      <PopularBundles />
-
-      {/* --------------------------- featured shelf --------------------------- */}
-      <section className="border-y border-border/60 bg-card/30" aria-labelledby="featured-title">
-        <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
-          <SectionHeading
-            eyebrow="Curated shelves"
-            title={<span id="featured-title">Start with these</span>}
-            description="Hand-picked collections of the most useful MCP servers, skills and toolkits to get you started."
-            action={
-              <Button variant="outline" className="rounded-xl" onClick={() => navigate(exploreHash({ installable: "1" }))}>
-                Browse installable <ArrowRight className="h-4 w-4" />
-              </Button>
-            }
-          />
-          {featured
-            ? featured.groups.map((group) => {
-                const entries = featured.entries.filter((e) => e.group === group.id);
-                return (
-                  <div key={group.id} className="mt-8">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <div>
-                        <h3 className="text-[17px] font-semibold tracking-tight">{group.title}</h3>
-                        <p className="mt-0.5 max-w-[64ch] text-[12.5px] text-muted-foreground">
-                          {group.blurb}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => navigate(group.viewAllHref)}
-                        className="inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline"
-                      >
-                        {group.viewAllLabel} <ChevronRight className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {entries.map((entry, i) => (
-                        <motion.button
-                          key={entry.id}
-                          type="button"
-                          initial={{ opacity: 0, y: 8 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true }}
-                          transition={{ delay: Math.min(i * 0.04, 0.2) }}
-                          onClick={() => navigate(`#/package/${encodeURIComponent(entry.linkKey)}`)}
-                          className="group flex flex-col rounded-xl border border-border/70 bg-card p-4 text-left transition-all hover:border-brand/40 hover:shadow-[0_2px_18px_-8px_rgba(16,185,129,0.25)]"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <KindBadge kind={entry.kind} />
-                            {entry.version && (
-                              <span className="font-mono text-[10.5px] text-muted-foreground">
-                                v{entry.version}
-                              </span>
-                            )}
-                          </div>
-                          <h4 className="mt-2.5 truncate text-[14.5px] font-semibold tracking-tight">
-                            {displayPackageName(entry.name)}
-                          </h4>
-                          <p className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-muted-foreground">
-                            {entry.useCase ?? entry.summary}
-                          </p>
-                          <span className="mt-3 inline-flex items-center gap-1 text-[11.5px] font-medium text-muted-foreground transition-colors group-hover:text-brand">
-                            View package <ArrowRight className="h-3 w-3" />
-                          </span>
-                        </motion.button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })
-            : (
-              <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-[148px] animate-pulse rounded-xl border border-border/50 bg-muted/30" />
-                ))}
-              </div>
-            )}
-        </div>
-      </section>
-
-      {/* ------------------------- trending + recent ------------------------- */}
-      {(trending.length > 0 || recent.length > 0) && (
-        <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="activity-title">
-          <SectionHeading
-            eyebrow="Live on this deployment"
-            title={<span id="activity-title">What people are opening</span>}
-            description="View counts are recorded by this deployment as packages are opened — not imported, not estimated."
-          />
-          <div
-            className={`mt-8 grid gap-6 ${
-              trending.length > 0 && recent.length > 0 ? "lg:grid-cols-2" : "grid-cols-1"
-            }`}
-          >
-            {trending.length > 0 && (
-              <div>
-                <h3 className="flex items-center gap-2 text-[14px] font-semibold">
-                  <Flame className="h-4 w-4 text-brand" /> Most opened
-                </h3>
-                <ul className="mt-3 space-y-2">
-                  {trending.slice(0, 6).map((item, i) => (
-                    <li key={item.linkKey}>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`#/package/${encodeURIComponent(item.linkKey)}`)}
-                        className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card px-3.5 py-2.5 text-left transition-colors hover:border-brand/40"
-                      >
-                        <span className="w-5 shrink-0 text-center font-mono text-[12px] font-semibold text-muted-foreground/80">
-                          {i + 1}
-                        </span>
-                        <KindBadge kind={item.kind} />
-                        <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">
-                          {displayPackageName(item.name)}
-                        </span>
-                        <span className="flex shrink-0 items-center gap-1 font-mono text-[11.5px] text-muted-foreground">
-                          <Eye className="h-3 w-3" />
-                          {item.views}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {recent.length > 0 && (
-              <div>
-                <h3 className="flex items-center gap-2 text-[14px] font-semibold">
-                  <History className="h-4 w-4 text-brand" /> Your recent views
-                </h3>
-                <ul className="mt-3 space-y-2">
-                  {recent.slice(0, 6).map((entry) => (
-                    <li key={entry.linkKey}>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`#/package/${encodeURIComponent(entry.linkKey)}`)}
-                        className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card px-3.5 py-2.5 text-left transition-colors hover:border-brand/40"
-                      >
-                        <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
-                        <KindBadge kind={entry.kind} />
-                        <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">
-                          {displayPackageName(entry.name)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ---------------------------- agent atlas ---------------------------- */}
-      <section className="border-y border-border/60 bg-card/30" aria-labelledby="agents-title">
-        <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
-          <SectionHeading
-            eyebrow="Works with your agent"
-            title={<span id="agents-title">{stats?.hosts ?? facts.hosts} hosts. One command.</span>}
-            description="Whether you build in Cursor, Claude Code, Cline, or Copilot — every agent host gets automatic configuration, pre-write backups, and a rollback ledger."
-            action={
-              <Button variant="outline" className="rounded-xl" onClick={() => navigate("#/agents")}>
-                Browse agents <ArrowRight className="h-4 w-4" />
-              </Button>
-            }
-          />
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { name: "Cursor", detail: "AI IDE · MCP", id: "cursor" },
-              { name: "GitHub Copilot", detail: "CLI + IDE · MCP", id: "github-copilot" },
-              { name: "Cline", detail: "VS Code agent · MCP + skills", id: "cline" },
-              { name: "Claude Code", detail: "Terminal CLI · MCP + skills", id: "claude-code" },
-              { name: "OpenAI Codex", detail: "Terminal CLI · MCP + skills", id: "codex" },
-              { name: "Gemini CLI", detail: "Terminal CLI · MCP + skills", id: "gemini-cli" },
-             { name: "OpenCode", detail: "Open source · MCP + skills", id: "opencode" },
-            ].map((agent) => (
-              <button
-                key={agent.id}
-                type="button"
-                onClick={() => navigate(`#/agent/${agent.id}`)}
-                className="group rounded-xl border border-border/70 bg-card p-4 text-left transition-all hover:border-brand/40 hover:shadow-[0_2px_16px_-6px_rgba(16,185,129,0.2)]"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[14px] font-semibold tracking-tight">{agent.name}</span>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 transition-colors group-hover:text-brand" />
-                </div>
-                <p className="mt-1 text-[12px] text-muted-foreground">{agent.detail}</p>
-                <p className="mt-2.5 font-mono text-[10.5px] text-brand/80">
-                  litespm host setup {agent.id}
-                </p>
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => navigate("#/agents")}
-              className="group flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-card/50 p-4 text-center transition-all hover:border-brand/40"
-            >
-              <span className="font-mono text-[20px] font-semibold text-brand">
-                {`+${Math.max((stats?.hosts ?? facts.hosts) - 7, 0)}`}
-              </span>
-              <span className="mt-1 text-[12px] text-muted-foreground">
-                more hosts, every one the same command
-              </span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ----------------------------- trust row ----------------------------- */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="trust-title">
-        <SectionHeading
-          eyebrow="Why developers trust it"
-          title={<span id="trust-title">Your machine, your keys.</span>}
-        />
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            {
-              icon: ShieldCheck,
-              title: "Private by design",
-              body: "No user account, no credentials proxy. Keys and configs stay entirely on your local machine.",
-            },
-            {
-              icon: RotateCcw,
-              title: "Restore is byte-exact",
-              body: "litespm restore rolls a config back to its previous bytes — not a re-merge, the exact file bytes.",
-            },
-            {
-              icon: Bookmark,
-              title: "Ledger ownership",
-              body: "litespm install remove strips only the nodes LiteSPM wrote. Your own manual edits are left untouched.",
-            },
-            {
-              icon: BadgeCheck,
-              title: "Verified capabilities",
-              body: "Installable packages include verified repository sources or active transport endpoints.",
-            },
-          ].map((item) => (
-            <div key={item.title} className="rounded-2xl border border-border/70 bg-card p-5">
-              <item.icon className="h-5 w-5 text-brand" />
-              <h3 className="mt-3 text-[14.5px] font-semibold tracking-tight">{item.title}</h3>
-              <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{item.body}</p>
-            </div>
-          ))}
-        </div>
-        {stats?.release && (
-          <p className="mt-6 text-[11.5px] text-muted-foreground/75">
-            Catalog release {stats.release.releaseId} · Updated {formatDate(stats.release.createdAt)} ·{" "}
-            <button
-              type="button"
-              onClick={() => navigate("#/insights")}
-              className="text-brand hover:underline"
-            >
-              Verified catalog index & audits →
-            </button>
-          </p>
-        )}
-      </section>
-
-      {/* ------------------------------ FAQ ------------------------------ */}
-      <section className="border-t border-border/60 bg-card/25 py-16 sm:py-20" aria-labelledby="faq-title">
+      {/* -------- why litespm: hosts, safety, faq in one accordion -------- */}
+      <section className="border-t border-border/60 bg-card/25 py-14 sm:py-16" aria-labelledby="why-more-title">
         <div className="mx-auto max-w-4xl px-4 sm:px-6">
-          <div className="text-center">
-            <p className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-brand">
-              Frequently Asked Questions
-            </p>
-            <h2 id="faq-title" className="mt-2 text-[clamp(1.8rem,3.4vw,2.5rem)] font-semibold leading-tight tracking-[-0.03em]">
-              Common questions, clear answers.
-            </h2>
-            <p className="mx-auto mt-3 max-w-[54ch] text-[14px] leading-relaxed text-muted-foreground">
-              Everything you need to know about package installability, config backups, and multi-agent support.
-            </p>
-          </div>
-
-          <div className="mt-10 space-y-3">
-            {[
-              {
-                q: "Do I need to sync the catalog myself?",
-                a: `Not from 0.6.1 on (npm currently serves ${facts.npmVersion}, where you run litespm catalog sync once first). The first run that needs the catalog downloads it in the foreground; later runs start a background sync at most every 6 hours. Downloads are digest-verified, and search runs against a local SQLite full-text index built from that verified download. Set LITESPM_NO_AUTO_SYNC=1 (or run in CI) to turn automatic sync off; litespm catalog sync still works on demand.`,
-              },
-              {
-                q: "Why are some packages marked 'Installable' while others are 'Discovery-Only'?",
-                a: `A server needs a remote endpoint or a publisher-declared command with arguments before LiteSPM can install it. If a listing has only a repository link or README, LiteSPM will not guess whether to run it with npx, python or uvx. Those listings stay in the index so you can find the source; a one-command install is not offered.`,
-              },
-              {
-                q: "What does 'Discovery only' mean?",
-                a: "The catalog has the listing's metadata but no verified source or launch line LiteSPM can use. The detail page links only to the source the catalog recorded; it does not guess a repository.",
-              },
-              {
-                q: "How does LiteSPM install capabilities into my AI agent?",
-                a: "LiteSPM writes surgical configuration changes directly into your agent's documented configuration file (such as ~/.claude.json for Claude Code or cline_mcp_settings.json for Cline). Before writing any file, LiteSPM previews the exact diff, backs up your existing file, and logs the change to an undo ledger.",
-              },
-              {
-                q: "Can LiteSPM break or overwrite my existing agent settings?",
-                a: "It is built not to. LiteSPM's JSONC and TOML parsers preserve your existing entries, comments and structure, and it only adds the capability entry. Every write is previewed and backed up first, so if something does go wrong, litespm restore puts the file back to its exact previous bytes. When you remove a package, only the nodes LiteSPM created are removed; edits you made before or after install are kept.",
-              },
-              {
-                q: "How do plugins with host-specific extras work?",
-                a: "Plugins can bundle both portable components (universal MCP servers and agent skills) and host-specific extras (such as IDE commands, editor hooks, or subagents). LiteSPM installs all portable servers and skills into any supported agent. If a plugin contains editor extras that cannot run universally, you can install its portable components with: litespm install <id> --allow-partial. The source must still be commit-pinned; the flag does not bypass pinning.",
-              },
-              {
-                q: "Which AI coding agents are supported?",
-                a: `LiteSPM supports ${facts.hosts} agent hosts for local stdio MCP servers (including Cursor, Claude Code, Cline, OpenAI Codex, OpenCode, Grok Build, Gemini CLI, and GitHub Copilot) and ${facts.skillTargets} targets for skills, covering terminal, IDE, and desktop environments. ${facts.remoteHosts} hosts also document a native remote (URL) entry; the other ${facts.hosts - facts.remoteHosts} (${facts.localOnlyHostNames.join(", ")}) support local stdio only and refuse a remote install.`,
-              },
-              {
-                q: "Can I browse and install from inside my agent?",
-                a: `Yes, from the next release (0.6.1; npm currently serves ${facts.npmVersion}). litespm setup installs a marketplace command into each agent. Pi, OpenCode, Claude Code and GitHub Copilot CLI get an interactive popup that needs no model turn; Gemini CLI, Qwen Code, Kiro CLI, Cursor, Augment, Roo, Factory Droid, Kilo, Cline, Grok Build, Codex and Crush get a prompt command that has the agent's model drive LiteSPM's tools. Some agents (Zed, Windsurf, Continue, Aider, Warp, OpenHands, Goose) have no extension surface for either. See Docs → Agent compatibility.`,
-              },
-            ].map((item) => (
-              <details
-                key={item.q}
-                className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35 hover:shadow-sm"
-              >
-                <summary className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] text-foreground [&::-webkit-details-marker]:hidden">
-                  <span>{item.q}</span>
-                  <span className="shrink-0 text-muted-foreground transition-transform group-open:rotate-180">
-                    <ChevronDown className="h-4 w-4" />
-                  </span>
-                </summary>
-                <div className="faq-answer">
-                  <p className="mt-3 text-[13.5px] leading-relaxed text-muted-foreground">
-                    {item.a}
-                  </p>
+          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Why LiteSPM</p>
+          <h2 id="why-more-title" className="mt-2 text-center text-[clamp(1.6rem,3vw,2.1rem)] font-semibold tracking-[-0.03em]">
+            More to know
+          </h2>
+          <div className="mt-8 space-y-3">
+            <details className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35">
+              <summary className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] [&::-webkit-details-marker]:hidden">
+                <span>{stats?.hosts ?? facts.hosts} hosts. One command.</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="faq-answer">
+                <div className="pt-3">
+                  <p className="text-[13px] leading-relaxed text-muted-foreground">Every agent host gets the same preview, backup and ledger entry. Pick yours to see the exact config file LiteSPM writes.</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {[
+                      { name: "Cursor", id: "cursor" },
+                      { name: "GitHub Copilot", id: "github-copilot" },
+                      { name: "Cline", id: "cline" },
+                      { name: "Claude Code", id: "claude-code" },
+                      { name: "OpenAI Codex", id: "codex" },
+                      { name: "Gemini CLI", id: "gemini-cli" },
+                    ].map((agent) => (
+                      <button key={agent.id} type="button" onClick={() => navigate(`#/agent/${agent.id}`)} className="flex items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-left text-[13px] font-medium transition-colors hover:border-brand/40">
+                        {agent.name}
+                        <code className="font-mono text-[10.5px] text-brand/80">host setup {agent.id}</code>
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => navigate("#/agents")} className="mt-4 inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline">
+                    Browse all {stats?.hosts ?? facts.hosts} agents <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-              </details>
-            ))}
-          </div>
+              </div>
+            </details>
 
-          <div className="mt-8 text-center">
-            <button
-              type="button"
-              onClick={() => navigate("#/docs/troubleshooting")}
-              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-brand hover:underline"
-            >
-              Browse all documentation & troubleshooting guides <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+            <details className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35">
+              <summary className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] [&::-webkit-details-marker]:hidden">
+                <span>Your machine, your keys.</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="faq-answer">
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {[
+                    { icon: ShieldCheck, title: "No account, no proxy", body: "Tokens stay in the OS vault or as environment references. Nothing is sent to this site." },
+                    { icon: RotateCcw, title: "Byte-exact restore", body: "restore puts a config back to its previous bytes, not a re-merge." },
+                    { icon: Bookmark, title: "Ledger ownership", body: "install remove strips only the nodes LiteSPM wrote. Your edits stay." },
+                    { icon: BadgeCheck, title: "Stated provenance", body: "Installable means a verified endpoint, command or pinned source. Discovery-only says so." },
+                  ].map((item) => (
+                    <div key={item.title} className="rounded-xl border border-border/60 p-3.5">
+                      <item.icon className="h-4 w-4 text-brand" />
+                      <p className="mt-2 text-[13px] font-semibold">{item.title}</p>
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{item.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </details>
+
+            <details className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35">
+              <summary className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] [&::-webkit-details-marker]:hidden">
+                <span>Common questions</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="faq-answer">
+                <div className="mt-3 space-y-3">
+                  {[
+                    { q: "Do I need to sync the catalog myself?", a: `The first command that needs the catalog downloads it; later runs refresh it in the background at most every 6 hours. Set LITESPM_NO_AUTO_SYNC=1 (or run under CI) to turn that off. litespm catalog sync still works on demand. On npm ${facts.npmVersion}, run it once before your first search.` },
+                    { q: "Why do some listings say Discovery only?", a: "A server needs a remote endpoint or a publisher-declared command with arguments. If a listing has only a repository link, LiteSPM will not guess whether to run it with npx, python or uvx. The detail page links only to the source the catalog recorded." },
+                    { q: "How do installs protect my config?", a: "LiteSPM splices JSON/JSONC and TOML by byte offset, so comments and key order survive. Every write is previewed and backed up. install remove strips only the nodes it wrote; edits you made are kept." },
+                    { q: "Can I install from inside my agent?", a: `litespm setup registers the bridge and a marketplace command. Pi, OpenCode, Claude Code and Copilot CLI get a popup that costs no model turn; most others get a prompt command. This is in the unreleased 0.6.1; npm currently serves ${facts.npmVersion}.` },
+                  ].map((item) => (
+                    <div key={item.q} className="rounded-xl border border-border/60 px-3.5 py-3">
+                      <p className="text-[13px] font-semibold">{item.q}</p>
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{item.a}</p>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => navigate("#/docs/troubleshooting")} className="inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline">
+                    All docs and troubleshooting <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
       </section>

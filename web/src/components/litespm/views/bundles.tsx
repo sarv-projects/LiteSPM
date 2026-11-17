@@ -332,9 +332,26 @@ export function BundlesView() {
 }
 
 /** Home page teaser: the first three bundles, linking to the full page. */
-export function PopularBundles() {
+export function PopularBundles({ embedded = false }: { embedded?: boolean }) {
   const { data } = useBundles();
   if (!data || data.bundles.length === 0) return null;
+  if (embedded) {
+    return (
+      <div>
+        <NavLink
+          to="/bundles"
+          className="inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline"
+        >
+          All {data.bundles.length} bundles <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </NavLink>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          {data.bundles.slice(0, 3).map((bundle) => (
+            <BundleCard key={bundle.id} bundle={bundle} agents={data.agents} compact />
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="bundles-title">
       <div className="flex flex-wrap items-end justify-between gap-3">
