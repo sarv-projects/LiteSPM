@@ -910,7 +910,7 @@ export function HomeView() {
               },
               {
                 q: "Why are some packages marked 'Installable' while others are 'Discovery-Only'?",
-                a: `LiteSPM operates on a zero-guesswork safety standard. To automatically inject an MCP server into your agent's config, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). For community packages that only publish a GitHub link or README without structured launch parameters, LiteSPM refuses to guess commands (such as guessing between npx, python, or uvx) that could break your agent. We index all ${Math.floor(facts.listings / 1000)}k+ community capabilities so you can find them and view their source code, but single-command setup is reserved for packages with verified launch details.`,
+                a: `A server needs a remote endpoint or a publisher-declared command with arguments before LiteSPM can install it. If a listing has only a repository link or README, LiteSPM will not guess whether to run it with npx, python or uvx. Those listings stay in the index so you can find the source; a one-command install is not offered.`,
               },
               {
                 q: "What does 'Discovery only' mean?",

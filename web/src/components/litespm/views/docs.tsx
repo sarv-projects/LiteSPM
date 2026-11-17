@@ -206,8 +206,8 @@ function Introduction() {
         servers</strong> (services your agent calls tools on),{" "}
         <strong className="text-foreground">agent skills</strong> (portable{" "}
         <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">SKILL.md</code> folders of
-        instructions), and <strong className="text-foreground">plugins</strong> (curated bundles
-        of skills and servers).
+        instructions), and <strong className="text-foreground">plugins</strong> (a publisher&apos;s
+        bundle of skills and MCP servers).
       </P>
 
       <P>
@@ -285,9 +285,9 @@ litespm catalog sync        # optional: refresh the catalog right now`}
       </P>
       <P>
         The sync also builds a local SQLite full-text search index from the verified files, so a
-        search no longer loads the whole release. On the maintainers&apos; Linux measurements a warm
-        search went from 2.6–3.4 s at about 475 MB of memory to 0.3–0.8 s (whole process) at about
-        33 MB. The index is rebuilt whenever it does not match the catalog on disk. On Windows the
+        search no longer loads the whole release. Measured on Linux, a warm search went from
+        2.6–3.4 s at about 475 MB of memory to 0.3–0.8 s (whole process) at about 33 MB. The index
+        is rebuilt whenever it no longer matches the catalog on disk. On Windows the
         background sync starts without opening a console window.
       </P>
       <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
@@ -447,7 +447,10 @@ function Hosts() {
         a hidden proxy process on the host&apos;s behalf.
       </P>
       <P>
-        Each host has its own verified integration. Configuration rules (surgical JSONC merging, TOML round-tripping, and platform path discovery) are derived directly from each agent vendor&apos;s official documentation. Every host gets the exact same plan preview, pre-write backup, and byte-exact ledger.
+        Each host&apos;s config path and entry shape come from that vendor&apos;s documentation. LiteSPM
+        splices JSON and JSONC by byte offset so comments and key order survive, writes TOML through
+        a parser that rejects invalid strings, and backs up the file before the write. Every host
+        gets the same preview, backup and ledger entry.
       </P>
 
       <CodeBlock
@@ -711,7 +714,7 @@ function Security() {
     <DocSection title="Security model">
       <div className="space-y-3">
         {[
-          { title: "Your machine, your keys", body: "No account required, no credential proxying. Credentials stay in the environment or the OS vault. LiteSPM never sees them." },
+          { title: "Your machine, your keys", body: "No account required, no credential proxying. Tokens are stored in the OS vault or supplied as environment-variable references, never in an agent config. At launch LiteSPM resolves those references and passes the values to the provider process; it does not send them to this site." },
           { title: "Nothing is written without a preview", body: "You see the change first, and the file is backed up before it is touched." },
           { title: "Fail-closed remote installs", body: "A host with no vendor-documented URL entry object is refused with a clear error, never written in a guessed shape." },
           { title: "Pinned plugin sources", body: "A plugin installs from the pinned commit its publisher ships. LiteSPM fetches that commit, verifies it, and installs what the plugin's own manifest declares. A plugin with no fetchable pinned source is refused with the reason." },
@@ -745,7 +748,8 @@ function Publishing() {
   return (
     <DocSection title="Publishing to the catalog">
       <P>
-        The catalog is generated from publisher-published data — LiteSPM indexes listings directly from official specifications and public repositories. Where your listing can appear depends on its kind:
+        LiteSPM builds the catalog from metadata publishers publish themselves: official
+        specifications and public repositories. Where a listing appears depends on its kind:
       </P>
       <div className="space-y-2.5">
         {[
@@ -795,12 +799,8 @@ litespm catalog sync    # refresh the local catalog now (it also syncs itself)`}
             a: "Not from 0.6.1. The first command that needs the catalog downloads it in the foreground with progress on stderr, and later runs start a detached background sync at most every 6 hours without waiting for it. Set LITESPM_NO_AUTO_SYNC=1 (or run under CI) to disable that; 'litespm catalog sync' still works on demand. On the npm 0.6.0 release there is no automatic sync, so run 'litespm catalog sync' once before your first search. If a sync keeps failing, the background log is catalog-sync.log in the LiteSPM data root.",
           },
           {
-            q: "Why are some packages marked 'Installable' while others are 'Discovery-Only'?",
-            a: "LiteSPM operates on a strict zero-guesswork safety standard. To automatically install an MCP server, LiteSPM requires a verified runtime contract: either an exact streamable remote URL (HTTP/SSE) or a confirmed local execution command (command + args). When community packages only provide a repository link or documentation without standardized launch parameters, LiteSPM refuses to guess (such as guessing between npx, python, or uvx). These tools remain in the catalog so you can discover them and visit their source code, but one-click automated installation is paused until verified launch details exist.",
-          },
-          {
-            q: "What does 'Discovery only' mean on a listing?",
-            a: "The catalog has this row's metadata but no verified source or launch line LiteSPM can use. For a server, that means no publishable remote endpoint and no publisher-declared package the installer can start; for a skill, it means no GitHub source whose SKILL.md the build actually read. The detail page links only to the source the catalog recorded; it does not guess a repository.",
+            q: "Why do some listings say 'Discovery only'?",
+            a: "The catalog has the metadata but no launch line LiteSPM can use. A server needs either a remote endpoint or a publisher-declared command with arguments; a skill needs a GitHub source whose SKILL.md the build actually read. If a listing has only a repository link, LiteSPM will not guess whether to start it with npx, python or uvx. It stays in the catalog so you can find the source, but a one-command install is not offered. The detail page links only to the source the catalog recorded.",
           },
           {
             q: "Why do some plugins require the --allow-partial flag?",
@@ -808,7 +808,7 @@ litespm catalog sync    # refresh the local catalog now (it also syncs itself)`}
           },
           {
             q: "Why do plugins require a version-pinned source?",
-            a: "To ensure reproducible builds, cryptographic security, and byte-exact rollbacks, LiteSPM requires plugins to pin to a specific git commit hash. Floating branches (such as main or latest) can change at any time without notice. If a plugin points to a floating ref or a local directory, LiteSPM refuses it and tells you the publisher must publish an immutable tag or commit SHA. There is no CLI flag that bypasses this check.",
+            a: "LiteSPM pins a plugin to a git commit so the same bytes are fetched on every install and a rollback restores exactly what was recorded. A branch such as main or latest can move without notice. If a plugin ships a floating ref or only a local directory, LiteSPM refuses it and asks the publisher for an immutable tag or commit SHA. No flag bypasses this check.",
           },
           {
             q: "A host refuses a remote (URL) install",
@@ -820,7 +820,7 @@ litespm catalog sync    # refresh the local catalog now (it also syncs itself)`}
           },
           {
             q: "litespm install says unknown flag",
-            a: "Your installed CLI version is older than the flag being used (the repository can be ahead of npm: the in-agent marketplace commands and `marketplace rows` belong to the unreleased 0.6.1). Run 'npm update -g litespm' (or 'litespm self-update') to update to the latest release. This site's command reference and install flags are checked against the version npm serves as latest, not against an unreleased build.",
+            a: "Your installed CLI is older than the flag you are using. The repository can be ahead of npm: the in-agent marketplace commands and the marketplace rows subcommand are in the unreleased 0.6.1. Run npm update -g litespm (or litespm self-update) to get the latest release. This site checks its command reference and install flags against the version npm serves as latest, not against an unreleased build.",
           },
         ].map((item) => (
           <details key={item.q} className="group rounded-xl border border-border/70 bg-card transition-colors hover:border-border">
@@ -974,8 +974,8 @@ function Methodology() {
         For a skill, the detail page shows whether it carries scripts, makes network calls or
         needs credentials. LiteSPM reads the catalog&apos;s declarative metadata, not the
         skill&apos;s files, so those fields say &quot;Not inspected&quot; unless the publisher
-        declared otherwise. It is the absence of an audit, not a clean bill of health: review the
-        source before you use a skill.
+        declared otherwise. That is an unaudited field, not a pass. Read the source before you use
+        the skill.
       </P>
 
       <h2 className="pt-2 text-[17px] font-semibold" id="counts">Where each count comes from</h2>
