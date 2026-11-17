@@ -2,6 +2,7 @@ import type { Listing } from "./types";
 import { tomlLocalEntry, jsonSnippet, validateCommandLine } from "./config-snippet";
 import { norm, stripNamespace } from "./ranking";
 import { HOSTS } from "./hosts";
+import { formatVersion } from "../../lib/litespm/format";
 
 export interface HostConfigItem {
   id: string;
@@ -339,7 +340,7 @@ export function buildSkillSpec(row: Listing): SkillDetailSpec {
   }
 
   // Version fallback: say what is published, never a guessed release.
-  let versionFallback = row.version ? `v${row.version}` : "";
+  let versionFallback = formatVersion(row.version);
   let commitHash: string | undefined;
   if (!versionFallback) {
     if (row.artifact?.sha) {

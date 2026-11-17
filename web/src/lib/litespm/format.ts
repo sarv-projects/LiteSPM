@@ -10,6 +10,17 @@ export function formatCompact(n: number): string {
   return String(n);
 }
 
+/**
+ * Display a published version with exactly one leading "v".
+ * Publishers disagree on whether the version includes the prefix (the
+ * Grafana row publishes "v2.0.1"); normalising here keeps cards, detail
+ * pages and spec fallbacks from drifting into "vv2.0.1".
+ */
+export function formatVersion(version: string | undefined | null): string {
+  if (!version) return "";
+  return version.startsWith("v") ? version : `v${version}`;
+}
+
 export function formatFull(n: number): string {
   return new Intl.NumberFormat("en-US").format(n);
 }

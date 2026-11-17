@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useApp, type Route } from "@/lib/litespm/router";
 import type { CatalogStatsResponse } from "@/lib/litespm/types";
-import { formatFull } from "@/lib/litespm/format";
+import { formatCompact, formatFull } from "@/lib/litespm/format";
 import { Logo } from "./logo";
 import { NavLink } from "./nav-link";
 
@@ -77,17 +77,25 @@ export function AnnouncementBar() {
         <div className="mx-auto flex max-w-6xl items-center justify-center gap-2 px-4 py-1.5 text-center text-[12px] text-foreground/90">
           <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
           <p className="min-w-0 truncate">
-            Catalog release{" "}
-            <span className="font-mono font-semibold text-brand">{stats.release.releaseId}</span> —{" "}
-            {formatFull(stats.counts?.uniqueListings ?? stats.uniqueTotal)} listings, {stats.hosts} agent hosts.{" "}
-            <button
-              type="button"
-              onClick={() => useApp.getState().navigate("/insights")}
-              className="font-medium underline decoration-brand/50 underline-offset-2 hover:text-brand"
-            >
-              See catalog stats →
-            </button>
+            <span className="hidden sm:inline">Catalog release </span>
+            <span className="font-mono font-semibold text-brand">{stats.release.releaseId}</span>
+            <span className="hidden sm:inline">
+              {" — "}
+              {formatFull(stats.counts?.uniqueListings ?? stats.uniqueTotal)} listings, {stats.hosts} agent hosts.
+            </span>
+            <span className="sm:hidden">
+              {" · "}
+              {formatCompact(stats.counts?.uniqueListings ?? stats.uniqueTotal)} listings
+            </span>
           </p>
+          <button
+            type="button"
+            onClick={() => useApp.getState().navigate("/insights")}
+            className="shrink-0 font-medium underline decoration-brand/50 underline-offset-2 hover:text-brand"
+          >
+            <span className="hidden sm:inline">See catalog stats →</span>
+            <span className="sm:hidden">Stats →</span>
+          </button>
           <button
             type="button"
             aria-label="Dismiss announcement"

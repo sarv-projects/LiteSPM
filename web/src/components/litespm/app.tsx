@@ -21,7 +21,17 @@ import { DocsView } from "./views/docs";
  * are separate chunks fetched when first needed. Views still render on the
  * server (default `ssr`), so a deep link gets its HTML in the first response.
  */
-const viewLoading = () => <div className="min-h-[60vh]" aria-busy="true" />;
+const viewLoading = () => (
+  <div className="mx-auto min-h-[60vh] w-full max-w-6xl space-y-4 px-6 py-10" aria-busy="true" aria-label="Loading view">
+    <div className="h-8 w-64 animate-pulse rounded-lg bg-muted/60" />
+    <div className="h-4 w-96 max-w-full animate-pulse rounded bg-muted/40" />
+    <div className="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-3">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="h-32 animate-pulse rounded-xl border border-border/60 bg-card/60" />
+      ))}
+    </div>
+  </div>
+);
 const PackageView = dynamic(() => import("./views/package-detail").then((m) => m.PackageView), { loading: viewLoading });
 const AgentsView = dynamic(() => import("./views/agents").then((m) => m.AgentsView), { loading: viewLoading });
 const AgentDetailView = dynamic(() => import("./views/agent-detail").then((m) => m.AgentDetailView), { loading: viewLoading });
@@ -124,7 +134,12 @@ function CompareTray() {
   if (compareKeys.length === 0 || route.view === "compare") return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2">
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22 }}
+      className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2"
+    >
       <div className="flex items-center gap-3 rounded-full border border-brand/40 bg-popover/95 py-2 pl-4 pr-2 shadow-xl backdrop-blur">
         <GitCompareArrows className="h-4 w-4 text-brand" aria-hidden="true" />
         <p className="text-[13px] font-medium">
@@ -150,7 +165,7 @@ function CompareTray() {
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

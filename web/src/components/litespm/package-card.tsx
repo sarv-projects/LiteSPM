@@ -6,7 +6,7 @@ import { Bookmark, BookmarkCheck, Check, Copy, GitCompareArrows, Github, ShieldC
 
 import { cn } from "@/lib/utils";
 import { useApp } from "@/lib/litespm/router";
-import { displayPackageName, formatFull, formatCompact } from "@/lib/litespm/format";
+import { displayPackageName, formatFull, formatCompact, formatVersion } from "@/lib/litespm/format";
 import { useWatchlist } from "@/lib/litespm/hooks";
 import type { CatalogHit } from "@/lib/litespm/types";
 import { shellArg } from "@/lib/litespm/shell";
@@ -144,7 +144,7 @@ export function PackageCard({
         )}
         {hit.version && (
           <span className="font-mono text-[10.5px]" title={`Version ${hit.version}`}>
-            v{hit.version}
+            {formatVersion(hit.version)}
           </span>
         )}
         {hit.category && <span className="truncate">{hit.category}</span>}

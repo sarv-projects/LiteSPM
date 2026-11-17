@@ -325,6 +325,9 @@ export async function POST(request: NextRequest) {
               send({
                 type: "error",
                 retryable: result.error !== "aborted by client",
+                // The client uses this to auto-retry once the keys cool down
+                // (bounded "cooling poll") instead of leaving a dead end.
+                ...(result.retryInMs > 0 ? { retryInMs: result.retryInMs } : {}),
                 message: result.error === "aborted by client" ? "Stopped." : llmFailureMessage(result).message,
               });
               return;

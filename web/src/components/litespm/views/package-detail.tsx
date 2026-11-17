@@ -40,6 +40,7 @@ import { recordView, useWatchlist } from "@/lib/litespm/hooks";
 import { shellArg } from "@/lib/litespm/shell";
 import {
   displayPackageName,
+  formatVersion,
   installabilityLabel,
   kindLabel,
 } from "@/lib/litespm/format";
@@ -169,7 +170,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
   // Version or fallback ref
   const versionDisplay =
     data.version
-      ? `v${data.version}`
+      ? formatVersion(data.version)
       : data.skillSpec?.versionFallback ||
         (data.artifact?.sha ? `@${data.artifact.sha.slice(0, 7)}` : null);
 

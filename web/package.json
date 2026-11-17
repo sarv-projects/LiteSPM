@@ -18,7 +18,9 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "test:assistant": "node scripts/build-assistant-knowledge.mjs && bun scripts/test-assistant-rag.ts",
-    "pretype-check": "node scripts/build-site-facts.mjs && node scripts/build-assistant-knowledge.mjs"
+    "pretype-check": "node scripts/build-site-facts.mjs && node scripts/build-assistant-knowledge.mjs",
+    "test:version-format": "bun scripts/test-version-format.ts",
+    "test:gateway": "bun scripts/test-gateway-upgrades.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -28,7 +30,7 @@
     "@libsql/client": "^0.18.0",
     "@mdxeditor/editor": "^3.39.1",
     "@prisma/adapter-libsql": "^7.10.1",
-    "@prisma/client": "^6.11.1",
+    "@prisma/client": "^6.19.2",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-aspect-ratio": "^1.1.7",

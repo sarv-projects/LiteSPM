@@ -56,8 +56,9 @@ function InstallCommand({ command }: { command: string }) {
         aria-label="Copy install command"
         className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-brand"
       >
-        {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+        {copied ? <Check className="h-3.5 w-3.5 animate-in fade-in-0 text-emerald-500 duration-150" /> : <Copy className="h-3.5 w-3.5" />}
       </button>
+      <span role="status" className="sr-only">{copied ? "Install command copied" : ""}</span>
     </div>
   );
 }

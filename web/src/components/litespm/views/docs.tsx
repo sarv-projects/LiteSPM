@@ -32,7 +32,7 @@ const COMMANDS: Array<{ cmd: string; description: string; example?: string; grou
   { group: "Discover", cmd: "litespm search <text>", description: "Search the local catalog through its on-disk full-text index. Marks which results are installable and which are discovery-only, before you run anything. --json prints the litespm-search/v1 document; --limit <n> caps the rows (1-500).", example: "litespm search postgres" },
   { group: "Discover", cmd: "litespm skills find [<query>]", description: "Search the local catalog index for skills. --owner <org> narrows the results to one publisher." },
   { group: "Discover", cmd: "litespm agent list|resolve <id>", description: "List the coding agents in the ACP registry with the launch strategy for this OS, or resolve one agent's executable, arguments, environment and archive digest." },
-  { group: "Discover", cmd: "litespm catalog sync", description: "Download or refresh the local catalog on demand: every digest in the pointer, manifest and listings chain is verified before the local copy is replaced. From 0.6.1 it also builds the on-disk search index from the verified files, and the catalog syncs itself (see Getting started), so you only need this command to refresh right now. Searching never touches the network." },
+  { group: "Discover", cmd: "litespm catalog sync", description: "Download or refresh the local catalog on demand: every digest in the pointer, manifest and listings chain is verified before the local copy is replaced. It also builds the on-disk search index from the verified files, and the catalog syncs itself (see Getting started), so you only need this command to refresh right now. Searching never touches the network." },
 
   { group: "View", cmd: "litespm list", description: "What is installed, by agent and kind. --drifted shows entries changed since install; --json is the stable machine-readable form." },
   { group: "View", cmd: "litespm inventory [mcp|skills|plugins]", description: "Emit one stable litespm.inventory/v1 record per deployment, with placement, origin, install id, config path, digests and drift state." },
@@ -828,7 +828,9 @@ litespm catalog sync    # refresh the local catalog now (it also syncs itself)`}
               <Search className="h-3.5 w-3.5 text-brand" />
               {item.q}
             </summary>
-            <p className="px-4 pb-4 pt-1 text-[13px] leading-relaxed text-muted-foreground">{item.a}</p>
+            <div className="faq-answer">
+              <p className="px-4 pb-4 pt-1 text-[13px] leading-relaxed text-muted-foreground">{item.a}</p>
+            </div>
           </details>
         ))}
       </div>

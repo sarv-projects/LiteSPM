@@ -26,7 +26,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useApp, exploreHash } from "@/lib/litespm/router";
-import { formatFull, formatDate, displayPackageName } from "@/lib/litespm/format";
+import { formatFull, formatDate, displayPackageName, formatVersion } from "@/lib/litespm/format";
 import { useRecentlyViewed } from "@/lib/litespm/hooks";
 import type {
   CatalogHit,
@@ -180,7 +180,7 @@ export function HomeView() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
               </span>
-              {cliVersion ? `v${cliVersion.replace(/^v/, "")} on npm` : "on npm"} ·{" "}
+              {cliVersion ? `${formatVersion(cliVersion)} on npm` : "on npm"} ·{" "}
               {`${stats?.hosts ?? facts.hosts} agent hosts`}
             </p>
 
@@ -430,7 +430,7 @@ export function HomeView() {
               </div>
               <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Local, fast, always current</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">npm install -g litespm</code>, then run it. From 0.6.1 the catalog downloads itself on first use and refreshes in the background at most every 6 hours, and search runs on a local SQLite full-text index: milliseconds, around 30 MB of memory.
+                <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">npm install -g litespm</code>, then run it. The catalog downloads itself on first use and refreshes in the background at most every 6 hours, and search runs on a local SQLite full-text index: milliseconds, around 30 MB of memory.
               </p>
             </motion.div>
 
@@ -947,9 +947,11 @@ export function HomeView() {
                     <ChevronDown className="h-4 w-4" />
                   </span>
                 </summary>
-                <p className="mt-3 text-[13.5px] leading-relaxed text-muted-foreground">
-                  {item.a}
-                </p>
+                <div className="faq-answer">
+                  <p className="mt-3 text-[13.5px] leading-relaxed text-muted-foreground">
+                    {item.a}
+                  </p>
+                </div>
               </details>
             ))}
           </div>

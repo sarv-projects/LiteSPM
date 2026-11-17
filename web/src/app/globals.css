@@ -346,6 +346,18 @@
   animation-delay: calc(var(--i, 0) * 70ms + 60ms), 1.2s;
 }
 
+/* FAQ / disclosure answers ease open instead of snapping. The chevron already
+   rotates; this keeps the content reveal in step with it. Reduced motion is
+   covered by the global rule below. */
+.faq-answer {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.25s ease, opacity 0.2s ease;
+}
+details[open] .faq-answer { grid-template-rows: 1fr; opacity: 1; }
+.faq-answer > * { overflow: hidden; }
+
 /* Keyboard focus must be visible on every theme, on every control. */
 :where(a, button, input, select, textarea, summary, [role="tab"], [tabindex]):focus-visible {
   outline: 2px solid var(--brand);

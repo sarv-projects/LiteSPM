@@ -54,8 +54,8 @@ import type {
 
 const MAX_KEYS_PER_PROVIDER = 12;
 const PER_ATTEMPT_TIMEOUT_MS = 20_000;
-const BASE_COOLDOWN_MS = 15_000;
-const SERVER_ERROR_COOLDOWN_MS = 15_000;
+const BASE_COOLDOWN_MS = 5_000;
+const SERVER_ERROR_COOLDOWN_MS = 5_000;
 const MAX_COOLDOWN_MS = 2 * 60_000;
 /** Streaming: ceiling on time-to-first-token. */
 const STREAM_TTFT_TIMEOUT_MS = 15_000;
@@ -76,7 +76,9 @@ const FIXED_PROVIDERS: Array<{
     name: "nvidia",
     envPrefix: "NVIDIA_API_KEY",
     baseUrl: "https://integrate.api.nvidia.com/v1",
-    defaultModel: "meta/llama-3.3-70b-instruct",
+    // The old llama-3.3 default is 404 on most free NIM keys; this Nemotron
+    // model answered in ~0.5 s in an Oct 2026 sweep of the free tier.
+    defaultModel: "nvidia/nemotron-3-super-120b-a12b",
     style: "openai",
     priority: 10,
   },
@@ -211,26 +213,16 @@ function buildPool(): LlmCredential[] {
 
   for (const fixed of FIXED_PROVIDERS) {
     const keys = collectKeys(fixed.envPrefix);
-    if (fixed.name === "groq") {
-      const modelsEnv = process.env.GROQ_MODELS?.trim();
-      const models = modelsEnv
-        ? modelsEnv.split(",").map((s) => s.trim()).filter(Boolean)
-        : [modelOverride("groq") ?? "openai/gpt-oss-120b", "qwen/qwen3.8-27b"];
+    // Any fixed provider can publish several models via <PROVIDER>_MODELS.
+    // Each (model, key) pair is its own credential slot: providers rate-limit
+    // per key AND per model, so a 429 on one model must not sideline the rest.
+    // This is how adding one more key later automatically widens rotation.
+    const modelsEnv = process.env[`${fixed.envPrefix.replace(/_API_KEY$/, "")}_MODELS`]?.trim();
+    const models = modelsEnv
+      ? modelsEnv.split(",").map((s) => s.trim()).filter(Boolean)
+      : [modelOverride(fixed.name) ?? fixed.defaultModel];
 
-      for (const [mIdx, modelName] of models.entries()) {
-        for (const [i, apiKey] of keys.entries()) {
-          pool.push({
-            provider: fixed.name,
-            keyIndex: i + 1,
-            style: fixed.style,
-            baseUrl: fixed.baseUrl,
-            apiKey,
-            model: modelName,
-            priority: fixed.priority + mIdx,
-          });
-        }
-      }
-    } else {
+    for (const [mIdx, modelName] of models.entries()) {
       for (const [i, apiKey] of keys.entries()) {
         pool.push({
           provider: fixed.name,
@@ -238,8 +230,8 @@ function buildPool(): LlmCredential[] {
           style: fixed.style,
           baseUrl: fixed.baseUrl,
           apiKey,
-          model: modelOverride(fixed.name) ?? fixed.defaultModel,
-          priority: fixed.priority,
+          model: modelName,
+          priority: fixed.priority + mIdx,
         });
       }
     }
@@ -276,9 +268,11 @@ function buildPool(): LlmCredential[] {
 
   if (!orderEnv) return pool.sort((a, b) => a.priority - b.priority);
 
-  // Explicit order: only listed providers are eligible. A typo or an
-  // unavailable provider must produce an empty pool, never a silent fallback
-  // to an adapter that may not be configured on this deployment.
+  // Explicit order is fail-closed: only listed providers are eligible. A typo
+  // or an unavailable provider must produce an empty pool, never a silent
+  // fallback to an adapter that may not be configured on this deployment.
+  // To add a provider later, name it here (e.g. "groq,nvidia") — then its keys
+  // automatically join the same round-robin pool.
   const order = orderEnv.split(",").map((s) => s.trim()).filter(Boolean);
   const ordered: LlmCredential[] = [];
   for (const name of order) {

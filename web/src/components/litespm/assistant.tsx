@@ -65,7 +65,7 @@ type StreamEvent =
   | { type: "cards"; keys: string[]; citations?: AssistantCitation[] }
   | { type: "sources"; sources: AssistantSource[] }
   | { type: "done"; answer: string; citations?: AssistantCitation[]; sources?: AssistantSource[]; suggestions?: string[]; meta?: AssistantMeta }
-  | { type: "error"; message: string; retryable?: boolean };
+  | { type: "error"; message: string; retryable?: boolean; retryInMs?: number };
 
 const SUGGESTIONS = [
   "Hi! What can you help me with?",
@@ -976,10 +976,21 @@ export function Assistant() {
     abortRef.current?.abort();
   }, []);
 
+  // Bounded "cooling poll": if the gateway reports all keys cooling, wait out
+  // the reported delay and resend the same question once. The cap prevents a
+  // provider outage from turning into an endless retry loop.
+  const coolingRetryRef = React.useRef(0);
+  const coolingTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => {
+    if (coolingTimerRef.current) clearTimeout(coolingTimerRef.current);
+  }, []);
+
   const send = React.useCallback(
-    async (text: string, options?: { retry?: boolean }) => {
+    async (text: string, options?: { retry?: boolean; coolingAttempt?: number }) => {
       const question = text.trim();
       if (!question || busy) return;
+      const coolingAttempt = options?.coolingAttempt ?? 0;
+      if (coolingAttempt === 0) coolingRetryRef.current = 0;
       setError(null);
       setInput("");
       lastQuestionRef.current = question;
@@ -1103,6 +1114,9 @@ export function Assistant() {
           clearTimeout(timeoutId);
           setWaitingFirstToken(false);
           setStatusText(null);
+          const retryDelay = event.retryable && event.retryInMs && coolingRetryRef.current < 2
+            ? Math.min(Math.max(event.retryInMs, 1_000), 15_000)
+            : null;
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (last?.role === "assistant" && last.streaming && last.content.length > 0) {
@@ -1113,12 +1127,20 @@ export function Assistant() {
             }
             if (last?.role === "assistant" && last.streaming) {
               // Nothing arrived — drop the empty bubble and raise the error.
-              setError(event.message);
+              if (retryDelay === null) setError(event.message);
               return prev.slice(0, -1);
             }
-            setError(event.message);
+            if (retryDelay === null) setError(event.message);
             return prev;
           });
+          if (retryDelay !== null) {
+            coolingRetryRef.current += 1;
+            setStatusText("Keys are cooling — retrying shortly…");
+            coolingTimerRef.current = setTimeout(() => {
+              coolingTimerRef.current = null;
+              void send(question, { retry: true, coolingAttempt: coolingRetryRef.current });
+            }, retryDelay + 250);
+          }
         }
       };
 
@@ -1135,6 +1157,16 @@ export function Assistant() {
 
         if (!response.ok) {
           const data = (await response.json().catch(() => null)) as { error?: string } | null;
+          const retryAfter = Number(response.headers.get("Retry-After") ?? 0);
+          if (retryAfter > 0 && coolingRetryRef.current < 2) {
+            coolingRetryRef.current += 1;
+            setStatusText("Keys are cooling — retrying shortly…");
+            coolingTimerRef.current = setTimeout(() => {
+              coolingTimerRef.current = null;
+              void send(question, { retry: true, coolingAttempt: coolingRetryRef.current });
+            }, retryAfter * 1000 + 250);
+            return;
+          }
           setError(data?.error ?? "The assistant is unavailable right now.");
           return;
         }

@@ -4,10 +4,15 @@ import * as React from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Cloud,
+  Database,
   Filter,
   GitCompareArrows,
+  Github,
+  Globe,
   Search,
   SlidersHorizontal,
+  Terminal,
   X,
 } from "lucide-react";
 
@@ -231,11 +236,11 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
       <div className="mb-4 flex flex-wrap items-center gap-2 text-[12.5px]">
         <span className="text-muted-foreground font-medium text-[12px]">What do you want your agent to do?</span>
         {[
-          { label: "🐙 GitHub & Issues", q: "github" },
-          { label: "🌐 Web Browsing & Scraping", q: "browser puppeteer" },
-          { label: "🗄️ Database & SQL", q: "postgres sqlite sql" },
-          { label: "☁️ Cloud & Containers", q: "docker kubernetes aws" },
-          { label: "⚡ Terminal & Scripts", q: "bash python shell" },
+          { label: "GitHub & Issues", q: "github", Icon: Github },
+          { label: "Web Browsing & Scraping", q: "browser puppeteer", Icon: Globe },
+          { label: "Database & SQL", q: "postgres sqlite sql", Icon: Database },
+          { label: "Cloud & Containers", q: "docker kubernetes aws", Icon: Cloud },
+          { label: "Terminal & Scripts", q: "bash python shell", Icon: Terminal },
         ].map((task) => (
           <button
             key={task.q}
@@ -248,6 +253,7 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
                 : "border-border/70 bg-card text-muted-foreground hover:text-foreground",
             )}
           >
+            <task.Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {task.label}
           </button>
         ))}
