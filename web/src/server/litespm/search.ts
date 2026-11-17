@@ -13,7 +13,7 @@ import { availabilityOf } from "./availability";
 import { HOSTS, SKILL_TARGETS, HOST_ALIASES } from "./hosts";
 import { resolveHostId, hostIdsFor } from "./identity";
 import { classifyListing } from "./taxonomy";
-import { getCliReleases, getCompactDataset, getDataset } from "./dataset";
+import { getCliReleases, getCompactDataset, getDataset, isParseArtifactOrJunk } from "./dataset";
 import { dedupeKey, installableFirst, nameTiebreakBucket } from "./ranking";
 import { getCatalogCounts } from "./counts";
 import { resolveOriginalSource } from "./source-resolver";
@@ -753,7 +753,11 @@ export async function catalogStats() {
   // clipped at 600 chars and classification caps them at 300), and loads in a
   // few seconds instead of parsing the 57 MB catalog: the home page calls this
   // on every visit, so it must not be the slowest cold request.
-  const dataset = await getCompactDataset();
+  const compact = await getCompactDataset();
+  // The compact search file predates the junk filter. Drop parse-artifact
+  // rows here as counts.ts and the insights page do, so the banner and the
+  // headline numbers cannot disagree with the insights page.
+  const dataset = { ...compact, rows: compact.rows.filter((row) => !isParseArtifactOrJunk(row.name)) };
   const rows = dataset.rows;
   const metaFor = (row: Listing): RowMeta => {
     const cache = lazyMeta();
