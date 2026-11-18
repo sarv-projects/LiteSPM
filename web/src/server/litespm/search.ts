@@ -373,7 +373,12 @@ function cacheKeyFor(query: CatalogQuery, releaseId: string): string {
 }
 
 export async function searchCatalog(query: CatalogQuery): Promise<CatalogListResponse> {
-  const dataset = query.compact ? await getCompactDataset() : await getDataset();
+  const loaded = query.compact ? await getCompactDataset() : await getDataset();
+  // The compact artifact predates the parser-artifact filter. Apply the same
+  // filter at read time so marketplace totals and rows match insights/counts.
+  const dataset = query.compact
+    ? { ...loaded, rows: loaded.rows.filter((row) => !isParseArtifactOrJunk(row.name)) }
+    : loaded;
   const releaseId = dataset.release.releaseId;
   const cache = resultCache();
   const cacheKey = cacheKeyFor(query, releaseId);

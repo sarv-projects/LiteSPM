@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { getCatalogCounts } from "../src/server/litespm/counts";
 import { getInsights } from "../src/server/litespm/insights";
-import { catalogStats } from "../src/server/litespm/search";
+import { catalogStats, searchCatalog } from "../src/server/litespm/search";
 
 // Regression: the hero/marketplace counts (compact dataset) and the insights
 // page counts (full filtered dataset) used to disagree by exactly the 378
@@ -10,9 +10,11 @@ import { catalogStats } from "../src/server/litespm/search";
 const counts = await getCatalogCounts();
 const insights = await getInsights();
 const banner = await catalogStats();
+const search = await searchCatalog({ q: "postgres", pageSize: 1, facets: "only", compact: true });
 
 assert.equal(counts.uniqueListings, insights.totals.unique, "unique listings must match across surfaces");
 assert.equal(banner.uniqueTotal, insights.totals.unique, "banner must match insights");
+assert.equal(search.uniqueListings, insights.totals.unique, "marketplace search count must match insights");
 assert.equal(counts.installable, insights.totals.installable, "installable count must match across surfaces");
 assert.equal(banner.counts?.installable ?? banner.installable, insights.totals.installable, "banner installable must match insights");
 assert.equal(counts.discoveryOnly, insights.totals.discoveryOnly, "discovery-only count must match across surfaces");
