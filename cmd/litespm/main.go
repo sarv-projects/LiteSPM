@@ -214,6 +214,8 @@ func main() {
 		if code := runUninstall(context.Background(), os.Args[2:]); code != 0 {
 			os.Exit(code)
 		}
+	case "remove", "rm":
+		runSmartRemove(context.Background(), os.Args[2:])
 	case "restore":
 		runRestore(context.Background(), os.Args[2:])
 
@@ -1323,6 +1325,60 @@ See also:
 	fmt.Println("  LiteSPM's entries were stripped from the host configs; nodes you edited were kept.")
 }
 
+// runSmartRemove unifies package removal and skills removal under `litespm remove <name>`.
+func runSmartRemove(ctx context.Context, args []string) {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		fmt.Println("Usage: litespm remove <package-id|skill-name|install-id> [flags]")
+		fmt.Println("\nRemoves an installed MCP server, plugin, or skill from your agent hosts.")
+		fmt.Println("\nFlags:")
+		fmt.Println("  --scope user|project  limit removal to global or project scope")
+		fmt.Println("  --all                 remove all matching instances")
+		return
+	}
+
+	paths, err := config.ResolvePlatformPaths()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error resolving paths: %v\n", err)
+		os.Exit(1)
+	}
+
+	target := args[0]
+
+	// 1. Check state database for an installed MCP server or plugin
+	db, err := state.Open(paths.StateDBPath())
+	if err == nil {
+		defer db.Close()
+		installID, rerr := resolveRemoveID(ctx, db, target)
+		if rerr == nil && installID != "" {
+			if err := removeInstalledPackage(ctx, db, paths.DataRoot, installID); err != nil {
+				fmt.Fprintf(os.Stderr, "Remove failed: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("✓ Removed %s\n", installID)
+			fmt.Println("  LiteSPM's entries were stripped from the host configs; nodes you edited were kept.")
+			return
+		}
+	}
+
+	// 2. Check the skills ledger for a matching skill
+	ledger, err := skills.OpenLedger(skills.LedgerPath(paths.DataRoot))
+	if err == nil {
+		all, _ := ledger.All()
+		cleanTarget := strings.TrimPrefix(target, "skill:")
+		for _, e := range all {
+			if strings.EqualFold(e.SkillName, target) || strings.EqualFold(e.SkillName, cleanTarget) {
+				runSkillsRemove(args)
+				return
+			}
+		}
+	}
+
+	// 3. Not found in either
+	fmt.Fprintf(os.Stderr, "Remove error: %q was not found in installed packages or skills ledger.\n", target)
+	fmt.Fprintln(os.Stderr, "Run 'litespm list' or 'litespm skills list' to view installed items.")
+	os.Exit(1)
+}
+
 func runAgentCommand(args []string) {
 	ctx := context.Background()
 
@@ -1756,8 +1812,9 @@ func runSearch(opts searchOptions) {
 
 // installFlags holds the parsed command line for `litespm install`.
 type installFlags struct {
-	listingID string
-	version   string
+	listingID  string
+	listingIDs []string
+	version    string
 	scope     domain.InstallScope
 	// scopeSet records an explicit --scope, so --workspace can refuse to
 	// contradict a deliberate `--scope user` instead of quietly overriding it.
@@ -1931,10 +1988,10 @@ func parseInstallFlags(args []string) (installFlags, error) {
 				return flags, fmt.Errorf("unknown flag %q", arg)
 			}
 			positional++
-			if positional > 1 {
-				return flags, fmt.Errorf("unexpected argument %q", arg)
+			flags.listingIDs = append(flags.listingIDs, arg)
+			if flags.listingID == "" {
+				flags.listingID = arg
 			}
-			flags.listingID = arg
 		}
 	}
 
@@ -1955,10 +2012,32 @@ func parseInstallFlags(args []string) (installFlags, error) {
 		return flags, fmt.Errorf("--all-detected means every detected agent, so it cannot be combined with --agent/--host: name the targets, or ask for all of them, not both")
 	}
 
-	if flags.listingID == "" {
+	if len(flags.listingIDs) == 0 {
 		return flags, fmt.Errorf("missing <listing-id>")
 	}
 	return flags, nil
+}
+
+func runSkillsAddFromInstall(flags installFlags) {
+	skillsArgs := []string{flags.listingID}
+	if flags.yes {
+		skillsArgs = append(skillsArgs, "--yes")
+	}
+	if flags.force {
+		skillsArgs = append(skillsArgs, "--force")
+	}
+	if flags.scope == domain.ScopeProject {
+		skillsArgs = append(skillsArgs, "--project")
+	} else if flags.scope == domain.ScopeUser && flags.scopeSet {
+		skillsArgs = append(skillsArgs, "--global")
+	}
+	for _, a := range flags.agents {
+		skillsArgs = append(skillsArgs, "--agent", a)
+	}
+	for _, h := range flags.hosts {
+		skillsArgs = append(skillsArgs, "--agent", h)
+	}
+	runSkillsAdd(skillsArgs)
 }
 
 func runInstall(args []string) {
@@ -1977,6 +2056,62 @@ func runInstall(args []string) {
 	}
 	if flags.showHelp {
 		fmt.Println(installUsage)
+		return
+	}
+
+	// Batch installation support: install multiple capabilities in sequence
+	if len(flags.listingIDs) > 1 {
+		fmt.Printf("Batch installing %d capabilities...\n", len(flags.listingIDs))
+		var failed []string
+		for i, id := range flags.listingIDs {
+			fmt.Printf("\n[%d/%d] Installing %s...\n", i+1, len(flags.listingIDs), id)
+			var singleArgs []string
+			singleArgs = append(singleArgs, id)
+			for _, a := range args {
+				isPos := false
+				for _, pid := range flags.listingIDs {
+					if a == pid {
+						isPos = true
+						break
+					}
+				}
+				if !isPos {
+					singleArgs = append(singleArgs, a)
+				}
+			}
+			exe, eerr := os.Executable()
+			if eerr != nil {
+				exe = "litespm"
+			}
+			cmd := exec.Command(exe, append([]string{"install"}, singleArgs...)...)
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Env = os.Environ()
+			if err := cmd.Run(); err != nil {
+				failed = append(failed, id)
+			}
+		}
+		if len(failed) > 0 {
+			fmt.Fprintf(os.Stderr, "\nBatch install completed with %d error(s): %s\n", len(failed), strings.Join(failed, ", "))
+			os.Exit(1)
+		}
+		fmt.Printf("\n✓ All %d capabilities installed successfully.\n", len(flags.listingIDs))
+		return
+	}
+
+	// Automatic bundle ID prefixing: `litespm install office-documents` -> `bundle:office-documents`
+	if !strings.HasPrefix(flags.listingID, "bundle:") {
+		if _, ok := bundle.Items(flags.listingID); ok {
+			flags.listingID = "bundle:" + flags.listingID
+		}
+	}
+
+	// Smart Routing: Direct URLs, SSH remotes, or local directories route directly to skills add
+	if strings.HasPrefix(flags.listingID, "https://") || strings.HasPrefix(flags.listingID, "git@") ||
+		strings.HasPrefix(flags.listingID, "./") || strings.HasPrefix(flags.listingID, "../") ||
+		strings.HasPrefix(flags.listingID, "~/") {
+		runSkillsAddFromInstall(flags)
 		return
 	}
 
@@ -2158,6 +2293,21 @@ func runInstall(args []string) {
 		fmt.Printf("Resolving and installing %s...\n", flags.listingID)
 	}
 	listing, listingErr := catClient.GetListing(flags.listingID)
+	if listingErr != nil {
+		// Shorthand resolution: e.g. "anthropics/pdf" -> "skill:anthropics:pdf"
+		if strings.Contains(flags.listingID, "/") && !strings.Contains(flags.listingID, ":") {
+			candidate := "skill:" + strings.ReplaceAll(flags.listingID, "/", ":")
+			if row, err := catClient.GetListing(candidate); err == nil {
+				flags.listingID = candidate
+				listing = row
+				listingErr = nil
+			} else {
+				// Not a catalog ID: route to skills add!
+				runSkillsAddFromInstall(flags)
+				return
+			}
+		}
+	}
 	if listingErr != nil {
 		msg := fmt.Sprintf("listing %s is not in the local catalog index", flags.listingID)
 		if catClient.Count() == 0 {
@@ -2470,7 +2620,21 @@ func runCatalogSync() {
 
 	// The per-request client timeout covers a whole response body, so a 20 MB
 	// shard shares the sync budget instead of the 30s used for a small search.
+	var lastReport time.Time
+	nonTTYProgress := func(done, total int64) {
+		if total <= 0 || terminalUIAvailable(os.Stdin, os.Stdout) {
+			return
+		}
+		if time.Since(lastReport) >= 3*time.Second || done == total {
+			lastReport = time.Now()
+			pct := float64(done) * 100 / float64(total)
+			fmt.Printf("  • Downloading catalog shards: %.1f MB / %.1f MB (%.0f%%)\n", float64(done)/(1024*1024), float64(total)/(1024*1024), pct)
+		}
+	}
 	catClient := catalog.NewClientWithTimeout(regURL, paths.DataRoot, catalogSyncTimeout(cfg), nil)
+	if nonTTYProgress != nil {
+		catClient.SetProgress(nonTTYProgress)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), catalogSyncTimeout(cfg))
 	defer cancel()
 

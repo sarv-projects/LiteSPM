@@ -245,7 +245,19 @@ func runSkillsUseTo(out, errOut io.Writer, stdin io.Reader, interactive bool, ar
 		return 1
 	}
 
-	chosen, code := selectSkillsUseSkill(found, want, interactive, stdin, out, errOut)
+	defaultName := ""
+	if src.RepoPath != "" {
+		parts := strings.Split(src.RepoPath, "/")
+		defaultName = parts[len(parts)-1]
+	} else if src.LocalDir != "" {
+		defaultName = filepath.Base(src.LocalDir)
+	} else if src.CloneURL != "" {
+		trimmed := strings.TrimSuffix(strings.TrimSuffix(src.CloneURL, ".git"), "/")
+		parts := strings.Split(trimmed, "/")
+		defaultName = parts[len(parts)-1]
+	}
+
+	chosen, code := selectSkillsUseSkill(found, want, defaultName, interactive, stdin, out, errOut)
 	if code != 0 {
 		return code
 	}
@@ -364,9 +376,11 @@ func splitSkillsUseSelector(raw string) (source, selector string) {
 // selectSkillsUseSkill resolves the one skill to print. An explicit want (from
 // @skill or --skill) must match a discovered skill by name — a selector that
 // matches nothing is an error naming the value, never a silent fallback.
-// Without a want, a single discovered skill is used; several skills open the
-// numbered picker on a terminal, and are a refusal otherwise.
-func selectSkillsUseSkill(found []skills.DiscoveredSkill, want string, interactive bool, stdin io.Reader, out, errOut io.Writer) (skills.DiscoveredSkill, int) {
+// Without a want, a single discovered skill is used; if defaultName matches
+// a discovered skill (e.g. matching the repo name), it is selected automatically.
+// Otherwise, several skills open the numbered picker on a terminal, and are a
+// refusal in non-interactive mode.
+func selectSkillsUseSkill(found []skills.DiscoveredSkill, want string, defaultName string, interactive bool, stdin io.Reader, out, errOut io.Writer) (skills.DiscoveredSkill, int) {
 	names := discoveredSkillNames(found)
 	if want != "" {
 		for _, f := range found {
@@ -380,6 +394,13 @@ func selectSkillsUseSkill(found []skills.DiscoveredSkill, want string, interacti
 	}
 	if len(found) == 1 {
 		return found[0], 0
+	}
+	if defaultName != "" {
+		for _, f := range found {
+			if strings.EqualFold(f.Pkg.Name, defaultName) || discoveredSkillMatches(f.Pkg, defaultName) {
+				return f, 0
+			}
+		}
 	}
 	if !interactive {
 		fmt.Fprintf(errOut, "Error: the source holds %d skills; name one with --skill <name> or owner/repo@<skill> in non-interactive mode.\n", len(found))

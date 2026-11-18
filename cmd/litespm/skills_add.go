@@ -358,10 +358,30 @@ func runSkillsAdd(args []string) {
 		}
 	} else if len(found) == 1 || opts.yes || !interactive {
 		if !interactive && len(found) > 1 && !opts.yes {
-			fmt.Fprintln(os.Stderr, "Error: multiple skills found; re-run with --skill <name> (repeatable) or --yes in non-interactive mode.")
-			os.Exit(1)
+			repoName := ""
+			if src.RepoPath != "" {
+				parts := strings.Split(src.RepoPath, "/")
+				repoName = parts[len(parts)-1]
+			} else if src.LocalDir != "" {
+				repoName = filepath.Base(src.LocalDir)
+			}
+			var matching []skills.DiscoveredSkill
+			if repoName != "" {
+				for _, f := range found {
+					if strings.EqualFold(f.Pkg.Name, repoName) {
+						matching = append(matching, f)
+					}
+				}
+			}
+			if len(matching) == 1 {
+				selected = matching
+			} else {
+				fmt.Fprintln(os.Stderr, "Error: multiple skills found; re-run with --skill <name> (repeatable) or --yes in non-interactive mode.")
+				os.Exit(1)
+			}
+		} else {
+			selected = found
 		}
-		selected = found
 	}
 
 	// --- Scope selection (global, or this repo only) ---

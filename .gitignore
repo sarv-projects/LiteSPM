@@ -27,6 +27,7 @@ source-snapshots/
 tmp-cli-sandbox-*/
 tmp-catalog-*/
 tmp-vercel-skills/
+test_sandbox/
 
 # Agent-harness session state (goals, locks, per-session scratch).
 .opencode/

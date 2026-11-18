@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sarv-projects/litespm/internal/catalog"
 	"github.com/sarv-projects/litespm/internal/config"
 	"github.com/sarv-projects/litespm/internal/skills"
 )
@@ -843,6 +844,31 @@ var gitCloneTimeout = func() time.Duration {
 	return 5 * time.Minute
 }()
 
+// fallbackCatalogSkillSource checks if a repository name like "anthropics/pdf" matches
+// a known catalog skill ID (e.g. "skill:anthropics:pdf"). If so, it returns the real
+// fetchable source descriptor from the catalog.
+func fallbackCatalogSkillSource(repoPath string) (skills.SkillSource, bool) {
+	if repoPath == "" {
+		return skills.SkillSource{}, false
+	}
+	paths, err := config.ResolvePlatformPaths()
+	if err != nil {
+		return skills.SkillSource{}, false
+	}
+	cfg, _ := config.LoadCurrentConfig()
+	catClient := catalog.NewClientWithTimeout(registryURLOf(cfg), paths.DataRoot, catalogTimeoutOf(cfg), nil)
+	catalogID := "skill:" + strings.ReplaceAll(repoPath, "/", ":")
+	listing, err := catClient.GetListing(catalogID)
+	if err != nil || strings.TrimSpace(listing.Source.URL) == "" {
+		return skills.SkillSource{}, false
+	}
+	catSrc, err := skills.ParseSkillSource(listing.Source.URL)
+	if err != nil {
+		return skills.SkillSource{}, false
+	}
+	return catSrc, true
+}
+
 func fetchSkillSourceTree(src skills.SkillSource) (root string, cleanup func(), err error) {
 	if src.Kind == "local" {
 		return src.LocalDir, func() {}, nil
@@ -912,6 +938,14 @@ func fetchSkillSourceTree(src skills.SkillSource) (root string, cleanup func(), 
 			ghCmd := exec.CommandContext(cloneCtx, "gh", ghArgs...)
 			if _, ghErr := ghCmd.CombinedOutput(); ghErr == nil {
 				return tmp, cleanup, nil
+			}
+		}
+
+		// Fallback to checking local catalog if repoPath matches a catalog skill ID (e.g. anthropics/pdf -> skill:anthropics:pdf)
+		if src.RepoPath != "" {
+			if catSrc, ok := fallbackCatalogSkillSource(src.RepoPath); ok {
+				_ = os.RemoveAll(tmp)
+				return fetchSkillSourceTree(catSrc)
 			}
 		}
 

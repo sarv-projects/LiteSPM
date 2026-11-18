@@ -275,7 +275,11 @@ func TestParseInstallFlags(t *testing.T) {
 					t.Errorf("unexpected flags: %+v", f)
 				}
 			}},
-		{name: "extra positional", args: []string{"one", "two"}, wantErr: true},
+		{name: "batch positional", args: []string{"one", "two"}, wantErr: false, check: func(t *testing.T, f installFlags) {
+			if len(f.listingIDs) != 2 || f.listingIDs[0] != "one" || f.listingIDs[1] != "two" {
+				t.Errorf("expected 2 listingIDs [one two], got %+v", f.listingIDs)
+			}
+		}},
 	}
 
 	for _, tc := range cases {

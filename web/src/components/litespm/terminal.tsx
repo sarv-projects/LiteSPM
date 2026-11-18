@@ -4,7 +4,7 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { Check, Copy, RotateCcw, Terminal } from "lucide-react";
 
-export type ScenarioId = "mcp" | "skills" | "restore";
+export type ScenarioId = "litespm" | "skills" | "mcp" | "restore";
 
 interface ScriptLine {
   kind: "cmd" | "out" | "ok" | "dim" | "header";
@@ -22,50 +22,75 @@ const SCENARIOS: Record<
 > = {
   // Lines are rendered with white-space: pre so the columns line up; keep
   // each one within ~58 characters so nothing is clipped in the hero.
-  mcp: {
-    title: "MCP Server",
-    description: "Search, preview, back up, write, record",
+  litespm: {
+    title: "litespm",
+    description: "Auto-detect agents, sync 69K+ catalog & launch Manager",
     lines: [
-      { kind: "cmd", text: "litespm search postgres", delay: 350 },
-      { kind: "header", text: "  NAME          KIND  TRANSPORT        STATUS", delay: 260 },
-      { kind: "out", text: "  neon          mcp   streamable-http  installable", delay: 170 },
-      { kind: "out", text: "  supabase      mcp   stdio            installable", delay: 150 },
-      { kind: "out", text: "  postgres-mcp  mcp   stdio            installable", delay: 150 },
-      { kind: "cmd", text: "litespm install neon --agent claude-code", delay: 520 },
-      { kind: "dim", text: "  plan    ~/.claude.json  mcpServers.neon", delay: 260 },
-      { kind: "dim", text: "  backup  ~/.claude.json.litespm-bak", delay: 220 },
-      { kind: "ok", text: "  ✓ Registered neon in claude-code", delay: 320 },
-      { kind: "dim", text: "  ledger  1 install recorded", delay: 220 },
-      { kind: "cmd", text: "litespm list", delay: 460 },
-      { kind: "header", text: "  KIND  NAME  STATE    AGENT", delay: 240 },
-      { kind: "ok", text: "  mcp   neon  managed  claude-code", delay: 260 },
+      { kind: "cmd", text: "litespm", delay: 350 },
+      { kind: "header", text: "◆ LiteSPM  ·  cross-agent auto-sync", delay: 200 },
+      { kind: "dim", text: "───────────────────────────────────────────────────────", delay: 120 },
+      { kind: "ok", text: "✓  catalog synced (69,376 capabilities indexed)", delay: 240 },
+      { kind: "ok", text: "✓  agents: 11 detected · 0 newly wired · 11 connected", delay: 220 },
+      { kind: "ok", text: "✓  skills: active skills reconciled across 11 agents", delay: 220 },
+      { kind: "dim", text: "───────────────────────────────────────────────────────", delay: 120 },
+      { kind: "header", text: "◆ LiteSPM Manager", delay: 200 },
+      { kind: "dim", text: "│ Search: type to filter", delay: 160 },
+      { kind: "out", text: "│  ▾ Sync", delay: 140 },
+      { kind: "ok", text: "│❯ ○ Sync & cross-update everything (11 agents)", delay: 240 },
+      { kind: "out", text: "│  ▾ Catalog", delay: 140 },
+      { kind: "out", text: "│  ○ Find and install capability (search local index)", delay: 140 },
+      { kind: "out", text: "│  ○ View installed capabilities", delay: 140 },
     ],
   },
   skills: {
-    title: "Agent Skill",
-    description: "Discover SKILL.md, copy into the skills tree",
+    title: "skills add",
+    description: "Discover SKILL.md and copy into agent skill trees",
     lines: [
       { kind: "cmd", text: "litespm skills add anthropics/skills --skill pdf", delay: 350 },
-      { kind: "dim", text: "  fetch   github.com/anthropics/skills", delay: 260 },
-      { kind: "out", text: "  found   pdf  (SKILL.md parsed)", delay: 280 },
-      { kind: "dim", text: "  plan    ~/.claude/skills/pdf/", delay: 240 },
-      { kind: "ok", text: "  ✓ Installed skill pdf for claude-code", delay: 340 },
-      { kind: "dim", text: "  ledger  recorded in the skills ledger", delay: 220 },
-      { kind: "cmd", text: "litespm skills list", delay: 460 },
-      { kind: "header", text: "  NAME  SOURCE             AGENT", delay: 240 },
-      { kind: "ok", text: "  pdf   anthropics/skills  claude-code", delay: 260 },
+      { kind: "header", text: "◆ LiteSPM  ·  skills installer", delay: 200 },
+      { kind: "ok", text: "◇  Source  https://github.com/anthropics/skills.git", delay: 220 },
+      { kind: "ok", text: "◇  Found 20 skills  (1 selected: pdf)", delay: 200 },
+      { kind: "ok", text: "◇  Scope   Global (user-wide)", delay: 180 },
+      { kind: "dim", text: "╭─────────────────────────────────────────────────────╮", delay: 120 },
+      { kind: "header", text: "│ Installation Summary                                │", delay: 140 },
+      { kind: "ok", text: "│   ✓ pdf                                             │", delay: 160 },
+      { kind: "dim", text: "│     → ~/.claude/skills/pdf                          │", delay: 160 },
+      { kind: "dim", text: "╰─────────────────────────────────────────────────────╯", delay: 120 },
+      { kind: "ok", text: "◇  Installed 1 skill into 1 destination", delay: 240 },
+      { kind: "dim", text: "Done. Review skills before use; full agent permissions.", delay: 200 },
+      { kind: "cmd", text: "litespm skills list", delay: 400 },
+      { kind: "header", text: "  SKILL  HOST         SCOPE   ORIGIN     DIRECTORY", delay: 200 },
+      { kind: "ok", text: "  pdf    claude-code  global  installed  ~/.claude/...", delay: 220 },
+    ],
+  },
+  mcp: {
+    title: "install",
+    description: "Register remote or local MCP server into host configs",
+    lines: [
+      { kind: "cmd", text: "litespm install context7 --agent claude-code", delay: 350 },
+      { kind: "dim", text: "Resolving mcp:builtin:mcp-registry:io.github.upstash...", delay: 220 },
+      { kind: "ok", text: "✓ Registered MCP server context7", delay: 260 },
+      { kind: "dim", text: "  Listing ID:  inst_user_mcp_context7_4_2_0", delay: 180 },
+      { kind: "out", text: "  Endpoint:    https://mcp.context7.com/mcp (remote)", delay: 200 },
+      { kind: "ok", text: "  • claude-code  created entry in ~/.claude.json", delay: 240 },
+      { kind: "cmd", text: "litespm list", delay: 420 },
+      { kind: "header", text: "LiteSPM setup overview (1 managed · 11 connected)", delay: 220 },
+      { kind: "header", text: "  KIND    NAME      STATE    SCOPE  AGENT", delay: 180 },
+      { kind: "ok", text: "  mcp     context7  managed  user   claude-code", delay: 220 },
     ],
   },
   restore: {
-    title: "Safe Rollback",
-    description: "Byte-exact rollback to the pre-install file",
+    title: "restore",
+    description: "Byte-exact rollback using cryptographic pre-image hashes",
     lines: [
-      { kind: "cmd", text: "litespm restore <installId>", delay: 350 },
-      { kind: "dim", text: "  read    ledger record for neon", delay: 260 },
-      { kind: "dim", text: "  verify  sha256 matches the recorded pre-image", delay: 260 },
-      { kind: "ok", text: "  ✓ ~/.claude.json restored byte for byte", delay: 340 },
-      { kind: "cmd", text: "litespm list", delay: 460 },
-      { kind: "dim", text: "  0 unique capabilities · 0 deployments", delay: 280 },
+      { kind: "cmd", text: "litespm restore inst_user_mcp_context7_4_2_0", delay: 350 },
+      { kind: "dim", text: "Verifying pre-image SHA-256...", delay: 200 },
+      { kind: "ok", text: "✓ Restored inst_user_mcp_context7_4_2_0", delay: 260 },
+      { kind: "dim", text: "  - ~/.claude.json restored byte for byte", delay: 200 },
+      { kind: "dim", text: "  - backups preserved in ~/.litespm/backups/", delay: 180 },
+      { kind: "cmd", text: "litespm list", delay: 400 },
+      { kind: "header", text: "LiteSPM setup overview", delay: 180 },
+      { kind: "dim", text: "0 unique capabilities · 0 deployments", delay: 220 },
     ],
   },
 };
@@ -89,7 +114,7 @@ export function TerminalHero({
   /** Drawn inside a .glow-frame, which supplies the border. */
   framed?: boolean;
 }) {
-  const [scenario, setScenario] = React.useState<ScenarioId>("mcp");
+  const [scenario, setScenario] = React.useState<ScenarioId>("litespm");
   const [visible, setVisible] = React.useState(0);
   const [typed, setTyped] = React.useState("");
   const [copied, setCopied] = React.useState(false);
@@ -106,9 +131,10 @@ export function TerminalHero({
 
     const timer = setTimeout(() => {
       setScenario((prev) => {
-        if (prev === "mcp") return "skills";
-        if (prev === "skills") return "restore";
-        return "mcp";
+        if (prev === "litespm") return "skills";
+        if (prev === "skills") return "mcp";
+        if (prev === "mcp") return "restore";
+        return "litespm";
       });
       setRunKey((k) => k + 1);
     }, 4500);
@@ -210,7 +236,7 @@ export function TerminalHero({
 
         {/* Scenario Switcher Tabs */}
         <div className="flex items-center gap-1">
-          {(["mcp", "skills", "restore"] as ScenarioId[]).map((id) => (
+          {(["litespm", "skills", "mcp", "restore"] as ScenarioId[]).map((id) => (
             <button
               key={id}
               type="button"

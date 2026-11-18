@@ -40,6 +40,15 @@ func installFailureText(err error, unicode bool) string {
 		return fmt.Sprintf("%s %s can't be installed: it is discovery-only metadata with no verified launch line (%s).\n  Try: litespm search %s to inspect the listing, or litespm marketplace to browse installable alternatives\n",
 			mark, id, lerr.Code, searchTermForListingID(id))
 	}
+	if lerr.Code == "LPSM-INSTALL-PARTIAL" {
+		return fmt.Sprintf("Install failed: %s (%s)\n  Try: Re-run with --allow-partial to install portable components while skipping non-portable host extras.\n", lerr.Message, lerr.Code)
+	}
+	if lerr.Code == "LPSM-HOST-REMOTE-UNSUPPORTED" {
+		return fmt.Sprintf("Install failed: %s (%s)\n  Try: Target a host that supports remote MCP transports (e.g. claude, codex, grok, opencode), or choose a local stdio capability.\n", lerr.Message, lerr.Code)
+	}
+	if lerr.Code == "LPSM-LOCK-DRIFT" {
+		return fmt.Sprintf("Install failed: %s (%s)\n  Try: Run 'litespm lock update' to re-synchronize your litespm.lock file.\n", lerr.Message, lerr.Code)
+	}
 	return fmt.Sprintf("Install failed: %s (%s)\n", lerr.Message, lerr.Code)
 }
 

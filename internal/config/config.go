@@ -20,7 +20,7 @@ import (
 // deployment origin serving /v1/current.json. Renamed from the pre-rebrand
 // `litepsm` Worker on 2026-10-05, once the new origin was live and verified
 // (release rel-2026-10-05-01, sequence 143).
-const DefaultRegistryURL = "https://litespm.sarveshbh-2022.workers.dev"
+const DefaultRegistryURL = "https://lite-spm-nine.vercel.app"
 
 // CatalogConfig governs remote catalog synchronization.
 type CatalogConfig struct {
