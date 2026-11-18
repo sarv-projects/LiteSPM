@@ -28,6 +28,22 @@
       ]
     },
     {
+      "id": "vibe-coding-frontend",
+      "title": "Vibe coding & rapid frontend",
+      "blurb": "Prompt and ship animated UI components, animated slides and interactive blocks into your React/Next.js apps without writing boilerplate.",
+      "difficulty": "Beginner",
+      "audience": "Vibe coders, solo founders and indie hackers building fast",
+      "items": [
+        "mcp:builtin:mcp-registry:dev.uiarc-arc",
+        "mcp:builtin:mcp-registry:app.goshipyard-shipyard",
+        "mcp:builtin:mcp-registry:io.github.BuilderIO-agent-native-slides",
+        "mcp:builtin:mcp-registry:gallery.a1-a1-gallery",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "skill:anthropics:canvas-design",
+        "skill:vercel:building-components"
+      ]
+    },
+    {
       "id": "full-stack-web-dev",
       "title": "Full-stack web dev",
       "blurb": "Manage the repo, drive a real browser to test what you build, look up current library docs, and deploy, all from the agent.",
@@ -193,22 +209,6 @@
         "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
         "skill:anthropics:skill-creator",
         "skill:semgrep:code-security"
-      ]
-    },
-    {
-      "id": "vibe-coding-frontend",
-      "title": "Vibe coding & rapid frontend",
-      "blurb": "Prompt and ship animated UI components, animated slides and interactive blocks into your React/Next.js apps without writing boilerplate.",
-      "difficulty": "Beginner",
-      "audience": "Vibe coders, solo founders and indie hackers building fast",
-      "items": [
-        "mcp:builtin:mcp-registry:dev.uiarc-arc",
-        "mcp:builtin:mcp-registry:app.goshipyard-shipyard",
-        "mcp:builtin:mcp-registry:io.github.BuilderIO-agent-native-slides",
-        "mcp:builtin:mcp-registry:gallery.a1-a1-gallery",
-        "mcp:builtin:mcp-registry:io.github.upstash-context7",
-        "skill:anthropics:canvas-design",
-        "skill:vercel:building-components"
       ]
     },
     {

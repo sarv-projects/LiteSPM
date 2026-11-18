@@ -275,10 +275,26 @@ function Introduction() {
 
       <P>
         Three kinds of capability can be installed: <strong className="text-foreground">MCP
-        servers</strong> (services your agent calls tools on),{" "}
+        servers</strong> (services your agent calls tools on, implementing the{" "}
+        <a
+          href="https://spec.modelcontextprotocol.io/specification/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-brand hover:underline"
+        >
+          Model Context Protocol specification
+        </a>),{" "}
         <strong className="text-foreground">agent skills</strong> (portable{" "}
         <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">SKILL.md</code> folders of
-        instructions), and <strong className="text-foreground">plugins</strong> (a publisher&apos;s
+        instructions following the{" "}
+        <a
+          href="https://agentskills.io"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-brand hover:underline"
+        >
+          Agent Skills standard
+        </a>), and <strong className="text-foreground">plugins</strong> (a publisher&apos;s
         bundle of skills and MCP servers).
       </P>
 
@@ -315,10 +331,36 @@ function GettingStarted() {
   return (
     <DocSection title="Getting started">
       <P>
-        LiteSPM ships as an npm package that downloads the signed binary for your platform. Node
-        22.22.2+ is required.
+        LiteSPM ships as an npm package that downloads the signed binary for your platform (Node
+        22.22.2+ is required). Alternatively, you can run LiteSPM on-demand via{" "}
+        <code className="rounded bg-muted/60 px-1 font-mono text-[12px]">npx litespm</code> without
+        a global install, or download standalone precompiled binaries from GitHub Releases (no Node
+        required).
       </P>
       <InstallBar command="npm install -g litespm" label="npm" />
+
+      <div className="grid gap-3 sm:grid-cols-2 pt-2">
+        <div className="rounded-xl border border-border/70 bg-card p-3.5 space-y-1.5 text-[12.5px]">
+          <p className="font-semibold text-foreground">Global install (recommended)</p>
+          <code className="block rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-brand">
+            npm install -g litespm
+          </code>
+          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+            Installs the <code className="font-mono">litespm</code> CLI on your PATH for daily use.
+            Interactive runs check for signed updates automatically.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border/70 bg-card p-3.5 space-y-1.5 text-[12.5px]">
+          <p className="font-semibold text-foreground">Zero-install (one-shot)</p>
+          <code className="block rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-brand">
+            npx litespm
+          </code>
+          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+            Launches the setup wizard or runs commands on demand without global node_modules. Connects
+            your agents and exits cleanly.
+          </p>
+        </div>
+      </div>
 
       <P>
         Upgrade later with{" "}

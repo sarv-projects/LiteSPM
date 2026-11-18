@@ -233,35 +233,37 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
   return (
     <div>
       {/* Task-oriented search suggestions */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 text-[12.5px]">
-        <span className="text-muted-foreground font-medium text-[12px]">What do you want your agent to do?</span>
-        {[
-          { label: "GitHub & Issues", q: "github", Icon: Github },
-          { label: "Web Browsing & Scraping", q: "browser puppeteer", Icon: Globe },
-          { label: "Database & SQL", q: "postgres sqlite sql", Icon: Database },
-          { label: "Cloud & Containers", q: "docker kubernetes aws", Icon: Cloud },
-          { label: "Terminal & Scripts", q: "bash python shell", Icon: Terminal },
-        ].map((task) => (
-          <button
-            key={task.q}
-            type="button"
-            onClick={() => setParam("q", task.q)}
-            className={cn(
-              "rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium transition-colors hover:border-brand/50 hover:bg-muted/40",
-              query.q === task.q
-                ? "border-brand bg-brand-soft text-brand font-semibold"
-                : "border-border/70 bg-card text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <task.Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            {task.label}
-          </button>
-        ))}
+      <div className="mb-4 w-full max-w-full overflow-hidden">
+        <div className="flex w-full max-w-full items-center gap-2 overflow-x-auto pb-1 text-[12.5px] no-scrollbar sm:flex-wrap sm:overflow-visible sm:pb-0">
+          <span className="shrink-0 text-muted-foreground font-medium text-[12px]">What do you want your agent to do?</span>
+          {[
+            { label: "GitHub & Issues", q: "github", Icon: Github },
+            { label: "Web Browsing & Scraping", q: "browser puppeteer", Icon: Globe },
+            { label: "Database & SQL", q: "postgres sqlite sql", Icon: Database },
+            { label: "Cloud & Containers", q: "docker kubernetes aws", Icon: Cloud },
+            { label: "Terminal & Scripts", q: "bash python shell", Icon: Terminal },
+          ].map((task) => (
+            <button
+              key={task.q}
+              type="button"
+              onClick={() => setParam("q", task.q)}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium transition-colors hover:border-brand/50 hover:bg-muted/40",
+                query.q === task.q
+                  ? "border-brand bg-brand-soft text-brand font-semibold"
+                  : "border-border/70 bg-card text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <task.Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{task.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Search + sort */}
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="relative flex h-11 min-w-[14rem] flex-1 items-center gap-2.5 rounded-xl border border-border/80 bg-card px-3.5 focus-within:border-brand/60">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+        <label className="relative flex h-11 min-w-0 w-full sm:w-auto sm:min-w-[14rem] flex-1 items-center gap-2.5 rounded-xl border border-border/80 bg-card px-3.5 focus-within:border-brand/60">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="sr-only">Search {TAB_NOUN[tab]}</span>
           <input
@@ -324,40 +326,42 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
         </Select>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <label
-          className={cn(
-            "inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-[13px] font-semibold transition-colors",
-            query.installable
-              ? "border-brand/60 bg-brand-soft text-brand"
-              : "border-border/80 bg-card text-foreground hover:border-brand/40",
-          )}
-          title="Only listings that litespm install can complete. Discovery-only listings are hidden."
-        >
-          <Switch
-            checked={Boolean(query.installable)}
-            onCheckedChange={(on) => setParam("installable", on ? "1" : undefined)}
-            aria-label="Installable only"
-          />
-          Installable only
-        </label>
-        {query.host && (
-          <FilterPill active onClick={() => setParam("host", undefined)} title="Remove the host filter">
-            Host: {query.host} <X className="h-3 w-3" aria-hidden="true" />
-          </FilterPill>
-        )}
-        {activeCount > 0 && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-muted/60 px-2.5 py-1 text-[12px] font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
+      <div className="mt-3 flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <label
+            className={cn(
+              "inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-[13px] font-semibold transition-colors",
+              query.installable
+                ? "border-brand/60 bg-brand-soft text-brand"
+                : "border-border/80 bg-card text-foreground hover:border-brand/40",
+            )}
+            title="Only listings that litespm install can complete. Discovery-only listings are hidden."
           >
-            <X className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-            Clear filters ({activeCount})
-          </button>
-        )}
+            <Switch
+              checked={Boolean(query.installable)}
+              onCheckedChange={(on) => setParam("installable", on ? "1" : undefined)}
+              aria-label="Installable only"
+            />
+            Installable only
+          </label>
+          {query.host && (
+            <FilterPill active onClick={() => setParam("host", undefined)} title="Remove the host filter">
+              Host: {query.host} <X className="h-3 w-3" aria-hidden="true" />
+            </FilterPill>
+          )}
+          {activeCount > 0 && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-muted/60 px-2.5 py-1 text-[12px] font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              Clear filters ({activeCount})
+            </button>
+          )}
+        </div>
         <p
-          className="ml-auto text-right text-[12px] text-muted-foreground"
+          className="w-full text-left sm:w-auto sm:text-right text-[12px] text-muted-foreground"
           role="status"
           aria-live="polite"
           title="Listings with the same name from different publishers (or as both an MCP server and a skill) are merged into one result, so this is lower than the number of listings in the catalog."
@@ -374,7 +378,7 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
         </p>
       </div>
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[260px_1fr]">
+      <div className="mt-5 grid w-full min-w-0 max-w-full gap-6 lg:grid-cols-[260px_1fr]">
         {/* Facet sidebar */}
         <aside
           className={cn("space-y-6 lg:block", filtersOpen ? "block" : "hidden")}
@@ -461,7 +465,7 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
         </aside>
 
         {/* Results */}
-        <div aria-busy={loading}>
+        <div aria-busy={loading} className="min-w-0 max-w-full">
           {failed && !data ? (
             <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-8 text-center">
               <p className="text-[15px] font-medium">The catalog could not be searched.</p>

@@ -245,6 +245,10 @@
   0%, 100% { transform: translate3d(6%, 8%, 0) scale(1.1); }
   50% { transform: translate3d(-10%, -6%, 0) scale(0.95); }
 }
+@keyframes aurora-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.6; }
+  50% { transform: translate3d(-8%, 6%, 0) scale(1.15); opacity: 0.9; }
+}
 .aurora {
   position: absolute;
   border-radius: 9999px;
@@ -254,6 +258,7 @@
 }
 .aurora-a { animation: aurora-a 18s ease-in-out infinite; }
 .aurora-b { animation: aurora-b 22s ease-in-out infinite; }
+.aurora-c { animation: aurora-c 26s ease-in-out infinite; }
 
 /* Pointer spotlight: --mx/--my are set from JS on pointer move. */
 .hero-spotlight {
@@ -288,6 +293,7 @@
     transparent 360deg
   );
   animation: border-spin 8s linear infinite;
+  box-shadow: 0 25px 80px -20px color-mix(in oklch, var(--brand) 30%, transparent);
 }
 
 /* Gentle float for the hero callouts. */

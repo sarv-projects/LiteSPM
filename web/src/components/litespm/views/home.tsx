@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useApp, exploreHash } from "@/lib/litespm/router";
 import { formatFull, formatDate, displayPackageName, formatVersion } from "@/lib/litespm/format";
 import { useRecentlyViewed } from "@/lib/litespm/hooks";
@@ -95,6 +96,7 @@ export function HomeView() {
   const [topMcp, setTopMcp] = React.useState<CatalogHit[]>([]);
   const [topSkills, setTopSkills] = React.useState<CatalogHit[]>([]);
   const [exploreTab, setExploreTab] = React.useState<ExploreTab>("ranked");
+  const [installMode, setInstallMode] = React.useState<"npm" | "npx">("npm");
   const { entries: recent } = useRecentlyViewed();
 
   // Pointer spotlight: write CSS variables straight to the element (one rAF
@@ -176,8 +178,9 @@ export function HomeView() {
             spotlight that follows the pointer. All transform/opacity only. */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
           <div className="hero-grid absolute inset-0" />
-          <div className="aurora aurora-a -top-48 left-[8%] h-[460px] w-[620px] bg-brand/[0.16]" />
-          <div className="aurora aurora-b -top-24 right-[-6%] h-[420px] w-[560px] bg-cyan-400/[0.09]" />
+          <div className="aurora aurora-a -top-48 left-[8%] h-[460px] w-[620px] bg-brand/[0.18]" />
+          <div className="aurora aurora-b -top-24 right-[-6%] h-[420px] w-[560px] bg-cyan-400/[0.11]" />
+          <div className="aurora aurora-c -bottom-28 right-[18%] h-[380px] w-[520px] bg-emerald-500/[0.13]" />
           <div className="hero-spotlight absolute inset-0" />
         </div>
 
@@ -219,18 +222,55 @@ export function HomeView() {
               className="rise-block mt-6 max-w-[54ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
               style={{ "--d": "520ms" } as React.CSSProperties}
             >
-              Every agent has its own config. LiteSPM writes the right entry into each of your {stats?.hosts ?? facts.hosts} agents — MCP servers, skills, and plugins — previews the diff, backs up the file, and rolls back byte-for-byte when you change your mind.
+              The package manager for your AI coding agents. LiteSPM configures MCP servers, skills, and plugins across Cursor, Claude Code, Codex, and {(stats?.hosts ?? facts.hosts) - 3} more — with diff previews, automatic backups, and byte-exact undo.
             </p>
 
             <div
               className="rise-block mt-7 max-w-md"
               style={{ "--d": "620ms" } as React.CSSProperties}
             >
-              <InstallBar command="npm install -g litespm" label="npm" />
-              <p className="mt-2 text-[11.5px] text-muted-foreground">
-                Then run <code className="font-mono text-foreground/90">litespm</code> to connect
-                your agents.
-              </p>
+              <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+                <button
+                  type="button"
+                  onClick={() => setInstallMode("npm")}
+                  className={cn(
+                    "rounded-md px-2 py-0.5 transition-colors",
+                    installMode === "npm"
+                      ? "bg-brand text-brand-foreground font-semibold"
+                      : "bg-muted/50 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  npm (recommended)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInstallMode("npx")}
+                  className={cn(
+                    "rounded-md px-2 py-0.5 transition-colors",
+                    installMode === "npx"
+                      ? "bg-brand text-brand-foreground font-semibold"
+                      : "bg-muted/50 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  npx (zero-install)
+                </button>
+              </div>
+
+              {installMode === "npm" ? (
+                <>
+                  <InstallBar command="npm install -g litespm" label="npm" />
+                  <p className="mt-2 text-[11.5px] text-muted-foreground">
+                    Recommended for daily use (Node 22+). Run <code className="font-mono text-foreground/90">litespm</code> to connect your agents. Precompiled binaries on GitHub.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <InstallBar command="npx litespm" label="npx" />
+                  <p className="mt-2 text-[11.5px] text-muted-foreground">
+                    Run once on demand without global install (Node 22+). Connects agents and exits cleanly.
+                  </p>
+                </>
+              )}
             </div>
 
             <div

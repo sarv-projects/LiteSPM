@@ -280,7 +280,7 @@ export function MarketplaceView({
   query: ExploreQuery;
 }) {
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-7xl min-w-0 max-w-full overflow-x-clip px-4 py-8 sm:px-6">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
           LiteSPM Marketplace

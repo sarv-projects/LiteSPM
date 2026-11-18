@@ -54,7 +54,8 @@ export function BundleCard({
   compact?: boolean;
 }) {
   const [agent, setAgent] = React.useState("");
-  const [copied, setCopied] = React.useState(false);
+  const [copiedBundle, setCopiedBundle] = React.useState(false);
+  const [copiedAll, setCopiedAll] = React.useState(false);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   const targets = React.useMemo(() => [ANY_AGENT, ...agents], [agents]);
@@ -64,17 +65,29 @@ export function BundleCard({
   // host) is left out and counted, never emitted as a command that would fail.
   const forAgent = agent ? installable.filter((item) => item.hostIds.includes(agent)) : installable;
   const skipped = installable.length - forAgent.length;
+  
+  const bundleCommand = `litespm install bundle:${bundle.id}${agent ? ` --agent ${shellArg(agent)}` : ""}`;
   const commands = forAgent
     .map((item) => `litespm install ${shellArg(item.id)}${agent ? ` --agent ${shellArg(agent)}` : ""}`)
     .join("\n");
 
-  const copy = () => {
+  const copyBundle = () => {
+    navigator.clipboard
+      ?.writeText(bundleCommand)
+      .then(() => {
+        setCopiedBundle(true);
+        window.setTimeout(() => setCopiedBundle(false), 1600);
+      })
+      .catch(() => {});
+  };
+
+  const copyAll = () => {
     if (!commands) return;
     navigator.clipboard
       ?.writeText(commands)
       .then(() => {
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1600);
+        setCopiedAll(true);
+        window.setTimeout(() => setCopiedAll(false), 1600);
       })
       .catch(() => {});
   };
@@ -125,16 +138,41 @@ export function BundleCard({
         </ul>
 
         <div className="mt-auto pt-5">
+          <div className="mb-2.5 flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/40 px-2.5 py-1.5 font-mono text-[11px]">
+            <span className="truncate text-foreground/90">
+              <span className="text-brand">$</span> {bundleCommand}
+            </span>
+            <button
+              type="button"
+              onClick={copyBundle}
+              title="Copy one-command bundle install"
+              aria-label={`Copy bundle install command for ${bundle.title}`}
+              className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-brand hover:underline"
+            >
+              {copiedBundle ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+              {copiedBundle ? "Copied" : "Copy"}
+            </button>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <TargetAgentPicker targets={targets} value={agent} onChange={setAgent} kindLabel="agents" />
             <button
               type="button"
-              onClick={copy}
-              disabled={!commands}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+              onClick={copyBundle}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90"
             >
-              {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-              {copied ? "Copied" : "Copy install commands"}
+              {copiedBundle ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+              {copiedBundle ? "Copied" : "Install bundle (1 command)"}
+            </button>
+            <button
+              type="button"
+              onClick={copyAll}
+              disabled={!commands}
+              title="Copy individual install commands as a script"
+              className="inline-flex h-8 items-center gap-1 rounded-lg border border-border/70 bg-background px-2.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground disabled:opacity-40"
+            >
+              {copiedAll ? <Check className="h-3.5 w-3.5 text-brand" /> : <Terminal className="h-3.5 w-3.5" />}
+              {copiedAll ? "Copied" : `All ${forAgent.length} commands`}
             </button>
             <button
               type="button"
@@ -144,13 +182,12 @@ export function BundleCard({
               <Info className="h-3.5 w-3.5" /> Details
             </button>
             <span className="sr-only" role="status">
-              {copied ? "Install commands copied" : ""}
+              {copiedBundle ? "Bundle command copied" : copiedAll ? "All commands copied" : ""}
             </span>
           </div>
           <p className="mt-2 text-[11.5px] text-muted-foreground">
-            {`${forAgent.length} ${forAgent.length === 1 ? "command" : "commands"}, one per line`} (
-            <code className="font-mono">litespm install</code> takes one id at a time)
-            {skipped > 0 ? `. ${skipped} item${skipped === 1 ? "" : "s"} left out: that agent cannot receive ${skipped === 1 ? "it" : "them"}.` : "."}
+            Installs all {forAgent.length} capabilities with a single command.
+            {skipped > 0 ? ` (${skipped} item${skipped === 1 ? "" : "s"} left out for this agent).` : " Unified plan and preflight diff before write."}
           </p>
         </div>
       </motion.article>
@@ -226,16 +263,39 @@ export function BundleCard({
             </div>
 
             <div className="pt-2 border-t border-border/60">
+              <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/40 px-3 py-2 font-mono text-[11.5px]">
+                <span className="truncate text-foreground/90">
+                  <span className="text-brand">$</span> {bundleCommand}
+                </span>
+                <button
+                  type="button"
+                  onClick={copyBundle}
+                  title="Copy one-command bundle install"
+                  className="inline-flex shrink-0 items-center gap-1 font-medium text-brand hover:underline"
+                >
+                  {copiedBundle ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {copiedBundle ? "Copied" : "Copy"}
+                </button>
+              </div>
+
               <div className="flex flex-wrap items-center gap-2">
                 <TargetAgentPicker targets={targets} value={agent} onChange={setAgent} kindLabel="agents" />
                 <button
                   type="button"
-                  onClick={copy}
-                  disabled={!commands}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                  onClick={copyBundle}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90"
                 >
-                  {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-                  {copied ? "Copied" : "Copy install commands"}
+                  {copiedBundle ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {copiedBundle ? "Copied" : "Install bundle (1 command)"}
+                </button>
+                <button
+                  type="button"
+                  onClick={copyAll}
+                  disabled={!commands}
+                  className="inline-flex h-8 items-center gap-1 rounded-lg border border-border/70 bg-background px-2.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground disabled:opacity-40"
+                >
+                  {copiedAll ? <Check className="h-3.5 w-3.5 text-brand" /> : <Terminal className="h-3.5 w-3.5" />}
+                  {copiedAll ? "Copied" : `All ${forAgent.length} commands`}
                 </button>
               </div>
             </div>
@@ -275,9 +335,9 @@ export function BundlesView() {
         </h1>
         <p className="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">
           Hand-picked MCP servers and skills for a common job. Every item is a catalog listing
-          that LiteSPM can install today, mostly from the vendor&apos;s own publisher. A bundle is a
-          list, not a new package: copy the commands and each item installs on its own, with the
-          usual preview and backup.{" "}
+          that LiteSPM can install today, mostly from the vendor&apos;s own publisher. Install an
+          entire workflow in one command with <code className="font-mono text-foreground">litespm install bundle:&lt;id&gt;</code>,
+          or copy individual commands with full diff preview and backup.{" "}
           <NavLink to="/docs/methodology" className="font-medium text-brand hover:underline">
             How we rank and label
           </NavLink>
@@ -361,7 +421,7 @@ export function PopularBundles({ embedded = false }: { embedded?: boolean }) {
             Popular bundles
           </h2>
           <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
-            Curated sets of installable MCP servers and skills for a common job, one command per item.
+            Curated sets of installable MCP servers and skills for a common job — installable in one command with unified preview and backup.
           </p>
         </div>
         <NavLink
