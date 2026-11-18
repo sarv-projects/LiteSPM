@@ -4,6 +4,7 @@ import * as React from "react";
 import { AlertTriangle, ChevronDown, ExternalLink, Terminal, Zap } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { shellArg } from "@/lib/litespm/shell";
 import type { PackageDetailData } from "@/lib/litespm/types";
 import { CopyButton } from "../code-block";
@@ -166,6 +167,38 @@ export function InstallSection({
         </TabsList>
 
         <TabsContent value="cli">
+          {/* Quick Target Agent Selector Pills */}
+          <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-muted-foreground mr-1 text-[10.5px]">Quick target:</span>
+            {[
+              { id: "claude-code", label: "Claude Code" },
+              { id: "cursor", label: "Cursor" },
+              { id: "codex", label: "Codex" },
+              { id: "opencode", label: "OpenCode" },
+              { id: "pi-agent", label: "Pi Agent" },
+              { id: "cline", label: "Cline" },
+            ]
+              .filter((item) => data.installTargets.some((t) => t.id === item.id))
+              .map((item) => {
+                const isActive = host === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setHost(item.id)}
+                    className={cn(
+                      "rounded-lg border px-2 py-0.5 font-medium transition-colors cursor-pointer",
+                      isActive
+                        ? "border-brand/40 bg-brand-soft text-brand shadow-xs"
+                        : "border-border/60 bg-muted/30 text-muted-foreground hover:border-brand/30 hover:text-foreground"
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+          </div>
+
           <InstallBar command={installCommand!} />
           <p className="mt-2.5 text-[12px] leading-relaxed text-muted-foreground">
             Writes <span className="font-mono text-[11px]">{host}</span>&apos;s own config —

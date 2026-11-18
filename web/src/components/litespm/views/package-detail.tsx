@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp, exploreHash } from "@/lib/litespm/router";
 import { recordView, useWatchlist } from "@/lib/litespm/hooks";
@@ -329,6 +330,45 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             {watched ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
             <span className="hidden sm:inline">{watched ? "Watching" : "Watch"}</span>
           </button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border/80 bg-card px-3 text-[12.5px] font-medium text-foreground/90 transition-colors hover:border-brand/50 hover:text-brand"
+                title="Claim or verify this listing on LiteSPM"
+              >
+                <ShieldCheck className="h-4 w-4 text-brand" />
+                <span className="hidden sm:inline">Claim Listing</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-84 p-4 text-[12px]" align="end">
+              <div className="flex items-center gap-2 border-b border-border/60 pb-2.5">
+                <ShieldCheck className="h-4 w-4 text-brand" />
+                <span className="font-semibold text-foreground">Maintainer Verification</span>
+              </div>
+              <p className="mt-2.5 leading-relaxed text-muted-foreground">
+                Are you the author or maintainer of <strong className="text-foreground">{data.name}</strong>?
+              </p>
+              <div className="mt-3 space-y-1.5 rounded-lg border border-border/60 bg-muted/30 p-2.5 font-mono text-[11px]">
+                <p className="text-[10.5px] font-sans font-medium text-muted-foreground">Add official LiteSPM badge to README:</p>
+                <div className="flex items-center justify-between gap-1 overflow-hidden">
+                  <code className="truncate text-foreground/90 font-mono text-[10px]">
+                    {`[![LiteSPM](https://img.shields.io/badge/install-litespm-10b981?logo=terminal)](https://lite-spm-nine.vercel.app/package/${encodeURIComponent(data.linkKey)})`}
+                  </code>
+                  <CopyButton
+                    value={`[![LiteSPM](https://img.shields.io/badge/install-litespm-10b981?logo=terminal)](https://lite-spm-nine.vercel.app/package/${encodeURIComponent(data.linkKey)})`}
+                    label="Copy"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2 pt-1">
+                <span className="text-[11px] text-muted-foreground">Need verified status?</span>
+                <Button size="sm" variant="outline" className="h-7 text-[11.5px]" onClick={() => navigate("/publish")}>
+                  Submit Updates →
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
           <CopyButton
             value={`${typeof window !== "undefined" ? window.location.origin : ""}/#/package/${encodeURIComponent(data.linkKey)}`}
             label="Link"

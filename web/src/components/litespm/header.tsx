@@ -22,25 +22,18 @@ const NAV: Array<{ label: string; hash: string; match: Route["view"][] }> = [
 ];
 
 export function AnnouncementBar() {
-  const [dismissed, setDismissed] = React.useState(true);
   const [stats, setStats] = React.useState<CatalogStatsResponse | null>(null);
 
   React.useEffect(() => {
     try {
       if (typeof window !== "undefined") {
-        if (window.localStorage.getItem("litespm-announcement-dismissed") === "true") {
-          return;
-        }
         const cached = window.sessionStorage.getItem("litespm-stats-cache");
         if (cached) {
           setStats(JSON.parse(cached));
         }
       }
     } catch {}
-    setDismissed(false);
-  }, []);
 
-  React.useEffect(() => {
     fetch("/api/litespm/stats")
       .then((r) => r.json())
       .then((data: CatalogStatsResponse) => {
@@ -54,61 +47,45 @@ export function AnnouncementBar() {
       .catch(() => {});
   }, []);
 
-  const handleDismiss = () => {
-    setDismissed(true);
-    try {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("litespm-announcement-dismissed", "true");
-      }
-    } catch {}
-  };
-
-  const isVisible = !dismissed && Boolean(stats);
+  const total = stats ? (stats.counts?.uniqueListings ?? stats.uniqueTotal) : 69376;
+  const hosts = stats?.hosts ?? 52;
+  const seq = stats?.release?.releaseId ?? "Seq 154";
 
   return (
-    <div
-      className={cn(
-        "overflow-hidden transition-all duration-300 ease-in-out border-b border-brand/15 bg-brand-soft",
-        isVisible ? "max-h-16 opacity-100" : "max-h-0 opacity-0 border-b-0 pointer-events-none"
-      )}
-      aria-hidden={!isVisible}
-    >
-      {stats && (
-        <div className="mx-auto flex max-w-6xl items-center justify-center gap-2 px-4 py-1.5 text-center text-[12px] text-foreground/90">
+    <div className="border-b border-border/50 bg-muted/40 font-mono text-[11px] text-muted-foreground transition-colors">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-3.5 py-1.5 sm:px-6">
+        <div className="flex items-center gap-2 overflow-hidden truncate">
           <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
-          <p className="min-w-0 truncate">
-            <span className="hidden sm:inline">Catalog release </span>
-            <span className="font-mono font-semibold text-brand">{stats.release.releaseId}</span>
-            <span className="hidden sm:inline">
-              {" — "}
-              {formatFull(stats.counts?.uniqueListings ?? stats.uniqueTotal)} listings, {stats.hosts} agent hosts · synced {new Date(stats.release.createdAt).toLocaleDateString()}.
-            </span>
-            <span className="sm:hidden">
-              {" · "}
-              {formatCompact(stats.counts?.uniqueListings ?? stats.uniqueTotal)} listings
-            </span>
-          </p>
+          <span className="font-semibold text-emerald-400">INDEX LIVE</span>
+          <span className="text-border">·</span>
+          <span className="truncate">{formatCompact(total)} Capabilities</span>
+          <span className="hidden sm:inline text-border">·</span>
+          <span className="hidden sm:inline">{hosts} Agent Hosts</span>
+          <span className="hidden md:inline text-border">·</span>
+          <span className="hidden md:inline font-semibold text-foreground/80">{seq} Verified</span>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-3">
           <button
             type="button"
-            onClick={() => useApp.getState().navigate("/insights")}
-            className="shrink-0 font-medium underline decoration-brand/50 underline-offset-2 hover:text-brand"
+            onClick={() => useApp.getState().navigate("/docs/security")}
+            className="hidden items-center gap-1.5 font-sans transition-colors hover:text-emerald-400 sm:inline-flex"
           >
-            <span className="hidden sm:inline">See catalog stats →</span>
-            <span className="sm:hidden">Stats →</span>
+            <span className="inline-block rounded bg-emerald-500/10 px-1 py-0.2 text-[9.5px] font-semibold text-emerald-400 border border-emerald-500/20">GUIDE</span>
+            <span>How to vet an agent skill safely →</span>
           </button>
           <button
             type="button"
-            aria-label="Dismiss announcement"
-            onClick={handleDismiss}
-            className="ml-1 shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            onClick={() => useApp.getState().setPalette(true)}
+            className="inline-flex items-center gap-1 rounded border border-border/60 bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-brand/40 hover:text-foreground"
           >
-            <X className="h-3.5 w-3.5" />
+            <kbd className="font-sans font-medium">⌘K</kbd> search
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

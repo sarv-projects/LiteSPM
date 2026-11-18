@@ -46,7 +46,7 @@ export function RankBadge({
       )}
     >
       <Gauge className={size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3"} aria-hidden="true" />
-      {size === "sm" ? (tier ? TIER_SHORT[tier] : "Rated") : score}
+      {size === "sm" ? `Score ${score}` : `${score}/100`}
     </span>
   );
 

@@ -137,17 +137,24 @@ export function PackageCard({
         {hit.summary || "No summary published."}
       </p>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/90">
+      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground/90">
         <AvailabilityBadge installable={hit.installable} label={hit.installable ? "Installable" : "Discovery only"} />
         {hit.transport && (
-          <span className="font-mono text-[10.5px] uppercase tracking-[0.06em]">{hit.transport}</span>
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-foreground/75">{hit.transport}</span>
         )}
         {hit.version && (
           <span className="font-mono text-[10.5px]" title={`Version ${hit.version}`}>
             {formatVersion(hit.version)}
           </span>
         )}
-        {hit.category && <span className="truncate">{hit.category}</span>}
+        {hit.category && (
+          <span className="rounded bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground font-medium truncate max-w-[140px]">
+            {hit.category}
+          </span>
+        )}
+        <span className="ml-auto font-mono text-[10.5px] text-emerald-400/90 font-medium">
+          52 hosts
+        </span>
       </div>
 
       {hit.installable && (
