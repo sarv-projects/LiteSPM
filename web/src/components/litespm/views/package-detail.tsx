@@ -195,6 +195,18 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
               title={data.availability.plain}
             />
             <RankBadge score={data.rankScore} breakdown={data.rankBreakdown} />
+            {data.kind === "skill" && data.installTargets.length > 0 && (
+              <span className="inline-flex max-w-full flex-wrap items-center gap-1" title="Agent targets LiteSPM can write a skill folder into">
+                {["claude-code", "codex", "cursor"].filter((id) => data.installTargets.some((x) => x.id === id)).map((id) => (
+                  <span key={id} className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-muted-foreground">
+                    {id === "claude-code" ? "Claude Code" : id === "codex" ? "Codex" : "Cursor"}
+                  </span>
+                ))}
+                <span className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-muted-foreground">
+                  +{data.installTargets.length} targets
+                </span>
+              </span>
+            )}
 
             {versionDisplay && (
               <span

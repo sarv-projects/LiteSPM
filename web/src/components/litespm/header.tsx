@@ -75,13 +75,16 @@ export function AnnouncementBar() {
     >
       {stats && (
         <div className="mx-auto flex max-w-6xl items-center justify-center gap-2 px-4 py-1.5 text-center text-[12px] text-foreground/90">
-          <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
+          <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
+          </span>
           <p className="min-w-0 truncate">
             <span className="hidden sm:inline">Catalog release </span>
             <span className="font-mono font-semibold text-brand">{stats.release.releaseId}</span>
             <span className="hidden sm:inline">
               {" — "}
-              {formatFull(stats.counts?.uniqueListings ?? stats.uniqueTotal)} listings, {stats.hosts} agent hosts.
+              {formatFull(stats.counts?.uniqueListings ?? stats.uniqueTotal)} listings, {stats.hosts} agent hosts · synced {new Date(stats.release.createdAt).toLocaleDateString()}.
             </span>
             <span className="sm:hidden">
               {" · "}
