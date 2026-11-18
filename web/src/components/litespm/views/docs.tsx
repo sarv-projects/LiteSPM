@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, BookOpen, Cable, Layers, CheckCircle2, CircleDot, HelpCircle, Lock, Package, RotateCcw, Scale, Search, ShieldCheck, Terminal, Undo2, Wrench } from "lucide-react";
+import { ArrowRight, BookOpen, Cable, ChevronDown, Layers, CheckCircle2, CircleDot, HelpCircle, Lock, Package, RotateCcw, Scale, Search, ShieldCheck, Terminal, Undo2, Wrench } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { formatFull } from "@/lib/litespm/format";
@@ -14,6 +14,7 @@ import type { CatalogStatsResponse } from "@/lib/litespm/types";
 
 const SECTIONS: Array<{ id: string; label: string; icon: React.ElementType }> = [
   { id: "introduction", label: "Introduction", icon: BookOpen },
+  { id: "glossary", label: "Glossary & FAQ", icon: HelpCircle },
   { id: "getting-started", label: "Getting started", icon: Terminal },
   { id: "commands", label: "Command reference", icon: Wrench },
   { id: "install-flow", label: "How an install works", icon: CheckCircle2 },
@@ -118,6 +119,7 @@ export function DocsView({ section }: { section: string }) {
         {/* Content */}
         <div className="min-w-0 max-w-[72ch]">
           {active === "introduction" && <Introduction />}
+          {active === "glossary" && <Glossary />}
           {active === "getting-started" && <GettingStarted />}
           {active === "commands" && <Commands />}
           {active === "install-flow" && <InstallFlow />}
@@ -145,6 +147,75 @@ function DocSection({ title, children }: { title: string; children: React.ReactN
 
 function P({ children }: { children: React.ReactNode }) {
   return <p className="text-[14px] leading-relaxed text-muted-foreground">{children}</p>;
+}
+
+function Glossary() {
+  const groups: Array<{ title: string; intro: string; items: Array<{ q: string; a: string }> }> = [
+    {
+      title: "MCP servers",
+      intro: "The Model Context Protocol is an open standard that lets an AI agent call a tool over a defined interface. A server is the process that answers those calls.",
+      items: [
+        { q: "What is an MCP server?", a: "A small process that exposes tools to an AI agent through the Model Context Protocol. LiteSPM writes the launch entry into each agent's own config file; it does not proxy the connection." },
+        { q: "What is the Model Context Protocol?", a: "An open protocol, introduced by Anthropic, that standardizes how agents discover and call tools. LiteSPM declares support for protocol revision 2026-07-28." },
+        { q: "How does an MCP server work with Claude or Cursor?", a: "The agent starts the server from the entry in its config, then calls tools over stdio or a remote endpoint. LiteSPM writes that entry in the shape each host documents." },
+        { q: "Local stdio or remote URL?", a: "Local servers run a command on your machine. Remote servers are reached at an endpoint. A host only gets a remote entry if its vendor documents a URL shape; otherwise the install is refused." },
+        { q: "Who developed MCP?", a: "Anthropic published the specification as an open standard. LiteSPM is an independent client, not an Anthropic product." },
+      ],
+    },
+    {
+      title: "Agent skills",
+      intro: "A skill is a portable SKILL.md folder: instructions an agent reads when a task matches. Skills teach a workflow; MCP servers connect to services.",
+      items: [
+        { q: "What is an agent skill?", a: "A folder with a SKILL.md file: frontmatter (name, description, triggers) plus instructions. The agent loads it when the task matches." },
+        { q: "Skills vs MCP servers?", a: "A skill is knowledge (what to do); an MCP server is a connection (what to call). LiteSPM can install both, into the same agent." },
+        { q: "Can I read a skill before installing it?", a: "Yes. Use 'litespm skills use <source>' to print the prompt without installing, or the Download SKILL.md link on a skill's page." },
+        { q: "Does LiteSPM vet skills?", a: "It parses and sanitizes frontmatter and refuses unsafe paths, but it does not audit third-party instructions. Read the source before you trust a skill." },
+      ],
+    },
+    {
+      title: "Plugins & bundles",
+      intro: "A plugin is a publisher's package that can declare several components. A bundle is a curated checklist of separate listings.",
+      items: [
+        { q: "What is a plugin?", a: "A package with a manifest declaring MCP servers and skills. LiteSPM fetches its pinned commit and installs the portable components; host-specific extras are refused unless you acknowledge the partial install." },
+        { q: "Why must plugins be pinned?", a: "A commit hash makes the install reproducible and reversible. A floating branch can change without notice, so it is refused." },
+        { q: "What is a bundle?", a: "A curated set of independent listings for one job. A bundle is a list, not a new package: each item has its own copyable install command." },
+      ],
+    },
+    {
+      title: "Installability & trust",
+      intro: "Every label on this site is derived from catalog fields or a rule on the methodology page. We publish no download counts because we have none.",
+      items: [
+        { q: "Installable vs discovery-only?", a: "Installable means a verified launch line exists: a remote endpoint, a publisher-declared command, a skill source, or a pinned plugin tree. Discovery-only means we have metadata but no proven way to start it." },
+        { q: "What happens when I install?", a: "LiteSPM plans the exact writes, shows them for approval, backs up the config, writes a native entry for each target host, and records an ownership ledger." },
+        { q: "How do I undo an install?", a: "'litespm restore <installId>' replays the pre-install bytes under guard; 'litespm install remove <installId>' strips only what LiteSPM wrote and keeps your edits." },
+        { q: "Does LiteSPM phone home?", a: "The CLI has no telemetry and needs no account. This website records aggregate package views with no device IDs; the deployed page says so where it applies." },
+      ],
+    },
+  ];
+  return (
+    <DocSection title="Glossary & FAQ">
+      <P>Plain-language definitions and the questions newcomers ask most. For the scoring rules and exact figures, see{" "}
+        <NavLink to="/docs/methodology" className="font-medium text-brand hover:underline">How we rank and label</NavLink>.
+      </P>
+      {groups.map((group) => (
+        <section key={group.title} className="rounded-xl border border-border/70 bg-card p-5">
+          <h2 className="text-[17px] font-semibold tracking-tight">{group.title}</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{group.intro}</p>
+          <div className="mt-4 space-y-3">
+            {group.items.map((item) => (
+              <details key={item.q} className="group rounded-lg border border-border/60 px-3.5 py-3">
+                <summary className="flex cursor-pointer items-center justify-between gap-3 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">
+                  {item.q}
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="faq-answer"><p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{item.a}</p></div>
+              </details>
+            ))}
+          </div>
+        </section>
+      ))}
+    </DocSection>
+  );
 }
 
 function Introduction() {

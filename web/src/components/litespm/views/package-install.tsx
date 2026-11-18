@@ -44,6 +44,7 @@ export function InstallSection({
   setHost,
   installCommand,
   cursorInstallUri,
+  skillMdUrl,
   targetKindLabel,
   selectedHostId,
   setSelectedHostId,
@@ -53,6 +54,7 @@ export function InstallSection({
   setHost: (id: string) => void;
   installCommand: string | null;
   cursorInstallUri: string | null;
+  skillMdUrl?: string;
   targetKindLabel: string;
   selectedHostId: string | null;
   setSelectedHostId: (id: string) => void;
@@ -121,7 +123,7 @@ export function InstallSection({
           <Terminal className="h-4 w-4 text-brand" /> Install
         </h2>
         <div className="flex flex-wrap items-center gap-2.5">
-          {cursorInstallUri && (
+          {cursorInstallUri && host === "cursor" && (
             <a
               href={cursorInstallUri}
               className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand/40 bg-brand-soft px-3 text-[12px] font-semibold text-brand shadow-xs transition-colors hover:bg-brand/20"
@@ -129,6 +131,19 @@ export function InstallSection({
             >
               <Zap className="h-3.5 w-3.5 fill-current" />
               <span>Install in Cursor</span>
+            </a>
+          )}
+          {skillMdUrl && (
+            <a
+              href={skillMdUrl}
+              download="SKILL.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand"
+              title="Download the upstream SKILL.md without installing"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              <span>Download SKILL.md</span>
             </a>
           )}
           <label className="flex items-center gap-2 text-[12px] text-muted-foreground">

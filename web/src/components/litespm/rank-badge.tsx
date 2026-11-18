@@ -8,6 +8,12 @@ import { RANK_TIER_META, RANK_EXPLAINER, rankTierOf } from "@/lib/litespm/format
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { PackageDetailData } from "@/lib/litespm/types";
 
+const TIER_SHORT: Record<string, string> = {
+  top: "Top rated",
+  strong: "Strong",
+  solid: "Solid",
+};
+
 export interface RankBadgeProps {
   score: number | undefined;
   size?: "sm" | "md";
@@ -40,7 +46,7 @@ export function RankBadge({
       )}
     >
       <Gauge className={size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3"} aria-hidden="true" />
-      {score}
+      {size === "sm" ? (tier ? TIER_SHORT[tier] : "Rated") : score}
     </span>
   );
 

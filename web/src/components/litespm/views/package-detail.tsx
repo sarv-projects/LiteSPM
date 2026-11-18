@@ -354,6 +354,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
         setHost={setHost}
         installCommand={installCommand}
         cursorInstallUri={cursorInstallUri}
+        skillMdUrl={data.kind === "skill" && sourceDocs.status === "done" && sourceDocs.data?.kind === "skill-md" ? sourceDocs.data.rawUrl : undefined}
         targetKindLabel={targetKindLabel}
         selectedHostId={selectedHostId}
         setSelectedHostId={setSelectedHostId}

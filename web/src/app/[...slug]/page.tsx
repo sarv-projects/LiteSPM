@@ -43,6 +43,10 @@ export const DOC_SECTIONS_META: Record<string, { title: string; description: str
     title: "Introduction · LiteSPM Documentation",
     description: "Overview of LiteSPM, the package manager for AI agents, and how it connects to agent hosts.",
   },
+  glossary: {
+    title: "Glossary & FAQ · LiteSPM Documentation",
+    description: "Plain-language definitions of MCP servers, agent skills, plugins, bundles and installability.",
+  },
   "getting-started": {
     title: "Getting Started · LiteSPM Documentation",
     description: "Install LiteSPM via npm, configure your first agent host, and verify your environment.",
