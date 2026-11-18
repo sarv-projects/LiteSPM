@@ -31,3 +31,10 @@ Cursor users can install MCP servers directly via deep link:
 ## API & Plaintext Access
 - Raw Package Markdown: `GET /api/litespm/package/:key/raw`
 - Catalog Search API: `GET /api/litespm/list?q=:query`
+
+## For AI agents
+- The stdio MCP bridge exposes 13 tools: search_catalog, get_extension, prepare_install, request_install, list_installed, load_skill, read_skill_resource, search_capabilities, describe_capability, invoke_capability, adopt_capability, get_invocation, cancel_invocation.
+- Installs require a human-approved plan; an agent cannot approve for you.
+- Command reference: https://lite-spm-nine.vercel.app/docs/commands
+- Machine-readable catalog: /v1/current.json and /v1/releases/<id>/manifest.json
+- Honest labels: installable means a verified launch line exists; discovery-only rows are refused by install. No download counts are published.

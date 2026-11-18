@@ -226,6 +226,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             {displayPackageName(data.name)}
           </h1>
 
+
           <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               {data.publisher.verified && <ShieldCheck className="h-3.5 w-3.5 text-brand" />}
@@ -508,6 +509,28 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                   </div>
                 ))}
               </div>
+            </section>
+          )}
+
+          {/* Plain-language capability bullets, borrowed from the best product pages:
+              what can you actually do with this server, derived only from declared tools. */}
+          {data.tools.length > 0 && (
+            <section className="rounded-2xl border border-border/70 bg-card p-5" aria-labelledby="cando-title">
+              <h2 id="cando-title" className="text-[15px] font-semibold">What can you do with it?</h2>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">Derived from the tool descriptions the publisher declared. No capability is inferred.</p>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {data.tools.slice(0, 8).map((tool) => (
+                  <li key={tool.name} className="rounded-lg border border-border/60 bg-muted/25 px-3 py-2">
+                    <code className="font-mono text-[11.5px] font-semibold text-brand">{tool.name}</code>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+                      {(tool.description || "No description published.").split(/(?<=[.!?])\s/)[0]}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              {data.tools.length > 8 && (
+                <p className="mt-2 text-[11.5px] text-muted-foreground">… and {data.tools.length - 8} more declared tools below.</p>
+              )}
             </section>
           )}
 
