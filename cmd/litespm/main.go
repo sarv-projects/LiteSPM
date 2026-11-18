@@ -642,7 +642,7 @@ func runInteractiveWizard() {
 		os.Exit(1)
 	}
 
-	w := NewWizard(os.Stdin, os.Stdout, paths)
+	w := NewWizard(interactiveStdin(), os.Stdout, paths)
 	if err := w.Run(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "Setup error: %v\n", err)
 		os.Exit(1)

@@ -119,8 +119,17 @@ function main() {
     process.exit(1);
   }
 
+  let stdinOption = "inherit";
+  const isBridgeStdio = process.argv.includes("bridge") && process.argv.includes("stdio");
+  if (!isBridgeStdio && process.platform === "win32" && !process.stdin.isTTY && process.stdout.isTTY) {
+    try {
+      const coninFd = fs.openSync("CONIN$", "r");
+      stdinOption = coninFd;
+    } catch (e) {}
+  }
+
   const child = spawn(binaryPath, process.argv.slice(2), {
-    stdio: "inherit",
+    stdio: [stdinOption, "inherit", "inherit"],
     env: process.env,
   });
 

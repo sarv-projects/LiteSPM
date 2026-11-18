@@ -76,7 +76,7 @@ func runSkillsAddForm(out *bufio.Writer, fields ...huh.Field) error {
 	if err := out.Flush(); err != nil {
 		return err
 	}
-	err := runTerminalForm(os.Stdin, os.Stdout, fields...)
+	err := runTerminalForm(interactiveStdin(), os.Stdout, fields...)
 	if flushErr := out.Flush(); err == nil {
 		err = flushErr
 	}
@@ -197,7 +197,7 @@ func runSkillsAdd(args []string) {
 		os.Exit(2)
 	}
 
-	interactive := isTerminal(os.Stdin) && !opts.yes && !opts.jsonOut
+	interactive := stdinIsTerminal() && !opts.yes && !opts.jsonOut
 	interactiveTUI := interactive && isTerminal(os.Stdout)
 
 	home, _ := os.UserHomeDir()
@@ -326,7 +326,7 @@ func runSkillsAdd(args []string) {
 	}
 
 	// --- Skill selection ---
-	in := bufio.NewReader(os.Stdin)
+	in := bufio.NewReader(interactiveStdin())
 
 	askLine := func() string {
 		line, _ := in.ReadString('\n')
@@ -388,7 +388,7 @@ func runSkillsAdd(args []string) {
 	if interactive && !opts.scopeGiven && !opts.global {
 		if interactiveTUI {
 			out.Flush()
-			picked, promptErr := runSearchPrompt(os.Stdin, os.Stdout, searchPromptOptions{
+			picked, promptErr := runSearchPrompt(interactiveStdin(), os.Stdout, searchPromptOptions{
 				Title:       "Installation scope",
 				Description: "Choose where LiteSPM should copy the selected skills.",
 				Single:      true,
@@ -472,7 +472,7 @@ func runSkillsAdd(args []string) {
 		var picked []int
 		if interactiveTUI {
 			out.Flush()
-			result, promptErr := runSearchPrompt(os.Stdin, os.Stdout, searchPromptOptions{
+			result, promptErr := runSearchPrompt(interactiveStdin(), os.Stdout, searchPromptOptions{
 				Title:       fmt.Sprintf("Choose skills to install  ·  %d available", len(found)),
 				Description: "Type to filter. Groups can be toggled as a whole; the detail pane previews the highlighted skill.",
 				Items:       skillPromptItems(found),
@@ -558,7 +558,7 @@ func runSkillsAdd(args []string) {
 				preselected = append(preselected, item.ID)
 			}
 			out.Flush()
-			result, promptErr := runSearchPrompt(os.Stdin, os.Stdout, searchPromptOptions{
+			result, promptErr := runSearchPrompt(interactiveStdin(), os.Stdout, searchPromptOptions{
 				Title:       fmt.Sprintf("Choose agents  ·  %d detected of %d supported", len(detectedTargets), len(targets)),
 				Description: "Detected agents are preselected. Shared `.agents/skills` destinations are always included; each write is backed up separately.",
 				Items:       items,

@@ -30,6 +30,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sarv-projects/litespm/internal/catalog"
@@ -359,15 +360,53 @@ func pathContains(parent, child string) bool {
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
-// stdinIsTerminal reports whether stdin can actually answer an interactive
-// prompt. It asks the OS (GetConsoleMode on Windows, termios elsewhere), so the
-// null device os/exec hands a child with no stdin — a character device that
-// answers every read with EOF — is correctly refused. The previous check
-// compared stdin to os.DevNull with os.SameFile, and on Windows a console
-// handle and NUL both carry no file id, so a real PowerShell console was
-// treated as "no terminal" and `litespm` refused to start the wizard.
+var (
+	interactiveStdinOnce   sync.Once
+	cachedInteractiveStdin *os.File
+)
+
+// interactiveStdin returns an interactive input source. If os.Stdin is already
+// a terminal, it returns os.Stdin directly. If os.Stdin is piped (for example,
+// when PowerShell 5.1 runs npm's .ps1 wrapper or npx with `$input | & node`),
+// but the process is running in an interactive terminal session (stdout or
+// stderr is a terminal), it attempts to open the OS console device (CONIN$ on
+// Windows, /dev/tty on Unix). If that fails or output is not a terminal, it
+// returns os.Stdin.
+func interactiveStdin() *os.File {
+	interactiveStdinOnce.Do(func() {
+		if isTerminal(os.Stdin) {
+			cachedInteractiveStdin = os.Stdin
+			return
+		}
+		// If neither stdout nor stderr is a terminal, do not attempt to open
+		// the console device (e.g. running non-interactively in CI or automated tests).
+		if !isTerminal(os.Stdout) && !isTerminal(os.Stderr) {
+			cachedInteractiveStdin = os.Stdin
+			return
+		}
+		f, err := openConsoleInput()
+		if err == nil && isTerminal(f) {
+			cachedInteractiveStdin = f
+			return
+		}
+		if f != nil {
+			_ = f.Close()
+		}
+		cachedInteractiveStdin = os.Stdin
+	})
+	return cachedInteractiveStdin
+}
+
+// stdinIsTerminal reports whether stdin or the interactive console device can
+// actually answer an interactive prompt.
 func stdinIsTerminal() bool {
-	return isTerminal(os.Stdin)
+	if isTerminal(os.Stdin) {
+		return true
+	}
+	if isTerminal(os.Stdout) || isTerminal(os.Stderr) {
+		return isTerminal(interactiveStdin())
+	}
+	return false
 }
 
 // skillUpdateGroup is one fetched source plus every ledger entry that resolves

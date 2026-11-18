@@ -1304,6 +1304,7 @@ async function main() {
         "NOTICE",
         "README.md",
         "bin/litespm.js",
+        "bin/skills.js",
         "package.json",
         "scripts/install-binary.js",
         "scripts/uninstall-binary.js",
