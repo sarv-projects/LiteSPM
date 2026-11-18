@@ -14,6 +14,20 @@ import { NavLink } from "./nav-link";
 import { AvailabilityBadge, KindBadge } from "./primitives";
 import { RankBadge } from "./rank-badge";
 
+export const PACKAGE_DETAIL_PREFETCH_CACHE = new Map<string, unknown>();
+
+function prefetchPackage(linkKey: string) {
+  if (PACKAGE_DETAIL_PREFETCH_CACHE.has(linkKey)) return;
+  fetch(`/api/litespm/package/${encodeURIComponent(linkKey)}`)
+    .then((r) => (r.status === 404 ? null : r.json()))
+    .then((data) => {
+      if (data?.found && data.detail) {
+        PACKAGE_DETAIL_PREFETCH_CACHE.set(linkKey, data);
+      }
+    })
+    .catch(() => {});
+}
+
 /**
  * One catalog row, as a card. Everything on it is clickable through to the
  * entry page; the watch and compare controls stop propagation.
@@ -41,6 +55,7 @@ export function PackageCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(index * 0.02, 0.25) }}
+      onMouseEnter={() => prefetchPackage(hit.linkKey)}
       className={cn(
         "group relative flex flex-col min-w-0 max-w-full overflow-hidden rounded-xl border border-border/70 bg-card p-4 transition-all hover:border-brand/40 hover:shadow-[0_2px_18px_-8px_rgba(16,185,129,0.25)]",
         compact && "p-3.5",

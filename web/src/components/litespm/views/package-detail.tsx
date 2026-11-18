@@ -48,6 +48,7 @@ import {
 import type { PackageDetailResponse, PackageDetailData } from "@/lib/litespm/types";
 import { CopyButton } from "../code-block";
 import { InstallBar } from "../install-bar";
+import { PACKAGE_DETAIL_PREFETCH_CACHE } from "../package-card";
 import { AvailabilityBadge, FactRow, KindBadge } from "../primitives";
 import { RankBadge, RankExplainer } from "../rank-badge";
 import { TargetAgentPicker } from "../target-agent-picker";
@@ -80,6 +81,14 @@ export function PackageView({ linkKey, initial }: { linkKey: string; initial?: P
       setData(initial);
       setState("found");
       onFound(initial);
+      return;
+    }
+    // Check prefetched cache on hover: render instantly in 0ms!
+    const prefetched = PACKAGE_DETAIL_PREFETCH_CACHE.get(linkKey) as PackageDetailResponse | undefined;
+    if (prefetched?.found && prefetched.detail) {
+      setData(prefetched.detail);
+      setState("found");
+      onFound(prefetched.detail);
       return;
     }
     setState("loading");
@@ -952,6 +961,23 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
 
         {/* Sidebar */}
         <aside className="min-w-0 space-y-5">
+          {/* Cryptographic Pre-Image Rollback Guarantee */}
+          <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.04] p-5 shadow-xs">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <div>
+                <h3 className="text-[13.5px] font-semibold text-foreground">100% Reversible Install</h3>
+                <p className="text-[11px] text-emerald-400/90 font-medium">Pre-Image SHA-256 CAS Verified</p>
+              </div>
+            </div>
+            <p className="mt-2.5 text-[12px] leading-relaxed text-muted-foreground">
+              LiteSPM takes a cryptographic snapshot of your host configuration before modifying it. Any installation can be rolled back byte-for-byte in one command with zero configuration drift.
+            </p>
+            <div className="mt-3 rounded-lg border border-border/60 bg-muted/40 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
+              <span className="text-brand">$</span> litespm restore {data.slug}
+            </div>
+          </section>
+
           <QuickStats data={data} versionDisplay={versionDisplay} sourceDocs={sourceDocs} />
 
           {/* Genuine Upstream Source & Repository */}

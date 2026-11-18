@@ -85,6 +85,9 @@ function paramsFor(query: ExploreQuery): URLSearchParams {
   return params;
 }
 
+const CATALOG_QUERY_CACHE = new Map<string, CatalogListResponse>();
+const FACET_CACHE = new Map<string, CatalogFacets>();
+
 /**
  * The one catalog surface behind `/marketplace`. Every keystroke becomes a
  * server-side query for ONE page (24 cards, ~20 KB); the client never holds
@@ -124,30 +127,42 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
     navigate(exploreHash(next, tab), { replace: true });
   }, [debouncedSearch, navigate, query, tab]);
 
-  // Results: one page for the current route.
+  // Results: one page for the current route with instant in-memory cache.
   React.useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setFailed(false);
     const params = paramsFor(query);
     if (query.sort) params.set("sort", query.sort);
     params.set("page", String(query.page ?? 1));
     params.set("pageSize", "24");
     params.set("facets", "0");
+    const cacheKey = params.toString();
 
-    fetch(`/api/litespm/list?${params.toString()}`, { signal: controller.signal })
+    // Instant paint from cache if available (0ms transition)
+    const cached = CATALOG_QUERY_CACHE.get(cacheKey);
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    setFailed(false);
+
+    fetch(`/api/litespm/list?${cacheKey}`, { signal: controller.signal })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<CatalogListResponse>;
       })
       .then((response) => {
+        CATALOG_QUERY_CACHE.set(cacheKey, response);
         setData(response);
         setLoading(false);
       })
       .catch((err: unknown) => {
         if ((err as { name?: string }).name === "AbortError") return;
-        setFailed(true);
-        setLoading(false);
+        if (!cached) {
+          setFailed(true);
+          setLoading(false);
+        }
       });
     return () => controller.abort();
   }, [query, retry]);
@@ -155,13 +170,20 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
   // Facet counts depend on the filters and search, not on page or sort.
   const facetKey = paramsFor(query).toString();
   React.useEffect(() => {
+    const cachedFacets = FACET_CACHE.get(facetKey);
+    if (cachedFacets) {
+      setFacets(cachedFacets);
+    }
     const controller = new AbortController();
     const params = new URLSearchParams(facetKey);
     params.set("facets", "only");
     fetch(`/api/litespm/list?${params.toString()}`, { signal: controller.signal })
       .then((r) => (r.ok ? (r.json() as Promise<CatalogListResponse>) : null))
       .then((response) => {
-        if (response) setFacets(response.facets);
+        if (response?.facets) {
+          FACET_CACHE.set(facetKey, response.facets);
+          setFacets(response.facets);
+        }
       })
       .catch(() => {});
     return () => controller.abort();

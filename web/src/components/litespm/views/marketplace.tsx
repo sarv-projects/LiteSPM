@@ -6,6 +6,7 @@ import { Check, Copy, Loader2, RefreshCw, Search, Terminal } from "lucide-react"
 import { exploreHash, kindForTab, type ExploreQuery, type MarketplaceTab } from "@/lib/litespm/router";
 import { displayPackageName } from "@/lib/litespm/format";
 import { cn } from "@/lib/utils";
+import { CopyButton } from "../code-block";
 import { NavLink } from "../nav-link";
 import { CatalogBrowser } from "./catalog-browser";
 interface InstalledRecord {
@@ -279,24 +280,103 @@ export function MarketplaceView({
   tab: MarketplaceTab;
   query: ExploreQuery;
 }) {
+  const [agentMode, setAgentMode] = React.useState(false);
+
   return (
     <div className="mx-auto w-full max-w-7xl min-w-0 max-w-full overflow-x-clip px-4 py-8 sm:px-6">
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
-          LiteSPM Marketplace
-        </p>
-        <h1 className="mt-1 text-[clamp(1.6rem,3vw,2.2rem)] font-semibold tracking-tight">
-          Find it once. Install it everywhere.
-        </h1>
-        <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
-          Search the live catalog, then copy the exact <code className="font-mono">litespm install</code>{" "}
-          command. The in-agent <code className="font-mono">/litespm-marketplace</code> command is in the
-          repository&apos;s 0.6.1 build; npm currently serves 0.6.0.{" "}
-          <NavLink to="/docs/methodology" className="whitespace-nowrap font-medium text-brand hover:underline">
-            How we rank
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
+            LiteSPM Marketplace
+          </p>
+          <h1 className="mt-1 text-[clamp(1.6rem,3vw,2.2rem)] font-semibold tracking-tight">
+            Find it once. Install it everywhere.
+          </h1>
+          <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+            Search the live catalog, then copy the exact <code className="font-mono">litespm install</code>{" "}
+            command. The in-agent <code className="font-mono">/litespm-marketplace</code> command is in the
+            repository&apos;s 0.6.1 build; npm currently serves 0.6.0.{" "}
+            <NavLink to="/docs/methodology" className="whitespace-nowrap font-medium text-brand hover:underline">
+              How we rank
+            </NavLink>
+            : installable listings come first, and nothing here is a download count.
+          </p>
+        </div>
+
+        {/* Dual-Audience Mode Switcher */}
+        <div className="shrink-0 flex items-center gap-1 rounded-xl border border-border/70 bg-card p-1 text-[11px] font-medium shadow-xs">
+          <button
+            type="button"
+            onClick={() => setAgentMode(false)}
+            className={cn(
+              "rounded-lg px-2.5 py-1 transition-colors",
+              !agentMode ? "bg-muted text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            👤 Developer GUI
+          </button>
+          <button
+            type="button"
+            onClick={() => setAgentMode(true)}
+            className={cn(
+              "rounded-lg px-2.5 py-1 transition-colors",
+              agentMode ? "bg-brand text-brand-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            🤖 AI Agent API
+          </button>
+        </div>
+      </div>
+
+      {/* Machine-Readable Agent Discovery Box when in Agent Mode */}
+      {agentMode && (
+        <div className="mt-4 rounded-xl border border-brand/35 bg-brand-soft/40 p-4 font-mono text-[12px] text-foreground">
+          <div className="flex items-center justify-between gap-2 border-b border-brand/20 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-semibold text-emerald-400">Agent API / LLM Discovery Endpoint</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAgentMode(false)}
+              className="font-sans text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              Close ✕
+            </button>
+          </div>
+          <p className="mt-2 text-[11.5px] font-sans text-muted-foreground">
+            Autonomous coding agents (Claude Code, Cursor, Pi, Grok, Codex) can search and install directly through the LiteSPM stdio MCP bridge or via HTTP:
+          </p>
+          <div className="mt-2 flex items-center justify-between rounded-lg border border-border/60 bg-muted/60 p-2.5 text-[11px]">
+            <code className="truncate text-brand">GET /api/litespm/list?q={query.q || ""}&pageSize=24</code>
+            <CopyButton value={`curl -s "https://lite-spm-nine.vercel.app/api/litespm/list?pageSize=24"`} label="Copy cURL" />
+          </div>
+          <p className="mt-2 text-[10.5px] font-sans text-muted-foreground">
+            In-agent MCP Bridge tool: <code className="text-foreground">search_catalog(query: string)</code> and <code className="text-foreground">request_install(id: string)</code>.
+          </p>
+        </div>
+      )}
+
+      {/* Quick Trending / Curated Pills */}
+      <div className="mt-4 flex flex-wrap items-center gap-1.5 text-[11px]">
+        <span className="text-[11px] font-medium text-muted-foreground mr-1">Trending:</span>
+        {[
+          { label: "⚡ Playwright", q: "playwright" },
+          { label: "📄 PDF & Documents", q: "pdf" },
+          { label: "🛡️ Skill Vetter", q: "vetter" },
+          { label: "🌐 Browserbase", q: "browserbase" },
+          { label: "🧠 Context7", q: "context7" },
+          { label: "🗄️ PostgreSQL", q: "postgres" },
+          { label: "🤖 Agentic Skills", q: "agent" },
+        ].map((item) => (
+          <NavLink
+            key={item.q}
+            to={exploreHash({ q: item.q, kind: kindForTab(tab) }, tab)}
+            className="rounded-full border border-border/70 bg-card px-2.5 py-0.5 text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
+          >
+            {item.label}
           </NavLink>
-          : installable listings come first, and nothing here is a download count.
-        </p>
+        ))}
       </div>
 
       <nav
