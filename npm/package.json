@@ -3,7 +3,8 @@
   "version": "0.6.1",
   "description": "The package manager for AI agents — MCP servers, skills and plugins through one local bridge.",
   "bin": {
-    "litespm": "bin/litespm.js"
+    "litespm": "bin/litespm.js",
+    "skills": "bin/skills.js"
   },
   "files": [
     "bin/",

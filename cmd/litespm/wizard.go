@@ -333,6 +333,50 @@ func (w *Wizard) runSetup(ctx context.Context) (bool, error) {
 	if tty {
 		uiStepHeader(w.out, 2, 3, fmt.Sprintf("Review and connect (%d agent%s)", len(adapters), plural(len(adapters))))
 	}
+
+	// When multiple agents are selected, offer a single batch review so the user
+	// does not have to click through N separate nested configuration dialogs.
+	if len(adapters) > 1 && tty {
+		type batchItem struct {
+			adapter host.HostAdapter
+			path    string
+		}
+		var batch []batchItem
+		canBatch := true
+		for _, a := range adapters {
+			p, err := a.DetectConfig(ctx, domain.ScopeUser)
+			if err != nil || p == "" {
+				canBatch = false
+				break
+			}
+			batch = append(batch, batchItem{adapter: a, path: p})
+		}
+
+		if canBatch && len(batch) == len(adapters) {
+			var previewLines []string
+			for _, b := range batch {
+				previewLines = append(previewLines, fmt.Sprintf("  • %-22s %s", b.adapter.Descriptor().DisplayName, shortHome(b.path, userHome())))
+			}
+			fmt.Fprintln(w.out, "")
+			uiHint(w.out, "Standard configuration targets detected for %d agents:\n%s", len(batch), strings.Join(previewLines, "\n"))
+			confirmBatch, berr := w.askYesNo(fmt.Sprintf("Connect all %d agents with surgical backups?", len(batch)), true)
+			if berr == nil && confirmBatch {
+				for _, b := range batch {
+					attempted++
+					if err := w.applyAgentIntegrationSilent(ctx, b.adapter, b.path); err != nil {
+						uiErr(w.out, "Could not connect %s: %v", b.adapter.Descriptor().DisplayName, err)
+					} else {
+						configured++
+					}
+				}
+				if configured > 0 {
+					w.printSetupCard(configured, len(adapters))
+				}
+				return false, nil
+			}
+		}
+	}
+
 	for _, adapter := range adapters {
 		configPath, ok, err := w.resolveAgentConfig(ctx, adapter)
 		if err != nil {
@@ -589,55 +633,81 @@ func (w *Wizard) promptAgentSelectionText(rows, detected []agentMenuRow) (host.H
 }
 
 func (w *Wizard) promptAgentMultiSelectTUI(rows, detected []agentMenuRow) ([]host.HostAdapter, error) {
-	detectedIDs := make([]string, 0, len(detected))
+	connectedVerifs, _ := w.configuredHosts(context.Background())
+	connectedMap := make(map[string]bool)
+	for _, v := range connectedVerifs {
+		connectedMap[v.HostID] = true
+	}
+
+	var preselected []string
 	for _, row := range detected {
-		detectedIDs = append(detectedIDs, row.descriptor.HostID)
+		if !connectedMap[row.descriptor.HostID] {
+			preselected = append(preselected, row.descriptor.HostID)
+		}
 	}
+
 	items := make([]promptItem, 0, len(rows))
-	// Detected agents first: they are preselected and the likeliest answer, and
-	// the "Detected" group should lead rather than land wherever the
-	// alphabet puts its first member.
-	ordered := make([]agentMenuRow, 0, len(rows))
+	// Unconnected detected agents first, then already connected agents, then other agents
+	var unconnectedDetected, connectedDetected, others []agentMenuRow
 	for _, row := range rows {
 		if row.exists {
-			ordered = append(ordered, row)
+			if connectedMap[row.descriptor.HostID] {
+				connectedDetected = append(connectedDetected, row)
+			} else {
+				unconnectedDetected = append(unconnectedDetected, row)
+			}
+		} else {
+			others = append(others, row)
 		}
 	}
-	for _, row := range rows {
-		if !row.exists {
-			ordered = append(ordered, row)
-		}
-	}
+
+	ordered := append(unconnectedDetected, append(connectedDetected, others...)...)
+
 	for _, row := range ordered {
+		isConn := connectedMap[row.descriptor.HostID]
 		group := "Other agents"
+		label := row.descriptor.DisplayName
 		if row.exists {
-			group = "Detected on this machine"
+			if isConn {
+				group = "Already connected on this machine"
+				label = row.descriptor.DisplayName + " (already connected)"
+			} else {
+				group = "Detected on this machine (unconnected)"
+			}
 		}
 		detail := row.descriptor.DisplayName
+		if isConn {
+			detail += "\nStatus: LiteSPM bridge is already connected and active."
+		}
 		if row.configPath != "" {
 			if row.exists {
-				detail += "\nConfig file: " + row.configPath + "\nLiteSPM adds one entry and keeps a backup."
+				detail += "\nConfig file: " + row.configPath
 			} else {
 				detail += "\nNo config file yet; LiteSPM will create:\n" + row.configPath
 			}
-		} else {
-			detail += "\nNo configuration path is known for this host."
 		}
 		items = append(items, promptItem{
 			ID:     row.descriptor.HostID,
-			Label:  row.descriptor.DisplayName,
+			Label:  label,
 			Hint:   truncate(row.configPath, 44),
 			Detail: detail,
 			Group:  group,
 		})
 	}
 
+	title := fmt.Sprintf("Connect AI coding agents  ·  %d detected of %d supported", len(detected), len(rows))
+	desc := "Select agents to connect. Each host is previewed and backed up separately."
+	if len(preselected) == 0 && len(detected) > 0 {
+		title = fmt.Sprintf("AI coding agents  ·  all %d detected are already connected", len(detected))
+		desc = "All detected agents are connected. Select an agent only if you want to repair or change its config."
+	}
+
 	result, err := runSearchPrompt(w.in, w.out, searchPromptOptions{
-		Title:       fmt.Sprintf("Connect AI coding agents  ·  %d detected of %d supported", len(detected), len(rows)),
-		Description: "Detected configurations are preselected. Each host is previewed and backed up separately.",
+		Title:       title,
+		Description: desc,
 		Items:       items,
-		Preselected: detectedIDs,
-		Required:    true,
+		Preselected: preselected,
+		Required:    false,
 		Searchable:  true,
 		SelectAll:   true,
 		ShowDetail:  true,
@@ -959,6 +1029,44 @@ func (w *Wizard) applyAgentIntegration(ctx context.Context, adapter host.HostAda
 	}
 
 	w.printNextStep(adapter)
+	return nil
+}
+
+// applyAgentIntegrationSilent applies the setup without interactive per-file prompts,
+// used for confirmed batch integrations across multiple agents.
+func (w *Wizard) applyAgentIntegrationSilent(ctx context.Context, adapter host.HostAdapter, configPath string) error {
+	backupDir := w.paths.BackupsPath()
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
+		return fmt.Errorf("could not create backups directory: %w", err)
+	}
+
+	plan, err := host.PlanSetupAt(ctx, adapter, w.binary, backupDir, configPath)
+	if err != nil {
+		return err
+	}
+	if plan.ProposedContent == "" {
+		return fmt.Errorf("cannot write %s: empty proposed content", configPath)
+	}
+
+	result, err := adapter.ApplySetup(ctx, plan)
+	if err != nil {
+		return fmt.Errorf("could not write %s: %w", configPath, err)
+	}
+
+	trigger := adapter.Descriptor().SlashCommandTrigger
+	if trigger == "" {
+		trigger = "/marketplace"
+	}
+	if info, ok := host.MarketplaceCommandFor(adapter.Descriptor().HostID); ok {
+		trigger = info.Invoke
+	}
+	w.setupLog = append(w.setupLog, setupRecord{
+		agent:   adapter.Descriptor().DisplayName,
+		file:    result.ConfigPath,
+		backup:  result.BackupPath,
+		trigger: trigger,
+	})
+	installMarketplaceCommand(ctx, io.Discard, adapter.Descriptor().HostID, w.binary)
 	return nil
 }
 
