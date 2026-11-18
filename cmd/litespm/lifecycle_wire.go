@@ -33,6 +33,48 @@ import (
 	"github.com/sarv-projects/litespm/internal/state"
 )
 
+// resolveRemoveID interprets the argument to install remove. The canonical
+// identifier is an install id, but the id printed on every card and copyable
+// command is the listing id; refusing the listing id with no hint was the
+// first-hour friction this helper removes. An ambiguous listing (installed in
+// two scopes/workspaces) is never guessed — the person must pick one id.
+func resolveRemoveID(ctx context.Context, db *state.DB, key string) (string, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "", fmt.Errorf("an install id or listing id is required")
+	}
+	if strings.HasPrefix(key, "inst_") {
+		return key, nil
+	}
+	if _, err := db.GetInstall(ctx, key); err == nil {
+		return key, nil
+	}
+
+	var matches []*domain.InstallRecord
+	for _, scope := range []domain.InstallScope{domain.ScopeUser, domain.ScopeProject} {
+		rows, err := db.ListInstalls(ctx, scope, "")
+		if err != nil {
+			return "", err
+		}
+		for _, row := range rows {
+			if row != nil && row.ListingID == key {
+				matches = append(matches, row)
+			}
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0].InstallID, nil
+	}
+	if len(matches) > 1 {
+		ids := make([]string, 0, len(matches))
+		for _, row := range matches {
+			ids = append(ids, row.InstallID)
+		}
+		return "", fmt.Errorf("listing %q is installed more than once (%s); name one install id", key, strings.Join(ids, ", "))
+	}
+	return "", fmt.Errorf("no install found for %q; use an install id from 'litespm list' (listing id: <id> is not enough when it was never installed)", key)
+}
+
 // newLifecycleOrchestrator returns the install/remove coordinator.
 func newLifecycleOrchestrator(db *state.DB) *lifecycle.Orchestrator {
 	if db == nil {

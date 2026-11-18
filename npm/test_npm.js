@@ -1307,6 +1307,7 @@ async function main() {
         "package.json",
         "scripts/install-binary.js",
         "scripts/uninstall-binary.js",
+        "test_npm.js",
       ];
       assert.deepStrictEqual(shipped, expected, `unexpected tarball contents: ${shipped.join(", ")}`);
       const shim = meta.files.find((f) => f.path === "bin/litespm.js");

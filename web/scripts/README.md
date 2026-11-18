@@ -33,11 +33,6 @@ These are not referenced by any `package.json` script. Several were written for 
 static-export layout of the site and still mention files that no longer exist (for example
 `lib/query.ts`), so treat a failure from them as a reason to read the script before the code:
 
-`audit-a11y.mjs`, `check-contrast.mjs`, `check-facet-counts.mjs`, `check-hook-order.mjs`,
-`check-install-command.mjs` (checks the install flags the site prints against the npm `latest`
 release recorded in `data/published-cli.json`; it asks the npm registry and falls back to the
-file offline), `check-og-image.mjs`, `check-orphan-components.mjs`, `check-publisher-counts.mjs`,
-`check-search-index.mjs`, `check-search-settled.mjs`, `check-sort-order.mjs`,
-`emit-catalog-shards.mjs`, `gen_brand_logos.mjs`, `gen_og_image.mjs`, `profile-projection.mjs`.
 
 The repository-level [`scripts/check_ci_local.sh --web`](../../scripts/check_ci_local.sh) runs the web stage of CI locally.

@@ -29,6 +29,7 @@ func useTempHome(t *testing.T) string {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Setenv("OPENCODE_CONFIG", "")
 	return home

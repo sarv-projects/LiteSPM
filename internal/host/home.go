@@ -1,9 +1,7 @@
 package host
 
 import (
-	"os"
-	"os/user"
-	"runtime"
+	"github.com/sarv-projects/litespm/internal/config"
 )
 
 // resolveHomeDir returns the current user's home directory.
@@ -13,19 +11,5 @@ import (
 // Unix) and can be redirected safely in sandboxed or test environments. The
 // platform user lookup is only used as a fallback when no override is present.
 func resolveHomeDir() string {
-	if runtime.GOOS == "windows" {
-		if h := os.Getenv("USERPROFILE"); h != "" {
-			return h
-		}
-	}
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	if h := os.Getenv("USERPROFILE"); h != "" {
-		return h
-	}
-	if usr, err := user.Current(); err == nil && usr != nil {
-		return usr.HomeDir
-	}
-	return ""
+	return config.ResolveHomeDir()
 }

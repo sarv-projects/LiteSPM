@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -25,6 +26,7 @@ import (
 	_ "github.com/a-litespm/termguard"
 	"github.com/sarv-projects/litespm/internal/agent"
 	"github.com/sarv-projects/litespm/internal/bridge"
+	"github.com/sarv-projects/litespm/internal/bundle"
 	"github.com/sarv-projects/litespm/internal/catalog"
 	"github.com/sarv-projects/litespm/internal/catalogbuild"
 	"github.com/sarv-projects/litespm/internal/config"
@@ -1308,11 +1310,16 @@ See also:
 	}
 	defer func() { _ = db.Close() }()
 
-	if err := removeInstalledPackage(ctx, db, paths.DataRoot, args[0]); err != nil {
+	installID, err := resolveRemoveID(ctx, db, args[0])
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Remove failed: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("✓ Removed %s\n", args[0])
+	if err := removeInstalledPackage(ctx, db, paths.DataRoot, installID); err != nil {
+		fmt.Fprintf(os.Stderr, "Remove failed: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("✓ Removed %s\n", installID)
 	fmt.Println("  LiteSPM's entries were stripped from the host configs; nodes you edited were kept.")
 }
 
@@ -1799,7 +1806,7 @@ type installFlags struct {
 	allowPartial bool
 }
 
-const installUsage = "Usage: litespm install <listing-id> [--version <ver>] [--scope user|project]\n" +
+const installUsage = "Usage: litespm install <listing-id|bundle:<id>> [--version <ver>] [--scope user|project]\n" +
 	"                     [--workspace <dir>] [--agent <id>]... [--all-detected]\n" +
 	"                     [--host <host-id>]... [--env <VAR>]... [--force] [--frozen] [--dry-run] [--yes]\n" +
 	"                     [--allow-partial]\n\n" +
@@ -1970,6 +1977,98 @@ func runInstall(args []string) {
 	}
 	if flags.showHelp {
 		fmt.Println(installUsage)
+		return
+	}
+
+	// A bundle is an editorial list of catalog ids. One command expands it into
+	// individual installs; every item still goes through the same plan,
+	// approval, policy and journal path as a single install, so this is a
+	// convenience wrapper rather than a second installer.
+	if strings.HasPrefix(flags.listingID, "bundle:") {
+		bundleID := strings.TrimPrefix(flags.listingID, "bundle:")
+		items, ok := bundle.Items(bundleID)
+		if !ok {
+			ids := bundle.IDs()
+			sort.Strings(ids)
+			fmt.Fprintf(os.Stderr, "Install error: unknown bundle %q. Known bundles: %s\n", bundleID, strings.Join(ids, ", "))
+			os.Exit(2)
+		}
+		if flags.version != "" || flags.frozen {
+			fmt.Fprintln(os.Stderr, "Install error: --version and --frozen apply to one listing, not to a bundle")
+			os.Exit(2)
+		}
+		if len(items) == 0 {
+			fmt.Fprintln(os.Stderr, "Install error: bundle has no items")
+			os.Exit(1)
+		}
+		// Preflight the whole bundle before running any child install. A bundle
+		// that contains a discovery-only or unknown listing is refused up front,
+		// so one command never starts and then stops halfway because of an item
+		// that could have been known before the first write.
+		prePaths, perrPaths := config.ResolvePlatformPaths()
+		if perrPaths != nil {
+			fmt.Fprintf(os.Stderr, "Install error: resolve paths: %v\n", perrPaths)
+			os.Exit(1)
+		}
+		cfg0, _ := config.LoadCurrentConfig()
+		regURL0 := registryURLOf(cfg0)
+		preClient := catalog.NewClientWithTimeout(regURL0, prePaths.DataRoot, catalogTimeoutOf(cfg0), nil)
+		for _, item := range items {
+			row, perr := preClient.GetListing(item)
+			if perr != nil {
+				fmt.Fprintf(os.Stderr, "Install error: bundle item %s is not in the local catalog index\n", item)
+				os.Exit(2)
+			}
+			if refusal := installKindRefusal(row); refusal != nil {
+				fmt.Fprintf(os.Stderr, "Install error: bundle item %s: %v\n", item, refusal)
+				os.Exit(2)
+			}
+			if !row.IsInstallable() {
+				fmt.Fprintf(os.Stderr, "Install error: bundle item %s is discovery-only; a bundle cannot include it\n", item)
+				os.Exit(2)
+			}
+		}
+		fmt.Printf("Bundle %s: %d capabilities\n", bundleID, len(items))
+		for _, id := range items {
+			fmt.Printf("  • %s\n", id)
+		}
+		if !flags.dryRun && !flags.yes && installConfirmWanted(flags) {
+			ok, cerr := confirmInstallPrompt(os.Stdin, os.Stdout)
+			if cerr != nil || !ok {
+				fmt.Println("Nothing was written: the bundle plan was not confirmed.")
+				return
+			}
+		}
+		exe, eerr := os.Executable()
+		if eerr != nil {
+			exe = "litespm"
+		}
+		// Each child gets its own plan and approval; --yes answers the wrapper's
+		// already-given confirmation and never skips the installer's own gate.
+		extra := append([]string(nil), args[1:]...)
+		pass := []string{"install"}
+		for _, a := range extra {
+			if a != flags.listingID {
+				pass = append(pass, a)
+			}
+		}
+		if flags.dryRun {
+			pass = append(pass, "--dry-run")
+		} else if !containsString(pass, "--yes") && !containsString(pass, "-y") {
+			pass = append(pass, "--yes")
+		}
+		for _, id := range items {
+			cmdArgs := append([]string(nil), pass...)
+			// items are inserted after the command, ahead of the flags.
+			cmdArgs = append([]string{"install", id}, cmdArgs[1:]...)
+			cmd := exec.Command(exe, cmdArgs...)
+			cmd.Stdin, cmd.Stdout, cmd.Stderr, cmd.Env = os.Stdin, os.Stdout, os.Stderr, os.Environ()
+			if err := cmd.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "Bundle stopped: %s failed: %v\n", id, err)
+				os.Exit(1)
+			}
+		}
+		fmt.Printf("✓ Bundle %s complete (%d capabilities)\n", bundleID, len(items))
 		return
 	}
 

@@ -118,27 +118,51 @@ func platformRoots(homeDir, username, uid string, brand brandNames) *PlatformPat
 // stays where it was.
 func ResolvePlatformPaths() (*PlatformPaths, error) {
 	usr, err := user.Current()
-	homeDir := ""
 	username := "unknown"
 	uid := "1000"
 	if err == nil && usr != nil {
-		homeDir = usr.HomeDir
 		username = usr.Username
 		uid = usr.Uid
 	}
-	if homeDir == "" {
-		homeDir = os.Getenv("HOME")
-		if homeDir == "" {
-			homeDir = os.Getenv("USERPROFILE")
-		}
-	}
 
+	homeDir := ResolveHomeDir()
 	paths := platformRoots(homeDir, username, uid, currentBrand)
 	legacy := platformRoots(homeDir, username, uid, legacyBrand)
 
 	applyRootOverrides(paths, legacy)
 
+	// Existing installations keep their state where it was created. When HOME
+	// is redirected (containers, CI, sudo) and the account-home data root
+	// already exists, adopt it instead of silently starting a fresh state.
+	// Explicit LITESPM_*/LITEPSM_* roots set above always win.
+	accountHome := AccountHomeDir()
+	if accountHome != "" && accountHome != homeDir {
+		account := platformRoots(accountHome, username, uid, currentBrand)
+		accountLegacy := platformRoots(accountHome, username, uid, legacyBrand)
+		paths.DataRoot = adoptAccountRoot(paths.DataRoot, account.DataRoot, "LITESPM_DATA_ROOT", "LITEPSM_DATA_ROOT")
+		paths.ConfigRoot = adoptAccountRoot(paths.ConfigRoot, account.ConfigRoot, "LITESPM_CONFIG_ROOT", "LITEPSM_CONFIG_ROOT")
+		paths.RuntimeRoot = adoptAccountRoot(paths.RuntimeRoot, account.RuntimeRoot, "LITESPM_RUNTIME_ROOT", "LITEPSM_RUNTIME_ROOT")
+		_ = accountLegacy // legacy roots were already adopted relative to the env home above
+		if runtime.GOOS != "windows" {
+			paths.SocketPath = filepath.Join(paths.RuntimeRoot, currentBrand.socketFile)
+		}
+	}
+
 	return paths, nil
+}
+
+// adoptAccountRoot preserves an existing data/config/runtime root under the
+// platform account home when an environment-provided HOME points elsewhere.
+func adoptAccountRoot(resolved, accountDefault string, envNames ...string) string {
+	for _, name := range envNames {
+		if os.Getenv(name) != "" {
+			return resolved
+		}
+	}
+	if resolved != accountDefault && pathMissing(resolved) && isDir(accountDefault) {
+		return accountDefault
+	}
+	return resolved
 }
 
 // applyRootOverrides applies environment overrides and legacy-root adoption to

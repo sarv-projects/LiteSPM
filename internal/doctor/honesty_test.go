@@ -279,6 +279,7 @@ func TestDoctor_HostRegistrationsWarnWhenNoneRegistered(t *testing.T) {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
 	for _, v := range []string{
 		"CLINE_MCP_SETTINGS_PATH", "CLINE_DATA_DIR", "PI_CODING_AGENT_DIR",
 		"OPENCODE_CONFIG_DIR", "CODEX_HOME", "GROK_HOME",

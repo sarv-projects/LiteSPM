@@ -412,10 +412,14 @@ func init() {
 		})
 	}
 	inConfigDir := func(hostID string, rel ...string) func(string) (string, error) {
-		return func(string) (string, error) {
+		return func(home string) (string, error) {
 			dir, err := detectedConfigDir(hostID)
-			if err != nil {
-				return "", err
+			// A host that has not created its config file yet still needs its
+			// marketplace command. Fall back to the documented config directory
+			// under the (possibly redirected) home; the adapter handles the
+			// real config write separately.
+			if err != nil || strings.TrimSpace(dir) == "" {
+				dir = filepath.Join(home, ".config", hostID)
 			}
 			return filepath.Join(append([]string{dir}, rel...)...), nil
 		}

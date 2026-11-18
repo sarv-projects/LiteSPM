@@ -65,11 +65,11 @@ go run ./cmd/litespm catalog build \
 go run ./cmd/litespm catalog build --verify "$tmp/release-check" || fail "catalog build --verify"
 
 # Re-runs the generator and requires the tree to come back byte-identical.
-# It MODIFIES web/data + web/lib in place when they were stale — inspect with
+# It MODIFIES web/data in place when it was stale — inspect with
 # `git diff` before discarding anything.
 stage "generated host data is current"
 go run scripts/gen_hosts_ts.go || fail "gen_hosts_ts"
-git diff --exit-code -- web/data/hosts.json web/data/skill-targets.json web/lib/hosts.ts \
+git diff --exit-code -- web/data/hosts.json web/data/skill-targets.json \
   || fail "generated host data (re-run 'go run scripts/gen_hosts_ts.go' and commit the result)"
 
 stage "python catalog provenance check"

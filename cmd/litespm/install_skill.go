@@ -97,6 +97,10 @@ func installSkillFromListing(
 		return nil, domain.ErrArtifactUnavailable(listing.ID,
 			fmt.Sprintf("skill source %q is not a git repository, so it cannot be fetched", sourceURL))
 	}
+	if warning := floatingSkillWarning(src.Pin); warning != "" {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", warning)
+		fmt.Fprintf(os.Stderr, "  To pin this skill yourself: litespm skills add %s@<full-commit-sha>\n", strings.TrimSuffix(strings.TrimPrefix(src.Display, "https://github.com/"), ".git"))
+	}
 
 	workRoot, cleanup, err := fetchSkillSourceTree(src)
 	if err != nil {
@@ -398,6 +402,34 @@ func shortDigest(digest string) string {
 		return "nodigest"
 	}
 	return hex
+}
+
+// floatingSkillWarning returns a clear warning when a catalog skill points at
+// a branch rather than an immutable commit. The bytes installed today can
+// change on the next update; the warning is emitted before any fetch or write.
+func floatingSkillWarning(pin string) string {
+	p := strings.TrimSpace(pin)
+	if p == "" {
+		return "the skill source has no fixed revision; a later update can change the installed files"
+	}
+	if len(p) == 40 && isHexString(p) {
+		return ""
+	}
+	switch strings.ToLower(p) {
+	case "main", "master", "head":
+		return "this skill comes from the floating branch '" + p + "', not a pinned commit; a later update can change the installed files"
+	default:
+		return "this skill uses revision '" + p + "', which is not a full commit hash; a later update can change the installed files"
+	}
+}
+
+func isHexString(s string) bool {
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // printSkillInstall reports a completed skill install in the same shape as the

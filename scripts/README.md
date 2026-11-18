@@ -164,7 +164,7 @@ network responses, so producer safety checks do not depend on upstream availabil
   host also carries `remoteTransports`, the `RemoteEntrySpec.Transports` set the binary writes
   against (sorted, so two runs are byte-identical). Before that the site kept its own hand-written
   copy of the same fact, which stayed at eight rows when the registry grew to forty-six and left
-  the site reporting the transport as unknown for 38 hosts — `web/lib/installFeasibility.ts` reads
+  the site reporting the transport as unknown for 38 hosts — `web/src/lib/litespm/availability.ts` reads
   the emitted field now.
 - **Who runs it.** Manual, whenever an adapter or skill target is added/renamed, and **before**
   `build_full_catalog.py`.
