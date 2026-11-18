@@ -447,97 +447,109 @@ class MarketplacePanel {
 }
 
 export default function (pi: ExtensionAPI) {
+  const openMarketplace = async (args: string, ctx: any) => {
+    const query = args.trim();
+    ctx.ui.notify(query === "" ? "Opening the LiteSPM marketplace…" : "Searching LiteSPM for " + query + "…", "info");
+    const searchDoc = await readJSON<RowsDoc>(pi, ["marketplace", "rows", "--json", "--host", HOST, "--query", query, "--limit", "300"]);
+    const installedDoc: RowsDoc | undefined = searchDoc ? { rows: searchDoc.installed } : undefined;
+    if (!searchDoc) {
+      ctx.ui.notify(
+        "LiteSPM did not answer. Check that it is installed (litespm --version) and up to date: npm install -g litespm",
+        "warning",
+      );
+      return;
+    }
+
+    // One list: installed rows first, then the search, de-duplicated by id.
+    const rows: Capability[] = [];
+    const seen = new Set<string>();
+    for (const doc of [installedDoc, searchDoc]) {
+      for (const row of doc && doc.rows ? doc.rows : []) {
+        if (!row.id || seen.has(row.id)) continue;
+        seen.add(row.id);
+        rows.push(row);
+      }
+    }
+
+    if (rows.length === 0) {
+      const hint = searchDoc && searchDoc.notice ? searchDoc.notice : "";
+      ctx.ui.notify(
+        hint !== ""
+          ? hint
+          : query === ""
+            ? "Nothing installed here yet. Try: /marketplace github"
+            : "Nothing matched " + query + ".",
+        "info",
+      );
+      return;
+    }
+
+    const total = searchDoc && searchDoc.total ? searchDoc.total : 0;
+    const notice =
+      query === ""
+        ? "installed + installable picks · /marketplace <word> searches"
+        : total + " result" + (total === 1 ? "" : "s") + " for " + query;
+
+    const theme = ctx.ui.theme as PanelTheme | undefined;
+    const picked = await ctx.ui.custom<string | undefined>(
+      (_tui, _theme, _keybindings, done) => new MarketplacePanel(rows, notice, theme, done),
+      { overlay: true },
+    );
+    if (!picked) return;
+
+    const removing = picked.startsWith("remove:");
+    const target = picked.slice(picked.indexOf(":") + 1);
+    const row = rows.find((r) => (removing ? r.installId === target : r.id === target));
+    const label = row ? row.name : target;
+    const argv = removing ? ["install", "remove", target] : ["install", target, "--host", HOST];
+    ctx.ui.notify((removing ? "Removing " : "Adding ") + label + "…", "info");
+    const outcome = await pi.exec(liteSPMBinary(), argv, { timeout: 180000 });
+    if (outcome.code === 0) {
+      ctx.ui.notify(
+        removing ? "Removed " + label + ". Quit and restart Pi to finish." : "Added " + label + ". Quit and restart Pi to use it.",
+        "info",
+      );
+    } else {
+      const why = outcomeLine(outcome.stdout + "\n" + outcome.stderr);
+      ctx.ui.notify((removing ? "Could not remove " : "Could not add ") + label + (why ? ": " + why : "."), "warning");
+    }
+  };
+
   pi.registerCommand("marketplace", {
     description: "Find and install things your agent can do",
-    handler: async (args, ctx) => {
-      const query = args.trim();
-      ctx.ui.notify(query === "" ? "Opening the LiteSPM marketplace…" : "Searching LiteSPM for " + query + "…", "info");
-      const searchDoc = await readJSON<RowsDoc>(pi, ["marketplace", "rows", "--json", "--host", HOST, "--query", query, "--limit", "300"]);
-      const installedDoc: RowsDoc | undefined = searchDoc ? { rows: searchDoc.installed } : undefined;
-      if (!searchDoc) {
-        ctx.ui.notify(
-          "LiteSPM did not answer. Check that it is installed (litespm --version) and up to date: npm install -g litespm",
-          "warning",
-        );
-        return;
-      }
+    handler: openMarketplace,
+  });
 
-      // One list: installed rows first, then the search, de-duplicated by id.
-      const rows: Capability[] = [];
-      const seen = new Set<string>();
-      for (const doc of [installedDoc, searchDoc]) {
-        for (const row of doc && doc.rows ? doc.rows : []) {
-          if (!row.id || seen.has(row.id)) continue;
-          seen.add(row.id);
-          rows.push(row);
-        }
-      }
-
-      if (rows.length === 0) {
-        const hint = searchDoc && searchDoc.notice ? searchDoc.notice : "";
-        ctx.ui.notify(
-          hint !== ""
-            ? hint
-            : query === ""
-              ? "Nothing installed here yet. Try: /marketplace github"
-              : "Nothing matched " + query + ".",
-          "info",
-        );
-        return;
-      }
-
-      const total = searchDoc && searchDoc.total ? searchDoc.total : 0;
-      const notice =
-        query === ""
-          ? "installed + installable picks · /marketplace <word> searches"
-          : total + " result" + (total === 1 ? "" : "s") + " for " + query;
-
-      const theme = ctx.ui.theme as PanelTheme | undefined;
-      const picked = await ctx.ui.custom<string | undefined>(
-        (_tui, _theme, _keybindings, done) => new MarketplacePanel(rows, notice, theme, done),
-        { overlay: true },
-      );
-      if (!picked) return;
-
-      const removing = picked.startsWith("remove:");
-      const target = picked.slice(picked.indexOf(":") + 1);
-      const row = rows.find((r) => (removing ? r.installId === target : r.id === target));
-      const label = row ? row.name : target;
-      const argv = removing ? ["install", "remove", target] : ["install", target, "--host", HOST];
-      ctx.ui.notify((removing ? "Removing " : "Adding ") + label + "…", "info");
-      const outcome = await pi.exec(liteSPMBinary(), argv, { timeout: 180000 });
-      if (outcome.code === 0) {
-        ctx.ui.notify(
-          removing ? "Removed " + label + ". Quit and restart Pi to finish." : "Added " + label + ". Quit and restart Pi to use it.",
-          "info",
-        );
-      } else {
-        const why = outcomeLine(outcome.stdout + "\n" + outcome.stderr);
-        ctx.ui.notify((removing ? "Could not remove " : "Could not add ") + label + (why ? ": " + why : "."), "warning");
-      }
-    },
+  pi.registerCommand("litespm-marketplace", {
+    description: "Browse and install things your agent can do with LiteSPM",
+    handler: openMarketplace,
   });
 
   pi.registerCommand("litespm", {
-    description: "List the LiteSPM tools available here",
+    description: "Open LiteSPM marketplace (or /litespm tools to list tools)",
     handler: async (args, ctx) => {
-      const bridgeTools = pi
-        .getAllTools()
-        .filter((tool) => tool.name.startsWith(BRIDGE_TOOL_PREFIX));
-      if (bridgeTools.length === 0) {
+      const q = args.trim().toLowerCase();
+      if (q === "tools" || q === "--tools" || q === "-t") {
+        const bridgeTools = pi
+          .getAllTools()
+          .filter((tool) => tool.name.startsWith(BRIDGE_TOOL_PREFIX));
+        if (bridgeTools.length === 0) {
+          ctx.ui.notify(
+            "The LiteSPM bridge is not connected yet. Check the 'litespm' entry in mcp.json (see /mcp).",
+            "warning",
+          );
+          return;
+        }
+        const lines = bridgeTools.map(
+          (tool) => tool.name + (tool.description ? " - " + tool.description : ""),
+        );
         ctx.ui.notify(
-          "The LiteSPM bridge is not connected yet. Check the 'litespm' entry in mcp.json (see /mcp).",
-          "warning",
+          "LiteSPM can do " + bridgeTools.length + " things here:\n" + lines.join("\n"),
+          "info",
         );
         return;
       }
-      const lines = bridgeTools.map(
-        (tool) => tool.name + (tool.description ? " - " + tool.description : ""),
-      );
-      ctx.ui.notify(
-        "LiteSPM can do " + bridgeTools.length + " things here:\n" + lines.join("\n"),
-        "info",
-      );
+      return openMarketplace(args, ctx);
     },
   });
 }

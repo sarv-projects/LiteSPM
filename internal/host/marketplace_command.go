@@ -342,7 +342,7 @@ func init() {
 	})
 
 	registerMarketplaceCommand("opencode", marketplaceCommandSpec{
-		info: MarketplaceCommandInfo{Kind: CommandPopup, Invoke: "/litespm-marketplace", Mechanism: "OpenCode TUI plugin (ui.dialog.select)", Verified: true,
+		info: MarketplaceCommandInfo{Kind: CommandPopup, Invoke: "/marketplace", Mechanism: "OpenCode TUI plugin (ui.dialog.select)", Verified: true,
 			Note: "OpenCode 2.0 or later; restart OpenCode after setup."},
 		root: func(home string) (string, error) {
 			dir, err := openCodeConfigDir()
@@ -356,7 +356,19 @@ func init() {
 			if err != nil {
 				return nil, err
 			}
-			return []commandFile{{path: filepath.Join(dir, "plugins", "litespm-marketplace", "tui.js"), content: render(asset("opencode/tui.js"), opts)}}, nil
+			tuiContent := render(asset("opencode/tui.js"), opts)
+			pkgContent := "{\n  \"name\": \"litespm-marketplace\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"main\": \"./index.js\",\n  \"exports\": \"./index.js\",\n  \"description\": \"" + MarketplaceCommandMarker + "\"\n}\n"
+			promptContent := promptMarkdown(true, "$ARGUMENTS")
+			pluginDir := filepath.Join(dir, "plugins", "litespm-marketplace")
+			cmdDir := filepath.Join(dir, "commands")
+			return []commandFile{
+				{path: filepath.Join(pluginDir, "tui.js"), content: tuiContent},
+				{path: filepath.Join(pluginDir, "index.js"), content: tuiContent},
+				{path: filepath.Join(pluginDir, "package.json"), content: pkgContent},
+				{path: filepath.Join(cmdDir, "marketplace.md"), content: promptContent},
+				{path: filepath.Join(cmdDir, "litespm.md"), content: promptContent},
+				{path: filepath.Join(cmdDir, "litespm-marketplace.md"), content: promptContent},
+			}, nil
 		},
 	})
 

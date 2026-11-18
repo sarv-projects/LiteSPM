@@ -13,8 +13,16 @@
 // and every action goes through the normal LiteSPM verbs, so the install is
 // planned, policy-checked and recorded exactly as on the command line.
 import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
 
-const LITESPM_BIN = process.env.LITESPM_BIN || "__LITESPM_BIN__"
+function resolveBin() {
+  if (process.env.LITESPM_BIN && existsSync(process.env.LITESPM_BIN)) return process.env.LITESPM_BIN
+  const baked = "__LITESPM_BIN__"
+  if (baked && baked !== "litespm" && existsSync(baked)) return baked
+  return "litespm"
+}
+
+const LITESPM_BIN = resolveBin()
 const HOST = "opencode"
 const ROWS_TIMEOUT_MS = 90_000
 const ACTION_TIMEOUT_MS = 180_000
@@ -161,6 +169,11 @@ export default {
       return true
     }
 
+    const runMarketplace = (input) =>
+      open(typeof input === "string" ? input : "").catch((e) =>
+        say("error", "LiteSPM marketplace", String(e && e.message ? e.message : e)),
+      )
+
     ctx.keymap.layer(() => ({
       mode: "global",
       commands: [
@@ -170,11 +183,26 @@ export default {
           description: "Search, install and remove MCP servers, skills and plugins",
           group: "LiteSPM",
           palette: true,
-          slash: { name: "litespm-marketplace", aliases: ["litespm"], arguments: true },
-          run: (input) =>
-            open(typeof input === "string" ? input : "").catch((e) =>
-              say("error", "LiteSPM marketplace", String(e && e.message ? e.message : e)),
-            ),
+          slash: { name: "marketplace", aliases: ["litespm", "litespm-marketplace"], arguments: true },
+          run: runMarketplace,
+        },
+        {
+          id: "litespm.open",
+          title: "LiteSPM: Open Marketplace",
+          description: "Open the LiteSPM capability marketplace",
+          group: "LiteSPM",
+          palette: true,
+          slash: { name: "litespm", arguments: true },
+          run: runMarketplace,
+        },
+        {
+          id: "litespm.compat",
+          title: "LiteSPM: Marketplace (Compat)",
+          description: "Open the LiteSPM capability marketplace",
+          group: "LiteSPM",
+          palette: false,
+          slash: { name: "litespm-marketplace", arguments: true },
+          run: runMarketplace,
         },
       ],
     }))
