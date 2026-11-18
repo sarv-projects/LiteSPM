@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Check, Copy, RotateCcw, Terminal } from "lucide-react";
 
 export type ScenarioId = "litespm" | "skills" | "mcp" | "restore";
 
 interface ScriptLine {
-  kind: "cmd" | "out" | "ok" | "dim" | "header";
+  kind: "cmd" | "pill" | "out" | "ok" | "dim" | "header" | "tree";
   text: string;
   delay?: number;
 }
@@ -20,47 +20,58 @@ const SCENARIOS: Record<
     lines: ScriptLine[];
   }
 > = {
-  // Lines are rendered with white-space: pre so the columns line up; keep
-  // each one within ~58 characters so nothing is clipped in the hero.
+  // Real LiteSPM terminal sessions formatted with clean tree connectors & diamonds
+  // Keep line widths within ~56 characters so they fit crisply without wrapping.
   litespm: {
     title: "litespm",
     description: "Auto-detect agents, sync 69K+ catalog & launch Manager",
     lines: [
       { kind: "cmd", text: "litespm", delay: 350 },
-      { kind: "header", text: "◆ LiteSPM  ·  cross-agent auto-sync", delay: 200 },
-      { kind: "dim", text: "───────────────────────────────────────────────────────", delay: 120 },
-      { kind: "ok", text: "✓  catalog synced (69,376 capabilities indexed)", delay: 240 },
-      { kind: "ok", text: "✓  agents: 11 detected · 0 newly wired · 11 connected", delay: 220 },
-      { kind: "ok", text: "✓  skills: active skills reconciled across 11 agents", delay: 220 },
-      { kind: "dim", text: "───────────────────────────────────────────────────────", delay: 120 },
-      { kind: "header", text: "◆ LiteSPM Manager", delay: 200 },
-      { kind: "dim", text: "│ Search: type to filter", delay: 160 },
-      { kind: "out", text: "│  ▾ Sync", delay: 140 },
-      { kind: "ok", text: "│❯ ○ Sync & cross-update everything (11 agents)", delay: 240 },
-      { kind: "out", text: "│  ▾ Catalog", delay: 140 },
-      { kind: "out", text: "│  ○ Find and install capability (search local index)", delay: 140 },
-      { kind: "out", text: "│  ○ View installed capabilities", delay: 140 },
+      { kind: "pill", text: "[litespm] v0.6.1 · the package manager for AI agents", delay: 180 },
+      { kind: "ok", text: "◇ Auto-sync: verified catalog sequence 154 (production)", delay: 240 },
+      { kind: "ok", text: "◇ Indexed 69,376 capabilities across skills, MCP & plugins", delay: 220 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "header", text: "◆ Connected Agent Hosts (11 detected)", delay: 200 },
+      { kind: "dim", text: "│ ── Universal Bridge (.agents/skills) ── active ──", delay: 160 },
+      { kind: "out", text: "│ • Claude Code (~/.claude.json)", delay: 140 },
+      { kind: "out", text: "│ • Cursor, OpenCode, Pi Agent, Grok Build +7 more", delay: 140 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "dim", text: "╭─ LiteSPM Manager ───────────────────────────────────╮", delay: 140 },
+      { kind: "out", text: "│  [1] Update capability catalog                      │", delay: 120 },
+      { kind: "ok", text: "│❯ [2] Find and install capability (69K+ catalog)     │", delay: 220 },
+      { kind: "out", text: "│  [3] Remove something LiteSPM installed             │", delay: 120 },
+      { kind: "out", text: "│  [4] See what is installed (inventory & status)    │", delay: 120 },
+      { kind: "out", text: "│  [5] Set up or repair an agent connection          │", delay: 120 },
+      { kind: "dim", text: "╰─────────────────────────────────────────────────────╯", delay: 130 },
+      { kind: "ok", text: "✓ Stdio bridge ready · 52 hosts supported", delay: 260 },
     ],
   },
   skills: {
     title: "skills add",
     description: "Discover SKILL.md and copy into agent skill trees",
     lines: [
-      { kind: "cmd", text: "litespm skills add anthropics/skills --skill pdf", delay: 350 },
-      { kind: "header", text: "◆ LiteSPM  ·  skills installer", delay: 200 },
-      { kind: "ok", text: "◇  Source  https://github.com/anthropics/skills.git", delay: 220 },
-      { kind: "ok", text: "◇  Found 20 skills  (1 selected: pdf)", delay: 200 },
-      { kind: "ok", text: "◇  Scope   Global (user-wide)", delay: 180 },
-      { kind: "dim", text: "╭─────────────────────────────────────────────────────╮", delay: 120 },
-      { kind: "header", text: "│ Installation Summary                                │", delay: 140 },
-      { kind: "ok", text: "│   ✓ pdf                                             │", delay: 160 },
-      { kind: "dim", text: "│     → ~/.claude/skills/pdf                          │", delay: 160 },
-      { kind: "dim", text: "╰─────────────────────────────────────────────────────╯", delay: 120 },
-      { kind: "ok", text: "◇  Installed 1 skill into 1 destination", delay: 240 },
-      { kind: "dim", text: "Done. Review skills before use; full agent permissions.", delay: 200 },
-      { kind: "cmd", text: "litespm skills list", delay: 400 },
-      { kind: "header", text: "  SKILL  HOST         SCOPE   ORIGIN     DIRECTORY", delay: 200 },
-      { kind: "ok", text: "  pdf    claude-code  global  installed  ~/.claude/...", delay: 220 },
+      { kind: "cmd", text: "litespm skills add flowkit-labs/skills --skill reddit-automation", delay: 350 },
+      { kind: "pill", text: "[skills] v0.6.1 · portable agent skills installer", delay: 180 },
+      { kind: "ok", text: "◇ Source: https://github.com/flowkit-labs/skills.git", delay: 240 },
+      { kind: "ok", text: "◇ Repository cloned (3 skills found)", delay: 200 },
+      { kind: "out", text: "• Selected skill: reddit-automation", delay: 180 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "header", text: "◆ Which agents do you want to install to?", delay: 220 },
+      { kind: "dim", text: "│ ── Universal (.agents/skills) ── always included ──", delay: 150 },
+      { kind: "out", text: "│ • Amp, Cline, Codex, Cursor, Droid, Gemini +8 more", delay: 150 },
+      { kind: "header", text: "◆ Installation scope: Global (~/.agents/skills)", delay: 180 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "dim", text: "╭─ Installation Summary ──────────────────────────────╮", delay: 140 },
+      { kind: "out", text: "│  ~/.agents/skills/reddit-automation                 │", delay: 160 },
+      { kind: "dim", text: "│  universal: 14 agents configured                    │", delay: 150 },
+      { kind: "dim", text: "╰─────────────────────────────────────────────────────╯", delay: 130 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "header", text: "◆ Proceed with installation?", delay: 180 },
+      { kind: "ok", text: "│ ● Yes  /  ○ No", delay: 240 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "ok", text: "✓ Installed reddit-automation (copied)", delay: 240 },
+      { kind: "dim", text: "  → ~/.agents/skills/reddit-automation", delay: 180 },
+      { kind: "dim", text: "Done! Review skills before use; full agent permissions.", delay: 220 },
     ],
   },
   mcp: {
@@ -68,15 +79,22 @@ const SCENARIOS: Record<
     description: "Register remote or local MCP server into host configs",
     lines: [
       { kind: "cmd", text: "litespm install context7 --agent claude-code", delay: 350 },
-      { kind: "dim", text: "Resolving mcp:builtin:mcp-registry:io.github.upstash...", delay: 220 },
-      { kind: "ok", text: "✓ Registered MCP server context7", delay: 260 },
-      { kind: "dim", text: "  Listing ID:  inst_user_mcp_context7_4_2_0", delay: 180 },
-      { kind: "out", text: "  Endpoint:    https://mcp.context7.com/mcp (remote)", delay: 200 },
-      { kind: "ok", text: "  • claude-code  created entry in ~/.claude.json", delay: 240 },
-      { kind: "cmd", text: "litespm list", delay: 420 },
-      { kind: "header", text: "LiteSPM setup overview (1 managed · 11 connected)", delay: 220 },
-      { kind: "header", text: "  KIND    NAME      STATE    SCOPE  AGENT", delay: 180 },
-      { kind: "ok", text: "  mcp     context7  managed  user   claude-code", delay: 220 },
+      { kind: "pill", text: "[install] v0.6.1 · MCP server manager", delay: 180 },
+      { kind: "ok", text: "◇ Resolving context7 via registry index (Seq 154)...", delay: 240 },
+      { kind: "ok", text: "◇ Found: io.github.upstash/context7", delay: 200 },
+      { kind: "out", text: "• Transport: Streamable HTTP (remote)", delay: 180 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "header", text: "◆ Target Host: claude-code", delay: 200 },
+      { kind: "dim", text: "│ Config: ~/.claude.json · scope: user", delay: 160 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "dim", text: "╭─ Installation Plan ─────────────────────────────────╮", delay: 140 },
+      { kind: "out", text: "│  Endpoint: https://mcp.context7.com/mcp             │", delay: 160 },
+      { kind: "dim", text: "│  Pre-image SHA-256: 7f83b1657ff1fc53b92dc...        │", delay: 150 },
+      { kind: "dim", text: "╰─────────────────────────────────────────────────────╯", delay: 130 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "ok", text: "✓ Backup saved: ~/.litespm/backups/claude.json.bak", delay: 220 },
+      { kind: "ok", text: "✓ Injected surgical merge into ~/.claude.json", delay: 240 },
+      { kind: "ok", text: "✓ Registered MCP server context7 (state: managed)", delay: 260 },
     ],
   },
   restore: {
@@ -84,25 +102,129 @@ const SCENARIOS: Record<
     description: "Byte-exact rollback using cryptographic pre-image hashes",
     lines: [
       { kind: "cmd", text: "litespm restore inst_user_mcp_context7_4_2_0", delay: 350 },
-      { kind: "dim", text: "Verifying pre-image SHA-256...", delay: 200 },
-      { kind: "ok", text: "✓ Restored inst_user_mcp_context7_4_2_0", delay: 260 },
-      { kind: "dim", text: "  - ~/.claude.json restored byte for byte", delay: 200 },
-      { kind: "dim", text: "  - backups preserved in ~/.litespm/backups/", delay: 180 },
-      { kind: "cmd", text: "litespm list", delay: 400 },
-      { kind: "header", text: "LiteSPM setup overview", delay: 180 },
-      { kind: "dim", text: "0 unique capabilities · 0 deployments", delay: 220 },
+      { kind: "pill", text: "[restore] v0.6.1 · byte-exact rollback system", delay: 180 },
+      { kind: "ok", text: "◇ Locating installation record...", delay: 220 },
+      { kind: "out", text: "• Target: ~/.claude.json (claude-code)", delay: 180 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "header", text: "◆ Cryptographic Verification", delay: 200 },
+      { kind: "dim", text: "│ Expected SHA-256: 7f83b1657ff1fc53b92dc...        ", delay: 160 },
+      { kind: "dim", text: "│ Computed SHA-256: 7f83b1657ff1fc53b92dc...        ", delay: 160 },
+      { kind: "tree", text: "│", delay: 80 },
+      { kind: "ok", text: "✓ Pre-image hash verified (100% byte match)", delay: 240 },
+      { kind: "ok", text: "✓ Restored ~/.claude.json byte for byte", delay: 260 },
+      { kind: "ok", text: "✓ Ledger entry removed cleanly", delay: 220 },
+      { kind: "dim", text: "0 unmanaged modifications · host configuration clean.", delay: 240 },
     ],
   },
 };
 
-const LINE_STYLES: Record<ScriptLine["kind"], string> = {
-  cmd: "text-[oklch(0.95_0.01_163)] font-semibold",
-  // Same size and letter-spacing as the rows, with >=4.5:1 WCAG AA contrast.
-  header: "text-white/75 font-medium",
-  out: "text-[oklch(0.82_0.02_163)]",
-  ok: "text-emerald-400 font-medium",
-  dim: "text-[oklch(0.60_0.02_163)]",
-};
+/**
+ * Renders tokens inside a terminal line with high-fidelity color accents
+ * inspired by clean modern CLI interfaces (diamonds, tree lines, boxes, radios).
+ */
+function FormattedLine({ line }: { line: ScriptLine }) {
+  const text = line.text;
+
+  // Render badge pill lines e.g. [skills] v0.6.1
+  if (line.kind === "pill" && text.startsWith("[")) {
+    const endBracket = text.indexOf("]");
+    if (endBracket !== -1) {
+      const badge = text.slice(1, endBracket);
+      const rest = text.slice(endBracket + 1);
+      return (
+        <span className="flex items-center gap-1.5 py-0.5">
+          <span className="inline-flex items-center rounded border border-teal-400/35 bg-teal-500/15 px-1.5 py-0.2 font-mono text-[10px] font-semibold tracking-wider text-teal-300 shadow-[0_0_12px_rgba(20,184,166,0.18)]">
+            {badge}
+          </span>
+          <span className="text-[oklch(0.85_0.02_163)] font-medium text-[11px] sm:text-[11.5px]">{rest}</span>
+        </span>
+      );
+    }
+  }
+
+  // Pure tree connector line: subtle gray
+  if (line.kind === "tree") {
+    return <span className="select-none font-mono text-white/20">{text}</span>;
+  }
+
+  // Token-by-token visual enhancement for standard lines
+  const renderTokens = () => {
+    // Check if line starts with diamond or check or box
+    let prefix: React.ReactNode = null;
+    let body = text;
+
+    if (body.startsWith("◇ ")) {
+      prefix = <span className="mr-1.5 font-bold text-teal-400 drop-shadow-[0_0_8px_rgba(45,212,191,0.4)]">◇</span>;
+      body = body.slice(2);
+    } else if (body.startsWith("◆ ")) {
+      prefix = <span className="mr-1.5 font-bold text-cyan-300 drop-shadow-[0_0_8px_rgba(103,232,249,0.5)]">◆</span>;
+      body = body.slice(2);
+    } else if (body.startsWith("✓ ")) {
+      prefix = <span className="mr-1.5 font-bold text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]">✓</span>;
+      body = body.slice(2);
+    } else if (body.startsWith("• ")) {
+      prefix = <span className="mr-1.5 font-bold text-teal-400/80">•</span>;
+      body = body.slice(2);
+    }
+
+    // Detect tree prefix like "│ • " or "│ ● "
+    let treePrefix: React.ReactNode = null;
+    if (body.startsWith("│ ")) {
+      treePrefix = <span className="select-none font-mono text-white/22 mr-2">│</span>;
+      body = body.slice(2);
+    }
+
+    // Colorize specific elements like radios, arrows, and boxes
+    let contentNode: React.ReactNode = body;
+    if (body.includes("● Yes")) {
+      contentNode = (
+        <span>
+          <span className="font-semibold text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]">● Yes</span>
+          <span className="text-white/35">  /  ○ No</span>
+        </span>
+      );
+    } else if (body.startsWith("→ ")) {
+      contentNode = (
+        <span>
+          <span className="font-semibold text-teal-300/80">→ </span>
+          <span className="text-teal-200/90 underline decoration-teal-500/30 underline-offset-2">{body.slice(2)}</span>
+        </span>
+      );
+    } else if (body.startsWith("https://") || body.includes("https://")) {
+      const parts = body.split(/(https:\/\/[^\s]+)/g);
+      contentNode = parts.map((part, i) =>
+        part.startsWith("https://") ? (
+          <span key={i} className="text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
+            {part}
+          </span>
+        ) : (
+          part
+        )
+      );
+    }
+
+    // Line class based on kind
+    let lineClass = "text-[oklch(0.84_0.02_163)]";
+    if (line.kind === "header") lineClass = "font-medium text-white/90";
+    if (line.kind === "ok") lineClass = "font-medium text-emerald-300/95";
+    if (line.kind === "dim") lineClass = "text-[oklch(0.58_0.02_163)]";
+
+    // Box border styling
+    if (text.startsWith("╭") || text.startsWith("╰") || (text.startsWith("│") && text.endsWith("│"))) {
+      lineClass = "text-white/40 font-light";
+    }
+
+    return (
+      <span className={lineClass}>
+        {treePrefix}
+        {prefix}
+        {contentNode}
+      </span>
+    );
+  };
+
+  return <>{renderTokens()}</>;
+}
 
 export function TerminalHero({
   className,
@@ -122,8 +244,20 @@ export function TerminalHero({
   const [isHovered, setIsHovered] = React.useState(false);
   const [userInteracted, setUserInteracted] = React.useState(false);
 
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+
   const activeScenario = SCENARIOS[scenario];
   const lines = activeScenario.lines;
+
+  // Smooth autoscroll down as new lines arrive so the latest output is always in focus
+  React.useEffect(() => {
+    if (viewportRef.current) {
+      viewportRef.current.scrollTo({
+        top: viewportRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [visible, typed]);
 
   // Auto-cycle through scenarios after completion (pauses when hovered or user-selected)
   React.useEffect(() => {
@@ -137,7 +271,7 @@ export function TerminalHero({
         return "litespm";
       });
       setRunKey((k) => k + 1);
-    }, 4500);
+    }, 4800);
 
     return () => clearTimeout(timer);
   }, [visible, lines.length, isHovered, userInteracted]);
@@ -146,15 +280,22 @@ export function TerminalHero({
   React.useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
+
     const reduced =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (viewportRef.current) {
+      viewportRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
     if (reduced) {
-      // No typing animation: show the whole session at once.
+      // Reduced motion: show the entire scenario at once without delay
       setVisible(lines.length);
       setTyped("");
       return;
     }
+
     setVisible(0);
     setTyped("");
 
@@ -170,27 +311,28 @@ export function TerminalHero({
             char += 1;
             setTyped(line.text.slice(0, char));
             if (char < line.text.length) {
-              timer = setTimeout(typeNext, 18 + Math.random() * 24);
+              timer = setTimeout(typeNext, 20 + Math.random() * 22);
             } else {
+              // Pause briefly on command completion before output streams in
               timer = setTimeout(() => {
                 if (cancelled) return;
                 setVisible(index + 1);
                 setTyped("");
                 runLine(index + 1);
-              }, 280);
+              }, 260);
             }
           };
-          timer = setTimeout(typeNext, 80);
+          timer = setTimeout(typeNext, 60);
         } else {
           timer = setTimeout(() => {
             if (cancelled) return;
             setVisible(index + 1);
             runLine(index + 1);
-          }, line.delay ?? 260);
+          }, line.delay ?? 190);
         }
       };
 
-      timer = setTimeout(start, line.delay ?? 200);
+      timer = setTimeout(start, line.delay ?? 160);
     };
 
     runLine(0);
@@ -216,9 +358,11 @@ export function TerminalHero({
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative overflow-hidden bg-[#0d1312] ${framed ? "rounded-[calc(1.1rem-1px)]" : "rounded-2xl border border-border/80 shadow-[0_24px_70px_-24px_rgba(16,185,129,0.2)]"} ${
-        className ?? ""
-      }`}
+      className={`relative overflow-hidden bg-[#0c1110] ${
+        framed
+          ? "rounded-[calc(1.1rem-1px)]"
+          : "rounded-2xl border border-border/80 shadow-[0_24px_70px_-24px_rgba(16,185,129,0.2)]"
+      } ${className ?? ""}`}
       aria-label="LiteSPM interactive terminal session"
     >
       {/* Terminal Titlebar */}
@@ -229,7 +373,7 @@ export function TerminalHero({
             <span className="h-3 w-3 rounded-full bg-amber-500/80 transition-opacity hover:opacity-100" />
             <span className="h-3 w-3 rounded-full bg-emerald-500/80 transition-opacity hover:opacity-100" />
           </span>
-          <span className="ml-2 hidden items-center gap-1.5 font-mono text-[11px] font-medium text-white/52 sm:inline-flex">
+          <span className="ml-2 hidden items-center gap-1.5 font-mono text-[11px] font-medium text-white/50 sm:inline-flex">
             <Terminal className="h-3 w-3 text-brand" /> litespm — terminal
           </span>
         </div>
@@ -254,7 +398,7 @@ export function TerminalHero({
                 <motion.span
                   layoutId="terminal-tab-pill"
                   transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                  className="absolute inset-0 rounded-lg border border-brand/40 bg-brand/20"
+                  className="absolute inset-0 rounded-lg border border-brand/40 bg-brand/20 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
                   aria-hidden="true"
                 />
               )}
@@ -280,36 +424,67 @@ export function TerminalHero({
         </div>
       </div>
 
-      {/* Terminal Viewport: fixed height, newest line at the bottom like a real
-          terminal, so the hero never shifts while the session plays. */}
-      <div className="flex h-[236px] flex-col justify-end overflow-hidden px-3 py-3 font-mono text-[10.5px] leading-[1.7] sm:h-[318px] sm:px-4 sm:text-[12px] sm:leading-[1.75]">
-        {lines.slice(0, visible).map((line, i) => (
-          <p key={`${runKey}-${scenario}-${i}`} className={`term-line whitespace-pre ${LINE_STYLES[line.kind]}`}>
-            {line.kind === "cmd" && <span className="mr-2 font-bold text-emerald-400">$</span>}
-            {line.text}
-          </p>
-        ))}
+      {/* Terminal Viewport:
+          Starts from the top (justify-start) and slowly fills downwards.
+          Smoothly auto-scrolls down once content fills the height. */}
+      <div
+        ref={viewportRef}
+        className="no-scrollbar flex h-[270px] flex-col justify-start overflow-y-auto px-3.5 py-3 font-mono text-[10.5px] leading-[1.72] sm:h-[338px] sm:px-4 sm:text-[11.5px] sm:leading-[1.78]"
+      >
+        <div className="flex flex-col gap-0.5">
+          {lines.slice(0, visible).map((line, i) => (
+            <motion.div
+              key={`${runKey}-${scenario}-${i}`}
+              initial={{ opacity: 0, y: 7 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+              className="whitespace-pre"
+            >
+              {line.kind === "cmd" ? (
+                <div className="font-semibold text-white/95">
+                  <span className="mr-2 font-bold text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]">
+                    $
+                  </span>
+                  <span>{line.text}</span>
+                </div>
+              ) : (
+                <FormattedLine line={line} />
+              )}
+            </motion.div>
+          ))}
 
-        {currentCmdIndex !== -1 && (
-          <p className={`whitespace-pre ${LINE_STYLES.cmd}`}>
-            <span className="mr-2 font-bold text-emerald-400">$</span>
-            {typed}
-            <span className="cursor-blink ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] bg-emerald-400" />
-          </p>
-        )}
+          {/* Active typing command line */}
+          {currentCmdIndex !== -1 && (
+            <div className="whitespace-pre font-semibold text-white/95">
+              <span className="mr-2 font-bold text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]">
+                $
+              </span>
+              <span>{typed}</span>
+              <span className="cursor-blink ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+            </div>
+          )}
 
-        {visible >= lines.length && (
-          <p className="text-[oklch(0.95_0.01_163)]">
-            <span className="mr-2 font-bold text-emerald-400">$</span>
-            <span className="cursor-blink ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] bg-emerald-400" />
-          </p>
-        )}
+          {/* Idle prompt waiting cursor once all lines have filled */}
+          {visible >= lines.length && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="mt-1 whitespace-pre text-white/90"
+            >
+              <span className="mr-2 font-bold text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]">
+                $
+              </span>
+              <span className="cursor-blink ml-0.5 inline-block h-[13px] w-[7px] translate-y-[2px] bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+            </motion.div>
+          )}
+        </div>
       </div>
 
-      {/* Progress through the current scenario. */}
+      {/* Progress bar across current scenario */}
       <div className="h-px w-full bg-white/[0.06]" aria-hidden="true">
         <div
-          className="h-px bg-gradient-to-r from-emerald-500/0 via-emerald-400 to-emerald-300 transition-[width] duration-300 ease-out"
+          className="h-px bg-gradient-to-r from-emerald-500/0 via-emerald-400 to-teal-300 transition-[width] duration-300 ease-out shadow-[0_0_8px_rgba(52,211,153,0.5)]"
           style={{ width: `${Math.round((Math.min(visible, lines.length) / lines.length) * 100)}%` }}
         />
       </div>
@@ -317,9 +492,9 @@ export function TerminalHero({
       {/* Footer Status Bar */}
       <div className="flex items-center justify-between gap-3 bg-white/[0.02] px-4 py-2 font-mono text-[10.5px] text-white/45">
         <span className="truncate">{activeScenario.description}</span>
-        <span className="flex shrink-0 items-center gap-1.5 text-emerald-400/80">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-          {hostsCount} hosts ready
+        <span className="flex shrink-0 items-center gap-1.5 text-emerald-400/90 font-medium">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+          {hostsCount} hosts connected
         </span>
       </div>
     </div>
