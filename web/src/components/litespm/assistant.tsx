@@ -656,16 +656,13 @@ function RichAnswer({ text, onOpenLink }: { text: string; onOpenLink: (href: str
         if (block.type === "list") {
           const Tag = block.ordered ? "ol" : "ul";
           return (
-            <Tag key={i} className={cn("ml-1 space-y-1.5", block.ordered && "list-decimal list-inside")}>
+            <div key={i} className="space-y-2 border-l-2 border-brand/25 pl-3">
               {block.items.map((item, j) => (
-                <li key={j} className="flex items-start gap-2 text-[13px] leading-relaxed">
-                  {!block.ordered && (
-                    <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden="true" />
-                  )}
-                  <span className="flex-1">{renderInline(item, onOpenLink)}</span>
-                </li>
+                <p key={j} className="text-[13px] leading-relaxed text-foreground/90">
+                  {renderInline(item, onOpenLink)}
+                </p>
               ))}
-            </Tag>
+            </div>
           );
         }
 
@@ -1379,7 +1376,7 @@ export function Assistant() {
                 <div className="mt-3 border-t border-border/60 pt-2.5">
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <p className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-                      <BookOpen className="h-3 w-3 text-brand" /> Documentation sources
+                      <BookOpen className="h-3 w-3 text-brand" /> Sources
                     </p>
                     {message.meta?.rag && (
                       <span
@@ -1406,8 +1403,7 @@ export function Assistant() {
                           className="inline-flex max-w-full items-center gap-1 rounded-lg border border-border/70 bg-muted/50 px-2 py-1 text-[10.5px] text-muted-foreground hover:text-brand hover:border-brand/40 transition-colors"
                         >
                           <span className="font-semibold text-brand">{source.id}</span>
-                          <span className="truncate">{source.source}</span>
-                          <span className="shrink-0 opacity-70">L{source.startLine}–{source.endLine}</span>
+                          <span className="truncate">{sourceLabel(source.source)}</span>
                           <ExternalLink className="h-2.5 w-2.5 opacity-60" />
                         </a>
                       ) : (
@@ -1417,8 +1413,7 @@ export function Assistant() {
                           className="inline-flex max-w-full items-center gap-1 rounded-lg border border-border/70 bg-muted/50 px-2 py-1 text-[10.5px] text-muted-foreground"
                         >
                           <span className="font-semibold text-brand">{source.id}</span>
-                          <span className="truncate">{source.source}</span>
-                          <span className="shrink-0 opacity-70">L{source.startLine}–{source.endLine}</span>
+                          <span className="truncate">{sourceLabel(source.source)}</span>
                         </span>
                       );
                     })}
@@ -1591,4 +1586,22 @@ export function Assistant() {
     </>,
     document.body,
   );
+}function sourceLabel(path: string): string {
+  const clean = path.replace(/\.md$/i, "");
+  if (clean.startsWith("ARCH/")) {
+    const name = clean.replace(/^ARCH\/\d+-/, "").replace(/[-_]/g, " ").toLowerCase();
+    const friendly: Record<string, string> = {
+      "web frontend ui": "Web & UI", "product": "Product contract", "local runtime ipc": "Local runtime & IPC",
+      "cli product surface": "CLI surface", "connector system design": "Connector design",
+      "host adapters": "Host adapters", "security": "Security",
+    };
+    return friendly[name] ?? name.replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  const map: Record<string, string> = {
+    README: "Product overview", STATUS: "Project status", AGENTS: "Supported agents",
+    SECURITY: "Security policy", CHANGELOG: "Release history",
+  };
+  return map[clean] ?? clean;
 }
+
+
