@@ -92,7 +92,7 @@ func TestWriteSearchTableShowsStatus(t *testing.T) {
 func TestInstallFailureTextIsReadable(t *testing.T) {
 	err := domain.ErrNotInstallable("skill:planetscale:postgres", "internal detail")
 	got := installFailureText(err, true)
-	for _, want := range []string{"✗ skill:planetscale:postgres can't be installed", "(LPSM-NOT-INSTALLABLE)", "Try: litespm search postgres --installable"} {
+	for _, want := range []string{"✗ skill:planetscale:postgres can't be installed", "(LPSM-NOT-INSTALLABLE)", "Try: litespm search postgres to inspect the listing"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
 		}

@@ -221,6 +221,8 @@ func installSkillFromListing(
 			Source:      src,
 			Scope:       skillScope,
 			ObservedRef: observedRef,
+			Force:       skillForceFromPlan(plan),
+			BackupRoot:  filepath.Join(dataRoot, "backups"),
 		})
 		if err != nil {
 			return nil, errors.Join(fmt.Errorf("installing skill %s into %s: %w", op.SkillName, op.ToDir, err), txn.Rollback())

@@ -35,9 +35,9 @@ func installFailureText(err error, unicode bool) string {
 			mark = "✗"
 		}
 		if id == "" {
-			return fmt.Sprintf("%s This listing can't be installed: the catalog has no verified source for it (%s).\n  Try: litespm search <query> --installable\n", mark, lerr.Code)
+			return fmt.Sprintf("%s This listing can't be installed: it has no verified launch line (%s).\n  Try: litespm search <query> to inspect the listing and its source\n", mark, lerr.Code)
 		}
-		return fmt.Sprintf("%s %s can't be installed: the catalog has no verified source for it (%s).\n  Try: litespm search %s --installable\n",
+		return fmt.Sprintf("%s %s can't be installed: it is discovery-only metadata with no verified launch line (%s).\n  Try: litespm search %s to inspect the listing, or litespm marketplace to browse installable alternatives\n",
 			mark, id, lerr.Code, searchTermForListingID(id))
 	}
 	return fmt.Sprintf("Install failed: %s (%s)\n", lerr.Message, lerr.Code)

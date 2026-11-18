@@ -47,7 +47,7 @@ func skillPlanForTest(t *testing.T, listing *domain.Listing, scope domain.Instal
 			ListingID:   listing.ID,
 			TargetScope: scope,
 		},
-		HostChanges: skillHostChanges(listing, dests),
+		HostChanges: skillHostChanges(listing, dests, false),
 	}
 }
 

@@ -37,6 +37,9 @@ const skillWriteAction = "write_skill_dir"
 // request means "the agents detected now" and an explicit request means exactly
 // those agents — never a superset.
 type skillInstallBinding struct {
+	// Force seals the overwrite decision into the plan. Without it an approved
+	// plan cannot overwrite a skill directory that already exists.
+	Force bool
 	// Requested names skill target ids (see internal/skills.AgentTargets) or
 	// "*" for the whole table.
 	Requested []string
@@ -139,13 +142,19 @@ func skillScopeFor(scope domain.InstallScope) string {
 // skillHostChanges renders the sealed destinations as plan host changes. The
 // entry key is the planned directory name; the path is the agent's skills
 // root. Both are hashed into the plan, so the approval covers them.
-func skillHostChanges(listing *domain.Listing, dests []skillDestination) []domain.HostChange {
+func skillHostChanges(listing *domain.Listing, dests []skillDestination, force bool) []domain.HostChange {
 	if listing == nil || len(dests) == 0 {
 		return nil
 	}
 	entryKey := ""
 	if name, err := skills.SanitizeSkillName(listing.Name); err == nil {
 		entryKey = name
+	}
+	// Bind the overwrite decision to the sealed plan. Without this, --force
+	// was checked at plan time and then silently dropped at execution.
+	forceValue := ""
+	if force {
+		forceValue = "true"
 	}
 	changes := make([]domain.HostChange, 0, len(dests))
 	for _, dest := range dests {
@@ -154,6 +163,7 @@ func skillHostChanges(listing *domain.Listing, dests []skillDestination) []domai
 			ConfigPath: dest.Root,
 			Action:     skillWriteAction,
 			EntryKey:   entryKey,
+			ValueJSON:  forceValue,
 		})
 	}
 	return changes
@@ -180,6 +190,20 @@ func skillDestinationsFromPlan(plan *domain.InstallPlan) ([]skillDestination, er
 		return nil, fmt.Errorf("plan %s seals no skill destinations, so there is nothing that could be written. Re-run the install so a plan is approved for the agent you want", plan.PlanID)
 	}
 	return out, nil
+}
+
+// skillForceFromPlan reads the overwrite decision sealed in the approved plan.
+// A plan built before this field existed has an empty value and stays strict.
+func skillForceFromPlan(plan *domain.InstallPlan) bool {
+	if plan == nil {
+		return false
+	}
+	for _, ch := range plan.HostChanges {
+		if ch.Action == skillWriteAction && ch.ValueJSON == "true" {
+			return true
+		}
+	}
+	return false
 }
 
 // skillAgentsFromPlan is the execution-side view: the agent ids whose trees the

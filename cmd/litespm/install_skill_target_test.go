@@ -129,7 +129,7 @@ func TestSkillHostChangesAreSealedAndReadBack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plan destinations: %v", err)
 	}
-	changes := skillHostChanges(listing, dests)
+	changes := skillHostChanges(listing, dests, false)
 	if len(changes) != len(dests) {
 		t.Fatalf("host changes = %d, destinations = %d", len(changes), len(dests))
 	}

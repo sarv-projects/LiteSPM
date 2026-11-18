@@ -2106,6 +2106,7 @@ func runInstall(args []string) {
 		skillBinding = &skillInstallBinding{
 			Requested:   append(append([]string(nil), flags.agents...), flags.hosts...),
 			AllDetected: flags.allDetected,
+			Force:       flags.force,
 		}
 	}
 
@@ -4522,7 +4523,11 @@ func buildInstallPlan(ctx context.Context, catClient *catalog.Client, id, versio
 		if derr != nil {
 			return nil, nil, &ipc.RPCError{Code: ipc.CodeInvalidParams, Message: derr.Error()}
 		}
-		hostChanges = skillHostChanges(listing, dests)
+		force := false
+		if skillBinding != nil {
+			force = skillBinding.Force
+		}
+		hostChanges = skillHostChanges(listing, dests, force)
 	}
 
 	now := time.Now().UTC()
