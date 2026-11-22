@@ -1,0 +1,13 @@
+URL,Route_Type,HTTP_Status,Canonical,Rendering,FCP_ms,Key_Issues
+https://lite-spm-nine.vercel.app/,Homepage,200,https://lite-spm-nine.vercel.app/,SSR + Client Hydration,636,Hero copy technical density; 8 button accessible name warnings on collapsed details
+https://lite-spm-nine.vercel.app/marketplace,Marketplace Root,200,https://lite-spm-nine.vercel.app/marketplace,Client Navigation + Static Base,1568,Initial facet compute delay; 4 tabs responsive wrapping on 320px
+https://lite-spm-nine.vercel.app/bundles,Curated Collections,200,https://lite-spm-nine.vercel.app/bundles,Client Navigation,308,"Clean grid, excellent responsive layout"
+https://lite-spm-nine.vercel.app/agents,Agent Host Directory,200,https://lite-spm-nine.vercel.app/agents,Client Navigation,400,52 host cards; needs quick search filter input
+https://lite-spm-nine.vercel.app/agent/cline,Agent Host Detail,200,https://lite-spm-nine.vercel.app/agent/cline,Client Navigation,316,Icon missing alt attribute
+https://lite-spm-nine.vercel.app/package/mcp%3Abuiltin%3Amcp-registry%3Aio.github.github-github-mcp-server,Package Detail (MCP),200,https://lite-spm-nine.vercel.app/package/...,Dynamic SSR API Fetch,2220,Slight TTFB wait on dynamic upstream registry metadata
+https://lite-spm-nine.vercel.app/package/askills-skill-claude-api,Package Detail (Skill),200,https://lite-spm-nine.vercel.app/package/...,Dynamic SSR API Fetch,1400,Prompt preview code block formatting is clean
+https://lite-spm-nine.vercel.app/compare,Comparison Tool,200,https://lite-spm-nine.vercel.app/compare,Client Navigation,452,Empty state by default; requires query params to render comparison
+https://lite-spm-nine.vercel.app/docs,Documentation,200,https://lite-spm-nine.vercel.app/docs,Client Navigation + Markdown,612,Extensive technical depth; mentions v0.6.1 while npm is v0.6.0
+https://lite-spm-nine.vercel.app/insights,Analytics Dashboard,200,https://lite-spm-nine.vercel.app/insights,Client Navigation,360,High quality telemetry charts and breakdown stats
+https://lite-spm-nine.vercel.app/publish,Listing Submission,200,https://lite-spm-nine.vercel.app/publish,Client Form,544,Form requires remote Turso database configured to accept submissions
+https://lite-spm-nine.vercel.app/nonexistent-route-test-404,Error 404,404,None,Next.js Not-Found,364,Clean branded 404 page with return-home button

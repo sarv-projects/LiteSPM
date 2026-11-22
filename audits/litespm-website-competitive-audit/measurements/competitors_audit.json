@@ -1,0 +1,309 @@
+{
+  "A1_skills_sh": {
+    "name": "Vercel Skills / Skills.sh",
+    "tier": "Tier A",
+    "slug": "skills_sh",
+    "pages": {
+      "https://skills.sh/": {
+        "url": "https://skills.sh/",
+        "desktop": {
+          "status": 200,
+          "title": "The Agent Skills Directory",
+          "h1": "Skills",
+          "meta_desc": "Discover and install skills for AI agents.",
+          "load_time_s": 2.1563313007354736,
+          "code_snippets": [
+            "$\nnpx skills\nadd\n<owner/repo>"
+          ],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_skills_sh_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_skills_sh_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "A2_add_mcp": {
+    "name": "add-mcp",
+    "tier": "Tier A",
+    "slug": "add_mcp",
+    "pages": {
+      "https://add-mcp.com/": {
+        "url": "https://add-mcp.com/",
+        "desktop": {
+          "status": 200,
+          "title": "add-mcp \u2014 add MCP servers to your coding agents",
+          "h1": "Add MCP servers to your coding agents with a single command.",
+          "meta_desc": "Add MCP servers to your favorite coding agents with a single command.",
+          "load_time_s": 2.292553663253784,
+          "code_snippets": [
+            "npx add-mcp https://mcp.context7.com/mcp",
+            "npx add-mcp @modelcontextprotocol/server-postgres",
+            "npx add-mcp find neon",
+            "import { upsertServer } from \"add-mcp\";\n\nupsertServer(\n  \"cursor\",\n  \"context7\",\n  { type: \"http\", url: \"https://mcp.context7.com/mcp\" },\n  { local: true },\n);",
+            "import { upsertServer } from \"add-mcp\";\n\nupsertServer(\n  \"cursor\",\n  \"context7\",\n  { type: \"http\", url: \"https://mcp.context7.com/mcp\" },\n  { local: true },\n);"
+          ],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_add_mcp_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_add_mcp_mobile_375.png",
+          "status": 200
+        }
+      },
+      "https://add-mcp.com/registry": {
+        "url": "https://add-mcp.com/registry",
+        "desktop": {
+          "status": 200,
+          "title": "add-mcp registry",
+          "h1": "add-mcp registry",
+          "meta_desc": "Registry for the add-mcp CLI \u2014 a cached snapshot of the integrations.sh MCP servers, ranked by searches.",
+          "load_time_s": 6.716433048248291,
+          "code_snippets": [],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_add_mcp_registry_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_add_mcp_registry_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "A3_microsoft_apm": {
+    "name": "Microsoft APM",
+    "tier": "Tier A",
+    "slug": "microsoft_apm",
+    "pages": {
+      "https://microsoft.github.io/apm/": {
+        "url": "https://microsoft.github.io/apm/",
+        "desktop": {
+          "status": 200,
+          "title": "Agent Package Manager | Agent Package Manager",
+          "h1": "Lock what your agents load.",
+          "meta_desc": "Lock what your agents load. APM declares, locks and governs the skills, plugins, MCP servers and hooks your coding agents use, on the harnesses you already run.",
+          "load_time_s": 2.3694915771484375,
+          "code_snippets": [
+            "brew install apm",
+            "brew install apm",
+            "curl -sSL https://aka.ms/apm-unix | sh",
+            "curl -sSL https://aka.ms/apm-unix | sh",
+            "irm https://aka.ms/apm-windows | iex"
+          ],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_microsoft_apm_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_microsoft_apm_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "A4_glama": {
+    "name": "Glama MCP",
+    "tier": "Tier A",
+    "slug": "glama",
+    "pages": {
+      "https://glama.ai/mcp/servers": {
+        "url": "https://glama.ai/mcp/servers",
+        "desktop": {
+          "status": 200,
+          "title": "Open-Source MCP Servers \u2013 125,336 in the Glama Registry | Glama",
+          "h1": "Popular MCP Servers",
+          "meta_desc": "Everything MCP \u2013 servers updated daily. The most comprehensive registry of Model Context Protocol (MCP) servers, clients, tools, and integrations.",
+          "load_time_s": 3.7705929279327393,
+          "code_snippets": [],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_glama_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_glama_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "A5_mcp_so": {
+    "name": "MCP.so",
+    "tier": "Tier A",
+    "slug": "mcp_so",
+    "pages": {
+      "https://mcp.so/": {
+        "url": "https://mcp.so/",
+        "desktop": {
+          "status": 200,
+          "title": "MCP Servers for Claude, Cursor & AI Agents | MCP.so",
+          "h1": "Discover useful MCP servers",
+          "meta_desc": "Discover MCP servers for coding, browsers, databases and more. Explore server listings, remote endpoints and setup guides for Claude, Cursor and other AI clients.",
+          "load_time_s": 2.5568361282348633,
+          "code_snippets": [
+            "claude mcp add playwright -- npx @playwright/mcp@latest"
+          ],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_mcp_so_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_mcp_so_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "B1_skilld": {
+    "name": "skilld",
+    "tier": "Tier B",
+    "slug": "skilld",
+    "pages": {
+      "https://skilld.dev/": {
+        "url": "https://skilld.dev/",
+        "desktop": {
+          "error": "Page.evaluate: TypeError: Cannot read properties of undefined (reading 'trim')\n    at eval (eval at evaluate (:303:30), <anonymous>:3:59)\n    at Array.map (<anonymous>)\n    at eval (eval at evaluate (:303:30), <anonymous>:3:38)\n    at UtilityScript.evaluate (<anonymous>:310:18)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_skilld_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "B2_aitmpl": {
+    "name": "AI Templates",
+    "tier": "Tier B",
+    "slug": "aitmpl",
+    "pages": {
+      "https://www.aitmpl.com/": {
+        "url": "https://www.aitmpl.com/",
+        "desktop": {
+          "status": 200,
+          "title": "Claude Code Templates: 2,010+ Agents, Commands, Skills & MCP Integrations",
+          "h1": "Claude Code Templates:\nReady-to-use configurations for your Claude Code projects",
+          "meta_desc": "Browse and install 2,010+ pre-built components for Claude Code: AI agents, slash commands, skills, MCP integrations, hooks, and settings. Free, open-source CLI tool.",
+          "load_time_s": 2.221426010131836,
+          "code_snippets": [
+            "npx claude-code-templates@latest --agent development-team/frontend-developer"
+          ],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_aitmpl_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_aitmpl_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "B3_prpm": {
+    "name": "PRPM",
+    "tier": "Tier B",
+    "slug": "prpm",
+    "pages": {
+      "https://prpm.dev/": {
+        "url": "https://prpm.dev/",
+        "desktop": {
+          "status": 200,
+          "title": "PRPM - Largest Collection of Cursor Rules, Claude Agents & Slash Commands",
+          "h1": "PRPM",
+          "meta_desc": "The largest collection of Cursor rules, Claude agents, and slash commands. 7,000+ packages including cursor slash commands, claude slash commands, and claude plugins. Install AI coding tools with one command.",
+          "load_time_s": 2.8701183795928955,
+          "code_snippets": [
+            "$ npm install -g prpm",
+            "$ prpm search typescript",
+            "$ prpm install collections/essential-dev-agents\n# Installs 20 packages: backend-architect, cloud-architect, database-architect, and more"
+          ],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_prpm_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_prpm_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "B4_smithery": {
+    "name": "Smithery",
+    "tier": "Tier B",
+    "slug": "smithery",
+    "pages": {
+      "https://smithery.ai/": {
+        "url": "https://smithery.ai/",
+        "desktop": {
+          "status": 200,
+          "title": "Smithery \u00b7 MCP servers, now part of Arcade",
+          "h1": "Give agents more agency",
+          "meta_desc": "Discover MCP servers that connect agents to thousands of tools and services.",
+          "load_time_s": 2.0355825424194336,
+          "code_snippets": [],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_smithery_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_smithery_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "B5_docker_mcp": {
+    "name": "Docker MCP Catalog",
+    "tier": "Tier B",
+    "slug": "docker_mcp",
+    "pages": {
+      "https://docs.docker.com/ai/mcp-catalog-and-toolkit/": {
+        "url": "https://docs.docker.com/ai/mcp-catalog-and-toolkit/",
+        "desktop": {
+          "status": 200,
+          "title": "Docker MCP Catalog and Toolkit | Docker Docs",
+          "h1": "Docker MCP Catalog and Toolkit",
+          "meta_desc": "Learn about Docker's MCP catalog on Docker Hub",
+          "load_time_s": 2.0838217735290527,
+          "code_snippets": [],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_docker_mcp_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_docker_mcp_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "B6_pspm": {
+    "name": "PSPM",
+    "tier": "Tier B",
+    "slug": "pspm",
+    "pages": {
+      "https://pspm.dev/": {
+        "url": "https://pspm.dev/",
+        "desktop": {
+          "status": 200,
+          "title": "PSPM \u2014 The package manager for AI agent skills",
+          "h1": "PSPM is the package manager for agent skills.",
+          "meta_desc": "Discover, install, and publish skills for AI agents \u2014 coding agents, OpenClaw, and more. Version control, private registries, and skill discovery.",
+          "load_time_s": 3.2580065727233887,
+          "code_snippets": [
+            "add @user/anyt/youtube-downloader",
+            "pspm-lock.json",
+            "{\n  \"skills\": {\n    \"@anyt/youtube-downloader\": {\n      \"version\": \"1.4.2\",\n      \"resolved\": \"https://registry.pspm.dev/...\",\n      \"integrity\": \"sha512-4Jt9...\"\n    }\n  }\n}",
+            "{\n  \"skills\": {\n    \"@anyt/youtube-downloader\": {\n      \"version\": \"1.4.2\",\n      \"resolved\": \"https://registry.pspm.dev/...\",\n      \"integrity\": \"sha512-4Jt9...\"\n    }\n  }\n}",
+            "--access private"
+          ],
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_pspm_desktop_1440.png"
+        },
+        "mobile": {
+          "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\comp_pspm_mobile_375.png",
+          "status": 200
+        }
+      }
+    }
+  },
+  "B7_skillbase": {
+    "name": "Skillbase",
+    "tier": "Tier B",
+    "slug": "skillbase",
+    "pages": {
+      "https://skillbase.space/": {
+        "url": "https://skillbase.space/",
+        "desktop": {
+          "error": "Page.goto: net::ERR_CONNECTION_CLOSED at https://skillbase.space/\nCall log:\n  - navigating to \"https://skillbase.space/\", waiting until \"domcontentloaded\"\n"
+        },
+        "mobile": {
+          "error": "Page.goto: net::ERR_CONNECTION_CLOSED at https://skillbase.space/\nCall log:\n  - navigating to \"https://skillbase.space/\", waiting until \"domcontentloaded\"\n"
+        }
+      }
+    }
+  }
+}

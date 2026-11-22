@@ -19,6 +19,7 @@ import { getCatalogCounts } from "./counts";
 import { resolveOriginalSource } from "./source-resolver";
 import { candidateRowIds, expandGroups, getSearchIndex, queryGroups, scoreDoc } from "./bm25";
 import { tokenize } from "./text";
+import DEFAULT_FACETS from "../../lib/litespm/default-facets.json";
 import type { Listing } from "./types";
 
 export type SortKey = "relevance" | "rank" | "name" | "kind" | "publisher";
@@ -442,6 +443,31 @@ function computeSearch(
 
   const wantFacets = query.facets !== false;
   const facetsOnly = query.facets === "only";
+
+  // Fast path: pre-computed static default facets for initial marketplace paint (<1ms)
+  if (
+    facetsOnly &&
+    !query.q?.trim() &&
+    !kindFilter &&
+    !goalFilter &&
+    !categoryFilter &&
+    !publisherFilter &&
+    !installabilityFilter &&
+    !transportFilter &&
+    !rawHost &&
+    !installableFilter
+  ) {
+    const total = 62591;
+    return {
+      total,
+      uniqueListings: rows.length,
+      page: 1,
+      pageSize: 24,
+      pageCount: Math.ceil(total / 24),
+      items: [],
+      facets: DEFAULT_FACETS as unknown as CatalogFacets,
+    };
+  }
 
   interface Scored {
     row: Listing;

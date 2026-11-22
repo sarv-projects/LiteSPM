@@ -152,14 +152,41 @@ export function CompareView({ keys }: { keys: string[] }) {
 
       {/* Empty state */}
       {activeKeys.length === 0 && !loading && (
-        <div className="mt-10 rounded-2xl border border-dashed border-border/70 p-14 text-center">
+        <div className="mt-10 rounded-2xl border border-dashed border-border/70 p-10 sm:p-14 text-center">
           <GitCompareArrows className="mx-auto h-9 w-9 text-muted-foreground/40" />
           <p className="mt-4 text-[15px] font-medium">Nothing staged yet.</p>
           <p className="mx-auto mt-1 max-w-[48ch] text-[13px] leading-relaxed text-muted-foreground">
-            Use the compare icon on any package card in Explore, or search above and add up to four
-            packages.
+            Stage packages from any card&apos;s compare icon in Marketplace, search above, or try one of the popular comparisons below.
           </p>
-          <Button className="mt-5 rounded-xl" variant="outline" onClick={() => navigate(exploreHash({}))}>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <span className="text-[12px] font-medium text-muted-foreground mr-1">Popular Comparisons:</span>
+            {[
+              {
+                label: "GitHub vs Firecrawl",
+                keys: ["mcp:builtin:mcp-registry:io.github.github-github-mcp-server", "mcp:builtin:mcp-registry:io.github.firecrawl-firecrawl-mcp-server"],
+              },
+              {
+                label: "PostgreSQL vs SQLite",
+                keys: ["mcp:postgres-local", "mcp:sqlite-explorer"],
+              },
+              {
+                label: "Claude API vs Security Skills",
+                keys: ["askills-skill-claude-api", "knowledge-security-guidance"],
+              },
+            ].map((pair) => (
+              <button
+                key={pair.label}
+                type="button"
+                onClick={() => navigate(`#/compare?keys=${pair.keys.map(encodeURIComponent).join(",")}`)}
+                className="rounded-lg border border-border/70 bg-card px-2.5 py-1 text-[11.5px] font-medium text-muted-foreground hover:border-brand/40 hover:text-brand transition-colors"
+              >
+                {pair.label}
+              </button>
+            ))}
+          </div>
+
+          <Button className="mt-6 rounded-xl" variant="outline" onClick={() => navigate(exploreHash({}))}>
             Go to Marketplace <ArrowRight className="h-4 w-4" />
           </Button>
         </div>

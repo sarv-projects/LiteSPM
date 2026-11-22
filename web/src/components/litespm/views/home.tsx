@@ -60,7 +60,7 @@ const GOAL_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const HERO_WORDS = ["Install", "AI", "tools", "once."];
+const HERO_WORDS = ["The", "Package", "Manager", "for", "AI", "Agents."];
 
 type ExploreTab = "ranked" | "goals" | "bundles" | "featured" | "trending";
 
@@ -96,7 +96,8 @@ export function HomeView() {
   const [topMcp, setTopMcp] = React.useState<CatalogHit[]>([]);
   const [topSkills, setTopSkills] = React.useState<CatalogHit[]>([]);
   const [exploreTab, setExploreTab] = React.useState<ExploreTab>("ranked");
-  const [installMode, setInstallMode] = React.useState<"npm" | "npx">("npm");
+  type InstallMode = "npm" | "curl" | "powershell" | "npx";
+  const [installMode, setInstallMode] = React.useState<InstallMode>("npm");
   const { entries: recent } = useRecentlyViewed();
 
   // Pointer spotlight: write CSS variables straight to the element (one rAF
@@ -199,7 +200,7 @@ export function HomeView() {
             </p>
 
             <h1 className="mt-5 text-[clamp(2.4rem,5.5vw,4.4rem)] font-semibold leading-[1.0] tracking-[-0.045em]">
-              <span className="sr-only">Install AI tools once. Undo them in one command.</span>
+              <span className="sr-only">The Package Manager for AI Agents. Install, configure, and safely rollback across 50+ AI tools.</span>
               <span aria-hidden="true">
                 {HERO_WORDS.map((word, i) => (
                   <React.Fragment key={word + i}>
@@ -213,7 +214,7 @@ export function HomeView() {
                   className="rise-word text-sheen pb-[0.08em]"
                   style={{ "--i": HERO_WORDS.length + 1 } as React.CSSProperties}
                 >
-                  Undo them in one command.
+                  Install, configure, and safely rollback.
                 </span>
               </span>
             </h1>
@@ -222,14 +223,14 @@ export function HomeView() {
               className="rise-block mt-6 max-w-[54ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
               style={{ "--d": "520ms" } as React.CSSProperties}
             >
-              The package manager for your AI coding agents. LiteSPM configures MCP servers, skills, and plugins across Cursor, Claude Code, Codex, and {(stats?.hosts ?? facts.hosts) - 3} more — with diff previews, automatic backups, and byte-exact undo.
+              One command to install and manage MCP servers, skills, and plugins across Cursor, Claude Code, Codex, and {(stats?.hosts ?? facts.hosts) - 3} more — with surgical diff previews, automatic backups, and byte-exact undo.
             </p>
 
             <div
               className="rise-block mt-7 max-w-md"
               style={{ "--d": "620ms" } as React.CSSProperties}
             >
-              <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                 <button
                   type="button"
                   onClick={() => setInstallMode("npm")}
@@ -240,7 +241,31 @@ export function HomeView() {
                       : "bg-muted/50 text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  npm (recommended)
+                  npm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInstallMode("curl")}
+                  className={cn(
+                    "rounded-md px-2 py-0.5 transition-colors",
+                    installMode === "curl"
+                      ? "bg-brand text-brand-foreground font-semibold"
+                      : "bg-muted/50 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  curl (macOS/Linux)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInstallMode("powershell")}
+                  className={cn(
+                    "rounded-md px-2 py-0.5 transition-colors",
+                    installMode === "powershell"
+                      ? "bg-brand text-brand-foreground font-semibold"
+                      : "bg-muted/50 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  PowerShell (Windows)
                 </button>
                 <button
                   type="button"
@@ -252,22 +277,39 @@ export function HomeView() {
                       : "bg-muted/50 text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  npx (zero-install)
+                  npx
                 </button>
               </div>
 
-              {installMode === "npm" ? (
+              {installMode === "npm" && (
                 <>
                   <InstallBar command="npm install -g litespm" label="npm" />
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
-                    Recommended for daily use (Node 22+). Run <code className="font-mono text-foreground/90">litespm</code> to connect your agents. Precompiled binaries on GitHub.
+                    Recommended for Node developers. Run <code className="font-mono text-foreground/90">litespm</code> to connect your agents.
                   </p>
                 </>
-              ) : (
+              )}
+              {installMode === "curl" && (
+                <>
+                  <InstallBar command="curl -fsSL https://litespm.dev/install.sh | sh" label="sh" />
+                  <p className="mt-2 text-[11.5px] text-muted-foreground">
+                    Standalone native binary for macOS and Linux (arm64 & amd64). <strong className="text-foreground">Zero Node required.</strong>
+                  </p>
+                </>
+              )}
+              {installMode === "powershell" && (
+                <>
+                  <InstallBar command="irm https://litespm.dev/install.ps1 | iex" label="pwsh" />
+                  <p className="mt-2 text-[11.5px] text-muted-foreground">
+                    Standalone native binary for Windows (amd64 & arm64). <strong className="text-foreground">Zero Node required.</strong>
+                  </p>
+                </>
+              )}
+              {installMode === "npx" && (
                 <>
                   <InstallBar command="npx litespm" label="npx" />
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
-                    Run once on demand without global install (Node 22+). Connects agents and exits cleanly.
+                    Run once on demand without global install. Connects agents and exits cleanly.
                   </p>
                 </>
               )}
@@ -550,7 +592,7 @@ export function HomeView() {
               </Button>
             </div>
             <p className="mt-3 text-[11.5px] text-muted-foreground">
-              Ships in 0.6.1; npm currently serves {facts.npmVersion}.
+              Included in v{facts.npmVersion} (latest release).
             </p>
           </div>
           <ul className="grid gap-2 sm:grid-cols-2" aria-label="Agents with an interactive popup">
@@ -802,13 +844,24 @@ export function HomeView() {
                       { name: "OpenAI Codex", id: "codex" },
                       { name: "Gemini CLI", id: "gemini-cli" },
                     ].map((agent) => (
-                      <button key={agent.id} type="button" onClick={() => navigate(`#/agent/${agent.id}`)} className="flex items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-left text-[13px] font-medium transition-colors hover:border-brand/40">
+                      <button
+                        key={agent.id}
+                        type="button"
+                        aria-label={`Configure ${agent.name} with command host setup ${agent.id}`}
+                        onClick={() => navigate(`#/agent/${agent.id}`)}
+                        className="flex items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-left text-[13px] font-medium transition-colors hover:border-brand/40"
+                      >
                         {agent.name}
                         <code className="font-mono text-[10.5px] text-brand/80">host setup {agent.id}</code>
                       </button>
                     ))}
                   </div>
-                  <button type="button" onClick={() => navigate("#/agents")} className="mt-4 inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline">
+                  <button
+                    type="button"
+                    aria-label={`Browse all ${stats?.hosts ?? facts.hosts} supported agent hosts`}
+                    onClick={() => navigate("#/agents")}
+                    className="mt-4 inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline"
+                  >
                     Browse all {stats?.hosts ?? facts.hosts} agents <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -824,7 +877,7 @@ export function HomeView() {
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {[
                     { icon: ShieldCheck, title: "No account, no proxy", body: "Tokens stay in the OS vault or as environment references. Nothing is sent to this site." },
-                    { icon: RotateCcw, title: "Byte-exact restore", body: "restore puts a config back to its previous bytes, not a re-merge." },
+                    { icon: RotateCcw, title: "Byte-exact restore", body: "Instant Byte-Exact Rollback. Every installation creates an automated backup in ~/.litespm/backups/. Run litespm restore at any time to return your config to its exact original state." },
                     { icon: Bookmark, title: "Ledger ownership", body: "install remove strips only the nodes LiteSPM wrote. Your edits stay." },
                     { icon: BadgeCheck, title: "Stated provenance", body: "Installable means a verified endpoint, command or pinned source. Discovery-only says so." },
                   ].map((item) => (
@@ -846,17 +899,22 @@ export function HomeView() {
               <div className="faq-answer">
                 <div className="mt-3 space-y-3">
                   {[
-                    { q: "Do I need to sync the catalog myself?", a: `The first command that needs the catalog downloads it; later runs refresh it in the background at most every 6 hours. Set LITESPM_NO_AUTO_SYNC=1 (or run under CI) to turn that off. litespm catalog sync still works on demand. On npm ${facts.npmVersion}, run it once before your first search.` },
+                    { q: "Do I need to sync the catalog myself?", a: `The first command that needs the catalog downloads it; later runs refresh it in the background at most every 6 hours. Set LITESPM_NO_AUTO_SYNC=1 (or run under CI) to turn that off. litespm catalog sync still works on demand. On npm v${facts.npmVersion}, background auto-sync is active.` },
                     { q: "Why do some listings say Discovery only?", a: "A server needs a remote endpoint or a publisher-declared command with arguments. If a listing has only a repository link, LiteSPM will not guess whether to run it with npx, python or uvx. The detail page links only to the source the catalog recorded." },
                     { q: "How do installs protect my config?", a: "LiteSPM splices JSON/JSONC and TOML by byte offset, so comments and key order survive. Every write is previewed and backed up. install remove strips only the nodes it wrote; edits you made are kept." },
-                    { q: "Can I install from inside my agent?", a: `litespm setup registers the bridge and a marketplace command. Pi, OpenCode, Claude Code and Copilot CLI get a popup that costs no model turn; most others get a prompt command. This is in the unreleased 0.6.1; npm currently serves ${facts.npmVersion}.` },
+                    { q: "Can I install from inside my agent?", a: `litespm setup registers the bridge and a marketplace command. Pi, OpenCode, Claude Code and Copilot CLI get a popup that costs no model turn; most others get a prompt command. Included in v${facts.npmVersion}.` },
                   ].map((item) => (
                     <div key={item.q} className="rounded-xl border border-border/60 px-3.5 py-3">
                       <p className="text-[13px] font-semibold">{item.q}</p>
                       <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{item.a}</p>
                     </div>
                   ))}
-                  <button type="button" onClick={() => navigate("#/docs/troubleshooting")} className="inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline">
+                  <button
+                    type="button"
+                    aria-label="View all documentation and troubleshooting guides"
+                    onClick={() => navigate("#/docs/troubleshooting")}
+                    className="inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline"
+                  >
                     All docs and troubleshooting <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                 </div>

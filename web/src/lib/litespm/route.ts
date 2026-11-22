@@ -37,8 +37,8 @@ export type Route =
  * in-agent popups and the docs all link there); `/explore` is kept only as a
  * redirect. The tab is the kind filter, so there is one query model, not two.
  */
-export type MarketplaceTab = "all" | "mcp" | "skills" | "plugins" | "installed";
-export const MARKETPLACE_TABS: MarketplaceTab[] = ["all", "mcp", "skills", "plugins", "installed"];
+export type MarketplaceTab = "all" | "trending" | "mcp" | "skills" | "plugins" | "installed";
+export const MARKETPLACE_TABS: MarketplaceTab[] = ["all", "trending", "mcp", "skills", "plugins", "installed"];
 
 const TAB_TO_KIND: Record<string, string | undefined> = { mcp: "mcp", skills: "skill", plugins: "plugin" };
 const KIND_TO_TAB: Record<string, MarketplaceTab> = { mcp: "mcp", skill: "skills", plugin: "plugins" };

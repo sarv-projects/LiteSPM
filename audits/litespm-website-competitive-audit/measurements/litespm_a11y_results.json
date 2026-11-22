@@ -1,0 +1,687 @@
+{
+  "home": {
+    "issues": [
+      {
+        "type": "button_missing_name",
+        "tag": "<button type=\"button\" class=\"flex items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-lef",
+        "severity": "critical",
+        "help": "Button has no accessible text name or aria-label"
+      },
+      {
+        "type": "button_missing_name",
+        "tag": "<button type=\"button\" class=\"flex items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-lef",
+        "severity": "critical",
+        "help": "Button has no accessible text name or aria-label"
+      },
+      {
+        "type": "button_missing_name",
+        "tag": "<button type=\"button\" class=\"flex items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-lef",
+        "severity": "critical",
+        "help": "Button has no accessible text name or aria-label"
+      },
+      {
+        "type": "button_missing_name",
+        "tag": "<button type=\"button\" class=\"flex items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-lef",
+        "severity": "critical",
+        "help": "Button has no accessible text name or aria-label"
+      },
+      {
+        "type": "button_missing_name",
+        "tag": "<button type=\"button\" class=\"flex items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-lef",
+        "severity": "critical",
+        "help": "Button has no accessible text name or aria-label"
+      },
+      {
+        "type": "button_missing_name",
+        "tag": "<button type=\"button\" class=\"flex items-center justify-between rounded-xl border border-border/70 px-3.5 py-2.5 text-lef",
+        "severity": "critical",
+        "help": "Button has no accessible text name or aria-label"
+      },
+      {
+        "type": "button_missing_name",
+        "tag": "<button type=\"button\" class=\"mt-4 inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline\">B",
+        "severity": "critical",
+        "help": "Button has no accessible text name or aria-label"
+      },
+      {
+        "type": "button_missing_name",
+        "tag": "<button type=\"button\" class=\"inline-flex items-center gap-1 text-[12.5px] font-medium text-brand hover:underline\">All do",
+        "severity": "critical",
+        "help": "Button has no accessible text name or aria-label"
+      }
+    ],
+    "headings": [
+      {
+        "level": 1,
+        "text": "Install AI tools once. Undo them in one command.\nInstall AI tools once.\nUndo them in one command."
+      },
+      {
+        "level": 2,
+        "text": "Every agent has its own config.\nOne workflow covers them all."
+      },
+      {
+        "level": 3,
+        "text": "Marketplace inside your agent"
+      },
+      {
+        "level": 3,
+        "text": "Local, fast, always current"
+      },
+      {
+        "level": 3,
+        "text": "Automatic backup, one-command undo"
+      },
+      {
+        "level": 3,
+        "text": "Guided wizard or plain flags"
+      },
+      {
+        "level": 2,
+        "text": "The marketplace, one command away"
+      },
+      {
+        "level": 2,
+        "text": "Explore the catalog"
+      },
+      {
+        "level": 3,
+        "text": "Top MCP servers"
+      },
+      {
+        "level": 3,
+        "text": "Top agent skills"
+      },
+      {
+        "level": 2,
+        "text": "Plan. Preview. Approve. Undo."
+      },
+      {
+        "level": 3,
+        "text": "Find it once"
+      },
+      {
+        "level": 3,
+        "text": "Install everywhere"
+      },
+      {
+        "level": 3,
+        "text": "Undo is a single command"
+      },
+      {
+        "level": 2,
+        "text": "More to know"
+      },
+      {
+        "level": 2,
+        "text": "Point your agent at the whole catalog."
+      },
+      {
+        "level": 3,
+        "text": "PRODUCT"
+      },
+      {
+        "level": 3,
+        "text": "DOCS"
+      },
+      {
+        "level": 3,
+        "text": "RESOURCES"
+      },
+      {
+        "level": 3,
+        "text": "PROJECT"
+      }
+    ],
+    "landmarks": {
+      "main": true,
+      "nav": true,
+      "header": true,
+      "footer": true
+    }
+  },
+  "marketplace": {
+    "issues": [],
+    "headings": [
+      {
+        "level": 1,
+        "text": "Find it once. Install it everywhere."
+      },
+      {
+        "level": 3,
+        "text": "Firecrawl MCP Server\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "GitHub\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "mcp-grafana\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "brave-search-mcp-server\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "mcp-server-browserbase\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "Context7\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "Claude API\n\u2014 skill"
+      },
+      {
+        "level": 3,
+        "text": "github-mcp-server\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "playwright-mcp\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "mcp-grafana\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "posthog\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "Security Guidance\n\u2014 plugin"
+      },
+      {
+        "level": 3,
+        "text": "playwright-mcp\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "brave-search-mcp-server\n\u2014 mcp"
+      },
+      {
+        "level": 3,
+        "text": "Algorithmic Art\n\u2014 skill"
+      },
+      {
+        "level": 3,
+        "text": "atlassian\n\u2014 plugin"
+      },
+      {
+        "level": 3,
+        "text": "Brand Guidelines\n\u2014 skill"
+      },
+      {
+        "level": 3,
+        "text": "Canvas Design\n\u2014 skill"
+      },
+      {
+        "level": 3,
+        "text": "Chrome Devtools\n\u2014 skill"
+      },
+      {
+        "level": 3,
+        "text": "Claude Security\n\u2014 skill"
+      },
+      {
+        "level": 3,
+        "text": "cloudflare\n\u2014 plugin"
+      },
+      {
+        "level": 3,
+        "text": "Code Review\n\u2014 skill"
+      },
+      {
+        "level": 3,
+        "text": "Context7 CLI\n\u2014 skill"
+      },
+      {
+        "level": 3,
+        "text": "Context7 MCP\n\u2014 skill"
+      },
+      {
+        "level": 3,
+        "text": "PRODUCT"
+      },
+      {
+        "level": 3,
+        "text": "DOCS"
+      },
+      {
+        "level": 3,
+        "text": "RESOURCES"
+      },
+      {
+        "level": 3,
+        "text": "PROJECT"
+      }
+    ],
+    "landmarks": {
+      "main": true,
+      "nav": true,
+      "header": true,
+      "footer": true
+    }
+  },
+  "agent_cline": {
+    "issues": [
+      {
+        "type": "img_missing_alt",
+        "tag": "<img alt=\"\" class=\"h-full w-full object-contain\" src=\"/brands/cline.png\">",
+        "severity": "serious",
+        "help": "Image missing alt attribute"
+      }
+    ],
+    "headings": [
+      {
+        "level": 1,
+        "text": "Cline (VS Code Extension)"
+      },
+      {
+        "level": 2,
+        "text": "What it does"
+      },
+      {
+        "level": 2,
+        "text": "Connect LiteSPM"
+      },
+      {
+        "level": 2,
+        "text": "What Cline (VS Code Extension) users install"
+      },
+      {
+        "level": 2,
+        "text": "Browse for Cline (VS Code Extension)"
+      },
+      {
+        "level": 2,
+        "text": "REGISTRY FACTS"
+      },
+      {
+        "level": 2,
+        "text": "REMOTE (URL) MCP"
+      },
+      {
+        "level": 2,
+        "text": "SKILLS"
+      },
+      {
+        "level": 2,
+        "text": "ALSO KNOWN AS"
+      },
+      {
+        "level": 3,
+        "text": "PRODUCT"
+      },
+      {
+        "level": 3,
+        "text": "DOCS"
+      },
+      {
+        "level": 3,
+        "text": "RESOURCES"
+      },
+      {
+        "level": 3,
+        "text": "PROJECT"
+      }
+    ],
+    "landmarks": {
+      "main": true,
+      "nav": true,
+      "header": true,
+      "footer": true
+    }
+  },
+  "package_detail": {
+    "issues": [],
+    "headings": [
+      {
+        "level": 1,
+        "text": "GitHub"
+      },
+      {
+        "level": 2,
+        "text": "Install"
+      },
+      {
+        "level": 2,
+        "text": "README"
+      },
+      {
+        "level": 3,
+        "text": "GitHub MCP Server"
+      },
+      {
+        "level": 5,
+        "text": "Use Cases"
+      },
+      {
+        "level": 5,
+        "text": "Using the Go module"
+      },
+      {
+        "level": 4,
+        "text": "Remote GitHub MCP Server"
+      },
+      {
+        "level": 5,
+        "text": "Prerequisites"
+      },
+      {
+        "level": 5,
+        "text": "Install in VS Code"
+      },
+      {
+        "level": 5,
+        "text": "Install in other MCP hosts"
+      },
+      {
+        "level": 5,
+        "text": "Configuration"
+      },
+      {
+        "level": 6,
+        "text": "Toolset configuration"
+      },
+      {
+        "level": 6,
+        "text": "Insiders Mode"
+      },
+      {
+        "level": 6,
+        "text": "GitHub Enterprise"
+      },
+      {
+        "level": 6,
+        "text": "GitHub Enterprise Cloud with data residency (ghe.com)"
+      },
+      {
+        "level": 6,
+        "text": "GitHub Enterprise Server"
+      },
+      {
+        "level": 4,
+        "text": "Local GitHub MCP Server"
+      },
+      {
+        "level": 5,
+        "text": "Prerequisites"
+      },
+      {
+        "level": 5,
+        "text": "Environment Variables (Recommended)"
+      },
+      {
+        "level": 5,
+        "text": "Token Security Best Practices"
+      },
+      {
+        "level": 5,
+        "text": "GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)"
+      },
+      {
+        "level": 4,
+        "text": "Installation"
+      },
+      {
+        "level": 5,
+        "text": "Install in GitHub Copilot on VS Code"
+      },
+      {
+        "level": 5,
+        "text": "Install in Other MCP Hosts"
+      },
+      {
+        "level": 5,
+        "text": "Build from source"
+      },
+      {
+        "level": 4,
+        "text": "Tool Configuration"
+      },
+      {
+        "level": 6,
+        "text": "Specifying Toolsets"
+      },
+      {
+        "level": 6,
+        "text": "Specifying Individual Tools"
+      },
+      {
+        "level": 5,
+        "text": "Using Toolsets With Docker"
+      },
+      {
+        "level": 5,
+        "text": "Using Tools With Docker"
+      },
+      {
+        "level": 5,
+        "text": "Special toolsets"
+      },
+      {
+        "level": 6,
+        "text": "\"all\" toolset"
+      },
+      {
+        "level": 6,
+        "text": "\"default\" toolset"
+      },
+      {
+        "level": 5,
+        "text": "Insiders Mode"
+      },
+      {
+        "level": 5,
+        "text": "Available Toolsets"
+      },
+      {
+        "level": 5,
+        "text": "Additional Toolsets in Remote GitHub MCP Server"
+      },
+      {
+        "level": 4,
+        "text": "MCP Skills"
+      },
+      {
+        "level": 4,
+        "text": "Tools"
+      },
+      {
+        "level": 5,
+        "text": "Additional Tools in Remote GitHub MCP Server"
+      },
+      {
+        "level": 4,
+        "text": "Read-Only Mode"
+      },
+      {
+        "level": 4,
+        "text": "Lockdown Mode"
+      },
+      {
+        "level": 4,
+        "text": "i18n / Overriding Descriptions"
+      },
+      {
+        "level": 5,
+        "text": "Overriding Server Name and Title"
+      },
+      {
+        "level": 4,
+        "text": "Library Usage"
+      },
+      {
+        "level": 4,
+        "text": "Contributing"
+      },
+      {
+        "level": 4,
+        "text": "Support"
+      },
+      {
+        "level": 4,
+        "text": "Security"
+      },
+      {
+        "level": 4,
+        "text": "License"
+      },
+      {
+        "level": 2,
+        "text": "Check that it works"
+      },
+      {
+        "level": 2,
+        "text": "Permissions & Access Scopes"
+      },
+      {
+        "level": 2,
+        "text": "Try it once installed"
+      },
+      {
+        "level": 2,
+        "text": "Related listings"
+      },
+      {
+        "level": 3,
+        "text": "100% Reversible Install"
+      },
+      {
+        "level": 2,
+        "text": "QUICK STATS"
+      },
+      {
+        "level": 2,
+        "text": "ORIGINAL SOURCE"
+      },
+      {
+        "level": 2,
+        "text": "WORKS WITH"
+      },
+      {
+        "level": 3,
+        "text": "PRODUCT"
+      },
+      {
+        "level": 3,
+        "text": "DOCS"
+      },
+      {
+        "level": 3,
+        "text": "RESOURCES"
+      },
+      {
+        "level": 3,
+        "text": "PROJECT"
+      }
+    ],
+    "landmarks": {
+      "main": true,
+      "nav": true,
+      "header": true,
+      "footer": true
+    }
+  },
+  "bundles": {
+    "issues": [],
+    "headings": [
+      {
+        "level": 1,
+        "text": "Start from a working set."
+      },
+      {
+        "level": 3,
+        "text": "PRODUCT"
+      },
+      {
+        "level": 3,
+        "text": "DOCS"
+      },
+      {
+        "level": 3,
+        "text": "RESOURCES"
+      },
+      {
+        "level": 3,
+        "text": "PROJECT"
+      }
+    ],
+    "landmarks": {
+      "main": true,
+      "nav": true,
+      "header": true,
+      "footer": true
+    }
+  },
+  "docs": {
+    "issues": [],
+    "headings": [
+      {
+        "level": 1,
+        "text": "Getting started"
+      },
+      {
+        "level": 2,
+        "text": "The local catalog syncs itself"
+      },
+      {
+        "level": 3,
+        "text": "PRODUCT"
+      },
+      {
+        "level": 3,
+        "text": "DOCS"
+      },
+      {
+        "level": 3,
+        "text": "RESOURCES"
+      },
+      {
+        "level": 3,
+        "text": "PROJECT"
+      }
+    ],
+    "landmarks": {
+      "main": true,
+      "nav": true,
+      "header": true,
+      "footer": true
+    }
+  },
+  "compare": {
+    "issues": [],
+    "headings": [
+      {
+        "level": 1,
+        "text": "Packages, side by side"
+      },
+      {
+        "level": 3,
+        "text": "PRODUCT"
+      },
+      {
+        "level": 3,
+        "text": "DOCS"
+      },
+      {
+        "level": 3,
+        "text": "RESOURCES"
+      },
+      {
+        "level": 3,
+        "text": "PROJECT"
+      }
+    ],
+    "landmarks": {
+      "main": true,
+      "nav": true,
+      "header": true,
+      "footer": true
+    }
+  }
+}

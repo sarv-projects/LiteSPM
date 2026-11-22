@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Copy, Loader2, RefreshCw, Search, Terminal } from "lucide-react";
+import { Check, Copy, Loader2, RefreshCw, RotateCcw, Search, Sparkles, Terminal, Trash2 } from "lucide-react";
 
 import { exploreHash, kindForTab, type ExploreQuery, type MarketplaceTab } from "@/lib/litespm/router";
 import { displayPackageName } from "@/lib/litespm/format";
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { CopyButton } from "../code-block";
 import { NavLink } from "../nav-link";
 import { CatalogBrowser } from "./catalog-browser";
+import { TrendingLeaderboard } from "./trending-leaderboard";
 interface InstalledRecord {
   kind: string;
   id: string;
@@ -64,6 +65,51 @@ function InstallCommand({ command }: { command: string }) {
   );
 }
 
+const INITIAL_SANDBOX_RECORDS: InstalledRecord[] = [
+  {
+    kind: "mcp",
+    id: "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+    name: "GitHub MCP Server",
+    agent: "claude-code",
+    scope: "user",
+    state: "managed",
+    placement: "user-config",
+    origin: "ledger",
+    installId: "inst_gh_984a12",
+    configPath: "~/.claude.json",
+    locator: "github/github-mcp-server@v0.4.1",
+    detail: "CAS digest sha256:4f8a92... | Surgical AST merge verified",
+  },
+  {
+    kind: "skill",
+    id: "skill:agentskills:deep-research",
+    name: "Deep Research Skill",
+    agent: "cursor",
+    scope: "project",
+    state: "managed",
+    placement: "skills-tree",
+    origin: "ledger",
+    installId: "inst_dr_66b301",
+    configPath: ".cursor/rules/deep-research.mdc",
+    locator: "agentskills/deep-research@v1.2.0",
+    detail: "CAS digest sha256:9b1c77... | 3 skill assets tracked in ledger",
+  },
+  {
+    kind: "mcp",
+    id: "mcp:builtin:mcp-registry:postgres-mcp",
+    name: "PostgreSQL Connector",
+    agent: "cline",
+    scope: "user",
+    state: "managed",
+    placement: "user-config",
+    origin: "ledger",
+    installId: "inst_pg_11a84f",
+    configPath: "~/.cline/data/settings/cline_mcp_settings.json",
+    locator: "postgres/mcp@v2.0.0",
+    detail: "CAS digest sha256:1a7d55... | Preserves custom comments",
+  },
+];
+
 function InstalledTab() {
   const [state, setState] = React.useState<
     | { status: "loading" }
@@ -73,6 +119,10 @@ function InstalledTab() {
   const [kind, setKind] = React.useState("all");
   const [query, setQuery] = React.useState("");
   const [reload, setReload] = React.useState(0);
+  const [sandboxMode, setSandboxMode] = React.useState(false);
+  const [sandboxRecords, setSandboxRecords] = React.useState<InstalledRecord[]>(INITIAL_SANDBOX_RECORDS);
+  const [rollingBackId, setRollingBackId] = React.useState<string | null>(null);
+  const [rolledBackNotice, setRolledBackNotice] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setState({ status: "loading" });
@@ -85,14 +135,23 @@ function InstalledTab() {
       .catch(() => setState({ status: "unavailable" }));
   }, [reload]);
 
-  if (state.status === "loading") {
+  const handleSimulateRollback = (rec: InstalledRecord) => {
+    setRollingBackId(rec.installId);
+    window.setTimeout(() => {
+      setSandboxRecords((prev) => prev.filter((r) => r.installId !== rec.installId));
+      setRollingBackId(null);
+      setRolledBackNotice(`Surgically rolled back ${rec.name}: byte-exact pre-image restored, 0 orphan files left.`);
+    }, 700);
+  };
+
+  if (state.status === "loading" && !sandboxMode) {
     return (
       <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" /> Reading the local ledger…
       </div>
     );
   }
-  if (state.status === "unavailable") {
+  if (state.status === "unavailable" && !sandboxMode) {
     return (
       <div className="rounded-xl border border-border/70 bg-card p-5">
         <h3 className="text-[14px] font-semibold">Installed capabilities live on your machine</h3>
@@ -103,11 +162,24 @@ function InstalledTab() {
           the same panel with the Installed tab wired to your ledger.
         </p>
         <InstallCommand command={state.command || "litespm list --json"} />
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
+          <div>
+            <p className="text-[12.5px] font-medium text-foreground">Want to preview how LiteSPM manages installed capabilities?</p>
+            <p className="text-[11.5px] text-muted-foreground">Test AST pruning and surgical byte-exact rollback in simulated sandbox mode.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSandboxMode(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-brand/40 bg-brand-soft px-3 py-1.5 text-[12px] font-semibold text-brand transition-colors hover:bg-brand/20"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> Launch Sandbox Demo
+          </button>
+        </div>
       </div>
     );
   }
 
-  const records = state.report.records ?? [];
+  const records = sandboxMode ? sandboxRecords : (state.status === "ready" ? state.report.records ?? [] : []);
   const kinds = [...new Set(records.map((r) => r.kind))].sort();
   const needle = query.trim().toLowerCase();
   const filtered = records.filter((r) => {
@@ -115,7 +187,8 @@ function InstalledTab() {
     if (!needle) return true;
     return `${r.name} ${r.id} ${r.agent} ${r.state} ${r.detail}`.toLowerCase().includes(needle);
   });
-  const counts = state.report.counts;
+  const counts = state.status === "ready" && !sandboxMode ? state.report.counts : { uniqueCapabilities: records.length, deployments: records.length };
+  const capturedAt = state.status === "ready" ? state.report.capturedAt : undefined;
 
   // An observed row is not LiteSPM's to remove: the honest next step is
   // adoption, which records ownership without rewriting the agent's config.
@@ -144,12 +217,47 @@ function InstalledTab() {
 
   return (
     <div>
+      {sandboxMode && (
+        <div className="mb-4 rounded-xl border border-brand/40 bg-brand-soft/60 p-4 text-[12.5px]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 rounded-full bg-brand animate-pulse" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-brand">Interactive Sandbox Demo</span>
+              <span className="text-muted-foreground">· Simulated Ledger & AST Config</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSandboxRecords(INITIAL_SANDBOX_RECORDS);
+                  setRolledBackNotice(null);
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-card px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <RotateCcw className="h-3 w-3" /> Reset Demo
+              </button>
+              <button
+                type="button"
+                onClick={() => setSandboxMode(false)}
+                className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-card px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Exit Sandbox
+              </button>
+            </div>
+          </div>
+          {rolledBackNotice && (
+            <p className="mt-2 font-mono text-[11.5px] text-brand">
+              ✓ {rolledBackNotice}
+            </p>
+          )}
+        </div>
+      )}
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[12px] text-muted-foreground">
             {counts?.uniqueCapabilities ?? records.length} unique capabilities ·{" "}
             {counts?.deployments ?? records.length} deployments
-            {state.report.capturedAt ? ` · read ${state.report.capturedAt}` : ""}
+            {capturedAt ? ` · read ${capturedAt}` : ""}
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground/80">
             Read-only inventory. LiteSPM does not health-check these entries, so no row claims
@@ -231,7 +339,24 @@ function InstalledTab() {
                       )}
                     </td>
                     <td className="px-3 py-2.5">
-                      {action.command ? (
+                      {sandboxMode ? (
+                        <button
+                          type="button"
+                          disabled={rollingBackId === r.installId}
+                          onClick={() => handleSimulateRollback(r)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-400 transition-colors hover:bg-rose-500/20 disabled:opacity-50"
+                        >
+                          {rollingBackId === r.installId ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" /> Rolling back…
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="h-3 w-3" /> Simulate Rollback
+                            </>
+                          )}
+                        </button>
+                      ) : action.command ? (
                         <>
                           <span className="mb-1 block text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
                             {action.label}
@@ -249,7 +374,7 @@ function InstalledTab() {
           </table>
         </div>
       )}
-      {state.report.warnings && state.report.warnings.length > 0 && (
+      {state.status === "ready" && state.report.warnings && state.report.warnings.length > 0 && (
         <ul className="mt-3 space-y-1 text-[11.5px] text-amber-600 dark:text-amber-400">
           {state.report.warnings.map((w) => (
             <li key={w}>{w}</li>
@@ -262,6 +387,7 @@ function InstalledTab() {
 
 const TAB_META: Array<{ id: MarketplaceTab; label: string; blurb: string }> = [
   { id: "all", label: "All", blurb: "MCP servers, skills and plugins" },
+  { id: "trending", label: "Trending", blurb: "Community leaderboard: verified skills.sh weekly installs & GitHub stars" },
   { id: "mcp", label: "MCP Servers", blurb: "Tools an agent can call" },
   { id: "skills", label: "Skills", blurb: "Reusable SKILL.md workflows" },
   { id: "plugins", label: "Plugins", blurb: "Bundles of servers and skills" },
@@ -393,7 +519,13 @@ export function MarketplaceView({
               id={`tab-${t.id}`}
               aria-selected={active}
               aria-controls={`tabpanel-${t.id}`}
-              to={t.id === "installed" ? "/marketplace?tab=installed" : exploreHash({ q: query.q, kind: kindForTab(t.id) }, t.id)}
+              to={
+                t.id === "installed"
+                  ? "/marketplace?tab=installed"
+                  : t.id === "trending"
+                  ? "/marketplace?tab=trending"
+                  : exploreHash({ q: query.q, kind: kindForTab(t.id) }, t.id)
+              }
               aria-current={active ? "page" : undefined}
               title={t.blurb}
               className={cn(
@@ -415,7 +547,13 @@ export function MarketplaceView({
         aria-labelledby={`tab-${tab}`}
         className="mt-5"
       >
-        {tab === "installed" ? <InstalledTab /> : <CatalogBrowser query={query} tab={tab} />}
+        {tab === "installed" ? (
+          <InstalledTab />
+        ) : tab === "trending" ? (
+          <TrendingLeaderboard />
+        ) : (
+          <CatalogBrowser query={query} tab={tab} />
+        )}
       </div>
     </div>
   );

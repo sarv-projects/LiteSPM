@@ -34,6 +34,7 @@ import {
   type SortKey,
 } from "@/lib/litespm/router";
 import { useDebounced } from "@/lib/litespm/hooks";
+import DEFAULT_FACETS from "@/lib/litespm/default-facets.json";
 import { formatFull } from "@/lib/litespm/format";
 import type { CatalogFacets, CatalogListResponse } from "@/lib/litespm/types";
 import { NavLink } from "../nav-link";
@@ -65,6 +66,7 @@ const GOAL_LABELS: Record<string, string> = {
 
 const TAB_NOUN: Record<MarketplaceTab, string> = {
   all: "the catalog",
+  trending: "trending capabilities",
   mcp: "MCP servers",
   skills: "skills",
   plugins: "plugins",
@@ -86,7 +88,9 @@ function paramsFor(query: ExploreQuery): URLSearchParams {
 }
 
 const CATALOG_QUERY_CACHE = new Map<string, CatalogListResponse>();
-const FACET_CACHE = new Map<string, CatalogFacets>();
+const FACET_CACHE = new Map<string, CatalogFacets>([
+  ["", DEFAULT_FACETS as unknown as CatalogFacets],
+]);
 
 /**
  * The one catalog surface behind `/marketplace`. Every keystroke becomes a
@@ -103,8 +107,11 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
   // an older keystroke overwrote text the user had typed in the meantime.
   const lastPushed = React.useRef(query.q ?? "");
 
+  const initialFacetKey = paramsFor(query).toString();
   const [data, setData] = React.useState<CatalogListResponse | null>(null);
-  const [facets, setFacets] = React.useState<CatalogFacets | null>(null);
+  const [facets, setFacets] = React.useState<CatalogFacets | null>(() => {
+    return FACET_CACHE.get(initialFacetKey) ?? (initialFacetKey === "" ? (DEFAULT_FACETS as unknown as CatalogFacets) : null);
+  });
   const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
   const [retry, setRetry] = React.useState(0);
@@ -173,6 +180,7 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
     const cachedFacets = FACET_CACHE.get(facetKey);
     if (cachedFacets) {
       setFacets(cachedFacets);
+      if (facetKey === "") return; // Skip network round-trip when pre-computed static facets are present!
     }
     const controller = new AbortController();
     const params = new URLSearchParams(facetKey);

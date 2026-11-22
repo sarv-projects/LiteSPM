@@ -341,12 +341,12 @@ function GettingStarted() {
 
       <div className="grid gap-3 sm:grid-cols-2 pt-2">
         <div className="rounded-xl border border-border/70 bg-card p-3.5 space-y-1.5 text-[12.5px]">
-          <p className="font-semibold text-foreground">Global install (recommended)</p>
+          <p className="font-semibold text-foreground">Global install via npm</p>
           <code className="block rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-brand">
             npm install -g litespm
           </code>
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-            Installs the <code className="font-mono">litespm</code> CLI on your PATH for daily use.
+            Installs the <code className="font-mono">litespm</code> CLI on your PATH for daily use with Node 22+.
             Interactive runs check for signed updates automatically.
           </p>
         </div>
@@ -358,6 +358,24 @@ function GettingStarted() {
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
             Launches the setup wizard or runs commands on demand without global node_modules. Connects
             your agents and exits cleanly.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border/70 bg-card p-3.5 space-y-1.5 text-[12.5px]">
+          <p className="font-semibold text-foreground">macOS & Linux (Zero Node)</p>
+          <code className="block rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-brand">
+            curl -fsSL https://litespm.dev/install.sh | sh
+          </code>
+          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+            Downloads, verifies SHA-256 integrity, and configures PATH for precompiled native binaries. No Node runtime required.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border/70 bg-card p-3.5 space-y-1.5 text-[12.5px]">
+          <p className="font-semibold text-foreground">Windows PowerShell (Zero Node)</p>
+          <code className="block rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-brand">
+            irm https://litespm.dev/install.ps1 | iex
+          </code>
+          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+            Downloads, verifies SHA-256 integrity, and adds LiteSPM to Windows User PATH. No Node runtime required.
           </p>
         </div>
       </div>
@@ -404,13 +422,12 @@ litespm catalog sync        # optional: refresh the catalog right now`}
         is rebuilt whenever it no longer matches the catalog on disk. On Windows the
         background sync starts without opening a console window.
       </P>
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
-        <p className="text-[13px] font-semibold">Availability</p>
+      <div className="rounded-xl border border-brand/30 bg-brand-soft/60 p-4">
+        <p className="text-[13px] font-semibold text-brand">Availability</p>
         <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-          Automatic sync and the search index are part of the repository&apos;s next release,{" "}
-          <strong className="text-foreground">0.6.1</strong>. The version on npm is{" "}
-          <strong className="text-foreground">{facts.npmVersion}</strong>, where you run{" "}
-          <C>litespm catalog sync</C> yourself before the first search.
+          Automatic sync, search index caching, and in-agent popups are fully available in version{" "}
+          <strong className="text-foreground">v{facts.npmVersion}</strong>. Running{" "}
+          <C>npm install -g litespm</C> installs the complete suite.
         </p>
       </div>
 
@@ -613,13 +630,12 @@ function EvidenceChip({ entry }: { entry: InAgentEntry }) {
 
 function ReleaseNote() {
   return (
-    <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
-      <p className="text-[13px] font-semibold">Availability</p>
+    <div className="rounded-xl border border-brand/30 bg-brand-soft/60 p-4">
+      <p className="text-[13px] font-semibold text-brand">Availability</p>
       <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-        In-agent marketplace commands are part of the repository&apos;s next release,{" "}
-        <strong className="text-foreground">0.6.1</strong>. The version published on npm is{" "}
-        <strong className="text-foreground">{facts.npmVersion}</strong>, which does not install them.
-        Update with <C>npm update -g litespm</C> once 0.6.1 is published.
+        In-agent marketplace popups and slash commands are standard in release{" "}
+        <strong className="text-foreground">v{facts.npmVersion}</strong>. Update with{" "}
+        <C>npm update -g litespm</C> to receive all new host adapters and bridge tools.
       </p>
     </div>
   );

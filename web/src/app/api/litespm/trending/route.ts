@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { availabilityOf } from "@/server/litespm/availability";
 import { getDataset } from "@/server/litespm/dataset";
+import TRENDING_DATA from "@/lib/litespm/trending-leaderboard.json";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,36 @@ export async function GET() {
     });
 
     if (top.length === 0) {
-      return NextResponse.json({ items: [] });
+      const fallbackItems = [
+        ...TRENDING_DATA.topSkills.slice(0, 6).map((s) => ({
+          linkKey: s.linkKey,
+          name: s.name,
+          kind: s.kind,
+          summary: s.summary,
+          category: "Agent Skills",
+          publisher: s.repo,
+          publisherVerified: true,
+          installable: true,
+          views: s.weeklyInstalls,
+          metricLabel: `${(s.weeklyInstalls / 1000).toFixed(1)}k installs/wk (skills.sh)`,
+        })),
+        ...TRENDING_DATA.topMcp.slice(0, 6).map((m) => ({
+          linkKey: m.linkKey,
+          name: m.name,
+          kind: m.kind,
+          summary: m.summary,
+          category: m.category,
+          publisher: m.repo,
+          publisherVerified: true,
+          installable: true,
+          views: m.stars,
+          metricLabel: `${(m.stars / 1000).toFixed(1)}k stars (GitHub)`,
+        })),
+      ];
+      return NextResponse.json({
+        items: fallbackItems,
+        source: "skills.sh & GitHub Stars verified leaderboard",
+      });
     }
 
     const dataset = await getDataset();

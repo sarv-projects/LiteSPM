@@ -112,11 +112,31 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
     decoded = key.trim();
   }
 
-  const row =
+  let row =
     dataset.byKey.get(decoded) ??
     dataset.byId.get(decoded) ??
     // Accept the namespaced id even when pasted with its prefix separators.
     dataset.byId.get(decoded.replace(/^\//, ""));
+
+  if (!row) {
+    const lowerKey = decoded.toLowerCase();
+    // 1. Try slug exact match (e.g. "mcp-server-git")
+    row = dataset.rows.find((r) => r.slug.toLowerCase() === lowerKey);
+    // 2. Try name exact match
+    if (!row) {
+      row = dataset.rows.find((r) => r.name.toLowerCase() === lowerKey);
+    }
+    // 3. Try partial slug suffix or prefix match (e.g. "github" -> "github-mcp-server")
+    if (!row && lowerKey.length >= 3) {
+      row = dataset.rows.find(
+        (r) =>
+          r.slug.toLowerCase() === `${lowerKey}-mcp-server` ||
+          r.slug.toLowerCase().endsWith(`-${lowerKey}`) ||
+          r.slug.toLowerCase().startsWith(`${lowerKey}-`) ||
+          r.id.toLowerCase().includes(`:${lowerKey}`),
+      );
+    }
+  }
 
   if (!row) return { found: false };
 

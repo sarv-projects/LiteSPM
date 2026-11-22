@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, ChevronDown, ExternalLink, Terminal, Zap } from "lucide-react";
+import { AlertTriangle, ChevronDown, ExternalLink, Sparkles, Terminal, Zap } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -45,6 +45,7 @@ export function InstallSection({
   setHost,
   installCommand,
   cursorInstallUri,
+  litespmInstallUri,
   skillMdUrl,
   targetKindLabel,
   selectedHostId,
@@ -55,6 +56,7 @@ export function InstallSection({
   setHost: (id: string) => void;
   installCommand: string | null;
   cursorInstallUri: string | null;
+  litespmInstallUri?: string | null;
   skillMdUrl?: string;
   targetKindLabel: string;
   selectedHostId: string | null;
@@ -124,6 +126,16 @@ export function InstallSection({
           <Terminal className="h-4 w-4 text-brand" /> Install
         </h2>
         <div className="flex flex-wrap items-center gap-2.5">
+          {litespmInstallUri && (
+            <a
+              href={litespmInstallUri}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand/40 bg-brand-soft px-3 text-[12px] font-semibold text-brand shadow-xs transition-colors hover:bg-brand/20"
+              title="1-click install via LiteSPM desktop protocol handler"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>1-Click Install</span>
+            </a>
+          )}
           {cursorInstallUri && host === "cursor" && (
             <a
               href={cursorInstallUri}

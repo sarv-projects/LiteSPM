@@ -54,12 +54,11 @@ export function InsightsView() {
           Insights
         </p>
         <h1 className="mt-2 text-[clamp(1.9rem,4vw,2.8rem)] font-semibold leading-[1.05] tracking-[-0.04em]">
-          The catalog, measured.
+          AI Agent Ecosystem Analytics.
         </h1>
         <p className="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">
-          Every number below is computed over the same unique rows the search engine serves, with
-          the same gates. Nothing is estimated or sampled — the release manifest pins exactly which
-          dataset these figures answer to.
+          Live telemetry, publisher verification metrics, and compatibility stats across 68,000+ AI capabilities.
+          Every metric is computed directly over the search engine dataset with cryptographic release pinning.
         </p>
       </div>
 

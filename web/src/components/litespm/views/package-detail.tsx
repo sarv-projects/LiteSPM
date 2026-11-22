@@ -174,6 +174,11 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
     return `cursor://anysphere.cursor-mcp/install?name=${encodeURIComponent(data.slug)}&command=${encodeURIComponent(data.command)}&args=${encodeURIComponent(JSON.stringify(args))}`;
   }, [data]);
 
+  const litespmInstallUri = React.useMemo(() => {
+    if (!data.installable) return null;
+    return `litespm://install/${encodeURIComponent(data.id)}${host ? `?agent=${encodeURIComponent(host)}` : ""}`;
+  }, [data, host]);
+
   const targetKindLabel =
     data.kind === "skill" ? "skill targets" : "agent hosts";
 
@@ -186,13 +191,34 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <button
-        type="button"
-        onClick={() => navigate(exploreHash({}))}
-        className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-brand"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" /> Marketplace
-      </button>
+      <nav aria-label="Breadcrumb" className="mb-2">
+        <ol className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground">
+          <li>
+            <button
+              type="button"
+              onClick={() => navigate(exploreHash({}))}
+              className="inline-flex items-center gap-1 transition-colors hover:text-brand"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Marketplace</span>
+            </button>
+          </li>
+          <li aria-hidden="true" className="text-border">/</li>
+          <li>
+            <button
+              type="button"
+              onClick={() => navigate(exploreHash({ kind: data.kind }))}
+              className="transition-colors hover:text-brand"
+            >
+              {kindLabel(data.kind)}
+            </button>
+          </li>
+          <li aria-hidden="true" className="text-border">/</li>
+          <li aria-current="page" className="max-w-[240px] truncate font-semibold text-foreground sm:max-w-[360px]">
+            {displayPackageName(data.name)}
+          </li>
+        </ol>
+      </nav>
 
       {/* Header */}
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
@@ -416,6 +442,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
         setHost={setHost}
         installCommand={installCommand}
         cursorInstallUri={cursorInstallUri}
+        litespmInstallUri={litespmInstallUri}
         skillMdUrl={data.kind === "skill" && sourceDocs.status === "done" && sourceDocs.data?.kind === "skill-md" ? sourceDocs.data.rawUrl : undefined}
         targetKindLabel={targetKindLabel}
         selectedHostId={selectedHostId}
@@ -629,6 +656,19 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                       <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
                         {fn.description}
                       </p>
+                      {fn.parameters && fn.parameters.length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap items-center gap-1 border-t border-border/40 pt-2">
+                          <span className="font-mono text-[10px] text-muted-foreground/70">params:</span>
+                          {fn.parameters.map((p) => (
+                            <span
+                              key={p}
+                              className="rounded border border-border/60 bg-background/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                            >
+                              {p}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

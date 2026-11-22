@@ -41,7 +41,7 @@ export function BrandMark({
       >
         <img
           src={logo.src}
-          alt=""
+          alt={`${name} logo`}
           className="h-full w-full object-contain"
           onError={() => setFailed(true)}
         />

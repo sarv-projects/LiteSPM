@@ -120,7 +120,35 @@ function main() {
   }
 
   let stdinOption = "inherit";
-  const isBridgeStdio = process.argv.includes("bridge") && process.argv.includes("stdio");
+  let args = process.argv.slice(2);
+
+  // Translate OS protocol handler URLs: litespm://install/<pkg>[?agent=<host>]
+  if (args.length === 1 && typeof args[0] === "string" && args[0].startsWith("litespm://")) {
+    try {
+      const rawUri = args[0];
+      const parsed = new URL(rawUri);
+      let pkg = "";
+      if (parsed.hostname === "install") {
+        pkg = parsed.pathname.replace(/^\/+/, "");
+      } else if (parsed.pathname.startsWith("//install/")) {
+        pkg = parsed.pathname.replace(/^\/\/install\//, "");
+      } else if (parsed.hostname && parsed.hostname !== "install") {
+        pkg = parsed.hostname + parsed.pathname;
+      }
+      if (pkg) {
+        args = ["install", decodeURIComponent(pkg)];
+        const agent = parsed.searchParams.get("agent") || parsed.searchParams.get("host");
+        if (agent) args.push("--agent", agent);
+      }
+    } catch {
+      const match = args[0].match(/^litespm:\/\/install\/([^?]+)/);
+      if (match) {
+        args = ["install", decodeURIComponent(match[1])];
+      }
+    }
+  }
+
+  const isBridgeStdio = args.includes("bridge") && args.includes("stdio");
   if (!isBridgeStdio && process.platform === "win32" && !process.stdin.isTTY && process.stdout.isTTY) {
     try {
       const coninFd = fs.openSync("CONIN$", "r");
@@ -128,7 +156,7 @@ function main() {
     } catch (e) {}
   }
 
-  const child = spawn(binaryPath, process.argv.slice(2), {
+  const child = spawn(binaryPath, args, {
     stdio: [stdinOption, "inherit", "inherit"],
     env: process.env,
   });

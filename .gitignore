@@ -31,6 +31,19 @@ test_sandbox/
 
 # Agent-harness session state (goals, locks, per-session scratch).
 .opencode/
+.claude/
+.commandcode/
+.devin/
+.forge/
+.grok/
+.junie/
+.kiro/
+.minimax/
+.openhands/
+.qwen/
+.reasonix/
+.vibe/
+.zcode/
 
 # OS and IDE files
 .DS_Store

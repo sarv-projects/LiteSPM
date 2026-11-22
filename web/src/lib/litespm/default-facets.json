@@ -1,0 +1,890 @@
+{
+  "kinds": [
+    [
+      "mcp",
+      45053
+    ],
+    [
+      "skill",
+      17728
+    ],
+    [
+      "plugin",
+      491
+    ]
+  ],
+  "goals": [
+    {
+      "id": "other",
+      "label": "Other",
+      "count": 19977
+    },
+    {
+      "id": "business",
+      "label": "Business & Finance",
+      "count": 6867
+    },
+    {
+      "id": "coding",
+      "label": "Coding & Development",
+      "count": 5785
+    },
+    {
+      "id": "research",
+      "label": "Research & Learning",
+      "count": 5670
+    },
+    {
+      "id": "infrastructure",
+      "label": "Cloud & Infrastructure",
+      "count": 4062
+    },
+    {
+      "id": "media",
+      "label": "Media & Content",
+      "count": 3779
+    },
+    {
+      "id": "security",
+      "label": "Security & Identity",
+      "count": 3762
+    },
+    {
+      "id": "data",
+      "label": "Data & Analytics",
+      "count": 3544
+    },
+    {
+      "id": "automation",
+      "label": "Testing & Automation",
+      "count": 2800
+    },
+    {
+      "id": "productivity",
+      "label": "Productivity & Workflow",
+      "count": 2753
+    },
+    {
+      "id": "communication",
+      "label": "Communication & Social",
+      "count": 2569
+    },
+    {
+      "id": "web",
+      "label": "Websites & Design",
+      "count": 2525
+    }
+  ],
+  "categories": [
+    [
+      "Developer Tools",
+      42591
+    ],
+    [
+      "Agent Skills",
+      16874
+    ],
+    [
+      "TypeScript Skills",
+      433
+    ],
+    [
+      "Finance & Crypto",
+      423
+    ],
+    [
+      "Productivity & Workflow",
+      317
+    ],
+    [
+      "Knowledge & Memory",
+      316
+    ],
+    [
+      "Search & Retrieval",
+      293
+    ],
+    [
+      "Official Skills by",
+      284
+    ],
+    [
+      "Community Skills",
+      259
+    ],
+    [
+      "Security & Testing",
+      248
+    ],
+    [
+      "Other Tools and Integrations",
+      178
+    ],
+    [
+      "Databases",
+      172
+    ],
+    [
+      "Communication",
+      142
+    ],
+    [
+      "Cloud Infrastructure",
+      129
+    ],
+    [
+      "Multimedia",
+      114
+    ],
+    [
+      "Browser Automation",
+      101
+    ],
+    [
+      "Plugins & Toolkits",
+      99
+    ],
+    [
+      "Monitoring",
+      97
+    ],
+    [
+      "Art & Culture",
+      86
+    ],
+    [
+      "Gaming",
+      66
+    ],
+    [
+      "Social Media",
+      60
+    ],
+    [
+      "Location Services",
+      56
+    ],
+    [
+      "Travel & Transportation",
+      54
+    ],
+    [
+      "Data Platforms",
+      47
+    ],
+    [
+      "Biology, Medicine and Bioinformatics",
+      45
+    ],
+    [
+      "Sports",
+      44
+    ],
+    [
+      "Data Science Tools",
+      43
+    ],
+    [
+      "Python Skills",
+      40
+    ],
+    [
+      "E-Commerce",
+      37
+    ],
+    [
+      "Legal",
+      33
+    ],
+    [
+      "NET Skills",
+      28
+    ],
+    [
+      "Command Line",
+      26
+    ],
+    [
+      "Java Skills",
+      25
+    ],
+    [
+      "Code Execution",
+      21
+    ],
+    [
+      "Embedded System",
+      19
+    ],
+    [
+      "Frameworks",
+      19
+    ],
+    [
+      "Customer Data Platforms",
+      18
+    ],
+    [
+      "Delivery",
+      18
+    ],
+    [
+      "Product Management",
+      17
+    ],
+    [
+      "Education & Research",
+      16
+    ],
+    [
+      "Real Estate",
+      13
+    ],
+    [
+      "Support & Service Management",
+      12
+    ],
+    [
+      "Agreements & Coordination",
+      11
+    ],
+    [
+      "Spirituality & Esoterica",
+      11
+    ],
+    [
+      "Core Skills",
+      9
+    ],
+    [
+      "Data Visualization",
+      9
+    ],
+    [
+      "Environment & Nature",
+      8
+    ],
+    [
+      "Rust Skills",
+      7
+    ],
+    [
+      "Text-to-Speech",
+      7
+    ],
+    [
+      "end to end RAG platforms",
+      6
+    ],
+    [
+      "Translation Services",
+      6
+    ],
+    [
+      "Conversational AI",
+      5
+    ],
+    [
+      "Cryptography",
+      5
+    ],
+    [
+      "Industrial & IoT",
+      5
+    ],
+    [
+      "Health & Wellness",
+      4
+    ],
+    [
+      "Podcasts",
+      4
+    ],
+    [
+      "Data & Analytics",
+      3
+    ],
+    [
+      "Speech-to-Text",
+      3
+    ],
+    [
+      "Accessibility",
+      2
+    ],
+    [
+      "Aerospace & Astrodynamics",
+      2
+    ],
+    [
+      "Identity",
+      2
+    ],
+    [
+      "math",
+      2
+    ],
+    [
+      "Security Notice",
+      2
+    ],
+    [
+      "Business & Operations",
+      1
+    ]
+  ],
+  "sources": [
+    [
+      "builtin:mcp-registry",
+      38795
+    ],
+    [
+      "feed:skills-sh",
+      16872
+    ],
+    [
+      "feed:punkpeye-awesome-mcp-servers",
+      3841
+    ],
+    [
+      "feed:mcpmarket-com",
+      3061
+    ],
+    [
+      "feed:voltagent-awesome-agent-skills",
+      1078
+    ],
+    [
+      "git:claude-plugins-official",
+      299
+    ],
+    [
+      "feed:mcpservers-org",
+      253
+    ],
+    [
+      "git:cursor-plugins",
+      99
+    ],
+    [
+      "git:knowledge-work-plugins",
+      74
+    ],
+    [
+      "git:openai-plugins",
+      65
+    ],
+    [
+      "git:xai-plugin-marketplace",
+      31
+    ],
+    [
+      "git:anthropics-skills",
+      5
+    ]
+  ],
+  "publishers": [
+    [
+      "sadri-dridi",
+      1937
+    ],
+    [
+      "pipeworx-io",
+      1726
+    ],
+    [
+      "mcp-dir",
+      1112
+    ],
+    [
+      "mrfentmen",
+      802
+    ],
+    [
+      "anthropics",
+      416
+    ],
+    [
+      "reason-machines",
+      401
+    ],
+    [
+      "Evozim",
+      375
+    ],
+    [
+      "sickn33",
+      323
+    ],
+    [
+      "CSOAI-ORG",
+      314
+    ],
+    [
+      "github",
+      310
+    ],
+    [
+      "affaan-m",
+      299
+    ],
+    [
+      "forcedotcom",
+      270
+    ],
+    [
+      "servers",
+      253
+    ],
+    [
+      "NVIDIA",
+      251
+    ],
+    [
+      "ruvnet",
+      244
+    ],
+    [
+      "alirezarezvani",
+      242
+    ],
+    [
+      "mindrally",
+      240
+    ],
+    [
+      "aj-geddes",
+      236
+    ],
+    [
+      "samber",
+      228
+    ],
+    [
+      "ai.smithery",
+      213
+    ],
+    [
+      "io.usefulapi",
+      210
+    ],
+    [
+      "microsoft",
+      207
+    ],
+    [
+      "K-Dense-AI",
+      198
+    ],
+    [
+      "MCP-Mirror",
+      193
+    ],
+    [
+      "google",
+      192
+    ],
+    [
+      "wshobson",
+      184
+    ],
+    [
+      "theluckystrike",
+      180
+    ],
+    [
+      "davila7",
+      178
+    ],
+    [
+      "Cursor",
+      175
+    ],
+    [
+      "kostja94",
+      172
+    ],
+    [
+      "nexu-io",
+      164
+    ],
+    [
+      "jmshinhwa",
+      156
+    ],
+    [
+      "nexscope-ai",
+      152
+    ],
+    [
+      "cyanheads",
+      150
+    ],
+    [
+      "dylantarre",
+      142
+    ],
+    [
+      "aws",
+      139
+    ],
+    [
+      "nomadamas",
+      137
+    ],
+    [
+      "claude-office-skills",
+      134
+    ],
+    [
+      "longbridge",
+      134
+    ],
+    [
+      "mengto",
+      132
+    ]
+  ],
+  "installability": [
+    [
+      "metadata_verified",
+      51988
+    ],
+    [
+      "discovery_only",
+      11892
+    ]
+  ],
+  "transports": [
+    [
+      "streamable-http",
+      24254
+    ],
+    [
+      "stdio",
+      13138
+    ],
+    [
+      "sse",
+      739
+    ]
+  ],
+  "hosts": [
+    [
+      "Claude Code CLI",
+      52005
+    ],
+    [
+      "Cursor",
+      51745
+    ],
+    [
+      "Amp",
+      51646
+    ],
+    [
+      "Antigravity",
+      51646
+    ],
+    [
+      "Antigravity CLI",
+      51646
+    ],
+    [
+      "AstrBot",
+      51646
+    ],
+    [
+      "Augment",
+      51646
+    ],
+    [
+      "Cline (VS Code Extension)",
+      51646
+    ],
+    [
+      "CodeBuddy",
+      51646
+    ],
+    [
+      "Cortex Code",
+      51646
+    ],
+    [
+      "Crush",
+      51646
+    ],
+    [
+      "Deep Agents",
+      51646
+    ],
+    [
+      "Devin",
+      51646
+    ],
+    [
+      "Droid",
+      51646
+    ],
+    [
+      "Firebender",
+      51646
+    ],
+    [
+      "ForgeCode",
+      51646
+    ],
+    [
+      "fx",
+      51646
+    ],
+    [
+      "Gemini CLI",
+      51646
+    ],
+    [
+      "GitHub Copilot CLI",
+      51646
+    ],
+    [
+      "Kimchi",
+      51646
+    ],
+    [
+      "Kimi Code CLI",
+      51646
+    ],
+    [
+      "Kode",
+      51646
+    ],
+    [
+      "Neovate",
+      51646
+    ],
+    [
+      "OpenHands",
+      51646
+    ],
+    [
+      "Pochi",
+      51646
+    ],
+    [
+      "Qoder",
+      51646
+    ],
+    [
+      "Qoder CN",
+      51646
+    ],
+    [
+      "Qwen Code",
+      51646
+    ],
+    [
+      "Roo Code",
+      51646
+    ],
+    [
+      "Rovo Dev",
+      51646
+    ],
+    [
+      "Tabnine CLI",
+      51646
+    ],
+    [
+      "OpenAI Codex CLI",
+      50988
+    ],
+    [
+      "Grok Build (xAI Dev Tool)",
+      50955
+    ],
+    [
+      "AiderDesk",
+      50924
+    ],
+    [
+      "CodeArts Agent",
+      50924
+    ],
+    [
+      "Command Code",
+      50924
+    ],
+    [
+      "IBM Bob",
+      50924
+    ],
+    [
+      "Jazz",
+      50924
+    ],
+    [
+      "Junie",
+      50924
+    ],
+    [
+      "Kilo Code",
+      50924
+    ],
+    [
+      "Kiro CLI",
+      50924
+    ],
+    [
+      "Ona",
+      50924
+    ],
+    [
+      "OpenCode CLI",
+      50924
+    ],
+    [
+      "Pi Agent (Terminal Agent)",
+      50924
+    ],
+    [
+      "Posit Assistant",
+      50924
+    ],
+    [
+      "Zed",
+      50924
+    ],
+    [
+      "Visual Studio Code (Copilot harness)",
+      37273
+    ],
+    [
+      "Code Studio",
+      26925
+    ],
+    [
+      "iFlow CLI",
+      26925
+    ],
+    [
+      "Mux (Xum)",
+      26925
+    ],
+    [
+      "ZCode",
+      26925
+    ],
+    [
+      "AdaL",
+      13847
+    ],
+    [
+      "Autohand Code CLI",
+      13847
+    ],
+    [
+      "Codemaker",
+      13847
+    ],
+    [
+      "Continue",
+      13847
+    ],
+    [
+      "Dexto",
+      13847
+    ],
+    [
+      "Goose",
+      13847
+    ],
+    [
+      "Hermes Agent",
+      13847
+    ],
+    [
+      "inference.sh",
+      13847
+    ],
+    [
+      "Lingma",
+      13847
+    ],
+    [
+      "Loaf",
+      13847
+    ],
+    [
+      "MCPJam",
+      13847
+    ],
+    [
+      "minimax Code",
+      13847
+    ],
+    [
+      "Mistral Vibe",
+      13847
+    ],
+    [
+      "Moxby",
+      13847
+    ],
+    [
+      "OpenClaw",
+      13847
+    ],
+    [
+      "Reasonix",
+      13847
+    ],
+    [
+      "Replit",
+      13847
+    ],
+    [
+      "Sarvam Code",
+      13847
+    ],
+    [
+      "Terramind",
+      13847
+    ],
+    [
+      "Tinycloud",
+      13847
+    ],
+    [
+      "Trae",
+      13847
+    ],
+    [
+      "Trae CN",
+      13847
+    ],
+    [
+      "Universal",
+      13847
+    ],
+    [
+      "Warp",
+      13847
+    ],
+    [
+      "Windsurf",
+      13847
+    ],
+    [
+      "Zencoder",
+      13847
+    ],
+    [
+      "Zenflow",
+      13847
+    ],
+    [
+      "Claude Desktop",
+      13138
+    ]
+  ]
+}

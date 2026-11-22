@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "predev": "node scripts/build-site-facts.mjs && node scripts/build-assistant-knowledge.mjs",
-    "build": "node scripts/build-site-facts.mjs && node scripts/build-assistant-knowledge.mjs && prisma generate && next build",
+    "predev": "node scripts/build-site-facts.mjs && node scripts/build-trending-leaderboard.mjs && node scripts/build-assistant-knowledge.mjs",
+    "build": "node scripts/build-site-facts.mjs && node scripts/build-trending-leaderboard.mjs && node scripts/build-assistant-knowledge.mjs && prisma generate && next build",
+    "build:facets": "bun scripts/build-default-facets.ts",
+    "build:leaderboard": "node scripts/build-trending-leaderboard.mjs",
     "postbuild": "node scripts/postbuild.mjs",
     "build:search-index": "node scripts/build-search-index.mjs",
     "start": "node .next/standalone/server.js",

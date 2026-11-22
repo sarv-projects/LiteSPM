@@ -117,8 +117,35 @@ export function Header() {
   const setAssistant = useApp((s) => s.setAssistant);
   const navigate = useApp((s) => s.navigate);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const mobileNavRef = React.useRef<HTMLElement>(null);
 
   React.useEffect(() => setMobileOpen(false), [route]);
+
+  React.useEffect(() => {
+    if (!mobileOpen) return;
+    const navEl = mobileNavRef.current;
+    if (!navEl) return;
+    const focusable = navEl.querySelectorAll<HTMLElement>('a, button, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length > 0) {
+      focusable[0].focus();
+    }
+    const trapFocus = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const elements = navEl.querySelectorAll<HTMLElement>('a, button, [tabindex]:not([tabindex="-1"])');
+      if (elements.length === 0) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", trapFocus);
+    return () => window.removeEventListener("keydown", trapFocus);
+  }, [mobileOpen]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -243,7 +270,13 @@ export function Header() {
       </div>
 
       {mobileOpen && (
-        <nav aria-label="Mobile" className="border-t border-border/60 bg-background xl:hidden">
+        <nav
+          ref={mobileNavRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mobile navigation"
+          className="border-t border-border/60 bg-background xl:hidden"
+        >
           <div className="mx-auto grid max-w-6xl gap-1 px-4 py-3">
             {NAV.map((item) => (
               <NavLink

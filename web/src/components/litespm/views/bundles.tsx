@@ -331,11 +331,10 @@ export function BundlesView() {
           <Layers className="h-3.5 w-3.5" aria-hidden="true" /> Bundles
         </p>
         <h1 className="mt-2 text-[clamp(1.9rem,4vw,2.8rem)] font-semibold leading-[1.05] tracking-[-0.04em]">
-          Start from a working set.
+          Curated Tool Stacks.
         </h1>
         <p className="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">
-          Hand-picked MCP servers and skills for a common job. Every item is a catalog listing
-          that LiteSPM can install today, mostly from the vendor&apos;s own publisher. Install an
+          Pre-configured bundles of MCP servers and agent skills tailored for Web Development, DevOps, and Data Science. Install an
           entire workflow in one command with <code className="font-mono text-foreground">litespm install bundle:&lt;id&gt;</code>,
           or copy individual commands with full diff preview and backup.{" "}
           <NavLink to="/docs/methodology" className="font-medium text-brand hover:underline">

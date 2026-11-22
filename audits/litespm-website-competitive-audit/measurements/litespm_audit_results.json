@@ -1,0 +1,299 @@
+{
+  "routes": {
+    "/": {
+      "name": "home",
+      "status": 200,
+      "title": "LiteSPM \u2014 The package manager for AI agents",
+      "h1": "Install AI tools once. Undo them in one command.\nInstall AI tools once.\nUndo them in one command.",
+      "meta_description": "Find MCP servers, skills and plugins once, and install them into the coding agents you use. Browse 68k+ listings across 52 agent hosts (47 remote-capable) \u2014 with publisher, source and installability stated up front.",
+      "og_title": "LiteSPM \u2014 The package manager for AI agents",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 741.4000000022352,
+          "loadEvent": 741.6000000014901,
+          "responseEnd": 142.90000000223517,
+          "transferSize": 17080,
+          "encodedBodySize": 16780
+        },
+        "fcp": 636
+      },
+      "duration_s": 2.3846230506896973,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_home_1440.png"
+    },
+    "/marketplace": {
+      "name": "marketplace",
+      "status": 200,
+      "title": "Marketplace \u2014 MCP servers, skills & plugins \u00b7 LiteSPM",
+      "h1": "Find it once. Install it everywhere.",
+      "meta_description": "Search 68k+ MCP servers, agent skills and plugins, then copy the exact litespm install command. One catalog, 52 agent hosts.",
+      "og_title": "Marketplace \u2014 MCP servers, skills & plugins \u00b7 LiteSPM",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 1574.300000000745,
+          "loadEvent": 1591.300000000745,
+          "responseEnd": 1408.800000000745,
+          "transferSize": 10529,
+          "encodedBodySize": 10229
+        },
+        "fcp": 1568
+      },
+      "duration_s": 8.030361890792847,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_marketplace_1440.png"
+    },
+    "/bundles": {
+      "name": "bundles",
+      "status": 200,
+      "title": "Bundles \u2014 curated MCP servers and skills \u00b7 LiteSPM",
+      "h1": "Start from a working set.",
+      "meta_description": "Curated sets of MCP servers and skills for common jobs, each with a difficulty level and one litespm install command per item. Every item is installable.",
+      "og_title": "Bundles \u2014 curated MCP servers and skills \u00b7 LiteSPM",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 307,
+          "loadEvent": 307.5,
+          "responseEnd": 264.19999999925494,
+          "transferSize": 8751,
+          "encodedBodySize": 8451
+        },
+        "fcp": 308
+      },
+      "duration_s": 4.30238676071167,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_bundles_1440.png"
+    },
+    "/agents": {
+      "name": "agents",
+      "status": 200,
+      "title": "Supported Agent Hosts \u00b7 LiteSPM",
+      "h1": "Choose your agent.",
+      "meta_description": "52 agent hosts for MCP servers and 81 targets for skills, and which ones get an in-agent marketplace command.",
+      "og_title": "Supported Agent Hosts \u00b7 LiteSPM",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 394.30000000074506,
+          "loadEvent": 396.5,
+          "responseEnd": 308,
+          "transferSize": 10464,
+          "encodedBodySize": 10164
+        },
+        "fcp": 400
+      },
+      "duration_s": 5.997111082077026,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_agents_1440.png"
+    },
+    "/agent/cline": {
+      "name": "agent_cline",
+      "status": 200,
+      "title": "Cline (VS Code Extension) \u00b7 Supported Agent Host \u00b7 LiteSPM",
+      "h1": "Cline (VS Code Extension)",
+      "meta_description": "Configure MCP servers and skills for Cline (VS Code Extension) (JSON config) with LiteSPM.",
+      "og_title": "Cline (VS Code Extension) \u00b7 Supported Agent Host \u00b7 LiteSPM",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 305,
+          "loadEvent": 306,
+          "responseEnd": 265.1000000014901,
+          "transferSize": 7550,
+          "encodedBodySize": 7250
+        },
+        "fcp": 316
+      },
+      "duration_s": 1.9301621913909912,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_agent_cline_1440.png"
+    },
+    "/package/mcp-server-git": {
+      "name": "package_detail",
+      "status": 404,
+      "title": "Package Details \u00b7 LiteSPM",
+      "h1": "We could not find that page.",
+      "meta_description": "View package details and installation instructions.",
+      "og_title": "LiteSPM \u2014 The package manager for AI agents",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 2147,
+          "loadEvent": 2199.2999999970198,
+          "responseEnd": 2125.599999997765,
+          "transferSize": 3566,
+          "encodedBodySize": 3266
+        },
+        "fcp": 2220
+      },
+      "duration_s": 3.439995765686035,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_package_detail_1440.png"
+    },
+    "/compare": {
+      "name": "compare",
+      "status": 200,
+      "title": "Compare Packages \u00b7 LiteSPM",
+      "h1": "Packages, side by side",
+      "meta_description": "Compare capabilities, permissions, and compatibility side by side.",
+      "og_title": "Compare Packages \u00b7 LiteSPM",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 440.3999999985099,
+          "loadEvent": 441,
+          "responseEnd": 406.8999999985099,
+          "transferSize": 8425,
+          "encodedBodySize": 8125
+        },
+        "fcp": 452
+      },
+      "duration_s": 1.4241242408752441,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_compare_1440.png"
+    },
+    "/docs": {
+      "name": "docs",
+      "status": 200,
+      "title": "Introduction \u00b7 LiteSPM Documentation",
+      "h1": "Getting started",
+      "meta_description": "Overview of LiteSPM, the package manager for AI agents, and how it connects to agent hosts.",
+      "og_title": "Introduction \u00b7 LiteSPM Documentation",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 534.1999999992549,
+          "loadEvent": 608.5,
+          "responseEnd": 523.3000000007451,
+          "transferSize": 11088,
+          "encodedBodySize": 10788
+        },
+        "fcp": 612
+      },
+      "duration_s": 1.6983754634857178,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_docs_1440.png"
+    },
+    "/insights": {
+      "name": "insights",
+      "status": 200,
+      "title": "Catalog Insights & Analytics \u00b7 LiteSPM",
+      "h1": "The catalog, measured.",
+      "meta_description": "Statistics, distributions and trust metrics, measured over the same rows the marketplace serves.",
+      "og_title": "Catalog Insights & Analytics \u00b7 LiteSPM",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 352,
+          "loadEvent": 353.1000000014901,
+          "responseEnd": 276.30000000074506,
+          "transferSize": 8234,
+          "encodedBodySize": 7934
+        },
+        "fcp": 360
+      },
+      "duration_s": 2.9427785873413086,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_insights_1440.png"
+    },
+    "/publish": {
+      "name": "publish",
+      "status": 200,
+      "title": "Publish a Listing \u00b7 LiteSPM",
+      "h1": "Get your capability in front of every agent.",
+      "meta_description": "Submit your MCP server, skill, or plugin to the LiteSPM catalog.",
+      "og_title": "Publish a Listing \u00b7 LiteSPM",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 490.8999999985099,
+          "loadEvent": 554.3999999985099,
+          "responseEnd": 483.1000000014901,
+          "transferSize": 10627,
+          "encodedBodySize": 10327
+        },
+        "fcp": 544
+      },
+      "duration_s": 1.5019176006317139,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_publish_1440.png"
+    },
+    "/nonexistent-route-test-404": {
+      "name": "not_found",
+      "status": 404,
+      "title": "Page not found \u00b7 LiteSPM",
+      "h1": "We could not find that page.",
+      "meta_description": "Find MCP servers, skills and plugins once, and install them into the coding agents you use. Browse 68k+ listings across 52 agent hosts (47 remote-capable) \u2014 with publisher, source and installability stated up front.",
+      "og_title": "LiteSPM \u2014 The package manager for AI agents",
+      "metrics": {
+        "nav": {
+          "domContentLoaded": 319.5999999977648,
+          "loadEvent": 350.5999999977648,
+          "responseEnd": 296.8999999985099,
+          "transferSize": 3542,
+          "encodedBodySize": 3242
+        },
+        "fcp": 364
+      },
+      "duration_s": 1.1414241790771484,
+      "screenshot": "C:\\Users\\Sonali\\Desktop\\projectwork\\business_Dev\\liteSPM\\audits\\litespm-website-competitive-audit\\screenshots\\litespm_not_found_1440.png"
+    }
+  },
+  "console_errors": [
+    {
+      "text": "Failed to load resource: the server responded with a status of 404 ()",
+      "location": {
+        "url": "https://lite-spm-nine.vercel.app/package/mcp-server-git",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "text": "Failed to load resource: the server responded with a status of 404 ()",
+      "location": {
+        "url": "https://lite-spm-nine.vercel.app/nonexistent-route-test-404",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "console_warnings": [],
+  "failed_requests": [
+    {
+      "url": "https://lite-spm-nine.vercel.app/api/litespm/list?page=1&pageSize=24&facets=0",
+      "failure": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://lite-spm-nine.vercel.app/api/litespm/list?page=1&pageSize=24&facets=0",
+      "failure": "net::ERR_ABORTED"
+    }
+  ],
+  "performance": {},
+  "interactions": {
+    "tabs": [
+      {
+        "text": "MCP Servers",
+        "role": "tab"
+      },
+      {
+        "text": "Skills",
+        "role": "tab"
+      },
+      {
+        "text": "Plugins",
+        "role": "tab"
+      },
+      {
+        "text": "Installed",
+        "role": "tab"
+      },
+      {
+        "text": "Agent Skills\n16,874",
+        "role": null
+      },
+      {
+        "text": "TypeScript Skills\n433",
+        "role": null
+      },
+      {
+        "text": "Official Skills by\n284",
+        "role": null
+      },
+      {
+        "text": "Community Skills\n259",
+        "role": null
+      },
+      {
+        "text": "Recommend PostgreSQL MCP servers for database administration.",
+        "role": null
+      }
+    ],
+    "search_github_tested": true
+  }
+}
