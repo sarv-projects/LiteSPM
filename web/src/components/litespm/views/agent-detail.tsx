@@ -27,10 +27,10 @@ import { CodeBlock } from "../code-block";
 import { InstallBar } from "../install-bar";
 import { FactRow, KindBadge, Stat } from "../primitives";
 
-export function AgentDetailView({ id }: { id: string }) {
+export function AgentDetailView({ id, initial }: { id: string; initial?: AgentDetailData }) {
   const navigate = useApp((s) => s.navigate);
-  const [detail, setDetail] = React.useState<AgentDetailData | null>(null);
-  const [state, setState] = React.useState<"loading" | "found" | "missing">("loading");
+  const [detail, setDetail] = React.useState<AgentDetailData | null>(initial ?? null);
+  const [state, setState] = React.useState<"loading" | "found" | "missing">(initial ? "found" : "loading");
   const [platform, setPlatform] = React.useState<"win" | "mac" | "linux">("linux");
 
   React.useEffect(() => {
@@ -40,6 +40,11 @@ export function AgentDetailView({ id }: { id: string }) {
   }, []);
 
   React.useEffect(() => {
+    if (initial && initial.row.slug.toLowerCase() === id.toLowerCase()) {
+      setDetail(initial);
+      setState("found");
+      return;
+    }
     let cancelled = false;
     setState("loading");
     fetch(`/api/litespm/agent/${encodeURIComponent(id)}`)
@@ -57,7 +62,7 @@ export function AgentDetailView({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, initial]);
 
   if (state === "loading") {
     return (

@@ -363,7 +363,7 @@ function GettingStarted() {
         <div className="rounded-xl border border-border/70 bg-card p-3.5 space-y-1.5 text-[12.5px]">
           <p className="font-semibold text-foreground">macOS & Linux (Zero Node)</p>
           <code className="block rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-brand">
-            curl -fsSL https://litespm.dev/install.sh | sh
+            {`curl -fsSL ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://lite-spm-nine.vercel.app"}/install.sh | sh`}
           </code>
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
             Downloads, verifies SHA-256 integrity, and configures PATH for precompiled native binaries. No Node runtime required.
@@ -372,7 +372,7 @@ function GettingStarted() {
         <div className="rounded-xl border border-border/70 bg-card p-3.5 space-y-1.5 text-[12.5px]">
           <p className="font-semibold text-foreground">Windows PowerShell (Zero Node)</p>
           <code className="block rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-brand">
-            irm https://litespm.dev/install.ps1 | iex
+            {`irm ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://lite-spm-nine.vercel.app"}/install.ps1 | iex`}
           </code>
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
             Downloads, verifies SHA-256 integrity, and adds LiteSPM to Windows User PATH. No Node runtime required.

@@ -2306,6 +2306,26 @@ func runInstall(args []string) {
 				runSkillsAddFromInstall(flags)
 				return
 			}
+		} else if !strings.Contains(flags.listingID, ":") {
+			// Short-slug alias resolution: e.g. "firecrawl-mcp-server" or "context7"
+			needle := strings.ToLower(strings.TrimSpace(flags.listingID))
+			hits := catClient.Search(flags.listingID, catalog.SearchOptions{Limit: 25})
+			for _, hit := range hits {
+				if hit == nil || hit.Listing == nil {
+					continue
+				}
+				l := hit.Listing
+				lid := strings.ToLower(l.ID)
+				if strings.EqualFold(l.Name, needle) ||
+					strings.HasSuffix(lid, ":"+needle) ||
+					strings.HasSuffix(lid, "/"+needle) ||
+					strings.HasSuffix(lid, "-"+needle) {
+					flags.listingID = l.ID
+					listing = l
+					listingErr = nil
+					break
+				}
+			}
 		}
 	}
 	if listingErr != nil {

@@ -88,14 +88,53 @@ type restoreOutcome struct {
 	Notes     []string
 }
 
+// resolveRestoreInstall resolves either an exact installId or a package
+// listingId/slug (picking the most recent matching install) so users can run
+// `litespm restore <slug>` directly from package detail pages.
+func resolveRestoreInstall(ctx context.Context, db *state.DB, target string) (*domain.InstallRecord, error) {
+	rec, err := db.GetInstall(ctx, target)
+	if err == nil && rec != nil {
+		return rec, nil
+	}
+	all, listErr := db.ListInstalls(ctx, "", "")
+	if listErr != nil || len(all) == 0 {
+		return nil, err
+	}
+	needle := strings.ToLower(strings.TrimSpace(target))
+	var best *domain.InstallRecord
+	for _, candidate := range all {
+		if candidate == nil {
+			continue
+		}
+		lid := strings.ToLower(candidate.ListingID)
+		iid := strings.ToLower(candidate.InstallID)
+		matched := lid == needle ||
+			strings.HasSuffix(lid, ":"+needle) ||
+			strings.HasSuffix(lid, "/"+needle) ||
+			strings.HasSuffix(lid, "-"+needle) ||
+			strings.Contains(iid, needle)
+		if !matched {
+			continue
+		}
+		if best == nil || candidate.InstalledAt.After(best.InstalledAt) {
+			best = candidate
+		}
+	}
+	if best != nil {
+		return best, nil
+	}
+	return nil, err
+}
+
 // planRestore evaluates both guards without touching anything. A non-nil
 // error is a refusal with the reasons attached; the machine is left exactly
 // as it is.
 func planRestore(ctx context.Context, db *state.DB, installID string) (*restorePlan, error) {
-	rec, err := db.GetInstall(ctx, installID)
+	rec, err := resolveRestoreInstall(ctx, db, installID)
 	if err != nil {
 		return nil, err
 	}
+	installID = rec.InstallID
 	muts, err := deployment.NewLedger(db.Raw()).MutationsForInstall(ctx, installID)
 	if err != nil {
 		return nil, fmt.Errorf("read deployment ledger: %w", err)
@@ -520,7 +559,7 @@ func runRestore(ctx context.Context, args []string) {
 
 func restoreUsage() {
 	fmt.Println(`Usage:
-  litespm restore <installId>        roll one install back to its exact pre-install state
+  litespm restore <installId|slug>   roll one install back to its exact pre-install state
   litespm restore --host <host-id>   roll back every install registered on one host
 
 Flags:

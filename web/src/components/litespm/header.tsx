@@ -172,7 +172,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <NavLink to="/" className="shrink-0 rounded-md" aria-label="LiteSPM home">
+        <NavLink to="/" className="shrink-0 rounded-md">
           <Logo />
         </NavLink>
 

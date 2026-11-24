@@ -1,9 +1,9 @@
 #!/bin/sh
 # LiteSPM Standalone Binary Installer for macOS and Linux
 # Usage:
-#   curl -fsSL https://litespm.dev/install.sh | sh
+#   curl -fsSL https://lite-spm-nine.vercel.app/install.sh | sh
 #   or:
-#   wget -qO- https://litespm.dev/install.sh | sh
+#   wget -qO- https://lite-spm-nine.vercel.app/install.sh | sh
 
 set -e
 
@@ -71,7 +71,7 @@ case "${RAW_OS}" in
     CYGWIN*|MINGW*|MSYS*)
         log_warn "Windows environment detected under POSIX shell emulation."
         log_info "For native Windows PowerShell, run:"
-        printf "    %birm https://litespm.dev/install.ps1 | iex%b\n\n" "${CYAN}${BOLD}" "${RESET}"
+        printf "    %birm https://lite-spm-nine.vercel.app/install.ps1 | iex%b\n\n" "${CYAN}${BOLD}" "${RESET}"
         exit 1
         ;;
     *)
@@ -236,5 +236,5 @@ printf "%b%s Next Steps:%b\n" "${CYAN}${BOLD}" "${RESET}"
 printf "  1. Connect your agents:    %b%slitespm host detect%b\n" "${GREEN}${BOLD}" "${RESET}"
 printf "  2. Interactive wizard:     %b%slitespm%b\n" "${GREEN}${BOLD}" "${RESET}"
 printf "  3. Search capabilities:    %b%slitespm search <query>%b\n" "${GREEN}${BOLD}" "${RESET}"
-printf "  4. Documentation:          %b%shttps://litespm.dev/docs%b\n" "${GREEN}${BOLD}" "${RESET}"
+printf "  4. Documentation:          %b%shttps://lite-spm-nine.vercel.app/docs%b\n" "${GREEN}${BOLD}" "${RESET}"
 echo ""

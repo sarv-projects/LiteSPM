@@ -8,7 +8,14 @@ import { GitCompareArrows, X } from "lucide-react";
 import dynamic from "next/dynamic";
 
 import { useApp, compareHash, type Route } from "@/lib/litespm/router";
-import type { PackageDetailData } from "@/lib/litespm/types";
+import type {
+  AgentDetailData,
+  AgentRow,
+  AgentStats,
+  BundlesResponse,
+  InsightsResponse,
+  PackageDetailData,
+} from "@/lib/litespm/types";
 import { Header, AnnouncementBar } from "./header";
 import { Footer } from "./footer";
 import { HomeView } from "./views/home";
@@ -177,12 +184,22 @@ function CompareTray() {
 export function LiteSPMApp({
   initialRoute,
   initialPackage,
+  initialBundles,
+  initialAgents,
+  initialAgentDetail,
+  initialInsights,
 }: {
   initialRoute?: Route;
   /** The package row the server already resolved for a /package/<key> URL. */
   initialPackage?: PackageDetailData;
+  initialBundles?: BundlesResponse;
+  initialAgents?: { agents: AgentRow[]; stats: AgentStats };
+  initialAgentDetail?: AgentDetailData;
+  initialInsights?: InsightsResponse;
 }) {
   const storeRoute = useApp((s) => s.route);
+  const paletteOpen = useApp((s) => s.paletteOpen);
+  const assistantOpen = useApp((s) => s.assistantOpen);
   const [synced, setSynced] = React.useState(false);
   const route = synced || !initialRoute ? storeRoute : initialRoute;
   const syncFromHash = useApp((s) => s.syncFromHash);
@@ -264,17 +281,30 @@ export function LiteSPMApp({
               }
             />
           )}
-          {route.view === "agents" && <AgentsView />}
-          {route.view === "agent" && <AgentDetailView id={route.id} />}
+          {route.view === "agents" && (
+            <AgentsView initial={initialRoute?.view === "agents" ? initialAgents : undefined} />
+          )}
+          {route.view === "agent" && (
+            <AgentDetailView
+              id={route.id}
+              initial={
+                initialRoute?.view === "agent" && initialRoute.id === route.id ? initialAgentDetail : undefined
+              }
+            />
+          )}
           {route.view === "docs" && <DocsView section={route.section} />}
           {route.view === "publish" && <PublishView />}
-          {route.view === "insights" && <InsightsView />}
-          {route.view === "bundles" && <BundlesView />}
+          {route.view === "insights" && (
+            <InsightsView initial={initialRoute?.view === "insights" ? initialInsights : undefined} />
+          )}
+          {route.view === "bundles" && (
+            <BundlesView initial={initialRoute?.view === "bundles" ? initialBundles : undefined} />
+          )}
           {route.view === "compare" && <CompareView keys={route.keys} />}
         </motion.main>
         <Footer />
-        <CommandPalette />
-        <Assistant />
+        {paletteOpen && <CommandPalette />}
+        {assistantOpen && <Assistant />}
         <CompareTray />
         <p className="sr-only" role="status" aria-live="polite">
           {announcement}

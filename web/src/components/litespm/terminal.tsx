@@ -27,7 +27,7 @@ const SCENARIOS: Record<
     description: "Auto-detect agents, sync 69K+ catalog & launch Manager",
     lines: [
       { kind: "cmd", text: "litespm", delay: 350 },
-      { kind: "pill", text: "[litespm] v0.6.1 · the package manager for AI agents", delay: 180 },
+      { kind: "pill", text: "[litespm] v0.6.0 · the package manager for AI agents", delay: 180 },
       { kind: "ok", text: "◇ Auto-sync: verified catalog sequence 154 (production)", delay: 240 },
       { kind: "ok", text: "◇ Indexed 69,376 capabilities across skills, MCP & plugins", delay: 220 },
       { kind: "tree", text: "│", delay: 80 },
@@ -51,7 +51,7 @@ const SCENARIOS: Record<
     description: "Discover SKILL.md and copy into agent skill trees",
     lines: [
       { kind: "cmd", text: "litespm skills add flowkit-labs/skills --skill reddit-automation", delay: 350 },
-      { kind: "pill", text: "[skills] v0.6.1 · portable agent skills installer", delay: 180 },
+      { kind: "pill", text: "[skills] v0.6.0 · portable agent skills installer", delay: 180 },
       { kind: "ok", text: "◇ Source: https://github.com/flowkit-labs/skills.git", delay: 240 },
       { kind: "ok", text: "◇ Repository cloned (3 skills found)", delay: 200 },
       { kind: "out", text: "• Selected skill: reddit-automation", delay: 180 },
@@ -79,7 +79,7 @@ const SCENARIOS: Record<
     description: "Register remote or local MCP server into host configs",
     lines: [
       { kind: "cmd", text: "litespm install context7 --agent claude-code", delay: 350 },
-      { kind: "pill", text: "[install] v0.6.1 · MCP server manager", delay: 180 },
+      { kind: "pill", text: "[install] v0.6.0 · MCP server manager", delay: 180 },
       { kind: "ok", text: "◇ Resolving context7 via registry index (Seq 154)...", delay: 240 },
       { kind: "ok", text: "◇ Found: io.github.upstash/context7", delay: 200 },
       { kind: "out", text: "• Transport: Streamable HTTP (remote)", delay: 180 },
@@ -102,7 +102,7 @@ const SCENARIOS: Record<
     description: "Byte-exact rollback using cryptographic pre-image hashes",
     lines: [
       { kind: "cmd", text: "litespm restore inst_user_mcp_context7_4_2_0", delay: 350 },
-      { kind: "pill", text: "[restore] v0.6.1 · byte-exact rollback system", delay: 180 },
+      { kind: "pill", text: "[restore] v0.6.0 · byte-exact rollback system", delay: 180 },
       { kind: "ok", text: "◇ Locating installation record...", delay: 220 },
       { kind: "out", text: "• Target: ~/.claude.json (claude-code)", delay: 180 },
       { kind: "tree", text: "│", delay: 80 },
@@ -211,7 +211,7 @@ function FormattedLine({ line }: { line: ScriptLine }) {
 
     // Box border styling
     if (text.startsWith("╭") || text.startsWith("╰") || (text.startsWith("│") && text.endsWith("│"))) {
-      lineClass = "text-white/40 font-light";
+      lineClass = "text-white/75 font-light";
     }
 
     return (
@@ -373,8 +373,8 @@ export function TerminalHero({
             <span className="h-3 w-3 rounded-full bg-amber-500/80 transition-opacity hover:opacity-100" />
             <span className="h-3 w-3 rounded-full bg-emerald-500/80 transition-opacity hover:opacity-100" />
           </span>
-          <span className="ml-2 hidden items-center gap-1.5 font-mono text-[11px] font-medium text-white/50 sm:inline-flex">
-            <Terminal className="h-3 w-3 text-brand" /> litespm — terminal
+          <span className="ml-2 hidden whitespace-nowrap items-center gap-1.5 font-mono text-[11px] font-medium text-white/50 xl:inline-flex">
+            <Terminal className="h-3 w-3 shrink-0 text-brand" /> litespm
           </span>
         </div>
 
@@ -391,7 +391,7 @@ export function TerminalHero({
                 setRunKey((k) => k + 1);
               }}
               className={`relative whitespace-nowrap rounded-lg px-1.5 py-0.5 font-mono text-[10px] transition-colors sm:px-2 sm:text-[10.5px] ${
-                scenario === id ? "font-semibold text-emerald-300" : "text-white/40 hover:text-white/80"
+                scenario === id ? "font-semibold text-emerald-300" : "text-white/75 hover:text-white/80"
               }`}
             >
               {scenario === id && (
@@ -409,7 +409,7 @@ export function TerminalHero({
             type="button"
             onClick={() => setRunKey((k) => k + 1)}
             title="Replay terminal animation"
-            className="ml-1 hidden rounded-md p-1 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/80 sm:inline-flex"
+            className="ml-1 hidden rounded-md p-1 text-white/75 transition-colors hover:bg-white/[0.06] hover:text-white/80 sm:inline-flex"
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
@@ -417,7 +417,7 @@ export function TerminalHero({
             type="button"
             onClick={copySession}
             title="Copy entire session to clipboard"
-            className="hidden rounded-md p-1 text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/80 sm:inline-flex"
+            className="hidden rounded-md p-1 text-white/75 transition-colors hover:bg-white/[0.06] hover:text-white/80 sm:inline-flex"
           >
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
@@ -494,7 +494,7 @@ export function TerminalHero({
         <span className="truncate">{activeScenario.description}</span>
         <span className="flex shrink-0 items-center gap-1.5 text-emerald-400/90 font-medium">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
-          {hostsCount} hosts connected
+          {hostsCount} hosts supported
         </span>
       </div>
     </div>

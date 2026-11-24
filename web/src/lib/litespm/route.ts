@@ -137,6 +137,10 @@ export function parsePath(fullPath: string, searchStr: string = ""): Route {
       const value = params.get(key);
       if (value) q[key] = value.slice(0, 200);
     }
+    // Default marketplace to installable-only unless caller explicitly passed installable=0
+    if (!params.has("installable") && !q.installability) {
+      q.installable = "1";
+    }
     // `tab` is canonical; the old `/explore?kind=mcp` spelling still resolves.
     const rawTab = params.get("tab");
     let tab: MarketplaceTab = (MARKETPLACE_TABS as string[]).includes(rawTab ?? "")

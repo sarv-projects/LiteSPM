@@ -182,7 +182,7 @@ function buildComponents(
           <div className="absolute right-2 top-2 z-10">
             <CopyButton value={text} label="Copy" />
           </div>
-          <pre className="overflow-x-auto rounded-xl border border-border/70 bg-muted/40 p-3.5 pr-20 font-mono text-[12px] leading-relaxed text-foreground/90 [&_code]:bg-transparent [&_code]:p-0">
+          <pre tabIndex={0} className="overflow-x-auto rounded-xl border border-border/70 bg-muted/40 p-3.5 pr-20 font-mono text-[12px] leading-relaxed text-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand [&_code]:bg-transparent [&_code]:p-0">
             {children}
           </pre>
         </div>
@@ -272,14 +272,23 @@ function cleanRawMarkdown(raw: string): string {
   return raw
     // Strip HTML comments
     .replace(/<!--[\s\S]*?-->/g, "")
+    // Strip empty/anchor-only <a> tags like <a name="readme-top"></a> or <a id="top"></a>
+    .replace(/<a\s+[^>]*(?:name|id)=["'][^"']*["'][^>]*>\s*<\/a>/gi, "")
+    // Convert <a href="url">text</a> to markdown links
+    .replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)")
     // Convert <img> tags to markdown images: <img src="url" alt="text" ...> -> ![text](url)
     .replace(/<img\s+[^>]*src=["']([^"']+)["'][^>]*alt=["']([^"']*)["'][^>]*\/?>/gi, "![$2]($1)")
     .replace(/<img\s+[^>]*alt=["']([^"']*)["'][^>]*src=["']([^"']+)["'][^>]*\/?>/gi, "![$1]($2)")
     .replace(/<img\s+[^>]*src=["']([^"']+)["'][^>]*\/?>/gi, "![]($1)")
+    // Strip <picture>/<source>/<br>/<hr>/<details>/<summary> wrapper tags
+    .replace(/<\/?(?:picture|source|details|summary|sup|sub)\b[^>]*>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<hr\s*\/?>/gi, "\n---\n")
     // Strip unparsed container tags (div, p, center, etc.) while preserving contents
-    .replace(/<\/?(?:div|p|span|header|footer|center|section|article)\b[^>]*>/gi, "\n")
+    .replace(/<\/?(?:div|p|span|header|footer|center|section|article|h[1-6])\b[^>]*>/gi, "\n")
     // Normalize excessive newlines
-    .replace(/\n{3,}/g, "\n\n");
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 const COLLAPSED_PX = 520;
@@ -319,7 +328,7 @@ export function SourceDocSection({
 
   if (state.status === "loading") {
     return (
-      <section className="rounded-2xl border border-border/70 bg-card p-5" aria-busy="true" aria-labelledby="srcdoc-title">
+      <section className="min-h-[360px] rounded-2xl border border-border/70 bg-card p-5" aria-busy="true" aria-labelledby="srcdoc-title">
         <h2 id="srcdoc-title" className="flex items-center gap-2 text-[15px] font-semibold">
           <FileText className="h-4 w-4 text-brand" /> {title}
         </h2>

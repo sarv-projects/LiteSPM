@@ -167,9 +167,17 @@ export function PackageCard({
             {hit.category}
           </span>
         )}
-        <span className="ml-auto font-mono text-[10.5px] text-emerald-400/90 font-medium whitespace-nowrap">
-          52 hosts
-        </span>
+        {hit.installable && (
+          <span className="ml-auto font-mono text-[10.5px] text-emerald-400/90 font-medium whitespace-nowrap">
+            {hit.kind === "skill"
+              ? "79 skill targets"
+              : hit.kind === "plugin"
+              ? "Portable hosts"
+              : hit.transport && hit.transport.toLowerCase() !== "stdio"
+              ? "47 remote hosts"
+              : "52 hosts"}
+          </span>
+        )}
       </div>
 
       {hit.installable && (
@@ -179,17 +187,17 @@ export function PackageCard({
           aria-label={`Copy install command for ${hit.name}`}
           onClick={() => {
             navigator.clipboard
-              ?.writeText(`litespm install ${shellArg(hit.id)}`)
+              ?.writeText(`litespm install ${shellArg(shortId(hit))}`)
               .then(() => {
                 setCopied(true);
                 window.setTimeout(() => setCopied(false), 1400);
               })
               .catch(() => {});
           }}
-          className="relative z-10 mt-3 flex w-full items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-left font-mono text-[11px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
+          className="relative z-10 mt-3 flex min-h-[34px] w-full items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-left font-mono text-[11px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
         >
           <span className="min-w-0 truncate">
-            <span className="text-brand">$</span> litespm install {shellArg(hit.id)}
+            <span className="text-brand">$</span> litespm install {shellArg(shortId(hit))}
           </span>
           {copied ? (
             <Check className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />

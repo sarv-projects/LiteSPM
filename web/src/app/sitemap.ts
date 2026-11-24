@@ -104,16 +104,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     }
 
-    // The 500 best-ranked listings `litespm install` can actually complete,
-    // by the one shared availability rule (not a local copy of it).
+    // Index top 5,000 installable listings `litespm install` can actually complete
+    // (excludes discovery-only stubs so crawl budget stays on high-value pages).
     const topPackages = dataset.rows
       .filter((r) => availabilityOf(r).installable)
       .sort((a, b) => (b.rankScore ?? 0) - (a.rankScore ?? 0))
-      .slice(0, 500);
+      .slice(0, 5000);
 
     for (const pkg of topPackages) {
       routes.push({
-        url: `${baseUrl}/package/${encodeURIComponent(pkg.linkKey || pkg.slug || pkg.id)}`,
+        url: `${baseUrl}/package/${encodeURIComponent(pkg.linkKey || pkg.slug || pkg.id).replace(/%3A/g, ":")}`,
         lastModified: releaseDate,
         changeFrequency: "weekly",
         priority: 0.6,

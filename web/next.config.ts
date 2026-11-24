@@ -18,11 +18,12 @@ const nextConfig: NextConfig = {
       { source: "/installed", destination: "/marketplace?tab=installed", permanent: true },
     ];
   },
-  // Baseline security response headers, including strict Content-Security-Policy.
+  // Baseline security response headers, including tightened Content-Security-Policy (no unsafe-eval)
+  // and scoped CORS strictly for public read-only API endpoints.
   async headers() {
     const cspDirectives = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
+      "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https: blob:",
       "font-src 'self' data:",
@@ -41,6 +42,13 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+      {
+        source: "/api/litespm/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, OPTIONS" },
         ],
       },
     ];

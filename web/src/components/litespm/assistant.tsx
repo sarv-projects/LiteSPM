@@ -1547,42 +1547,6 @@ export function Assistant() {
   return createPortal(
     <>
       {panel}
-      <button
-        type="button"
-        onClick={() => setAssistant(!open)}
-        id="assistant-launcher"
-        aria-expanded={open}
-        aria-label={open ? "Close the liteAI assistant" : "Open the liteAI assistant"}
-        className={cn(
-          "fixed right-3 sm:right-4 z-40 inline-flex h-12 items-center gap-2 rounded-full border border-brand/40 bg-brand px-4 text-[13px] font-semibold text-brand-foreground shadow-lg shadow-brand/20 transition-all hover:opacity-95",
-          compareActive ? "bottom-20 sm:bottom-4" : "bottom-3 sm:bottom-4",
-          open && "pointer-events-none translate-y-4 opacity-0",
-        )}
-      >
-        <Sparkles className="h-4 w-4" aria-hidden="true" />
-        liteAI
-        {messages.length === 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
-            <span className="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-brand-foreground opacity-60" />
-            <span className="relative inline-flex h-3 w-3 rounded-full border-2 border-card bg-brand-foreground" />
-          </span>
-        )}
-      </button>
-      {!open && messages.length > 0 && (
-        <span
-          className={cn(
-            "fixed right-[3.4rem] z-40 flex h-2.5 w-2.5",
-            compareActive ? "bottom-[5.8rem] sm:bottom-[4.3rem]" : "bottom-[4.3rem]"
-          )}
-          aria-hidden="true"
-        >
-          <span className="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-brand opacity-60" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand" />
-        </span>
-      )}
-      <span className="sr-only">
-        <MessageCircle />
-      </span>
     </>,
     document.body,
   );

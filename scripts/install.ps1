@@ -5,7 +5,7 @@
     Downloads, verifies, and installs the standalone LiteSPM native binary without
     requiring Node.js or npm. Adds LiteSPM to the Windows User PATH.
 .EXAMPLE
-    irm https://litespm.dev/install.ps1 | iex
+    irm https://lite-spm-nine.vercel.app/install.ps1 | iex
     powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
 #>
 
@@ -235,5 +235,5 @@ Write-Host "$bold$cyan Next Steps:$reset"
 Write-Host "  1. Connect your agents:    $bold$green litespm host detect$reset"
 Write-Host "  2. Interactive wizard:     $bold$green litespm$reset"
 Write-Host "  3. Search capabilities:    $bold$green litespm search <query>$reset"
-Write-Host "  4. Documentation:          $bold$green https://litespm.dev/docs$reset"
+Write-Host "  4. Documentation:          $bold$green https://lite-spm-nine.vercel.app/docs$reset"
 Write-Host ""

@@ -42,15 +42,19 @@ function initialGridView(): boolean {
   return window.localStorage.getItem(VIEW_STORAGE_KEY) !== "carousel";
 }
 
-export function AgentsView() {
+export function AgentsView({
+  initial,
+}: {
+  initial?: { agents: AgentRow[]; stats: AgentStats };
+} = {}) {
   const navigate = useApp((s) => s.navigate);
-  const [agents, setAgents] = React.useState<AgentRow[]>([]);
-  const [stats, setStats] = React.useState<AgentStats | null>(null);
+  const [agents, setAgents] = React.useState<AgentRow[]>(initial?.agents ?? []);
+  const [stats, setStats] = React.useState<AgentStats | null>(initial?.stats ?? null);
   const [query, setQuery] = React.useState("");
   const [filter, setFilter] = React.useState<AgentFilter>("all");
   const [gridView, setGridView] = React.useState(true);
   const railRef = React.useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(!initial);
 
   React.useEffect(() => {
     setGridView(initialGridView());
@@ -69,6 +73,7 @@ export function AgentsView() {
   }, []);
 
   React.useEffect(() => {
+    if (initial) return;
     fetch("/api/litespm/agents")
       .then((r) => r.json())
       .then((data: { agents: AgentRow[]; stats: AgentStats }) => {
@@ -77,7 +82,7 @@ export function AgentsView() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [initial]);
 
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -115,8 +120,8 @@ export function AgentsView() {
               Choose your <span className="text-brand">agent.</span>
             </h1>
             <p className="mt-5 max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16px]">
-              LiteSPM writes each agent&apos;s own config — {facts.hosts} hosts for local stdio MCP servers
-              ({facts.remoteHosts} of them also accept a remote URL), {facts.skillTargets} targets for skills. Choose the agent you use,
+              LiteSPM writes each agent&apos;s own config — {facts.hosts} MCP hosts
+              ({facts.remoteHosts} remote-capable), {stats ? formatFull(stats.withSkills) : "79"} skill targets, across {facts.skillTargets} agent profiles. Choose the agent you use,
               then browse packages with clear setup details. Each profile includes sourced product
               facts and the exact config file it touches.
             </p>
@@ -688,8 +693,8 @@ function CountCell({
 }) {
   if (!show) {
     return (
-      <div className="flex flex-col items-center rounded-lg border border-dashed border-border/50 px-1 py-2 text-center opacity-45">
-        <span className="text-[13.5px] font-semibold tabular-nums">—</span>
+      <div className="flex flex-col items-center rounded-lg border border-dashed border-border/60 bg-muted/20 px-1 py-2 text-center">
+        <span className="text-[13.5px] font-semibold tabular-nums text-muted-foreground">—</span>
         <span className="text-[10px] text-muted-foreground">{label}</span>
       </div>
     );
@@ -698,8 +703,7 @@ function CountCell({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center rounded-lg border border-border/60 bg-background px-1 py-2 text-center transition-colors hover:border-brand/40"
-      aria-label={`${formatFull(count)} ${label}`}
+      className="flex min-h-[44px] flex-col items-center justify-center rounded-lg border border-border/60 bg-background px-1 py-2 text-center transition-colors hover:border-brand/40"
     >
       <span className="text-[13.5px] font-semibold tabular-nums">{formatFull(count)}</span>
       <span className="text-[10px] text-muted-foreground">{label}</span>

@@ -293,7 +293,7 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
 
       {/* Search + sort */}
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-        <label className="relative flex h-11 min-w-0 w-full sm:w-auto sm:min-w-[14rem] flex-1 items-center gap-2.5 rounded-xl border border-border/80 bg-card px-3.5 focus-within:border-brand/60">
+        <label className="relative flex h-11 min-w-0 basis-full sm:basis-auto sm:min-w-[14rem] sm:flex-1 items-center gap-2.5 rounded-xl border border-border/80 bg-card px-3.5 focus-within:border-brand/60">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="sr-only">Search {TAB_NOUN[tab]}</span>
           <input
@@ -361,15 +361,15 @@ export function CatalogBrowser({ query, tab }: { query: ExploreQuery; tab: Marke
           <label
             className={cn(
               "inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-[13px] font-semibold transition-colors",
-              query.installable
+              query.installable !== "0"
                 ? "border-brand/60 bg-brand-soft text-brand"
                 : "border-border/80 bg-card text-foreground hover:border-brand/40",
             )}
             title="Only listings that litespm install can complete. Discovery-only listings are hidden."
           >
             <Switch
-              checked={Boolean(query.installable)}
-              onCheckedChange={(on) => setParam("installable", on ? "1" : undefined)}
+              checked={query.installable !== "0"}
+              onCheckedChange={(on) => setParam("installable", on ? "1" : "0")}
               aria-label="Installable only"
             />
             Installable only

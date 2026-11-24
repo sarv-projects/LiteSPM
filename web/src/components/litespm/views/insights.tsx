@@ -9,17 +9,18 @@ import { formatFull, formatDate } from "@/lib/litespm/format";
 import type { InsightsResponse } from "@/lib/litespm/types";
 import { FactRow, InsightBarRow, SectionHeading, Stat } from "../primitives";
 
-export function InsightsView() {
+export function InsightsView({ initial }: { initial?: InsightsResponse } = {}) {
   const navigate = useApp((s) => s.navigate);
-  const [data, setData] = React.useState<InsightsResponse | null>(null);
+  const [data, setData] = React.useState<InsightsResponse | null>(initial ?? null);
   const [error, setError] = React.useState(false);
 
   React.useEffect(() => {
+    if (initial) return;
     fetch("/api/litespm/insights")
       .then((r) => r.json())
       .then((response: InsightsResponse) => setData(response))
       .catch(() => setError(true));
-  }, []);
+  }, [initial]);
 
   if (error) {
     return (

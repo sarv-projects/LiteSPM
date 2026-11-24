@@ -419,13 +419,12 @@ export function MarketplaceView({
             Find it once. Install it everywhere.
           </h1>
           <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
-            Search the live catalog, then copy the exact <code className="font-mono">litespm install</code>{" "}
-            command. The in-agent <code className="font-mono">/litespm-marketplace</code> command is in the
-            repository&apos;s 0.6.1 build; npm currently serves 0.6.0.{" "}
+            Search 55,113 installable MCP servers, skills, and plugins (68,933 indexed) across 52+ agents, then copy the exact{" "}
+            <code className="font-mono">litespm install</code> command.{" "}
             <NavLink to="/docs/methodology" className="whitespace-nowrap font-medium text-brand hover:underline">
               How we rank
             </NavLink>
-            : installable listings come first, and nothing here is a download count.
+            : installable listings come first, ranked by verification and metadata quality — never pay-to-play.
           </p>
         </div>
 

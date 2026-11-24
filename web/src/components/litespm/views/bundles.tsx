@@ -306,20 +306,21 @@ export function BundleCard({
   );
 }
 
-export function useBundles(): { data: BundlesResponse | null; error: boolean } {
-  const [data, setData] = React.useState<BundlesResponse | null>(null);
+export function useBundles(initial?: BundlesResponse): { data: BundlesResponse | null; error: boolean } {
+  const [data, setData] = React.useState<BundlesResponse | null>(initial ?? null);
   const [error, setError] = React.useState(false);
   React.useEffect(() => {
+    if (initial) return;
     fetch("/api/litespm/bundles")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("bundles"))))
       .then((response: BundlesResponse) => setData(response))
       .catch(() => setError(true));
-  }, []);
+  }, [initial]);
   return { data, error };
 }
 
-export function BundlesView() {
-  const { data, error } = useBundles();
+export function BundlesView({ initial }: { initial?: BundlesResponse } = {}) {
+  const { data, error } = useBundles(initial);
   const [level, setLevel] = React.useState<BundleDifficulty | "all">("all");
 
   const shown = data?.bundles.filter((b) => level === "all" || b.difficulty === level) ?? [];

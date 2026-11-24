@@ -304,7 +304,7 @@ export async function getFeaturedShelf() {
         group: entry.group,
         groupTitle: group?.title ?? entry.group,
         viewAllLabel: group?.viewAllLabel ?? "View all",
-        viewAllHref: group?.viewAllHref ?? "/#explore",
+        viewAllHref: (group?.viewAllHref ?? "/marketplace").replace(/^\/explore\/?/, "/marketplace").replace(/^\/#explore/, "/marketplace"),
         useCase: entry.useCase,
         id: row.id,
         linkKey: row.linkKey ?? row.slug,

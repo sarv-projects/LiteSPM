@@ -7,10 +7,43 @@ import TRENDING_DATA from "@/lib/litespm/trending-leaderboard.json";
 
 export const dynamic = "force-dynamic";
 
+function buildFallbackTrending() {
+  const items = [
+    ...TRENDING_DATA.topSkills.slice(0, 6).map((s) => ({
+      linkKey: s.linkKey,
+      name: s.name,
+      kind: s.kind,
+      summary: s.summary,
+      category: "Agent Skills",
+      publisher: s.repo,
+      publisherVerified: true,
+      installable: true,
+      views: s.weeklyInstalls,
+      metricLabel: `${(s.weeklyInstalls / 1000).toFixed(1)}k installs/wk (skills.sh)`,
+    })),
+    ...TRENDING_DATA.topMcp.slice(0, 6).map((m) => ({
+      linkKey: m.linkKey,
+      name: m.name,
+      kind: m.kind,
+      summary: m.summary,
+      category: m.category,
+      publisher: m.repo,
+      publisherVerified: true,
+      installable: true,
+      views: m.stars,
+      metricLabel: `${(m.stars / 1000).toFixed(1)}k stars (GitHub)`,
+    })),
+  ];
+  return {
+    items,
+    source: "skills.sh & GitHub Stars verified leaderboard",
+  };
+}
+
 /**
  * The most-viewed listings of this deployment, joined back onto the catalog so
- * the cards carry full data. Rows with no recorded views are absent — an empty
- * table means nobody has opened a package yet, and that is the honest answer.
+ * the cards carry full data. Falls back to the verified leaderboard when the
+ * database is empty or unreachable in serverless preview deployments.
  */
 export async function GET() {
   try {
@@ -20,36 +53,7 @@ export async function GET() {
     });
 
     if (top.length === 0) {
-      const fallbackItems = [
-        ...TRENDING_DATA.topSkills.slice(0, 6).map((s) => ({
-          linkKey: s.linkKey,
-          name: s.name,
-          kind: s.kind,
-          summary: s.summary,
-          category: "Agent Skills",
-          publisher: s.repo,
-          publisherVerified: true,
-          installable: true,
-          views: s.weeklyInstalls,
-          metricLabel: `${(s.weeklyInstalls / 1000).toFixed(1)}k installs/wk (skills.sh)`,
-        })),
-        ...TRENDING_DATA.topMcp.slice(0, 6).map((m) => ({
-          linkKey: m.linkKey,
-          name: m.name,
-          kind: m.kind,
-          summary: m.summary,
-          category: m.category,
-          publisher: m.repo,
-          publisherVerified: true,
-          installable: true,
-          views: m.stars,
-          metricLabel: `${(m.stars / 1000).toFixed(1)}k stars (GitHub)`,
-        })),
-      ];
-      return NextResponse.json({
-        items: fallbackItems,
-        source: "skills.sh & GitHub Stars verified leaderboard",
-      });
+      return NextResponse.json(buildFallbackTrending());
     }
 
     const dataset = await getDataset();
@@ -71,9 +75,13 @@ export async function GET() {
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
 
+    if (items.length === 0) {
+      return NextResponse.json(buildFallbackTrending());
+    }
+
     return NextResponse.json({ items });
   } catch (error) {
-    console.warn("litespm trending database query failed, falling back to empty list:", error);
-    return NextResponse.json({ items: [] });
+    console.warn("litespm trending database query failed, serving verified fallback leaderboard:", error);
+    return NextResponse.json(buildFallbackTrending());
   }
 }

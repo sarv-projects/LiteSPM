@@ -285,13 +285,13 @@ export function HomeView() {
                 <>
                   <InstallBar command="npm install -g litespm" label="npm" />
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
-                    Recommended for Node developers. Run <code className="font-mono text-foreground/90">litespm</code> to connect your agents.
+                    Recommended for Node developers (requires Node 22.22+ — or use <strong className="text-foreground">curl / PowerShell</strong> with zero Node). Run <code className="font-mono text-foreground/90">litespm</code> to connect your agents.
                   </p>
                 </>
               )}
               {installMode === "curl" && (
                 <>
-                  <InstallBar command="curl -fsSL https://litespm.dev/install.sh | sh" label="sh" />
+                  <InstallBar command={`curl -fsSL ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://lite-spm-nine.vercel.app"}/install.sh | sh`} label="sh" />
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
                     Standalone native binary for macOS and Linux (arm64 & amd64). <strong className="text-foreground">Zero Node required.</strong>
                   </p>
@@ -299,7 +299,7 @@ export function HomeView() {
               )}
               {installMode === "powershell" && (
                 <>
-                  <InstallBar command="irm https://litespm.dev/install.ps1 | iex" label="pwsh" />
+                  <InstallBar command={`irm ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://lite-spm-nine.vercel.app"}/install.ps1 | iex`} label="pwsh" />
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
                     Standalone native binary for Windows (amd64 & arm64). <strong className="text-foreground">Zero Node required.</strong>
                   </p>

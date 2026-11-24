@@ -1,5 +1,5 @@
 {
-  "version": "0.6.1",
+  "version": "0.6.0",
   "checkedAt": "2026-11-22",
   "verifiedBy": "npm dist-tags.latest on registry.npmjs.org (0.6.0, published 2026-10-22) cross-read against the git tag of the same version (`git show v0.6.0:cmd/litespm/main.go` → parseInstallFlags). The release that tag cut is the one the npm wrapper downloads its binary from.",
   "installFlags": [

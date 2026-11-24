@@ -6,8 +6,18 @@ import { LiteSPMApp } from "@/components/litespm/app";
 import { parsePath } from "@/lib/litespm/route";
 import { displayPackageName } from "@/lib/litespm/format";
 import facts from "@/lib/litespm/site-facts.json";
-import type { PackageDetailData } from "@/lib/litespm/types";
+import type {
+  AgentDetailData,
+  AgentRow,
+  AgentStats,
+  BundlesResponse,
+  InsightsResponse,
+  PackageDetailData,
+} from "@/lib/litespm/types";
 import { getPackageDetail } from "@/server/litespm/package-detail";
+import { getBundles } from "@/server/litespm/bundles";
+import { buildAgentRows, agentStats, buildAgentDetail } from "@/server/litespm/agents";
+import { getInsights } from "@/server/litespm/insights";
 import { HOSTS } from "@/server/litespm/hosts";
 
 interface Props {
@@ -116,9 +126,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         const description =
           resp.detail.summary ||
           `Install ${resp.detail.name} into supported AI agent hosts with LiteSPM.`;
-        const canonicalPath = `/package/${encodeURIComponent(key).replace(/%3A/g, ":")}`;
+        let decodedKey = key;
+        try {
+          decodedKey = decodeURIComponent(key);
+        } catch {}
+        const canonicalPath = `/package/${encodeURIComponent(decodedKey).replace(/%3A/g, ":")}`;
+        const isInstallable = Boolean(resp.detail.availability?.installable);
         return {
           ...pageMeta(title, description, canonicalPath),
+          ...(!isInstallable ? { robots: { index: false, follow: true } } : {}),
           openGraph: {
             title,
             description,
@@ -225,6 +241,11 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
   }
 
   let packageInitial: PackageDetailData | undefined;
+  let bundlesInitial: BundlesResponse | undefined;
+  let agentsInitial: { agents: AgentRow[]; stats: AgentStats } | undefined;
+  let agentDetailInitial: AgentDetailData | undefined;
+  let insightsInitial: InsightsResponse | undefined;
+
   if (section === "package" && slug && slug.length > 1) {
     // An unknown package key is a 404 for crawlers and link-checkers too.
     const resp = await packageDetail(slug.slice(1).join("/")).catch(() => null);
@@ -235,6 +256,27 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
     if (resp?.found && resp.detail) {
       packageInitial = JSON.parse(JSON.stringify(resp.detail)) as PackageDetailData;
     }
+  } else if (section === "bundles") {
+    const b = await getBundles().catch(() => null);
+    if (b) bundlesInitial = JSON.parse(JSON.stringify(b)) as BundlesResponse;
+  } else if (section === "agents") {
+    const res = await Promise.all([buildAgentRows(), agentStats()]).catch(() => null);
+    if (res) {
+      agentsInitial = JSON.parse(JSON.stringify({ agents: res[0], stats: res[1] })) as {
+        agents: AgentRow[];
+        stats: AgentStats;
+      };
+    }
+  } else if (section === "agent" && slug && slug.length > 1) {
+    let decodedId = slug[1]!;
+    try {
+      decodedId = decodeURIComponent(decodedId);
+    } catch {}
+    const detail = await buildAgentDetail(decodedId).catch(() => null);
+    if (detail) agentDetailInitial = JSON.parse(JSON.stringify(detail)) as AgentDetailData;
+  } else if (section === "insights") {
+    const ins = await getInsights().catch(() => null);
+    if (ins) insightsInitial = JSON.parse(JSON.stringify(ins)) as InsightsResponse;
   }
 
   // Resolve the route on the server so the first response is the right page.
@@ -266,6 +308,31 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
         url: packageInitial.publisher.url || undefined,
       },
     };
+  } else if (section === "marketplace" || section === "bundles" || section === "agents" || section === "agent") {
+    const labelMap: Record<string, string> = {
+      marketplace: "Marketplace",
+      bundles: "Curated Bundles",
+      agents: "Supported Agent Hosts",
+      agent: slug?.[1] ? `Agent: ${slug[1]}` : "Agent Host",
+    };
+    const path = `/${(slug ?? []).join("/")}`;
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "CollectionPage",
+          name: `${labelMap[section] ?? section} · LiteSPM`,
+          url: `${ORIGIN}${path}`,
+        },
+        {
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Home", item: `${ORIGIN}/` },
+            { "@type": "ListItem", position: 2, name: labelMap[section] ?? section, item: `${ORIGIN}${path}` },
+          ],
+        },
+      ],
+    };
   }
 
   return (
@@ -278,7 +345,14 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
           }}
         />
       )}
-      <LiteSPMApp initialRoute={initialRoute} initialPackage={packageInitial} />
+      <LiteSPMApp
+        initialRoute={initialRoute}
+        initialPackage={packageInitial}
+        initialBundles={bundlesInitial}
+        initialAgents={agentsInitial}
+        initialAgentDetail={agentDetailInitial}
+        initialInsights={insightsInitial}
+      />
     </>
   );
 }
