@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { catalogStats } from "@/server/litespm/search";
 
-export const dynamic = "force-dynamic";
+// These responses derive exclusively from immutable deployment data.
+export const dynamic = "force-static";
 
 export async function GET() {
   try {

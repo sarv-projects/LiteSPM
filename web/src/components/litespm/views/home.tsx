@@ -60,7 +60,7 @@ const GOAL_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const HERO_WORDS = ["The", "Package", "Manager", "for", "AI", "Agents."];
+const HERO_WORDS = ["One", "package", "manager."];
 
 type ExploreTab = "ranked" | "goals" | "bundles" | "featured" | "trending";
 
@@ -157,13 +157,13 @@ export function HomeView() {
     },
     {
       icon: Cable,
-      title: "Install everywhere",
-      body: `One command writes the entry into every agent you target: Cursor, GitHub Copilot, Cline, Claude Code, Codex and ${(stats?.hosts ?? facts.hosts) - 5} more.`,
+      title: "Choose your agents",
+      body: `Target compatible hosts explicitly and preview the plan before applying it.`,
     },
     {
       icon: Undo2,
-      title: "Undo is a single command",
-      body: "Every write is previewed, backed up and recorded in a ledger. Run litespm restore <installId> and your config rolls back byte-for-byte.",
+      title: "Remove or restore",
+      body: "Managed changes are recorded in a ledger. Remove tracked entries or restore an eligible backup; review conflicts and later edits.",
     },
   ];
 
@@ -200,7 +200,7 @@ export function HomeView() {
             </p>
 
             <h1 className="mt-5 text-[clamp(2.4rem,5.5vw,4.4rem)] font-semibold leading-[1.0] tracking-[-0.045em]">
-              <span className="sr-only">The Package Manager for AI Agents. Install, configure, and safely rollback across 50+ AI tools.</span>
+              <span className="sr-only">One package manager. Every AI agent. Manage capabilities across supported AI coding agents.</span>
               <span aria-hidden="true">
                 {HERO_WORDS.map((word, i) => (
                   <React.Fragment key={word + i}>
@@ -214,7 +214,7 @@ export function HomeView() {
                   className="rise-word text-sheen pb-[0.08em]"
                   style={{ "--i": HERO_WORDS.length + 1 } as React.CSSProperties}
                 >
-                  Install, configure, and safely rollback.
+                  Every AI agent.
                 </span>
               </span>
             </h1>
@@ -223,7 +223,7 @@ export function HomeView() {
               className="rise-block mt-6 max-w-[54ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
               style={{ "--d": "520ms" } as React.CSSProperties}
             >
-              One command to install and manage MCP servers, skills, and plugins across Cursor, Claude Code, Codex, and {(stats?.hosts ?? facts.hosts) - 3} more — with surgical diff previews, automatic backups, and byte-exact undo.
+              Discover, preview, install and manage MCP servers, skills and plugins across supported AI coding agents — including Cursor, Claude Code, Codex and OpenCode. Your machine, your choices.
             </p>
 
             <div
@@ -309,7 +309,7 @@ export function HomeView() {
                 <>
                   <InstallBar command="npx litespm" label="npx" />
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
-                    Run once on demand without global install. Connects agents and exits cleanly.
+                    Run once on demand without global install. Opens the interactive workflow on demand.
                   </p>
                 </>
               )}
@@ -371,7 +371,7 @@ export function HomeView() {
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-brand">
                   Installable →
-                  <span className="block text-[10px] text-muted-foreground/85">One command each</span>
+                  <span className="block text-[10px] text-muted-foreground/85">Compatible metadata</span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
                   {stats ? <CountUp value={stats.installable} format={(n) => formatFull(n)} /> : "…"}
@@ -396,11 +396,12 @@ export function HomeView() {
               style={{ animationDelay: "-3s" }}
             >
               <Undo2 className="h-3.5 w-3.5 text-brand" />
-              <span className="font-medium">Undo with one command</span>
+              <span className="font-medium">Managed removal or restore</span>
             </div>
 
             <div className="glow-frame shadow-[0_30px_90px_-30px_rgba(16,185,129,0.35)]">
               <TerminalHero framed hostsCount={stats?.hosts ?? facts.hosts} />
+              <p className="px-4 py-2 text-[11px] text-muted-foreground">Illustrated terminal walkthrough; output and paths vary by version and machine.</p>
             </div>
           </div>
         </div>
@@ -415,7 +416,7 @@ export function HomeView() {
           >
             <Eye className="h-4 w-4 text-brand" />
             <span className="font-medium text-foreground">Preview before write</span>
-            <span className="hidden text-muted-foreground/80 md:inline">— Inspect every config diff</span>
+            <span className="hidden text-muted-foreground/80 md:inline">— Review the proposed changes</span>
           </NavLink>
           <NavLink
             to="/docs/security"
@@ -430,8 +431,8 @@ export function HomeView() {
             className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-brand"
           >
             <RotateCcw className="h-4 w-4 text-brand" />
-            <span className="font-medium text-foreground">Byte-exact undo</span>
-            <span className="hidden text-muted-foreground/80 md:inline">— Reversible in one command</span>
+            <span className="font-medium text-foreground">Backup restoration</span>
+            <span className="hidden text-muted-foreground/80 md:inline">— Review conflicts before restoring</span>
           </NavLink>
           <NavLink
             to="/docs/security"
@@ -485,10 +486,10 @@ export function HomeView() {
             </p>
             <h2 id="why-title" className="mt-2 text-[clamp(1.9rem,3.8vw,2.7rem)] font-semibold leading-tight tracking-[-0.035em]">
               Every agent has its own config. <br className="hidden sm:inline" />
-              <span className="text-brand">One workflow covers them all.</span>
+              <span className="text-brand">One workflow across supported agents.</span>
             </h2>
             <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-              Every agent keeps its own configuration file in its own format, and every server ships its own setup steps. LiteSPM knows all of them: it writes the exact entry each agent expects, keeps a backup of the file, and records what it wrote so it can take it out again.
+              Every agent keeps its own configuration file in its own format, and every server ships its own setup steps. LiteSPM understands supported host formats, prepares the appropriate entry, keeps backups and tracks managed changes.
             </p>
           </div>
 
@@ -504,9 +505,9 @@ export function HomeView() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand font-mono text-[13px] font-bold">
                 /m
               </div>
-              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Marketplace inside your agent</h3>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Cross-agent</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm setup</code> adds a marketplace command to each agent: an interactive popup in Pi, OpenCode, Claude Code and Copilot CLI, a prompt command in most others. Or run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm marketplace</code> in any terminal.
+                <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm setup</code> connects supported agents. Selected hosts offer marketplace integrations; see the compatibility matrix. Or run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm marketplace</code> in any terminal.
               </p>
             </motion.div>
 
@@ -521,9 +522,9 @@ export function HomeView() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Local, fast, always current</h3>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Reviewable</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">npm install -g litespm</code>, then run it. The catalog downloads itself on first use and refreshes in the background at most every 6 hours, and search runs on a local SQLite full-text index: milliseconds, around 30 MB of memory.
+                <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">npm install -g litespm</code>, then use the wizard to choose targets. Preview an installation plan with --dry-run before applying changes.
               </p>
             </motion.div>
 
@@ -538,9 +539,9 @@ export function HomeView() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Automatic backup, one-command undo</h3>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Reversible</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                LiteSPM backs up your agent&apos;s configuration before writing any change. To roll back, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore &lt;installId&gt;</code> puts your file back to its exact previous bytes without touching manual edits.
+                LiteSPM backs up your agent&apos;s configuration before writing any change. To roll back, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore &lt;installId&gt;</code> restores an eligible backup. Use install remove for managed removal; inspect conflict warnings.
               </p>
             </motion.div>
 
@@ -555,12 +556,31 @@ export function HomeView() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <Terminal className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Guided wizard or plain flags</h3>
+              <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Local-first</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                Prefer a guided flow? Run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm</code> for the interactive wizard. Scripting it? Use flags such as <code className="font-mono text-[11.5px]">--agent</code> and <code className="font-mono text-[11.5px]">--scope</code>.
+                Manage capabilities on your machine. Run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm</code> for the interactive wizard. Scripting it? Use flags such as <code className="font-mono text-[11.5px]">--agent</code> and <code className="font-mono text-[11.5px]">--scope</code>.
               </p>
             </motion.div>
           </div>
+        </div>
+      </section>
+
+      <section className="border-b border-border/60 py-14" aria-labelledby="workflow-example-title">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 sm:px-6 lg:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand">A practical example</p>
+            <h2 id="workflow-example-title" className="mt-2 text-3xl font-semibold tracking-tight">One package. Two agents. One plan.</h2>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">Use Claude Code and Codex? Choose both compatible hosts, preview the GitHub MCP server install, review its credentials and approve the changes. Remove managed entries when you no longer need them.</p>
+            <div className="mt-5"><InstallBar label="Preview" command="litespm install mcp:builtin:mcp-registry:io.github.github-github-mcp-server --agent claude-code --agent codex --dry-run" /></div>
+            <p className="mt-3 text-xs text-muted-foreground">Requires connected hosts and a synced catalog. Authentication is publisher-specific.</p>
+          </div>
+          <figure className="overflow-hidden rounded-2xl border border-border/70 bg-card">
+            <picture>
+              <source media="(prefers-reduced-motion: reduce)" srcSet="/demo/litespm-workflow.png" />
+              <img src="/demo/litespm-workflow.gif" alt="Illustrated workflow: discover a package, choose hosts, preview changes, approve and remove managed entries." width={960} height={480} loading="lazy" className="h-auto w-full" />
+            </picture>
+            <figcaption className="p-3 text-xs text-muted-foreground">Illustrated workflow; not a live terminal recording.</figcaption>
+          </figure>
         </div>
       </section>
 
@@ -576,8 +596,8 @@ export function HomeView() {
             </h2>
             <p className="mt-3 max-w-[56ch] text-[14px] leading-relaxed text-muted-foreground">
               <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[12px] text-brand">litespm setup</code>{" "}
-              connects an agent and installs a marketplace command inside it. Where the agent can
-              draw a view you get an interactive popup that spends no model turn; elsewhere you get
+              connects a supported agent and adds an in-agent command where implemented. Where the agent can
+              draw a view you get an interactive popup that spends no model turn; some other integrations provide
               a prompt command and the agent&apos;s own model drives LiteSPM. It never approves an
               install for you.
             </p>
@@ -624,7 +644,7 @@ export function HomeView() {
             </h2>
             <p className="mt-1 max-w-[64ch] text-[13px] text-muted-foreground">
               Pick a view: a transparent score, a task, a curated bundle, or what people open on
-              this deployment. Every view leads to the same copyable install command.
+              this deployment or labeled upstream metrics. Explore each listing to see its installation options.
             </p>
           </div>
           <Button variant="outline" className="rounded-xl" onClick={() => navigate(exploreHash({ installable: "1" }))}>
@@ -742,12 +762,12 @@ export function HomeView() {
 
           {exploreTab === "trending" && (
             <div>
-              <p className="text-[12px] text-muted-foreground">View counts are recorded by this deployment as packages are opened — not imported, not estimated.</p>
+              <p className="text-[12px] text-muted-foreground">When local view counts are available, they are shown. Otherwise the shelf uses labeled upstream install or star metrics.</p>
               {(trending.length > 0 || recent.length > 0) ? (
                 <div className={`mt-4 grid gap-6 ${trending.length > 0 && recent.length > 0 ? "lg:grid-cols-2" : "grid-cols-1"}`}>
                   {trending.length > 0 && (
                     <div>
-                      <h3 className="flex items-center gap-2 text-[14px] font-semibold"><Flame className="h-4 w-4 text-brand" /> Most opened</h3>
+                      <h3 className="flex items-center gap-2 text-[14px] font-semibold"><Flame className="h-4 w-4 text-brand" /> Trending packages</h3>
                       <ul className="mt-3 space-y-2">
                         {trending.slice(0, 6).map((item, i) => (
                           <li key={item.linkKey}>
@@ -755,7 +775,7 @@ export function HomeView() {
                               <span className="w-5 shrink-0 text-center font-mono text-[12px] font-semibold text-muted-foreground/80">{i + 1}</span>
                               <KindBadge kind={item.kind} />
                               <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">{displayPackageName(item.name)}</span>
-                              <span className="flex shrink-0 items-center gap-1 font-mono text-[11.5px] text-muted-foreground"><Eye className="h-3 w-3" />{item.views}</span>
+                              <span className="flex shrink-0 items-center gap-1 font-mono text-[11.5px] text-muted-foreground">{item.metricLabel ? item.metricLabel : <><Eye className="h-3 w-3" />{item.views} views</>}</span>
                             </button>
                           </li>
                         ))}
@@ -780,7 +800,7 @@ export function HomeView() {
                   )}
                 </div>
               ) : (
-                <p className="mt-4 rounded-xl border border-border/60 bg-card px-4 py-6 text-center text-[13px] text-muted-foreground">No views recorded on this deployment yet. Open a package to see it here.</p>
+                <p className="mt-4 rounded-xl border border-border/60 bg-card px-4 py-6 text-center text-[13px] text-muted-foreground">No trending data or recent views available yet.</p>
               )}
             </div>
           )}
@@ -792,7 +812,7 @@ export function HomeView() {
         <SectionHeading
           eyebrow="How it works"
           title={<span id="how-title">Plan. Preview. Approve. Undo.</span>}
-          description="Nothing is written without a preview, and every write is one transaction with the previous file preserved."
+          description="Inspect a plan, approve agent-originated installs, and keep a record of managed configuration changes."
         />
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {steps.map((step, i) => (
@@ -808,7 +828,7 @@ export function HomeView() {
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                   <step.icon className="h-5 w-5" />
                 </span>
-                <span className="font-mono text-[11px] font-semibold text-muted-foreground/52">
+                <span className="font-mono text-[11px] font-semibold text-muted-foreground">
                   0{i + 1}
                 </span>
               </div>
@@ -834,7 +854,7 @@ export function HomeView() {
               </summary>
               <div className="faq-answer">
                 <div className="pt-3">
-                  <p className="text-[13px] leading-relaxed text-muted-foreground">Every agent host gets the same preview, backup and ledger entry. Pick yours to see the exact config file LiteSPM writes.</p>
+                  <p className="text-[13px] leading-relaxed text-muted-foreground">Supported host adapters share a management workflow. Pick yours to see the exact config file LiteSPM writes.</p>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     {[
                       { name: "Cursor", id: "cursor" },
@@ -876,10 +896,10 @@ export function HomeView() {
               <div className="faq-answer">
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {[
-                    { icon: ShieldCheck, title: "No account, no proxy", body: "Tokens stay in the OS vault or as environment references. Nothing is sent to this site." },
-                    { icon: RotateCcw, title: "Byte-exact restore", body: "Instant Byte-Exact Rollback. Every installation creates an automated backup in ~/.litespm/backups/. Run litespm restore at any time to return your config to its exact original state." },
+                    { icon: ShieldCheck, title: "No account, no proxy", body: "Tokens stay in the OS vault or as environment references. The CLI keeps managed credentials local; network services have separate data flows." },
+                    { icon: RotateCcw, title: "Byte-exact restore", body: "Restore an eligible recorded backup; review conflicts and later edits before proceeding." },
                     { icon: Bookmark, title: "Ledger ownership", body: "install remove strips only the nodes LiteSPM wrote. Your edits stay." },
-                    { icon: BadgeCheck, title: "Stated provenance", body: "Installable means a verified endpoint, command or pinned source. Discovery-only says so." },
+                    { icon: BadgeCheck, title: "Stated provenance", body: "Installable means the listing has supported install metadata, not an independent security audit." },
                   ].map((item) => (
                     <div key={item.title} className="rounded-xl border border-border/60 p-3.5">
                       <item.icon className="h-4 w-4 text-brand" />
@@ -901,8 +921,8 @@ export function HomeView() {
                   {[
                     { q: "Do I need to sync the catalog myself?", a: `The first command that needs the catalog downloads it; later runs refresh it in the background at most every 6 hours. Set LITESPM_NO_AUTO_SYNC=1 (or run under CI) to turn that off. litespm catalog sync still works on demand. On npm v${facts.npmVersion}, background auto-sync is active.` },
                     { q: "Why do some listings say Discovery only?", a: "A server needs a remote endpoint or a publisher-declared command with arguments. If a listing has only a repository link, LiteSPM will not guess whether to run it with npx, python or uvx. The detail page links only to the source the catalog recorded." },
-                    { q: "How do installs protect my config?", a: "LiteSPM splices JSON/JSONC and TOML by byte offset, so comments and key order survive. Every write is previewed and backed up. install remove strips only the nodes it wrote; edits you made are kept." },
-                    { q: "Can I install from inside my agent?", a: `litespm setup registers the bridge and a marketplace command. Pi, OpenCode, Claude Code and Copilot CLI get a popup that costs no model turn; most others get a prompt command. Included in v${facts.npmVersion}.` },
+                    { q: "How do installs protect my config?", a: "LiteSPM splices JSON/JSONC and TOML by byte offset, so comments and key order survive. Use dry-run to inspect a plan. Managed removal reconciles tracked entries and preserves conflicting edits." },
+                    { q: "Can I install from inside my agent?", a: `Selected integrations offer marketplace commands. Pi and OpenCode have tested interactive workflows; Copilot CLI has a tested select flow. Check compatibility for other hosts. npm v${facts.npmVersion}.` },
                   ].map((item) => (
                     <div key={item.q} className="rounded-xl border border-border/60 px-3.5 py-3">
                       <p className="text-[13px] font-semibold">{item.q}</p>
@@ -1009,7 +1029,7 @@ function TopRail({
               onClick={() => navigate(`#/package/${encodeURIComponent(hit.linkKey)}`)}
               className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-brand-soft/40"
             >
-              <span className="w-6 shrink-0 text-center font-mono text-[12px] font-semibold text-muted-foreground/52">
+              <span className="w-6 shrink-0 text-center font-mono text-[12px] font-semibold text-muted-foreground">
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span className="min-w-0 flex-1">

@@ -89,6 +89,6 @@ const globalError = read("../src/app/global-error.tsx");
 assert.match(globalError, /<html lang="en">/);
 assert.match(globalError, /reset\(\)/);
 const notFound = read("../src/app/not-found.tsx");
-assert.match(notFound, /Return to catalog/);
+assert.match(notFound, /href="\/marketplace"[^>]*>\s*Browse marketplace\s*<\/Link>/);
 
 console.log("web hardening, host compatibility and recovery regression checks: passed");

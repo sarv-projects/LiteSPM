@@ -308,7 +308,7 @@ export function AgentDetailView({ id, initial }: { id: string; initial?: AgentDe
                     className="rounded-full border border-border/60 bg-background px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand"
                   >
                     {category.name}
-                    <span className="ml-1.5 font-mono text-[10.5px] text-muted-foreground/60">
+                    <span className="ml-1.5 font-mono text-[10.5px] text-muted-foreground">
                       {formatFull(category.count)}
                     </span>
                   </button>

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { buildAgentRows, agentStats } from "@/server/litespm/agents";
 
-export const dynamic = "force-dynamic";
+// These responses derive exclusively from immutable deployment data.
+export const dynamic = "force-static";
 
 export async function GET() {
   try {

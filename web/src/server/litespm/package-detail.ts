@@ -292,7 +292,12 @@ export async function getFeaturedShelf() {
   const dataset = await getDataset();
   const shelf = dataset.featured;
 
-  const groups = shelf.groups.map((group) => ({ ...group }));
+  const groups = shelf.groups.map((group) => ({
+    ...group,
+    viewAllHref: (group.viewAllHref ?? "/marketplace")
+      .replace(/^\/explore\/?/, "/marketplace")
+      .replace(/^\/#explore/, "/marketplace"),
+  }));
 
   const entries = shelf.entries
     .map((entry) => {

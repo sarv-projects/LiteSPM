@@ -91,7 +91,8 @@ export function CodeBlock({
         />
       </div>
       <pre
-        className="overflow-x-auto p-4 font-mono text-[12.5px] leading-relaxed"
+        tabIndex={0}
+        className="overflow-x-auto p-4 font-mono text-[12.5px] leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         style={maxHeight ? { maxHeight, overflowY: "auto" } : undefined}
       >
         <code>{code}</code>

@@ -445,6 +445,7 @@ export interface TrendingItem {
   publisherVerified: boolean;
   installable: boolean;
   views: number;
+  metricLabel?: string;
 }
 
 export interface AssistantCitation {

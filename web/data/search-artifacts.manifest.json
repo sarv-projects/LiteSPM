@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "files": {
+    "data/catalog.json": "f0cb2dbf5e7a1fbe6603520375191d5334e423b6eb5f52ef55018642d3b9d4c7",
+    "data/featured.json": "5b5e5f73af35aa1152d3ffb8ca771dd711dbb585d3cf4411788b311c0be4f499",
+    "data/hosts.json": "cd64f971a217892bdbf0529d1f99bc7f7d6cc2b92f618e1e966c4e516d403e1d",
+    "data/published-cli.json": "54a647431bd723179a0220de7e10102d9a75db52a0bf18418628eb71d4687a34",
+    "data/release.json": "fee1019364b2dce1e15315656f830c1fa1e044f0d9fec5fae001a1b9c7d84058",
+    "data/search-catalog.json.gz": "cc0556679390bd99f9b32d0715a264b72f75498682d92636c72940d9e8f6598f",
+    "data/search-index-compact.json.gz": "30c91b5a1288fe3ba6e2b0994facd4ba2d468407f06c83d794085ea914bb3dcc",
+    "data/search-index.json.gz": "8f99a8c7c63fdf10237d9c03124581c68f65152935476c7f239cc437243abd1b",
+    "data/skill-targets.json": "b769f57355fd85b7b19aee133a78d9c3955751b18f9be6fe01e34e94d9957ac6",
+    "scripts/build-search-artifacts.ts": "893a8e836fb20f9a8a3461b3e385a51da6d18b9a8d9d96e9a129d07e149a87bc",
+    "scripts/build-search-index.mjs": "42418c73ddcdfc6bb7cf83e410dc57f947cbffc5ec890137c3b7b84369123e58",
+    "scripts/check-search-artifacts.mjs": "68628a6d1c038ab6aa9161f14374a605cf8d3d7c15ad6ef2b6429821cfcbc4a9",
+    "src/server/litespm/bm25.ts": "f034a9300168d780ebb708e877f6f8246022ab22172db6035950e36320a15d04",
+    "src/server/litespm/config-snippet.ts": "5e1f6b5bf6f4296574a2095d79cbe9d7b709ae599e53bb79a833630b54b518b8",
+    "src/server/litespm/dataset.ts": "c96508a1e357fb38574b745e6d8a79c76e1a489a90824e6f6c1428c3c1b203a2",
+    "src/server/litespm/discovery.ts": "e4ca6b81b9fdf3e710c955ea7726e6705c6a0cb3dba42157e9fef721a3176dcd",
+    "src/server/litespm/ranking.ts": "360efdb1faded5e59133f2857b5f2317ade83ab07d59e656e2d1b8cde26bf8f6",
+    "src/server/litespm/text.ts": "6f3ec4522b419dca62a9f505cb5ffebb59390761aa79bd0e7c6be6f39b97b617",
+    "src/server/litespm/types.ts": "015c12fbdd0926dd4fb719e40790a3fa68035a74183dfa4ef59275bb40a1f952"
+  }
+}

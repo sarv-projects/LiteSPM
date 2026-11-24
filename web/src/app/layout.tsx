@@ -5,8 +5,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import facts from "@/lib/litespm/site-facts.json";
 
-const LISTINGS = `${Math.floor(facts.listings / 1000)}k+`;
-const SHARE_DESCRIPTION = `Search ${LISTINGS} MCP servers, skills and plugins, and install them into ${facts.hosts} supported agent hosts with preview, backup and undo.`;
+const SHARE_DESCRIPTION = "Discover, preview, install and manage MCP servers, skills and plugins across supported AI coding agents. Local-first, reviewable, reversible.";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,7 +20,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://lite-spm-nine.vercel.app"),
   title: "LiteSPM — The package manager for AI agents",
-  description: `Find MCP servers, skills and plugins once, and install them into the coding agents you use. Browse ${LISTINGS} listings across ${facts.hosts} agent hosts (${facts.remoteHosts} remote-capable) — with publisher, source and installability stated up front.`,
+  description: SHARE_DESCRIPTION,
   keywords: [
     "MCP",
     "Model Context Protocol",

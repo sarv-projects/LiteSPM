@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { db } from "@/lib/db";
+import { getDatabase, databaseConfigured } from "@/lib/db";
 import { availabilityOf } from "@/server/litespm/availability";
 import { getDataset } from "@/server/litespm/dataset";
 import TRENDING_DATA from "@/lib/litespm/trending-leaderboard.json";
@@ -46,8 +46,11 @@ function buildFallbackTrending() {
  * database is empty or unreachable in serverless preview deployments.
  */
 export async function GET() {
+  if (!databaseConfigured()) {
+    return NextResponse.json(buildFallbackTrending(), { headers: { "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=3600" } });
+  }
   try {
-    const top = await db.packageView.findMany({
+    const top = await getDatabase().packageView.findMany({
       orderBy: [{ views: "desc" }, { lastViewedAt: "desc" }],
       take: 12,
     });

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-24T06:29:53.640Z",
+  "updatedAt": "2026-11-24T11:53:00.215Z",
   "skillsSource": "skills.sh leaderboard",
   "mcpSource": "GitHub stars & verified vendor authority",
   "topSkills": [
@@ -293,30 +293,6 @@
     },
     {
       "rank": 13,
-      "name": "prototype",
-      "repo": "mattpocock/skills",
-      "kind": "skill",
-      "weeklyInstalls": 25606,
-      "history": [
-        35029,
-        44844,
-        38015,
-        34602,
-        32445,
-        30624,
-        26713,
-        25606
-      ],
-      "growth": -1107,
-      "linkKey": "ce-prototype",
-      "installId": "skill:everyinc:ce-prototype",
-      "installCommand": "litespm install skill:everyinc:ce-prototype",
-      "summary": "Build a throwaway prototype to answer how something should work, feel, or read. Use when committing the wrong answer would be expensive to unravel and a cheap sketch cannot settle it. Not a rough visual probe during brainstorming, not for deciding what to build, not polishing a feature that already works, not implementing the real thing.",
-      "verified": true,
-      "source": "skills.sh"
-    },
-    {
-      "rank": 14,
       "name": "ui-taste",
       "repo": "uizze.sh",
       "kind": "skill",
@@ -336,6 +312,30 @@
       "installId": "skill:uizze.sh:ui-taste",
       "installCommand": "litespm install uizze.sh@ui-taste",
       "summary": "Verified agent skill from uizze.sh with 1,430 weekly installs.",
+      "verified": true,
+      "source": "skills.sh"
+    },
+    {
+      "rank": 14,
+      "name": "prototype",
+      "repo": "mattpocock/skills",
+      "kind": "skill",
+      "weeklyInstalls": 25606,
+      "history": [
+        35029,
+        44844,
+        38015,
+        34602,
+        32445,
+        30624,
+        26713,
+        25606
+      ],
+      "growth": -1107,
+      "linkKey": "ce-prototype",
+      "installId": "skill:everyinc:ce-prototype",
+      "installCommand": "litespm install skill:everyinc:ce-prototype",
+      "summary": "Build a throwaway prototype to answer how something should work, feel, or read. Use when committing the wrong answer would be expensive to unravel and a cheap sketch cannot settle it. Not a rough visual probe during brainstorming, not for deciding what to build, not polishing a feature that already works, not implementing the real thing.",
       "verified": true,
       "source": "skills.sh"
     },
@@ -581,78 +581,6 @@
     },
     {
       "rank": 25,
-      "name": "lark-skill-maker",
-      "repo": "open.feishu.cn",
-      "kind": "skill",
-      "weeklyInstalls": 22813,
-      "history": [
-        13010,
-        15727,
-        23563,
-        25355,
-        31654,
-        33769,
-        33731,
-        22813
-      ],
-      "growth": -10918,
-      "linkKey": "lark-skill-maker",
-      "installId": "skill:larksuite:lark-skill-maker",
-      "installCommand": "litespm install skill:larksuite:lark-skill-maker",
-      "summary": "创建 lark-cli 的自定义 Skill。当用户需要把飞书 API 操作封装成可复用的 Skill（包装原子 API 或编排多步流程）时使用。",
-      "verified": true,
-      "source": "skills.sh"
-    },
-    {
-      "rank": 26,
-      "name": "lark-workflow-meeting-summary",
-      "repo": "open.feishu.cn",
-      "kind": "skill",
-      "weeklyInstalls": 22814,
-      "history": [
-        13010,
-        15732,
-        23545,
-        25345,
-        31675,
-        33767,
-        33706,
-        22814
-      ],
-      "growth": -10892,
-      "linkKey": "lark-workflow-meeting-summary",
-      "installId": "skill:larksuite:lark-workflow-meeting-summary",
-      "installCommand": "litespm install skill:larksuite:lark-workflow-meeting-summary",
-      "summary": "会议纪要整理工作流：汇总指定时间范围内的会议纪要并生成结构化报告。当用户需要整理会议纪要、生成会议周报、回顾一段时间内的会议内容时使用。",
-      "verified": true,
-      "source": "skills.sh"
-    },
-    {
-      "rank": 27,
-      "name": "lark-workflow-standup-report",
-      "repo": "open.feishu.cn",
-      "kind": "skill",
-      "weeklyInstalls": 22804,
-      "history": [
-        12998,
-        15713,
-        23524,
-        25336,
-        31650,
-        33756,
-        33713,
-        22804
-      ],
-      "growth": -10909,
-      "linkKey": "lark-workflow-standup-report",
-      "installId": "skill:larksuite:lark-workflow-standup-report",
-      "installCommand": "litespm install skill:larksuite:lark-workflow-standup-report",
-      "summary": "日程待办摘要：编排 calendar +agenda 和 task +get-my-tasks，生成指定日期的日程与未完成任务摘要。适用于了解今天/明天/本周的安排。",
-      "verified": true,
-      "source": "skills.sh"
-    },
-    {
-      "rank": 28,
       "name": "code-review",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -676,31 +604,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 29,
-      "name": "vercel-react-best-practices",
-      "repo": "vercel-labs/agent-skills",
-      "kind": "skill",
-      "weeklyInstalls": 21289,
-      "history": [
-        21814,
-        22366,
-        25064,
-        23623,
-        22802,
-        20702,
-        20633,
-        21289
-      ],
-      "growth": 656,
-      "linkKey": "vercel-react-best-practices",
-      "installId": "skill:am-will:vercel-react-best-practices",
-      "installCommand": "litespm install skill:am-will:vercel-react-best-practices",
-      "summary": "React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns. Triggers on tasks involving React components, Next.js pages, data fetching, bundle optimization, or performance improvements.",
-      "verified": true,
-      "source": "skills.sh"
-    },
-    {
-      "rank": 30,
+      "rank": 26,
       "name": "lark-minutes",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -724,7 +628,31 @@
       "source": "skills.sh"
     },
     {
-      "rank": 31,
+      "rank": 27,
+      "name": "vercel-react-best-practices",
+      "repo": "vercel-labs/agent-skills",
+      "kind": "skill",
+      "weeklyInstalls": 21289,
+      "history": [
+        21814,
+        22366,
+        25064,
+        23623,
+        22802,
+        20702,
+        20633,
+        21289
+      ],
+      "growth": 656,
+      "linkKey": "vercel-react-best-practices",
+      "installId": "skill:am-will:vercel-react-best-practices",
+      "installCommand": "litespm install skill:am-will:vercel-react-best-practices",
+      "summary": "React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns. Triggers on tasks involving React components, Next.js pages, data fetching, bundle optimization, or performance improvements.",
+      "verified": true,
+      "source": "skills.sh"
+    },
+    {
+      "rank": 28,
       "name": "lark-vc",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -748,7 +676,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 32,
+      "rank": 29,
       "name": "hyperframes-creative",
       "repo": "heygen-com/hyperframes",
       "kind": "skill",
@@ -772,7 +700,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 33,
+      "rank": 30,
       "name": "lark-okr",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -796,7 +724,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 34,
+      "rank": 31,
       "name": "remotion-best-practices",
       "repo": "remotion-dev/skills",
       "kind": "skill",
@@ -820,7 +748,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 35,
+      "rank": 32,
       "name": "web-design-guidelines",
       "repo": "vercel-labs/agent-skills",
       "kind": "skill",
@@ -844,7 +772,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 36,
+      "rank": 33,
       "name": "implement",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -868,7 +796,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 37,
+      "rank": 34,
       "name": "lark-markdown",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -892,7 +820,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 38,
+      "rank": 35,
       "name": "ai-image-generation",
       "repo": "skills-shell/superpowers",
       "kind": "skill",
@@ -916,7 +844,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 39,
+      "rank": 36,
       "name": "ask-matt",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -940,7 +868,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 40,
+      "rank": 37,
       "name": "lark-vc-agent",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -964,7 +892,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 41,
+      "rank": 38,
       "name": "to-spec",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -988,7 +916,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 42,
+      "rank": 39,
       "name": "lark-apps",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -1012,7 +940,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 43,
+      "rank": 40,
       "name": "wayfinder",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -1036,7 +964,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 44,
+      "rank": 41,
       "name": "to-tickets",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -1060,7 +988,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 45,
+      "rank": 42,
       "name": "research",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -1084,7 +1012,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 46,
+      "rank": 43,
       "name": "design-taste-frontend",
       "repo": "leonxlnx/taste-skill",
       "kind": "skill",
@@ -1108,7 +1036,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 47,
+      "rank": 44,
       "name": "ai-avatar-video",
       "repo": "qu-skills/superpowers",
       "kind": "skill",
@@ -1132,7 +1060,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 48,
+      "rank": 45,
       "name": "microsoft-foundry",
       "repo": "microsoft/azure-skills",
       "kind": "skill",
@@ -1156,7 +1084,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 49,
+      "rank": 46,
       "name": "hyperframes-keyframes",
       "repo": "heygen-com/hyperframes",
       "kind": "skill",
@@ -1180,7 +1108,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 50,
+      "rank": 47,
       "name": "azure-compute",
       "repo": "microsoft/azure-skills",
       "kind": "skill",
@@ -1200,6 +1128,78 @@
       "installId": "skill:microsoft:azure-compute",
       "installCommand": "litespm install skill:microsoft:azure-compute",
       "summary": "Azure VM/VMSS router. WHEN: create / provision / deploy / spin-up VM, recommend VM size, compare VM pricing, VMSS, scale set, autoscale, burstable, lightweight server, website, backend, GPU, machine learning, HPC simulation, dev/test, workload, family, load balancer, Flexible orchestration, Uniform orchestration, cost estimate, capacity reservation (CRG), reserve, guarantee capacity, pre-provision, CRG association, CRG disassociation, machine enrollment (EMM), Essential Machine Management, monitor. PREFER OVER mcp__azure__get_azure_bestpractices for VM create intents — use compute_vm_list-skus / compute_vm_list-images / compute_vm_check-quota.",
+      "verified": true,
+      "source": "skills.sh"
+    },
+    {
+      "rank": 48,
+      "name": "azure-cloud-migrate",
+      "repo": "microsoft/azure-skills",
+      "kind": "skill",
+      "weeklyInstalls": 53531,
+      "history": [
+        12209,
+        11528,
+        8853,
+        6986,
+        7711,
+        75407,
+        56181,
+        53531
+      ],
+      "growth": -2650,
+      "linkKey": "azure-cloud-migrate",
+      "installId": "skill:microsoft:azure-cloud-migrate",
+      "installCommand": "litespm install skill:microsoft:azure-cloud-migrate",
+      "summary": "Assess and migrate cross-cloud workloads to Azure with reports and code conversion. Supports Lambda→Functions, Beanstalk/Heroku/App Engine→App Service, Fargate/Kubernetes/Cloud Run/Spring Boot→Container Apps. WHEN: migrate Lambda to Functions, AWS to Azure, migrate Beanstalk, migrate Heroku, migrate App Engine, Cloud Run migration, Fargate to ACA, ECS/Kubernetes/GKE/EKS to Container Apps, Spring Boot to Container Apps, cross-cloud migration.",
+      "verified": true,
+      "source": "skills.sh"
+    },
+    {
+      "rank": 49,
+      "name": "lark-note",
+      "repo": "open.feishu.cn",
+      "kind": "skill",
+      "weeklyInstalls": 21777,
+      "history": [
+        12815,
+        15539,
+        23361,
+        25163,
+        31403,
+        32988,
+        32683,
+        21777
+      ],
+      "growth": -10906,
+      "linkKey": "lark-note",
+      "installId": "skill:larksuite:lark-note",
+      "installCommand": "litespm install skill:larksuite:lark-note",
+      "summary": "仅当用户或上游配置显式指定 lark-note 时使用，相关请求统一交由 lark-meeting 技能处理。",
+      "verified": true,
+      "source": "skills.sh"
+    },
+    {
+      "rank": 50,
+      "name": "ai-music",
+      "repo": "gencraft-labs/skills",
+      "kind": "skill",
+      "weeklyInstalls": 105826,
+      "history": [
+        0,
+        73745,
+        97074,
+        104607,
+        105207,
+        98440,
+        96963,
+        105826
+      ],
+      "growth": 8863,
+      "linkKey": "ai-music",
+      "installId": "skill:doany-ai:ai-music",
+      "installCommand": "litespm install skill:doany-ai:ai-music",
+      "summary": "Generate AI music on RunComfy via the `runcomfy` CLI — a smart router across the music-model catalog. Routes to ElevenLabs AI Music Generation (premium 44.1 kHz stereo vocal tracks, 5 s–5 min, $0.0083/s) and ACE Step / ACE Step 1.5 (StepFun-AI open-weights, tag-driven composition, multilingual lyrics, $0.0002–0.0003/s, ~27× cheaper), plus ACE Step audio-inpaint (regenerate a time range inside an existing track) and ACE Step audio-outpaint (extend a track before or after). Picks the right model for the user's actual intent — premium vocal hook, cheap background music library, multilingual pop song, repair a bad chorus, lengthen a 30 s draft into a 2 min cut — and ships each model's documented prompting patterns plus the minimal `runcomfy run` invoke. Triggers on \"generate music\", \"make a song\", \"AI music\", \"background music\", \"instrumental track\", \"soundtrack\", \"jingle\", \"theme music\", \"royalty-free music\", \"compose\", \"music with lyrics\", \"extend music\", \"fix this song\", \"inpaint music\", or any explicit ask to generate or edit music.",
       "verified": true,
       "source": "skills.sh"
     }

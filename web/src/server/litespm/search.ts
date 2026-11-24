@@ -375,11 +375,7 @@ function cacheKeyFor(query: CatalogQuery, releaseId: string): string {
 
 export async function searchCatalog(query: CatalogQuery): Promise<CatalogListResponse> {
   const loaded = query.compact ? await getCompactDataset() : await getDataset();
-  // The compact artifact predates the parser-artifact filter. Apply the same
-  // filter at read time so marketplace totals and rows match insights/counts.
-  const dataset = query.compact
-    ? { ...loaded, rows: loaded.rows.filter((row) => !isParseArtifactOrJunk(row.name)) }
-    : loaded;
+  const dataset = loaded;
   const releaseId = dataset.release.releaseId;
   const cache = resultCache();
   const cacheKey = cacheKeyFor(query, releaseId);
@@ -392,7 +388,8 @@ export async function searchCatalog(query: CatalogQuery): Promise<CatalogListRes
   }
 
   const result = computeSearch(query, dataset.rows, releaseId);
-  warmMetaInBackground(dataset.rows);
+  // Do not eagerly classify the entire catalog on a metered serverless request.
+  if (!process.env.VERCEL) warmMetaInBackground(dataset.rows);
 
   cache.set(cacheKey, result);
   while (cache.size > RESULT_CACHE_MAX) {
@@ -419,13 +416,14 @@ function computeSearch(
   };
 
   const tokens = tokenize(query.q ?? "");
-  const index = getSearchIndex(rows, releaseId);
+  const rawGroups = queryGroups(query.q ?? "");
+  const index = rawGroups.length ? getSearchIndex(rows, releaseId, query.compact ? "compact" : "full") : null;
   // Absent terms become prefix / one-edit expansions drawn from the index
   // vocabulary, so typing "postg" or "dokcer" stays on the postings path.
-  const groups = expandGroups(index, queryGroups(query.q ?? ""));
+  const groups = index ? expandGroups(index, rawGroups) : [];
   const matchAny = query.match === "any";
   const minGroups = matchAny ? Math.max(1, Math.ceil(groups.length / 2)) : groups.length;
-  const candidateIdx = candidateRowIds(index, groups, matchAny);
+  const candidateIdx = index ? candidateRowIds(index, groups, matchAny) : null;
 
   const kindFilter = query.kind || null;
   const categoryFilter = query.category || null;
@@ -518,8 +516,8 @@ function computeSearch(
         if (fuzzy) {
           rel = relevanceRelaxed(row, tokens);
         } else {
-          const doc = index.docs.get(row.id);
-          rel = doc
+          const doc = index?.docs.get(row.id);
+          rel = doc && index
             ? scoreDoc(doc, groups, index, metaFor(row).installable, Boolean(row.transport), minGroups)
             : 0;
         }

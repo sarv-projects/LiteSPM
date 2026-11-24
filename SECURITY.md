@@ -9,8 +9,10 @@ maintainer listed on the GitHub profile.
 Please include: the version (`litespm version`), your OS, the exact steps, and
 the impact you believe it has. You do not need a working exploit.
 
-We will acknowledge within 7 days. There is no bug bounty. Credit is given in
+We aim to acknowledge within 7 days. There is no bug bounty. Credit is given in
 the advisory unless you ask otherwise.
+
+Do not include API keys, tokens, private configuration or personal data in reports. If private advisories are unavailable, contact the maintainer privately. Coordinate fixes and disclosure before public reporting.
 
 **Please do not open a public issue for a vulnerability.** LiteSPM edits the
 configuration files of other tools and brokers credentials, so a public report
@@ -149,9 +151,7 @@ These distinctions matter and are enforced in the product, not just documented:
 - **"Verified" is not our verdict.** A `verified` badge on a publisher means the
   upstream registry flagged that publisher. LiteSPM has not audited it. The UI
   says so wherever the badge appears.
-- **No popularity or usage data is published.** The catalog carries no star,
-  download or install figures, because the upstream sources do not expose them.
-  An earlier build estimated them; that was wrong and was removed.
+- **No fabricated popularity.** Website leaderboards may show labeled local view counts or upstream GitHub stars and skills.sh install metrics. These are not LiteSPM installation counts or security endorsements.
 - **No compatibility claim is a test result.** A capability's host list is
   publisher-declared or derived from what the host can technically install. It is
   not the output of running the capability against every host.

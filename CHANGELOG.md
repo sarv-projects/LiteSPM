@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation and launch positioning (2026-11-24)
+
+- Clarified cross-agent targeting, plan review, managed removal and local ownership.
+- Added an illustrated workflow, contribution guidance and release notes.
+- These are source changes, not a new published CLI release.
+
 ### Added (working tree, 2026-11-12)
 
 - **Product pages render on the server** (the HTML holds the page, not a skeleton) and show the

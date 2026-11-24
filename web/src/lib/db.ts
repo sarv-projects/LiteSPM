@@ -11,14 +11,10 @@ function createPrismaClient(): PrismaClient {
   const url = tursoUrl || (dbUrl.startsWith("libsql://") || dbUrl.startsWith("https://") ? dbUrl : "");
 
   if (url) {
-    try {
-      const authToken = process.env.TURSO_AUTH_TOKEN?.trim() || undefined;
-
-      const adapter = new PrismaLibSql({ url, authToken });
-      return new PrismaClient({ adapter, log: ["warn", "error"] });
-    } catch (e) {
-      console.warn("Failed to initialize Prisma LibSQL adapter, falling back to standard client:", e);
-    }
+    const authToken = process.env.TURSO_AUTH_TOKEN?.trim() || undefined;
+    // Do not silently substitute an unwritable SQLite file for a failed remote adapter.
+    const adapter = new PrismaLibSql({ url, authToken });
+    return new PrismaClient({ adapter, log: ["warn", "error"] });
   }
 
   return new PrismaClient({
@@ -35,14 +31,16 @@ function createPrismaClient(): PrismaClient {
  * recorded.
  */
 export function databaseConfigured(): boolean {
+  if (process.env.LITESPM_DATABASE_MODE === "fallback") return false;
   const dbUrl = process.env.DATABASE_URL?.trim() || "";
   const tursoUrl = process.env.TURSO_DATABASE_URL?.trim();
-  if (tursoUrl) return true;
+  if (tursoUrl) return tursoUrl.startsWith("libsql://") || tursoUrl.startsWith("https://");
   if (dbUrl.startsWith("libsql://") || dbUrl.startsWith("https://")) return true;
   if (process.env.NODE_ENV !== "production" && dbUrl.startsWith("file:")) return true;
   return false;
 }
 
-export const db = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+export function getDatabase(): PrismaClient {
+  if (!databaseConfigured()) throw new Error("Database storage is not configured");
+  return (globalForPrisma.prisma ??= createPrismaClient());
+}

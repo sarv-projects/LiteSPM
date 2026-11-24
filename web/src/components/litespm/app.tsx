@@ -21,30 +21,25 @@ import { Footer } from "./footer";
 import { HomeView } from "./views/home";
 import { MarketplaceView } from "./views/marketplace";
 import { DocsView } from "./views/docs";
+import { PackageView } from "./views/package-detail";
+import { AgentsView } from "./views/agents";
+import { AgentDetailView } from "./views/agent-detail";
+import { InsightsView } from "./views/insights";
+import { BundlesView } from "./views/bundles";
 
 /**
- * Code splitting: the first load carries the shell, Home, Marketplace and Docs.
- * Every other view, the Ask AI panel (60 KB of source) and the command palette
- * are separate chunks fetched when first needed. Views still render on the
- * server (default `ssr`), so a deep link gets its HTML in the first response.
+ * Code splitting: SSR-hydrated views are imported directly so hydration never
+ * swaps server-rendered HTML for a loading skeleton (eliminating CLS). Heavy
+ * secondary views (Publish, Compare) and interactive overlays (Ask AI, Command
+ * Palette) remain dynamically split.
  */
 const viewLoading = () => (
   <div className="mx-auto min-h-[60vh] w-full max-w-6xl space-y-4 px-6 py-10" aria-busy="true" aria-label="Loading view">
     <div className="h-8 w-64 animate-pulse rounded-lg bg-muted/60" />
     <div className="h-4 w-96 max-w-full animate-pulse rounded bg-muted/40" />
-    <div className="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-3">
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="h-32 animate-pulse rounded-xl border border-border/60 bg-card/60" />
-      ))}
-    </div>
   </div>
 );
-const PackageView = dynamic(() => import("./views/package-detail").then((m) => m.PackageView), { loading: viewLoading });
-const AgentsView = dynamic(() => import("./views/agents").then((m) => m.AgentsView), { loading: viewLoading });
-const AgentDetailView = dynamic(() => import("./views/agent-detail").then((m) => m.AgentDetailView), { loading: viewLoading });
 const PublishView = dynamic(() => import("./views/publish").then((m) => m.PublishView), { loading: viewLoading });
-const InsightsView = dynamic(() => import("./views/insights").then((m) => m.InsightsView), { loading: viewLoading });
-const BundlesView = dynamic(() => import("./views/bundles").then((m) => m.BundlesView), { loading: viewLoading });
 const CompareView = dynamic(() => import("./views/compare").then((m) => m.CompareView), { loading: viewLoading });
 const Assistant = dynamic(() => import("./assistant").then((m) => m.Assistant), { ssr: false });
 const CommandPalette = dynamic(() => import("./command-palette").then((m) => m.CommandPalette), { ssr: false });

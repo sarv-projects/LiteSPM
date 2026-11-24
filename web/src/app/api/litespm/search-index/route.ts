@@ -20,5 +20,5 @@ export async function GET() {
   }
   const dataset = await getDataset();
   const index = getSearchIndex(dataset.rows, dataset.release.releaseId);
-  return NextResponse.json(serializeSearchIndex(index));
+  return NextResponse.json(serializeSearchIndex(index, dataset.rows, "full"));
 }

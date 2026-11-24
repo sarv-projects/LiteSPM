@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db, databaseConfigured } from "@/lib/db";
+import { getDatabase, databaseConfigured } from "@/lib/db";
 import { clientIp, rateLimit } from "@/server/litespm/rate-limit";
 import { readJsonBody, RequestBodyTooLargeError } from "@/server/litespm/request-body";
 
@@ -35,22 +35,11 @@ export async function POST(request: NextRequest) {
     const kind = ["mcp", "skill", "plugin"].includes(body.kind ?? "") ? body.kind! : "mcp";
     const name = (body.name?.trim() || linkKey).slice(0, 200);
 
-    const existing = await db.packageView.findUnique({ where: { linkKey } });
-    if (existing) {
-      await db.packageView.update({
-        where: { linkKey },
-        data: { views: { increment: 1 }, lastViewedAt: new Date() },
-      });
-    } else {
-      await db.packageView.create({
-        data: {
-          linkKey,
-          kind,
-          name,
-          views: 1,
-        },
-      });
-    }
+    await getDatabase().packageView.upsert({
+      where: { linkKey },
+      update: { views: { increment: 1 }, lastViewedAt: new Date() },
+      create: { linkKey, kind, name, views: 1 },
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) {

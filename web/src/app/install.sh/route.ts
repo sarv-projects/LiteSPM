@@ -3,24 +3,10 @@ import fs from "fs";
 import path from "path";
 
 export async function GET() {
-  const candidates = [
-    path.join(process.cwd(), "public", "install.sh"),
-    path.join(process.cwd(), "web", "public", "install.sh"),
-    path.join(process.cwd(), "..", "scripts", "install.sh"),
-    path.join(process.cwd(), "scripts", "install.sh"),
-  ];
-
+  // Both scripts are tracked public artifacts and copied into standalone builds.
+  // A single literal path avoids tracing the entire project/parent directory.
   let content = "";
-  for (const c of candidates) {
-    if (fs.existsSync(c)) {
-      try {
-        content = fs.readFileSync(c, "utf-8");
-        break;
-      } catch {
-        // try next
-      }
-    }
-  }
+  try { content = fs.readFileSync(path.join(process.cwd(), "public", "install.sh"), "utf-8"); } catch { /* retain explicit 500 response */ }
 
   if (!content) {
     return new NextResponse("#!/bin/sh\necho 'LiteSPM installer temporarily unavailable'; exit 1;\n", {

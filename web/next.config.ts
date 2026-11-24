@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: false,
   allowedDevOrigins: ["*.space-z.ai", "localhost", "127.0.0.1"],
+  outputFileTracingRoot: __dirname,
   turbopack: {
     root: __dirname,
   },
@@ -56,6 +57,21 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/**/*": ["./data/**/*"],
     "/*": ["./data/**/*"],
+  },
+  // Keep full data available on catalog consumers (including degraded compact
+  // fallback), but do not duplicate it into handlers that never read it.
+  outputFileTracingExcludes: {
+    "/api/litespm/feedback": ["./data/**/*"],
+    "/api/litespm/view": ["./data/**/*"],
+    "/api/litespm/installed": ["./data/**/*"],
+    "/api/litespm/llm": ["./data/**/*"],
+    "/api/litespm/search-index": ["./data/**/*"],
+    "/api/litespm/search-catalog": ["./data/**/*"],
+    "/robots.txt": ["./data/**/*"],
+    "/icon.svg": ["./data/**/*"],
+    "/favicon.ico": ["./data/**/*"],
+    "/install.sh": ["./data/**/*"],
+    "/install.ps1": ["./data/**/*"],
   },
 };
 

@@ -299,7 +299,7 @@ export function getCompactDataset(): Promise<CompactDataset> {
             `[catalog-search] loaded compact catalog (${serialized.rows.length} rows) in ${Date.now() - startedAt}ms`,
           );
           return {
-            rows: serialized.rows as Listing[],
+            rows: (serialized.rows as Listing[]).filter(row => !isParseArtifactOrJunk(row.name)),
             release: serialized.release,
             telemetry: serialized.telemetry,
           };

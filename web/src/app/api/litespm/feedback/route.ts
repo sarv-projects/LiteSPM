@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db, databaseConfigured } from "@/lib/db";
+import { getDatabase, databaseConfigured } from "@/lib/db";
 import { clientIp, rateLimit } from "@/server/litespm/rate-limit";
 import { readJsonBody, RequestBodyTooLargeError } from "@/server/litespm/request-body";
 
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     let entryId = `sub_${Date.now().toString(36)}`;
     try {
-      const entry = await db.feedbackEntry.create({
+      const entry = await getDatabase().feedbackEntry.create({
         data: { kind, name, email, listing, message },
       });
       if (entry?.id) entryId = entry.id;

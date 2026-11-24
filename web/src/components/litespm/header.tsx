@@ -204,7 +204,7 @@ export function Header() {
               e.preventDefault();
               setPalette(true);
             }}
-            aria-label="Search catalog (Press ⌘K or / to open)"
+            title="Search catalog (Press ⌘K or / to open)"
             className="hidden h-9 cursor-pointer items-center gap-2 rounded-lg border border-border/70 bg-card pl-3 pr-2 text-[13px] text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground lg:flex"
           >
             <Search className="h-3.5 w-3.5 shrink-0" />
