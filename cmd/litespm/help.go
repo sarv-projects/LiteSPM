@@ -48,7 +48,7 @@ type helpGroup struct {
 var helpGroups = []helpGroup{
 	{"DISCOVER", []string{"marketplace", "search", "agent", "catalog"}},
 	{"VIEW", []string{"list", "inventory"}},
-	{"MANAGE", []string{"install", "sync", "copy", "lock", "skills", "grant", "approve", "adopt"}},
+	{"MANAGE", []string{"install", "sync", "copy", "lock", "skills", "grant", "approve", "adopt", "remove"}},
 	{"RECOVER", []string{"restore", "doctor", "audit", "uninstall"}},
 	{"CONFIGURE", []string{"setup", "host", "daemon", "bridge", "auth"}},
 	{"SYSTEM", []string{"self-update", "version", "capabilities", "invoke"}},
@@ -527,6 +527,30 @@ func buildHelpCatalog() map[string]commandHelp {
 				"litespm install remove inst_user_adopt_claude-code_github",
 			},
 			SeeAlso: []string{"install", "list", "host"},
+		},
+		{
+			Canonical: "remove",
+			Aliases:   []string{"rm"},
+			Group:     "MANAGE",
+			Purpose:   "Remove an installed capability, package, or skill across agent hosts.",
+			Synopsis: []string{
+				"litespm remove <package-id|skill-name|install-id> [--scope user|project] [--all]",
+			},
+			Does: []string{
+				"Finds matching installed MCP servers or plugins in the state database and removes their entries from host configurations while preserving user-edited nodes.",
+				"Searches the skills ledger for matching skill names and removes the installed skill directories across configured agent skill trees.",
+				"Supports `--scope user|project` to limit removal scope and `--all` to remove all matching instances.",
+			},
+			DoesNot: []string{
+				"Does not delete user configurations or existing native MCP servers that LiteSPM did not install.",
+				"Does not uninstall the LiteSPM bridge itself; use `litespm uninstall` or `litespm host remove` to disconnect host agents.",
+			},
+			Examples: []string{
+				"litespm remove github-mcp-server",
+				"litespm remove my-skill --scope project",
+				"litespm remove inst_user_codex_github",
+			},
+			SeeAlso: []string{"install", "list", "skills", "uninstall"},
 		},
 		{
 			Canonical: "setup",

@@ -9,6 +9,7 @@ package host
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -81,6 +82,8 @@ type DetectRow struct {
 	Status     string
 	// Path is the config file to show; "" when none applies.
 	Path string
+	// BinaryPath is set when the host's CLI executable is found on PATH.
+	BinaryPath string
 	// Project marks Path as a project-scope file.
 	Project bool
 	// Note replaces the path when there is none to show.
@@ -101,7 +104,14 @@ func DescribeDetection(ctx context.Context, cwd string) ([]DetectRow, error) {
 	}
 	rows := make([]DetectRow, 0, len(verifs))
 	for _, v := range verifs {
-		row := DetectRow{HostID: v.HostID, Configured: v.Configured, Registered: v.Registered, Status: v.Status, Path: v.ConfigPath}
+		row := DetectRow{
+			HostID:     v.HostID,
+			Configured: v.Configured,
+			Registered: v.Registered,
+			Status:     v.Status,
+			Path:       v.ConfigPath,
+			BinaryPath: detectHostBinary(v.HostID),
+		}
 		if a, aerr := GetAdapter(v.HostID); aerr == nil {
 			if g, ok := a.(*GenericAdapter); ok && g.Target.UserPath == nil && g.Target.ProjectPath != nil {
 				row = projectOnlyRow(row, g, cwd)
@@ -125,9 +135,48 @@ func detectRank(r DetectRow) int {
 		return 0
 	case r.Configured:
 		return 1
-	default:
+	case r.BinaryPath != "":
 		return 2
+	default:
+		return 3
 	}
+}
+
+var hostBinaryNames = map[string][]string{
+	"amp":            {"amp"},
+	"antigravity":    {"antigravity", "agy"},
+	"antigravity-cli": {"agy", "antigravity"},
+	"augment":        {"auggie"},
+	"claude-code":    {"claude"},
+	"cline":          {"cline"},
+	"codex":          {"codex"},
+	"cursor":         {"cursor"},
+	"droid":          {"droid"},
+	"gemini-cli":     {"gemini"},
+	"github-copilot": {"copilot"},
+	"grok-build":     {"grok"},
+	"iflow-cli":      {"iflow"},
+	"junie":          {"junie"},
+	"kilo":           {"kilocode", "kilo"},
+	"kimi-code-cli":  {"kimi"},
+	"kiro-cli":       {"kiro-cli", "kiro"},
+	"opencode":       {"opencode"},
+	"pi-agent":       {"pi"},
+	"qoder":          {"qodercli"},
+	"qwen-code":      {"qwen"},
+	"rovodev":        {"acli"},
+	"vscode":         {"code"},
+	"zcode":          {"zcode"},
+	"zed":            {"zed"},
+}
+
+func detectHostBinary(hostID string) string {
+	for _, bin := range hostBinaryNames[strings.ToLower(hostID)] {
+		if p, err := exec.LookPath(bin); err == nil {
+			return p
+		}
+	}
+	return ""
 }
 
 func projectOnlyRow(row DetectRow, g *GenericAdapter, cwd string) DetectRow {

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
@@ -177,7 +176,7 @@ export function AgentsView({
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search agents…"
               autoComplete="off"
-              className="h-full min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/70"
+              className="h-full min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/70 [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
             />
             {query && (
               <button
@@ -290,16 +289,13 @@ export function AgentsView({
               role="region"
               aria-label="Scrollable agent profiles"
             >
-              {visible.map((agent, index) => (
-                <motion.div
+              {visible.map((agent) => (
+                <div
                   key={agent.slug}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: Math.min(index * 0.02, 0.3) }}
                   className="w-[300px] shrink-0 snap-start sm:w-[320px]"
                 >
                   <AgentCard agent={agent} />
-                </motion.div>
+                </div>
               ))}
             </div>
             <button
@@ -370,10 +366,7 @@ export function AgentsView({
 function AgentHeroPanel() {
   const navigate = useApp((s) => s.navigate);
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: [0.21, 0.6, 0.35, 1] }}
+    <div
       aria-label="One agent connected to skills and tools"
     >
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_16px_48px_-24px_rgba(0,0,0,0.25)]">
@@ -436,7 +429,7 @@ function AgentHeroPanel() {
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                 aria-hidden="true"
               >
-                ✦
+                <Sparkles className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13px] font-medium">Web design guidelines</span>
@@ -464,7 +457,7 @@ function AgentHeroPanel() {
           path that fits your setup.
         </p>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -504,13 +497,13 @@ export function AgentCard({ agent }: { agent: AgentRow }) {
           open();
         }
       }}
-      aria-label={`${agent.name} agent profile`}
+      aria-labelledby={`agent-name-${agent.slug}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <BrandMark id={agent.hostId ?? agent.slug} name={agent.name} />
           <div className="min-w-0">
-            <h3 className="truncate text-[15.5px] font-semibold tracking-tight">{agent.name}</h3>
+            <h3 id={`agent-name-${agent.slug}`} className="truncate text-[15.5px] font-semibold tracking-tight">{agent.name}</h3>
             <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
               {agent.profileType ?? "Agent profile"}
             </p>

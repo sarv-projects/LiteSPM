@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import { ArrowRight, Check, Copy, Info, Key, Layers, Loader2, Sparkles, Terminal, Wrench } from "lucide-react";
 
 import {
@@ -54,9 +53,11 @@ export function BundleCard({
   compact?: boolean;
 }) {
   const [agent, setAgent] = React.useState("");
-  const [copiedBundle, setCopiedBundle] = React.useState(false);
+  const [copiedBar, setCopiedBar] = React.useState(false);
+  const [copiedInstall, setCopiedInstall] = React.useState(false);
   const [copiedAll, setCopiedAll] = React.useState(false);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const [showCommands, setShowCommands] = React.useState(false);
 
   const targets = React.useMemo(() => [ANY_AGENT, ...agents], [agents]);
   const installable = bundle.items.filter((item) => item.installable);
@@ -71,12 +72,22 @@ export function BundleCard({
     .map((item) => `litespm install ${shellArg(item.id)}${agent ? ` --agent ${shellArg(agent)}` : ""}`)
     .join("\n");
 
-  const copyBundle = () => {
+  const copyBundleBar = () => {
     navigator.clipboard
       ?.writeText(bundleCommand)
       .then(() => {
-        setCopiedBundle(true);
-        window.setTimeout(() => setCopiedBundle(false), 1600);
+        setCopiedBar(true);
+        window.setTimeout(() => setCopiedBar(false), 1600);
+      })
+      .catch(() => {});
+  };
+
+  const copyInstallBtn = () => {
+    navigator.clipboard
+      ?.writeText(bundleCommand)
+      .then(() => {
+        setCopiedInstall(true);
+        window.setTimeout(() => setCopiedInstall(false), 1600);
       })
       .catch(() => {});
   };
@@ -94,11 +105,8 @@ export function BundleCard({
 
   return (
     <>
-      <motion.article
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
-        className="flex h-full flex-col rounded-2xl border border-border/70 bg-card p-5"
+      <article
+        className="flex flex-col rounded-2xl border border-border/70 bg-card p-5"
         aria-labelledby={`bundle-${bundle.id}`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -112,45 +120,67 @@ export function BundleCard({
           </button>
           <DifficultyPill level={bundle.difficulty} />
         </div>
-        <p className="mt-1 text-[11.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
-          For: {bundle.audience}
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
+          <span>For: {bundle.audience}</span>
+          <span aria-hidden="true">·</span>
+          <span className="text-brand">~{Math.max(10, bundle.items.length * 4)} min saved</span>
         </p>
         <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{bundle.blurb}</p>
 
-        <ul className="mt-4 flex flex-wrap gap-1.5" aria-label={`Items in ${bundle.title}`}>
-          {bundle.items.map((item) => (
-            <li key={item.id}>
-              <NavLink
-                to={`/package/${encodeURIComponent(item.linkKey)}`}
-                title={`${item.name} by ${item.publisher || "unknown publisher"}: ${item.summary}`}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2 py-1 text-[12px] font-medium transition-colors hover:border-brand/50 hover:text-brand"
-              >
-                <KindBadge kind={item.kind} />
-                <span className="truncate">{displayPackageName(item.name)}</span>
-                {item.publisher && !compact && (
-                  <span className="hidden truncate text-[10.5px] font-normal text-muted-foreground sm:inline">
-                    {item.publisher}
-                  </span>
-                )}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+        {(() => {
+          const maxPreview = compact ? 4 : 6;
+          const visibleItems = bundle.items.slice(0, maxPreview);
+          const remainingCount = bundle.items.length - maxPreview;
 
-        <div className="mt-auto pt-5">
+          return (
+            <ul className="mt-4 flex flex-wrap gap-1.5" aria-label={`Items in ${bundle.title}`}>
+              {visibleItems.map((item) => (
+                <li key={item.id}>
+                  <NavLink
+                    to={`/package/${encodeURIComponent(item.linkKey)}`}
+                    title={`${item.name} by ${item.publisher || "unknown publisher"}: ${item.summary}`}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border/70 bg-background px-2 py-1 text-[12px] font-medium transition-colors hover:border-brand/50 hover:text-brand"
+                  >
+                    <KindBadge kind={item.kind} />
+                    <span className="truncate">{displayPackageName(item.name)}</span>
+                    {item.publisher && !compact && (
+                      <span className="hidden truncate text-[10.5px] font-normal text-muted-foreground sm:inline">
+                        {item.publisher}
+                      </span>
+                    )}
+                  </NavLink>
+                </li>
+              ))}
+              {remainingCount > 0 && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setDetailsOpen(true)}
+                    title={`View all ${bundle.items.length} included capabilities in details`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-muted/40 px-2 py-1 text-[11.5px] font-medium text-muted-foreground transition-colors hover:border-brand/50 hover:text-brand"
+                  >
+                    +{remainingCount} more →
+                  </button>
+                </li>
+              )}
+            </ul>
+          );
+        })()}
+
+        <div className="mt-4 pt-4 border-t border-border/40">
           <div className="mb-2.5 flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/40 px-2.5 py-1.5 font-mono text-[11px]">
             <span className="truncate text-foreground/90">
               <span className="text-brand">$</span> {bundleCommand}
             </span>
             <button
               type="button"
-              onClick={copyBundle}
+              onClick={copyBundleBar}
               title="Copy one-command bundle install"
               aria-label={`Copy bundle install command for ${bundle.title}`}
               className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-brand hover:underline"
             >
-              {copiedBundle ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-              {copiedBundle ? "Copied" : "Copy"}
+              {copiedBar ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+              {copiedBar ? "Copied" : "Copy"}
             </button>
           </div>
 
@@ -158,21 +188,26 @@ export function BundleCard({
             <TargetAgentPicker targets={targets} value={agent} onChange={setAgent} kindLabel="agents" />
             <button
               type="button"
-              onClick={copyBundle}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90"
+              onClick={copyInstallBtn}
+              className="inline-flex h-8 w-[176px] justify-center items-center gap-1.5 whitespace-nowrap rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90"
             >
-              {copiedBundle ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-              {copiedBundle ? "Copied" : "Install bundle (1 command)"}
+              {copiedInstall ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+              {copiedInstall ? "Copied command!" : "Install bundle (1 command)"}
             </button>
             <button
               type="button"
-              onClick={copyAll}
-              disabled={!commands}
-              title="Copy individual install commands as a script"
-              className="inline-flex h-8 items-center gap-1 rounded-lg border border-border/70 bg-background px-2.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:border-brand/50 hover:text-foreground disabled:opacity-40"
+              onClick={() => setShowCommands((prev) => !prev)}
+              aria-expanded={showCommands}
+              title={showCommands ? "Hide individual install commands" : "Expand individual install commands"}
+              className={cn(
+                "inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-[11.5px] font-medium transition-colors",
+                showCommands
+                  ? "border-brand bg-brand-soft text-brand"
+                  : "border-border/70 bg-background text-muted-foreground hover:border-brand/50 hover:text-foreground"
+              )}
             >
-              {copiedAll ? <Check className="h-3.5 w-3.5 text-brand" /> : <Terminal className="h-3.5 w-3.5" />}
-              {copiedAll ? "Copied" : `All ${forAgent.length} commands`}
+              <Terminal className="h-3.5 w-3.5" />
+              {showCommands ? "Hide commands" : `All ${forAgent.length} commands`}
             </button>
             <button
               type="button"
@@ -182,15 +217,36 @@ export function BundleCard({
               <Info className="h-3.5 w-3.5" /> Details
             </button>
             <span className="sr-only" role="status">
-              {copiedBundle ? "Bundle command copied" : copiedAll ? "All commands copied" : ""}
+              {copiedBar || copiedInstall ? "Bundle command copied" : copiedAll ? "All commands copied" : ""}
             </span>
           </div>
+
+          {showCommands && (
+            <div className="mt-3 rounded-xl border border-border/70 bg-muted/30 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-[11.5px] font-mono text-muted-foreground">
+                  Individual install commands ({forAgent.length}):
+                </span>
+                <button
+                  type="button"
+                  onClick={copyAll}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"
+                >
+                  {copiedAll ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copiedAll ? "Copied all" : "Copy script"}
+                </button>
+              </div>
+              <pre className="max-h-44 overflow-y-auto rounded-lg border border-border/50 bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground select-all">
+                {commands}
+              </pre>
+            </div>
+          )}
           <p className="mt-2 text-[11.5px] text-muted-foreground">
             Installs all {forAgent.length} capabilities with a single command.
             {skipped > 0 ? ` (${skipped} item${skipped === 1 ? "" : "s"} left out for this agent).` : " Unified plan and preflight diff before write."}
           </p>
         </div>
-      </motion.article>
+      </article>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -269,12 +325,12 @@ export function BundleCard({
                 </span>
                 <button
                   type="button"
-                  onClick={copyBundle}
+                  onClick={copyBundleBar}
                   title="Copy one-command bundle install"
                   className="inline-flex shrink-0 items-center gap-1 font-medium text-brand hover:underline"
                 >
-                  {copiedBundle ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-                  {copiedBundle ? "Copied" : "Copy"}
+                  {copiedBar ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {copiedBar ? "Copied" : "Copy"}
                 </button>
               </div>
 
@@ -282,11 +338,11 @@ export function BundleCard({
                 <TargetAgentPicker targets={targets} value={agent} onChange={setAgent} kindLabel="agents" />
                 <button
                   type="button"
-                  onClick={copyBundle}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90"
+                  onClick={copyInstallBtn}
+                  className="inline-flex h-8 min-w-[176px] justify-center items-center gap-1.5 whitespace-nowrap rounded-lg bg-brand px-3 text-[12px] font-semibold text-brand-foreground transition-opacity hover:opacity-90"
                 >
-                  {copiedBundle ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-                  {copiedBundle ? "Copied" : "Install bundle (1 command)"}
+                  {copiedInstall ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {copiedInstall ? "Copied command!" : "Install bundle (1 command)"}
                 </button>
                 <button
                   type="button"
@@ -373,7 +429,7 @@ export function BundlesView({ initial }: { initial?: BundlesResponse } = {}) {
         </div>
       )}
       {data && (
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-6 grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((bundle) => (
             <BundleCard key={bundle.id} bundle={bundle} agents={data.agents} />
           ))}

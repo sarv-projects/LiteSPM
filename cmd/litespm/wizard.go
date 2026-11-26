@@ -111,27 +111,16 @@ func (w *Wizard) Run(ctx context.Context) error {
 		configured = nil
 	}
 
-	if !w.autoSyncDisabled && !autoSyncDisabled() {
-		opts := syncOptions{yes: true}
-		_, _ = executeSync(ctx, w.out, opts)
-		configured, _ = w.configuredHosts(ctx)
-	} else {
-		// The wordmark is for the first run only; a machine that is already set up
-		// gets the one-line header, so a management session does not open with six
-		// rows of banner every time.
-		w.printBanner(err != nil || len(configured) == 0)
-		w.printRuntimeSummary()
-		if len(configured) > 0 {
-			if newly := w.autoConnectUnconfiguredHosts(ctx); len(newly) > 0 {
-				configured, _ = w.configuredHosts(ctx)
-			}
-			w.printConfiguredSummary(configured)
-		}
+	// Startup is strictly read-only until the user confirms an action: no
+	// agent config or skill directory is modified before the menu or setup
+	// prompt. The wordmark is shown only on first run.
+	w.printBanner(err != nil || len(configured) == 0)
+	w.printRuntimeSummary()
+	if len(configured) > 0 {
+		w.printConfiguredSummary(configured)
 	}
 
 	if len(configured) == 0 {
-		w.printBanner(true)
-		w.printRuntimeSummary()
 		cancelled, serr := w.runSetup(ctx)
 		if serr != nil {
 			return w.finishInput(serr)
@@ -2437,7 +2426,7 @@ func mcpInstallCompletionBox(outcome *mcpInstallOutcome) string {
 	for _, h := range outcome.Hosts {
 		lines = append(lines, hostWriteRow(h))
 	}
-	footer := "Nothing else was changed: no other file was touched. Remove it later from this menu, or with `litespm install remove " + entry.Name + "`."
+	footer := "Nothing else was changed: no other file was touched. Remove it later from this menu, or with `litespm install remove " + entry.Name + "` or `litespm restore " + entry.Name + "`."
 	return renderCompletionBox("✓ Registered MCP server "+entry.Name, lines, footer)
 }
 
@@ -2511,7 +2500,7 @@ func pluginInstallCompletionBox(listing *domain.Listing, outcome *pluginInstallO
 	for _, warning := range outcome.Warnings {
 		lines = append(lines, uiDim.Render("note  "+warning))
 	}
-	footer := "Nothing else was changed: no other file was touched. Remove it later from this menu, or with `litespm install remove " + outcome.ListingID + "`."
+	footer := "Nothing else was changed: no other file was touched. Remove it later from this menu, or with `litespm install remove " + outcome.ListingID + "` or `litespm restore " + outcome.ListingID + "`."
 	return renderCompletionBox("✓ Installed plugin "+name, lines, footer)
 }
 

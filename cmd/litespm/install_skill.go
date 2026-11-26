@@ -70,10 +70,12 @@ func installSkillFromListing(
 	}
 	// Installability gate (Phase 0.1/T3): discovery-only rows are searchable
 	// metadata with no verified source. Refuse rather than fetching an
-	// unproven URL.
+	// unproven URL, unless a direct skill repository source is present.
 	if !listing.IsInstallable() {
-		return nil, domain.ErrNotInstallable(listing.ID,
-			"this listing is discovery-only metadata with no verified source; no installable artifact was proven")
+		if strings.TrimSpace(listing.Source.URL) == "" {
+			return nil, domain.ErrNotInstallable(listing.ID,
+				"this listing is discovery-only metadata with no verified source; no installable artifact was proven")
+		}
 	}
 	// Authorization gate: a skill install writes into agent trees, so it runs
 	// only under a consumed approval for a recorded plan (see

@@ -426,6 +426,14 @@ func renderImportedManifest(plan *interop.Plan, dir string, snapshot importManif
 	}
 
 	if plan.TargetState == interop.TargetExtend {
+		manifestPath := ""
+		if snapshot.manifest != nil {
+			manifestPath = snapshot.manifest.SourcePath
+		}
+		ext := strings.ToLower(filepath.Ext(manifestPath))
+		if ext == ".yml" || ext == ".yaml" {
+			return "", fmt.Errorf("cannot extend YAML manifest %s with TOML syntax; rewrite via litespm.toml or update it manually", manifestPath)
+		}
 		var b strings.Builder
 		b.Write(snapshot.data)
 		if len(snapshot.data) > 0 && snapshot.data[len(snapshot.data)-1] != '\n' {

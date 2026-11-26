@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-24T11:53:00.215Z",
+  "updatedAt": "2026-11-24T20:20:28.509Z",
   "skillsSource": "skills.sh leaderboard",
   "mcpSource": "GitHub stars & verified vendor authority",
   "topSkills": [
@@ -269,30 +269,6 @@
     },
     {
       "rank": 12,
-      "name": "grilling",
-      "repo": "mattpocock/skills",
-      "kind": "skill",
-      "weeklyInstalls": 39258,
-      "history": [
-        46132,
-        61775,
-        52706,
-        47202,
-        46289,
-        40707,
-        37091,
-        39258
-      ],
-      "growth": 2167,
-      "linkKey": "grilling",
-      "installId": "skill:mattpocock:grilling",
-      "installCommand": "litespm install skill:mattpocock:grilling",
-      "summary": "Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases.",
-      "verified": true,
-      "source": "skills.sh"
-    },
-    {
-      "rank": 13,
       "name": "ui-taste",
       "repo": "uizze.sh",
       "kind": "skill",
@@ -316,7 +292,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 14,
+      "rank": 13,
       "name": "prototype",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -340,7 +316,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 15,
+      "rank": 14,
       "name": "triage",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -364,7 +340,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 16,
+      "rank": 15,
       "name": "ai-video-generation",
       "repo": "101-skills/superpowers",
       "kind": "skill",
@@ -388,7 +364,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 17,
+      "rank": 16,
       "name": "domain-modeling",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -412,7 +388,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 18,
+      "rank": 17,
       "name": "hyperframes-animation",
       "repo": "heygen-com/hyperframes",
       "kind": "skill",
@@ -436,7 +412,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 19,
+      "rank": 18,
       "name": "codebase-design",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -460,7 +436,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 20,
+      "rank": 19,
       "name": "teach",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -484,7 +460,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 21,
+      "rank": 20,
       "name": "diagnosing-bugs",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -508,7 +484,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 22,
+      "rank": 21,
       "name": "ai-image-generation",
       "repo": "magentosh/superpowers",
       "kind": "skill",
@@ -532,7 +508,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 23,
+      "rank": 22,
       "name": "lark-doc",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -552,6 +528,30 @@
       "installId": "skill:larksuite:lark-doc",
       "installCommand": "litespm install skill:larksuite:lark-doc",
       "summary": "飞书云文档（Docx / Wiki）内容操作：读取、创建、编辑文档，插入或下载图片附件，以及操作思维笔记。用户提供文档 URL/token（包括 doubao.com 的 /docx/、/wiki/）时使用；按 URL 路径/token 而非域名路由。文档内嵌资源按读取参考中的统一规则分流。独立评论操作走 lark-drive；随正文读取评论使用 docs +fetch。表格或 Base 内部数据操作不在本 skill。",
+      "verified": true,
+      "source": "skills.sh"
+    },
+    {
+      "rank": 23,
+      "name": "code-review",
+      "repo": "mattpocock/skills",
+      "kind": "skill",
+      "weeklyInstalls": 27348,
+      "history": [
+        39868,
+        53340,
+        44784,
+        38605,
+        38125,
+        33766,
+        28371,
+        27348
+      ],
+      "growth": -1023,
+      "linkKey": "agent-code-review-swarm",
+      "installId": "skill:ruvnet:agent-code-review-swarm",
+      "installCommand": "litespm install skill:ruvnet:agent-code-review-swarm",
+      "summary": "Agent skill for code-review-swarm - invoke with $agent-code-review-swarm",
       "verified": true,
       "source": "skills.sh"
     },
@@ -581,25 +581,25 @@
     },
     {
       "rank": 25,
-      "name": "code-review",
-      "repo": "mattpocock/skills",
+      "name": "vercel-react-best-practices",
+      "repo": "vercel-labs/agent-skills",
       "kind": "skill",
-      "weeklyInstalls": 27348,
+      "weeklyInstalls": 21289,
       "history": [
-        39868,
-        53340,
-        44784,
-        38605,
-        38125,
-        33766,
-        28371,
-        27348
+        21814,
+        22366,
+        25064,
+        23623,
+        22802,
+        20702,
+        20633,
+        21289
       ],
-      "growth": -1023,
-      "linkKey": "agent-code-review-swarm",
-      "installId": "skill:ruvnet:agent-code-review-swarm",
-      "installCommand": "litespm install skill:ruvnet:agent-code-review-swarm",
-      "summary": "Agent skill for code-review-swarm - invoke with $agent-code-review-swarm",
+      "growth": 656,
+      "linkKey": "vercel-react-best-practices",
+      "installId": "skill:am-will:vercel-react-best-practices",
+      "installCommand": "litespm install skill:am-will:vercel-react-best-practices",
+      "summary": "React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns. Triggers on tasks involving React components, Next.js pages, data fetching, bundle optimization, or performance improvements.",
       "verified": true,
       "source": "skills.sh"
     },
@@ -629,30 +629,6 @@
     },
     {
       "rank": 27,
-      "name": "vercel-react-best-practices",
-      "repo": "vercel-labs/agent-skills",
-      "kind": "skill",
-      "weeklyInstalls": 21289,
-      "history": [
-        21814,
-        22366,
-        25064,
-        23623,
-        22802,
-        20702,
-        20633,
-        21289
-      ],
-      "growth": 656,
-      "linkKey": "vercel-react-best-practices",
-      "installId": "skill:am-will:vercel-react-best-practices",
-      "installCommand": "litespm install skill:am-will:vercel-react-best-practices",
-      "summary": "React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns. Triggers on tasks involving React components, Next.js pages, data fetching, bundle optimization, or performance improvements.",
-      "verified": true,
-      "source": "skills.sh"
-    },
-    {
-      "rank": 28,
       "name": "lark-vc",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -676,7 +652,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 29,
+      "rank": 28,
       "name": "hyperframes-creative",
       "repo": "heygen-com/hyperframes",
       "kind": "skill",
@@ -700,7 +676,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 30,
+      "rank": 29,
       "name": "lark-okr",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -724,7 +700,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 31,
+      "rank": 30,
       "name": "remotion-best-practices",
       "repo": "remotion-dev/skills",
       "kind": "skill",
@@ -748,7 +724,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 32,
+      "rank": 31,
       "name": "web-design-guidelines",
       "repo": "vercel-labs/agent-skills",
       "kind": "skill",
@@ -772,7 +748,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 33,
+      "rank": 32,
       "name": "implement",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -796,7 +772,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 34,
+      "rank": 33,
       "name": "lark-markdown",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -820,7 +796,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 35,
+      "rank": 34,
       "name": "ai-image-generation",
       "repo": "skills-shell/superpowers",
       "kind": "skill",
@@ -844,7 +820,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 36,
+      "rank": 35,
       "name": "ask-matt",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -868,7 +844,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 37,
+      "rank": 36,
       "name": "lark-vc-agent",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -892,7 +868,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 38,
+      "rank": 37,
       "name": "to-spec",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -912,6 +888,30 @@
       "installId": "skill:smallnest:prd-to-spec",
       "installCommand": "litespm install skill:smallnest:prd-to-spec",
       "summary": "Transform a PRD into a technical SPEC document — architecture, API design, data model, error handling, and implementation contracts. Triggers on: prd-to-spec, prd to spec, prd转spec, 需求转设计, 需求转规格, generate spec from prd, design from prd, 技术方案, 设计方案.",
+      "verified": true,
+      "source": "skills.sh"
+    },
+    {
+      "rank": 38,
+      "name": "wayfinder",
+      "repo": "mattpocock/skills",
+      "kind": "skill",
+      "weeklyInstalls": 24375,
+      "history": [
+        33660,
+        47396,
+        39092,
+        34673,
+        34461,
+        30090,
+        25753,
+        24375
+      ],
+      "growth": -1378,
+      "linkKey": "w-wayfinder",
+      "installId": "skill:blockmatic:w-wayfinder",
+      "installCommand": "litespm install skill:blockmatic:w-wayfinder",
+      "summary": "Chart multi-session fog as a plan-file map of decision tickets.",
       "verified": true,
       "source": "skills.sh"
     },
@@ -941,30 +941,6 @@
     },
     {
       "rank": 40,
-      "name": "wayfinder",
-      "repo": "mattpocock/skills",
-      "kind": "skill",
-      "weeklyInstalls": 24375,
-      "history": [
-        33660,
-        47396,
-        39092,
-        34673,
-        34461,
-        30090,
-        25753,
-        24375
-      ],
-      "growth": -1378,
-      "linkKey": "w-wayfinder",
-      "installId": "skill:blockmatic:w-wayfinder",
-      "installCommand": "litespm install skill:blockmatic:w-wayfinder",
-      "summary": "Chart multi-session fog as a plan-file map of decision tickets.",
-      "verified": true,
-      "source": "skills.sh"
-    },
-    {
-      "rank": 41,
       "name": "to-tickets",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -988,7 +964,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 42,
+      "rank": 41,
       "name": "research",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -1012,7 +988,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 43,
+      "rank": 42,
       "name": "design-taste-frontend",
       "repo": "leonxlnx/taste-skill",
       "kind": "skill",
@@ -1036,7 +1012,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 44,
+      "rank": 43,
       "name": "ai-avatar-video",
       "repo": "qu-skills/superpowers",
       "kind": "skill",
@@ -1060,7 +1036,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 45,
+      "rank": 44,
       "name": "microsoft-foundry",
       "repo": "microsoft/azure-skills",
       "kind": "skill",
@@ -1084,7 +1060,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 46,
+      "rank": 45,
       "name": "hyperframes-keyframes",
       "repo": "heygen-com/hyperframes",
       "kind": "skill",
@@ -1108,7 +1084,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 47,
+      "rank": 46,
       "name": "azure-compute",
       "repo": "microsoft/azure-skills",
       "kind": "skill",
@@ -1132,7 +1108,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 48,
+      "rank": 47,
       "name": "azure-cloud-migrate",
       "repo": "microsoft/azure-skills",
       "kind": "skill",
@@ -1156,7 +1132,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 49,
+      "rank": 48,
       "name": "lark-note",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -1180,7 +1156,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 50,
+      "rank": 49,
       "name": "ai-music",
       "repo": "gencraft-labs/skills",
       "kind": "skill",
@@ -1200,6 +1176,30 @@
       "installId": "skill:doany-ai:ai-music",
       "installCommand": "litespm install skill:doany-ai:ai-music",
       "summary": "Generate AI music on RunComfy via the `runcomfy` CLI — a smart router across the music-model catalog. Routes to ElevenLabs AI Music Generation (premium 44.1 kHz stereo vocal tracks, 5 s–5 min, $0.0083/s) and ACE Step / ACE Step 1.5 (StepFun-AI open-weights, tag-driven composition, multilingual lyrics, $0.0002–0.0003/s, ~27× cheaper), plus ACE Step audio-inpaint (regenerate a time range inside an existing track) and ACE Step audio-outpaint (extend a track before or after). Picks the right model for the user's actual intent — premium vocal hook, cheap background music library, multilingual pop song, repair a bad chorus, lengthen a 30 s draft into a 2 min cut — and ships each model's documented prompting patterns plus the minimal `runcomfy run` invoke. Triggers on \"generate music\", \"make a song\", \"AI music\", \"background music\", \"instrumental track\", \"soundtrack\", \"jingle\", \"theme music\", \"royalty-free music\", \"compose\", \"music with lyrics\", \"extend music\", \"fix this song\", \"inpaint music\", or any explicit ask to generate or edit music.",
+      "verified": true,
+      "source": "skills.sh"
+    },
+    {
+      "rank": 50,
+      "name": "azure-quotas",
+      "repo": "microsoft/azure-skills",
+      "kind": "skill",
+      "weeklyInstalls": 53532,
+      "history": [
+        12205,
+        11526,
+        9145,
+        7122,
+        7755,
+        75413,
+        56175,
+        53532
+      ],
+      "growth": -2643,
+      "linkKey": "azure-quotas",
+      "installId": "skill:microsoft:azure-quotas",
+      "installCommand": "litespm install skill:microsoft:azure-quotas",
+      "summary": "Check/manage Azure quotas and usage across providers. For deployment planning, capacity validation, region selection. WHEN: \"check quotas\", \"service limits\", \"current usage\", \"request quota increase\", \"quota exceeded\", \"validate capacity\", \"regional availability\", \"provisioning limits\", \"vCPU limit\", \"how many vCPUs available in my subscription\".",
       "verified": true,
       "source": "skills.sh"
     }

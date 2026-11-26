@@ -106,10 +106,14 @@ func parseSkillsAdoptArgs(args []string) (skillsAdoptOptions, error) {
 			}
 			i++
 			scope := strings.ToLower(strings.TrimSpace(args[i]))
-			if scope != "user" && scope != "project" {
-				return opts, fmt.Errorf("invalid --scope %q: must be user or project", args[i])
+			switch scope {
+			case "user", "global":
+				opts.scope = "global"
+			case "project":
+				opts.scope = "project"
+			default:
+				return opts, fmt.Errorf("invalid --scope %q: must be user, global, or project", args[i])
 			}
-			opts.scope = scope
 		default:
 			if strings.HasPrefix(args[i], "-") {
 				return opts, fmt.Errorf("unknown flag %q", args[i])

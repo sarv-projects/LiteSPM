@@ -57,8 +57,8 @@ export function InstallBar({
       </span>
       <code
         className={cn(
-          "min-w-0 flex-1 truncate px-3.5 py-2.5 font-mono text-[12.5px] text-[oklch(0.93_0.01_163)]",
-          compact && "px-3 py-2 text-[12px]",
+          "min-w-0 flex-1 overflow-x-auto whitespace-nowrap no-scrollbar px-3.5 py-2.5 font-mono text-[11.5px] sm:text-[12.5px] text-[oklch(0.93_0.01_163)]",
+          compact && "px-3 py-2 text-[11.5px]",
         )}
         title={command}
       >

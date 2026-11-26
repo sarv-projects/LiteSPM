@@ -122,7 +122,7 @@ func autoUpdateCommandAllowed(args []string) bool {
 		return true
 	}
 	for _, arg := range args {
-		if arg == "--json" {
+		if arg == "--json" || arg == "--help" || arg == "-h" {
 			return false
 		}
 	}

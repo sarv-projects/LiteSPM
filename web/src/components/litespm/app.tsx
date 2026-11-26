@@ -3,7 +3,7 @@
 import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig, motion } from "framer-motion";
-import { GitCompareArrows, X } from "lucide-react";
+import { GitCompareArrows, Sparkles, X } from "lucide-react";
 
 import dynamic from "next/dynamic";
 
@@ -19,19 +19,11 @@ import type {
 import { Header, AnnouncementBar } from "./header";
 import { Footer } from "./footer";
 import { HomeView } from "./views/home";
-import { MarketplaceView } from "./views/marketplace";
-import { DocsView } from "./views/docs";
-import { PackageView } from "./views/package-detail";
-import { AgentsView } from "./views/agents";
-import { AgentDetailView } from "./views/agent-detail";
-import { InsightsView } from "./views/insights";
-import { BundlesView } from "./views/bundles";
 
 /**
- * Code splitting: SSR-hydrated views are imported directly so hydration never
- * swaps server-rendered HTML for a loading skeleton (eliminating CLS). Heavy
- * secondary views (Publish, Compare) and interactive overlays (Ask AI, Command
- * Palette) remain dynamically split.
+ * Code splitting: SSR-enabled dynamic imports keep server-rendered HTML intact
+ * (0.000 CLS) while splitting each route's view into its own JS chunk so `/`
+ * does not ship PackageView, AgentsView, InsightsView, or BundlesView.
  */
 const viewLoading = () => (
   <div className="mx-auto min-h-[60vh] w-full max-w-6xl space-y-4 px-6 py-10" aria-busy="true" aria-label="Loading view">
@@ -39,6 +31,13 @@ const viewLoading = () => (
     <div className="h-4 w-96 max-w-full animate-pulse rounded bg-muted/40" />
   </div>
 );
+const MarketplaceView = dynamic(() => import("./views/marketplace").then((m) => m.MarketplaceView), { loading: viewLoading });
+const DocsView = dynamic(() => import("./views/docs").then((m) => m.DocsView), { loading: viewLoading });
+const PackageView = dynamic(() => import("./views/package-detail").then((m) => m.PackageView), { loading: viewLoading });
+const AgentsView = dynamic(() => import("./views/agents").then((m) => m.AgentsView), { loading: viewLoading });
+const AgentDetailView = dynamic(() => import("./views/agent-detail").then((m) => m.AgentDetailView), { loading: viewLoading });
+const InsightsView = dynamic(() => import("./views/insights").then((m) => m.InsightsView), { loading: viewLoading });
+const BundlesView = dynamic(() => import("./views/bundles").then((m) => m.BundlesView), { loading: viewLoading });
 const PublishView = dynamic(() => import("./views/publish").then((m) => m.PublishView), { loading: viewLoading });
 const CompareView = dynamic(() => import("./views/compare").then((m) => m.CompareView), { loading: viewLoading });
 const Assistant = dynamic(() => import("./assistant").then((m) => m.Assistant), { ssr: false });
@@ -300,6 +299,19 @@ export function LiteSPMApp({
         <Footer />
         {paletteOpen && <CommandPalette />}
         {assistantOpen && <Assistant />}
+        {!assistantOpen && (
+          <button
+            type="button"
+            onClick={() => useApp.getState().setAssistant(true)}
+            aria-label="Open Ask AI assistant"
+            className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-brand/40 bg-card/95 px-4 py-2.5 text-[13px] font-semibold text-foreground shadow-[0_10px_30px_-8px_rgba(16,185,129,0.45)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-brand hover:shadow-[0_14px_34px_-8px_rgba(16,185,129,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:bottom-5 sm:right-5"
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand/15 text-brand">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+            <span>Ask AI</span>
+          </button>
+        )}
         <CompareTray />
         <p className="sr-only" role="status" aria-live="polite">
           {announcement}

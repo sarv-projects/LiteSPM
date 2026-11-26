@@ -83,6 +83,9 @@ type authEnv struct {
 
 // runAuth is the production entry point for `litespm auth`.
 func runAuth(args []string) int {
+	if hasFlag(args, "--help") || hasFlag(args, "-h") {
+		return helpTo(os.Stdout, os.Stderr, []string{"auth"})
+	}
 	paths, err := config.ResolvePlatformPaths()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal: failed to resolve platform paths: %v\n", err)

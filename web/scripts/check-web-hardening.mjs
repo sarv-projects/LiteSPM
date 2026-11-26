@@ -195,7 +195,7 @@ const packageDetail = readSource("src/components/litespm/views/package-detail.ts
 expect(
   "marketplace quotes the install id",
   marketplace,
-  (v) => v.includes("litespm install ${shellArg(hit.id)}") && !v.includes("litespm install ${hit.id}"),
+  (v) => (v.includes("litespm install ${shellArg(shortId(hit))}") || v.includes("litespm install ${shellArg(hit.id)}")) && !v.includes("litespm install ${hit.id}"),
 );
 expect("package-detail quotes the install id", packageDetail, (v) => v.includes("litespm install ${shellArg(data.id)}"));
 expect(

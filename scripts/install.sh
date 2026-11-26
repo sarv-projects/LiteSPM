@@ -34,7 +34,7 @@ log_step() {
 }
 
 log_info() {
-    printf "    %s\n" "$1"
+    printf "    %b\n" "$1"
 }
 
 log_success() {
@@ -98,12 +98,20 @@ TARGET_BINARY="litespm-${OS}-${ARCH}"
 log_info "Target: ${BOLD}${TARGET_BINARY}${RESET} (${OS} / ${ARCH})"
 
 # Version and repository configuration
-VERSION="${LITESPM_VERSION:-0.6.1}"
 REPO="${LITESPM_RELEASE_REPO:-sarv-projects/LiteSPM}"
 INSTALL_DIR="${LITESPM_INSTALL_DIR:-$HOME/.local/bin}"
 
 # 2. Download Binary
-log_step "2/4" "Downloading LiteSPM v${VERSION}..."
+if [ -n "${LITESPM_VERSION:-}" ]; then
+    VERSION="${LITESPM_VERSION}"
+    DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${TARGET_BINARY}"
+    CHECKSUM_URL="https://github.com/${REPO}/releases/download/v${VERSION}/SHA256SUMS.txt"
+    log_step "2/4" "Downloading LiteSPM v${VERSION}..."
+else
+    DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${TARGET_BINARY}"
+    CHECKSUM_URL="https://github.com/${REPO}/releases/latest/download/SHA256SUMS.txt"
+    log_step "2/4" "Downloading LiteSPM (latest release)..."
+fi
 TMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t 'litespm')"
 cleanup() {
     rm -rf "${TMP_DIR}"
@@ -112,8 +120,6 @@ trap cleanup EXIT INT TERM
 
 TMP_BIN="${TMP_DIR}/${TARGET_BINARY}"
 TMP_SUMS="${TMP_DIR}/SHA256SUMS.txt"
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${TARGET_BINARY}"
-CHECKSUM_URL="https://github.com/${REPO}/releases/download/v${VERSION}/SHA256SUMS.txt"
 
 download_file() {
     url="$1"
@@ -161,20 +167,28 @@ if [ -n "${ACTUAL_HASH}" ]; then
 fi
 
 if [ -z "${LITESPM_LOCAL_BINARY:-}" ]; then
-    if download_file "${CHECKSUM_URL}" "${TMP_SUMS}" 2>/dev/null; then
-        EXPECTED_HASH="$(grep -E "${TARGET_BINARY}$" "${TMP_SUMS}" 2>/dev/null | awk '{print $1}' || true)"
-        if [ -n "${EXPECTED_HASH}" ]; then
-            if [ "${ACTUAL_HASH}" = "${EXPECTED_HASH}" ]; then
-                log_info "Checksum matches SHA256SUMS.txt (${GREEN}${EXPECTED_HASH}${RESET})"
-            else
-                log_error "SHA-256 checksum mismatch! Expected ${EXPECTED_HASH}, got ${ACTUAL_HASH}."
-                exit 1
-            fi
-        else
-            log_info "(No explicit entry in SHA256SUMS.txt for ${TARGET_BINARY}; verified transfer integrity)"
-        fi
+    if [ "${LITESPM_SKIP_CHECKSUM:-0}" = "1" ]; then
+        log_warn "Skipping SHA-256 verification (LITESPM_SKIP_CHECKSUM=1)"
     else
-        log_info "(Checksum manifest offline; verified binary transfer)"
+        if [ -z "${ACTUAL_HASH}" ]; then
+            log_error "No SHA-256 tool found (sha256sum, shasum, or openssl). Set LITESPM_SKIP_CHECKSUM=1 to bypass."
+            exit 1
+        fi
+        if ! download_file "${CHECKSUM_URL}" "${TMP_SUMS}" 2>/dev/null; then
+            log_error "Failed to download ${CHECKSUM_URL}. Set LITESPM_SKIP_CHECKSUM=1 to bypass."
+            exit 1
+        fi
+        EXPECTED_HASH="$(tr -d '\r' < "${TMP_SUMS}" | awk -v tgt="${TARGET_BINARY}" '$2 == tgt || $2 == ("dist/" tgt) || $2 == ("*" tgt) { print $1; exit }')"
+        if [ -z "${EXPECTED_HASH}" ]; then
+            log_error "No SHA-256 entry found for ${TARGET_BINARY} in SHA256SUMS.txt. Set LITESPM_SKIP_CHECKSUM=1 to bypass."
+            exit 1
+        fi
+        if [ "${ACTUAL_HASH}" = "${EXPECTED_HASH}" ]; then
+            log_info "Checksum matches SHA256SUMS.txt (${GREEN}${EXPECTED_HASH}${RESET})"
+        else
+            log_error "SHA-256 checksum mismatch! Expected ${EXPECTED_HASH}, got ${ACTUAL_HASH}."
+            exit 1
+        fi
     fi
 fi
 
@@ -182,8 +196,10 @@ fi
 log_step "4/4" "Installing binary and configuring PATH..."
 mkdir -p "${INSTALL_DIR}"
 FINAL_BIN="${INSTALL_DIR}/litespm"
-cp "${TMP_BIN}" "${FINAL_BIN}"
-chmod +x "${FINAL_BIN}"
+STAGE_BIN="${FINAL_BIN}.new.$$"
+cp "${TMP_BIN}" "${STAGE_BIN}"
+chmod +x "${STAGE_BIN}"
+mv -f "${STAGE_BIN}" "${FINAL_BIN}"
 log_info "Installed executable to: ${BOLD}${FINAL_BIN}${RESET}"
 
 # Check PATH
@@ -210,7 +226,7 @@ if [ "${NEED_PATH_CONFIG}" -eq 1 ] && [ "${LITESPM_NO_MODIFY_PATH:-0}" != "1" ];
 
     if [ -n "${SHELL_PROFILE}" ]; then
         LINE_TO_ADD="export PATH=\"${INSTALL_DIR}:\$PATH\""
-        if ! grep -q "litespm" "${SHELL_PROFILE}" 2>/dev/null; then
+        if ! grep -Fq "${INSTALL_DIR}" "${SHELL_PROFILE}" 2>/dev/null && ! grep -qi "litespm" "${SHELL_PROFILE}" 2>/dev/null; then
             printf "\n# LiteSPM binary\n%s\n" "${LINE_TO_ADD}" >> "${SHELL_PROFILE}"
             log_info "Added ${BOLD}${INSTALL_DIR}${RESET} to ${SHELL_PROFILE}"
         fi
@@ -232,9 +248,9 @@ echo ""
 log_success "LiteSPM standalone binary installed successfully!"
 log_info "Binary location: ${BOLD}${FINAL_BIN}${RESET}"
 echo ""
-printf "%b%s Next Steps:%b\n" "${CYAN}${BOLD}" "${RESET}"
-printf "  1. Connect your agents:    %b%slitespm host detect%b\n" "${GREEN}${BOLD}" "${RESET}"
-printf "  2. Interactive wizard:     %b%slitespm%b\n" "${GREEN}${BOLD}" "${RESET}"
-printf "  3. Search capabilities:    %b%slitespm search <query>%b\n" "${GREEN}${BOLD}" "${RESET}"
-printf "  4. Documentation:          %b%shttps://lite-spm-nine.vercel.app/docs%b\n" "${GREEN}${BOLD}" "${RESET}"
+printf "%bNext Steps:%b\n" "${CYAN}${BOLD}" "${RESET}"
+printf "  1. Connect your agents:    %blitespm host detect%b\n" "${GREEN}${BOLD}" "${RESET}"
+printf "  2. Interactive wizard:     %blitespm%b\n" "${GREEN}${BOLD}" "${RESET}"
+printf "  3. Search capabilities:    %blitespm search <query>%b\n" "${GREEN}${BOLD}" "${RESET}"
+printf "  4. Documentation:          %bhttps://lite-spm-nine.vercel.app/docs%b\n" "${GREEN}${BOLD}" "${RESET}"
 echo ""

@@ -970,7 +970,13 @@ func applyMCPItem(ctx context.Context, db *state.DB, paths *config.PlatformPaths
 	// The tree digest is the IR's own fingerprint: the identity of what was
 	// registered, in the same "sha256:..." shape every other install records.
 	entryDigest := porting.Fingerprint(item.IR)
-	installID := fmt.Sprintf("inst_%s_%s_%s", scope, safeInstallIDPart(listingID), shortDigest(entryDigest))
+	workspaceID := ""
+	scopePart := string(scope)
+	if scope == domain.ScopeProject && projectRoot != "" {
+		workspaceID = domain.WorkspaceIDForProjectRoot(projectRoot)
+		scopePart = "project_" + shortDigest(workspaceID)
+	}
+	installID := fmt.Sprintf("inst_%s_%s_%s_%s", scopePart, safeInstallIDPart(hostID), safeInstallIDPart(listingID), shortDigest(entryDigest))
 	now := time.Now().UTC()
 	rec := &domain.InstallRecord{
 		InstallID:   installID,
@@ -980,6 +986,8 @@ func applyMCPItem(ctx context.Context, db *state.DB, paths *config.PlatformPaths
 		TreeDigest:  entryDigest,
 		InstallPath: written.ConfigPath,
 		Scope:       scope,
+		ProjectRoot: projectRoot,
+		WorkspaceID: workspaceID,
 		Status:      domain.InstallActive,
 		InstalledAt: now,
 		UpdatedAt:   now,
@@ -1196,7 +1204,15 @@ func applySkillItem(ctx context.Context, db *state.DB, paths *config.PlatformPat
 	res.L1 = "ok"
 
 	listingID := porting.AdoptedListingID(item.Kind, srcHost, item.ID)
-	installID := fmt.Sprintf("inst_%s_%s_%s", scope, safeInstallIDPart(listingID), shortDigest(entry.ContentDigest))
+	workspaceID := ""
+	scopePart := string(scope)
+	projectRoot := ""
+	if scope == domain.ScopeProject && targetSkillDir != "" {
+		projectRoot = filepath.Dir(filepath.Dir(filepath.Clean(targetSkillDir)))
+		workspaceID = domain.WorkspaceIDForProjectRoot(projectRoot)
+		scopePart = "project_" + shortDigest(workspaceID)
+	}
+	installID := fmt.Sprintf("inst_%s_%s_%s_%s", scopePart, safeInstallIDPart(hostID), safeInstallIDPart(listingID), shortDigest(entry.ContentDigest))
 	now := time.Now().UTC()
 	preImage := "" // a fresh install refuses an existing destination, so there was nothing there
 	if force {
@@ -1210,6 +1226,8 @@ func applySkillItem(ctx context.Context, db *state.DB, paths *config.PlatformPat
 		TreeDigest:  entry.ContentDigest,
 		InstallPath: dest,
 		Scope:       scope,
+		ProjectRoot: projectRoot,
+		WorkspaceID: workspaceID,
 		Status:      domain.InstallActive,
 		InstalledAt: now,
 		UpdatedAt:   now,

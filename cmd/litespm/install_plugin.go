@@ -955,7 +955,12 @@ func readPluginManifest(treeDir string, listingID string) (*interop.PluginInstal
 				return nil, rerr
 			}
 			manifest.MCPServers = servers
-			manifest.NotInstalled["disabled servers"] += disabled
+			if disabled > 0 {
+				if manifest.NotInstalled == nil {
+					manifest.NotInstalled = map[string]int{}
+				}
+				manifest.NotInstalled["disabled servers"] += disabled
+			}
 		}
 		return manifest, nil
 	}

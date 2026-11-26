@@ -68,6 +68,9 @@ func parseAuditOptions(args []string) (*auditOptions, error) {
 	opts := &auditOptions{}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case "--help", "-h":
+			runHelp([]string{"audit"})
+			os.Exit(0)
 		case "--ci":
 			opts.ci = true
 		case "--json":
@@ -92,6 +95,9 @@ func parseAuditOptions(args []string) (*auditOptions, error) {
 }
 
 func runAudit(args []string) int {
+	if hasFlag(args, "--help") || hasFlag(args, "-h") {
+		return helpTo(os.Stdout, os.Stderr, []string{"audit"})
+	}
 	opts, err := parseAuditOptions(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n\n%s\n", err, auditUsage)

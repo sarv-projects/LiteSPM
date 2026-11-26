@@ -416,6 +416,10 @@ func runInvoke(args []string) {
 		fmt.Println(usage)
 		os.Exit(2)
 	}
+	if args[0] == "--help" || args[0] == "-h" || hasFlag(args, "--help") || hasFlag(args, "-h") {
+		runHelp([]string{"invoke"})
+		return
+	}
 	capabilityID := args[0]
 	arguments := json.RawMessage("{}")
 	for i := 1; i < len(args); i++ {

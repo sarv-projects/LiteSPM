@@ -184,14 +184,25 @@ func (s *Server) Serve(l net.Listener) error {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
+	var connWg sync.WaitGroup
+	var writeMu sync.Mutex
+
 	defer func() {
-		conn.Close()
+		connWg.Wait()
+		_ = conn.Close()
 		s.mu.Lock()
 		delete(s.activeConns, conn)
 		s.mu.Unlock()
 	}()
 
 	codec := NewLineDelimitedCodec(conn)
+	writeResp := func(resp *Response) {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		_ = codec.WriteResponse(resp)
+		_ = conn.SetWriteDeadline(time.Time{})
+	}
 
 	// Peer authentication runs before the first request is read: a connection
 	// whose uid does not match the daemon's never reaches a handler. An
@@ -236,15 +247,13 @@ func (s *Server) handleConnection(conn net.Conn) {
 				return
 			}
 			// Write parse error with deadline
-			_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			_ = codec.WriteResponse(&Response{
+			writeResp(&Response{
 				JSONRPC: "2.0",
 				Error: &RPCError{
 					Code:    CodeParseError,
 					Message: err.Error(),
 				},
 			})
-			_ = conn.SetWriteDeadline(time.Time{})
 			return
 		}
 
@@ -354,8 +363,10 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 
 		s.wg.Add(1)
+		connWg.Add(1)
 		go func(r *Request, ctx context.Context, idStr string, cancel context.CancelFunc) {
 			defer s.wg.Done()
+			defer connWg.Done()
 			defer func() { <-sem }()
 			// Always release the per-request context, including notifications
 			// (which are never stored in cancelFuncs) so no context leaks.
@@ -395,9 +406,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				}
 			}
 
-			_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			_ = codec.WriteResponse(resp)
-			_ = conn.SetWriteDeadline(time.Time{})
+			writeResp(resp)
 		}(req, reqCtx, idKey, cancel)
 	}
 }

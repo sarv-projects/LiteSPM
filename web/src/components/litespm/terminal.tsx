@@ -38,7 +38,7 @@ const SCENARIOS: Record<
       { kind: "tree", text: "│", delay: 80 },
       { kind: "dim", text: "╭─ LiteSPM Manager ───────────────────────────────────╮", delay: 140 },
       { kind: "out", text: "│  [1] Update capability catalog                      │", delay: 120 },
-      { kind: "ok", text: "│❯ [2] Find and install capability (69K+ catalog)     │", delay: 220 },
+      { kind: "ok", text: "│  > [2] Find and install capability (69K+ catalog)   │", delay: 220 },
       { kind: "out", text: "│  [3] Remove something LiteSPM installed             │", delay: 120 },
       { kind: "out", text: "│  [4] See what is installed (inventory & status)    │", delay: 120 },
       { kind: "out", text: "│  [5] Set up or repair an agent connection          │", delay: 120 },
@@ -99,7 +99,7 @@ const SCENARIOS: Record<
   },
   restore: {
     title: "restore",
-    description: "Byte-exact rollback using cryptographic pre-image hashes",
+    description: "Byte-exact rollback via pre-image hashes",
     lines: [
       { kind: "cmd", text: "litespm restore inst_user_mcp_context7_4_2_0", delay: 350 },
       { kind: "pill", text: "[restore] v0.6.0 · byte-exact rollback system", delay: 180 },
@@ -167,16 +167,25 @@ function FormattedLine({ line }: { line: ScriptLine }) {
       body = body.slice(2);
     }
 
-    // Detect tree prefix like "│ • " or "│ ● "
+    // Detect tree prefix like "│ • " or "│ ● " (avoid box borders ending with │)
     let treePrefix: React.ReactNode = null;
-    if (body.startsWith("│ ")) {
+    if (body.startsWith("│ ") && !body.endsWith("│")) {
       treePrefix = <span className="select-none font-mono text-white/22 mr-2">│</span>;
       body = body.slice(2);
     }
 
     // Colorize specific elements like radios, arrows, and boxes
     let contentNode: React.ReactNode = body;
-    if (body.includes("● Yes")) {
+    if (body.startsWith("│") && body.endsWith("│") && body.includes("> [2]")) {
+      const parts = body.split(/(> \[2\][^│]+)/g);
+      contentNode = (
+        <span>
+          <span className="text-white/75 font-light">{parts[0]}</span>
+          <span className="font-semibold text-emerald-300 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]">{parts[1]}</span>
+          <span className="text-white/75 font-light">{parts[2]}</span>
+        </span>
+      );
+    } else if (body.includes("● Yes")) {
       contentNode = (
         <span>
           <span className="font-semibold text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]">● Yes</span>
@@ -207,7 +216,7 @@ function FormattedLine({ line }: { line: ScriptLine }) {
     let lineClass = "text-[oklch(0.84_0.02_163)]";
     if (line.kind === "header") lineClass = "font-medium text-white/90";
     if (line.kind === "ok") lineClass = "font-medium text-emerald-300/95";
-    if (line.kind === "dim") lineClass = "text-[oklch(0.58_0.02_163)]";
+    if (line.kind === "dim") lineClass = "text-[oklch(0.72_0.02_163)]";
 
     // Box border styling
     if (text.startsWith("╭") || text.startsWith("╰") || (text.startsWith("│") && text.endsWith("│"))) {
@@ -429,7 +438,10 @@ export function TerminalHero({
           Smoothly auto-scrolls down once content fills the height. */}
       <div
         ref={viewportRef}
-        className="no-scrollbar flex h-[270px] flex-col justify-start overflow-y-auto px-3.5 py-3 font-mono text-[10.5px] leading-[1.72] sm:h-[338px] sm:px-4 sm:text-[11.5px] sm:leading-[1.78]"
+        tabIndex={0}
+        role="region"
+        aria-label="Terminal output"
+        className="no-scrollbar flex h-[270px] flex-col justify-start overflow-y-auto px-3.5 py-3 font-mono text-[10.5px] leading-[1.72] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand sm:h-[338px] sm:px-4 sm:text-[11.5px] sm:leading-[1.78]"
       >
         <div className="flex flex-col gap-0.5">
           {lines.slice(0, visible).map((line, i) => (

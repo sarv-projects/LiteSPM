@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -229,10 +230,14 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 						// Sibling binary synchronization: if ~/.local/bin or ~/.litespm/bin exists,
 						// update them in lockstep so PATH shadowing never recurs.
 						if home, _ := os.UserHomeDir(); home != "" && len(updatePayload) > 0 {
+							localName := "litespm"
+							if runtime.GOOS == "windows" {
+								localName = "litespm.exe"
+							}
 							for _, sibling := range []string{
-								filepath.Join(home, ".local", "bin", "litespm"),
-								filepath.Join(home, ".litespm", "bin", "litespm-linux-amd64"),
-								filepath.Join(home, ".litespm", "bin", status.LatestVersion, "litespm-linux-amd64"),
+								filepath.Join(home, ".local", "bin", localName),
+								filepath.Join(home, ".litespm", "bin", binName),
+								filepath.Join(home, ".litespm", "bin", status.LatestVersion, binName),
 							} {
 								if sibling != execPath {
 									if _, statErr := os.Stat(sibling); statErr == nil {
@@ -244,13 +249,18 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 					}
 				}
 			}
+		} else if checkErr != nil {
+			report.Details = append(report.Details, fmt.Sprintf("Update check failed: %v", checkErr))
+			if !opts.jsonOut {
+				fmt.Fprintf(out, "%s  binary update check failed: %v\n", uiYellowS.Render("▲"), checkErr)
+			}
 		} else {
 			if !opts.jsonOut {
 				fmt.Fprintf(out, "%s  binary is up to date (%s)\n", uiGreenS.Render("✓"), Version)
 			}
 		}
 	} else if !opts.jsonOut && !opts.skipUpdate {
-		fmt.Fprintf(out, "%s  binary check: running developer build (%s)\n", uiDim.Render("○"), Version)
+		fmt.Fprintf(out, "%s  binary check: running developer build (%s at %s)\n", uiDim.Render("○"), Version, execPath)
 	}
 
 	// -------------------------------------------------------------
@@ -376,6 +386,9 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 				entries, _ := ledger.All()
 				installedSkillsByName := make(map[string]skills.LedgerEntry)
 				for _, e := range entries {
+					if e.Scope != "" && e.Scope != "global" {
+						continue // never leak project-scoped skills into global agent directories
+					}
 					if e.SkillName != "" && e.DestDir != "" {
 						if _, statErr := os.Stat(filepath.Join(e.DestDir, "SKILL.md")); statErr == nil {
 							installedSkillsByName[e.SkillName] = e
@@ -402,14 +415,18 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 
 						if !opts.dryRun {
 							if copyErr := skills.CopySkillDir(entry.DestDir, skillDest); copyErr == nil {
+								prov, _ := skills.CaptureProvenance(skillDest)
 								newLedgerEntries = append(newLedgerEntries, skills.LedgerEntry{
-									SkillName:   skillName,
-									AgentID:     agentTarget.ID,
-									HostLabel:   agentTarget.DisplayName,
-									DestDir:     skillDest,
-									Source:      entry.Source,
-									Scope:       "global",
-									InstalledAt: time.Now(),
+									SkillName:     skillName,
+									AgentID:       agentTarget.ID,
+									HostLabel:     agentTarget.DisplayName,
+									DestDir:       skillDest,
+									Source:        entry.Source,
+									SourceRef:     entry.SourceRef,
+									Scope:         "global",
+									ContentDigest: prov.Digest,
+									Inventory:     prov.Inventory,
+									InstalledAt:   time.Now(),
 								})
 							}
 						}
@@ -428,8 +445,16 @@ func executeSync(ctx context.Context, out io.Writer, opts syncOptions) (*syncRep
 				report.SkillsReconciled = recRes.installedCount
 			}
 			if !opts.jsonOut {
-				fmt.Fprintf(out, "%s  skills: %d active skills reconciled across %d agents\n",
-					uiGreenS.Render("✓"), report.SkillsReconciled, len(detectedHostIDs))
+				skillWord := "skills"
+				if report.SkillsReconciled == 1 {
+					skillWord = "skill"
+				}
+				agentWord := "agents"
+				if len(detectedHostIDs) == 1 {
+					agentWord = "agent"
+				}
+				fmt.Fprintf(out, "%s  skills: %d active %s reconciled across %d %s\n",
+					uiGreenS.Render("✓"), report.SkillsReconciled, skillWord, len(detectedHostIDs), agentWord)
 			}
 		}
 	}

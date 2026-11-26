@@ -11,6 +11,9 @@
     "postbuild": "node scripts/postbuild.mjs",
     "build:search-index": "node scripts/build-search-index.mjs",
     "start": "node .next/standalone/server.js",
+    "cf:build": "npx opennextjs-cloudflare build",
+    "cf:preview": "npx opennextjs-cloudflare preview",
+    "cf:deploy": "npx opennextjs-cloudflare deploy",
     "test:hardening": "node scripts/test-hardening.mjs",
     "test:host-paths": "bun scripts/test-host-paths.ts",
     "lint": "eslint . && node scripts/check-no-embedded-secrets.mjs && node scripts/check-web-truth.mjs && node scripts/check-assistant-product.mjs && node scripts/check-web-hardening.mjs && node scripts/check-installable-first.mjs && node scripts/check-bundles.mjs",
@@ -34,6 +37,8 @@
     "@hookform/resolvers": "^5.1.1",
     "@libsql/client": "^0.18.0",
     "@mdxeditor/editor": "^3.39.1",
+    "@opennextjs/cloudflare": "^1.20.19",
+    "@prisma/adapter-d1": "^7.10.1",
     "@prisma/adapter-libsql": "^7.10.1",
     "@prisma/client": "^6.19.2",
     "@radix-ui/react-accordion": "^1.2.11",
@@ -106,6 +111,7 @@
     "eslint-config-next": "^16.1.1",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.168.0"
   }
 }

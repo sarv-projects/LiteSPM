@@ -273,7 +273,16 @@ func (m *searchPromptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *searchPromptModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	key := msg.String()
+	// In Searchable prompts, h/j/k/l (and Space while typing a query) must type
+	// into the filter instead of acting as vim navigation/toggle keys.
+	if m.opts.Searchable && (key == "h" || key == "j" || key == "k" || key == "l" || (key == " " && (m.opts.Single || m.query != ""))) {
+		m.query += key
+		m.resetCursor()
+		m.flash = ""
+		return m, nil
+	}
+	switch key {
 	case "ctrl+c", "esc":
 		m.cancelled = true
 		m.done = true
@@ -307,7 +316,7 @@ func (m *searchPromptModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case " ":
+	case " ", "tab":
 		if m.opts.Single {
 			return m.submit()
 		}
@@ -623,7 +632,7 @@ func (m *searchPromptModel) View() string {
 	if m.opts.Single {
 		b.WriteString(uiDim.Render("↑↓ move · enter select · esc cancel"))
 	} else {
-		b.WriteString(uiDim.Render("↑↓ move · space toggle · ctrl+a all · enter install · esc cancel"))
+		b.WriteString(uiDim.Render("↑↓ move · space/tab toggle · ctrl+a all · enter confirm · esc cancel"))
 	}
 	b.WriteString("\n")
 	b.WriteString(uiBar + "\n")

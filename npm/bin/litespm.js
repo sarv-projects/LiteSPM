@@ -124,34 +124,43 @@ function main() {
 
   // Translate OS protocol handler URLs: litespm://install/<pkg>[?agent=<host>]
   if (args.length === 1 && typeof args[0] === "string" && args[0].startsWith("litespm://")) {
+    const safeDecode = (s) => {
+      try {
+        return decodeURIComponent(s);
+      } catch {
+        return null;
+      }
+    };
+    let rawPkg = "";
+    let agent = "";
     try {
-      const rawUri = args[0];
-      const parsed = new URL(rawUri);
-      let pkg = "";
+      const parsed = new URL(args[0]);
       if (parsed.hostname === "install") {
-        pkg = parsed.pathname.replace(/^\/+/, "");
+        rawPkg = parsed.pathname.replace(/^\/+/, "");
       } else if (parsed.pathname.startsWith("//install/")) {
-        pkg = parsed.pathname.replace(/^\/\/install\//, "");
+        rawPkg = parsed.pathname.replace(/^\/\/install\//, "");
       } else if (parsed.hostname && parsed.hostname !== "install") {
-        pkg = parsed.hostname + parsed.pathname;
+        rawPkg = parsed.hostname + parsed.pathname;
       }
-      if (pkg) {
-        args = ["install", decodeURIComponent(pkg)];
-        const agent = parsed.searchParams.get("agent") || parsed.searchParams.get("host");
-        if (agent) args.push("--agent", agent);
-      }
+      agent = parsed.searchParams.get("agent") || parsed.searchParams.get("host") || "";
     } catch {
       const match = args[0].match(/^litespm:\/\/install\/([^?]+)/);
-      if (match) {
-        args = ["install", decodeURIComponent(match[1])];
-      }
+      if (match) rawPkg = match[1];
     }
+    const pkg = rawPkg ? safeDecode(rawPkg) : null;
+    if (!pkg || pkg.startsWith("-") || (agent && agent.startsWith("-"))) {
+      console.error("[litespm] Refusing invalid or flag-like litespm:// URI.");
+      process.exit(2);
+    }
+    args = ["install", pkg];
+    if (agent) args.push("--agent", agent);
   }
 
+  let coninFd = null;
   const isBridgeStdio = args.includes("bridge") && args.includes("stdio");
   if (!isBridgeStdio && process.platform === "win32" && !process.stdin.isTTY && process.stdout.isTTY) {
     try {
-      const coninFd = fs.openSync("CONIN$", "r");
+      coninFd = fs.openSync("CONIN$", "r+");
       stdinOption = coninFd;
     } catch (e) {}
   }
@@ -160,6 +169,11 @@ function main() {
     stdio: [stdinOption, "inherit", "inherit"],
     env: process.env,
   });
+  if (coninFd !== null) {
+    try {
+      fs.closeSync(coninFd);
+    } catch (e) {}
+  }
 
   child.on("error", (err) => {
     console.error(`[litespm] Failed to spawn native binary: ${err.message}`);
@@ -190,6 +204,7 @@ function main() {
 
   child.on("exit", (code, signal) => {
     if (signal) {
+      process.removeAllListeners(signal);
       process.kill(process.pid, signal);
     } else {
       process.exit(code || 0);
@@ -214,4 +229,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { getBinaryName, getManagedBinaryPath, installerResultError, resolveBinary };
+module.exports = { getBinaryName, getManagedBinaryPath, installerResultError, main, resolveBinary };

@@ -178,7 +178,7 @@ and three times as deployments — the output always says both.
 
 States: managed (LiteSPM controls it) · observed (LiteSPM found it) · adopted
 (copied from another agent, now managed) · drifted (changed since install) ·
-broken (recorded but missing) · — (not knowable from the recorded data).
+broken (recorded but missing) · unknown (cannot be determined from recorded data).
 
 Exit codes: 0 success (including nothing to do) · 1 a source could not be read
 · 2 usage`
@@ -1074,7 +1074,7 @@ func renderListPlain(w io.Writer, report *inventoryReport, fl listFlags) {
 		}
 	}
 
-	fmt.Fprintf(w, "State: %d managed · %d observed · %d adopted · %d drifted · %d broken · %d not knowable\n",
+	fmt.Fprintf(w, "State: %d managed · %d observed · %d adopted · %d drifted · %d broken · %d unknown\n",
 		report.Counts.Managed, report.Counts.Observed, report.Counts.Adopted,
 		report.Counts.Drifted, report.Counts.Broken, report.Counts.Unknown)
 	if len(report.Warnings) > 0 {
@@ -1086,7 +1086,7 @@ func renderListPlain(w io.Writer, report *inventoryReport, fl listFlags) {
 	fmt.Fprintln(w, "  adopted   taken from another agent with `copy`; managed now, origin recorded")
 	fmt.Fprintln(w, "  drifted   changed since LiteSPM wrote it; reported, never repaired here")
 	fmt.Fprintln(w, "  broken    recorded by LiteSPM but missing where it was written")
-	fmt.Fprintln(w, "  —         the recorded data cannot answer; shown, never guessed")
+	fmt.Fprintln(w, "  unknown   the recorded data cannot answer; shown, never guessed")
 }
 
 func renderHeaderCard(w io.Writer, report *inventoryReport, fl listFlags) {
@@ -1325,8 +1325,6 @@ func renderGroupedObservedTerminal(w io.Writer, rows []inventoryRecord) {
 			padRight(stateStyled, 12),
 			padRight(scopeStyled, 7),
 			agentsFormatted)
-
-		time.Sleep(10 * time.Millisecond)
 	}
 	fmt.Fprintln(w)
 }
@@ -1410,8 +1408,6 @@ func renderListByAgentTerminal(w io.Writer, records []inventoryRecord) {
 				padRight(stateStyled, 12),
 				padRight(uiDim.Render(scopeDash(rec.Scope)), 7),
 				lipgloss.NewStyle().Foreground(lipgloss.Color("#bac2de")).Render(truncateRunes(cell, 56)))
-
-			time.Sleep(10 * time.Millisecond)
 		}
 		fmt.Fprintln(w)
 	}

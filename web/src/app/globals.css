@@ -197,10 +197,10 @@
 /* before hydration (no LCP delay waiting for JS).                     */
 /* ------------------------------------------------------------------ */
 
-/* Word-by-word rise for the hero headline. */
+/* Word-by-word rise for the hero headline and hero blocks (transform + opacity only, zero blur artifact). */
 @keyframes rise-in {
-  from { opacity: 0; transform: translate3d(0, 0.45em, 0); filter: blur(6px); }
-  to { opacity: 1; transform: none; filter: blur(0); }
+  from { opacity: 0; transform: translate3d(0, 0.45em, 0); }
+  to { opacity: 1; transform: none; }
 }
 .rise-word {
   display: inline-block;

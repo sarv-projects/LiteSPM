@@ -35,7 +35,9 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -91,6 +93,29 @@ func parseAdoptArgs(args []string) (adoptOptions, error) {
 			}
 			i++
 			opts.hostID = strings.TrimSpace(args[i])
+		case "--scope":
+			if i+1 >= len(args) {
+				return opts, fmt.Errorf("flag %s requires a value", arg)
+			}
+			i++
+			sc := strings.ToLower(strings.TrimSpace(args[i]))
+			switch sc {
+			case "user", "global":
+				opts.scope = domain.ScopeUser
+			case "project":
+				opts.scope = domain.ScopeProject
+			default:
+				return opts, fmt.Errorf("invalid --scope %q: must be user or project", args[i])
+			}
+		case "--workspace":
+			if i+1 >= len(args) {
+				return opts, fmt.Errorf("flag %s requires a value", arg)
+			}
+			i++
+			opts.workspace = strings.TrimSpace(args[i])
+			if opts.scope == "" {
+				opts.scope = domain.ScopeProject
+			}
 		case "--help", "-h":
 			return opts, fmt.Errorf("help requested")
 		default:
@@ -245,7 +270,7 @@ func adoptHostEntry(ctx context.Context, db *state.DB, opts adoptOptions) (*adop
 		return nil, lerr
 	}
 
-	installID := adoptInstallID(opts.hostID, opts.name, opts.scope)
+	installID := adoptInstallIDWithWorkspace(opts.hostID, opts.name, opts.scope, projectRoot)
 	listingID := "mcp:adopted:" + opts.name
 	now := time.Now().UTC()
 	rec := &domain.InstallRecord{
@@ -329,9 +354,17 @@ func runAdoptTo(out, errOut io.Writer, db *state.DB, opts adoptOptions) int {
 // on more than one host — and in both a global config and a project's — and
 // each is its own ownership.
 func adoptInstallID(hostID, name string, scope domain.InstallScope) string {
+	return adoptInstallIDWithWorkspace(hostID, name, scope, "")
+}
+
+func adoptInstallIDWithWorkspace(hostID, name string, scope domain.InstallScope, projectRoot string) string {
 	scopePart := "user"
 	if scope == domain.ScopeProject {
 		scopePart = "project"
+		if projectRoot != "" {
+			sum := sha256.Sum256([]byte(filepath.Clean(projectRoot)))
+			scopePart = "project_" + hex.EncodeToString(sum[:4])
+		}
 	}
 	return fmt.Sprintf("inst_%s_adopt_%s_%s", scopePart, safeInstallIDPart(hostID), safeInstallIDPart(name))
 }

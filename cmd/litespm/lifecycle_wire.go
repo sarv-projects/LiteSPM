@@ -44,10 +44,12 @@ func resolveRemoveID(ctx context.Context, db *state.DB, key string) (string, err
 		return "", fmt.Errorf("an install id or listing id is required")
 	}
 	if strings.HasPrefix(key, "inst_") {
-		return key, nil
+		if _, err := db.GetInstall(ctx, key); err == nil {
+			return key, nil
+		}
 	}
-	if _, err := db.GetInstall(ctx, key); err == nil {
-		return key, nil
+	if rec, err := resolveRestoreInstall(ctx, db, key); err == nil && rec != nil {
+		return rec.InstallID, nil
 	}
 
 	var matches []*domain.InstallRecord
@@ -259,7 +261,11 @@ func stripOwnedImage(ctx context.Context, db *state.DB, dataRoot string, m deplo
 	// The registration row describes an entry that is now gone (or restored
 	// to the user's own text); it must not outlive it. A row that has already
 	// vanished is fine — DeleteHostRegistration only fails on real errors.
-	if err := dropHostRegistrations(ctx, db, m.HostID, scope, name); err != nil {
+	workspaceID := ""
+	if scope == domain.ScopeProject && projectRoot != "" {
+		workspaceID = domain.WorkspaceIDForProjectRoot(projectRoot)
+	}
+	if err := dropHostRegistrations(ctx, db, m.HostID, scope, workspaceID, name); err != nil {
 		return fmt.Errorf("entry %q stripped from %s but its registration row could not be dropped: %w", name, m.FilePath, err)
 	}
 	return nil
@@ -297,13 +303,16 @@ func projectRootForScope(rec *domain.InstallRecord, scope domain.InstallScope) s
 // a project install writes: those carry a real workspace id, and the row
 // survived its own install's removal. Listing the rows first and deleting each
 // with the workspace it was written under is symmetric with the install.
-func dropHostRegistrations(ctx context.Context, db *state.DB, hostID string, scope domain.InstallScope, key string) error {
+func dropHostRegistrations(ctx context.Context, db *state.DB, hostID string, scope domain.InstallScope, workspaceID, key string) error {
 	regs, err := db.ListHostRegistrationsForEntry(ctx, scope, key)
 	if err != nil {
 		return err
 	}
 	for _, reg := range regs {
 		if reg.HostID != hostID {
+			continue
+		}
+		if scope == domain.ScopeProject && reg.WorkspaceID != workspaceID {
 			continue
 		}
 		if err := db.DeleteHostRegistration(ctx, reg.HostID, reg.Scope, reg.WorkspaceID, key); err != nil {
@@ -321,8 +330,9 @@ func stripSkillDir(dataRoot string, m deployment.Mutation) error {
 	}
 	name := locatorName(m)
 	outcomes, err := ledger.RemoveScoped(skills.RemoveOptions{
-		Names: []string{name},
-		Scope: skillLedgerScope(m.Scope),
+		Names:   []string{name},
+		Scope:   skillLedgerScope(m.Scope),
+		DestDir: m.FilePath,
 	})
 	if err != nil {
 		return err
@@ -361,6 +371,9 @@ func bestEffortRemove(ctx context.Context, db *state.DB, dataRoot string, rec *d
 				return fmt.Errorf("list host registrations for %q: %w", comp.ComponentName, err)
 			}
 			for _, reg := range regs {
+				if reg.Scope == domain.ScopeProject && rec.WorkspaceID != "" && reg.WorkspaceID != rec.WorkspaceID {
+					continue
+				}
 				if _, err := host.RemoveServerEntry(ctx, reg.HostID, comp.ComponentName, reg.Scope, projectRootForScope(rec, reg.Scope), backupDir, ""); err != nil {
 					return fmt.Errorf("strip %q from host %s: %w", comp.ComponentName, reg.HostID, err)
 				}

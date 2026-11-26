@@ -405,5 +405,5 @@ export function bridgeSnippet(
   }
 
   const body = nest(keyPath, { litespm: bridgeEntry(host, binary) });
-  return `# ${path}\n${JSON.stringify(body, null, 2)}`;
+  return JSON.stringify(body, null, 2);
 }

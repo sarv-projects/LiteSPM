@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"time"
 )
 
@@ -93,6 +94,12 @@ func (k ListingKind) InstallWired() bool {
 // components; callers that need an actionable verdict must use the relevant
 // install preflight rather than this predicate alone.
 func (l *Listing) IsInstallable() bool {
+	if l == nil {
+		return false
+	}
+	if l.Kind == KindSkill && strings.TrimSpace(l.Source.URL) != "" {
+		return true
+	}
 	return l.Kind.InstallWired() && l.Installability.Effective() != InstallabilityDiscoveryOnly
 }
 

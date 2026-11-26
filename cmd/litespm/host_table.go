@@ -60,6 +60,8 @@ func renderHostDetect(ctx context.Context, w io.Writer, cwd string) int {
 		fileStatus := "missing"
 		if v.Configured {
 			fileStatus = "found"
+		} else if v.BinaryPath != "" {
+			fileStatus = "cli found"
 		}
 		bridge := "not linked"
 		if v.Registered {
@@ -72,6 +74,9 @@ func renderHostDetect(ctx context.Context, w io.Writer, cwd string) int {
 			where = v.Note
 		case v.Project:
 			where += " (project)"
+		}
+		if !v.Configured && v.BinaryPath != "" && where != "" {
+			where += " (cli: " + v.BinaryPath + ")"
 		}
 		rows = append(rows, []string{v.HostID, fileStatus, bridge, where})
 	}

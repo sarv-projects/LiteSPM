@@ -118,10 +118,18 @@ func main() {
 		runSelfUpdate(os.Args[2:])
 
 	case "doctor":
+		if hasFlag(os.Args[2:], "--help") || hasFlag(os.Args[2:], "-h") {
+			runHelp([]string{"doctor"})
+			return
+		}
 		if code := runDoctor(os.Args[2:]); code != 0 {
 			os.Exit(code)
 		}
 	case "audit":
+		if hasFlag(os.Args[2:], "--help") || hasFlag(os.Args[2:], "-h") {
+			runHelp([]string{"audit"})
+			return
+		}
 		if code := runAudit(os.Args[2:]); code != 0 {
 			os.Exit(code)
 		}
@@ -130,6 +138,10 @@ func main() {
 		runMarketplace(os.Args[2:])
 
 	case "search":
+		if hasFlag(os.Args[2:], "--help") || hasFlag(os.Args[2:], "-h") {
+			runHelp([]string{"search"})
+			return
+		}
 		opts, queryErr := searchQueryArgs(os.Args[2:])
 		if queryErr != nil {
 			fmt.Fprintf(os.Stderr, "Usage error: %v\n%s\n", queryErr, searchSynopsis)
@@ -138,6 +150,10 @@ func main() {
 		runSearch(opts)
 
 	case "auth":
+		if hasFlag(os.Args[2:], "--help") || hasFlag(os.Args[2:], "-h") {
+			runHelp([]string{"auth"})
+			return
+		}
 		if code := runAuth(os.Args[2:]); code != 0 {
 			os.Exit(code)
 		}
@@ -170,12 +186,15 @@ func main() {
 		}
 
 	case "catalog":
+		if hasFlag(os.Args[2:], "--help") || hasFlag(os.Args[2:], "-h") {
+			runHelp([]string{"catalog"})
+			return
+		}
 		if len(os.Args) >= 3 {
 			switch os.Args[2] {
 			case "sync":
 				if hasFlag(os.Args[3:], "--help") || hasFlag(os.Args[3:], "-h") {
-					fmt.Println("Usage: litespm catalog sync [--auto]")
-					fmt.Println("Download and verify the catalog. --auto is the quiet background form used by auto-sync.")
+					runHelp([]string{"catalog"})
 					return
 				}
 				if hasFlag(os.Args[3:], "--auto") {
@@ -183,6 +202,10 @@ func main() {
 				}
 				runCatalogSync()
 			case "build":
+				if hasFlag(os.Args[3:], "--help") || hasFlag(os.Args[3:], "-h") {
+					runHelp([]string{"catalog"})
+					return
+				}
 				runCatalogBuild(os.Args[3:])
 			default:
 				fmt.Println("Usage: litespm catalog [sync|build]")
@@ -204,6 +227,10 @@ func main() {
 		runBridge(os.Args[2:])
 
 	case "host":
+		if hasFlag(os.Args[2:], "--help") || hasFlag(os.Args[2:], "-h") {
+			runHelp([]string{"host"})
+			return
+		}
 		if len(os.Args) < 3 {
 			fmt.Println("Usage: litespm host [list|detect|setup <host-id>|remove <host-id>|remove --all]")
 			os.Exit(2)
@@ -211,6 +238,10 @@ func main() {
 		runHostCommand(os.Args[2:])
 
 	case "uninstall":
+		if hasFlag(os.Args[2:], "--help") || hasFlag(os.Args[2:], "-h") {
+			runHelp([]string{"uninstall"})
+			return
+		}
 		if code := runUninstall(context.Background(), os.Args[2:]); code != 0 {
 			os.Exit(code)
 		}
@@ -226,9 +257,17 @@ func main() {
 		runCapabilities(os.Args[2:])
 
 	case "invoke":
+		if hasFlag(os.Args[2:], "--help") || hasFlag(os.Args[2:], "-h") {
+			runHelp([]string{"invoke"})
+			return
+		}
 		runInvoke(os.Args[2:])
 
 	case "skills":
+		if hasFlag(os.Args[2:], "--help") || hasFlag(os.Args[2:], "-h") {
+			fmt.Println(skillsUsageLine)
+			return
+		}
 		if len(os.Args) < 3 {
 			fmt.Println(skillsUsageLine)
 			os.Exit(2)
@@ -1030,20 +1069,36 @@ func resolveBridgeProjectRoot(workspace string) string {
 }
 
 func runHostCommand(args []string) {
+	if len(args) == 0 || hasFlag(args, "--help") || hasFlag(args, "-h") {
+		runHelp([]string{"host"})
+		return
+	}
 	ctx := context.Background()
 	sub := args[0]
 
 	switch sub {
 	case "list":
+		if hasFlag(args[1:], "--help") || hasFlag(args[1:], "-h") {
+			runHelp([]string{"host"})
+			return
+		}
 		renderHostList(ctx, os.Stdout)
 
 	case "detect":
+		if hasFlag(args[1:], "--help") || hasFlag(args[1:], "-h") {
+			runHelp([]string{"host"})
+			return
+		}
 		cwd, _ := os.Getwd()
 		if code := renderHostDetect(ctx, os.Stdout, cwd); code != 0 {
 			os.Exit(code)
 		}
 
 	case "setup":
+		if hasFlag(args[1:], "--help") || hasFlag(args[1:], "-h") {
+			runHelp([]string{"host"})
+			return
+		}
 		if len(args) < 2 {
 			fmt.Println("Usage: litespm host setup <host-id>")
 			os.Exit(2)
@@ -1053,6 +1108,10 @@ func runHostCommand(args []string) {
 		}
 
 	case "remove":
+		if hasFlag(args[1:], "--help") || hasFlag(args[1:], "-h") {
+			runHelp([]string{"host"})
+			return
+		}
 		runHostRemove(ctx, args[1:])
 
 	default:
@@ -1126,6 +1185,9 @@ func runHostRemove(ctx context.Context, args []string) {
 // through that record. It returns the exit code (0 success, 1 failed) instead
 // of exiting, so tests can drive the real path; main maps it to os.Exit.
 func runUninstall(ctx context.Context, args []string) int {
+	if hasFlag(args, "--help") || hasFlag(args, "-h") {
+		return helpTo(os.Stdout, os.Stderr, []string{"uninstall"})
+	}
 	dryRun := false
 	for _, a := range args {
 		if a == "--dry-run" {
@@ -1287,6 +1349,17 @@ func reportUninstallRemainder(ctx context.Context, paths *config.PlatformPaths) 
 // the same ledger-driven, symmetric removal — strip only the nodes LiteSPM
 // still owns, keep every node the user edited, then delete state.
 func runInstallRemove(args []string) {
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		fmt.Println(`Usage: litespm install remove <installId>
+
+Removes one installed package: LiteSPM's own entries are stripped out of the
+host configs (restoring any user entry they replaced), and nodes you edited
+after the install are kept, not deleted.
+
+See also:
+  litespm restore <installId>   byte-exact rollback to the pre-install state`)
+		return
+	}
 	if len(args) != 1 || strings.HasPrefix(args[0], "-") {
 		fmt.Println(`Usage: litespm install remove <installId>
 
@@ -1327,7 +1400,7 @@ See also:
 
 // runSmartRemove unifies package removal and skills removal under `litespm remove <name>`.
 func runSmartRemove(ctx context.Context, args []string) {
-	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+	if len(args) == 0 || hasFlag(args, "--help") || hasFlag(args, "-h") {
 		fmt.Println("Usage: litespm remove <package-id|skill-name|install-id> [flags]")
 		fmt.Println("\nRemoves an installed MCP server, plugin, or skill from your agent hosts.")
 		fmt.Println("\nFlags:")
@@ -1336,27 +1409,84 @@ func runSmartRemove(ctx context.Context, args []string) {
 		return
 	}
 
+	var target string
+	var scopeFilter string
+	var removeAll bool
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--scope", "-s":
+			if i+1 < len(args) {
+				scopeFilter = strings.ToLower(strings.TrimSpace(args[i+1]))
+				i++
+			} else {
+				fmt.Fprintln(os.Stderr, "Error: --scope requires user or project")
+				os.Exit(2)
+			}
+		case "--all":
+			removeAll = true
+		default:
+			if strings.HasPrefix(args[i], "--scope=") {
+				scopeFilter = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(args[i], "--scope=")))
+			} else if !strings.HasPrefix(args[i], "-") && target == "" {
+				target = args[i]
+			}
+		}
+	}
+	if target == "" && !removeAll {
+		fmt.Fprintln(os.Stderr, "Usage: litespm remove <package-id|skill-name|install-id> [--scope user|project] [--all]")
+		os.Exit(2)
+	}
+	if scopeFilter != "" && scopeFilter != "user" && scopeFilter != "global" && scopeFilter != "project" {
+		fmt.Fprintf(os.Stderr, "Error: invalid --scope %q (expected user or project)\n", scopeFilter)
+		os.Exit(2)
+	}
+
 	paths, err := config.ResolvePlatformPaths()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error resolving paths: %v\n", err)
 		os.Exit(1)
 	}
 
-	target := args[0]
-
 	// 1. Check state database for an installed MCP server or plugin
 	db, err := state.Open(paths.StateDBPath())
 	if err == nil {
 		defer db.Close()
-		installID, rerr := resolveRemoveID(ctx, db, target)
-		if rerr == nil && installID != "" {
-			if err := removeInstalledPackage(ctx, db, paths.DataRoot, installID); err != nil {
-				fmt.Fprintf(os.Stderr, "Remove failed: %v\n", err)
-				os.Exit(1)
+		var idsToRemove []string
+		if removeAll || scopeFilter != "" {
+			var scopes []domain.InstallScope
+			switch scopeFilter {
+			case "user", "global":
+				scopes = []domain.InstallScope{domain.ScopeUser}
+			case "project":
+				scopes = []domain.InstallScope{domain.ScopeProject}
+			default:
+				scopes = []domain.InstallScope{domain.ScopeUser, domain.ScopeProject}
 			}
-			fmt.Printf("✓ Removed %s\n", installID)
+			for _, sc := range scopes {
+				rows, _ := db.ListInstalls(ctx, sc, "")
+				for _, rec := range rows {
+					if target == "" || rec.InstallID == target || rec.ListingID == target || matchesInstallSlug(rec, target) {
+						idsToRemove = append(idsToRemove, rec.InstallID)
+					}
+				}
+			}
+		} else if target != "" {
+			if installID, rerr := resolveRemoveID(ctx, db, target); rerr == nil && installID != "" {
+				idsToRemove = append(idsToRemove, installID)
+			}
+		}
+		if len(idsToRemove) > 0 {
+			for _, id := range idsToRemove {
+				if err := removeInstalledPackage(ctx, db, paths.DataRoot, id); err != nil {
+					fmt.Fprintf(os.Stderr, "Remove failed for %s: %v\n", id, err)
+					os.Exit(1)
+				}
+				fmt.Printf("✓ Removed %s\n", id)
+			}
 			fmt.Println("  LiteSPM's entries were stripped from the host configs; nodes you edited were kept.")
-			return
+			if !removeAll {
+				return
+			}
 		}
 	}
 
@@ -1366,11 +1496,26 @@ func runSmartRemove(ctx context.Context, args []string) {
 		all, _ := ledger.All()
 		cleanTarget := strings.TrimPrefix(target, "skill:")
 		for _, e := range all {
-			if strings.EqualFold(e.SkillName, target) || strings.EqualFold(e.SkillName, cleanTarget) {
-				runSkillsRemove(args)
+			if removeAll || strings.EqualFold(e.SkillName, target) || strings.EqualFold(e.SkillName, cleanTarget) {
+				var skillArgs []string
+				if target != "" {
+					skillArgs = append(skillArgs, target)
+				} else if removeAll {
+					skillArgs = append(skillArgs, "--all")
+				}
+				if scopeFilter == "user" || scopeFilter == "global" {
+					skillArgs = append(skillArgs, "-g")
+				} else if scopeFilter == "project" {
+					skillArgs = append(skillArgs, "-p")
+				}
+				runSkillsRemove(skillArgs)
 				return
 			}
 		}
+	}
+
+	if removeAll {
+		return
 	}
 
 	// 3. Not found in either
@@ -1673,6 +1818,9 @@ func searchQueryArgs(args []string) (searchOptions, error) {
 		arg := rest[0]
 		rest = rest[1:]
 		switch arg {
+		case "--help", "-h":
+			runHelp([]string{"search"})
+			os.Exit(0)
 		case "--json":
 			opts.json = true
 		case "--installable":
@@ -2026,10 +2174,16 @@ func runSkillsAddFromInstall(flags installFlags) {
 	if flags.force {
 		skillsArgs = append(skillsArgs, "--force")
 	}
+	if flags.dryRun {
+		skillsArgs = append(skillsArgs, "--dry-run")
+	}
+	if flags.allDetected {
+		skillsArgs = append(skillsArgs, "--all-detected")
+	}
 	if flags.scope == domain.ScopeProject {
-		skillsArgs = append(skillsArgs, "--project")
+		skillsArgs = append(skillsArgs, "--scope", "project")
 	} else if flags.scope == domain.ScopeUser && flags.scopeSet {
-		skillsArgs = append(skillsArgs, "--global")
+		skillsArgs = append(skillsArgs, "--scope", "global")
 	}
 	for _, a := range flags.agents {
 		skillsArgs = append(skillsArgs, "--agent", a)
@@ -2159,8 +2313,12 @@ func runInstall(args []string) {
 				os.Exit(2)
 			}
 			if !row.IsInstallable() {
-				fmt.Fprintf(os.Stderr, "Install error: bundle item %s is discovery-only; a bundle cannot include it\n", item)
-				os.Exit(2)
+				if row.Kind == domain.KindSkill && strings.TrimSpace(row.Source.URL) != "" {
+					// A skill with an upstream repository source is installable in a curated bundle
+				} else {
+					fmt.Fprintf(os.Stderr, "Install error: bundle item %s is discovery-only; a bundle cannot include it\n", item)
+					os.Exit(2)
+				}
 			}
 		}
 		fmt.Printf("Bundle %s: %d capabilities\n", bundleID, len(items))
@@ -3040,6 +3198,9 @@ func doctorDuration(ms int64) string {
 }
 
 func runDoctor(args []string) int {
+	if hasFlag(args, "--help") || hasFlag(args, "-h") {
+		return helpTo(os.Stdout, os.Stderr, []string{"doctor"})
+	}
 	repairMode := false
 	yesMode := false
 	for _, a := range args {

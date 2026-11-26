@@ -62,19 +62,19 @@ export function PackageCard({
       )}
     >
       <div className="flex flex-wrap sm:flex-nowrap items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 max-w-[calc(100%-125px)] sm:max-w-[calc(100%-145px)] items-center gap-2">
           <KindBadge kind={hit.kind} />
           {hit.publisher.verified && (
             <span
               title="Verified publisher"
-              className="inline-flex items-center gap-1 text-[10.5px] font-medium text-muted-foreground"
+              className="inline-flex min-w-0 items-center gap-1 text-[10.5px] font-medium text-muted-foreground"
             >
-              <ShieldCheck className="h-3.5 w-3.5 text-brand" />
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-brand" />
               <span className="truncate">{hit.publisher.name}</span>
             </span>
           )}
           {!hit.publisher.verified && (
-            <span className="truncate text-[10.5px] text-muted-foreground/80">
+            <span className="min-w-0 truncate text-[10.5px] text-muted-foreground/80">
               {hit.publisher.name}
             </span>
           )}
@@ -184,7 +184,7 @@ export function PackageCard({
         <button
           type="button"
           title="Copy the install command"
-          aria-label={`Copy install command for ${hit.name}`}
+          aria-label={`litespm install ${shortId(hit)} (${hit.name})`}
           onClick={() => {
             navigator.clipboard
               ?.writeText(`litespm install ${shellArg(shortId(hit))}`)

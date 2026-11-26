@@ -284,6 +284,22 @@ export function AgentDetailView({ id, initial }: { id: string; initial?: AgentDe
                 </div>
               )}
 
+              <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-3.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Port configs from or to {row.name}
+                </p>
+                <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                  Migrate existing MCP servers between hosts in one command. Literal API keys are refused by default (<code className="font-mono text-foreground">LPSM-COPY-005</code>) so secrets never leak across configs.
+                </p>
+                <div className="mt-2.5">
+                  <InstallBar
+                    command={`litespm copy --from ${setup.hostId} --to ${setup.hostId === "claude-code" ? "cursor" : "claude-code"} --apply --yes`}
+                    label="port"
+                    compact
+                  />
+                </div>
+              </div>
+
               <InAgentNote hostId={id} />
             </section>
           )}

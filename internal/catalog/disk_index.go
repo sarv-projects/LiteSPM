@@ -579,6 +579,10 @@ func scoreColumns(queryNorm string, tokens []string, lid, lname, ltitle, lsummar
 		case "signature_verified":
 			score += 5
 		}
+		score += scoreSourceAndIDBoost(lid, queryNorm)
+		if score < 1 {
+			score = 1
+		}
 	}
 	return score
 }

@@ -1262,7 +1262,7 @@ export function Assistant() {
           <div>
             <p className="text-[13.5px] font-semibold leading-tight">liteAI</p>
             <p className="text-[11px] leading-tight text-muted-foreground">
-              Intelligent agent assistant · documentation RAG · live catalog
+              Setup help · docs · live 69k+ catalog
             </p>
           </div>
         </div>
@@ -1383,7 +1383,7 @@ export function Assistant() {
                         className="rounded-md border border-border/70 bg-muted/50 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground"
                         title={`${message.meta.rag.chunks.toLocaleString()} chunks across ${message.meta.rag.sources} sources · ${message.meta.rag.embeddedChunks.toLocaleString()} semantic embeddings`}
                       >
-                        {message.meta.rag.mode === "hybrid-semantic" ? "Semantic hybrid" : "Lexical + local vectors"}
+                        {message.meta.rag.mode === "hybrid-semantic" ? "Semantic search" : "Docs + catalog"}
                       </span>
                     )}
                   </div>

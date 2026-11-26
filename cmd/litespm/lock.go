@@ -129,15 +129,27 @@ func newLockCatalogClient() (*catalog.Client, error) {
 func newLockResolver(ctx context.Context, catClient *catalog.Client) lockfile.Resolver {
 	r := resolver.NewResolver(&catalogResolutionProvider{client: catClient})
 	return func(id, constraint string) (lockfile.LockedEntry, error) {
-		listing, err := catClient.GetListing(id)
+		resolvedID := id
+		listing, err := catClient.GetListing(resolvedID)
+		if err != nil {
+			// Imported server.json manifests encode '/' as '%2F' while catalog shards use '-'.
+			altID := strings.NewReplacer("%2F", "-", "%2f", "-").Replace(id)
+			if altID != id {
+				if altListing, altErr := catClient.GetListing(altID); altErr == nil {
+					resolvedID = altID
+					listing = altListing
+					err = nil
+				}
+			}
+		}
 		if err != nil {
 			return lockfile.LockedEntry{}, fmt.Errorf("listing %s is not in the local catalog index (run `litespm catalog sync`): %w", id, err)
 		}
-		res, err := r.Resolve(ctx, id, constraint)
+		res, err := r.Resolve(ctx, resolvedID, constraint)
 		if err != nil {
 			return lockfile.LockedEntry{}, err
 		}
-		version := res.SelectedVersions[id]
+		version := res.SelectedVersions[resolvedID]
 		if strings.TrimSpace(version) == "" {
 			return lockfile.LockedEntry{}, fmt.Errorf("resolver selected no version for %s", id)
 		}
@@ -155,7 +167,7 @@ func newLockResolver(ctx context.Context, catClient *catalog.Client) lockfile.Re
 		// Transport and components come from the published version record when
 		// the synced index carries one; an index without version records
 		// publishes neither, so both stay empty rather than defaulted.
-		if rec := versionRecordFor(catClient, id, version); rec != nil {
+		if rec := versionRecordFor(catClient, resolvedID, version); rec != nil {
 			for _, comp := range rec.Components {
 				if cid := strings.TrimSpace(string(comp.ID)); cid != "" {
 					entry.Components = append(entry.Components, cid)

@@ -345,6 +345,9 @@ type RemoveOptions struct {
 	// that contains files not recorded at install time. It never overrides the
 	// scope check or the symlink refusal.
 	Force bool
+	// DestDir, when set, restricts removal to the single ledger entry whose
+	// destination directory matches DestDir (used by mutation-scoped removal).
+	DestDir string
 }
 
 // Remove deletes the recorded directories for the named skills (all skills when
@@ -385,6 +388,10 @@ func (l *Ledger) removeScopedLocked(opts RemoveOptions) ([]RemovalOutcome, error
 	var keep []LedgerEntry
 	for _, e := range entries {
 		if !removeAll && !want[e.SkillName] {
+			keep = append(keep, e)
+			continue
+		}
+		if opts.DestDir != "" && filepath.Clean(e.DestDir) != filepath.Clean(opts.DestDir) {
 			keep = append(keep, e)
 			continue
 		}

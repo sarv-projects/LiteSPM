@@ -33,7 +33,7 @@ assert.equal(hostPath(vscode, "mac"), "");
 assert.equal(hostPath(vscode, "linux"), "");
 assert.equal(hostSupportsPlatform(vscode, "win"), true);
 const vscodeSnippet = bridgeSnippet(vscode, "litespm", "win");
-assert.match(vscodeSnippet, /\.mcp\.json/);
+assert.doesNotThrow(() => JSON.parse(vscodeSnippet), "JSON snippet must be strictly valid JSON without invalid # comments");
 assert.match(vscodeSnippet, /"mcpServers"/);
 assert.doesNotMatch(vscodeSnippet, /"type": "stdio"/);
 
@@ -43,6 +43,8 @@ assert.equal(hostPath(cursor, "mac"), cursor.userPath);
 assert.equal(hostPath(cursor, "linux"), cursor.userPath);
 assert.ok(hostPath(cursor, "win").startsWith("%USERPROFILE%\\"));
 assert.equal(hostPathIsHomeDerived(cursor, "win"), true);
+const cursorSnippet = bridgeSnippet(cursor, "litespm", "win");
+assert.doesNotThrow(() => JSON.parse(cursorSnippet), "Cursor config snippet must parse as valid JSON without # comments");
 
 assert.equal(HOSTS.length, 52);
 for (const host of HOSTS) {
@@ -54,9 +56,14 @@ for (const host of HOSTS) {
     if (host.projectOnly) {
       assert.ok(host.projectPath, `${host.id} is project-only but has no project path`);
       assert.equal(hostPath(host, platform), "");
-      assert.match(bridgeSnippet(host, "litespm", platform), /<project>/);
     } else {
       assert.ok(hostPath(host, platform), `missing ${platform} path for ${host.id}`);
+    }
+    if (host.kind !== "toml") {
+      assert.doesNotThrow(
+        () => JSON.parse(bridgeSnippet(host, "litespm", platform)),
+        `${host.id} JSON snippet on ${platform} must parse as valid JSON`,
+      );
     }
   }
 }

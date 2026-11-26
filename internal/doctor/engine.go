@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -611,6 +612,18 @@ func (e *Engine) checkSecretVault(ctx context.Context) (result CheckResult) {
 	}()
 
 	if putErr != nil {
+		// On headless Linux/WSL, missing secret-tool or D-Bus Secret Service
+		// should warn rather than fail doctor when no OAuth credentials are needed.
+		errLower := strings.ToLower(putErr.Error())
+		if runtime.GOOS == "linux" && (strings.Contains(errLower, "secret-tool") || strings.Contains(errLower, "dbus") || strings.Contains(errLower, "secret service")) {
+			return CheckResult{
+				ID:             "check_secrets",
+				Name:           "OS Secret Store & Keyring",
+				Status:         StatusWarn,
+				Message:        fmt.Sprintf("OS keyring unavailable on headless Linux (%v); OAuth credential storage disabled", putErr),
+				Recommendation: "Install libsecret-tools (secret-tool) and a keyring daemon if you plan to store OAuth tokens.",
+			}
+		}
 		return CheckResult{
 			ID:             "check_secrets",
 			Name:           "OS Secret Store & Keyring",

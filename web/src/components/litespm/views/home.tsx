@@ -220,14 +220,15 @@ export function HomeView() {
             </h1>
 
             <p
-              className="rise-block mt-6 max-w-[54ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
+              className="rise-block mt-6 max-w-[56ch] text-[15px] leading-relaxed text-muted-foreground sm:text-[16.5px]"
               style={{ "--d": "520ms" } as React.CSSProperties}
             >
-              Discover, preview, install and manage MCP servers, skills and plugins across supported AI coding agents — including Cursor, Claude Code, Codex and OpenCode. Your machine, your choices.
+              <strong className="font-semibold text-foreground">Install once, sync 52 agents, undo byte-for-byte.</strong>{" "}
+              Preview every JSON or TOML diff before write, preserve your comments and sibling keys, and roll back cleanly via SHA-256 pre-image backups.
             </p>
 
             <div
-              className="rise-block mt-7 max-w-md"
+              className="rise-block mt-7 max-w-xl"
               style={{ "--d": "620ms" } as React.CSSProperties}
             >
               <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
@@ -381,10 +382,10 @@ export function HomeView() {
           </div>
 
           <div className="rise-block relative min-w-0" style={{ "--d": "300ms" } as React.CSSProperties}>
-            {/* Floating callouts: decorative, hidden from assistive tech. */}
+            {/* Floating callouts: decorative, positioned cleanly on outer margins without overlapping terminal text */}
             <div
               aria-hidden="true"
-              className="float-y absolute -left-8 -top-7 z-10 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/90 px-3 py-2 text-[11.5px] shadow-xl backdrop-blur lg:flex"
+              className="float-y pointer-events-none absolute -top-4.5 left-4 z-20 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-1.5 text-[11px] shadow-xl backdrop-blur xl:flex"
             >
               <ShieldCheck className="h-3.5 w-3.5 text-brand" />
               <span className="font-medium">Backup saved</span>
@@ -392,7 +393,7 @@ export function HomeView() {
             </div>
             <div
               aria-hidden="true"
-              className="float-y absolute -right-7 top-[44%] z-10 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/90 px-3 py-2 text-[11.5px] shadow-xl backdrop-blur lg:flex"
+              className="float-y pointer-events-none absolute -bottom-4 right-6 z-20 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-1.5 text-[11px] shadow-xl backdrop-blur xl:flex"
               style={{ animationDelay: "-3s" }}
             >
               <Undo2 className="h-3.5 w-3.5 text-brand" />
@@ -940,6 +941,49 @@ export function HomeView() {
                 </div>
               </div>
             </details>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------------------- comparison table -------------------------- */}
+      <section className="border-t border-border/60 bg-muted/10" aria-labelledby="compare-title">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+          <div className="max-w-[64ch]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">How LiteSPM compares</p>
+            <h2 id="compare-title" className="mt-1 text-[24px] font-semibold tracking-tight sm:text-[28px]">
+              Built for config safety, not just discovery.
+            </h2>
+          </div>
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-border/70 bg-card">
+            <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-border/70 bg-muted/30 text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="px-4 py-3">Capability</th>
+                  <th className="px-4 py-3 text-brand">LiteSPM</th>
+                  <th className="px-4 py-3">Manual JSON / TOML</th>
+                  <th className="px-4 py-3">npx skills</th>
+                  <th className="px-4 py-3">Docker MCP</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {[
+                  ["MCP servers + Skills + Plugins", "Unified (52 hosts / 81 skill targets)", "Manual per-host edits", "Skills only", "MCP containers only"],
+                  ["Pre-write diff & approval gate", "Always previews diff before write", "None", "Minimal prompt", "Container runtime"],
+                  ["Byte-exact SHA-256 rollback", "litespm restore <slug> (preserves comments)", "Manual undo", "No config rollback", "N/A"],
+                  ["Agent-to-agent config porting", "litespm copy --from A --to B (strips secrets)", "Copy-paste & reformat", "No MCP config port", "N/A"],
+                  ["Reproducible lockfile & SBOM", "litespm lock --check & CycloneDX/SPDX", "None", "Partial lock", "Image digests only"],
+                  ["Zero-runtime overhead", "Native CLI + stdio bridge (no Docker)", "Zero overhead", "Node.js required", "Requires Docker Desktop"],
+                ].map(([cap, litespmCol, manualCol, npxCol, dockerCol]) => (
+                  <tr key={cap} className="hover:bg-muted/20">
+                    <td className="px-4 py-3 font-medium text-foreground">{cap}</td>
+                    <td className="px-4 py-3 font-medium text-brand">{litespmCol}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{manualCol}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{npxCol}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{dockerCol}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>

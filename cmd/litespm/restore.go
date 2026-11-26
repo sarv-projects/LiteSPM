@@ -88,6 +88,23 @@ type restoreOutcome struct {
 	Notes     []string
 }
 
+func matchesInstallSlug(candidate *domain.InstallRecord, target string) bool {
+	if candidate == nil {
+		return false
+	}
+	needle := strings.ToLower(strings.TrimSpace(target))
+	if needle == "" {
+		return false
+	}
+	lid := strings.ToLower(candidate.ListingID)
+	iid := strings.ToLower(candidate.InstallID)
+	return lid == needle ||
+		strings.HasSuffix(lid, ":"+needle) ||
+		strings.HasSuffix(lid, "/"+needle) ||
+		strings.HasSuffix(lid, "-"+needle) ||
+		strings.Contains(iid, needle)
+}
+
 // resolveRestoreInstall resolves either an exact installId or a package
 // listingId/slug (picking the most recent matching install) so users can run
 // `litespm restore <slug>` directly from package detail pages.
@@ -96,24 +113,19 @@ func resolveRestoreInstall(ctx context.Context, db *state.DB, target string) (*d
 	if err == nil && rec != nil {
 		return rec, nil
 	}
-	all, listErr := db.ListInstalls(ctx, "", "")
-	if listErr != nil || len(all) == 0 {
+	var all []*domain.InstallRecord
+	for _, sc := range []domain.InstallScope{domain.ScopeUser, domain.ScopeProject} {
+		rows, listErr := db.ListInstalls(ctx, sc, "")
+		if listErr == nil {
+			all = append(all, rows...)
+		}
+	}
+	if len(all) == 0 {
 		return nil, err
 	}
-	needle := strings.ToLower(strings.TrimSpace(target))
 	var best *domain.InstallRecord
 	for _, candidate := range all {
-		if candidate == nil {
-			continue
-		}
-		lid := strings.ToLower(candidate.ListingID)
-		iid := strings.ToLower(candidate.InstallID)
-		matched := lid == needle ||
-			strings.HasSuffix(lid, ":"+needle) ||
-			strings.HasSuffix(lid, "/"+needle) ||
-			strings.HasSuffix(lid, "-"+needle) ||
-			strings.Contains(iid, needle)
-		if !matched {
+		if !matchesInstallSlug(candidate, target) {
 			continue
 		}
 		if best == nil || candidate.InstalledAt.After(best.InstalledAt) {
@@ -401,8 +413,14 @@ func applyRestore(ctx context.Context, db *state.DB, dataRoot string, plan *rest
 	// Deregister the managed entries whose configs were rolled back, then
 	// delete the install (which cascades its deployment rows).
 	for _, a := range plan.Files {
+		workspaceID := ""
+		if a.Scope == domain.ScopeProject {
+			if rec, rerr := db.GetInstall(ctx, plan.InstallID); rerr == nil && rec != nil && rec.ProjectRoot != "" {
+				workspaceID = domain.WorkspaceIDForProjectRoot(rec.ProjectRoot)
+			}
+		}
 		for _, key := range a.EntryKeys {
-			if err := dropHostRegistrations(ctx, db, a.HostID, a.Scope, key); err != nil {
+			if err := dropHostRegistrations(ctx, db, a.HostID, a.Scope, workspaceID, key); err != nil {
 				return nil, fmt.Errorf("drop registration of %q on %s: %w", key, a.HostID, err)
 			}
 		}

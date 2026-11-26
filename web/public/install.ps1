@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     LiteSPM Standalone Binary Installer for Windows (PowerShell)
 .DESCRIPTION
@@ -27,9 +27,6 @@ try {
 }
 
 # Default version and repository
-if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = "0.6.1"
-}
 $Repo = if ($env:LITESPM_RELEASE_REPO) { $env:LITESPM_RELEASE_REPO } else { "sarv-projects/LiteSPM" }
 
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
@@ -92,16 +89,22 @@ $binaryName = "litespm-windows-$targetArch.exe"
 Write-Host "    Target: $bold$binaryName$reset (Windows $targetArch)"
 
 # 2. Download Binary
-Write-Step "2/4" "Downloading LiteSPM v$Version..."
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    Write-Step "2/4" "Downloading LiteSPM (latest release)..."
+    $downloadUrl = "https://github.com/$Repo/releases/latest/download/$binaryName"
+    $checksumUrl = "https://github.com/$Repo/releases/latest/download/SHA256SUMS.txt"
+} else {
+    Write-Step "2/4" "Downloading LiteSPM v$Version..."
+    $downloadUrl = "https://github.com/$Repo/releases/download/v$Version/$binaryName"
+    $checksumUrl = "https://github.com/$Repo/releases/download/v$Version/SHA256SUMS.txt"
+}
+
 if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
 $tempFile = Join-Path $InstallDir "litespm-$PID.tmp.exe"
 $targetFile = Join-Path $InstallDir "litespm.exe"
-
-$downloadUrl = "https://github.com/$Repo/releases/download/v$Version/$binaryName"
-$checksumUrl = "https://github.com/$Repo/releases/download/v$Version/SHA256SUMS.txt"
 
 $downloaded = $false
 
@@ -117,12 +120,15 @@ if ($env:LITESPM_LOCAL_BINARY -and (Test-Path $env:LITESPM_LOCAL_BINARY)) {
         $downloaded = $true
     } catch {
         # Check if an existing repo root build is available before failing
-        $rootBuilt = Join-Path $PSScriptRoot "..\litespm.exe"
-        if (Test-Path $rootBuilt) {
-            Write-Warn "GitHub Release v$Version asset not reachable; falling back to locally built binary..."
-            Copy-Item -Path $rootBuilt -Destination $tempFile -Force
-            $downloaded = $true
-        } else {
+        if ($PSScriptRoot) {
+            $rootBuilt = Join-Path $PSScriptRoot "..\litespm.exe"
+            if (Test-Path $rootBuilt) {
+                Write-Warn "GitHub Release asset not reachable; falling back to locally built binary..."
+                Copy-Item -Path $rootBuilt -Destination $tempFile -Force
+                $downloaded = $true
+            }
+        }
+        if (-not $downloaded) {
             Write-Err "Failed to download $downloadUrl`: $_"
             if (Test-Path $tempFile) { Remove-Item $tempFile -Force }
             exit 1
@@ -136,45 +142,56 @@ $actualHash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToLower()
 Write-Host "    Computed SHA-256: $dim$actualHash$reset"
 
 $verified = $false
-try {
-    if (-not $env:LITESPM_LOCAL_BINARY) {
-        $checksums = (Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing -TimeoutSec 15).Content
-        $expectedHash = ""
-        foreach ($line in ($checksums -split "`r?`n")) {
-            if ($line -match "^([a-fA-F0-9]{64})\s+\*?(.+)$") {
-                $hash = $matches[1].ToLower()
-                $file = $matches[2].Trim()
-                if ($file -eq $binaryName -or $file -eq "dist/$binaryName") {
-                    $expectedHash = $hash
-                    break
-                }
-            }
-        }
-
-        if ($expectedHash) {
-            if ($actualHash -eq $expectedHash) {
-                Write-Host "    Matches SHA256SUMS.txt entry ($green$expectedHash$reset)"
-                $verified = $true
-            } else {
-                Write-Err "SHA-256 checksum mismatch! Expected $expectedHash, got $actualHash."
-                Remove-Item $tempFile -Force
-                exit 1
-            }
-        } else {
-            Write-Host "    $dim(No SHA256 entry for $binaryName; verified byte size)$reset"
-            $verified = $true
-        }
-    } else {
-        $verified = $true
+if ($env:LITESPM_LOCAL_BINARY -or $env:LITESPM_SKIP_CHECKSUM -eq "1") {
+    if ($env:LITESPM_SKIP_CHECKSUM -eq "1") {
+        Write-Warn "Skipping SHA-256 verification (LITESPM_SKIP_CHECKSUM=1)"
     }
-} catch {
-    Write-Host "    $dim(Checksum file offline; verified binary size: $([math]::Round((Get-Item $tempFile).Length / 1MB, 2)) MB)$reset"
     $verified = $true
+} else {
+    try {
+        $checksums = (Invoke-WebRequest -Uri $checksumUrl -UseBasicParsing -TimeoutSec 15).Content
+    } catch {
+        Write-Err "Failed to download $checksumUrl`: $_. Set LITESPM_SKIP_CHECKSUM=1 to bypass."
+        Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+    $expectedHash = ""
+    foreach ($line in ($checksums -split "`r?`n")) {
+        if ($line -match "^([a-fA-F0-9]{64})\s+\*?(.+)$") {
+            $hash = $matches[1].ToLower()
+            $file = $matches[2].Trim()
+            if ($file -eq $binaryName -or $file -eq "dist/$binaryName") {
+                $expectedHash = $hash
+                break
+            }
+        }
+    }
+    if (-not $expectedHash) {
+        Write-Err "No SHA-256 entry found for $binaryName in SHA256SUMS.txt. Set LITESPM_SKIP_CHECKSUM=1 to bypass."
+        Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+    if ($actualHash -eq $expectedHash) {
+        Write-Host "    Matches SHA256SUMS.txt entry ($green$expectedHash$reset)"
+        $verified = $true
+    } else {
+        Write-Err "SHA-256 checksum mismatch! Expected $expectedHash, got $actualHash."
+        Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
 }
 
-# Move verified binary into place
+# Move verified binary into place (rename-aside if currently running)
+$oldFile = "$targetFile.old"
+if (Test-Path $oldFile) {
+    Remove-Item $oldFile -Force -ErrorAction SilentlyContinue
+}
 if (Test-Path $targetFile) {
-    Remove-Item $targetFile -Force
+    try {
+        Remove-Item $targetFile -Force -ErrorAction Stop
+    } catch {
+        Move-Item -Path $targetFile -Destination $oldFile -Force
+    }
 }
 Move-Item -Path $tempFile -Destination $targetFile -Force
 

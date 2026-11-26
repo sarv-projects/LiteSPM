@@ -316,7 +316,7 @@ func scoreListing(l *domain.Listing, queryNorm string, queryTokens []string) (fl
 		}
 	}
 
-	// Verification bonus
+	// Verification and source/slug quality bonus (only when the query matched).
 	if score > 0 {
 		switch l.VerificationSummary.Level {
 		case "security_audited":
@@ -324,9 +324,34 @@ func scoreListing(l *domain.Listing, queryNorm string, queryTokens []string) (fl
 		case "signature_verified":
 			score += 5.0
 		}
+		score += scoreSourceAndIDBoost(idLower, queryNorm)
+		if score < 1.0 {
+			score = 1.0
+		}
 	}
 
 	return score, matchedFields
+}
+
+func scoreSourceAndIDBoost(lid, queryNorm string) float64 {
+	var bonus float64
+	if strings.HasPrefix(lid, "mcp:builtin:mcp-registry:") {
+		bonus += 25.0
+	} else if strings.HasPrefix(lid, "skill:") {
+		bonus += 15.0
+	} else if strings.HasPrefix(lid, "mcp:feed:") {
+		bonus -= 10.0
+	}
+	if queryNorm != "" && !strings.ContainsAny(queryNorm, " \t") {
+		if strings.HasSuffix(lid, ":"+queryNorm) ||
+			strings.HasSuffix(lid, "-"+queryNorm) ||
+			strings.HasSuffix(lid, "-"+queryNorm+"-mcp") ||
+			strings.HasSuffix(lid, "-"+queryNorm+"-mcp-server") ||
+			strings.Contains(lid, "."+queryNorm+"-"+queryNorm) {
+			bonus += 20.0
+		}
+	}
+	return bonus
 }
 
 func tokenize(text string) []string {

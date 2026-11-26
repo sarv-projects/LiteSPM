@@ -846,6 +846,7 @@ function Security() {
         {[
           { title: "Your machine, your keys", body: "No account required, no credential proxying. Tokens are stored in the OS vault or supplied as environment-variable references, never in an agent config. At launch LiteSPM resolves those references and passes the values to the provider process; it does not send them to this site." },
           { title: "Nothing is written without a preview", body: "You see the change first, and the file is backed up before it is touched." },
+          { title: "Byte-exact SHA-256 rollback & post-edit guard", body: "Every install records the SHA-256 digest of the pre-install config. Running `litespm restore <slug>` restores your file byte-for-byte — preserving comments and sibling keys — and refuses if you edited the file afterwards so manual edits are never clobbered." },
           { title: "Fail-closed remote installs", body: "A host with no vendor-documented URL entry object is refused with a clear error, never written in a guessed shape." },
           { title: "Pinned plugin sources", body: "A plugin installs from the pinned commit its publisher ships. LiteSPM fetches that commit, verifies it, and installs what the plugin's own manifest declares. A plugin with no fetchable pinned source is refused with the reason." },
           { title: "Single-use approval tokens", body: "From an agent, litespm approve <plan-id> records your approval and mints a one-shot token — the agent can prepare a plan but cannot approve it for you." },
@@ -858,6 +859,45 @@ function Security() {
           </div>
         ))}
       </div>
+
+      <h3 className="mt-6 text-[16px] font-semibold tracking-tight">Team &amp; CI/CD governance</h3>
+      <P>
+        Lock project MCP servers and skills into <code className="font-mono text-foreground">litespm.lock</code>,
+        verify lockfiles against tampering in CI (<code className="font-mono text-foreground">LPSM-LOCK-DRIFT</code>),
+        and generate CycloneDX or SPDX SBOMs without Docker Desktop:
+      </P>
+      <CodeBlock
+        title=".github/workflows/litespm-verify.yml"
+        language="yaml"
+        code={`name: Verify AI Agent Capabilities
+on: [pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: curl -fsSL https://lite-spm-nine.vercel.app/install.sh | sh
+      - run: litespm lock --check
+      - run: litespm install --frozen --dry-run
+      - run: litespm lock --sbom cyclonedx-json > sbom.cdx.json`}
+      />
+
+      <h3 className="mt-6 text-[16px] font-semibold tracking-tight">Safe agent-to-agent migration</h3>
+      <P>
+        Port existing MCP configurations between agents in one command. Literal API keys are refused by
+        default (<code className="font-mono text-foreground">LPSM-COPY-005</code>) so secrets never leak across config files:
+      </P>
+      <CodeBlock
+        title="migrate-agents.sh"
+        code={`# Cursor JSON -> Claude Code (~/.claude.json)
+litespm copy --from cursor --to claude-code --apply --yes
+
+# VS Code (.mcp.json) -> OpenAI Codex TOML (~/.codex/config.toml)
+litespm copy --from vscode --to codex --apply --yes
+
+# Claude Code -> OpenCode
+litespm copy --from claude-code --to opencode --apply --yes`}
+      />
       <P>
         The full policy and threat model live in{" "}
         <a
