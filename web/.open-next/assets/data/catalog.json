@@ -1,0 +1,22 @@
+{
+  "datasetDigest": "sha256:084f117215406c54c8765ce25c30d2b100f97dc2b9d4001a8e79a8f918ce75c5",
+  "rowCount": 69376,
+  "schema": "litespm-web-shards/v1",
+  "shards": [
+    {
+      "digest": "sha256:3a383f6094bf0100eb69901bf4d4d44c5ebb7c6639e0b3b81c32783e8d77925a",
+      "file": "catalog-0000.json",
+      "size": 20971427
+    },
+    {
+      "digest": "sha256:8e55e2c3120453e1ab4e8af9daeec6e541bb9d1d06d919056751eb41291965fc",
+      "file": "catalog-0001.json",
+      "size": 20971404
+    },
+    {
+      "digest": "sha256:5513f302aac9ceb39c22251170f4f7b816d56ddc2042e57090fa8b73fb1e24de",
+      "file": "catalog-0002.json",
+      "size": 3079170
+    }
+  ]
+}

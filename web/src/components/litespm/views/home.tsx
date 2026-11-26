@@ -572,7 +572,7 @@ export function HomeView() {
             <p className="text-xs font-semibold uppercase tracking-wider text-brand">A practical example</p>
             <h2 id="workflow-example-title" className="mt-2 text-3xl font-semibold tracking-tight">One package. Two agents. One plan.</h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">Use Claude Code and Codex? Choose both compatible hosts, preview the GitHub MCP server install, review its credentials and approve the changes. Remove managed entries when you no longer need them.</p>
-            <div className="mt-5"><InstallBar label="Preview" command="litespm install mcp:builtin:mcp-registry:io.github.github-github-mcp-server --agent claude-code --agent codex --dry-run" /></div>
+            <div className="mt-5"><InstallBar label="Preview" command="litespm install github --agent claude-code --agent codex --dry-run" /></div>
             <p className="mt-3 text-xs text-muted-foreground">Requires connected hosts and a synced catalog. Authentication is publisher-specific.</p>
           </div>
           <figure className="overflow-hidden rounded-2xl border border-border/70 bg-card">
@@ -639,7 +639,7 @@ export function HomeView() {
       <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="explore-title">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">One catalog, four ways in</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">One catalog, five ways in</p>
             <h2 id="explore-title" className="mt-1 text-[26px] font-semibold tracking-tight sm:text-[30px]">
               Explore the catalog
             </h2>

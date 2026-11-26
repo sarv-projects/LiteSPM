@@ -6,11 +6,10 @@
 // capabilities are resolved by the daemon at runtime, so per-listing snippets
 // are identical regardless of the capability being viewed.
 
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-
 import { availabilityOf } from "./availability";
 import type { Listing } from "./types";
+import hostsJson from "../../../data/hosts.json";
+import skillTargetsJson from "../../../data/skill-targets.json";
 
 export type PlatformOS = "win" | "mac" | "linux";
 export type HostFormat = "json" | "toml";
@@ -67,20 +66,13 @@ interface GeneratedHost {
   layoutScope?: "user" | "project";
 }
 
-function getDataDir(): string {
-  const direct = path.join(process.cwd(), "data");
-  if (existsSync(path.join(direct, "catalog.json"))) return direct;
-  return path.join(process.cwd(), "data", "litespm");
-}
-
-function readJson<T>(file: string): T {
-  return JSON.parse(readFileSync(path.join(getDataDir(), file), "utf8")) as T;
-}
-
-const generatedHosts = readJson<GeneratedHost[]>("hosts.json");
-const generatedSkillTargets = readJson<
-  Array<{ id: string; displayName: string; universal?: boolean; hasGlobal: boolean }>
->("skill-targets.json");
+const generatedHosts = hostsJson as GeneratedHost[];
+const generatedSkillTargets = skillTargetsJson as Array<{
+  id: string;
+  displayName: string;
+  universal?: boolean;
+  hasGlobal: boolean;
+}>;
 
 /**
  * Per-OS paths for the agent directory. Home-relative paths in the generated

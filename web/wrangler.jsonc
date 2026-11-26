@@ -1,28 +1,23 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "litespm-web",
-  "main": ".open-next/worker.js",
-  "compatibility_date": "2025-05-05",
-  "compatibility_flags": ["nodejs_compat"],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
-  // R2 bucket for large static/catalog JSONs (assistant-knowledge.json, ./data/litespm/*)
-  // so they stay outside the 3 MiB compressed Worker bundle limit.
-  "r2_buckets": [
-    {
-      "binding": "LITESPM_DATA",
-      "bucket_name": "litespm-data"
-    }
-  ],
-  // Cloudflare D1 serverless SQLite for PackageView & FeedbackEntry.
-  // Replace database_id with the ID from `npx wrangler d1 create litespm-db`.
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "litespm-db",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
-    }
-  ]
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "litespm-web",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2025-05-05",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"vars": {
+		"NEXT_PUBLIC_SITE_ORIGIN": "https://litespm-web.sarveshbh-2022.workers.dev"
+	},
+	"d1_databases": [
+		{
+			"binding": "litespm_db",
+			"database_name": "litespm-db",
+			"database_id": "1cc9862f-8597-4e21-8547-457a762a568d"
+		}
+	]
 }

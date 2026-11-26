@@ -1,11 +1,31 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaD1 } from "@prisma/adapter-d1";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+type D1DatabaseBinding = ConstructorParameters<typeof PrismaD1>[0];
+
+function getCloudflareD1(): D1DatabaseBinding | undefined {
+  try {
+    const ctx = getCloudflareContext();
+    const env = ctx?.env as { litespm_db?: D1DatabaseBinding } | undefined;
+    return env?.litespm_db;
+  } catch {
+    return undefined;
+  }
+}
+
 function createPrismaClient(): PrismaClient {
+  const d1 = getCloudflareD1();
+  if (d1) {
+    const adapter = new PrismaD1(d1);
+    return new PrismaClient({ adapter, log: ["warn", "error"] });
+  }
+
   const dbUrl = process.env.DATABASE_URL?.trim() || "";
   const tursoUrl = process.env.TURSO_DATABASE_URL?.trim();
   const url = tursoUrl || (dbUrl.startsWith("libsql://") || dbUrl.startsWith("https://") ? dbUrl : "");
@@ -32,6 +52,7 @@ function createPrismaClient(): PrismaClient {
  */
 export function databaseConfigured(): boolean {
   if (process.env.LITESPM_DATABASE_MODE === "fallback") return false;
+  if (getCloudflareD1()) return true;
   const dbUrl = process.env.DATABASE_URL?.trim() || "";
   const tursoUrl = process.env.TURSO_DATABASE_URL?.trim();
   if (tursoUrl) return tursoUrl.startsWith("libsql://") || tursoUrl.startsWith("https://");

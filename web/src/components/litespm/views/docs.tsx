@@ -346,7 +346,7 @@ function GettingStarted() {
             npm install -g litespm
           </code>
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-            Installs the <code className="font-mono">litespm</code> CLI on your PATH for daily use with Node 22+.
+            Installs the <code className="font-mono">litespm</code> CLI on your PATH for daily use with Node 22.22.2+.
             Interactive runs check for signed updates automatically.
           </p>
         </div>
@@ -846,7 +846,7 @@ function Security() {
         {[
           { title: "Your machine, your keys", body: "No account required, no credential proxying. Tokens are stored in the OS vault or supplied as environment-variable references, never in an agent config. At launch LiteSPM resolves those references and passes the values to the provider process; it does not send them to this site." },
           { title: "Nothing is written without a preview", body: "You see the change first, and the file is backed up before it is touched." },
-          { title: "Byte-exact SHA-256 rollback & post-edit guard", body: "Every install records the SHA-256 digest of the pre-install config. Running `litespm restore <slug>` restores your file byte-for-byte — preserving comments and sibling keys — and refuses if you edited the file afterwards so manual edits are never clobbered." },
+          { title: "Byte-exact SHA-256 rollback & post-edit guard", body: "Every install records the SHA-256 digest of the pre-install config. Running litespm restore <id> restores your file byte-for-byte — preserving comments and sibling keys — and refuses if you edited the file afterwards so manual edits are never clobbered." },
           { title: "Fail-closed remote installs", body: "A host with no vendor-documented URL entry object is refused with a clear error, never written in a guessed shape." },
           { title: "Pinned plugin sources", body: "A plugin installs from the pinned commit its publisher ships. LiteSPM fetches that commit, verifies it, and installs what the plugin's own manifest declares. A plugin with no fetchable pinned source is refused with the reason." },
           { title: "Single-use approval tokens", body: "From an agent, litespm approve <plan-id> records your approval and mints a one-shot token — the agent can prepare a plan but cannot approve it for you." },

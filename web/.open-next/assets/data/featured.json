@@ -1,0 +1,94 @@
+{
+  "_comment": "The home page's curated shelf. Two groups, twelve entries, and every one of them is checked against the dataset at build time by `deriveShelves` in `lib/landing.ts`: an id that is not in the catalog, an entry LiteSPM cannot install, an entry whose source is not the one declared here, or an entry that depends on a host whose vendor has ended, fails the build. Nothing here may be invented - the id is the catalog's own id, and the use-case line is editorial prose that must not contradict the row's own summary. Each group is one provenance, so the line a reader is shown about where a row came from is true of every row in it.",
+  "schema": 1,
+  "groups": [
+    {
+      "id": "registry",
+      "title": "MCP integrations",
+      "blurb": "Explore MCP servers for development, documentation, design, and infrastructure. These listings originate from the official MCP registry.",
+      "viewAllLabel": "Browse the registry",
+      "viewAllHref": "/explore/?source=builtin%3Amcp-registry&installable=1"
+    },
+    {
+      "id": "skills",
+      "title": "Featured agent skills",
+      "blurb": "Start with practical skills for documents, presentations, design, and testing.",
+      "viewAllLabel": "Browse agent skills",
+      "viewAllHref": "/explore/?category=Official%20Skills%20by&installable=1"
+    }
+  ],
+  "entries": [
+    {
+      "id": "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Work with GitHub repositories, issues, and pull requests from your agent."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:io.github.upstash-context7",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Bring up-to-date library documentation into your coding workflow."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:com.figma.mcp-mcp",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Access Figma design context while implementing user interfaces."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:com.notion-mcp",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Search and update supported Notion content from your agent."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:com.cloudflare.mcp-mcp",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Work with supported Cloudflare services and project information."
+    },
+    {
+      "id": "mcp:builtin:mcp-registry:com.neon-mcp",
+      "group": "registry",
+      "source": "builtin:mcp-registry",
+      "useCase": "Access supported Postgres database and branch-management workflows."
+    },
+    {
+      "id": "skill:anthropics:pdf",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Work with PDF documents, forms, and extracted content."
+    },
+    {
+      "id": "skill:anthropics:docx",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Create and edit Word documents with structured formatting."
+    },
+    {
+      "id": "skill:anthropics:xlsx",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Create, inspect, and update spreadsheets with formulas and charts."
+    },
+    {
+      "id": "skill:anthropics:pptx",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Create and edit presentations using reusable slide workflows."
+    },
+    {
+      "id": "skill:anthropics:frontend-design",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Design and improve interfaces with consistent visual direction."
+    },
+    {
+      "id": "skill:anthropics:webapp-testing",
+      "group": "skills",
+      "source": "feed:voltagent-awesome-agent-skills",
+      "useCase": "Test web application behavior through browser-based workflows."
+    }
+  ]
+}

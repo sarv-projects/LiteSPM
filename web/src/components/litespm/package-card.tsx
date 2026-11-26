@@ -142,7 +142,7 @@ export function PackageCard({
             action buttons sit above it with `relative z-10`. */}
         <NavLink
           to={href}
-          className="after:absolute after:inset-0 after:content-['] focus-visible:outline-offset-4"
+          className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-offset-4"
         >
           {displayPackageName(hit.name)}
           <span className="sr-only"> — {hit.kind}</span>

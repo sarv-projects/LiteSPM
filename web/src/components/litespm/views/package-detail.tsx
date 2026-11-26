@@ -174,10 +174,9 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
     return `cursor://anysphere.cursor-mcp/install?name=${encodeURIComponent(data.slug)}&command=${encodeURIComponent(data.command)}&args=${encodeURIComponent(JSON.stringify(args))}`;
   }, [data]);
 
-  const litespmInstallUri = React.useMemo(() => {
-    if (!data.installable) return null;
-    return `litespm://install/${encodeURIComponent(data.id)}${host ? `?agent=${encodeURIComponent(host)}` : ""}`;
-  }, [data, host]);
+  // No litespm:// protocol handler is registered in the CLI yet;
+  // keep null so users don't hit an OS "no app found" dialog.
+  const litespmInstallUri: string | null = null;
 
   const targetKindLabel =
     data.kind === "skill" ? "skill targets" : "agent hosts";
@@ -405,7 +404,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
             </PopoverContent>
           </Popover>
           <CopyButton
-            value={`${typeof window !== "undefined" ? window.location.origin : ""}/#/package/${encodeURIComponent(data.linkKey)}`}
+            value={`${typeof window !== "undefined" ? window.location.origin : ""}/package/${encodeURIComponent(data.linkKey)}`}
             label="Link"
           />
         </div>

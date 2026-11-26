@@ -1,0 +1,40 @@
+{
+  "version": "0.6.0",
+  "checkedAt": "2026-11-22",
+  "verifiedBy": "npm dist-tags.latest on registry.npmjs.org (0.6.0, published 2026-10-22) cross-read against the git tag of the same version (`git show v0.6.0:cmd/litespm/main.go` → parseInstallFlags). The release that tag cut is the one the npm wrapper downloads its binary from.",
+  "installFlags": [
+    "--help",
+    "-h",
+    "--version",
+    "-v",
+    "--scope",
+    "-s",
+    "--workspace",
+    "-w",
+    "--host",
+    "--agent",
+    "-a",
+    "--all-detected",
+    "--env",
+    "--force",
+    "-f",
+    "--frozen",
+    "--dry-run",
+    "--allow-partial"
+  ],
+  "_readme": [
+    "What a reader actually installs. `npx --yes litespm@latest` resolves to this",
+    "version, so these are the only install flags the site may publish — the",
+    "flags a reader's binary accepts is a property of npm, not of this working",
+    "tree. That distinction is what let the site publish `--agent` and",
+    "`--all-detected` while npm still served 0.4.1, which rejected both: the",
+    "site printed a command whose answer was `unknown flag`.",
+    "",
+    "This file recorded 0.4.1 and its eight flags from 2026-10-22 until the",
+    "0.6.0 release landed that evening, which is what let the site be honest",
+    "in between. Keep it in step with npm: scripts/check-install-command.mjs",
+    "asks the registry which version `latest` is (falling back to this file",
+    "offline) and fails when they disagree, so a publish cannot leave this",
+    "snapshot — and therefore the site — behind."
+  ]
+}

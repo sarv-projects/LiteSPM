@@ -1,0 +1,263 @@
+{
+  "datasetDigest": "sha256:084f117215406c54c8765ce25c30d2b100f97dc2b9d4001a8e79a8f918ce75c5",
+  "rowCount": 69376,
+  "schema": "litespm-web-categories/v1",
+  "categories": [
+    {
+      "name": "Developer Tools",
+      "count": 45356
+    },
+    {
+      "name": "Agent Skills",
+      "count": 19209
+    },
+    {
+      "name": "Finance & Crypto",
+      "count": 445
+    },
+    {
+      "name": "TypeScript Skills",
+      "count": 444
+    },
+    {
+      "name": "Productivity & Workflow",
+      "count": 345
+    },
+    {
+      "name": "Knowledge & Memory",
+      "count": 327
+    },
+    {
+      "name": "Search & Retrieval",
+      "count": 299
+    },
+    {
+      "name": "Official Skills by",
+      "count": 285
+    },
+    {
+      "name": "Community Skills",
+      "count": 271
+    },
+    {
+      "name": "Security & Testing",
+      "count": 259
+    },
+    {
+      "name": "Other Tools and Integrations",
+      "count": 186
+    },
+    {
+      "name": "Databases",
+      "count": 182
+    },
+    {
+      "name": "Communication",
+      "count": 163
+    },
+    {
+      "name": "Cloud Infrastructure",
+      "count": 141
+    },
+    {
+      "name": "Multimedia",
+      "count": 122
+    },
+    {
+      "name": "Monitoring",
+      "count": 110
+    },
+    {
+      "name": "Browser Automation",
+      "count": 103
+    },
+    {
+      "name": "Plugins & Toolkits",
+      "count": 99
+    },
+    {
+      "name": "Art & Culture",
+      "count": 88
+    },
+    {
+      "name": "Gaming",
+      "count": 67
+    },
+    {
+      "name": "Social Media",
+      "count": 62
+    },
+    {
+      "name": "Location Services",
+      "count": 57
+    },
+    {
+      "name": "Travel & Transportation",
+      "count": 56
+    },
+    {
+      "name": "Data Platforms",
+      "count": 47
+    },
+    {
+      "name": "Biology, Medicine and Bioinformatics",
+      "count": 46
+    },
+    {
+      "name": "Sports",
+      "count": 44
+    },
+    {
+      "name": "Data Science Tools",
+      "count": 43
+    },
+    {
+      "name": "Python Skills",
+      "count": 40
+    },
+    {
+      "name": "E-Commerce",
+      "count": 39
+    },
+    {
+      "name": "Legal",
+      "count": 34
+    },
+    {
+      "name": "NET Skills",
+      "count": 28
+    },
+    {
+      "name": "Command Line",
+      "count": 26
+    },
+    {
+      "name": "Java Skills",
+      "count": 25
+    },
+    {
+      "name": "Code Execution",
+      "count": 21
+    },
+    {
+      "name": "Frameworks",
+      "count": 20
+    },
+    {
+      "name": "Embedded System",
+      "count": 19
+    },
+    {
+      "name": "Customer Data Platforms",
+      "count": 18
+    },
+    {
+      "name": "Delivery",
+      "count": 18
+    },
+    {
+      "name": "Product Management",
+      "count": 17
+    },
+    {
+      "name": "Education & Research",
+      "count": 16
+    },
+    {
+      "name": "Support & Service Management",
+      "count": 14
+    },
+    {
+      "name": "Agreements & Coordination",
+      "count": 13
+    },
+    {
+      "name": "Real Estate",
+      "count": 13
+    },
+    {
+      "name": "Spirituality & Esoterica",
+      "count": 11
+    },
+    {
+      "name": "Core Skills",
+      "count": 9
+    },
+    {
+      "name": "Data Visualization",
+      "count": 9
+    },
+    {
+      "name": "Environment & Nature",
+      "count": 8
+    },
+    {
+      "name": "Text-to-Speech",
+      "count": 8
+    },
+    {
+      "name": "Rust Skills",
+      "count": 7
+    },
+    {
+      "name": "end to end RAG platforms",
+      "count": 6
+    },
+    {
+      "name": "Translation Services",
+      "count": 6
+    },
+    {
+      "name": "Conversational AI",
+      "count": 5
+    },
+    {
+      "name": "Cryptography",
+      "count": 5
+    },
+    {
+      "name": "Industrial & IoT",
+      "count": 5
+    },
+    {
+      "name": "Health & Wellness",
+      "count": 4
+    },
+    {
+      "name": "Podcasts",
+      "count": 4
+    },
+    {
+      "name": "Data & Analytics",
+      "count": 3
+    },
+    {
+      "name": "Speech-to-Text",
+      "count": 3
+    },
+    {
+      "name": "Accessibility",
+      "count": 2
+    },
+    {
+      "name": "Aerospace & Astrodynamics",
+      "count": 2
+    },
+    {
+      "name": "Identity",
+      "count": 2
+    },
+    {
+      "name": "math",
+      "count": 2
+    },
+    {
+      "name": "Security Notice",
+      "count": 2
+    },
+    {
+      "name": "Business & Operations",
+      "count": 1
+    }
+  ]
+}

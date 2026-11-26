@@ -16,7 +16,7 @@ const COLUMNS: Array<{
     links: [
       { label: "Marketplace", hash: "/marketplace" },
       { label: "Bundles", hash: "/bundles" },
-      { label: "Installed on this machine", hash: "/marketplace?tab=installed" },
+      { label: "Local CLI inventory", hash: "/marketplace?tab=installed" },
       { label: "Supported agents", hash: "/agents" },
       { label: "Compare packages", hash: "/compare" },
       { label: "Publish a listing", hash: "/publish" },
@@ -139,7 +139,7 @@ export function Footer() {
                 {entries.length} watched
               </button>
             )}
-            No account &middot; no telemetry <Heart className="h-3 w-3 text-brand" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1 pr-32">No account &middot; no telemetry <Heart className="h-3 w-3 text-brand" aria-hidden="true" /></span>
           </p>
         </div>
       </div>

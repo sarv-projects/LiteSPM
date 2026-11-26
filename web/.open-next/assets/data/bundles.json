@@ -1,0 +1,346 @@
+{
+  "_comment": "Curated bundles. Editorial: the title, blurb, audience and difficulty are our own words; every item is a catalog listing id. `scripts/check-bundles.mjs` (part of `npm run lint`) fails when an id is missing from the catalog or `litespm install` cannot complete it, so nothing here can quietly go stale. `litespm install` takes exactly one id per command, so a bundle installs as one command per line.",
+  "schema": 1,
+  "bundles": [
+    {
+      "id": "agent-engineering-superpowers",
+      "title": "Agent Engineering Superpowers",
+      "blurb": "The complete official Superpowers development methodology: systematic planning, test-driven development, rigorous debugging, subagent orchestration, worktrees, code reviews, and verification before completion.",
+      "difficulty": "Intermediate",
+      "audience": "Developers wanting a disciplined, autonomous agent workflow",
+      "items": [
+        "skill:obra:using-superpowers",
+        "skill:obra:brainstorming",
+        "skill:obra:writing-plans",
+        "skill:obra:executing-plans",
+        "skill:obra:test-driven-development",
+        "skill:obra:systematic-debugging",
+        "skill:obra:verification-before-completion",
+        "skill:obra:subagent-driven-development",
+        "skill:obra:using-git-worktrees",
+        "skill:obra:dispatching-parallel-agents",
+        "skill:obra:requesting-code-review",
+        "skill:obra:receiving-code-review",
+        "skill:obra:finishing-a-development-branch",
+        "skill:obra:writing-skills",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7"
+      ]
+    },
+    {
+      "id": "vibe-coding-frontend",
+      "title": "Vibe coding & rapid frontend",
+      "blurb": "Prompt and ship animated UI components, animated slides and interactive blocks into your React/Next.js apps without writing boilerplate.",
+      "difficulty": "Beginner",
+      "audience": "Vibe coders, solo founders and indie hackers building fast",
+      "items": [
+        "mcp:builtin:mcp-registry:dev.uiarc-arc",
+        "mcp:builtin:mcp-registry:app.goshipyard-shipyard",
+        "mcp:builtin:mcp-registry:io.github.BuilderIO-agent-native-slides",
+        "mcp:builtin:mcp-registry:gallery.a1-a1-gallery",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "skill:anthropics:canvas-design",
+        "skill:vercel:building-components"
+      ]
+    },
+    {
+      "id": "full-stack-web-dev",
+      "title": "Full-stack web dev",
+      "blurb": "Manage the repo, drive a real browser to test what you build, look up current library docs, and deploy, all from the agent.",
+      "difficulty": "Intermediate",
+      "audience": "Web developers shipping an app",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "mcp:builtin:mcp-registry:com.vercel-vercel-mcp",
+        "mcp:builtin:mcp-registry:io.github.ChromeDevTools-chrome-devtools-mcp",
+        "skill:microsoft:playwright-cli",
+        "skill:vercel:building-components"
+      ]
+    },
+    {
+      "id": "office-documents",
+      "title": "Office documents",
+      "blurb": "Anthropic's official document skills: read and produce PDFs, Word documents, spreadsheets and slide decks.",
+      "difficulty": "Beginner",
+      "audience": "Anyone who works with documents",
+      "items": [
+        "skill:anthropics:pdf",
+        "skill:anthropics:docx",
+        "skill:anthropics:xlsx",
+        "skill:anthropics:pptx",
+        "skill:anthropics:brand-guidelines",
+        "skill:anthropics:canvas-design",
+        "skill:anthropics:theme-factory",
+        "skill:anthropics:web-artifacts-builder"
+      ]
+    },
+    {
+      "id": "databases",
+      "title": "Databases",
+      "blurb": "Hosted Postgres from Supabase and Neon, plus vendor skills for Neon Postgres and MongoDB schema and query work.",
+      "difficulty": "Intermediate",
+      "audience": "Developers building on Postgres or MongoDB",
+      "items": [
+        "mcp:builtin:mcp-registry:com.supabase-mcp",
+        "mcp:builtin:mcp-registry:com.neon-mcp",
+        "skill:neondatabase:neon-postgres",
+        "skill:mongodb:mongodb-schema-design",
+        "skill:mongodb:mongodb-query-optimizer",
+        "mcp:builtin:mcp-registry:io.prisma-mcp",
+        "skill:mongodb:mongodb-connection",
+        "skill:mongodb:mongodb-search-and-ai"
+      ]
+    },
+    {
+      "id": "docs-grounded-coding",
+      "title": "Docs-grounded coding",
+      "blurb": "Stop the agent guessing at APIs: current library documentation from Context7, plus web search from Brave.",
+      "difficulty": "Beginner",
+      "audience": "Anyone coding with an agent",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "skill:upstash:context7-mcp",
+        "mcp:builtin:mcp-registry:io.github.brave-brave-search-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.firecrawl-firecrawl-mcp-server"
+      ]
+    },
+    {
+      "id": "browser-testing",
+      "title": "Browser testing and QA",
+      "blurb": "Playwright MCP to drive a browser, and Playwright skills that explore a site and generate tests.",
+      "difficulty": "Intermediate",
+      "audience": "Developers and QA writing end-to-end tests",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp",
+        "skill:github:playwright-explore-website",
+        "skill:github:playwright-generate-test",
+        "skill:microsoft:playwright-cli",
+        "mcp:builtin:mcp-registry:io.github.ChromeDevTools-chrome-devtools-mcp",
+        "skill:anthropics:webapp-testing"
+      ]
+    },
+    {
+      "id": "error-monitoring",
+      "title": "Errors and observability",
+      "blurb": "Pull real production errors from Sentry and metrics from Grafana, then let the agent trace and fix them.",
+      "difficulty": "Intermediate",
+      "audience": "Developers on call for a running service",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp",
+        "skill:getsentry:sentry-debug-issue",
+        "skill:getsentry:sentry-fix-stack-traces",
+        "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
+      ]
+    },
+    {
+      "id": "design-to-code",
+      "title": "Design to code",
+      "blurb": "Read Figma files from the agent and turn them into components, with Playwright to check the result in a browser.",
+      "difficulty": "Intermediate",
+      "audience": "Front-end developers working from Figma",
+      "items": [
+        "mcp:builtin:mcp-registry:com.figma.mcp-mcp",
+        "skill:figma:figma-design-to-code",
+        "skill:figma:figma-code-connect",
+        "mcp:builtin:mcp-registry:io.github.microsoft-playwright-mcp",
+        "mcp:builtin:mcp-registry:io.github.ChromeDevTools-chrome-devtools-mcp",
+        "skill:anthropics:canvas-design",
+        "skill:vercel:building-components"
+      ]
+    },
+    {
+      "id": "project-tracking",
+      "title": "Project tracking",
+      "blurb": "Work with the trackers and wikis a team already uses: Linear issues, Notion pages and Atlassian (Jira and Confluence).",
+      "difficulty": "Beginner",
+      "audience": "Teams managing work in Linear, Notion or Jira",
+      "items": [
+        "mcp:builtin:mcp-registry:app.linear-linear",
+        "mcp:builtin:mcp-registry:com.notion-mcp",
+        "mcp:builtin:mcp-registry:com.atlassian-atlassian-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:obra:writing-plans",
+        "skill:obra:executing-plans"
+      ]
+    },
+    {
+      "id": "payments",
+      "title": "Payments with Stripe",
+      "blurb": "Stripe's own MCP server plus its best-practices and documentation skills for building a checkout.",
+      "difficulty": "Intermediate",
+      "audience": "Developers integrating Stripe payments",
+      "items": [
+        "mcp:builtin:mcp-registry:com.stripe-mcp",
+        "skill:stripe:stripe-best-practices",
+        "skill:stripe:stripe-docs",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp"
+      ]
+    },
+    {
+      "id": "cloud-infrastructure",
+      "title": "Cloud and infrastructure",
+      "blurb": "Cloudflare's MCP server, Docker build and Compose guidance, and HashiCorp's Terraform policy skill.",
+      "difficulty": "Advanced",
+      "audience": "Engineers who run their own infrastructure",
+      "items": [
+        "mcp:builtin:mcp-registry:com.cloudflare.mcp-mcp",
+        "skill:docker:docker-build-strategies",
+        "skill:docker:docker-compose-patterns",
+        "skill:hashicorp:terraform-policy",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana",
+        "skill:semgrep:code-security"
+      ]
+    },
+    {
+      "id": "build-your-own-mcp",
+      "title": "Build your own MCP server",
+      "blurb": "Anthropic's skill for designing an MCP server, the Claude API reference, current docs from Context7, and GitHub to publish it.",
+      "difficulty": "Advanced",
+      "audience": "Developers writing MCP servers or Claude integrations",
+      "items": [
+        "skill:anthropics:build-mcp-server",
+        "skill:anthropics:claude-api",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:anthropics:skill-creator",
+        "skill:semgrep:code-security"
+      ]
+    },
+    {
+      "id": "designer-3d-visual-assets",
+      "title": "Designers & 3D visual assets",
+      "blurb": "Figma design integration, real-world website visual inspiration galleries, CC0 3D models and game assets, plus PBR materials.",
+      "difficulty": "Intermediate",
+      "audience": "Designers, 3D artists, and creative technologists",
+      "items": [
+        "mcp:builtin:mcp-registry:com.figma.mcp-mcp",
+        "mcp:builtin:mcp-registry:gallery.a1-a1-gallery",
+        "mcp:builtin:mcp-registry:io.github.nirholas-blender-mcp",
+        "skill:anthropics:canvas-design",
+        "skill:anthropics:theme-factory",
+        "skill:anthropics:brand-guidelines",
+        "skill:anthropics:algorithmic-art"
+      ]
+    },
+    {
+      "id": "security-and-appsec",
+      "title": "Application security & vulnerability audit",
+      "blurb": "Proactively audit source code, inspect GitHub Actions CI workflows for supply chain risks, analyze vulnerability surface, and enforce secure coding standards.",
+      "difficulty": "Advanced",
+      "audience": "Security engineers, AppSec leads, and developers hardening code",
+      "items": [
+        "skill:getsentry:security-review",
+        "skill:anthropics:claude-security",
+        "skill:getsentry:gha-security-review",
+        "mcp:builtin:mcp-registry:io.github.cyanheads-osv-advisory-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:semgrep:code-security",
+        "skill:semgrep:llm-security",
+        "skill:anthropics:threat-model"
+      ]
+    },
+    {
+      "id": "tech-lead-and-architecture",
+      "title": "Technical architect & code health",
+      "blurb": "System architecture reviews, structural decision-making, automated bug discovery, and deep code reviews with clear rationale before merging.",
+      "difficulty": "Advanced",
+      "audience": "Tech leads, software architects, and engineering managers",
+      "items": [
+        "skill:getsentry:architecture-review",
+        "skill:getsentry:code-review",
+        "skill:getsentry:find-bugs",
+        "skill:anthropics:architecture",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7"
+      ]
+    },
+    {
+      "id": "backend-distributed-systems",
+      "title": "Distributed backend & caching",
+      "blurb": "Build high-throughput backends: Redis caching and rate-limiting, Upstash vector search indexing, and Neon Postgres egress optimization.",
+      "difficulty": "Intermediate",
+      "audience": "Backend engineers building scalable APIs and distributed systems",
+      "items": [
+        "skill:upstash:upstash-redis-js",
+        "skill:upstash:upstash-vector-js",
+        "skill:neondatabase:neon-postgres-egress-optimizer",
+        "mcp:builtin:mcp-registry:io.github.redis-mcp-redis",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "mcp:builtin:mcp-registry:com.neon-mcp",
+        "skill:neondatabase:neon-postgres",
+        "mcp:builtin:mcp-registry:io.github.grafana-mcp-grafana",
+        "mcp:builtin:mcp-registry:io.github.getsentry-sentry-mcp"
+      ]
+    },
+    {
+      "id": "mobile-app-development",
+      "title": "Mobile apps & device testing",
+      "blurb": "Build and test native mobile apps: Callstack device automation, Android ADB emulator controls, hosted iOS simulator execution, and Cocoa crash snapshot analysis.",
+      "difficulty": "Intermediate",
+      "audience": "Mobile engineers, React Native devs, iOS and Android teams",
+      "items": [
+        "mcp:builtin:mcp-registry:io.github.callstack-agent-device",
+        "mcp:builtin:mcp-registry:io.github.iksnerd-adb-mcp",
+        "mcp:builtin:mcp-registry:so.agentcloud-ios-simulator",
+        "skill:getsentry:sentry-snapshots-cocoa",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server",
+        "skill:callstackincubator:create-react-native-library",
+        "skill:callstackincubator:assess-react-native-migration"
+      ]
+    },
+    {
+      "id": "ai-agents-and-sdk",
+      "title": "AI Agents & SDK Development",
+      "blurb": "Build autonomous multi-agent systems and LLM integrations with Vercel and Anthropic developer tools, skill creation workflows, documentation lookup, and full test-driven verification.",
+      "difficulty": "Advanced",
+      "audience": "Engineers developing AI agents, tools and custom workflows",
+      "items": [
+        "skill:vercel:build-agents",
+        "skill:anthropics:claude-api",
+        "skill:anthropics:skill-creator",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
+      ]
+    },
+    {
+      "id": "leaderboard-discovery-alignment",
+      "title": "AI Planning & Interactive Clarification",
+      "blurb": "The most popular agent skills worldwide: find and load skills interactively, grill specs with docs, align design decisions, and explore web apps autonomously.",
+      "difficulty": "Beginner",
+      "audience": "Developers who want their agents to ask the right questions, explore APIs, and avoid assumptions",
+      "items": [
+        "skill:vercel-labs:find-skills",
+        "skill:mattpocock:grill-me",
+        "skill:mattpocock:grill-with-docs",
+        "skill:vercel-labs:agent-browser",
+        "skill:designed-by-ai:design-mobile-apps",
+        "skill:mattpocock:codebase-design",
+        "skill:mattpocock:domain-modeling",
+        "skill:mattpocock:implement-spec",
+        "mcp:builtin:mcp-registry:io.github.upstash-context7",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
+      ]
+    },
+    {
+      "id": "programmatic-video-motion",
+      "title": "Programmatic Video & Motion UI",
+      "blurb": "Render dynamic videos, keyframe transitions, and generative motion graphics using Remotion and React Three Fiber directly from agent prompts.",
+      "difficulty": "Intermediate",
+      "audience": "Developers and creators automating video rendering, canvas motion, and dynamic social clips",
+      "items": [
+        "skill:vercel-labs:remotion",
+        "skill:vercel-labs:remotion-best-practices",
+        "skill:vercel-labs:react-three-fiber",
+        "skill:vercel-labs:create-remotion-geist",
+        "skill:anthropics:canvas-design",
+        "skill:anthropics:algorithmic-art",
+        "mcp:builtin:mcp-registry:io.github.github-github-mcp-server"
+      ]
+    }
+  ]
+}
