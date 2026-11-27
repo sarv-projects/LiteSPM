@@ -118,6 +118,9 @@ function enforceCatalogGrounding(answer: string, hits: AssistantRetrieval["hits"
   for (const id of claimedPackageIds(answer)) {
     if (!ids.has(id)) { replaced = true; break; }
   }
+  if (/https?:\/\/litespm\.dev\//i.test(answer) || /\bmcp__[a-z0-9_-]+\b/i.test(answer)) {
+    replaced = true;
+  }
   const cleaned = answer.replace(/```json\s*([\s\S]*?)```/g, (block, body: string) => {
     try {
       const parsed = JSON.parse(body) as { type?: string; keys?: string[] };
@@ -131,12 +134,18 @@ function enforceCatalogGrounding(answer: string, hits: AssistantRetrieval["hits"
     return block;
   });
   if (!replaced) return { text: cleaned, replaced: false };
+  if (hits.length === 0) {
+    return {
+      text: "I do not have live catalog matches for that turn yet. Try asking directly for what you need (for example, \"find coding MCP servers\" or \"search github MCP\"), or browse [the marketplace](/marketplace).",
+      replaced: true,
+    };
+  }
   const lines = hits.slice(0, 4).map((hit) =>
     `- **${displayPackageName(hit.name)}** (${hit.kind}) — ${capSummary(hit.summary).slice(0, 180)}`
   );
   return {
     text: "I can only recommend capabilities that are actually in the retrieved catalog. The closest verified matches are:\n\n" +
-      (lines.length ? lines.join("\n") : "No catalog rows matched that question closely enough.") +
+      lines.join("\n") +
       "\n\nOpen a result card to inspect its source and installability.",
     replaced: true,
   };
@@ -158,9 +167,7 @@ function finalizeAnswer(
   const knowledgeGrounded = knowledge.length
     ? enforceKnowledgeCitations(cleaned, knowledge)
     : { text: cleaned, replaced: false };
-  const catalogGrounded = catalog
-    ? enforceCatalogGrounding(knowledgeGrounded.text, catalog.hits)
-    : { text: knowledgeGrounded.text, replaced: false };
+  const catalogGrounded = enforceCatalogGrounding(knowledgeGrounded.text, catalog?.hits ?? []);
   const text = catalog && !catalogGrounded.replaced
     ? ensureInstallCommands(catalogGrounded.text, catalog.hits, catalog.intent.host)
     : catalogGrounded.text;

@@ -17,7 +17,7 @@ type Turn = { role: "user" | "assistant"; content: string };
 
 const SITE_VOCABULARY = /\b(installable|installability|discovery[- ]only|not inspected|litespm score|rank(?:ing|ed|s)?|score|methodology|metadata[- ]verified|runtime[- ]verified|litespm[_ ]tested|drifted|allow-partial|duplicates?|distinct tools|unique listings|catalog rows|badge|labels?)\b/i;
 const DEFINITIONAL = /\b(what is|what's|what are|what does|what do|difference|differ|meaning|mean|means|why (?:are|is|do|does|some)|how (?:is|are|do|does|did)\b[^?]*\b(?:rank|ranked|score|scored|label|labeled|calculated|computed|sorted|ordered|merged))\b/i;
-const CATALOG_TERMS = /\b(mcp|servers?|skills?|plugins?|packages?|marketplace|agent hosts?|installable|install into|compatible with)\b/i;
+const CATALOG_TERMS = /\b(mcps?|servers?|skills?|plugins?|packages?|marketplace|agent hosts?|installable|install into|compatible with)\b/i;
 const CATALOG_ACTIONS = /\b(find|search|recommend|suggest|compare|install|discover|show me|which)\b/i;
 const PRODUCT_TERMS = /\b(litespm|lite spm|cli|command|commands|setup|host list|host detect|restore|rollback|ledger|backup|security|architecture|api|configuration|config|marketplace|release|license|open source)\b/i;
 const GREETING = /^(?:hi|hello|hey|hiya|good morning|good afternoon|good evening|yo|sup)[!. ,]*$/i;
@@ -29,7 +29,7 @@ const SOCIAL = /^(?:thanks|thank you|thx|okay|ok|cool|great|got it|nice|bye|good
  * these AND asks to install/find/use it is about the CATALOG, even when it also
  * names an agent host ("install a postgres MCP server into Claude Code").
  */
-const CAPABILITY_NOUNS = /\b(mcp servers?|servers?|skills?|plugins?|packages?|connectors?)\b/i;
+const CAPABILITY_NOUNS = /\b(mcp servers?|mcps?|servers?|skills?|plugins?|packages?|connectors?)\b/i;
 const PRODUCT_NAMES = /\b(postgres|postgresql|mysql|sqlite|mongodb|redis|supabase|neon|github|gitlab|playwright|puppeteer|browserbase|firecrawl|slack|notion|stripe|figma|jira|linear|sentry|docker|kubernetes|context7|filesystem|brave|tavily|exa|vercel|cloudflare|aws|azure)\b/i;
 const INSTALL_VERBS = /\b(install|add|get|find|search|recommend|suggest|looking for|need|want|best|good|top|try|use|using|set ?up|connect|enable)\b/i;
 // "LiteSPM's MCP bridge/server" is the product itself, not a third-party capability.
@@ -60,6 +60,23 @@ export function routeAssistantIntent(question: string, history: Turn[] = []): Ro
   const query = question.trim();
   const normalized = query.toLowerCase().replace(/\s+/g, " ");
   if (!normalized) return { mode: "conversation", reason: "empty", query };
+
+  const previous = previousUserTurn(history, lastUserTurn(history) ?? { role: "user", content: query });
+  const isFollowUpPhrase =
+    /^(?:sure|yes|yeah|yep|ok|okay|please|go ahead|do it|show me|give me|all of them)[!. ,]*$/i.test(normalized) ||
+    /\b(it|that|those|them|there|which one|the first|the second|more|why|how about|for all|all the mcps|all of them|install commands?|commands? for)\b/i.test(normalized);
+
+  if (previous && isFollowUpPhrase) {
+    // Walk back past short affirmative turns like "sure" to find the substantive prior catalog question.
+    const priorTurns = history.filter((t) => t.role === "user").map((t) => t.content);
+    const substantiveCatalog = [...priorTurns].reverse().find((c) =>
+      c.toLowerCase().trim() !== normalized &&
+      ((CATALOG_TERMS.test(c) && (CATALOG_ACTIONS.test(c) || INSTALL_VERBS.test(c))) || namesCapabilityToInstall(c)),
+    );
+    if (substantiveCatalog) {
+      return { mode: "catalog", reason: "catalog-follow-up", query: `${substantiveCatalog}\nFollow-up: ${query}` };
+    }
+  }
 
   if (GREETING.test(normalized) || SOCIAL.test(normalized) || IDENTITY.test(normalized)) {
     return { mode: "conversation", reason: "social-or-identity", query };
@@ -93,12 +110,8 @@ export function routeAssistantIntent(question: string, history: Turn[] = []): Ro
 
   // Resolve short follow-ups against the previous user intent rather than
   // searching the catalog for arbitrary pronouns such as "it" or "that".
-  const previous = previousUserTurn(history, lastUserTurn(history) ?? { role: "user", content: query });
-  if (previous && /\b(it|that|those|them|there|which one|the first|the second|more|why|how about)\b/i.test(normalized)) {
+  if (previous && isFollowUpPhrase) {
     const prior = previous.content;
-    if (CATALOG_TERMS.test(prior) && CATALOG_ACTIONS.test(prior)) {
-      return { mode: "catalog", reason: "catalog-follow-up", query: `${prior}\nFollow-up: ${query}` };
-    }
     if (PRODUCT_TERMS.test(prior)) {
       return { mode: "knowledge", reason: "knowledge-follow-up", query: `${prior}\nFollow-up: ${query}` };
     }
@@ -123,7 +136,7 @@ CURRENT PRODUCT FACTS (authoritative — use these for identity and "what is Lit
 CAPABILITIES
 - General conversation and explanations: answer normally without inventing retrieval or citations.
 - LiteSPM knowledge: use the supplied KNOWLEDGE SOURCES when present. Cite factual claims with [S1], [S2] identifiers only. If the sources do not establish a fact, say so.
-- Catalog discovery: use only the supplied CATALOG RESULTS for package names, publishers, ids, installability and links. Never invent a listing or installation command.
+- Catalog discovery: use only the supplied CATALOG RESULTS for package names, publishers, ids, installability and links. Never invent a listing or installation command. When CATALOG RESULTS are absent, NEVER invent example package IDs (such as mcp__github), publisher names, or litespm.dev URLs, and NEVER emit a raw JSON array of packages.
 - Host registry questions: use supplied TOOL_RESULTS as the authoritative, exhaustive registry for supported host IDs, configuration paths, MCP entry shape, remote URL support and exact transport names. Never answer host or transport questions from catalog listings or memory. If a registry result is present, do not contradict it.
 - Host setup questions: use BOTH TOOL_RESULTS for the selected host adapter and KNOWLEDGE SOURCES for the actual LiteSPM CLI setup workflow. Give the verified command 'litespm host setup <host-id>' (or the documented 'litespm setup --agent <host-id>' equivalent) only when the sources support it. Explain that this registers the LiteSPM bridge; it does not install a separate third-party MCP package. Never invent a host-specific config path or manual JSON/TOML snippet when the registry or docs do not establish it. Cite implementation instructions with [S#]. Use this ONLY when the person asks how to connect LiteSPM itself to an agent; if they ask to install a named MCP server, skill, plugin or product (for example "a postgres MCP server into Claude Code"), that is a catalog question, not a host setup question.
 - Installing a capability: recommend only CATALOG RESULTS, best first as listed (the list is already ordered installable-first by the site's own ranking). For each recommended item give its display name exactly as listed, its link exactly as listed, and its exact install command exactly as listed (it already includes --agent <host-id> when the person named an agent). Say plainly when an item is discovery-only: LiteSPM cannot install it. 'litespm install' writes the capability straight into the agent's own config file; the LiteSPM bridge is NOT required for that and is NOT a prerequisite, so never present 'litespm setup'/'host setup' as a step before installing. You may add, at most once and at the end, that 'litespm setup --agent <host-id>' is optional and adds an in-agent marketplace. Do not describe what the install does internally beyond what the sources state (for example, do not claim it also sets up the LiteSPM bridge). Do not rank by your own taste or recommend an obscure item over a higher-ranked one without saying why.

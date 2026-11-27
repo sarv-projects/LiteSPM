@@ -105,8 +105,14 @@ const FILLER = new Set([
   "use", "using", "need", "want", "get", "make", "work", "working", "works",
   "compare", "comparison", "difference", "differences", "versus", "vs",
   "better", "today", "now", "current", "currently", "week", "month", "year",
-  "day", "time", "this", "right", "one", "help", "helps", "helpful",
-  "assist", "assists", "assistant", "litespm", "lite", "spm", "into", "onto", "inside", "within", "from", "add", "connect", "setup",
+  "day", "time", "this", "that", "these", "those", "right", "one", "some",
+  "especially", "particular", "particularly", "focused", "focus", "useful",
+  "good", "best", "top", "list", "give", "all", "please", "sure", "yes", "yeah",
+  "really", "actually", "just", "any", "more", "most", "many", "few",
+  "mcp", "mcps", "server", "servers", "skill", "skills", "plugin", "plugins",
+  "package", "packages", "tool", "tools", "command", "commands", "follow",
+  "help", "helps", "helpful", "assist", "assists", "assistant",
+  "litespm", "lite", "spm", "into", "onto", "inside", "within", "from", "add", "connect", "setup",
 ]);
 
 function keywordTokens(question: string): string[] {
@@ -194,6 +200,10 @@ function familyKey(hit: CatalogHit): string {
  * "browser testing" and an obscure row that repeats the words won.
  */
 const CONCEPT_SYNONYMS: Record<string, string[]> = {
+  coding: ["github", "git", "context7", "playwright", "filesystem", "eslint", "typescript", "code"],
+  code: ["github", "git", "context7", "filesystem", "code", "coding"],
+  developer: ["github", "context7", "playwright", "filesystem", "docker"],
+  development: ["github", "context7", "playwright", "filesystem", "docker"],
   browser: ["playwright", "puppeteer", "chrome", "chromium", "selenium", "browserbase", "web"],
   testing: ["test", "tests", "e2e", "qa", "playwright", "selenium"],
   test: ["testing", "e2e", "qa", "playwright"],
@@ -333,6 +343,22 @@ export async function retrieveAssistant(question: string): Promise<AssistantRetr
     } else {
       jobs.push(searchKind(q, intent.kind, intent, { sort: "rank", pageSize: 12 }));
     }
+  }
+  // Goal-filtered top-ranked sweep when a clear goal is detected (e.g. "coding", "data")
+  // or when keyword extraction leaves no specific product term.
+  if (intent.goal) {
+    jobs.push(
+      searchCatalog({
+        goal: intent.goal,
+        kind: intent.kind,
+        host: intent.host,
+        installable: "1",
+        pageSize: 12,
+        sort: "rank",
+        facets: false,
+        compact: true,
+      }).then((r) => r.items),
+    );
   }
   const lists = await Promise.all(jobs);
 
