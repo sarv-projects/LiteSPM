@@ -57,6 +57,7 @@ export interface InsightsResponse {
     id: string;
     name: string;
     total: number;
+    installable: number;
     mcp: number;
     skill: number;
     plugin: number;
@@ -158,6 +159,7 @@ async function computeInsights(): Promise<InsightsResponse> {
         id: row.slug,
         name: row.name,
         total: row.total,
+        installable: row.installable,
         mcp: row.mcp?.count ?? 0,
         skill: row.skill?.count ?? 0,
         plugin: row.plugin?.count ?? 0,

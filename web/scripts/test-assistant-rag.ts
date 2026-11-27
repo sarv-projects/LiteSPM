@@ -26,7 +26,7 @@ assert.equal(routeAssistantIntent("Explain LiteSPM's security and rollback model
 assert.equal(routeAssistantIntent("Recommend PostgreSQL MCP servers for database administration").mode, "catalog");
 assert.equal(routeAssistantIntent("How does it handle rollback?", history).mode, "knowledge");
 
-const stats = knowledgeCorpusStats();
+const stats = await knowledgeCorpusStats();
 assert.ok(stats.chunks > 500, `expected a substantial docs corpus, got ${stats.chunks}`);
 assert.ok(stats.sources >= 35, `expected broad canonical docs coverage, got ${stats.sources}`);
 assert.equal(stats.embeddedChunks, 0, "local fallback corpus should not claim model embeddings");
@@ -215,7 +215,7 @@ assert.ok(assistantSystemPrompt().includes("Installing a capability"), "prompt m
 // ---------------------------------------------------------------------------
 // Regression: the FAQ / methodology text is in the corpus and retrievable
 // ---------------------------------------------------------------------------
-assert.ok(knowledgeCorpusStats().sourcePaths.includes("site/faq.md"), "FAQ and methodology text must be part of the knowledge corpus");
+assert.ok((await knowledgeCorpusStats()).sourcePaths.includes("site/faq.md"), "FAQ and methodology text must be part of the knowledge corpus");
 for (const question of [
   "What is the difference between installable and discovery-only?",
   "Why are some packages marked Installable while others are Discovery-Only?",

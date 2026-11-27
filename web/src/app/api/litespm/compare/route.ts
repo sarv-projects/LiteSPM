@@ -50,18 +50,19 @@ export async function GET(request: NextRequest) {
 
     const useD1 = isCloudflareWorkersRuntime();
     const dataset = useD1 ? null : await getDataset();
+    const decodedKeys = keys.map((key) => {
+      try {
+        return decodeURIComponent(key).trim();
+      } catch {
+        return key.trim();
+      }
+    });
+    const rows = useD1
+      ? await Promise.all(decodedKeys.map((decoded) => findListingD1(decoded)))
+      : decodedKeys.map((decoded) => dataset!.byKey.get(decoded) ?? dataset!.byId.get(decoded) ?? null);
     const columns: CompareColumn[] = [];
 
-    for (const key of keys) {
-      let decoded: string;
-      try {
-        decoded = decodeURIComponent(key).trim();
-      } catch {
-        decoded = key.trim();
-      }
-      const row = useD1
-        ? await findListingD1(decoded)
-        : (dataset!.byKey.get(decoded) ?? dataset!.byId.get(decoded));
+    for (const row of rows) {
       if (!row) continue;
       const availability = availabilityOf(row);
       const hosts = hostsNamedBy(row);

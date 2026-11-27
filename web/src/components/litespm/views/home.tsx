@@ -689,7 +689,7 @@ export function HomeView() {
               </Button>
             </div>
             <p className="mt-3 text-[11.5px] text-muted-foreground">
-              Included in v{facts.npmVersion} (latest release).
+              Ships in v0.6.1 (currently in the repository; npm serves v{facts.npmVersion}).
             </p>
           </div>
           <ul className="grid gap-2 sm:grid-cols-2" aria-label="Agents with an interactive popup">

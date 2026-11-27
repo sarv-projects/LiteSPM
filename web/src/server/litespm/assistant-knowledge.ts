@@ -6,7 +6,8 @@
  * vectors (and can blend model embeddings when the build-time corpus contains
  * them). A deterministic cross-signal reranker is always available.
  */
-import corpus from "./generated/assistant-knowledge.json";
+import path from "node:path";
+import { readLocalOrAssetJson } from "./assets";
 import { embedTexts } from "./assistant-embeddings";
 
 export interface KnowledgeChunk {
@@ -30,8 +31,43 @@ export interface KnowledgeHit extends KnowledgeChunk {
   embeddingUsed: boolean;
 }
 
-const chunks = corpus as KnowledgeChunk[];
 const STOP = new Set(["the","a","an","and","or","to","of","in","on","for","with","is","are","be","by","as","at","from","it","this","that","what","which","how","why","when","where","can","could","would","should","do","does","i","we","you","your","our","their","about","into","than","then","also","not","but","if","all","any","use","using"]);
+
+interface CorpusStats {
+  chunks: KnowledgeChunk[];
+  documentCount: number;
+  averageDocumentLength: number;
+  documentFrequency: Map<string, number>;
+}
+
+const globalForKnowledge = globalThis as unknown as {
+  __litespmKnowledgeCorpus?: Promise<CorpusStats>;
+};
+
+async function loadCorpus(): Promise<CorpusStats> {
+  const chunks = await readLocalOrAssetJson<KnowledgeChunk[]>(
+    "data/precomputed/assistant-knowledge.json",
+    [
+      path.join(process.cwd(), "src", "server", "litespm", "generated", "assistant-knowledge.json"),
+      path.join(process.cwd(), "public", "data", "precomputed", "assistant-knowledge.json"),
+    ],
+  );
+  const documentCount = chunks.length;
+  const averageDocumentLength =
+    chunks.reduce((sum, chunk) => sum + chunk.tokens.length, 0) / Math.max(1, documentCount);
+  const documentFrequency = new Map<string, number>();
+  for (const chunk of chunks) {
+    for (const token of new Set(chunk.tokens)) {
+      documentFrequency.set(token, (documentFrequency.get(token) ?? 0) + 1);
+    }
+  }
+  return { chunks, documentCount, averageDocumentLength, documentFrequency };
+}
+
+function getCorpus(): Promise<CorpusStats> {
+  globalForKnowledge.__litespmKnowledgeCorpus ??= loadCorpus();
+  return globalForKnowledge.__litespmKnowledgeCorpus;
+}
 
 function terms(value: string): string[] {
   return value.toLowerCase().normalize("NFKC").match(/[\p{L}\p{N}][\p{L}\p{N}_-]{1,}/gu) ?? [];
@@ -60,18 +96,8 @@ function cosine(a: number[], b: number[]): number {
   return score;
 }
 
-const DOCUMENT_COUNT = chunks.length;
-const AVERAGE_DOCUMENT_LENGTH = chunks.reduce((sum, chunk) => sum + chunk.tokens.length, 0) / Math.max(1, DOCUMENT_COUNT);
-const DOCUMENT_FREQUENCY = (() => {
-  const frequency = new Map<string, number>();
-  for (const chunk of chunks) {
-    for (const token of new Set(chunk.tokens)) frequency.set(token, (frequency.get(token) ?? 0) + 1);
-  }
-  return frequency;
-})();
-
 /** BM25 lexical relevance with inverse document frequency and heading boosts. */
-function lexicalScore(query: string[], chunk: KnowledgeChunk): number {
+function lexicalScore(query: string[], chunk: KnowledgeChunk, corpusState: CorpusStats): number {
   if (query.length === 0) return 0;
   const frequencies = new Map<string, number>();
   for (const token of chunk.tokens) frequencies.set(token, (frequencies.get(token) ?? 0) + 1);
@@ -82,9 +108,9 @@ function lexicalScore(query: string[], chunk: KnowledgeChunk): number {
   for (const token of unique) {
     const tf = frequencies.get(token) ?? 0;
     if (!tf) continue;
-    const df = DOCUMENT_FREQUENCY.get(token) ?? 0;
-    const idf = Math.log(1 + (DOCUMENT_COUNT - df + 0.5) / (df + 0.5));
-    const lengthNorm = 1 - b + b * chunk.tokens.length / Math.max(1, AVERAGE_DOCUMENT_LENGTH);
+    const df = corpusState.documentFrequency.get(token) ?? 0;
+    const idf = Math.log(1 + (corpusState.documentCount - df + 0.5) / (df + 0.5));
+    const lengthNorm = 1 - b + b * chunk.tokens.length / Math.max(1, corpusState.averageDocumentLength);
     bm25 += idf * (tf * (k1 + 1)) / (tf + k1 * lengthNorm);
   }
   const titleTokens = new Set(terms(chunk.title + " " + chunk.section));
@@ -110,6 +136,8 @@ function rerank(query: string[], hit: KnowledgeHit): number {
 }
 
 export async function retrieveKnowledge(query: string, limit = 6): Promise<KnowledgeHit[]> {
+  const corpusState = await getCorpus();
+  const { chunks } = corpusState;
   const tokens = queryTokens(query);
   if (tokens.length === 0 || chunks.length === 0) return [];
   const queryVector = hashedVector(tokens);
@@ -117,7 +145,7 @@ export async function retrieveKnowledge(query: string, limit = 6): Promise<Knowl
   const embedded = hasModelEmbeddings ? await embedTexts([query]) : null;
   const semanticQuery = embedded?.[0] ?? queryVector;
   const scored = chunks.map((chunk) => {
-    const lexical = lexicalScore(tokens, chunk);
+    const lexical = lexicalScore(tokens, chunk, corpusState);
     const dense = cosine(queryVector, chunk.vector);
     const semantic = chunk.embedding?.length && embedded?.[0] ? cosine(semanticQuery, chunk.embedding) : dense;
     // Lexical remains the stronger signal for exact CLI/API facts; vector
@@ -164,6 +192,7 @@ export function hasValidKnowledgeCitations(answer: string, hitCount: number): bo
   return cited.length > 0 && cited.every((id) => valid.has(id));
 }
 
-export function knowledgeCorpusStats() {
+export async function knowledgeCorpusStats() {
+  const { chunks } = await getCorpus();
   return { chunks: chunks.length, sources: new Set(chunks.map((chunk) => chunk.source)).size, embeddedChunks: chunks.filter((chunk) => !!chunk.embedding?.length).length, sourcePaths: [...new Set(chunks.map((chunk) => chunk.source))] };
 }

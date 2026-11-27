@@ -398,6 +398,7 @@ export interface InsightsResponse {
     id: string;
     name: string;
     total: number;
+    installable?: number;
     mcp: number;
     skill: number;
     plugin: number;

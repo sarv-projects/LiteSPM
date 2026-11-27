@@ -254,18 +254,15 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
     // not a skeleton waiting for /api/litespm/package. The JSON round trip
     // hands over exactly what that API route would have serialized.
     if (resp?.found && resp.detail) {
-      packageInitial = JSON.parse(JSON.stringify(resp.detail)) as PackageDetailData;
+      packageInitial = resp.detail as unknown as PackageDetailData;
     }
   } else if (section === "bundles") {
     const b = await getBundles().catch(() => null);
-    if (b) bundlesInitial = JSON.parse(JSON.stringify(b)) as BundlesResponse;
+    if (b) bundlesInitial = b;
   } else if (section === "agents") {
     const res = await Promise.all([buildAgentRows(), agentStats()]).catch(() => null);
     if (res) {
-      agentsInitial = JSON.parse(JSON.stringify({ agents: res[0], stats: res[1] })) as {
-        agents: AgentRow[];
-        stats: AgentStats;
-      };
+      agentsInitial = { agents: res[0], stats: res[1] };
     }
   } else if (section === "agent" && slug && slug.length > 1) {
     let decodedId = slug[1]!;
@@ -273,10 +270,10 @@ export default async function CatchAllPage({ params, searchParams }: Props) {
       decodedId = decodeURIComponent(decodedId);
     } catch {}
     const detail = await buildAgentDetail(decodedId).catch(() => null);
-    if (detail) agentDetailInitial = JSON.parse(JSON.stringify(detail)) as AgentDetailData;
+    if (detail) agentDetailInitial = detail;
   } else if (section === "insights") {
     const ins = await getInsights().catch(() => null);
-    if (ins) insightsInitial = JSON.parse(JSON.stringify(ins)) as InsightsResponse;
+    if (ins) insightsInitial = ins;
   }
 
   // Resolve the route on the server so the first response is the right page.

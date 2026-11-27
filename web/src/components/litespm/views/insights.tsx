@@ -58,8 +58,8 @@ export function InsightsView({ initial }: { initial?: InsightsResponse } = {}) {
           AI Agent Ecosystem Analytics.
         </h1>
         <p className="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">
-          Live telemetry, publisher verification metrics, and compatibility stats across 68,000+ AI capabilities.
-          Every metric is computed directly over the search engine dataset with cryptographic release pinning.
+          Catalog snapshot analytics, publisher verification metrics, and compatibility stats across {formatFull(t.unique)} unique capabilities (snapshot {formatDate(data.release.createdAt)}).
+          Every metric is computed directly over the catalog dataset with cryptographic release pinning — no runtime usage or download telemetry is collected.
         </p>
       </div>
 
@@ -239,7 +239,8 @@ export function InsightsView({ initial }: { initial?: InsightsResponse } = {}) {
               <tr className="border-b border-border/60 text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
                 <th className="px-4 py-3 font-semibold">#</th>
                 <th className="px-4 py-3 font-semibold">Host</th>
-                <th className="px-4 py-3 text-right font-semibold">Total</th>
+                <th className="px-4 py-3 text-right font-semibold">Compatible</th>
+                <th className="px-4 py-3 text-right font-semibold">Installable</th>
                 <th className="px-4 py-3 text-right font-semibold">MCP</th>
                 <th className="px-4 py-3 text-right font-semibold">Skills</th>
                 <th className="px-4 py-3 text-right font-semibold">Plugins</th>
@@ -258,6 +259,9 @@ export function InsightsView({ initial }: { initial?: InsightsResponse } = {}) {
                   <td className="px-4 py-2.5 font-medium">{host.name}</td>
                   <td className="px-4 py-2.5 text-right font-mono tabular-nums">
                     {formatFull(host.total)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono tabular-nums text-brand">
+                    {formatFull(host.installable ?? host.total)}
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono tabular-nums text-muted-foreground">
                     {formatFull(host.mcp)}

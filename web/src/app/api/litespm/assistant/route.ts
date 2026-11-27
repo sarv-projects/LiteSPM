@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
         : null;
     const citations = catalog ? citationsFor(catalog.hits) : [];
     const sources = knowledge.length ? knowledgeCitations(knowledge) : [];
-    const ragStats = knowledgeCorpusStats();
+    const ragStats = await knowledgeCorpusStats();
     const ragMeta = intent.mode === "knowledge" ? {
       mode: knowledge.some((hit) => hit.embeddingUsed) ? "hybrid-semantic" : "lexical+feature-vector",
       chunks: ragStats.chunks, sources: ragStats.sources, embeddedChunks: ragStats.embeddedChunks,

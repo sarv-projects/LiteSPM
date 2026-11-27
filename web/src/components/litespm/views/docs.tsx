@@ -633,9 +633,10 @@ function ReleaseNote() {
     <div className="rounded-xl border border-brand/30 bg-brand-soft/60 p-4">
       <p className="text-[13px] font-semibold text-brand">Availability</p>
       <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-        In-agent marketplace popups and slash commands are standard in release{" "}
-        <strong className="text-foreground">v{facts.npmVersion}</strong>. Update with{" "}
-        <C>npm update -g litespm</C> to receive all new host adapters and bridge tools.
+        In-agent marketplace popups and slash commands ship in{" "}
+        <strong className="text-foreground">v0.6.1</strong> (currently in the repository; npm
+        currently serves <strong className="text-foreground">v{facts.npmVersion}</strong>). Run{" "}
+        <C>litespm marketplace</C> in any terminal for the browser view on v{facts.npmVersion}.
       </p>
     </div>
   );

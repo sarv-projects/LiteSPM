@@ -1040,12 +1040,12 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-brand" />
                 <div>
-                  <h3 className="text-[13.5px] font-semibold text-foreground">100% Reversible Install</h3>
+                  <h3 className="text-[13.5px] font-semibold text-foreground">Reversible Install</h3>
                   <p className="text-[11px] text-brand font-medium">Pre-Image SHA-256 CAS Verified</p>
                 </div>
               </div>
               <p className="mt-2.5 text-[12px] leading-relaxed text-muted-foreground">
-                LiteSPM takes a cryptographic snapshot of your host configuration before modifying it. Any installation can be rolled back byte-for-byte in one command with zero configuration drift.
+                LiteSPM takes a cryptographic snapshot of your host configuration before modifying it. Running <code className="font-mono text-foreground">litespm restore &lt;id&gt;</code> replays the pre-install bytes when no conflicting manual edits were made afterwards.
               </p>
               <div className="mt-3 rounded-lg border border-border/60 bg-muted/40 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
                 <span className="text-brand">$</span> litespm restore &lt;id&gt;
