@@ -6,7 +6,7 @@ const HOME_JSON_LD = {
     {
       "@type": "Organization",
       name: "LiteSPM",
-      url: "https://lite-spm-nine.vercel.app",
+      url: process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev",
       sameAs: ["https://github.com/sarv-projects/LiteSPM"],
     },
     {

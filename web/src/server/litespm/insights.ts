@@ -8,6 +8,7 @@
  */
 
 import { getDataset } from "./dataset";
+import { readPrecomputedJson } from "./d1-catalog";
 import { availabilityOf } from "./availability";
 import { classifyListing, GOALS, OTHER_GOAL, type GoalOrOther } from "./taxonomy";
 import { rowMetaMap } from "./search";
@@ -77,6 +78,8 @@ const globalForInsights = globalThis as unknown as {
 };
 
 export async function getInsights(): Promise<InsightsResponse> {
+  const precomputed = await readPrecomputedJson<InsightsResponse>("insights.json");
+  if (precomputed) return precomputed;
   globalForInsights.__litespmInsights ??= computeInsights();
   return globalForInsights.__litespmInsights;
 }

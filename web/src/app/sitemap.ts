@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { availabilityOf } from "@/server/litespm/availability";
 import { getDataset } from "@/server/litespm/dataset";
 
-const SITE_ORIGIN = "https://lite-spm-nine.vercel.app";
+const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev";
 
 const DOC_SECTIONS = [
   "introduction",

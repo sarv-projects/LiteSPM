@@ -10,10 +10,9 @@
  * rather than rendered half-empty.
  */
 
-import { readFileSync } from "node:fs";
-import path from "node:path";
-
+import bundlesJson from "../../../data/bundles.json";
 import { availabilityOf } from "./availability";
+import { readPrecomputedJson } from "./d1-catalog";
 import { getDataset } from "./dataset";
 import { HOSTS } from "./hosts";
 import { hostIdsFor } from "./identity";
@@ -31,7 +30,7 @@ interface BundleFile {
 }
 
 function readBundleFile(): BundleFile {
-  return JSON.parse(readFileSync(path.join(process.cwd(), "data", "bundles.json"), "utf8")) as BundleFile;
+  return bundlesJson as BundleFile;
 }
 
 function clip(text: string | undefined, max = 180): string {
@@ -40,6 +39,8 @@ function clip(text: string | undefined, max = 180): string {
 }
 
 export async function getBundles(): Promise<BundlesResponse> {
+  const precomputed = await readPrecomputedJson<BundlesResponse>("bundles.json");
+  if (precomputed) return precomputed;
   const [dataset, file] = [await getDataset(), readBundleFile()];
 
   const bundles = file.bundles.map((bundle) => {

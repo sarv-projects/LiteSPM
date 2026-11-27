@@ -432,6 +432,7 @@ export function MarketplaceView({
         <div className="shrink-0 flex items-center gap-1 rounded-xl border border-border/70 bg-card p-1 text-[11px] font-medium shadow-xs">
           <button
             type="button"
+            aria-pressed={!agentMode}
             onClick={() => setAgentMode(false)}
             className={cn(
               "rounded-lg px-2.5 py-1 transition-colors",
@@ -442,6 +443,7 @@ export function MarketplaceView({
           </button>
           <button
             type="button"
+            aria-pressed={agentMode}
             onClick={() => setAgentMode(true)}
             className={cn(
               "rounded-lg px-2.5 py-1 transition-colors",
@@ -458,8 +460,8 @@ export function MarketplaceView({
         <div className="mt-4 rounded-xl border border-brand/35 bg-brand-soft/40 p-4 font-mono text-[12px] text-foreground">
           <div className="flex items-center justify-between gap-2 border-b border-brand/20 pb-2">
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-semibold text-emerald-400">Agent API / LLM Discovery Endpoint</span>
+              <span className="h-2 w-2 rounded-full bg-brand" />
+              <span className="font-semibold text-brand">Agent API / LLM Discovery Endpoint</span>
             </div>
             <button
               type="button"
@@ -473,8 +475,11 @@ export function MarketplaceView({
             Autonomous coding agents (Claude Code, Cursor, Pi, Grok, Codex) can search and install directly through the LiteSPM stdio MCP bridge or via HTTP:
           </p>
           <div className="mt-2 flex items-center justify-between rounded-lg border border-border/60 bg-muted/60 p-2.5 text-[11px]">
-            <code className="truncate text-brand">GET /api/litespm/list?q={query.q || ""}&pageSize=24</code>
-            <CopyButton value={`curl -s "https://lite-spm-nine.vercel.app/api/litespm/list?pageSize=24"`} label="Copy cURL" />
+            <code className="truncate text-brand">GET /api/litespm/list?{query.q ? `q=${encodeURIComponent(query.q)}&` : ""}pageSize=24</code>
+            <CopyButton
+              value={`curl -s "${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev"}/api/litespm/list?${query.q ? `q=${encodeURIComponent(query.q)}&` : ""}pageSize=24"`}
+              label="Copy cURL"
+            />
           </div>
           <p className="mt-2 text-[10.5px] font-sans text-muted-foreground">
             In-agent MCP Bridge tool: <code className="text-foreground">search_catalog(query: string)</code> and <code className="text-foreground">request_install(id: string)</code>.

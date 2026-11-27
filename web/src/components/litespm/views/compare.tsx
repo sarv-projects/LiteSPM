@@ -20,6 +20,8 @@ export function CompareView({ keys }: { keys: string[] }) {
   const [diffOnly, setDiffOnly] = React.useState(false);
   const [columns, setColumns] = React.useState<CompareColumn[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(false);
+  const [reloadKey, setReloadKey] = React.useState(0);
   const [suggestions, setSuggestions] = React.useState<CatalogListResponse | null>(null);
   const [search, setSearch] = React.useState("");
   const [searching, setSearching] = React.useState(false);
@@ -29,22 +31,32 @@ export function CompareView({ keys }: { keys: string[] }) {
   React.useEffect(() => {
     if (activeKeys.length === 0) {
       setColumns([]);
+      setError(false);
       setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
+    setError(false);
     fetch(`/api/litespm/compare?keys=${activeKeys.map(encodeURIComponent).join(",")}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: { columns?: CompareColumn[] }) => {
         if (!cancelled) setColumns(data.columns ?? []);
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) {
+          setColumns([]);
+          setError(true);
+        }
+      })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [activeKeys.join(",")]);
+  }, [activeKeys.join(","), reloadKey]);
 
   React.useEffect(() => {
     const q = search.trim();
@@ -56,11 +68,16 @@ export function CompareView({ keys }: { keys: string[] }) {
     setSearching(true);
     const timer = setTimeout(() => {
       fetch(`/api/litespm/list?q=${encodeURIComponent(q)}&pageSize=${SEARCHABLE_COUNT}&sort=relevance`)
-        .then((r) => r.json())
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
         .then((data: CatalogListResponse) => {
           if (!cancelled) setSuggestions(data);
         })
-        .catch(() => {})
+        .catch(() => {
+          if (!cancelled) setSuggestions(null);
+        })
         .finally(() => !cancelled && setSearching(false));
     }, 250);
     return () => {
@@ -196,6 +213,28 @@ export function CompareView({ keys }: { keys: string[] }) {
       {loading && activeKeys.length > 0 && (
         <div className="mt-8 flex items-center justify-center gap-2.5 py-20 text-[13.5px] text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin text-brand" /> Loading comparison…
+        </div>
+      )}
+
+      {/* Error or missing keys */}
+      {!loading && activeKeys.length > 0 && columns.length === 0 && (
+        <div className="mt-8 rounded-2xl border border-border/70 bg-card p-8 text-center">
+          <p className="text-[14px] font-medium">
+            {error ? "Could not load the comparison." : "No matching packages were found for those keys."}
+          </p>
+          <p className="mt-1 text-[12.5px] text-muted-foreground">
+            {error ? "Check the connection and try again." : "Try clearing the selection or searching for packages above."}
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            {error && (
+              <Button variant="outline" size="sm" onClick={() => setReloadKey((k) => k + 1)}>
+                Try again
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => navigate("#/compare")}>
+              Clear selection
+            </Button>
+          </div>
         </div>
       )}
 

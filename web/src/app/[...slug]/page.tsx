@@ -26,7 +26,7 @@ interface Props {
 }
 
 /** The one canonical origin; `metadataBase` in layout.tsx is the same value. */
-const ORIGIN = "https://lite-spm-nine.vercel.app";
+const ORIGIN = process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev";
 
 /** First path segments the app renders. Anything else is a real 404, not the home page. */
 const KNOWN_SECTIONS = new Set([

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getDataset } from "@/server/litespm/dataset";
+import { findListingD1, isCloudflareWorkersRuntime } from "@/server/litespm/d1-catalog";
 import { availabilityOf } from "@/server/litespm/availability";
 import { hostsNamedBy } from "@/server/litespm/identity";
 import { classifyListing, GOAL_LABELS } from "@/server/litespm/taxonomy";
@@ -47,7 +48,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ columns: [] });
     }
 
-    const dataset = await getDataset();
+    const useD1 = isCloudflareWorkersRuntime();
+    const dataset = useD1 ? null : await getDataset();
     const columns: CompareColumn[] = [];
 
     for (const key of keys) {
@@ -57,7 +59,9 @@ export async function GET(request: NextRequest) {
       } catch {
         decoded = key.trim();
       }
-      const row = dataset.byKey.get(decoded) ?? dataset.byId.get(decoded);
+      const row = useD1
+        ? await findListingD1(decoded)
+        : (dataset!.byKey.get(decoded) ?? dataset!.byId.get(decoded));
       if (!row) continue;
       const availability = availabilityOf(row);
       const hosts = hostsNamedBy(row);

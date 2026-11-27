@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import path from "node:path";
+import { readLocalOrAssetBytes } from "@/server/litespm/assets";
 
 export async function GET() {
-  // Both scripts are tracked public artifacts and copied into standalone builds.
-  // A single literal path avoids tracing the entire project/parent directory.
   let content = "";
-  try { content = fs.readFileSync(path.join(process.cwd(), "public", "install.sh"), "utf-8"); } catch { /* retain explicit 500 response */ }
+  try {
+    const bytes = await readLocalOrAssetBytes("install.sh", [
+      path.join(process.cwd(), "public", "install.sh"),
+    ]);
+    if (bytes) content = bytes.toString("utf8");
+  } catch {
+    /* retain explicit 500 response */
+  }
 
   if (!content) {
     return new NextResponse("#!/bin/sh\necho 'LiteSPM installer temporarily unavailable'; exit 1;\n", {

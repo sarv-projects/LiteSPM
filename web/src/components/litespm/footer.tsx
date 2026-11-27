@@ -139,7 +139,7 @@ export function Footer() {
                 {entries.length} watched
               </button>
             )}
-            <span className="inline-flex items-center gap-1 pr-32">No account &middot; no telemetry <Heart className="h-3 w-3 text-brand" aria-hidden="true" /></span>
+            <span className="inline-flex items-center gap-1 pr-32">No account &middot; aggregate package views only &middot; Ask AI sends prompts to external LLMs <Heart className="h-3 w-3 shrink-0 text-brand" aria-hidden="true" /></span>
           </p>
         </div>
       </div>

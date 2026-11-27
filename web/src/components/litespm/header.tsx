@@ -35,7 +35,10 @@ export function AnnouncementBar() {
     } catch {}
 
     fetch("/api/litespm/stats")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: CatalogStatsResponse) => {
         setStats(data);
         try {
@@ -47,42 +50,37 @@ export function AnnouncementBar() {
       .catch(() => {});
   }, []);
 
-  const total = stats ? (stats.counts?.uniqueListings ?? stats.uniqueTotal) : 69376;
+  const total = stats?.counts?.uniqueListings ?? stats?.uniqueTotal ?? 68933;
   const hosts = stats?.hosts ?? 52;
-  const seq = stats?.release?.releaseId ?? "Seq 154";
+  const cliVersion = Array.isArray(stats?.cli) ? stats.cli[0]?.version : undefined;
+  const versionLabel = cliVersion ? `v${cliVersion.replace(/^v/, "")}` : "v0.6.0";
 
   return (
     <div className="border-b border-border/50 bg-muted/40 font-mono text-[11px] text-muted-foreground transition-colors">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-3.5 py-1.5 sm:px-6">
         <div className="flex items-center gap-2 overflow-hidden truncate">
           <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
           </span>
-          <span className="font-semibold text-emerald-400">INDEX LIVE</span>
+          <span className="font-semibold text-brand">INDEX LIVE</span>
           <span className="text-border">·</span>
           <span className="truncate">{formatCompact(total)} Capabilities</span>
           <span className="hidden sm:inline text-border">·</span>
           <span className="hidden sm:inline">{hosts} Agent Hosts</span>
           <span className="hidden md:inline text-border">·</span>
-          <span className="hidden md:inline font-semibold text-foreground/80">{seq} Verified</span>
+          <span className="hidden md:inline font-semibold text-foreground/80">
+            {versionLabel} · {hosts} hosts · Open source
+          </span>
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
           <button
             type="button"
             onClick={() => useApp.getState().navigate("/docs/security")}
-            className="hidden items-center gap-1.5 font-sans transition-colors hover:text-emerald-400 sm:inline-flex"
+            className="hidden items-center gap-1.5 font-sans transition-colors hover:text-brand sm:inline-flex"
           >
-            <span className="inline-block rounded bg-emerald-500/10 px-1 py-0.2 text-[9.5px] font-semibold text-emerald-400 border border-emerald-500/20">GUIDE</span>
+            <span className="inline-block rounded border border-brand/25 bg-brand-soft px-1 py-0.2 text-[9.5px] font-semibold text-brand">GUIDE</span>
             <span>How to vet an agent skill safely →</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => useApp.getState().setPalette(true)}
-            className="inline-flex items-center gap-1 rounded border border-border/60 bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-brand/40 hover:text-foreground"
-          >
-            <kbd className="font-sans font-medium">⌘K</kbd> search
           </button>
         </div>
       </div>

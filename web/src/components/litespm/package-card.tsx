@@ -168,7 +168,7 @@ export function PackageCard({
           </span>
         )}
         {hit.installable && (
-          <span className="ml-auto font-mono text-[10.5px] text-emerald-400/90 font-medium whitespace-nowrap">
+          <span className="ml-auto font-mono text-[10.5px] text-brand font-medium whitespace-nowrap">
             {hit.kind === "skill"
               ? "79 skill targets"
               : hit.kind === "plugin"

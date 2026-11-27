@@ -10,6 +10,7 @@ import { hostNote } from "./host-notes";
 import { HOST_IDENTITIES, resolveHostId, tallyHosts, hostIdsFor } from "./identity";
 import { HOSTS, SKILL_TARGETS, bridgeSnippet, hostPath, hostPathIsHomeDerived, hostSupportsPlatform, compareHostsByAdoption, type PlatformOS } from "./hosts";
 import { availabilityOf } from "./availability";
+import { readPrecomputedJson } from "./d1-catalog";
 import { listingIdentity } from "./discovery";
 import { getDataset } from "./dataset";
 import type { Listing } from "./types";
@@ -66,6 +67,8 @@ const globalForAgentRows = globalThis as unknown as {
 };
 
 export async function buildAgentRows(): Promise<AgentRow[]> {
+  const precomputed = await readPrecomputedJson<{ agents: AgentRow[] }>("agents.json");
+  if (precomputed?.agents) return precomputed.agents;
   globalForAgentRows.__litespmAgentRowsV2 ??= computeAgentRows();
   return globalForAgentRows.__litespmAgentRowsV2;
 }
@@ -235,6 +238,12 @@ async function agentRowById(id: string): Promise<AgentRow | null> {
 }
 
 export async function buildAgentDetail(id: string): Promise<AgentDetail | null> {
+  const preDetails = await readPrecomputedJson<Record<string, AgentDetail>>("agent-details.json");
+  if (preDetails) {
+    const resolvedId = resolveHostId(id) ?? id;
+    if (preDetails[resolvedId]) return preDetails[resolvedId]!;
+    if (preDetails[id]) return preDetails[id]!;
+  }
   const row = await agentRowById(id);
   if (!row) return null;
 

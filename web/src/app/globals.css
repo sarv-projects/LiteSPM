@@ -215,51 +215,6 @@
   animation-delay: var(--d, 0ms);
 }
 
-/* A slow light sweep across the accent line. */
-@keyframes sheen {
-  from { background-position: 200% 50%; }
-  to { background-position: -200% 50%; }
-}
-.text-sheen {
-  background-image: linear-gradient(
-    100deg,
-    var(--brand) 0%,
-    var(--brand) 38%,
-    color-mix(in oklch, var(--brand) 35%, white) 50%,
-    var(--brand) 62%,
-    var(--brand) 100%
-  );
-  background-size: 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: sheen 7s linear infinite;
-}
-
-/* Drifting aurora behind the hero. */
-@keyframes aurora-a {
-  0%, 100% { transform: translate3d(-8%, -4%, 0) scale(1); }
-  50% { transform: translate3d(10%, 6%, 0) scale(1.15); }
-}
-@keyframes aurora-b {
-  0%, 100% { transform: translate3d(6%, 8%, 0) scale(1.1); }
-  50% { transform: translate3d(-10%, -6%, 0) scale(0.95); }
-}
-@keyframes aurora-c {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.6; }
-  50% { transform: translate3d(-8%, 6%, 0) scale(1.15); opacity: 0.9; }
-}
-.aurora {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(80px);
-  will-change: transform;
-  pointer-events: none;
-}
-.aurora-a { animation: aurora-a 18s ease-in-out infinite; }
-.aurora-b { animation: aurora-b 22s ease-in-out infinite; }
-.aurora-c { animation: aurora-c 26s ease-in-out infinite; }
-
 /* Pointer spotlight: --mx/--my are set from JS on pointer move. */
 .hero-spotlight {
   background: radial-gradient(
@@ -270,38 +225,19 @@
   transition: opacity 0.4s ease;
 }
 
-/* Rotating light around the terminal frame. */
-@property --spin {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-@keyframes border-spin {
-  to { --spin: 360deg; }
-}
+/* Static subtle border around the terminal frame (no infinite spin). */
 .glow-frame {
   position: relative;
   border-radius: 1.1rem;
   padding: 1px;
-  background: conic-gradient(
-    from var(--spin),
-    transparent 0deg,
-    color-mix(in oklch, var(--brand) 85%, transparent) 60deg,
-    transparent 140deg,
-    transparent 220deg,
-    color-mix(in oklch, var(--brand) 40%, transparent) 290deg,
-    transparent 360deg
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklch, var(--brand) 45%, transparent),
+    color-mix(in oklch, var(--border) 60%, transparent) 50%,
+    color-mix(in oklch, var(--brand) 25%, transparent)
   );
-  animation: border-spin 8s linear infinite;
-  box-shadow: 0 25px 80px -20px color-mix(in oklch, var(--brand) 30%, transparent);
+  box-shadow: 0 25px 80px -20px color-mix(in oklch, var(--brand) 22%, transparent);
 }
-
-/* Gentle float for the hero callouts. */
-@keyframes float-y {
-  0%, 100% { transform: translate3d(0, 0, 0); }
-  50% { transform: translate3d(0, -8px, 0); }
-}
-.float-y { animation: float-y 6s ease-in-out infinite; }
 
 /* Terminal lines arrive instead of popping. */
 @keyframes term-line {
@@ -320,7 +256,8 @@
   animation: marquee 48s linear infinite;
 }
 .marquee:hover .marquee-track,
-.marquee:focus-within .marquee-track {
+.marquee:focus-within .marquee-track,
+.marquee-paused .marquee-track {
   animation-play-state: paused;
 }
 .marquee {
@@ -341,16 +278,6 @@
   transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .btn-shine:hover::after { transform: translateX(120%); }
-
-/* A word that both rises in and carries the sheen needs both animations in
-   one declaration; two classes setting `animation` would override each other
-   and leave the word at opacity 0. */
-.rise-word.text-sheen {
-  animation:
-    rise-in 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards,
-    sheen 7s linear 1.2s infinite;
-  animation-delay: calc(var(--i, 0) * 70ms + 60ms), 1.2s;
-}
 
 /* FAQ / disclosure answers ease open instead of snapping. The chevron already
    rotates; this keeps the content reveal in step with it. Reduced motion is
@@ -387,8 +314,7 @@ details[open] .faq-answer { grid-template-rows: 1fr; opacity: 1; }
   }
   /* Content that animates in must still end up visible. */
   .rise-word,
-  .rise-block,
-  .rise-word.text-sheen {
+  .rise-block {
     opacity: 1;
     animation: none;
   }
@@ -399,12 +325,5 @@ details[open] .faq-answer { grid-template-rows: 1fr; opacity: 1; }
   }
   .marquee-dup {
     display: none;
-  }
-  .glow-frame,
-  .text-sheen,
-  .aurora-a,
-  .aurora-b,
-  .float-y {
-    animation: none;
   }
 }

@@ -138,9 +138,9 @@ function indexDataDir(): string {
  * falls back to the in-memory build, which is slower but still correct.
  */
 function loadSerializedIndex(rows: Listing[], releaseId: string, projection: SearchProjection): SearchIndex | null {
-  const file = path.join(indexDataDir(), projection === "compact" ? "search-index-compact.json.gz" : "search-index.json.gz");
-  if (!existsSync(file)) return null;
   try {
+    const file = path.join(indexDataDir(), projection === "compact" ? "search-index-compact.json.gz" : "search-index.json.gz");
+    if (!existsSync(file)) return null;
     const serialized = JSON.parse(gunzipSync(readFileSync(file)).toString("utf8")) as SerializedSearchIndex;
     if (serialized.version !== 2 || serialized.releaseId !== releaseId || serialized.projection !== projection || serialized.n !== rows.length || serialized.rowDigest !== searchRowDigest(rows)) return null;
     if (serialized.docs.length !== rows.length || !serialized.docs.every((doc, i) => doc[0] === rows[i]?.id)) return null;

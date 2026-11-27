@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { create } from "zustand";
 
 import type { CatalogHit } from "./types";
 
@@ -39,33 +40,53 @@ function writeList(key: string, list: WatchEntry[]) {
   }
 }
 
+interface WatchlistState {
+  entries: WatchEntry[];
+  hydrated: boolean;
+  hydrate: () => void;
+  toggle: (hit: { linkKey: string; name: string; kind: string }) => void;
+}
+
+const useWatchlistStore = create<WatchlistState>((set, get) => ({
+  entries: [],
+  hydrated: false,
+  hydrate: () => {
+    set({ entries: readList(WATCH_KEY), hydrated: true });
+  },
+  toggle: (hit) => {
+    const list = get().hydrated ? get().entries : readList(WATCH_KEY);
+    const next = list.some((e) => e.linkKey === hit.linkKey)
+      ? list.filter((e) => e.linkKey !== hit.linkKey)
+      : [{ linkKey: hit.linkKey, name: hit.name, kind: hit.kind, savedAt: Date.now() }, ...list];
+    writeList(WATCH_KEY, next);
+    set({ entries: next, hydrated: true });
+  },
+}));
+
+let watchlistListenersBound = false;
+
 export function useWatchlist() {
-  const [entries, setEntries] = React.useState<WatchEntry[]>([]);
-  const [hydrated, setHydrated] = React.useState(false);
+  const entries = useWatchlistStore((s) => s.entries);
+  const hydrated = useWatchlistStore((s) => s.hydrated);
+  const hydrate = useWatchlistStore((s) => s.hydrate);
+  const toggle = useWatchlistStore((s) => s.toggle);
 
   React.useEffect(() => {
-    setEntries(readList(WATCH_KEY));
-    setHydrated(true);
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === WATCH_KEY) setEntries(readList(WATCH_KEY));
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+    if (!useWatchlistStore.getState().hydrated) {
+      hydrate();
+    }
+    if (!watchlistListenersBound && typeof window !== "undefined") {
+      watchlistListenersBound = true;
+      window.addEventListener("storage", (e: StorageEvent) => {
+        if (e.key === WATCH_KEY) useWatchlistStore.getState().hydrate();
+      });
+    }
+  }, [hydrate]);
 
   const isWatched = React.useCallback(
     (linkKey: string) => entries.some((e) => e.linkKey === linkKey),
     [entries],
   );
-
-  const toggle = React.useCallback((hit: { linkKey: string; name: string; kind: string }) => {
-    const list = readList(WATCH_KEY);
-    const next = list.some((e) => e.linkKey === hit.linkKey)
-      ? list.filter((e) => e.linkKey !== hit.linkKey)
-      : [{ linkKey: hit.linkKey, name: hit.name, kind: hit.kind, savedAt: Date.now() }, ...list];
-    writeList(WATCH_KEY, next);
-    setEntries(next);
-  }, []);
 
   return { entries, hydrated, isWatched, toggle };
 }

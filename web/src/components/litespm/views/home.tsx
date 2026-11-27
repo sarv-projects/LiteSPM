@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
 import {
   ArrowRight,
   BadgeCheck,
@@ -95,6 +94,11 @@ export function HomeView() {
   const [trending, setTrending] = React.useState<TrendingItem[]>([]);
   const [topMcp, setTopMcp] = React.useState<CatalogHit[]>([]);
   const [topSkills, setTopSkills] = React.useState<CatalogHit[]>([]);
+  const [statsError, setStatsError] = React.useState(false);
+  const [featuredError, setFeaturedError] = React.useState(false);
+  const [listsError, setListsError] = React.useState(false);
+  const [marqueePaused, setMarqueePaused] = React.useState(false);
+  const [openAccordions, setOpenAccordions] = React.useState<Record<string, boolean>>({});
   const [exploreTab, setExploreTab] = React.useState<ExploreTab>("ranked");
   type InstallMode = "npm" | "curl" | "powershell" | "npx";
   const [installMode, setInstallMode] = React.useState<InstallMode>("npm");
@@ -118,28 +122,55 @@ export function HomeView() {
   }, []);
   React.useEffect(() => () => cancelAnimationFrame(pointerFrame.current), []);
 
-  React.useEffect(() => {
+  const loadHomeData = React.useCallback(() => {
+    setStatsError(false);
+    setFeaturedError(false);
+    setListsError(false);
+
     fetch("/api/litespm/stats")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: CatalogStatsResponse) => setStats(data))
-      .catch(() => {});
+      .catch(() => setStatsError(true));
+
     fetch("/api/litespm/featured")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: FeaturedResponse) => setFeatured(data))
-      .catch(() => {});
+      .catch(() => setFeaturedError(true));
+
     fetch("/api/litespm/trending")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: { items: TrendingItem[] }) => setTrending(data.items ?? []))
       .catch(() => {});
-    fetch("/api/litespm/list?sort=rank&kind=mcp&installable=1&pageSize=8&facets=0")
-      .then((r) => r.json())
-      .then((data: CatalogListResponse) => setTopMcp(data.items ?? []))
-      .catch(() => {});
-    fetch("/api/litespm/list?sort=rank&kind=skill&installable=1&pageSize=8&facets=0")
-      .then((r) => r.json())
-      .then((data: CatalogListResponse) => setTopSkills(data.items ?? []))
-      .catch(() => {});
+
+    Promise.all([
+      fetch("/api/litespm/list?sort=rank&kind=mcp&installable=1&pageSize=8&facets=0").then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<CatalogListResponse>;
+      }),
+      fetch("/api/litespm/list?sort=rank&kind=skill&installable=1&pageSize=8&facets=0").then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<CatalogListResponse>;
+      }),
+    ])
+      .then(([mcpData, skillData]) => {
+        setTopMcp(mcpData.items ?? []);
+        setTopSkills(skillData.items ?? []);
+      })
+      .catch(() => setListsError(true));
   }, []);
+
+  React.useEffect(() => {
+    loadHomeData();
+  }, [loadHomeData]);
 
   // One number system (server/litespm/counts.ts): "listings" = unique listings.
   const counts = stats
@@ -175,13 +206,9 @@ export function HomeView() {
         onPointerMove={onHeroPointer}
         className="relative overflow-hidden border-b border-border/60"
       >
-        {/* Background: masked grid, two drifting aurora fields and a soft
-            spotlight that follows the pointer. All transform/opacity only. */}
+        {/* Background: masked grid and a soft spotlight that follows the pointer. */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
           <div className="hero-grid absolute inset-0" />
-          <div className="aurora aurora-a -top-48 left-[8%] h-[460px] w-[620px] bg-brand/[0.18]" />
-          <div className="aurora aurora-b -top-24 right-[-6%] h-[420px] w-[560px] bg-cyan-400/[0.11]" />
-          <div className="aurora aurora-c -bottom-28 right-[18%] h-[380px] w-[520px] bg-emerald-500/[0.13]" />
           <div className="hero-spotlight absolute inset-0" />
         </div>
 
@@ -191,31 +218,27 @@ export function HomeView() {
               className="rise-block inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand-soft px-3 py-1 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-brand"
               style={{ "--d": "0ms" } as React.CSSProperties}
             >
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60" />
+              <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-brand" />
               </span>
-              {cliVersion ? `${formatVersion(cliVersion)} on npm` : "on npm"} ·{" "}
+              {cliVersion ? `${formatVersion(cliVersion)} on npm` : "v0.6.0 on npm"} ·{" "}
               {`${stats?.hosts ?? facts.hosts} agent hosts`}
             </p>
 
             <h1 className="mt-5 text-[clamp(2.4rem,5.5vw,4.4rem)] font-semibold leading-[1.0] tracking-[-0.045em]">
-              <span className="sr-only">One package manager. Every AI agent. Manage capabilities across supported AI coding agents.</span>
-              <span aria-hidden="true">
-                {HERO_WORDS.map((word, i) => (
-                  <React.Fragment key={word + i}>
-                    <span className="rise-word" style={{ "--i": i } as React.CSSProperties}>
-                      {word}
-                    </span>{" "}
-                  </React.Fragment>
-                ))}
-                <br />
-                <span
-                  className="rise-word text-sheen pb-[0.08em]"
-                  style={{ "--i": HERO_WORDS.length + 1 } as React.CSSProperties}
-                >
-                  Every AI agent.
-                </span>
+              {HERO_WORDS.map((word, i) => (
+                <React.Fragment key={word + i}>
+                  <span className="rise-word" style={{ "--i": i } as React.CSSProperties}>
+                    {word}
+                  </span>{" "}
+                </React.Fragment>
+              ))}
+              <br />
+              <span
+                className="rise-word pb-[0.08em] text-brand"
+                style={{ "--i": HERO_WORDS.length + 1 } as React.CSSProperties}
+              >
+                Every AI agent.
               </span>
             </h1>
 
@@ -234,6 +257,7 @@ export function HomeView() {
               <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                 <button
                   type="button"
+                  aria-pressed={installMode === "npm"}
                   onClick={() => setInstallMode("npm")}
                   className={cn(
                     "rounded-md px-2 py-0.5 transition-colors",
@@ -246,6 +270,7 @@ export function HomeView() {
                 </button>
                 <button
                   type="button"
+                  aria-pressed={installMode === "curl"}
                   onClick={() => setInstallMode("curl")}
                   className={cn(
                     "rounded-md px-2 py-0.5 transition-colors",
@@ -258,6 +283,7 @@ export function HomeView() {
                 </button>
                 <button
                   type="button"
+                  aria-pressed={installMode === "powershell"}
                   onClick={() => setInstallMode("powershell")}
                   className={cn(
                     "rounded-md px-2 py-0.5 transition-colors",
@@ -270,6 +296,7 @@ export function HomeView() {
                 </button>
                 <button
                   type="button"
+                  aria-pressed={installMode === "npx"}
                   onClick={() => setInstallMode("npx")}
                   className={cn(
                     "rounded-md px-2 py-0.5 transition-colors",
@@ -286,13 +313,13 @@ export function HomeView() {
                 <>
                   <InstallBar command="npm install -g litespm" label="npm" />
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
-                    Recommended for Node developers (requires Node 22.22+ — or use <strong className="text-foreground">curl / PowerShell</strong> with zero Node). Run <code className="font-mono text-foreground/90">litespm</code> to connect your agents.
+                    Recommended for Node developers (requires Node 22.22.2+ — or use <strong className="text-foreground">curl / PowerShell</strong> with zero Node). Run <code className="font-mono text-foreground/90">litespm</code> to connect your agents.
                   </p>
                 </>
               )}
               {installMode === "curl" && (
                 <>
-                  <InstallBar command={`curl -fsSL ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://lite-spm-nine.vercel.app"}/install.sh | sh`} label="sh" />
+                  <InstallBar command={`curl -fsSL ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev"}/install.sh | sh`} label="sh" />
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
                     Standalone native binary for macOS and Linux (arm64 & amd64). <strong className="text-foreground">Zero Node required.</strong>
                   </p>
@@ -300,7 +327,7 @@ export function HomeView() {
               )}
               {installMode === "powershell" && (
                 <>
-                  <InstallBar command={`irm ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://lite-spm-nine.vercel.app"}/install.ps1 | iex`} label="pwsh" />
+                  <InstallBar command={`irm ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev"}/install.ps1 | iex`} label="pwsh" />
                   <p className="mt-2 text-[11.5px] text-muted-foreground">
                     Standalone native binary for Windows (amd64 & arm64). <strong className="text-foreground">Zero Node required.</strong>
                   </p>
@@ -343,20 +370,24 @@ export function HomeView() {
               className="rise-block mt-9 grid max-w-lg grid-cols-3 gap-3 border-t border-border/50 pt-6"
               style={{ "--d": "820ms" } as React.CSSProperties}
             >
-              <div
-                className="flex cursor-pointer flex-col transition-opacity hover:opacity-85"
-                title={counts ? `${formatFull(counts.all)} unique listings (${stats ? formatFull(stats.installable) : "…"} installable). ${stats?.counts ? formatFull(stats.counts.catalogRows) : "…"} raw catalog rows before exact duplicates are removed.` : "Listings"}
-                onClick={() => navigate(exploreHash({}))}
+              <NavLink
+                to={exploreHash({})}
+                className="flex flex-col transition-opacity hover:opacity-85"
+                title={counts ? `${formatFull(counts.all)} unique listings (${stats ? formatFull(stats.installable) : "…"} installable). ${stats?.counts ? formatFull(stats.counts.catalogRows) : formatFull(facts.catalogRows)} raw catalog rows before exact duplicates are removed.` : "Listings"}
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Listings
                   <span className="block text-[10px] text-muted-foreground/85">MCP, skills & plugins</span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
-                  {counts ? <CountUp value={counts.all} format={(n) => formatFull(n)} /> : "…"}
+                  {counts ? <CountUp value={counts.all} format={(n) => formatFull(n)} /> : formatFull(facts.listings)}
                 </dd>
-              </div>
-              <div className="flex flex-col" title="Agent hosts LiteSPM can configure">
+              </NavLink>
+              <NavLink
+                to="/agents"
+                className="flex flex-col transition-opacity hover:opacity-85"
+                title="Agent hosts LiteSPM can configure"
+              >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-muted-foreground">
                   Agent hosts
                   <span className="block text-[10px] text-muted-foreground/85">CLI, IDE & desktop</span>
@@ -364,28 +395,42 @@ export function HomeView() {
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
                   {stats ? <CountUp value={stats.hosts} format={(n) => String(n)} /> : String(facts.hosts)}
                 </dd>
-              </div>
-              <div
-                className="flex cursor-pointer flex-col transition-opacity hover:opacity-85"
+              </NavLink>
+              <NavLink
+                to={exploreHash({ installable: "1" })}
+                className="flex flex-col transition-opacity hover:opacity-85"
                 title={`${stats ? formatFull(stats.installable) : "…"} listings LiteSPM can install`}
-                onClick={() => navigate(exploreHash({ installable: "1" }))}
               >
                 <dt className="order-2 mt-0.5 text-[11.5px] font-medium text-brand">
                   Installable →
                   <span className="block text-[10px] text-muted-foreground/85">Compatible metadata</span>
                 </dt>
                 <dd className="order-1 font-mono text-[clamp(1.5rem,3vw,2rem)] font-semibold tracking-tight text-foreground">
-                  {stats ? <CountUp value={stats.installable} format={(n) => formatFull(n)} /> : "…"}
+                  {stats ? (
+                    <CountUp value={stats.installable} format={(n) => formatFull(n)} />
+                  ) : statsError ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    "…"
+                  )}
                 </dd>
-              </div>
+              </NavLink>
             </dl>
+            {statsError && (
+              <p className="mt-2 flex items-center gap-2 text-[11.5px] text-muted-foreground">
+                <span>Live catalog stats could not be loaded.</span>
+                <button type="button" onClick={loadHomeData} className="font-medium text-brand hover:underline">
+                  Retry
+                </button>
+              </p>
+            )}
           </div>
 
           <div className="rise-block relative min-w-0" style={{ "--d": "300ms" } as React.CSSProperties}>
-            {/* Floating callouts: decorative, positioned cleanly on outer margins without overlapping terminal text */}
+            {/* Static callouts: decorative, positioned cleanly on outer margins without overlapping terminal text */}
             <div
               aria-hidden="true"
-              className="float-y pointer-events-none absolute -top-4.5 left-4 z-20 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-1.5 text-[11px] shadow-xl backdrop-blur xl:flex"
+              className="pointer-events-none absolute -top-4.5 left-4 z-20 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-1.5 text-[11px] shadow-xl backdrop-blur xl:flex"
             >
               <ShieldCheck className="h-3.5 w-3.5 text-brand" />
               <span className="font-medium">Backup saved</span>
@@ -393,8 +438,7 @@ export function HomeView() {
             </div>
             <div
               aria-hidden="true"
-              className="float-y pointer-events-none absolute -bottom-4 right-6 z-20 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-1.5 text-[11px] shadow-xl backdrop-blur xl:flex"
-              style={{ animationDelay: "-3s" }}
+              className="pointer-events-none absolute -bottom-4 right-6 z-20 hidden items-center gap-2 rounded-xl border border-border/70 bg-card/95 px-3 py-1.5 text-[11px] shadow-xl backdrop-blur xl:flex"
             >
               <Undo2 className="h-3.5 w-3.5 text-brand" />
               <span className="font-medium">Managed removal or restore</span>
@@ -440,8 +484,8 @@ export function HomeView() {
             className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-brand"
           >
             <BadgeCheck className="h-4 w-4 text-brand" />
-            <span className="font-medium text-foreground">Sigstore-signed releases</span>
-            <span className="hidden text-muted-foreground/80 md:inline">— Keyless GitHub OIDC provenance</span>
+            <span className="font-medium text-foreground">SHA256SUMS releases</span>
+            <span className="hidden text-muted-foreground/80 md:inline">— Verified release checksums</span>
           </NavLink>
         </div>
       </section>
@@ -452,7 +496,7 @@ export function HomeView() {
           <p className="shrink-0 text-[12px] font-medium text-muted-foreground">
             Works with the agents you already use
           </p>
-          <div className="marquee min-w-0 flex-1 overflow-hidden">
+          <div className={cn("marquee min-w-0 flex-1 overflow-hidden", marqueePaused && "marquee-paused")}>
             <ul className="marquee-track gap-2.5">
               {[0, 1].map((copy) =>
                 MARQUEE_AGENTS.map((name) => (
@@ -461,20 +505,30 @@ export function HomeView() {
                     aria-hidden={copy === 1 ? true : undefined}
                     className={`${copy === 1 ? "marquee-dup " : ""}inline-flex shrink-0 items-center rounded-lg border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground/90`}
                   >
-                    <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500/80" />
+                    <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-brand/80" />
                     {name}
                   </li>
                 )),
               )}
             </ul>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate("#/agents")}
-            className="shrink-0 text-left text-[12px] font-semibold text-brand hover:underline"
-          >
-            All {stats?.hosts ?? facts.hosts} agents →
-          </button>
+          <div className="flex shrink-0 items-center gap-3">
+            <button
+              type="button"
+              aria-pressed={marqueePaused}
+              onClick={() => setMarqueePaused((p) => !p)}
+              className="rounded-md border border-border/70 bg-card px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:border-brand/40 hover:text-foreground"
+            >
+              {marqueePaused ? "Resume" : "Pause"}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("#/agents")}
+              className="shrink-0 text-left text-[12px] font-semibold text-brand hover:underline"
+            >
+              All {stats?.hosts ?? facts.hosts} agents →
+            </button>
+          </div>
         </div>
       </section>
 
@@ -496,13 +550,7 @@ export function HomeView() {
 
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {/* Card 1: /marketplace inside chat */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-30px" }}
-              transition={{ delay: 0.05, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-              className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]"
-            >
+            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand font-mono text-[13px] font-bold">
                 /m
               </div>
@@ -510,16 +558,10 @@ export function HomeView() {
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm setup</code> connects supported agents. Selected hosts offer marketplace integrations; see the compatibility matrix. Or run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm marketplace</code> in any terminal.
               </p>
-            </motion.div>
+            </div>
 
             {/* Card 2: Install Once & Forget */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-30px" }}
-              transition={{ delay: 0.12, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-              className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]"
-            >
+            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
@@ -527,33 +569,21 @@ export function HomeView() {
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">npm install -g litespm</code>, then use the wizard to choose targets. Preview an installation plan with --dry-run before applying changes.
               </p>
-            </motion.div>
+            </div>
 
             {/* Card 3: Auto-Backup & Undo */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-30px" }}
-              transition={{ delay: 0.19, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-              className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]"
-            >
+            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <h3 className="mt-4 text-[16px] font-semibold tracking-tight">Reversible</h3>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                LiteSPM backs up your agent&apos;s configuration before writing any change. To roll back, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore &lt;installId&gt;</code> restores an eligible backup. Use install remove for managed removal; inspect conflict warnings.
+                LiteSPM backs up your agent&apos;s configuration before writing any change. To roll back, <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-brand text-[11.5px]">litespm restore &lt;id&gt;</code> restores an eligible backup. Use install remove for managed removal; inspect conflict warnings.
               </p>
-            </motion.div>
+            </div>
 
             {/* Card 4: Built for Everyone */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-30px" }}
-              transition={{ delay: 0.26, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-              className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]"
-            >
+            <div className="rounded-2xl border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-1 hover:border-brand/40 hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.12)]">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                 <Terminal className="h-5 w-5" />
               </div>
@@ -561,7 +591,7 @@ export function HomeView() {
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 Manage capabilities on your machine. Run <code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-brand text-[12px]">litespm</code> for the interactive wizard. Scripting it? Use flags such as <code className="font-mono text-[11.5px]">--agent</code> and <code className="font-mono text-[11.5px]">--scope</code>.
               </p>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
@@ -682,8 +712,8 @@ export function HomeView() {
                 </button>
               </div>
               <div className="mt-4 grid gap-6 lg:grid-cols-2">
-                <TopRail title="Top MCP servers" href={exploreHash({ sort: "rank", kind: "mcp", installable: "1" })} items={topMcp} />
-                <TopRail title="Top agent skills" href={exploreHash({ sort: "rank", kind: "skill", installable: "1" })} items={topSkills} />
+                <TopRail title="Top MCP servers" href={exploreHash({ sort: "rank", kind: "mcp", installable: "1" })} items={topMcp} error={listsError} onRetry={loadHomeData} />
+                <TopRail title="Top agent skills" href={exploreHash({ sort: "rank", kind: "skill", installable: "1" })} items={topSkills} error={listsError} onRetry={loadHomeData} />
               </div>
             </div>
           )}
@@ -757,7 +787,14 @@ export function HomeView() {
                       </div>
                     );
                   })
-                : <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[140px] animate-pulse rounded-xl border border-border/50 bg-muted/30" />)}</div>}
+                : featuredError ? (
+                  <div className="mt-4 flex items-center justify-between rounded-xl border border-border/70 bg-card p-5 text-[13px] text-muted-foreground">
+                    <span>Could not load featured collections.</span>
+                    <button type="button" onClick={loadHomeData} className="font-medium text-brand hover:underline">
+                      Retry
+                    </button>
+                  </div>
+                ) : <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[140px] animate-pulse rounded-xl border border-border/50 bg-muted/30" />)}</div>}
             </div>
           )}
 
@@ -817,12 +854,8 @@ export function HomeView() {
         />
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {steps.map((step, i) => (
-            <motion.div
+            <div
               key={step.title}
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-40px" }}
-              transition={{ delay: i * 0.07 }}
               className="group rounded-2xl border border-border/70 bg-card p-5 transition-colors hover:border-brand/40"
             >
               <div className="flex items-center justify-between">
@@ -835,7 +868,7 @@ export function HomeView() {
               </div>
               <h3 className="mt-4 text-[16px] font-semibold tracking-tight">{step.title}</h3>
               <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{step.body}</p>
-            </motion.div>
+            </div>
           ))}
         </div>
       </section>
@@ -848,8 +881,17 @@ export function HomeView() {
             More to know
           </h2>
           <div className="mt-8 space-y-3">
-            <details className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35">
-              <summary className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] [&::-webkit-details-marker]:hidden">
+            <details
+              className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35"
+              onToggle={(e) => {
+                const isOpen = e.currentTarget.open;
+                setOpenAccordions((prev) => ({ ...prev, hosts: isOpen }));
+              }}
+            >
+              <summary
+                aria-expanded={Boolean(openAccordions.hosts)}
+                className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] [&::-webkit-details-marker]:hidden"
+              >
                 <span>{stats?.hosts ?? facts.hosts} hosts. One command.</span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
               </summary>
@@ -889,8 +931,17 @@ export function HomeView() {
               </div>
             </details>
 
-            <details className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35">
-              <summary className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] [&::-webkit-details-marker]:hidden">
+            <details
+              className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35"
+              onToggle={(e) => {
+                const isOpen = e.currentTarget.open;
+                setOpenAccordions((prev) => ({ ...prev, keys: isOpen }));
+              }}
+            >
+              <summary
+                aria-expanded={Boolean(openAccordions.keys)}
+                className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] [&::-webkit-details-marker]:hidden"
+              >
                 <span>Your machine, your keys.</span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
               </summary>
@@ -912,8 +963,17 @@ export function HomeView() {
               </div>
             </details>
 
-            <details className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35">
-              <summary className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] [&::-webkit-details-marker]:hidden">
+            <details
+              className="group rounded-2xl border border-border/70 bg-card p-5 transition-all hover:border-brand/35"
+              onToggle={(e) => {
+                const isOpen = e.currentTarget.open;
+                setOpenAccordions((prev) => ({ ...prev, faq: isOpen }));
+              }}
+            >
+              <summary
+                aria-expanded={Boolean(openAccordions.faq)}
+                className="flex cursor-pointer items-center justify-between gap-4 font-semibold text-[14.5px] [&::-webkit-details-marker]:hidden"
+              >
                 <span>Common questions</span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
               </summary>
@@ -969,7 +1029,7 @@ export function HomeView() {
                 {[
                   ["MCP servers + Skills + Plugins", "Unified (52 hosts / 81 skill targets)", "Manual per-host edits", "Skills only", "MCP containers only"],
                   ["Pre-write diff & approval gate", "Always previews diff before write", "None", "Minimal prompt", "Container runtime"],
-                  ["Byte-exact SHA-256 rollback", "litespm restore <slug> (preserves comments)", "Manual undo", "No config rollback", "N/A"],
+                  ["Byte-exact SHA-256 rollback", "litespm restore <id> (preserves comments)", "Manual undo", "No config rollback", "N/A"],
                   ["Agent-to-agent config porting", "litespm copy --from A --to B (strips secrets)", "Copy-paste & reformat", "No MCP config port", "N/A"],
                   ["Reproducible lockfile & SBOM", "litespm lock --check & CycloneDX/SPDX", "None", "Partial lock", "Image digests only"],
                   ["Zero-runtime overhead", "Native CLI + stdio bridge (no Docker)", "Zero overhead", "Node.js required", "Requires Docker Desktop"],
@@ -1033,14 +1093,31 @@ function TopRail({
   title,
   href,
   items,
+  error,
+  onRetry,
 }: {
   title: string;
   href: string;
   items: CatalogHit[];
+  error?: boolean;
+  onRetry?: () => void;
 }) {
   const navigate = useApp((s) => s.navigate);
 
   if (items.length === 0) {
+    if (error) {
+      return (
+        <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-border/60 bg-card p-6">
+          <h3 className="text-[14.5px] font-semibold tracking-tight">{title}</h3>
+          <p className="text-[13px] text-muted-foreground">Could not load this ranking.</p>
+          {onRetry && (
+            <button type="button" onClick={onRetry} className="text-[12.5px] font-medium text-brand hover:underline">
+              Try again
+            </button>
+          )}
+        </div>
+      );
+    }
     return (
       <div className="rounded-2xl border border-border/60 p-6">
         <div className="h-5 w-40 animate-pulse rounded bg-muted/40" />

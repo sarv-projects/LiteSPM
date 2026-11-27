@@ -9,7 +9,7 @@ export const alt = "LiteSPM — The package manager for AI agents";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const SITE_HOST = "lite-spm-nine.vercel.app";
+const SITE_HOST = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev").replace(/^https?:\/\//, "");
 
 export default function OpengraphImage() {
   const listings = `${Math.floor(facts.listings / 1000)}k+`;

@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://lite-spm-nine.vercel.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev"),
   title: "LiteSPM — The package manager for AI agents",
   description: SHARE_DESCRIPTION,
   keywords: [
@@ -67,6 +67,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* esbuild keepNames injects __name() into next-themes' serialized inline script */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "window.__name=window.__name||function(t){return t};",
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >

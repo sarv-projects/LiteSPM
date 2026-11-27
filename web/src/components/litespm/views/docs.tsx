@@ -188,7 +188,7 @@ function Glossary() {
       items: [
         { q: "Installable vs discovery-only?", a: "Installable means a verified launch line exists: a remote endpoint, a publisher-declared command, a skill source, or a pinned plugin tree. Discovery-only means we have metadata but no proven way to start it." },
         { q: "What happens when I install?", a: "LiteSPM plans the exact writes, shows them for approval, backs up the config, writes a native entry for each target host, and records an ownership ledger." },
-        { q: "How do I undo an install?", a: "'litespm restore <installId>' replays the pre-install bytes under guard; 'litespm install remove <installId>' strips only what LiteSPM wrote and keeps your edits." },
+        { q: "How do I undo an install?", a: "'litespm restore <id>' replays the pre-install bytes under guard; 'litespm install remove <id>' strips only what LiteSPM wrote and keeps your edits." },
         { q: "Does LiteSPM phone home?", a: "The CLI has no telemetry and needs no account. This website records aggregate package views with no device IDs; the deployed page says so where it applies." },
       ],
     },
@@ -363,7 +363,7 @@ function GettingStarted() {
         <div className="rounded-xl border border-border/70 bg-card p-3.5 space-y-1.5 text-[12.5px]">
           <p className="font-semibold text-foreground">macOS & Linux (Zero Node)</p>
           <code className="block rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-brand">
-            {`curl -fsSL ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://lite-spm-nine.vercel.app"}/install.sh | sh`}
+            {`curl -fsSL ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev"}/install.sh | sh`}
           </code>
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
             Downloads, verifies SHA-256 integrity, and configures PATH for precompiled native binaries. No Node runtime required.
@@ -372,7 +372,7 @@ function GettingStarted() {
         <div className="rounded-xl border border-border/70 bg-card p-3.5 space-y-1.5 text-[12.5px]">
           <p className="font-semibold text-foreground">Windows PowerShell (Zero Node)</p>
           <code className="block rounded bg-muted/60 px-2 py-1 font-mono text-[11.5px] text-brand">
-            {`irm ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://lite-spm-nine.vercel.app"}/install.ps1 | iex`}
+            {`irm ${process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://litespm-web.sarveshbh-2022.workers.dev"}/install.ps1 | iex`}
           </code>
           <p className="text-[11.5px] leading-relaxed text-muted-foreground">
             Downloads, verifies SHA-256 integrity, and adds LiteSPM to Windows User PATH. No Node runtime required.
@@ -876,7 +876,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: curl -fsSL https://lite-spm-nine.vercel.app/install.sh | sh
+      - run: curl -fsSL https://litespm-web.sarveshbh-2022.workers.dev/install.sh | sh
       - run: litespm lock --check
       - run: litespm install --frozen --dry-run
       - run: litespm lock --sbom cyclonedx-json > sbom.cdx.json`}
@@ -966,7 +966,7 @@ litespm catalog sync    # refresh the local catalog now (it also syncs itself)`}
         {[
           {
             q: "Do I need to run catalog sync myself?",
-            a: "Not from 0.6.1. The first command that needs the catalog downloads it in the foreground with progress on stderr, and later runs start a detached background sync at most every 6 hours without waiting for it. Set LITESPM_NO_AUTO_SYNC=1 (or run under CI) to disable that; 'litespm catalog sync' still works on demand. On the npm 0.6.0 release there is no automatic sync, so run 'litespm catalog sync' once before your first search. If a sync keeps failing, the background log is catalog-sync.log in the LiteSPM data root.",
+            a: `Background auto-sync is active on v${facts.npmVersion}+: the first command that needs the catalog downloads it in the foreground with progress on stderr, and later runs start a detached background sync at most every 6 hours without waiting for it. Set LITESPM_NO_AUTO_SYNC=1 (or run under CI) to disable that; 'litespm catalog sync' still works on demand. If a sync keeps failing, the background log is catalog-sync.log in the LiteSPM data root.`,
           },
           {
             q: "Why do some listings say 'Discovery only'?",
@@ -990,7 +990,7 @@ litespm catalog sync    # refresh the local catalog now (it also syncs itself)`}
           },
           {
             q: "litespm install says unknown flag",
-            a: "Your installed CLI is older than the flag you are using. The repository can be ahead of npm: the in-agent marketplace commands and the marketplace rows subcommand are in the unreleased 0.6.1. Run npm update -g litespm (or litespm self-update) to get the latest release. This site checks its command reference and install flags against the version npm serves as latest, not against an unreleased build.",
+            a: "Your installed CLI is older than the flag you are using. Run npm update -g litespm (or litespm self-update) to get the latest release.",
           },
         ].map((item) => (
           <details key={item.q} className="group rounded-xl border border-border/70 bg-card transition-colors hover:border-border">

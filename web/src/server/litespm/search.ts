@@ -19,6 +19,7 @@ import { getCatalogCounts } from "./counts";
 import { resolveOriginalSource } from "./source-resolver";
 import { candidateRowIds, expandGroups, getSearchIndex, queryGroups, scoreDoc } from "./bm25";
 import { tokenize } from "./text";
+import { isCloudflareWorkersRuntime, readPrecomputedJson, searchCatalogD1 } from "./d1-catalog";
 import DEFAULT_FACETS from "../../lib/litespm/default-facets.json";
 import type { Listing } from "./types";
 
@@ -295,9 +296,13 @@ function warmMetaInBackground(rows: Listing[]): void {
       const row = rows[i]!;
       if (!cache.has(row.id)) cache.set(row.id, buildMeta(row));
     }
-    if (i < rows.length) setImmediate(slice);
+    if (i < rows.length) {
+      if (typeof setImmediate === "function") setImmediate(slice);
+      else setTimeout(slice, 0);
+    }
   };
-  setImmediate(slice);
+  if (typeof setImmediate === "function") setImmediate(slice);
+  else setTimeout(slice, 0);
 }
 
 const RESULT_CACHE_MAX = 200;
@@ -374,6 +379,10 @@ function cacheKeyFor(query: CatalogQuery, releaseId: string): string {
 }
 
 export async function searchCatalog(query: CatalogQuery): Promise<CatalogListResponse> {
+  if (isCloudflareWorkersRuntime()) {
+    const d1Result = await searchCatalogD1(query);
+    if (d1Result) return d1Result;
+  }
   const loaded = query.compact ? await getCompactDataset() : await getDataset();
   const dataset = loaded;
   const releaseId = dataset.release.releaseId;
@@ -778,6 +787,12 @@ function computeSearch(
 }
 
 export async function catalogStats() {
+  const precomputed = await readPrecomputedJson<Awaited<ReturnType<typeof computeCatalogStats>>>("stats.json");
+  if (precomputed) return precomputed;
+  return computeCatalogStats();
+}
+
+async function computeCatalogStats() {
   // The compact projection carries every field these counts read (summaries are
   // clipped at 600 chars and classification caps them at 300), and loads in a
   // few seconds instead of parsing the 57 MB catalog: the home page calls this

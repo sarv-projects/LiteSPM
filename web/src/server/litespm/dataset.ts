@@ -12,10 +12,16 @@
  * 52 MB document per request.
  */
 
-import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 
+import hostsJson from "../../../data/hosts.json";
+import skillTargetsJson from "../../../data/skill-targets.json";
+import releaseJson from "../../../data/release.json";
+import featuredJson from "../../../data/featured.json";
+import publishedCliJson from "../../../data/published-cli.json";
+
+import { readLocalOrAssetBytes, readLocalOrAssetJson } from "./assets";
 import { listingIdentity, normalizeListing, uniqueListings } from "./discovery";
 import { validateCommandLine } from "./config-snippet";
 import { dedupeKey, rankScore } from "./ranking";
@@ -70,14 +76,25 @@ export interface Dataset {
   telemetry: Telemetry;
 }
 
-function getDataDir(): string {
-  const direct = path.join(process.cwd(), "data");
-  if (existsSync(path.join(direct, "catalog.json"))) return direct;
-  return path.join(process.cwd(), "data", "litespm");
+function dataLocalCandidates(file: string): string[] {
+  return [
+    path.join(process.cwd(), "data", file),
+    path.join(process.cwd(), "data", "litespm", file),
+    path.join(process.cwd(), "public", "data", file),
+  ];
 }
 
-function readJson<T>(file: string): T {
-  return JSON.parse(readFileSync(path.join(getDataDir(), file), "utf8")) as T;
+async function readDataBytes(file: string): Promise<Buffer | null> {
+  return readLocalOrAssetBytes(`data/${file}`, dataLocalCandidates(file));
+}
+
+async function readDataJson<T>(file: string): Promise<T> {
+  return readLocalOrAssetJson<T>(`data/${file}`, dataLocalCandidates(file));
+}
+
+interface CatalogShardManifest {
+  schema?: string;
+  shards?: Array<{ file: string }>;
 }
 
 function linkKeyFor(row: Listing, slugCounts: Map<string, number>): string {
@@ -94,13 +111,30 @@ export function isParseArtifactOrJunk(name?: string): boolean {
 }
 
 async function load(): Promise<Dataset> {
-  const raw = readJson<Listing[]>("catalog.json");
+  const parsedCatalog = await readDataJson<Listing[] | CatalogShardManifest>("catalog.json");
+  let raw: Listing[];
+  if (Array.isArray(parsedCatalog)) {
+    raw = parsedCatalog;
+  } else if (
+    parsedCatalog &&
+    parsedCatalog.schema === "litespm-web-shards/v1" &&
+    Array.isArray(parsedCatalog.shards)
+  ) {
+    const shardArrays = await Promise.all(
+      parsedCatalog.shards.map((shard) => readDataJson<Listing[]>(shard.file)),
+    );
+    raw = shardArrays.flat();
+  } else {
+    throw new Error("Unsupported catalog.json format");
+  }
   const filtered = raw.filter((r) => !isParseArtifactOrJunk(r.name));
-  const hosts = readJson<HostRow[]>("hosts.json");
-  const skillTargets = readJson<SkillTargetRow[]>("skill-targets.json");
-  const release = readJson<ReleaseManifest>("release.json");
-  const featured = readJson<FeaturedShelf>("featured.json");
-  const cli = readJson<CliRelease[]>("published-cli.json");
+  const hosts = hostsJson as HostRow[];
+  const skillTargets = skillTargetsJson as SkillTargetRow[];
+  const release = releaseJson as ReleaseManifest;
+  const featured = featuredJson as FeaturedShelf;
+  const cli = Array.isArray(publishedCliJson)
+    ? (publishedCliJson as CliRelease[])
+    : [publishedCliJson as unknown as CliRelease];
 
   const unique = uniqueListings(filtered.map(normalizeListing));
 
@@ -197,11 +231,9 @@ export function getDataset(): Promise<Dataset> {
 
 /** The published-CLI record (tiny file); callers that only need it must not load the catalog. */
 export function getCliReleases(): CliRelease[] {
-  try {
-    return readJson<CliRelease[]>("published-cli.json");
-  } catch {
-    return [];
-  }
+  return Array.isArray(publishedCliJson)
+    ? (publishedCliJson as CliRelease[])
+    : [publishedCliJson as unknown as CliRelease];
 }
 
 /**
@@ -210,11 +242,7 @@ export function getCliReleases(): CliRelease[] {
  * doing that must not pay the 52 MB catalog parse on a cold request.
  */
 export function getReleaseId(): string {
-  try {
-    return readJson<ReleaseManifest>("release.json").releaseId ?? "";
-  } catch {
-    return "";
-  }
+  return (releaseJson as ReleaseManifest).releaseId ?? "";
 }
 
 /**
@@ -285,14 +313,11 @@ if (process.env.NODE_ENV !== "production" && globalForCompact.__litespmCompactDa
 export function getCompactDataset(): Promise<CompactDataset> {
   globalForCompact.__litespmCompactDataset ??= (async () => {
     const startedAt = Date.now();
-    const direct = path.join(process.cwd(), "data");
-    const file = existsSync(path.join(direct, "search-catalog.json.gz"))
-      ? path.join(direct, "search-catalog.json.gz")
-      : path.join(process.cwd(), "data", "litespm", "search-catalog.json.gz");
-    if (existsSync(file)) {
+    const bytes = await readDataBytes("search-catalog.json.gz");
+    if (bytes) {
       try {
         const serialized = JSON.parse(
-          gunzipSync(readFileSync(file)).toString("utf8"),
+          gunzipSync(bytes).toString("utf8"),
         ) as SerializedCompactDataset;
         if (serialized.version === 1 && serialized.releaseId === getReleaseId()) {
           console.info(

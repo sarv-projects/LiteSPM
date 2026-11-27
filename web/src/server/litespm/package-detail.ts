@@ -6,13 +6,14 @@
  */
 
 import { getDataset } from "./dataset";
+import { findListingD1, findRelatedD1, findTwinsD1, isCloudflareWorkersRuntime } from "./d1-catalog";
 import { availabilityOf } from "./availability";
 import { hostsNamedBy, resolveHostId, hostIdentity } from "./identity";
 import { tryPrompts } from "./try-prompts";
 import { relatedListings } from "./discovery";
 import { dedupeKey, rankScoreBreakdown } from "./ranking";
 import { classifyListing, GOAL_LABELS } from "./taxonomy";
-import { hostsFor } from "./hosts";
+import { HOSTS, SKILL_TARGETS, hostsFor } from "./hosts";
 import { buildMcpSpec, buildSkillSpec, buildPluginSpec } from "./type-specs";
 import { resolveOriginalSource } from "./source-resolver";
 import type { Listing } from "./types";
@@ -103,7 +104,8 @@ export interface PackageDetailData {
 }
 
 export async function getPackageDetail(key: string): Promise<PackageDetailResponse> {
-  const dataset = await getDataset();
+  const useD1 = isCloudflareWorkersRuntime();
+  const dataset = useD1 ? null : await getDataset();
   // A stray `%` makes decodeURIComponent throw; treat the key as already decoded.
   let decoded: string;
   try {
@@ -112,13 +114,14 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
     decoded = key.trim();
   }
 
-  let row =
-    dataset.byKey.get(decoded) ??
-    dataset.byId.get(decoded) ??
-    // Accept the namespaced id even when pasted with its prefix separators.
-    dataset.byId.get(decoded.replace(/^\//, ""));
+  let row: Listing | null | undefined = useD1
+    ? await findListingD1(decoded)
+    : (dataset!.byKey.get(decoded) ??
+      dataset!.byId.get(decoded) ??
+      // Accept the namespaced id even when pasted with its prefix separators.
+      dataset!.byId.get(decoded.replace(/^\//, "")));
 
-  if (!row) {
+  if (!row && dataset) {
     const lowerKey = decoded.toLowerCase();
     // 1. Try slug exact match (e.g. "mcp-server-git")
     row = dataset.rows.find((r) => r.slug.toLowerCase() === lowerKey);
@@ -143,7 +146,8 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
   const availability = availabilityOf(row);
   const goal = classifyListing(row);
   const src = resolveOriginalSource(row);
-  const related = relatedListings(row, dataset.rows, {
+  const relatedPool = useD1 ? await findRelatedD1(goal, row.id, 30) : dataset!.rows;
+  const related = relatedListings(row, relatedPool, {
     goalOf: (r) => classifyListing(r),
     limit: 6,
   });
@@ -166,19 +170,24 @@ export async function getPackageDetail(key: string): Promise<PackageDetailRespon
       installTargets.push({ id: resolveHostId(name) ?? name, name });
     }
   } else if (row.kind === "skill") {
-    for (const target of dataset.skillTargets) {
+    const skillTargets = dataset ? dataset.skillTargets : SKILL_TARGETS;
+    for (const target of skillTargets) {
       if (targetNames.includes(target.displayName)) {
         installTargets.push({ id: target.id, name: target.displayName });
       }
     }
   } else {
-    for (const host of dataset.hosts) {
+    const hosts = dataset ? dataset.hosts : HOSTS;
+    for (const host of hosts) {
       if (targetNames.includes(host.name)) installTargets.push({ id: host.id, name: host.name });
     }
   }
 
   // Twins: same normalized name under another kind or publisher.
-  const twins = (dataset.twinsByName.get(dedupeKey(row)) ?? []).filter(
+  const twinCandidates = useD1
+    ? await findTwinsD1(dedupeKey(row), row.id)
+    : (dataset!.twinsByName.get(dedupeKey(row)) ?? []);
+  const twins = twinCandidates.filter(
     (t) => t.id !== row.id && t.linkKey,
   );
 
