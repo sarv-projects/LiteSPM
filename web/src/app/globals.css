@@ -255,9 +255,17 @@
   width: max-content;
   animation: marquee 48s linear infinite;
 }
+.marquee-track-reverse {
+  display: flex;
+  width: max-content;
+  animation: marquee 54s linear infinite reverse;
+}
 .marquee:hover .marquee-track,
 .marquee:focus-within .marquee-track,
-.marquee-paused .marquee-track {
+.marquee-paused .marquee-track,
+.marquee:hover .marquee-track-reverse,
+.marquee:focus-within .marquee-track-reverse,
+.marquee-paused .marquee-track-reverse {
   animation-play-state: paused;
 }
 .marquee {
@@ -318,7 +326,8 @@ details[open] .faq-answer { grid-template-rows: 1fr; opacity: 1; }
     opacity: 1;
     animation: none;
   }
-  .marquee-track {
+  .marquee-track,
+  .marquee-track-reverse {
     animation: none;
     flex-wrap: wrap;
     width: auto;

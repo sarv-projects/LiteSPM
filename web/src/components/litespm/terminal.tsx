@@ -246,47 +246,41 @@ export function TerminalHero({
   framed?: boolean;
 }) {
   const [scenario, setScenario] = React.useState<ScenarioId>("litespm");
-  const [visible, setVisible] = React.useState(0);
-  const [typed, setTyped] = React.useState("");
-  const [copied, setCopied] = React.useState(false);
-  const [runKey, setRunKey] = React.useState(0);
-  const [isHovered, setIsHovered] = React.useState(false);
-  const [userInteracted, setUserInteracted] = React.useState(false);
-
-  const viewportRef = React.useRef<HTMLDivElement>(null);
-
   const activeScenario = SCENARIOS[scenario];
   const lines = activeScenario.lines;
 
-  // Smooth autoscroll down as new lines arrive so the latest output is always in focus
+  // Static-first: show the full scenario immediately on first paint so there
+  // is no competing typing animation or blinking cursor. Clicking Replay
+  // streams the active scenario line-by-line (unless reduced-motion is set).
+  const [streaming, setStreaming] = React.useState(false);
+  const [visible, setVisible] = React.useState(lines.length);
+  const [typed, setTyped] = React.useState("");
+  const [copied, setCopied] = React.useState(false);
+  const [runKey, setRunKey] = React.useState(0);
+
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+
+  // Smooth autoscroll only while actively streaming a replay
   React.useEffect(() => {
-    if (viewportRef.current) {
+    if (streaming && viewportRef.current) {
       viewportRef.current.scrollTo({
         top: viewportRef.current.scrollHeight,
         behavior: "smooth",
       });
     }
-  }, [visible, typed]);
+  }, [streaming, visible, typed]);
 
-  // Auto-cycle through scenarios after completion (pauses when hovered or user-selected)
+  // Run typing animation only when Replay is explicitly triggered
   React.useEffect(() => {
-    if (visible < lines.length || isHovered || userInteracted) return;
+    if (!streaming) {
+      setVisible(lines.length);
+      setTyped("");
+      if (viewportRef.current) {
+        viewportRef.current.scrollTo({ top: 0 });
+      }
+      return;
+    }
 
-    const timer = setTimeout(() => {
-      setScenario((prev) => {
-        if (prev === "litespm") return "skills";
-        if (prev === "skills") return "mcp";
-        if (prev === "mcp") return "restore";
-        return "litespm";
-      });
-      setRunKey((k) => k + 1);
-    }, 4800);
-
-    return () => clearTimeout(timer);
-  }, [visible, lines.length, isHovered, userInteracted]);
-
-  // Restart typing animation when scenario changes or replay is clicked
-  React.useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
@@ -299,9 +293,9 @@ export function TerminalHero({
     }
 
     if (reduced) {
-      // Reduced motion: show the entire scenario at once without delay
       setVisible(lines.length);
       setTyped("");
+      setStreaming(false);
       return;
     }
 
@@ -309,7 +303,10 @@ export function TerminalHero({
     setTyped("");
 
     const runLine = (index: number) => {
-      if (cancelled || index >= lines.length) return;
+      if (cancelled || index >= lines.length) {
+        if (!cancelled) setStreaming(false);
+        return;
+      }
       const line = lines[index];
 
       const start = () => {
@@ -322,26 +319,25 @@ export function TerminalHero({
             if (char < line.text.length) {
               timer = setTimeout(typeNext, 20 + Math.random() * 22);
             } else {
-              // Pause briefly on command completion before output streams in
               timer = setTimeout(() => {
                 if (cancelled) return;
                 setVisible(index + 1);
                 setTyped("");
                 runLine(index + 1);
-              }, 260);
+              }, 220);
             }
           };
-          timer = setTimeout(typeNext, 60);
+          timer = setTimeout(typeNext, 50);
         } else {
           timer = setTimeout(() => {
             if (cancelled) return;
             setVisible(index + 1);
             runLine(index + 1);
-          }, line.delay ?? 190);
+          }, line.delay ?? 160);
         }
       };
 
-      timer = setTimeout(start, line.delay ?? 160);
+      timer = setTimeout(start, line.delay ?? 130);
     };
 
     runLine(0);
@@ -350,9 +346,9 @@ export function TerminalHero({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [scenario, runKey, lines]);
+  }, [streaming, scenario, runKey, lines]);
 
-  const currentCmdIndex = lines.findIndex((l, i) => l.kind === "cmd" && i === visible);
+  const currentCmdIndex = streaming ? lines.findIndex((l, i) => l.kind === "cmd" && i === visible) : -1;
 
   const copySession = () => {
     const text = lines
@@ -365,12 +361,10 @@ export function TerminalHero({
 
   return (
     <div
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`relative overflow-hidden bg-[#0c1110] ${
+      className={`relative overflow-hidden bg-[#0a0f0e]/95 ${
         framed
           ? "rounded-[calc(1.1rem-1px)]"
-          : "rounded-2xl border border-border/80 shadow-[0_24px_70px_-24px_rgba(16,185,129,0.2)]"
+          : "rounded-2xl border border-border/80 shadow-[0_24px_70px_-18px_color-mix(in_oklch,var(--brand)_28%,transparent)]"
       } ${className ?? ""}`}
       aria-label="LiteSPM interactive terminal session"
     >
@@ -395,7 +389,7 @@ export function TerminalHero({
               type="button"
               aria-pressed={scenario === id}
               onClick={() => {
-                setUserInteracted(true);
+                setStreaming(false);
                 setScenario(id);
                 setRunKey((k) => k + 1);
               }}
@@ -416,9 +410,13 @@ export function TerminalHero({
           ))}
           <button
             type="button"
-            onClick={() => setRunKey((k) => k + 1)}
+            onClick={() => {
+              setStreaming(true);
+              setRunKey((k) => k + 1);
+            }}
+            aria-label="Replay terminal animation"
             title="Replay terminal animation"
-            className="ml-1 hidden rounded-md p-1 text-white/75 transition-colors hover:bg-white/[0.06] hover:text-white/80 sm:inline-flex"
+            className="ml-1 hidden rounded-md p-1 text-white/75 transition-colors hover:bg-white/[0.06] hover:text-white/90 sm:inline-flex"
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
@@ -476,8 +474,8 @@ export function TerminalHero({
             </div>
           )}
 
-          {/* Idle prompt waiting cursor once all lines have filled */}
-          {visible >= lines.length && (
+          {/* Idle prompt waiting cursor once streaming finishes (hidden in static-first mode) */}
+          {streaming && visible >= lines.length && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -502,10 +500,10 @@ export function TerminalHero({
       </div>
 
       {/* Footer Status Bar */}
-      <div className="flex items-center justify-between gap-3 bg-white/[0.02] px-4 py-2 font-mono text-[10.5px] text-white/45">
+      <div className="flex items-center justify-between gap-3 bg-white/[0.02] px-4 py-2 font-mono text-[10.5px] text-white/55">
         <span className="truncate">{activeScenario.description}</span>
         <span className="flex shrink-0 items-center gap-1.5 text-emerald-400/90 font-medium">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
           {hostsCount} hosts supported
         </span>
       </div>

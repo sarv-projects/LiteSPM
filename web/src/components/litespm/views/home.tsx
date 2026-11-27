@@ -78,6 +78,24 @@ const MARQUEE_AGENTS = [
   "Junie", "Augment", "Qwen Code", "Crush", "Droid", "Tabnine CLI", "Devin", "OpenHands",
 ];
 
+const MARQUEE_ROW_1 = MARQUEE_AGENTS.slice(0, 12);
+const MARQUEE_ROW_2 = MARQUEE_AGENTS.slice(12);
+
+/** Inward-pinching bracket micro-interaction inspired by architectural CLI docs. */
+function BracketLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden="true" className="text-brand/80 transition-transform duration-200 group-hover:translate-x-0.5">
+        ▸
+      </span>
+      <span>{children}</span>
+      <span aria-hidden="true" className="text-brand/80 transition-transform duration-200 group-hover:-translate-x-0.5">
+        ◂
+      </span>
+    </span>
+  );
+}
+
 /**
  * Hero stat. It used to count up from 0 when scrolled into view, so anyone
  * scrolling past (or a screenshot) saw a wrong number such as 69,148. The real
@@ -350,19 +368,21 @@ export function HomeView() {
               <Button
                 asChild
                 size="lg"
-                className="btn-shine h-11 rounded-xl bg-brand px-5 text-[14.5px] font-semibold text-brand-foreground shadow-[0_8px_30px_-8px_var(--brand)] transition-transform hover:bg-brand/90 active:scale-[0.98]"
+                className="group btn-shine h-11 rounded-xl bg-brand px-5 text-[14.5px] font-semibold text-brand-foreground shadow-[0_8px_30px_-8px_var(--brand)] transition-transform hover:bg-brand/90 active:scale-[0.98]"
               >
                 <NavLink to="/marketplace">
-                  Browse the marketplace <ArrowRight className="h-4 w-4" />
+                  Browse the marketplace <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </NavLink>
               </Button>
               <Button
                 asChild
                 size="lg"
                 variant="outline"
-                className="h-11 rounded-xl px-5 text-[14.5px] transition-transform active:scale-[0.98]"
+                className="group h-11 rounded-xl px-5 font-mono text-[12.5px] uppercase tracking-[0.06em] transition-transform active:scale-[0.98]"
               >
-                <NavLink to="/docs/getting-started">Read the quickstart</NavLink>
+                <NavLink to="/docs/getting-started">
+                  <BracketLabel>Read the quickstart</BracketLabel>
+                </NavLink>
               </Button>
             </div>
 
@@ -444,9 +464,16 @@ export function HomeView() {
               <span className="font-medium">Managed removal or restore</span>
             </div>
 
-            <div className="glow-frame shadow-[0_30px_90px_-30px_rgba(16,185,129,0.35)]">
-              <TerminalHero framed hostsCount={stats?.hosts ?? facts.hosts} />
-              <p className="px-4 py-2 text-[11px] text-muted-foreground">Illustrated terminal walkthrough; output and paths vary by version and machine.</p>
+            <div className="relative">
+              {/* Architectural corner registration marks */}
+              <span aria-hidden="true" className="pointer-events-none absolute -left-2 -top-2 h-3 w-3 border-l border-t border-brand/45" />
+              <span aria-hidden="true" className="pointer-events-none absolute -right-2 -top-2 h-3 w-3 border-r border-t border-brand/45" />
+              <span aria-hidden="true" className="pointer-events-none absolute -bottom-2 -left-2 h-3 w-3 border-b border-l border-brand/45" />
+              <span aria-hidden="true" className="pointer-events-none absolute -bottom-2 -right-2 h-3 w-3 border-b border-r border-brand/45" />
+              <div className="glow-frame shadow-[0_30px_90px_-30px_rgba(16,185,129,0.35)]">
+                <TerminalHero framed hostsCount={stats?.hosts ?? facts.hosts} />
+                <p className="px-4 py-2 text-[11px] text-muted-foreground">Static preview by default; click Replay to stream. Paths vary by version and machine.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -491,17 +518,37 @@ export function HomeView() {
       </section>
 
       {/* ----------------------------- agents marquee ----------------------------- */}
-      <section className="border-b border-border/60 bg-card/40 py-5" aria-label="Supported agents">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 sm:flex-row sm:items-center sm:gap-6 sm:px-6">
-          <p className="shrink-0 text-[12px] font-medium text-muted-foreground">
-            Works with the agents you already use
-          </p>
-          <div className={cn("marquee min-w-0 flex-1 overflow-hidden", marqueePaused && "marquee-paused")}>
+      <section className="border-b border-border/60 bg-card/40 py-6" aria-label="Supported agents">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              / Works with the agents you already use
+            </p>
+            <div className="flex shrink-0 items-center gap-3">
+              <button
+                type="button"
+                aria-pressed={marqueePaused}
+                onClick={() => setMarqueePaused((p) => !p)}
+                className="rounded-md border border-border/70 bg-card px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-wider text-muted-foreground hover:border-brand/40 hover:text-foreground"
+              >
+                {marqueePaused ? "Resume" : "Pause"}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("#/agents")}
+                className="group shrink-0 text-left font-mono text-[11.5px] font-semibold uppercase tracking-[0.06em] text-brand hover:underline"
+              >
+                <BracketLabel>All {stats?.hosts ?? facts.hosts} agents</BracketLabel>
+              </button>
+            </div>
+          </div>
+
+          <div className={cn("marquee space-y-2 overflow-hidden", marqueePaused && "marquee-paused")}>
             <ul className="marquee-track gap-2.5">
               {[0, 1].map((copy) =>
-                MARQUEE_AGENTS.map((name) => (
+                MARQUEE_ROW_1.map((name) => (
                   <li
-                    key={`${copy}-${name}`}
+                    key={`r1-${copy}-${name}`}
                     aria-hidden={copy === 1 ? true : undefined}
                     className={`${copy === 1 ? "marquee-dup " : ""}inline-flex shrink-0 items-center rounded-lg border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground/90`}
                   >
@@ -511,33 +558,30 @@ export function HomeView() {
                 )),
               )}
             </ul>
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <button
-              type="button"
-              aria-pressed={marqueePaused}
-              onClick={() => setMarqueePaused((p) => !p)}
-              className="rounded-md border border-border/70 bg-card px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:border-brand/40 hover:text-foreground"
-            >
-              {marqueePaused ? "Resume" : "Pause"}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("#/agents")}
-              className="shrink-0 text-left text-[12px] font-semibold text-brand hover:underline"
-            >
-              All {stats?.hosts ?? facts.hosts} agents →
-            </button>
+            <ul className="marquee-track-reverse gap-2.5">
+              {[0, 1].map((copy) =>
+                MARQUEE_ROW_2.map((name) => (
+                  <li
+                    key={`r2-${copy}-${name}`}
+                    aria-hidden={copy === 1 ? true : undefined}
+                    className={`${copy === 1 ? "marquee-dup " : ""}inline-flex shrink-0 items-center rounded-lg border border-border/70 bg-card px-2.5 py-1 text-xs text-foreground/90`}
+                  >
+                    <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-brand/60" />
+                    {name}
+                  </li>
+                )),
+              )}
+            </ul>
           </div>
         </div>
       </section>
 
       {/* ----------------------------- why litespm ----------------------------- */}
-      <section className="border-b border-border/60 bg-card/20 py-16 sm:py-20" aria-labelledby="why-title">
+      <section className="border-b border-border/60 bg-surface/50 py-16 sm:py-20" aria-labelledby="why-title">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="max-w-[70ch]">
-            <p className="flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.16em] text-brand">
-              <Sparkles className="h-4 w-4" /> Why LiteSPM?
+            <p className="flex items-center gap-2 font-mono text-[11.5px] font-semibold uppercase tracking-[0.16em] text-brand">
+              <Sparkles className="h-3.5 w-3.5" /> / Why LiteSPM
             </p>
             <h2 id="why-title" className="mt-2 text-[clamp(1.9rem,3.8vw,2.7rem)] font-semibold leading-tight tracking-[-0.035em]">
               Every agent has its own config. <br className="hidden sm:inline" />
@@ -599,7 +643,7 @@ export function HomeView() {
       <section className="border-b border-border/60 py-14" aria-labelledby="workflow-example-title">
         <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 sm:px-6 lg:grid-cols-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-brand">A practical example</p>
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">/ Practical example</p>
             <h2 id="workflow-example-title" className="mt-2 text-3xl font-semibold tracking-tight">One package. Two agents. One plan.</h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">Use Claude Code and Codex? Choose both compatible hosts, preview the GitHub MCP server install, review its credentials and approve the changes. Remove managed entries when you no longer need them.</p>
             <div className="mt-5"><InstallBar label="Preview" command="litespm install github --agent claude-code --agent codex --dry-run" /></div>
@@ -616,11 +660,11 @@ export function HomeView() {
       </section>
 
       {/* ------------------------ in-agent marketplace ------------------------ */}
-      <section className="border-b border-border/60 py-14" aria-labelledby="inagent-title">
+      <section className="border-b border-border/60 bg-surface/40 py-14" aria-labelledby="inagent-title">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:items-center">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
-              Without leaving your agent
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
+              / Without leaving your agent
             </p>
             <h2 id="inagent-title" className="mt-1.5 text-[clamp(1.6rem,3vw,2.2rem)] font-semibold leading-tight tracking-[-0.03em]">
               The marketplace, one command away
@@ -633,12 +677,14 @@ export function HomeView() {
               install for you.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <Button asChild variant="outline" className="rounded-xl">
-                <NavLink to="/docs/in-agent-marketplace">How it works</NavLink>
+              <Button asChild variant="outline" className="group rounded-xl font-mono text-[12px] uppercase tracking-[0.06em]">
+                <NavLink to="/docs/in-agent-marketplace">
+                  <BracketLabel>How it works</BracketLabel>
+                </NavLink>
               </Button>
-              <Button asChild variant="ghost" className="rounded-xl text-brand hover:text-brand">
+              <Button asChild variant="ghost" className="group rounded-xl text-brand hover:text-brand">
                 <NavLink to="/docs/agent-compatibility">
-                  Agent compatibility <ArrowRight className="h-4 w-4" />
+                  Agent compatibility <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </NavLink>
               </Button>
             </div>
@@ -669,7 +715,7 @@ export function HomeView() {
       <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="explore-title">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">One catalog, five ways in</p>
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">/ One catalog, five ways in</p>
             <h2 id="explore-title" className="mt-1 text-[26px] font-semibold tracking-tight sm:text-[30px]">
               Explore the catalog
             </h2>
@@ -678,8 +724,8 @@ export function HomeView() {
               this deployment or labeled upstream metrics. Explore each listing to see its installation options.
             </p>
           </div>
-          <Button variant="outline" className="rounded-xl" onClick={() => navigate(exploreHash({ installable: "1" }))}>
-            Open full marketplace <ArrowRight className="h-4 w-4" />
+          <Button variant="outline" className="group rounded-xl font-mono text-[12px] uppercase tracking-[0.06em]" onClick={() => navigate(exploreHash({ installable: "1" }))}>
+            <BracketLabel>Open full marketplace</BracketLabel>
           </Button>
         </div>
 

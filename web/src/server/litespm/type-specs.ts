@@ -40,6 +40,12 @@ export interface McpDetailSpec {
     category: "read" | "write" | "destructive";
     description: string;
     parameters?: string[];
+    parameterDetails?: Array<{
+      name: string;
+      type: string;
+      required: boolean;
+      description?: string;
+    }>;
   }>;
   hostConfigs: HostConfigItem[];
 }
@@ -198,10 +204,27 @@ export function buildMcpSpec(row: Listing): McpDetailSpec {
   const functions: McpDetailSpec["functions"] = [];
   if (row.tools && row.tools.length > 0) {
     for (const tool of row.tools) {
+      const schema = tool.inputSchema as
+        | { properties?: Record<string, { type?: string; description?: string }>; required?: string[] }
+        | undefined;
+      const props = schema && typeof schema === "object" && schema.properties && typeof schema.properties === "object"
+        ? schema.properties
+        : undefined;
+      const requiredSet = new Set(Array.isArray(schema?.required) ? schema.required : []);
+      const parameters = props ? Object.keys(props) : undefined;
+      const parameterDetails = props
+        ? Object.entries(props).map(([name, def]) => ({
+            name,
+            type: typeof def?.type === "string" ? def.type : "any",
+            required: requiredSet.has(name),
+            description: typeof def?.description === "string" ? def.description : undefined,
+          }))
+        : undefined;
       functions.push({
         name: tool.name,
         category: classifyToolAction(tool.name),
         description: tool.description || `Tool declared by ${row.name}`,
+        ...(parameters && parameters.length > 0 ? { parameters, parameterDetails } : {}),
       });
     }
   }

@@ -655,7 +655,41 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                       <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
                         {fn.description}
                       </p>
-                      {fn.parameters && fn.parameters.length > 0 && (
+                      {fn.parameterDetails && fn.parameterDetails.length > 0 ? (
+                        <details className="group/params mt-2.5 border-t border-border/40 pt-2">
+                          <summary className="flex cursor-pointer items-center justify-between font-mono text-[10.5px] text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+                            <span>Parameters ({fn.parameterDetails.length})</span>
+                            <span className="text-brand group-open/params:hidden">+ expand</span>
+                            <span className="hidden text-brand group-open/params:inline">− collapse</span>
+                          </summary>
+                          <div className="mt-2 divide-y divide-border/40 rounded-lg border border-border/50 bg-background/70">
+                            {fn.parameterDetails.map((p) => (
+                              <div key={p.name} className="flex flex-col gap-0.5 px-2.5 py-1.5 text-[11px]">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-mono font-semibold text-foreground">{p.name}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[9.5px] text-muted-foreground">
+                                      {p.type}
+                                    </span>
+                                    <span
+                                      className={`rounded px-1.5 py-0.5 text-[9.5px] font-semibold ${
+                                        p.required
+                                          ? "bg-brand-soft text-brand"
+                                          : "bg-muted/60 text-muted-foreground"
+                                      }`}
+                                    >
+                                      {p.required ? "Required" : "Optional"}
+                                    </span>
+                                  </div>
+                                </div>
+                                {p.description && (
+                                  <p className="text-[11px] leading-snug text-muted-foreground">{p.description}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      ) : fn.parameters && fn.parameters.length > 0 ? (
                         <div className="mt-2.5 flex flex-wrap items-center gap-1 border-t border-border/40 pt-2">
                           <span className="font-mono text-[10px] text-muted-foreground/70">params:</span>
                           {fn.parameters.map((p) => (
@@ -667,7 +701,7 @@ function PackageDetailBody({ data }: { data: PackageDetailData }) {
                             </span>
                           ))}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   ))}
                 </div>

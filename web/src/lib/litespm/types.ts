@@ -160,6 +160,12 @@ export interface PackageDetailData {
       category: "read" | "write" | "destructive";
       description: string;
       parameters?: string[];
+      parameterDetails?: Array<{
+        name: string;
+        type: string;
+        required: boolean;
+        description?: string;
+      }>;
     }>;
     hostConfigs: Array<{
       id: string;
