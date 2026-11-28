@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"github.com/sarv-projects/litespm/internal/config"
+	"github.com/sarv-projects/litespm/internal/domain"
 	"github.com/sarv-projects/litespm/internal/receipts"
 	"github.com/sarv-projects/litespm/internal/scan"
 )
@@ -223,10 +224,13 @@ func cachedReleaseID(paths *config.PlatformPaths) (string, error) {
 	return pointer.ReleaseID, nil
 }
 
-// cachedListingRows reads the listing shards of the cached release. The
-// shards are the bytes the origin served, so the audit reads what is
-// published rather than a re-serialization of it.
+// cachedListingRows reads and digest-verifies the cached release shards,
+// joining version records onto listing rows so launch lines and plugin
+// artifacts in versions-*.json are audited alongside listings-*.json.
 func cachedListingRows(paths *config.PlatformPaths, releaseID string) ([]scan.Row, error) {
+	if err := domain.ValidateReleaseID(releaseID); err != nil {
+		return nil, fmt.Errorf("unsafe cached release id %q: %w", releaseID, err)
+	}
 	releaseDir := filepath.Join(paths.DataRoot, "v1", "releases", releaseID)
 	manifestData, err := os.ReadFile(filepath.Join(releaseDir, "manifest.json"))
 	if err != nil {
@@ -241,21 +245,48 @@ func cachedListingRows(paths *config.PlatformPaths, releaseID string) ([]scan.Ro
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		return nil, fmt.Errorf("the cached manifest is not readable: %w", err)
 	}
-	names := make([]string, 0, len(manifest.Files))
+
+	var listingNames, versionNames []string
 	for name := range manifest.Files {
-		if strings.HasPrefix(name, "listings") {
-			names = append(names, name)
+		switch {
+		case name == "listings.json" || strings.HasPrefix(name, "listings"):
+			if err := validateSafeShardName(releaseDir, name); err != nil {
+				return nil, err
+			}
+			listingNames = append(listingNames, name)
+		case name == "versions.json" || strings.HasPrefix(name, "versions"):
+			if err := validateSafeShardName(releaseDir, name); err != nil {
+				return nil, err
+			}
+			versionNames = append(versionNames, name)
 		}
 	}
-	sort.Strings(names)
-	if len(names) == 0 {
+	sort.Strings(listingNames)
+	sort.Strings(versionNames)
+	if len(listingNames) == 0 {
 		return nil, fmt.Errorf("the cached release %s has no listing shards", releaseID)
 	}
-	var rows []scan.Row
-	for _, name := range names {
+
+	readVerifiedShard := func(name string) ([]byte, error) {
+		meta := manifest.Files[name]
 		data, err := os.ReadFile(filepath.Join(releaseDir, name))
 		if err != nil {
 			return nil, fmt.Errorf("read the cached shard %s: %w", name, err)
+		}
+		if meta.Digest == "" {
+			return nil, fmt.Errorf("the cached shard %s has no digest in manifest.json", name)
+		}
+		if actual := domain.ComputeBytesDigest(data); actual != meta.Digest {
+			return nil, fmt.Errorf("the cached shard %s failed digest verification: %w", name, domain.ErrChecksumMismatch(meta.Digest, actual))
+		}
+		return data, nil
+	}
+
+	var rows []scan.Row
+	for _, name := range listingNames {
+		data, err := readVerifiedShard(name)
+		if err != nil {
+			return nil, err
 		}
 		var shard []scan.Row
 		if err := json.Unmarshal(data, &shard); err != nil {
@@ -263,7 +294,77 @@ func cachedListingRows(paths *config.PlatformPaths, releaseID string) ([]scan.Ro
 		}
 		rows = append(rows, shard...)
 	}
+
+	if len(versionNames) > 0 {
+		versionsByListing := make(map[string]*domain.VersionRecord)
+		for _, name := range versionNames {
+			data, err := readVerifiedShard(name)
+			if err != nil {
+				return nil, err
+			}
+			var shard []*domain.VersionRecord
+			if err := json.Unmarshal(data, &shard); err != nil {
+				return nil, fmt.Errorf("the cached shard %s is not a JSON array of versions: %w", name, err)
+			}
+			for _, vr := range shard {
+				if vr != nil && vr.ListingID != "" {
+					if _, exists := versionsByListing[vr.ListingID]; !exists {
+						versionsByListing[vr.ListingID] = vr
+					}
+				}
+			}
+		}
+		for i := range rows {
+			if vr, ok := versionsByListing[rows[i].ID]; ok {
+				enrichRowFromVersion(&rows[i], vr)
+			}
+		}
+	}
+
 	return rows, nil
+}
+
+func validateSafeShardName(releaseDir, name string) error {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) || filepath.Base(name) != name {
+		return fmt.Errorf("the cached manifest names an unsafe shard %q", name)
+	}
+	target := filepath.Join(releaseDir, name)
+	rel, err := filepath.Rel(releaseDir, target)
+	if err != nil || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("the cached shard %q escapes the release directory", name)
+	}
+	return nil
+}
+
+func enrichRowFromVersion(row *scan.Row, vr *domain.VersionRecord) {
+	if row.Version == "" && vr.Version != "" {
+		row.Version = vr.Version
+	}
+	for _, comp := range vr.Components {
+		if comp.Runtime == nil {
+			continue
+		}
+		if row.Command == "" && comp.Runtime.Command != "" {
+			row.Command = comp.Runtime.Command
+		}
+		if row.Transport == "" && comp.Runtime.Type != "" {
+			row.Transport = comp.Runtime.Type
+		}
+		if row.URL == "" && comp.Runtime.Endpoint != "" {
+			row.URL = comp.Runtime.Endpoint
+		}
+	}
+	if row.Kind == "plugin" && row.Artifact == nil && len(vr.Artifacts) > 0 {
+		a := vr.Artifacts[0]
+		row.Artifact = &scan.Artifact{
+			Type:   string(a.Type),
+			Repo:   a.Locator,
+			Path:   a.Subpath,
+			Ref:    a.ImmutableRef,
+			SHA:    a.ImmutableRef,
+			Pinned: a.FetchPolicy == domain.FetchImmutable && a.ImmutableRef != "",
+		}
+	}
 }
 
 // auditReceiptChain verifies the machine's receipt chain, if it has one.

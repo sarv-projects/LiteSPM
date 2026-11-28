@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     LiteSPM Standalone Binary Installer for Windows (PowerShell)
 .DESCRIPTION
@@ -33,16 +33,17 @@ if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     $InstallDir = Join-Path $HOME ".litespm\bin"
 }
 
-# ANSI color codes
+# ANSI color codes (honor NO_COLOR)
+$noColor = -not [string]::IsNullOrEmpty($env:NO_COLOR)
 $esc = [char]27
-$green = "$esc[38;2;16;185;129m"
-$emerald = "$esc[38;2;52;211;153m"
-$dim = "$esc[38;2;156;163;175m"
-$bold = "$esc[1m"
-$reset = "$esc[0m"
-$cyan = "$esc[36m"
-$yellow = "$esc[33m"
-$red = "$esc[31m"
+$green = if ($noColor) { "" } else { "$esc[38;2;16;185;129m" }
+$emerald = if ($noColor) { "" } else { "$esc[38;2;52;211;153m" }
+$dim = if ($noColor) { "" } else { "$esc[38;2;156;163;175m" }
+$bold = if ($noColor) { "" } else { "$esc[1m" }
+$reset = if ($noColor) { "" } else { "$esc[0m" }
+$cyan = if ($noColor) { "" } else { "$esc[36m" }
+$yellow = if ($noColor) { "" } else { "$esc[33m" }
+$red = if ($noColor) { "" } else { "$esc[31m" }
 
 function Write-Step {
     param([string]$Step, [string]$Message)
@@ -74,9 +75,9 @@ Write-Host "$emerald$bold |_____|_|\__\___|____/|_|   |_|  |_|$reset"
 Write-Host "$dim  The Package Manager for AI Agents — Windows Standalone Installer$reset"
 Write-Host ""
 
-# 1. Architecture Detection
+# 1. Architecture Detection (check WOW64 PROCESSOR_ARCHITEW6432 first)
 Write-Step "1/4" "Detecting system architecture..."
-$arch = $env:PROCESSOR_ARCHITECTURE
+$arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
 if ($arch -eq "AMD64") {
     $targetArch = "amd64"
 } elseif ($arch -eq "ARM64") {
@@ -237,8 +238,12 @@ if (-not $NoPathUpdate -and $env:LITESPM_NO_MODIFY_PATH -ne "1") {
 Write-Host ""
 try {
     $verOutput = & "$targetFile" version 2>&1
-    Write-Success "Installed LiteSPM executable verified:"
-    Write-Host "    $cyan$verOutput$reset"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "Executable verification exited with code $LASTEXITCODE`: $verOutput"
+    } else {
+        Write-Success "Installed LiteSPM executable verified:"
+        Write-Host "    $cyan$verOutput$reset"
+    }
 } catch {
     Write-Warn "Could not run executable verification: $_"
 }

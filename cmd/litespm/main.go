@@ -1190,8 +1190,14 @@ func runUninstall(ctx context.Context, args []string) int {
 	}
 	dryRun := false
 	for _, a := range args {
-		if a == "--dry-run" {
+		switch a {
+		case "--dry-run":
 			dryRun = true
+		case "--help", "-h":
+			return helpTo(os.Stdout, os.Stderr, []string{"uninstall"})
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown argument: %s\nRun `litespm uninstall --help` for usage.\n", a)
+			return 2
 		}
 	}
 

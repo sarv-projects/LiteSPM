@@ -168,6 +168,13 @@ func TestUninstallEpilogueDoesNotClaimMCPRemovalWithoutRecords(t *testing.T) {
 	}
 }
 
+func TestUninstallRejectsUnknownFlag(t *testing.T) {
+	sandboxedPaths(t)
+	if code := runUninstall(context.Background(), []string{"--bogus"}); code != 2 {
+		t.Fatalf("runUninstall(--bogus) = %d, want 2", code)
+	}
+}
+
 // setupCLI runs the real CLI in a child process of this test binary with a
 // sandboxed home and data root and a null stdin (so every run is
 // non-interactive). It returns stdout, stderr and the exit code.

@@ -24,12 +24,12 @@ const SCENARIOS: Record<
   // Keep line widths within ~56 characters so they fit crisply without wrapping.
   litespm: {
     title: "litespm",
-    description: "Auto-detect agents, sync 69K+ catalog & launch Manager",
+    description: "Auto-detect agents, sync 68.9k+ catalog & launch Manager",
     lines: [
       { kind: "cmd", text: "litespm", delay: 350 },
       { kind: "pill", text: "[litespm] v0.6.0 · the package manager for AI agents", delay: 180 },
       { kind: "ok", text: "◇ Auto-sync: verified catalog sequence 154 (production)", delay: 240 },
-      { kind: "ok", text: "◇ Indexed 69,376 capabilities across skills, MCP & plugins", delay: 220 },
+      { kind: "ok", text: "◇ Indexed 68,933 unique listings across skills, MCP & plugins", delay: 220 },
       { kind: "tree", text: "│", delay: 80 },
       { kind: "header", text: "◆ Connected Agent Hosts (11 detected)", delay: 200 },
       { kind: "dim", text: "│ ── Universal Bridge (.agents/skills) ── active ──", delay: 160 },
@@ -38,7 +38,7 @@ const SCENARIOS: Record<
       { kind: "tree", text: "│", delay: 80 },
       { kind: "dim", text: "╭─ LiteSPM Manager ───────────────────────────────────╮", delay: 140 },
       { kind: "out", text: "│  [1] Update capability catalog                      │", delay: 120 },
-      { kind: "ok", text: "│  > [2] Find and install capability (69K+ catalog)   │", delay: 220 },
+      { kind: "ok", text: "│  > [2] Find and install capability (68.9k+ catalog) │", delay: 220 },
       { kind: "out", text: "│  [3] Remove something LiteSPM installed             │", delay: 120 },
       { kind: "out", text: "│  [4] See what is installed (inventory & status)    │", delay: 120 },
       { kind: "out", text: "│  [5] Set up or repair an agent connection          │", delay: 120 },

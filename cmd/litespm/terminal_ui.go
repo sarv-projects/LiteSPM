@@ -23,9 +23,7 @@ func terminalUIAvailable(in io.Reader, out io.Writer) bool {
 	if !inOK || !outOK {
 		return false
 	}
-	inInfo, inErr := inFile.Stat()
-	outInfo, outErr := outFile.Stat()
-	return inErr == nil && outErr == nil && inInfo.Mode()&os.ModeCharDevice != 0 && outInfo.Mode()&os.ModeCharDevice != 0
+	return isTerminal(inFile) && isTerminal(outFile)
 }
 
 func runTerminalForm(in io.Reader, out io.Writer, fields ...huh.Field) error {
@@ -137,9 +135,9 @@ func runWithSpinner[T any](ctx context.Context, in io.Reader, out io.Writer, lab
 			return result.value, result.err
 		case <-ticker.C:
 		case <-ctx.Done():
-			result := <-done
+			var zero T
 			fmt.Fprint(out, "\r\x1b[2K")
-			return result.value, result.err
+			return zero, ctx.Err()
 		}
 	}
 }

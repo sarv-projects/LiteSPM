@@ -86,3 +86,31 @@ func TestRenderHostDetect_LegendNextStepAndNoDriveRootPaths(t *testing.T) {
 		t.Errorf("project-only note missing:\n%s", out)
 	}
 }
+
+func TestWriteTable_EmptyHeaderAndANSI(t *testing.T) {
+	var empty bytes.Buffer
+	writeTable(&empty, "", nil, [][]string{{"a", "b"}})
+	if empty.Len() != 0 {
+		t.Fatalf("empty header should produce no output, got %q", empty.String())
+	}
+
+	var colored bytes.Buffer
+	writeTable(&colored, "", []string{"COL1", "COL2"}, [][]string{
+		{"\x1b[32mhi\x1b[0m", "v1"},
+		{"longer", "v2"},
+	})
+	lines := strings.Split(strings.TrimRight(colored.String(), "\n"), "\n")
+	if len(lines) != 4 {
+		t.Fatalf("expected 4 lines, got %q", lines)
+	}
+	if !strings.HasSuffix(lines[2], "hi\x1b[0m    v1") && strings.Index(lines[2], "v1") == -1 {
+		t.Fatalf("unexpected row: %q", lines[2])
+	}
+	// Visible prefix before "v1"/"v2" must align at the same display column despite ANSI codes.
+	if len("hi    ") != len("longer") {
+		t.Fatalf("sanity check")
+	}
+	if !strings.Contains(lines[2], "hi\x1b[0m      v1") {
+		t.Fatalf("expected visible padding for ANSI cell, got %q", lines[2])
+	}
+}

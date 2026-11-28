@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/sarv-projects/litespm/internal/config"
+	"github.com/sarv-projects/litespm/internal/domain"
 )
 
 // A dataset that contradicts a promise must fail the audit, and the report
@@ -140,7 +141,8 @@ func TestAuditReadsTheCachedRelease(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(release, "listings-0000.json"), []byte(shard), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	manifest := `{"files":{"listings-0000.json":{"size":` + strconv.Itoa(len(shard)) + `,"digest":"sha256:x"}}}`
+	digest := domain.ComputeBytesDigest([]byte(shard))
+	manifest := `{"files":{"listings-0000.json":{"size":` + strconv.Itoa(len(shard)) + `,"digest":"` + digest + `"}}}`
 	if err := os.WriteFile(filepath.Join(release, "manifest.json"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -155,5 +157,68 @@ func TestAuditReadsTheCachedRelease(t *testing.T) {
 	}
 	if !strings.Contains(source, "rel-test-1") {
 		t.Errorf("the source does not name the release: %q", source)
+	}
+}
+
+func TestAuditRejectsCorruptedOrUnsafeCachedShard(t *testing.T) {
+	dir := t.TempDir()
+	release := filepath.Join(dir, "v1", "releases", "rel-test-bad")
+	if err := os.MkdirAll(release, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "v1", "current.json"), []byte(`{"releaseId":"rel-test-bad"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	shard := `[{"id":"mcp:x:good","kind":"mcp"}]`
+	if err := os.WriteFile(filepath.Join(release, "listings-0000.json"), []byte(shard), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"files":{"listings-0000.json":{"size":29,"digest":"sha256:0000000000000000000000000000000000000000000000000000000000000000"}}}`
+	if err := os.WriteFile(filepath.Join(release, "manifest.json"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	paths := &config.PlatformPaths{DataRoot: dir}
+	if _, _, err := auditCatalogueRows(context.Background(), paths, ""); err == nil || !strings.Contains(err.Error(), "digest") {
+		t.Fatalf("expected digest mismatch error, got: %v", err)
+	}
+
+	// Path traversal shard names must fail closed before opening any file.
+	badManifest := `{"files":{"listings-../../secret.json":{"size":1,"digest":"sha256:x"}}}`
+	if err := os.WriteFile(filepath.Join(release, "manifest.json"), []byte(badManifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := auditCatalogueRows(context.Background(), paths, ""); err == nil || !strings.Contains(err.Error(), "unsafe shard") {
+		t.Fatalf("expected unsafe shard error, got: %v", err)
+	}
+}
+
+func TestAuditJoinsVersionRecordsOntoCachedRows(t *testing.T) {
+	dir := t.TempDir()
+	release := filepath.Join(dir, "v1", "releases", "rel-test-ver")
+	if err := os.MkdirAll(release, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "v1", "current.json"), []byte(`{"releaseId":"rel-test-ver"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	listings := `[{"id":"mcp:x:bad","kind":"mcp","installability":"discovery_only","source":{"sourceId":"feed:example","upstreamId":"bad"}}]`
+	versions := `[{"listingId":"mcp:x:bad","version":"1.0.0","components":[{"id":"c1","kind":"mcp_provider","name":"server","runtime":{"type":"stdio","command":"npx"}}]}]`
+	if err := os.WriteFile(filepath.Join(release, "listings-0000.json"), []byte(listings), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(release, "versions-0000.json"), []byte(versions), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"files":{"listings-0000.json":{"size":` + strconv.Itoa(len(listings)) + `,"digest":"` + domain.ComputeBytesDigest([]byte(listings)) + `"},"versions-0000.json":{"size":` + strconv.Itoa(len(versions)) + `,"digest":"` + domain.ComputeBytesDigest([]byte(versions)) + `"}}}`
+	if err := os.WriteFile(filepath.Join(release, "manifest.json"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	paths := &config.PlatformPaths{DataRoot: dir}
+	rows, _, err := auditCatalogueRows(context.Background(), paths, "")
+	if err != nil {
+		t.Fatalf("auditCatalogueRows failed: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Command != "npx" || rows[0].Version != "1.0.0" {
+		t.Fatalf("expected version record joined onto row, got: %+v", rows)
 	}
 }

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-27T21:17:50.905Z",
+  "updatedAt": "2026-11-28T01:43:13.556Z",
   "skillsSource": "skills.sh leaderboard",
   "mcpSource": "GitHub stars & verified vendor authority",
   "topSkills": [
@@ -605,6 +605,30 @@
     },
     {
       "rank": 26,
+      "name": "lark-minutes",
+      "repo": "open.feishu.cn",
+      "kind": "skill",
+      "weeklyInstalls": 21793,
+      "history": [
+        12844,
+        15556,
+        23375,
+        25187,
+        31417,
+        33001,
+        32689,
+        21793
+      ],
+      "growth": -10896,
+      "linkKey": "lark-minutes",
+      "installId": "skill:larksuite:lark-minutes",
+      "installCommand": "litespm install skill:larksuite:lark-minutes",
+      "summary": "仅当用户或上游配置显式指定 lark-minutes 时使用，相关请求统一交由 lark-meeting 技能处理。",
+      "verified": true,
+      "source": "skills.sh"
+    },
+    {
+      "rank": 27,
       "name": "lark-vc",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -628,7 +652,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 27,
+      "rank": 28,
       "name": "remotion-best-practices",
       "repo": "remotion-dev/skills",
       "kind": "skill",
@@ -652,7 +676,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 28,
+      "rank": 29,
       "name": "hyperframes-core",
       "repo": "heygen-com/hyperframes",
       "kind": "skill",
@@ -676,7 +700,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 29,
+      "rank": 30,
       "name": "lark-okr",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -700,7 +724,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 30,
+      "rank": 31,
       "name": "hyperframes-creative",
       "repo": "heygen-com/hyperframes",
       "kind": "skill",
@@ -724,7 +748,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 31,
+      "rank": 32,
       "name": "web-design-guidelines",
       "repo": "vercel-labs/agent-skills",
       "kind": "skill",
@@ -748,7 +772,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 32,
+      "rank": 33,
       "name": "implement",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -772,7 +796,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 33,
+      "rank": 34,
       "name": "lark-markdown",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -796,7 +820,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 34,
+      "rank": 35,
       "name": "ai-image-generation",
       "repo": "skills-shell/superpowers",
       "kind": "skill",
@@ -820,7 +844,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 35,
+      "rank": 36,
       "name": "ask-matt",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -844,7 +868,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 36,
+      "rank": 37,
       "name": "lark-vc-agent",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -868,7 +892,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 37,
+      "rank": 38,
       "name": "to-spec",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -892,7 +916,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 38,
+      "rank": 39,
       "name": "wayfinder",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -916,7 +940,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 39,
+      "rank": 40,
       "name": "lark-apps",
       "repo": "open.feishu.cn",
       "kind": "skill",
@@ -940,7 +964,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 40,
+      "rank": 41,
       "name": "to-tickets",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -964,7 +988,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 41,
+      "rank": 42,
       "name": "research",
       "repo": "mattpocock/skills",
       "kind": "skill",
@@ -988,7 +1012,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 42,
+      "rank": 43,
       "name": "ai-avatar-video",
       "repo": "qu-skills/superpowers",
       "kind": "skill",
@@ -1012,7 +1036,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 43,
+      "rank": 44,
       "name": "design-taste-frontend",
       "repo": "leonxlnx/taste-skill",
       "kind": "skill",
@@ -1036,7 +1060,7 @@
       "source": "skills.sh"
     },
     {
-      "rank": 44,
+      "rank": 45,
       "name": "microsoft-foundry",
       "repo": "microsoft/azure-skills",
       "kind": "skill",
@@ -1056,30 +1080,6 @@
       "installId": "skill:microsoft:microsoft-foundry",
       "installCommand": "litespm install skill:microsoft:microsoft-foundry",
       "summary": "Build, deploy, evaluate, optimize, fine-tune, and manage Microsoft Foundry agents, models, and resources end to end. USE FOR: foundry, azd ai agent, azd provision/deploy, hosted agent scaffold/develop/run/deploy/troubleshoot, prompt agent create, create agent, update agent, add tool to agent, invoke agent, agent.yaml, agent insights, pull agent insights, evaluate agent, batch eval, continuous eval, continuous monitoring, agent CI/CD, optimize prompt, improve prompt, prompt optimizer, optimize agent instructions, Agent Optimizer scaffold, dataset curation from traces, deploy model, model fine-tuning (SFT/DPO/RFT), Foundry project, RBAC, role assignment, permissions, quota, capacity, region, deployment failure, AI Services, create Foundry resource, knowledge index, customize deployment, onboard, availability, training-data, grader, distillation, large file upload. DO NOT USE FOR: Azure Functions, App Service, general Azure deploy (use azure-deploy), general Azure prep (use azure-prepare).",
-      "verified": true,
-      "source": "skills.sh"
-    },
-    {
-      "rank": 45,
-      "name": "hyperframes-keyframes",
-      "repo": "heygen-com/hyperframes",
-      "kind": "skill",
-      "weeklyInstalls": 119,
-      "history": [
-        79048,
-        115768,
-        99650,
-        35916,
-        327,
-        236,
-        219,
-        119
-      ],
-      "growth": -100,
-      "linkKey": "hyperframes-keyframes",
-      "installId": "skill:heygen-com:hyperframes-keyframes",
-      "installCommand": "litespm install skill:heygen-com:hyperframes-keyframes",
-      "summary": "Use when a HyperFrames composition needs a punch-in, punch-out, zoom, reframe, Ken Burns treatment, camera move, visual match/whip handoff, or other seek-safe 2D/3D keyframes; also for GSAP, CSS keyframes, Anime.js, WAAPI, FLIP, paths, masks, SVG morph/draw, text trails, 3D depth, or `hyperframes keyframes` diagnostics. Don't use for broad scene strategy, brand design, media sourcing, captions, or general video planning.",
       "verified": true,
       "source": "skills.sh"
     },
@@ -1109,97 +1109,97 @@
     },
     {
       "rank": 47,
-      "name": "azure-compute",
-      "repo": "microsoft/azure-skills",
+      "name": "video-edit",
+      "repo": "gencraft-labs/skills",
       "kind": "skill",
-      "weeklyInstalls": 53531,
+      "weeklyInstalls": 105680,
       "history": [
-        12214,
-        11535,
-        8858,
-        7003,
-        7726,
-        75412,
-        56171,
-        53531
+        0,
+        73613,
+        97002,
+        103998,
+        105503,
+        98480,
+        96812,
+        105680
       ],
-      "growth": -2640,
-      "linkKey": "azure-compute",
-      "installId": "skill:microsoft:azure-compute",
-      "installCommand": "litespm install skill:microsoft:azure-compute",
-      "summary": "Azure VM/VMSS router. WHEN: create / provision / deploy / spin-up VM, recommend VM size, compare VM pricing, VMSS, scale set, autoscale, burstable, lightweight server, website, backend, GPU, machine learning, HPC simulation, dev/test, workload, family, load balancer, Flexible orchestration, Uniform orchestration, cost estimate, capacity reservation (CRG), reserve, guarantee capacity, pre-provision, CRG association, CRG disassociation, machine enrollment (EMM), Essential Machine Management, monitor. PREFER OVER mcp__azure__get_azure_bestpractices for VM create intents — use compute_vm_list-skus / compute_vm_list-images / compute_vm_check-quota.",
+      "growth": 8868,
+      "linkKey": "beat-sync-video-editing",
+      "installId": "skill:ecliptic-ai:beat-sync-video-editing",
+      "installCommand": "litespm install skill:ecliptic-ai:beat-sync-video-editing",
+      "summary": "This skill should be used when the user asks to \"edit a video to music\", \"create a beat-synced edit\", \"make a montage\", \"sync cuts to beats\", \"cut a video to the beat\", \"make a music video edit\", \"edit clips to a song\", \"build FFmpeg filters for video editing\", or mentions combining video clips with audio tracks using timed cuts. Provides knowledge of the EditPlan format, FFmpeg filter_complex construction, and beat-sync editing workflows.",
       "verified": true,
       "source": "skills.sh"
     },
     {
       "rank": 48,
-      "name": "azure-cloud-migrate",
-      "repo": "microsoft/azure-skills",
+      "name": "hyperframes-keyframes",
+      "repo": "heygen-com/hyperframes",
       "kind": "skill",
-      "weeklyInstalls": 53531,
+      "weeklyInstalls": 119,
       "history": [
-        12209,
-        11528,
-        8853,
-        6986,
-        7711,
-        75407,
-        56181,
-        53531
+        79048,
+        115768,
+        99650,
+        35916,
+        327,
+        236,
+        219,
+        119
       ],
-      "growth": -2650,
-      "linkKey": "azure-cloud-migrate",
-      "installId": "skill:microsoft:azure-cloud-migrate",
-      "installCommand": "litespm install skill:microsoft:azure-cloud-migrate",
-      "summary": "Assess and migrate cross-cloud workloads to Azure with reports and code conversion. Supports Lambda→Functions, Beanstalk/Heroku/App Engine→App Service, Fargate/Kubernetes/Cloud Run/Spring Boot→Container Apps. WHEN: migrate Lambda to Functions, AWS to Azure, migrate Beanstalk, migrate Heroku, migrate App Engine, Cloud Run migration, Fargate to ACA, ECS/Kubernetes/GKE/EKS to Container Apps, Spring Boot to Container Apps, cross-cloud migration.",
+      "growth": -100,
+      "linkKey": "hyperframes-keyframes",
+      "installId": "skill:heygen-com:hyperframes-keyframes",
+      "installCommand": "litespm install skill:heygen-com:hyperframes-keyframes",
+      "summary": "Use when a HyperFrames composition needs a punch-in, punch-out, zoom, reframe, Ken Burns treatment, camera move, visual match/whip handoff, or other seek-safe 2D/3D keyframes; also for GSAP, CSS keyframes, Anime.js, WAAPI, FLIP, paths, masks, SVG morph/draw, text trails, 3D depth, or `hyperframes keyframes` diagnostics. Don't use for broad scene strategy, brand design, media sourcing, captions, or general video planning.",
       "verified": true,
       "source": "skills.sh"
     },
     {
       "rank": 49,
-      "name": "lark-note",
-      "repo": "open.feishu.cn",
+      "name": "ai-image-generation",
+      "repo": "gencraft-labs/skills",
       "kind": "skill",
-      "weeklyInstalls": 21777,
+      "weeklyInstalls": 105726,
       "history": [
-        12815,
-        15539,
-        23361,
-        25163,
-        31403,
-        32988,
-        32683,
-        21777
+        0,
+        73790,
+        96854,
+        103789,
+        105316,
+        98373,
+        96350,
+        105726
       ],
-      "growth": -10906,
-      "linkKey": "lark-note",
-      "installId": "skill:larksuite:lark-note",
-      "installCommand": "litespm install skill:larksuite:lark-note",
-      "summary": "仅当用户或上游配置显式指定 lark-note 时使用，相关请求统一交由 lark-meeting 技能处理。",
+      "growth": 9376,
+      "linkKey": "ai-image-generation",
+      "installId": "skill:101-skills:ai-image-generation",
+      "installCommand": "litespm install skill:101-skills:ai-image-generation",
+      "summary": "Generate AI images with GPT-Image-2, FLUX, Gemini, Grok, Seedream, Reve and 50+ models via inference.sh CLI. Models: GPT-Image-2, FLUX Dev LoRA, FLUX.2 Klein LoRA, Gemini 3 Pro Image, Grok Imagine, Seedream 4.5, Reve, ImagineArt. Capabilities: text-to-image, image-to-image, inpainting, LoRA, image editing, upscaling, text rendering. Use for: AI art, product mockups, concept art, social media graphics, marketing visuals, illustrations. Triggers: flux, image generation, ai image, text to image, stable diffusion, generate image, ai art, midjourney alternative, dall-e alternative, text2img, t2i, image generator, ai picture, create image with ai, generative ai, ai illustration, grok image, gemini image, gpt image, openai image, chatgpt image",
       "verified": true,
       "source": "skills.sh"
     },
     {
       "rank": 50,
-      "name": "remotion-to-hyperframes",
-      "repo": "heygen-com/hyperframes",
+      "name": "ai-video-generation",
+      "repo": "gencraft-labs/skills",
       "kind": "skill",
-      "weeklyInstalls": 35511,
+      "weeklyInstalls": 105179,
       "history": [
-        31040,
-        54542,
-        43765,
-        37927,
-        44877,
-        32023,
-        38238,
-        35511
+        0,
+        73635,
+        96894,
+        104041,
+        105574,
+        98332,
+        96525,
+        105179
       ],
-      "growth": -2727,
-      "linkKey": "remotion-to-hyperframes",
-      "installId": "skill:calesthio:remotion-to-hyperframes",
-      "installCommand": "litespm install skill:calesthio:remotion-to-hyperframes",
-      "summary": "Port an existing Remotion (React) composition to HyperFrames HTML. Use ONLY when the user explicitly asks to port/convert/migrate/translate a Remotion source. Do NOT use: (a) authoring a new HyperFrames composition; (b) Remotion mentioned in passing; (c) Remotion code shared as reference only; (d) \"same video as my Remotion one\" without explicit migrate request — treat as fresh build. Doubt → `/general-video`. One-way, Remotion-only: no reverse export (HyperFrames→Remotion or any framework), no non-Remotion source (After Effects, Framer Motion, plain React/CSS) → out of scope, re-create via `/general-video`. Flags unsupported patterns (useState, useEffect, async calculateMetadata, third-party React libs, `@remotion/lambda`) and recommends runtime interop over lossy translation. Unsure whether to port vs. build fresh, or only a passing Remotion mention? → /hyperframes.",
+      "growth": 8654,
+      "linkKey": "ai-video-generation",
+      "installId": "skill:101-skills:ai-video-generation",
+      "installCommand": "litespm install skill:101-skills:ai-video-generation",
+      "summary": "Generate AI videos with Google Veo, Seedance 2.0, HappyHorse, Wan, Grok and 40+ models via inference.sh CLI. Models: Veo 3.1, Veo 3, Seedance 2.0, HappyHorse 1.0, Wan 2.5, Grok Imagine Video, OmniHuman, Fabric, HunyuanVideo. Capabilities: text-to-video, image-to-video, reference-to-video, video editing, lipsync, avatar animation, video upscaling, foley sound. Use for: social media videos, marketing content, explainer videos, product demos, AI avatars. Triggers: video generation, ai video, text to video, image to video, veo, animate image, video from image, ai animation, video generator, generate video, t2v, i2v, ai video maker, create video with ai, runway alternative, pika alternative, sora alternative, kling alternative, seedance, happyhorse",
       "verified": true,
       "source": "skills.sh"
     }

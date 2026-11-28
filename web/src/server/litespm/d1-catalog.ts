@@ -54,11 +54,104 @@ const EMPTY_FACETS: CatalogFacets = {
   hosts: [],
 };
 
+const CONVERSATIONAL_STOP_WORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "better", "by", "can", "do",
+  "find", "for", "from", "get", "give", "good", "help", "how", "i", "in",
+  "into", "is", "it", "let", "make", "me", "my", "need", "of", "on", "or",
+  "read", "show", "some", "that", "the", "to", "use", "using", "want", "with",
+  "you", "your",
+]);
+
+const GENERIC_NOUN_STOP_WORDS = new Set([
+  "add", "agent", "agents", "ai", "assistant", "assistants", "capability",
+  "capabilities", "mcp", "mcps", "plugin", "plugins", "server", "servers",
+  "skill", "skills", "tool", "tools",
+]);
+
+const SEARCH_SYNONYMS: Record<string, string[]> = {
+  academic: ["academic", "arxiv", "paper", "scholar", "research"],
+  audit: ["audit", "auditing", "security", "semgrep", "vulnerability"],
+  auditing: ["auditing", "audit", "security", "semgrep", "vulnerability"],
+  browse: ["browse", "browser", "web", "fetch", "playwright", "firecrawl"],
+  code: ["code", "coding", "developer", "github", "git"],
+  coding: ["coding", "code", "developer", "github", "git"],
+  database: ["database", "postgres", "sqlite", "mysql", "supabase", "neon", "sql"],
+  db: ["database", "postgres", "sqlite", "mysql", "supabase", "neon"],
+  design: ["design", "ui", "ux", "figma", "css", "tailwind"],
+  frontend: ["frontend", "react", "nextjs", "tailwind", "css", "ui"],
+  internet: ["internet", "web", "browser", "fetch", "playwright", "search"],
+  paper: ["paper", "papers", "arxiv", "academic", "research", "scholar"],
+  papers: ["papers", "paper", "arxiv", "academic", "research", "scholar"],
+  pdf: ["pdf", "pdfs", "document", "pypdf"],
+  pdfs: ["pdfs", "pdf", "document"],
+  research: ["research", "arxiv", "paper", "scholar", "search"],
+  security: ["security", "audit", "auditing", "semgrep", "vulnerability"],
+};
+
 function ftsTokens(q: string): string[] {
-  return (q.trim().toLowerCase().match(/[a-z0-9_]+/g) ?? []).slice(0, 6);
+  const raw = (q.trim().toLowerCase().match(/[a-z0-9_]+/g) ?? []).slice(0, 12);
+  const withoutConv = raw.filter((t) => !CONVERSATIONAL_STOP_WORDS.has(t));
+  const contentOnly = withoutConv.filter((t) => !GENERIC_NOUN_STOP_WORDS.has(t));
+  const chosen = contentOnly.length > 0 ? contentOnly : withoutConv.length > 0 ? withoutConv : raw;
+  return chosen.slice(0, 6);
 }
 
-function buildWhere(query: CatalogQuery, alias = "c"): { sql: string; params: unknown[]; ftsQuery: string | null } {
+function expandTokenGroup(token: string): string {
+  const variants = new Set<string>([token]);
+  if (token.length > 3 && token.endsWith("s") && !token.endsWith("ss")) {
+    variants.add(token.slice(0, -1));
+  }
+  for (const syn of SEARCH_SYNONYMS[token] ?? []) {
+    variants.add(syn);
+  }
+  const safe = Array.from(variants).filter((v) => /^[a-z0-9_]+$/.test(v));
+  if (safe.length === 1) return `"${safe[0]}"*`;
+  return `(${safe.map((v) => `"${v}"*`).join(" OR ")})`;
+}
+
+function editDistanceAtMost1(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  if (a.length === b.length) {
+    let diff = -1;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] === b[i]) continue;
+      if (diff === -1) {
+        diff = i;
+      } else {
+        // Allow one adjacent transposition (e.g. gihtub <-> github)
+        return (
+          i === diff + 1 &&
+          a[diff] === b[i] &&
+          a[i] === b[diff] &&
+          a.slice(i + 1) === b.slice(i + 1)
+        );
+      }
+    }
+    return true;
+  }
+  const [shorter, longer] = a.length < b.length ? [a, b] : [b, a];
+  let si = 0;
+  let li = 0;
+  let skipped = false;
+  while (si < shorter.length && li < longer.length) {
+    if (shorter[si] === longer[li]) {
+      si++;
+      li++;
+    } else if (!skipped) {
+      skipped = true;
+      li++;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+function buildWhere(
+  query: CatalogQuery,
+  alias = "c",
+): { sql: string; params: unknown[]; ftsQuery: string | null; ftsFallbackQuery: string | null; singleRawToken: string | null } {
   const clauses: string[] = [];
   const params: unknown[] = [];
 
@@ -100,16 +193,24 @@ function buildWhere(query: CatalogQuery, alias = "c"): { sql: string; params: un
   }
 
   let ftsQuery: string | null = null;
+  let ftsFallbackQuery: string | null = null;
   const tokens = query.q ? ftsTokens(query.q) : [];
   if (tokens.length > 0) {
+    const groups = tokens.map(expandTokenGroup);
     const joiner = query.match === "any" ? " OR " : " AND ";
-    ftsQuery = tokens.map((t) => `"${t}"*`).join(joiner);
+    ftsQuery = groups.join(joiner);
+    if (query.match !== "any" && tokens.length > 1) {
+      ftsFallbackQuery = groups.join(" OR ");
+    }
   }
+  const singleRawToken = tokens.length === 1 && tokens[0].length >= 4 ? tokens[0] : null;
 
   return {
     sql: clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "",
     params,
     ftsQuery,
+    ftsFallbackQuery,
+    singleRawToken,
   };
 }
 
@@ -135,19 +236,76 @@ export async function searchCatalogD1(query: CatalogQuery): Promise<CatalogListR
   if (!db) return null;
 
   const pageSize = Math.max(1, Math.min(100, query.pageSize ?? 24));
-  const { sql: whereSql, params, ftsQuery } = buildWhere(query, "c");
+  const { sql: whereSql, params, ftsQuery, ftsFallbackQuery, singleRawToken } = buildWhere(query, "c");
 
-  const fromSql = ftsQuery
-    ? `FROM "CatalogFts" f JOIN "CatalogListing" c ON c."id" = f."id"`
-    : `FROM "CatalogListing" c`;
-  const fullWhere = ftsQuery
-    ? (whereSql ? `${whereSql} AND "CatalogFts" MATCH ?` : `WHERE "CatalogFts" MATCH ?`)
-    : whereSql;
-  const fullParams = ftsQuery ? [...params, ftsQuery] : params;
+  const makeFromWhere = (activeFts: string | null) => ({
+    activeFts,
+    fromSql: activeFts
+      ? `FROM "CatalogFts" f JOIN "CatalogListing" c ON c."id" = f."id"`
+      : `FROM "CatalogListing" c`,
+    fullWhere: activeFts
+      ? (whereSql ? `${whereSql} AND "CatalogFts" MATCH ?` : `WHERE "CatalogFts" MATCH ?`)
+      : whereSql,
+    fullParams: activeFts ? [...params, activeFts] : params,
+  });
+
+  let ctx = makeFromWhere(ftsQuery);
+  let countRow = await db
+    .prepare(`SELECT COUNT(DISTINCT c."dk") AS cnt ${ctx.fromSql} ${ctx.fullWhere}`)
+    .bind(...ctx.fullParams)
+    .first<{ cnt: number }>();
+  let total = countRow?.cnt ?? 0;
+
+  if (total === 0 && ftsFallbackQuery && ftsFallbackQuery !== ftsQuery) {
+    const fallbackCtx = makeFromWhere(ftsFallbackQuery);
+    const fbCount = await db
+      .prepare(`SELECT COUNT(DISTINCT c."dk") AS cnt ${fallbackCtx.fromSql} ${fallbackCtx.fullWhere}`)
+      .bind(...fallbackCtx.fullParams)
+      .first<{ cnt: number }>();
+    if ((fbCount?.cnt ?? 0) > 0) {
+      ctx = fallbackCtx;
+      total = fbCount?.cnt ?? 0;
+    }
+  }
+
+  if (total === 0 && singleRawToken) {
+    const prefixPat = `${singleRawToken.slice(0, 2)}%`;
+    const suffixPat = `%${singleRawToken.slice(-3)}`;
+    const typoWhere = whereSql
+      ? `${whereSql} AND (lower(c."name") LIKE ? OR lower(c."slug") LIKE ? OR lower(c."name") LIKE ? OR lower(c."slug") LIKE ?)`
+      : `WHERE (lower(c."name") LIKE ? OR lower(c."slug") LIKE ? OR lower(c."name") LIKE ? OR lower(c."slug") LIKE ?)`;
+    const candidates = await db
+      .prepare(`SELECT c."name", c."slug", c."hitJson" FROM "CatalogListing" c ${typoWhere} ORDER BY c."installable" DESC, c."rankScore" DESC LIMIT 120`)
+      .bind(...params, prefixPat, prefixPat, suffixPat, suffixPat)
+      .all<{ name: string; slug: string; hitJson: string }>();
+    const matched = candidates.results
+      .filter((r) => {
+        const words = `${r.name} ${r.slug}`.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+        return words.some((w) => editDistanceAtMost1(singleRawToken, w));
+      })
+      .map((r) => JSON.parse(r.hitJson) as CatalogHit);
+    if (matched.length > 0) {
+      const typoTotal = matched.length;
+      const pageCount = Math.max(1, Math.ceil(typoTotal / pageSize));
+      const page = Math.min(pageCount, Math.max(1, query.page ?? 1));
+      const offset = (page - 1) * pageSize;
+      return {
+        total: typoTotal,
+        uniqueListings: 68933,
+        page,
+        pageSize,
+        pageCount,
+        items: query.facets === "only" ? [] : matched.slice(offset, offset + pageSize),
+        facets: EMPTY_FACETS,
+      };
+    }
+  }
+
+  const { activeFts, fromSql, fullWhere, fullParams } = ctx;
 
   let facets: CatalogFacets = EMPTY_FACETS;
   if (query.facets !== false) {
-    const isUnfiltered = !ftsQuery && !whereSql;
+    const isUnfiltered = !activeFts && !whereSql;
     if (isUnfiltered) {
       const pre = await readPrecomputedJson<CatalogFacets>("facets.json");
       if (pre) facets = pre;
@@ -175,8 +333,6 @@ export async function searchCatalogD1(query: CatalogQuery): Promise<CatalogListR
   }
 
   if (query.facets === "only") {
-    const countRow = await db.prepare(`SELECT COUNT(DISTINCT c."dk") AS cnt ${fromSql} ${fullWhere}`).bind(...fullParams).first<{ cnt: number }>();
-    const total = countRow?.cnt ?? 0;
     return {
       total,
       uniqueListings: 68933,
@@ -188,14 +344,12 @@ export async function searchCatalogD1(query: CatalogQuery): Promise<CatalogListR
     };
   }
 
-  const countRow = await db.prepare(`SELECT COUNT(DISTINCT c."dk") AS cnt ${fromSql} ${fullWhere}`).bind(...fullParams).first<{ cnt: number }>();
-  const total = countRow?.cnt ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(pageCount, Math.max(1, query.page ?? 1));
   const offset = (page - 1) * pageSize;
 
   const rowsRes = await db
-    .prepare(`SELECT c."hitJson" ${fromSql} ${fullWhere} ${orderBySql(query.sort, Boolean(ftsQuery))} LIMIT ? OFFSET ?`)
+    .prepare(`SELECT c."hitJson" ${fromSql} ${fullWhere} ${orderBySql(query.sort, Boolean(activeFts))} LIMIT ? OFFSET ?`)
     .bind(...fullParams, pageSize, offset)
     .all<{ hitJson: string }>();
 

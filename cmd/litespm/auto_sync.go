@@ -64,7 +64,7 @@ func autoSyncCommandAllowed(args []string) bool {
 		return true
 	}
 	switch args[0] {
-	case "bridge", "daemon", "catalog", "version", "--version", "-v", "help", "--help", "-h",
+	case "bridge", "daemon", "catalog", "sync", "version", "--version", "-v", "help", "--help", "-h",
 		"self-update", "update", "uninstall", "init":
 		return false
 	}
@@ -145,14 +145,35 @@ func writeStamp(paths *config.PlatformPaths, now time.Time) {
 }
 
 func writeFileAtomic(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	tmpPath := tmp.Name()
+	cleanup := func() { _ = os.Remove(tmpPath) }
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		cleanup()
+		return err
+	}
+	return nil
 }
 
 // autoSyncRunning reports whether a sync holds the lock (for the popups'
